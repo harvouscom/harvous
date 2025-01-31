@@ -1,5 +1,5 @@
 import { notes } from "./notes";
 
-export const actions = {
+export const server = {
   notes
 };
