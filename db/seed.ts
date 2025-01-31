@@ -1,8 +1,8 @@
-import { db, Note } from 'astro:db';
+import { db, Notes } from 'astro:db';
 
 // https://astro.build/db/seed
 export default async function seed() {
-	await db.insert(Note).values([
+	await db.insert(Notes).values([
 		{
 			title: 'Hello World',
 			content: 'This is a test note',

@@ -1,7 +1,7 @@
 
 import { defineDb, defineTable, column } from 'astro:db';
 
-const Note = defineTable({
+const Notes = defineTable({
   columns: {
     title: column.text(),
     content: column.text(),
@@ -15,6 +15,6 @@ const Note = defineTable({
 // https://astro.build/db/config
 export default defineDb({
   tables: {
-    Note
+    Notes
   }
 });
