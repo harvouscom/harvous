@@ -4,7 +4,7 @@ import { defineDb, defineTable, column } from 'astro:db';
 const Notes = defineTable({
   columns: {
     id: column.number({ primaryKey: true }),
-    title: column.text(),
+    title: column.text({ optional: true }),
     content: column.text(),
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
