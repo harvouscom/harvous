@@ -7,7 +7,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "db:push": "astro db push --remote"
+    "db:sync": "astro db sync"
   },
   "dependencies": {
     "@astrojs/alpinejs": "^0.4.3",
