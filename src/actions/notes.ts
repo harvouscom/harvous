@@ -13,13 +13,16 @@ export const notes = {
     }),
     handler: async ({ content, title, userId, isPublic = false }) => {
       try {
-        const newNote = await db.insert(Notes).values({ 
-          content, 
-          title, 
-          userId, 
-          isPublic,
-          createdAt: new Date() 
-        });
+        const newNote = await db.insert(Notes)
+          .values({ 
+            content, 
+            title, 
+            userId, 
+            isPublic,
+            createdAt: new Date() 
+          })
+          .returning()
+          .get()
 
         return {
           success: "Note created successfully!",

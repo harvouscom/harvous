@@ -1,6 +1,5 @@
 /// <reference types="astro/client" />
 /// <reference types="@clerk/astro/dist/types" />
-/// <reference path="../.astro/db-types.d.ts" />
 /// <reference path="../.astro/types.d.ts" />
 
 import type { Auth, UserResource } from "@clerk/types";
