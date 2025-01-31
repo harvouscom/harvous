@@ -6,11 +6,13 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "db:push": "astro db push --remote"
   },
   "dependencies": {
     "@astrojs/alpinejs": "^0.4.3",
     "@astrojs/db": "^0.14.6",
+    "@clerk/astro": "^2.1.18",
     "@tailwindcss/vite": "^4.0.1",
     "@types/alpinejs": "^3.13.11",
     "alpinejs": "^3.14.8",
