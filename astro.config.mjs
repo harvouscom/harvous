@@ -8,5 +8,9 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()]
   },
-  integrations: [alpinejs()]
+  integrations: [
+    alpinejs({
+      entrypoint: './src/entrypoint.ts'
+    })
+  ]
 });
