@@ -1,7 +1,29 @@
 ---
+import { db, eq, Notes } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
+
+if (!Astro.locals.auth().userId) {
+  return Astro.redirect("/");
+}
+
+const user = await Astro.locals.currentUser();
+
+if (!user) {
+  return Astro.redirect("/");
+}
+
+const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
 ---
 
 <Layout>
   <h1>You're signed in!</h1>
+  <ul>
+    {
+      notes.map((note) => (
+        <li>
+          <a href={`/dashboard/notes/${note.id}`}>{note.title}</a>
+        </li>
+      ))
+    }
+  </ul>
 </Layout>
