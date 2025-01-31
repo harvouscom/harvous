@@ -18,3 +18,18 @@ declare global {
     }
   }
 }
+
+interface ImportMetaEnv {
+  /** https://docs.astro.build/en/guides/astro-db/#libsql */
+  readonly ASTRO_DB_REMOTE_URL: string;
+  /** https://docs.astro.build/en/guides/astro-db/#libsql */
+  readonly ASTRO_DB_APP_TOKEN: string;
+  /** https://clerk.com/docs/deployments/clerk-environment-variables#clerk-environment-variables */
+  readonly PUBLIC_CLERK_PUBLISHABLE_KEY: string;
+  /** https://clerk.com/docs/deployments/clerk-environment-variables#clerk-environment-variables */
+  readonly CLERK_SECRET_KEY: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
