@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+@theme {
+    --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
