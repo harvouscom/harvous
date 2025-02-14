@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+* {
+    @apply shrink-0 select-none;
+}
+  
+[x-cloak] {
+    display: none;
+}
+
 :root {
     --color-blue: #006EFF;
     --color-deep-grey: #4A473D;
@@ -20,6 +28,9 @@
     --color-pleasant-peach: #FCD8A0;
     --color-lovely-lavender: #E8C9FF;
     --surface-primary: var(--color-soft-paper);
+    --shadow-primary: 0px 6px 0px 0px #D3D0C5;
+    --text-color-primary: var(--color-deep-grey);
+    --text-color-secondary: var(--color-stone-grey);
 }
 
 @theme {

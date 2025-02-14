@@ -19,23 +19,41 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
 ---
 
 <Layout>
-  <h1>You're signed in!</h1>
-  {JSON.stringify(result)}
-  <ul>
-    {
-      notes.map((note) => (
-        <li>
-          <a href={`/dashboard/notes/${note.id}`}>{note.title}</a>
-        </li>
-      ))
-    }
-  </ul>
+  <main
+    class="max-w-screen-sm mx-auto px-6 py-12 grid grid-rows-[auto_1fr] gap-3"
+  >
+    <h1 class="text-2xl font-bold">Notes</h1>
 
-  <form method="POST" action={actions.notes.create}>
-    <input type="text" name="title" placeholder="Title" />
-    <textarea rows={4} name="content" placeholder="Content"></textarea>
-    <input type="hidden" name="userId" value={user.id} />
-    <input type="hidden" name="isPublic" value="false" />
-    <button type="submit">Create Note</button>
-  </form>
+    <ul class="grid max-sm:grid-cols-2 sm:grid-cols-3 gap-3 gap-y-4">
+      {
+        notes.map((note) => (
+          <li class="w-full">
+            <a
+              class="box-border grid grid-cols-[28px_1fr] bg-white rounded-xl shadow-[var(--shadow-primary)] overflow-hidden"
+              href={`/dashboard/notes/${note.id}`}
+            >
+              {/* Decoration */}
+              <div class="h-full w-full bg-[var(--color-light-paper)] py-3" />
+              <div class="ps-7 flex flex-col gap-1.5 py-3">
+                <h2 class="text-[var(--text-color-primary)] text-lg font-bold line-clamp-2">
+                  {note.title}
+                </h2>
+                <p class="text-[var(--text-color-secondary)] text-sm line-clamp-3">
+                  {note.content}
+                </p>
+              </div>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+
+    <!-- <form method="POST" action={actions.notes.create}>
+      <input type="text" name="title" placeholder="Title" />
+      <textarea rows={4} name="content" placeholder="Content"></textarea>
+      <input type="hidden" name="userId" value={user.id} />
+      <input type="hidden" name="isPublic" value="false" />
+      <button type="submit">Create Note</button>
+    </form> -->
+  </main>
 </Layout>
