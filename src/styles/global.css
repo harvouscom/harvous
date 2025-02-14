@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-    --color-primary: #006EFF;
+    --color-blue: #006EFF;
     --color-deep-grey: #4A473D;
     --color-stone-grey: #78766F;
     --color-pebble-grey: #888680;
@@ -19,9 +19,11 @@
     --color-peaceful-pink: #F7CEEE;
     --color-pleasant-peach: #FCD8A0;
     --color-lovely-lavender: #E8C9FF;
+    --surface-primary: var(--color-soft-paper);
 }
 
 @theme {
     --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
     --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --primary-color: var(--color-blue);
 }
