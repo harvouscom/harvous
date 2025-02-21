@@ -3,10 +3,12 @@ import FaPlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
 ---
 
 <button
-  class="cursor-pointer bg-[var(--color-blue)] p-2 w-16 h-16 rounded-3xl flex items-center justify-center"
+  class="[&:active>svg]:-translate-y-0 cursor-pointer bg-[var(--color-blue)] p-2 w-16 h-16 rounded-3xl flex items-center justify-center"
   {...Astro.props}
 >
-  <FaPlusIcon class="w-6 h-6 fill-white" />
+  <FaPlusIcon
+    class="-translate-y-0.5 w-6 h-6 fill-white transition-transform duration-125"
+  />
 </button>
 
 <style>
@@ -22,7 +24,8 @@ import FaPlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
   button:active {
     background-color: var(--color-navy);
     box-shadow:
-      0px -8px 0px 0px #0000001a inset,
-      0px 0px 4px 0px #00000040;
+      0px -4px 0px 0px #0000001a inset,
+      0px 0px 4px 0px #00000040,
+      0px 4px 0px 0px #00000040 inset;
   }
 </style>
