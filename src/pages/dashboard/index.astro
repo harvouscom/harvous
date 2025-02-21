@@ -3,7 +3,7 @@ import { actions } from "astro:actions";
 import { db, eq, Notes } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import NoteCard from "@/components/NoteCard.astro";
-import FloatingButton from "@/components/FloatingButton.astro";
+import CtaButton from "@/components/CtaButton.astro";
 
 if (!Astro.locals.auth().userId) {
   return Astro.redirect("/");
@@ -45,6 +45,6 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
       <input type="hidden" name="isPublic" value="false" />
       <button type="submit">Create Note</button>
     </form> -->
-    <FloatingButton />
+    <CtaButton />
   </main>
 </Layout>
