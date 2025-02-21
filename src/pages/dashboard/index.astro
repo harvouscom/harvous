@@ -29,8 +29,8 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
     <ul class="grid max-sm:grid-cols-2 sm:grid-cols-3 gap-3 gap-y-4">
       {
         notes.map((note) => (
-          <li class="w-full">
-            <a href={`/dashboard/notes/${note.id}`}>
+          <li class="w-full h-full">
+            <a class="h-full" href={`/dashboard/notes/${note.id}`}>
               <NoteCard title={note.title ?? ""} content={note.content ?? ""} />
             </a>
           </li>
@@ -50,7 +50,7 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
         placeholder="Title"
       />
       <textarea
-        class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
+        class="resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
         rows={4}
         name="content"
         placeholder="Content"></textarea>
