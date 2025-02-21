@@ -38,13 +38,30 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
       }
     </ul>
 
-    <!-- <form method="POST" action={actions.notes.create}>
-      <input type="text" name="title" placeholder="Title" />
-      <textarea rows={4} name="content" placeholder="Content"></textarea>
+    <form
+      class="mt-6 flex gap-3 flex-col"
+      method="POST"
+      action={actions.notes.create}
+    >
+      <input
+        class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
+        type="text"
+        name="title"
+        placeholder="Title"
+      />
+      <textarea
+        class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
+        rows={4}
+        name="content"
+        placeholder="Content"></textarea>
       <input type="hidden" name="userId" value={user.id} />
       <input type="hidden" name="isPublic" value="false" />
-      <button type="submit">Create Note</button>
-    </form> -->
+      <button
+        class="bg-[var(--color-blue)] text-white py-3 px-3 rounded-xl shadow-[0px_-4px_0px_0px_#0000001A_inset] h-[60px]"
+        type="submit">Create Note</button
+      >
+    </form>
+
     <CtaButton />
   </main>
 </Layout>
