@@ -21,6 +21,10 @@ export default defineConfig({
     clerk(),
   ],
 
+  experimental: {
+    svg: true,
+  },
+
   output: "server",
   adapter: netlify(),
 });
