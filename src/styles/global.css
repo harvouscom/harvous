@@ -5,7 +5,7 @@
 }
   
 [x-cloak] {
-    display: none;
+    @apply hidden;
 }
 
 :root {
@@ -38,4 +38,8 @@
     --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
     --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     --primary-color: var(--color-blue);
+}
+
+.text-title {
+    @apply font-sans font-semibold text-[20px] leading-[25.98px] tracking-normal;
 }
