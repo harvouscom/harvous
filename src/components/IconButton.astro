@@ -17,15 +17,16 @@ const SVG_SIZE_MAP = {
 
 const sizeSchema = z.enum(["sm", "md"]);
 
-if (!sizeSchema.safeParse(Astro.props.size).success) {
+const { size, ...props } = Astro.props;
+
+if (!sizeSchema.safeParse(size).success) {
   throw new Error("Invalid size");
 }
-
-const size = sizeSchema.parse(Astro.props.size);
 ---
 
 <button
-  class="icon-btn flex items-center justify-center absolute shadow-[0px_-2.91px_0px_0px_#0000001A_inset] top-3 -right-4 bg-[var(--color-paper)] rounded-full"
+  class="icon-btn flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset] bg-[var(--color-paper)] rounded-full"
+  {...props}
 >
   <slot />
 </button>
