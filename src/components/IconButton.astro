@@ -5,7 +5,7 @@ interface Props {
   size: "sm" | "md";
 }
 
-const SIZE_MAP = {
+const BUTTON_SIZE_MAP = {
   sm: 32,
   md: 44,
 };
@@ -20,8 +20,18 @@ const size = sizeSchema.parse(Astro.props.size);
 ---
 
 <button
-  class="flex items-center justify-center absolute shadow-[0px_-2.91px_0px_0px_#0000001A_inset] top-3 -right-4 h-8 w-8 bg-[var(--color-paper)] rounded-full"
-  style={`width: ${SIZE_MAP[size]}px; height: ${SIZE_MAP[size]}px;`}
+  class="flex items-center justify-center absolute shadow-[0px_-2.91px_0px_0px_#0000001A_inset] top-3 -right-4 bg-[var(--color-paper)] rounded-full"
 >
   <slot />
 </button>
+
+<style
+  define:vars={{
+    size: BUTTON_SIZE_MAP[size] + "px",
+  }}
+>
+  button {
+    width: var(--size);
+    height: var(--size);
+  }
+</style>
