@@ -10,6 +10,11 @@ const BUTTON_SIZE_MAP = {
   md: 44,
 };
 
+const SVG_SIZE_MAP = {
+  sm: 15,
+  md: 20,
+};
+
 const sizeSchema = z.enum(["sm", "md"]);
 
 if (!sizeSchema.safeParse(Astro.props.size).success) {
@@ -20,7 +25,7 @@ const size = sizeSchema.parse(Astro.props.size);
 ---
 
 <button
-  class="flex items-center justify-center absolute shadow-[0px_-2.91px_0px_0px_#0000001A_inset] top-3 -right-4 bg-[var(--color-paper)] rounded-full"
+  class="icon-btn flex items-center justify-center absolute shadow-[0px_-2.91px_0px_0px_#0000001A_inset] top-3 -right-4 bg-[var(--color-paper)] rounded-full"
 >
   <slot />
 </button>
@@ -28,10 +33,17 @@ const size = sizeSchema.parse(Astro.props.size);
 <style
   define:vars={{
     size: BUTTON_SIZE_MAP[size] + "px",
+    "svg-size": SVG_SIZE_MAP[size] + "px",
   }}
 >
-  button {
+  .icon-btn {
     width: var(--size);
     height: var(--size);
+
+    svg {
+      color: var(--color-stone-grey);
+      width: var(--svg-size);
+      height: var(--svg-size);
+    }
   }
 </style>
