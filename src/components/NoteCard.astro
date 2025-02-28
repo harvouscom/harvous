@@ -1,6 +1,7 @@
 ---
 import IconButton from "@/components/IconButton.astro";
-import QuestionIcon from "@/assets/icons/question.svg";
+import FaQuestionIcon from "@fortawesome/fontawesome-free/svgs/solid/question.svg";
+
 interface Props {
   title: string;
   content: string;
@@ -19,7 +20,7 @@ const trimmedContent = content.slice(0, 100);
   <div class="relative h-full w-full bg-[var(--color-light-paper)] py-3">
     {/* Circle Icon */}
     <IconButton size="sm">
-      <QuestionIcon />
+      <FaQuestionIcon />
     </IconButton>
   </div>
   <div class="ps-7 pe-3 flex flex-col gap-1.5 py-3">
