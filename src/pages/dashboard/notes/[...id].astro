@@ -1,0 +1,40 @@
+---
+import { db, eq, Notes, and } from "astro:db";
+import { z } from "zod";
+import Layout from "@/layouts/Layout.astro";
+
+const { id } = Astro.params;
+
+if (!id || z.number({ coerce: true }).safeParse(id).success === false) {
+  return Astro.redirect("/dashboard/notes");
+}
+
+const numericId = parseInt(id);
+const currentUser = Astro.locals.auth();
+const userId = currentUser ? currentUser.userId : null;
+
+if (!userId) {
+  return Astro.redirect("/login");
+}
+
+const notes = await db
+  .select()
+  .from(Notes)
+  .where(and(eq(Notes.id, numericId), eq(Notes.userId, userId as string)))
+  .limit(1);
+
+if (!notes.length) {
+  return Astro.redirect("/dashboard/notes");
+}
+
+const noteData = notes[0];
+---
+
+<Layout title="Note">
+  <main
+    class="max-w-screen-sm mx-auto px-6 py-12 grid grid-rows-[auto_1fr] gap-3"
+  >
+    <h1 class="text-2xl font-bold">{noteData.title || "Untitled Note"}</h1>
+    <div class="whitespace-pre-wrap">{noteData.content}</div>
+  </main>
+</Layout>
