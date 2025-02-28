@@ -19,9 +19,11 @@ const trimmedContent = content.slice(0, 100);
   {/* Side Highlight */}
   <div class="relative h-full w-full bg-[var(--color-light-paper)] py-3">
     {/* Circle Icon */}
-    <IconButton size="sm" class:list="absolute top-3 right-3">
-      <FaQuestionIcon />
-    </IconButton>
+    <div class="absolute top-3 -right-4">
+      <IconButton size="sm">
+        <FaQuestionIcon />
+      </IconButton>
+    </div>
   </div>
   <div class="ps-7 pe-3 flex flex-col gap-1.5 py-3">
     <h2
