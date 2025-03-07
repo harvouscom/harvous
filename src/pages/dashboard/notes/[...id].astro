@@ -35,12 +35,13 @@ const noteData = notes[0];
   <main
     class="max-w-screen-sm mx-auto px-6 py-12 grid grid-rows-[auto_1fr] gap-3"
   >
-    <div class="flex items-center gap-2">
+    <section class="px-1 py-2 flex items-center gap-2">
       <IconButton size="md">
         <FaQuestionIcon />
       </IconButton>
       <h1 class="text-title">{noteData.title || "Untitled Note"}</h1>
-    </div>
-    <div class="whitespace-pre-wrap">{noteData.content}</div>
+    </section>
+
+    <div class="text-body whitespace-pre-wrap px-6 py-5 bg-(--color-light-paper) rounded-xl">{noteData.content}</div>
   </main>
 </Layout>

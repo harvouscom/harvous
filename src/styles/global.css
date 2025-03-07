@@ -43,3 +43,12 @@
 .text-title {
     @apply font-sans font-semibold text-[20px] leading-[25.98px] tracking-normal;
 }
+
+.text-body {
+    @apply font-sans font-normal text-[16px] leading-[150%] tracking-normal;
+}
+
+.text-caption {
+    @apply font-mono font-medium text-[10px] leading-[100%] tracking-normal;
+}
+
