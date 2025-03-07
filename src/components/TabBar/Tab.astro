@@ -1,0 +1,18 @@
+---
+interface Props {
+  label: string;
+  href: string;
+}
+
+const { label, href }: Props = Astro.props;
+---
+
+<a href={href} role="tab" class="px-5 py-3 w-fit">
+  <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
+</a>
+
+<style>
+  .tab-text {
+    text-box: trim-both cap alphabetic;
+  }
+</style>

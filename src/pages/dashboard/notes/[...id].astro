@@ -4,6 +4,8 @@ import { z } from "zod";
 import Layout from "@/layouts/Layout.astro";
 import IconButton from "@/components/IconButton.astro";
 import FaQuestionIcon from "@fortawesome/fontawesome-free/svgs/solid/question.svg";
+import Tab from "@/components/TabBar/Tab.astro";
+
 const { id } = Astro.params;
 
 if (!id || z.number({ coerce: true }).safeParse(id).success === false) {
@@ -35,6 +37,13 @@ const noteData = notes[0];
   <main
     class="max-w-screen-sm mx-auto px-6 py-12 grid grid-rows-[auto_1fr] gap-3"
   >
+    <div class="flex items-center gap-2">
+      <Tab label="Feed" href="#" />
+      <Tab label="Search" href="#" />
+      <Tab label="Thread" href="#" />
+      <Tab label="Note" href="#" />
+    </div>
+
     <section class="px-1 py-2 flex items-center gap-2">
       <IconButton size="md">
         <FaQuestionIcon />
