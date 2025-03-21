@@ -4,7 +4,7 @@ import { db, eq, Notes } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import NoteCard from "@/components/NoteCard.astro";
 import CtaButton from "@/components/CtaButton.astro";
-
+import Tab from "@/components/TabBar/Tab.astro";
 if (!Astro.locals.auth().userId) {
   return Astro.redirect("/");
 }
