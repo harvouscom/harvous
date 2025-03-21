@@ -44,6 +44,10 @@
     @apply font-sans font-semibold text-[20px] leading-[25.98px] tracking-normal;
 }
 
+.text-subtitle {
+  @apply font-sans font-medium text-[18px] leading-[100%] tracking-normal;
+}
+
 .text-body {
     @apply font-sans font-normal text-[16px] leading-[150%] tracking-normal;
 }

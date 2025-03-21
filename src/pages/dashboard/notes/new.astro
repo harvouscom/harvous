@@ -2,7 +2,7 @@
 import { actions } from "astro:actions";
 import Layout from "@/layouts/Layout.astro";
 import Tab from "@/components/TabBar/Tab.astro";
-
+import Toast from "@/components/Toast.astro";
 const currentUser = Astro.locals.auth();
 const userId = currentUser ? currentUser.userId : null;
 
@@ -25,8 +25,12 @@ if (result?.data?.success) {
     </div>
   </section>
 
+  <div class="absolute top-3 left-0 right-0">
+    <Toast />
+  </div>
+
   <main
-    class="max-w-screen-sm mx-auto px-6 pt-6 pe-12 grid grid-rows-[auto_1fr] gap-3"
+    class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
   >
     <form
       class="flex gap-3 flex-col"
