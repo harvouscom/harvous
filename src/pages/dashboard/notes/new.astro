@@ -2,7 +2,7 @@
 import { actions } from "astro:actions";
 import Layout from "@/layouts/Layout.astro";
 import Tab from "@/components/TabBar/Tab.astro";
-import Toast from "@/components/Toast.astro";
+
 const currentUser = Astro.locals.auth();
 const userId = currentUser ? currentUser.userId : null;
 
@@ -24,10 +24,6 @@ if (result?.data?.success) {
       <Tab label="Note" active />
     </div>
   </section>
-
-  <div class="absolute top-3 left-0 right-0">
-    <Toast message="Note created successfully!" type="info" />
-  </div>
 
   <main
     class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
