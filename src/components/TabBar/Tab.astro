@@ -9,7 +9,7 @@ const { label, href, active = false }: Props = Astro.props;
 ---
 
 {active ? (
-  <div class="rounded-t-lg px-5 py-3 w-fit tab bg-(--color-soft-paper)" data-active={active} role="tab">
+  <div class="rounded-t-lg px-5 py-4 w-fit tab bg-(--color-soft-paper)" data-active={active} role="tab">
     <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
   </div>
 ) : (
