@@ -22,8 +22,12 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
 
 <Layout>
   <main
-    class="max-w-screen-sm mx-auto px-6 py-12 grid grid-rows-[auto_1fr] gap-3"
+    class="max-w-screen-sm mx-auto px-6 pe-12 grid grid-rows-[auto_1fr] gap-3"
   >
+    <div class="flex bg-(--color-fog-white) items-center gap-2">
+      <Tab label="Feed" href="#" active />
+    </div>
+
     <h1 class="text-2xl font-bold">Notes</h1>
 
     <ul class="grid max-sm:grid-cols-2 sm:grid-cols-3 gap-3 gap-y-4">
