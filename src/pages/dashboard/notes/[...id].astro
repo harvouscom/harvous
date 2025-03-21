@@ -34,14 +34,16 @@ const noteData = notes[0];
 ---
 
 <Layout title="Note">
-  <main
-    class="max-w-screen-sm mx-auto px-6 pe-12 grid grid-rows-[auto_1fr] gap-3"
-  >
-    <div class="flex bg-(--color-fog-white) items-center gap-2">
+  <section class="bg-(--color-fog-white) pt-3">
+    <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
       <Tab label="Feed" href="/dashboard" />
       <Tab label="Note" active />
     </div>
+  </section>
 
+  <main
+    class="max-w-screen-sm mx-auto px-6 pt-6 pe-12 grid grid-rows-[auto_1fr] gap-3"
+  >
     <section class="px-1 py-2 flex items-center gap-2">
       <IconButton size="md">
         <FaQuestionIcon />
