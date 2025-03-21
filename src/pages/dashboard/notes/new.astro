@@ -1,0 +1,53 @@
+---
+import { db, eq, Notes, and } from "astro:db";
+import { actions } from "astro:actions";
+import { z } from "zod";
+import Layout from "@/layouts/Layout.astro";
+import Tab from "@/components/TabBar/Tab.astro";
+
+const currentUser = Astro.locals.auth();
+const userId = currentUser ? currentUser.userId : null;
+
+if (!userId) {
+  return Astro.redirect("/login");
+}
+---
+
+<Layout title="Note">
+  <section class="bg-(--color-fog-white) pt-3">
+    <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
+      <Tab label="Feed" href="/dashboard" />
+      <Tab label="Note" active />
+    </div>
+  </section>
+
+  <main
+    class="max-w-screen-sm mx-auto px-6 pt-6 pe-12 grid grid-rows-[auto_1fr] gap-3"
+  >
+    <form
+      class="flex gap-3 flex-col"
+      method="POST"
+      action={actions.notes.create}
+    >
+      <input
+        class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
+        type="text"
+        name="title"
+        placeholder="Title"
+        required
+      />
+      <textarea
+        class="resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
+        rows={4}
+        name="content"
+        required
+        placeholder="Content"></textarea>
+      <input type="hidden" name="userId" value={userId} />
+      <input type="hidden" name="isPublic" value="false" />
+      <button
+        class="bg-[var(--color-blue)] text-white py-3 px-3 rounded-xl shadow-[0px_-4px_0px_0px_#0000001A_inset] h-[60px]"
+        type="submit">Create Note</button
+      >
+    </form>
+  </main>
+</Layout>
