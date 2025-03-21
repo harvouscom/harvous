@@ -5,6 +5,7 @@ import "@fontsource/reddit-sans/500.css";
 import "@fontsource/reddit-sans/600.css";
 import "@fontsource/reddit-mono/500.css";
 import "@fontsource/reddit-mono/600.css";
+import Toast from "@/components/Toast.astro";
 ---
 
 <!doctype html>
@@ -16,10 +17,39 @@ import "@fontsource/reddit-mono/600.css";
     <meta name="generator" content={Astro.generator} />
     <title>Harvous</title>
   </head>
-  <body class="font-sans">
+  <body 
+    x-data="toast"
+    class="font-sans"
+  >
+    <Toast />
+
     <slot />
   </body>
 </html>
+
+<script>  
+  import Alpine from "alpinejs";
+  
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('toast', () => ({
+      showToast: false,
+      message: '',
+      type: 'info' as "info" | "error",
+      makeToast(message: string, type: "info" | "error") {
+        this.showToast = true;
+        this.message = message;
+        this.type = type;
+      },
+      dismissToast() {
+        this.showToast = false;
+        setTimeout(() => {
+          this.message = '';
+          this.type = 'info';
+        }, 300);
+      }
+    }));
+  });
+</script>
 
 <style>
   html,

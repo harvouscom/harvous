@@ -1,18 +1,33 @@
 ---
 import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
-
-interface Props {
-  message: string;
-  type?: "info" | "error";
-}
-
-const { message, type = "info" } = Astro.props;
 ---
 
-<section role="alert" data-type={type} class="toast text-white rounded-lg max-w-[366px] mx-auto py-4.5 px-5 grid grid-cols-[1fr_auto] gap-3 items-center">
-  <p class="text-subtitle">{message}</p>
-  <FaXmarkIcon class="w-4 h-4 fill-white" />
-</section>
+<div
+  x-cloak
+  x-show="showToast"
+  x-transition:enter="transition ease-out duration-300"
+  x-transition:enter-start="transform translate-y-[-1rem]"
+  x-transition:enter-end="transform translate-y-0"
+  x-transition:leave="transition ease-in duration-300"
+  x-transition:leave-start="transform translate-y-0"
+  x-transition:leave-end="transform translate-y-[-1rem]"
+  class="fixed top-3 left-0 right-0 mx-auto max-w-md z-50"
+  @toast.window="makeToast($event.detail.message || 'Notification', $event.detail.type || 'info')"
+>
+  <section 
+    role="alert" 
+    x-bind:data-type="type" 
+    class="toast text-white rounded-lg max-w-[366px] mx-auto py-4.5 px-5 grid grid-cols-[1fr_auto] gap-3 items-center"
+  >
+    <p class="text-subtitle" x-text="message"></p>
+    <button
+      @click="dismissToast()" 
+    >
+      {/* @ts-ignore */}
+      <FaXmarkIcon class="w-4 h-4 fill-white" />
+    </button>
+  </section>
+</div>
 
 <style>
     .toast[data-type="info"] {

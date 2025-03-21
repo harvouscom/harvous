@@ -43,5 +43,7 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
     <a href="/dashboard/notes/new">
       <CtaButton />
     </a>
+
+    <button @click="$dispatch('toast', { message: 'Hello, world!', type: 'info' });">Show Toast</button>
   </main>
 </Layout>
