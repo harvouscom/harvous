@@ -1,7 +1,5 @@
 ---
-import { db, eq, Notes, and } from "astro:db";
 import { actions } from "astro:actions";
-import { z } from "zod";
 import Layout from "@/layouts/Layout.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 
@@ -10,6 +8,12 @@ const userId = currentUser ? currentUser.userId : null;
 
 if (!userId) {
   return Astro.redirect("/login");
+}
+
+const result = Astro.getActionResult(actions.notes.create);
+
+if (result?.data?.success) {
+  return Astro.redirect("/dashboard/notes/" + result.data.note.id);
 }
 ---
 

@@ -15,8 +15,6 @@ if (!user) {
   return Astro.redirect("/");
 }
 
-const result = Astro.getActionResult(actions.notes.create);
-
 const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
 ---
 
