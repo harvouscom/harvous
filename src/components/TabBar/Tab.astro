@@ -1,23 +1,25 @@
 ---
 interface Props {
   label: string;
-  href: string;
+  href?: string;
   active?: boolean;
 }
 
 const { label, href, active = false }: Props = Astro.props;
 ---
 
-<a href={href} role="tab" class="rounded-t-lg px-5 py-3 w-fit tab" data-active={active}>
-  <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
-</a>
+{active ? (
+  <div class="rounded-t-lg px-5 py-3 w-fit tab bg-(--color-soft-paper)" data-active={active} role="tab">
+    <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
+  </div>
+) : (
+  <a href={href} role="tab" class="rounded-t-lg px-5 py-3 w-fit tab">
+    <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
+  </a>
+)}
 
 <style>
   .tab-text {
     text-box: trim-both cap alphabetic;
-  }
-
-  .tab[data-active="true"] {
-    background-color: var(--color-soft-paper);
   }
 </style>
