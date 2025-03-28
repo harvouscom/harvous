@@ -1,5 +1,15 @@
 ---
 import FaBoldIcon from "@fortawesome/fontawesome-free/svgs/solid/bold.svg";
+import FaItalicIcon from "@fortawesome/fontawesome-free/svgs/solid/italic.svg";
+import FaStrikethroughIcon from "@fortawesome/fontawesome-free/svgs/solid/strikethrough.svg";
+import FaHeadingIcon from "@fortawesome/fontawesome-free/svgs/solid/heading.svg";
+import FaQuoteRightIcon from "@fortawesome/fontawesome-free/svgs/solid/quote-right.svg";
+import FaListUlIcon from "@fortawesome/fontawesome-free/svgs/solid/list-ul.svg";
+import FaListOlIcon from "@fortawesome/fontawesome-free/svgs/solid/list-ol.svg";
+import FaOutdentIcon from "@fortawesome/fontawesome-free/svgs/solid/outdent.svg";
+import FaIndentIcon from "@fortawesome/fontawesome-free/svgs/solid/indent.svg";
+import FaLinkIcon from "@fortawesome/fontawesome-free/svgs/solid/link.svg";
+import FaPaperclipIcon from "@fortawesome/fontawesome-free/svgs/solid/paperclip.svg";
 
 interface Props {
   id: string;
@@ -9,9 +19,60 @@ interface Props {
 const { id } = Astro.props as Props;
 ---
 
-<section id={id} class="bg-(--color-fog-white) rounded-xl p-2">
+<section id={id} class="bg-(--color-fog-white) rounded-xl p-2 flex items-center gap-0">
   <button class="toolbar-btn" data-trix-attribute="bold" data-trix-key="b">
-    <FaBoldIcon class="w-5 h-5" />
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaBoldIcon  />
+  </button>
+
+  <button class="toolbar-btn" data-trix-attribute="italic" data-trix-key="i">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaItalicIcon  />
+  </button>
+
+  <button class="toolbar-btn" data-trix-attribute="strike" data-trix-key="s">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaStrikethroughIcon  />
+  </button>
+
+  <button class="toolbar-btn" data-trix-attribute="heading1">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaHeadingIcon  />
+  </button>
+
+  <button class="toolbar-btn" data-trix-attribute="quote">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaQuoteRightIcon  />
+  </button>
+
+  <button class="toolbar-btn" data-trix-attribute="bullet">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaListUlIcon  />
+  </button>
+
+  <button class="toolbar-btn" data-trix-attribute="number">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaListOlIcon  />
+  </button>
+
+  <button class="toolbar-btn" data-trix-action="decreaseNestingLevel">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaOutdentIcon  />
+  </button>
+
+  <button class="toolbar-btn" data-trix-action="increaseNestingLevel">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaIndentIcon  />
+  </button>
+
+  <button class="toolbar-btn" data-trix-attribute="href" data-trix-action="link" data-trix-key="k">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaLinkIcon  />
+  </button>
+
+  <button class="toolbar-btn" data-trix-action="attachFiles">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaPaperclipIcon />
   </button>
 </section>
 
@@ -20,10 +81,22 @@ const { id } = Astro.props as Props;
     @reference "@/styles/global.css";
 
     .toolbar-btn {
-      @apply flex items-center justify-center w-8 h-8 rounded-full hover:bg-(--color-paper);
+      @apply flex items-center justify-center w-8 h-8 rounded-full hover:bg-(--color-paper) [&:hover>svg]:!fill-(--color-deep-grey);
+
+      &[data-trix-active] {
+        @apply relative;
+
+        &::after {
+          @apply content-[''] absolute -bottom-[2px] left-1/2 -translate-x-1/2 w-1 h-1 bg-(--color-deep-grey) rounded-full;
+        }
+
+        & svg {
+          @apply fill-(--color-deep-grey);
+        } 
+      }
 
       & svg {
-        @apply w-5 h-5;
+        @apply w-5 h-5 fill-(--color-pebble-grey);
       }
     }
 </style>
