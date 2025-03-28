@@ -57,3 +57,7 @@
     @apply font-mono font-medium text-[10px] leading-[100%] tracking-normal;
 }
 
+/* Trix - https://trix-editor.org/ */
+.trix-content h1 {
+    @apply font-sans font-medium text-[18px] leading-[100%] tracking-normal;
+}
