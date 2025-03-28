@@ -7,6 +7,7 @@ interface Props {
   id?: string;
   name?: string;
   placeholder?: string;
+  toolbar?: string;
 }
 
 const { 
@@ -14,13 +15,15 @@ const {
   id = "content", 
   name = "content", 
   alpineRefName = "contentInputEl",
-  placeholder = "Write something..."
+  placeholder = "Write something...",
+  toolbar = "",
+  ...props
 } = Astro.props as Props;
 ---
 
 <div id="trix-editor" class="relative not-prose">
-  <input required id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
-  <trix-editor placeholder={placeholder} input={id}></trix-editor>
+  <input {...props} required id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
+  <trix-editor {...props} toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
 </div>
 
 <style>

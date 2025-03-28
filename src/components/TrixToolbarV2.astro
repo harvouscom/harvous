@@ -1,0 +1,37 @@
+---
+import FaBoldIcon from "@fortawesome/fontawesome-free/svgs/solid/bold.svg";
+
+interface Props {
+  id: string;
+  input: string;
+}
+
+const { id } = Astro.props as Props;
+---
+
+<section id={id} class="bg-(--color-fog-white) rounded-xl p-2">
+  <button class="toolbar-btn" data-trix-attribute="bold" data-trix-key="b">
+    <FaBoldIcon class="w-5 h-5" />
+  </button>
+</section>
+
+<style>
+    /* This is needed to use Tailwind's @apply in v5 */
+    @reference "@/styles/global.css";
+
+    .toolbar-btn {
+      @apply flex items-center justify-center w-8 h-8 rounded-full hover:bg-(--color-paper);
+
+      & svg {
+        @apply w-5 h-5;
+      }
+    }
+</style>
+
+<script>
+  // @ts-ignore - No types because 37signals.
+  import Trix from "trix";
+
+  const defaultToolbar = Trix.config.toolbar.getDefaultHTML();
+  console.log(defaultToolbar);
+</script>

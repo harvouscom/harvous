@@ -3,7 +3,7 @@ import { actions } from "astro:actions";
 import Layout from "@/layouts/Layout.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import TrixEditor from "@/components/TrixEditor.astro";
-
+import TrixToolbarV2 from "@/components/TrixToolbarV2.astro";
 const currentUser = Astro.locals.auth();
 const userId = currentUser ? currentUser.userId : null;
 
@@ -41,7 +41,8 @@ if (result?.data?.success) {
         placeholder="Title"
         required
       />
-      <TrixEditor name="content" content="" placeholder="Content" />
+      <TrixEditor toolbar="my_toolbar" name="content" content="" placeholder="Content" />
+      <TrixToolbarV2 id="my_toolbar" input="content" />
       <input type="hidden" name="userId" value={userId} />
       <input type="hidden" name="isPublic" value="false" />
       <button
