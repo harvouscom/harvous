@@ -2,6 +2,7 @@
 import { actions } from "astro:actions";
 import Layout from "@/layouts/Layout.astro";
 import Tab from "@/components/TabBar/Tab.astro";
+import TrixEditor from "@/components/TrixEditor.astro";
 
 const currentUser = Astro.locals.auth();
 const userId = currentUser ? currentUser.userId : null;
@@ -40,6 +41,7 @@ if (result?.data?.success) {
         placeholder="Title"
         required
       />
+      <TrixEditor content="" />
       <textarea
         class="resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
         rows={4}

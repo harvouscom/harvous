@@ -21,6 +21,7 @@
     "@types/alpinejs": "^3.13.11",
     "alpinejs": "^3.14.8",
     "astro": "^5.2.3",
-    "tailwindcss": "^4.0.1"
+    "tailwindcss": "^4.0.1",
+    "trix": "^2.1.13"
   }
 }
