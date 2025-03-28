@@ -10,6 +10,9 @@ import FaOutdentIcon from "@fortawesome/fontawesome-free/svgs/solid/outdent.svg"
 import FaIndentIcon from "@fortawesome/fontawesome-free/svgs/solid/indent.svg";
 import FaLinkIcon from "@fortawesome/fontawesome-free/svgs/solid/link.svg";
 import FaPaperclipIcon from "@fortawesome/fontawesome-free/svgs/solid/paperclip.svg";
+import FaCodeIcon from "@fortawesome/fontawesome-free/svgs/solid/code.svg";
+import FaUndoIcon from "@fortawesome/fontawesome-free/svgs/solid/rotate-left.svg";
+import FaRedoIcon from "@fortawesome/fontawesome-free/svgs/solid/rotate-right.svg";
 
 interface Props {
   id: string;
@@ -22,57 +25,67 @@ const { id } = Astro.props as Props;
 <section id={id} class="bg-(--color-fog-white) rounded-xl p-2 flex items-center gap-0">
   <button class="toolbar-btn" data-trix-attribute="bold" data-trix-key="b">
     {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaBoldIcon  />
+    <FaBoldIcon />
   </button>
 
   <button class="toolbar-btn" data-trix-attribute="italic" data-trix-key="i">
     {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaItalicIcon  />
+    <FaItalicIcon />
   </button>
 
   <button class="toolbar-btn" data-trix-attribute="strike" data-trix-key="s">
     {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaStrikethroughIcon  />
+    <FaStrikethroughIcon />
   </button>
 
   <button class="toolbar-btn" data-trix-attribute="heading1">
     {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaHeadingIcon  />
+    <FaHeadingIcon />
   </button>
 
   <button class="toolbar-btn" data-trix-attribute="quote">
     {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaQuoteRightIcon  />
+    <FaQuoteRightIcon />
+  </button>
+
+  <button class="toolbar-btn" data-trix-attribute="code">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaCodeIcon />
   </button>
 
   <button class="toolbar-btn" data-trix-attribute="bullet">
     {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaListUlIcon  />
+    <FaListUlIcon />
   </button>
 
   <button class="toolbar-btn" data-trix-attribute="number">
     {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaListOlIcon  />
+    <FaListOlIcon />
   </button>
 
   <button class="toolbar-btn" data-trix-action="decreaseNestingLevel">
     {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaOutdentIcon  />
+    <FaOutdentIcon />
   </button>
 
   <button class="toolbar-btn" data-trix-action="increaseNestingLevel">
     {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaIndentIcon  />
-  </button>
-
-  <button class="toolbar-btn" data-trix-attribute="href" data-trix-action="link" data-trix-key="k">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaLinkIcon  />
+    <FaIndentIcon />
   </button>
 
   <button class="toolbar-btn" data-trix-action="attachFiles">
     {/* @ts-ignore - Icon import in Astro is borked, but works. */}
     <FaPaperclipIcon />
+  </button>
+
+  <button class="toolbar-btn" data-trix-action="undo">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaUndoIcon />
+  </button>
+
+  <button class="toolbar-btn" data-trix-action="redo">
+    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+    <FaRedoIcon />
   </button>
 </section>
 
