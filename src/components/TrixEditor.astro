@@ -2,19 +2,35 @@
 import "trix/dist/trix.css";
 
 interface Props {
+  alpineRefName?: string;
+  content: string;
   id?: string;
   name?: string;
-  content: string;
-  alpineRefName?: string;
+  placeholder?: string;
 }
 
-const { content, id = "content", name = "content", alpineRefName = "contentInputEl" } = Astro.props as Props;
+const { 
+  content, 
+  id = "content", 
+  name = "content", 
+  alpineRefName = "contentInputEl",
+  placeholder = "Write something..."
+} = Astro.props as Props;
 ---
 
 <div id="trix-editor" class="relative not-prose">
-  <input id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
-  <trix-editor input={id}></trix-editor>
+  <input required id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
+  <trix-editor placeholder={placeholder} input={id}></trix-editor>
 </div>
+
+<style>
+    /* This is needed to use Tailwind's @apply in v5 */
+    @reference "@/styles/global.css";
+
+    #trix-editor trix-editor {
+        @apply resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl border-none;
+    }
+</style>
 
 <script>
   import "trix";
