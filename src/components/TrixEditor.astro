@@ -23,7 +23,7 @@ const {
 
 <div id="trix-editor" class="relative not-prose">
   <input {...props} required id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
-  <trix-editor {...props} toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
+  <trix-editor {...props} class="trix-content" toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
 </div>
 
 <style>
@@ -31,7 +31,7 @@ const {
     @reference "@/styles/global.css";
 
     #trix-editor trix-editor {
-        @apply resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl border-none;
+      @apply resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl border-none;
     }
 </style>
 

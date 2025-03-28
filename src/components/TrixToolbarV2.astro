@@ -113,11 +113,3 @@ const { id } = Astro.props as Props;
       }
     }
 </style>
-
-<script>
-  // @ts-ignore - No types because 37signals.
-  import Trix from "trix";
-
-  const defaultToolbar = Trix.config.toolbar.getDefaultHTML();
-  console.log(defaultToolbar);
-</script>
