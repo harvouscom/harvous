@@ -19,6 +19,8 @@ const {
 } = Astro.props as Props;
 ---
 
+<!-- @TODO - Style for ul and ol -->
+
 <div id="trix-editor" class="relative not-prose">
   <input {...props} required id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
   <trix-editor {...props} class="trix-content" toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
