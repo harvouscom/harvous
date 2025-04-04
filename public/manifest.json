@@ -1,0 +1,17 @@
+{
+  "name": "Harvous",
+  "short_name": "Harvous",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "scope": "/",
+  "description": "Harvous"
+} 
