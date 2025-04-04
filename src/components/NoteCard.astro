@@ -11,13 +11,14 @@ interface Props {
 const { title, content } = Astro.props;
 
 const sanitizedContent = DOMPurify.sanitize(content, {
-  ALLOWED_TAGS: ["div", "p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre"], // Strip all HTML tags
+  ALLOWED_TAGS: ["div", "p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "br"], // Strip all HTML tags
   ALLOWED_ATTR: [] // Strip all attributes
 });
 
 // Decode HTML entities and normalize whitespace
 const decodedContent = sanitizedContent
   .replace(/<\/(div|p|h[1-6]|blockquote|pre)>/gi, '\n')
+  .replace(/<br>/gi, '\n')
   .replace(/<[^>]*>/g, '')
   .replace(/&nbsp;/g, ' ')
   .replace(/&amp;/g, '&')
@@ -26,6 +27,8 @@ const decodedContent = sanitizedContent
   .replace(/&quot;/g, '"')
   .replace(/&#39;/g, "'")
   .trim();
+
+console.log({content, decodedContent});
 
 const trimmedContent = decodedContent.slice(0, 100);
 ---
