@@ -53,7 +53,7 @@ const noteData = notes[0];
       <h1 class="text-title">{noteData.title || "Untitled Note"}</h1>
     </section>
 
-    <section class="!select-text whitespace-pre-wrap px-6 py-5 bg-(--color-light-paper) rounded-xl trix-content" set:html={noteData.content}></section>
+    <section class="!select-text whitespace-normal flex flex-col gap-4 px-6 py-5 bg-(--color-light-paper) rounded-xl trix-content" set:html={noteData.content}></section>
 
     <section class="px-1 py-2 flex items-center justify-end gap-2">
       <p class="text-caption text-(--color-stone-grey) w-fit">{noteData.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
