@@ -11,10 +11,23 @@ interface Props {
 const { title, content } = Astro.props;
 
 const sanitizedContent = DOMPurify.sanitize(content, {
-  ALLOWED_TAGS: [], // Strip all HTML tags
+  ALLOWED_TAGS: ["div", "p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre"], // Strip all HTML tags
   ALLOWED_ATTR: [] // Strip all attributes
 });
-const trimmedContent = sanitizedContent.slice(0, 100);
+
+// Decode HTML entities and normalize whitespace
+const decodedContent = sanitizedContent
+  .replace(/<\/(div|p|h[1-6]|blockquote|pre)>/gi, '\n')
+  .replace(/<[^>]*>/g, '')
+  .replace(/&nbsp;/g, ' ')
+  .replace(/&amp;/g, '&')
+  .replace(/&lt;/g, '<')
+  .replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"')
+  .replace(/&#39;/g, "'")
+  .trim();
+
+const trimmedContent = decodedContent.slice(0, 100);
 ---
 
 <section
@@ -36,7 +49,7 @@ const trimmedContent = sanitizedContent.slice(0, 100);
       {title}
     </h2>
     <p
-      class="select-text overflow-wrap-anywhere text-[var(--text-color-secondary)] text-sm line-clamp-3"     
+      class="select-text overflow-wrap-anywhere whitespace-pre-line text-[var(--text-color-secondary)] text-sm line-clamp-3"     
     >
       {trimmedContent}
     </p>
