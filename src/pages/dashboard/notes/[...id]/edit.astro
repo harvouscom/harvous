@@ -32,6 +32,11 @@ if (!notes.length) {
 }
 
 const noteData = notes[0];
+
+const result = Astro.getActionResult(actions.notes.update);
+if (result?.data?.success && result.data.note) {
+  return Astro.redirect("/dashboard/notes/" + result.data.note[0].id);
+}
 ---
 
 <Layout title="Note">
@@ -48,7 +53,7 @@ const noteData = notes[0];
     <form
       class="flex gap-3 flex-col"
       method="POST"
-      action={actions.notes.create}
+      action={actions.notes.update}
     >
       <input
         class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
@@ -60,6 +65,7 @@ const noteData = notes[0];
       />
       <TrixEditor toolbar="my_toolbar" name="content" content={noteData.content} placeholder="Content" />
       <TrixToolbarV2 id="my_toolbar" input="content" />
+      <input type="hidden" name="id" value={noteData.id} />
       <input type="hidden" name="userId" value={userId} />
       <input type="hidden" name="isPublic" value="false" />
       <button

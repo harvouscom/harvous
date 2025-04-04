@@ -1,6 +1,6 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
-import { db, Notes } from "astro:db";
+import { db, Notes, eq, and } from "astro:db";
 
 export const notes = {
   create: defineAction({
@@ -39,4 +39,34 @@ export const notes = {
       }
     }
   }),
+  update: defineAction({
+    accept: "form",
+    input: z.object({
+      id: z.number().min(1, "ID is required"),
+      content: z.string().min(1, "Content is required"),
+      title: z.string().optional(),
+      userId: z.string().min(1, "User ID is required"),
+      isPublic: z.boolean().optional()
+    }),
+    handler: async ({ id, content, title, userId, isPublic = false }) => {
+      try {
+        const updatedNote = await db.update(Notes)
+          .set({
+            content,
+            title,
+            isPublic,
+            updatedAt: new Date()
+          })
+          .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
+          .returning()  
+
+        return {
+          success: "Note updated successfully!",
+          note: updatedNote
+        };
+      } catch (error: any) {
+        throw new Error(`Failed to update note: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
+  })
 };
