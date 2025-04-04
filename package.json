@@ -4,10 +4,11 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build --remote",
     "preview": "astro preview",
     "astro": "astro",
-    "db:sync": "astro db sync"
+    "db:sync": "astro db sync",
+    "db:push": "astro db push"
   },
   "dependencies": {
     "@astrojs/alpinejs": "^0.4.4",
