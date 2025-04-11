@@ -64,9 +64,11 @@ const noteData = notes[0];
 
   <footer class="bg-(--color-pebble-grey) p-3">
     <div class="grid grid-cols-3 gap-3 max-w-screen-sm mx-auto sm:px-6">
-      <ChonkButton text="Edit">
-        <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-      </ChonkButton>
+      <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
+        <ChonkButton text="Edit">
+          <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+        </ChonkButton>
+      </a>
       <ChonkButton text="Share">
         <ShareIcon class="w-[15px] h-[15px] text-inherit fill-current" />
       </ChonkButton>
