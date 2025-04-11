@@ -36,7 +36,7 @@ if (!notes.length) {
 const noteData = notes[0];
 ---
 
-<Layout title="Note">
+<Layout title="Note" classNames="grid grid-rows-[auto_1fr_auto]">
   <section class="bg-(--color-fog-white) pt-3">
     <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
       <Tab label="Feed" href="/dashboard" />
@@ -45,7 +45,7 @@ const noteData = notes[0];
   </section>
 
   <main
-    class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
+    class="max-w-screen-sm w-full mx-auto px-6 pt-6 pb-6 grid grid-rows-[auto_1fr] gap-3"
   >
     <section class="px-1 py-2 flex items-center gap-2">
       <a href={`/dashboard/notes/${noteData.id}/edit`}>
@@ -56,14 +56,13 @@ const noteData = notes[0];
       <h1 class="text-title">{noteData.title || "Untitled Note"}</h1>
     </section>
 
-    <section class="!select-text whitespace-normal flex flex-col gap-4 px-6 py-5 bg-(--color-light-paper) rounded-xl trix-content" set:html={noteData.content}></section>
-
-    <section class="px-1 py-2 flex items-center justify-end gap-2">
+    <section class="!select-text whitespace-normal flex flex-col gap-5 px-6 py-5 bg-(--color-light-paper) rounded-xl trix-content">
       <p class="text-caption text-(--color-stone-grey) w-fit">{noteData.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+      <div set:html={noteData.content}></div>
     </section>
   </main>
 
-  <footer class="fixed bottom-0 left-0 right-0 bg-(--color-pebble-grey) p-3">
+  <footer class="bg-(--color-pebble-grey) p-3">
     <div class="grid grid-cols-3 gap-3 max-w-screen-sm mx-auto sm:px-6">
       <ChonkButton text="Edit">
         <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />

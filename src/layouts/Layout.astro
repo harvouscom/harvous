@@ -7,6 +7,13 @@ import "@fontsource/reddit-mono/500.css";
 import "@fontsource/reddit-mono/600.css";
 import "trix/dist/trix.css";
 import Toast from "@/components/Toast.astro";
+
+interface Props {
+  classNames?: string;
+  title?: string;
+}
+
+const { classNames = '', title = 'Harvous' }: Props = Astro.props;
 ---
 
 <!doctype html>
@@ -18,11 +25,11 @@ import Toast from "@/components/Toast.astro";
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
     <meta name="generator" content={Astro.generator} />
-    <title>Harvous</title>
+    <title>{title}</title>
   </head>
   <body 
     x-data="toast"
-    class="font-sans"
+    class={`font-sans ${classNames}`}
   >
     <Toast />
 

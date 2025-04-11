@@ -57,6 +57,11 @@
     @apply font-mono font-medium text-[10px] leading-[100%] tracking-normal;
 }
 
+.text-button-chonk {
+    @apply font-sans font-medium text-[14px] leading-[100%] tracking-normal;
+    text-box: trim-both cap alphabetic;
+}
+
 /* Trix - https://trix-editor.org/ */
 .trix-content h1 {
     @apply font-sans font-medium text-[18px] leading-[100%] tracking-normal;
