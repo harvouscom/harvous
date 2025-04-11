@@ -6,14 +6,27 @@ interface Props {
 const { text }: Props = Astro.props;
 ---
 
-<button class="button-inner-shadow bg-(--color-stone-grey) text-(--color-fog-white) rounded-lg flex flex-col items-center gap-2 p-3 pb-4">
+<button class="button-inner-shadow bg-(--color-stone-grey) text-(--color-fog-white) rounded-lg flex flex-col items-center gap-2 p-3 pb-4 active:bg-(--color-deep-grey) active:scale-[.98] transition-all duration-100">
   <slot />
-  <p class="font-sans font-medium text-[14px] leading-[100%] tracking-normal">{text}</p>
+  <p class="-translate-y-0.5 transition-transform duration-125 font-sans font-medium text-[14px] leading-[100%] tracking-normal">{text}</p>
 </button>
 
 <style>
   button {
     box-shadow: 0px -4px 0px 0px #0000001A inset;
+
+    svg:active {
+      transform: translateY(-0.5px);
+      transition: transform 125ms;
+    }
+  }
+
+  button:active {
+    background-color: var(--color-deep-grey);
+    box-shadow:
+      0px -2px 0px 0px #0000001a inset,
+      0px 0px 2px 0px #00000040,
+      0px 2px 0px 0px #00000040 inset;
   }
 
   p {
