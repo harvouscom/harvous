@@ -4,8 +4,11 @@ import { z } from "zod";
 import Layout from "@/layouts/Layout.astro";
 import IconButton from "@/components/IconButton.astro";
 import FaQuestionIcon from "@fortawesome/fontawesome-free/svgs/solid/question.svg";
+import ShareIcon from "@fortawesome/fontawesome-free/svgs/solid/share.svg";
+import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
 import Tab from "@/components/TabBar/Tab.astro";
-
+import ChonkButton from "@/components/ChonkButton.astro";
+import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky.svg";
 const { id } = Astro.params;
 
 if (!id || z.number({ coerce: true }).safeParse(id).success === false) {
@@ -58,6 +61,19 @@ const noteData = notes[0];
     <section class="px-1 py-2 flex items-center justify-end gap-2">
       <p class="text-caption text-(--color-stone-grey) w-fit">{noteData.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
     </section>
-    
   </main>
+
+  <footer class="fixed bottom-0 left-0 right-0 bg-(--color-pebble-grey) p-3">
+    <div class="grid grid-cols-3 gap-3 max-w-screen-sm mx-auto sm:px-6">
+      <ChonkButton text="Edit">
+        <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+      </ChonkButton>
+      <ChonkButton text="Share">
+        <ShareIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+      </ChonkButton>
+      <ChonkButton text="Delete">
+        <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+      </ChonkButton>
+    </div>
+  </footer>
 </Layout>

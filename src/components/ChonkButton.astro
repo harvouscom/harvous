@@ -1,0 +1,22 @@
+---
+interface Props {
+    text: string;
+}
+
+const { text }: Props = Astro.props;
+---
+
+<button class="button-inner-shadow bg-(--color-stone-grey) text-(--color-fog-white) rounded-lg flex flex-col items-center gap-2 p-3 pb-4">
+  <slot />
+  <p class="font-sans font-medium text-[14px] leading-[100%] tracking-normal">{text}</p>
+</button>
+
+<style>
+  button {
+    box-shadow: 0px -4px 0px 0px #0000001A inset;
+  }
+
+  p {
+    text-box: trim-both cap alphabetic;
+  }
+</style>
