@@ -4,7 +4,7 @@ import { z } from "zod";
 import Layout from "@/layouts/Layout.astro";
 import IconButton from "@/components/IconButton.astro";
 import FaQuestionIcon from "@fortawesome/fontawesome-free/svgs/solid/question.svg";
-import ShareIcon from "@fortawesome/fontawesome-free/svgs/solid/share.svg";
+import CheckIcon from "@fortawesome/fontawesome-free/svgs/solid/check.svg";
 import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
 import Tab from "@/components/TabBar/Tab.astro";
 import ChonkButton from "@/components/ChonkButton.astro";
@@ -49,8 +49,9 @@ const noteData = notes[0];
       class="flex-1 max-w-screen-sm w-full mx-auto px-6 pt-6 pb-6 grid grid-rows-[auto_1fr] gap-3"
     >
       <section class="px-1 py-2 flex items-center gap-2">
-        <IconButton size="md" @click="showActionBar = !showActionBar">
-          <FaQuestionIcon />
+        <IconButton :class="showActionBar ? '!bg-(--color-stone-grey) !text-(--color-light-paper) !fill-(--color-light-paper)' : ''" size="md" @click="showActionBar = !showActionBar">
+          <FaQuestionIcon x-show="!showActionBar" />
+          <CheckIcon x-cloak x-show="showActionBar" />
         </IconButton>
         <h1 class="text-title">{noteData.title || "Untitled Note"}</h1>
       </section>

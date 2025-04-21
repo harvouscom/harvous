@@ -3,6 +3,7 @@ import { z } from "zod";
 
 interface Props {
   size: "sm" | "md";
+  className?: string;
 }
 
 const BUTTON_SIZE_MAP = {
@@ -17,7 +18,7 @@ const SVG_SIZE_MAP = {
 
 const sizeSchema = z.enum(["sm", "md"]);
 
-const { size, ...props } = Astro.props;
+const { size, className = "", ...props } = Astro.props;
 
 if (!sizeSchema.safeParse(size).success) {
   throw new Error("Invalid size");
@@ -25,7 +26,7 @@ if (!sizeSchema.safeParse(size).success) {
 ---
 
 <button
-  class="icon-btn flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset] bg-[var(--color-paper)] rounded-full"
+  class={`icon-btn flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset] text-(--color-stone-grey) fill-(--color-stone-grey) text-(--color-stone-grey) bg-[var(--color-paper)] rounded-full ${className}`}
   {...props}
 >
   <slot />
@@ -42,8 +43,8 @@ if (!sizeSchema.safeParse(size).success) {
     height: var(--size);
 
     svg {
-      fill: var(--color-stone-grey);
-      color: var(--color-stone-grey);
+      fill: inherit;
+      color: inherit;
       width: var(--svg-size);
       height: var(--svg-size);
     }
