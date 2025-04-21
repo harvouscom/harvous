@@ -1,5 +1,6 @@
 ---
 import { db, eq, Notes, and } from "astro:db";
+import { actions } from "astro:actions";
 import { z } from "zod";
 import Layout from "@/layouts/Layout.astro";
 import IconButton from "@/components/IconButton.astro";
@@ -9,6 +10,7 @@ import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
 import Tab from "@/components/TabBar/Tab.astro";
 import ChonkButton from "@/components/ChonkButton.astro";
 import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky.svg";
+
 const { id } = Astro.params;
 
 if (!id || z.number({ coerce: true }).safeParse(id).success === false) {
@@ -34,6 +36,12 @@ if (!notes.length) {
 }
 
 const noteData = notes[0];
+
+const result = Astro.getActionResult(actions.notes.delete);
+
+if (result?.data?.success) {
+  return Astro.redirect("/dashboard");
+}
 ---
 
 <Layout title="Note" classNames="grid grid-rows-1">
@@ -77,9 +85,13 @@ const noteData = notes[0];
         <!-- <ChonkButton text="Share">
           <ShareIcon class="w-[15px] h-[15px] text-inherit fill-current" />
         </ChonkButton> -->
-        <ChonkButton text="Delete">
-          <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-        </ChonkButton>
+        <form method="POST" action={actions.notes.delete}>
+          <input type="hidden" name="id" value={noteData.id} />
+          <input type="hidden" name="userId" value={userId} />
+          <ChonkButton text="Delete">
+            <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+          </ChonkButton>
+        </form>
       </div>
     </footer>
   </div>

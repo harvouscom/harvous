@@ -68,5 +68,31 @@ export const notes = {
         throw new Error(`Failed to update note: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     }
+  }),
+  delete: defineAction({
+    accept: "form",
+    input: z.object({
+      id: z.number().min(1, "ID is required"),
+      userId: z.string().min(1, "User ID is required")
+    }),
+    handler: async ({ id, userId }) => {
+      try {
+        const deletedNote = await db.delete(Notes)
+          .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
+          .returning()
+          .get();
+
+        if (!deletedNote) {
+          throw new Error("Note not found or you don't have permission to delete it");
+        }
+
+        return {
+          success: "Note deleted successfully!",
+          note: deletedNote
+        };
+      } catch (error: any) {
+        throw new Error(`Failed to delete note: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
   })
 };
