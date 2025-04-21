@@ -36,45 +36,50 @@ if (!notes.length) {
 const noteData = notes[0];
 ---
 
-<Layout title="Note" classNames="grid grid-rows-[auto_1fr_auto]">
-  <section class="bg-(--color-fog-white) pt-3">
-    <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
-      <Tab label="Feed" href="/dashboard" />
-      <Tab label="Note" active />
-    </div>
-  </section>
+<Layout title="Note" classNames="grid grid-rows-1">
+  <div x-data="{ showActionBar: false }" class="flex flex-col h-full">
+    <section class="bg-(--color-fog-white) pt-3">
+      <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
+        <Tab label="Feed" href="/dashboard" />
+        <Tab label="Note" active />
+      </div>
+    </section>
 
-  <main
-    class="max-w-screen-sm w-full mx-auto px-6 pt-6 pb-6 grid grid-rows-[auto_1fr] gap-3"
-  >
-    <section class="px-1 py-2 flex items-center gap-2">
-      <a href={`/dashboard/notes/${noteData.id}/edit`}>
-        <IconButton size="md">
+    <main
+      class="flex-1 max-w-screen-sm w-full mx-auto px-6 pt-6 pb-6 grid grid-rows-[auto_1fr] gap-3"
+    >
+      <section class="px-1 py-2 flex items-center gap-2">
+        <IconButton size="md" @click="showActionBar = !showActionBar">
           <FaQuestionIcon />
         </IconButton>
-      </a>
-      <h1 class="text-title">{noteData.title || "Untitled Note"}</h1>
-    </section>
+        <h1 class="text-title">{noteData.title || "Untitled Note"}</h1>
+      </section>
 
-    <section class="!select-text whitespace-normal flex flex-col gap-5 px-6 py-5 bg-(--color-light-paper) rounded-xl trix-content">
-      <p class="text-caption text-(--color-stone-grey) w-fit">{noteData.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-      <div set:html={noteData.content}></div>
-    </section>
-  </main>
+      <section class="!select-text whitespace-normal flex flex-col gap-5 px-6 py-5 bg-(--color-light-paper) rounded-xl trix-content">
+        <p class="text-caption text-(--color-stone-grey) w-fit">{noteData.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+        <div set:html={noteData.content}></div>
+      </section>
+    </main>
 
-  <footer class="bg-(--color-pebble-grey) p-3">
-    <div class="grid grid-cols-3 gap-3 max-w-screen-sm mx-auto sm:px-6">
-      <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
-        <ChonkButton text="Edit">
-          <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+    <footer 
+      x-show="showActionBar" 
+      x-transition
+      x-cloak
+      class="bg-(--color-pebble-grey) p-3"
+    >
+      <div class="grid grid-cols-2 gap-3 max-w-screen-sm mx-auto sm:px-6">
+        <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
+          <ChonkButton text="Edit">
+            <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+          </ChonkButton>
+        </a>
+        <!-- <ChonkButton text="Share">
+          <ShareIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+        </ChonkButton> -->
+        <ChonkButton text="Delete">
+          <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
         </ChonkButton>
-      </a>
-      <ChonkButton text="Share">
-        <ShareIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-      </ChonkButton>
-      <ChonkButton text="Delete">
-        <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-      </ChonkButton>
-    </div>
-  </footer>
+      </div>
+    </footer>
+  </div>
 </Layout>

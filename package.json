@@ -11,6 +11,7 @@
     "db:push": "astro db push"
   },
   "dependencies": {
+    "@alpinejs/collapse": "^3.14.9",
     "@astrojs/alpinejs": "^0.4.4",
     "@astrojs/db": "^0.14.9",
     "@astrojs/netlify": "^6.2.4",
