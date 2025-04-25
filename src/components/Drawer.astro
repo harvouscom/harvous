@@ -1,8 +1,10 @@
 ---
+import ChonkButton from "@/components/ChonkButton.astro";
+
 interface Props {
-    open: boolean;
-    title: string;
-    description: string;
+  open: boolean;
+  title: string;
+  description: string;
 }
 
 const { title, description, open } = Astro.props;
@@ -58,7 +60,7 @@ const { title, description, open } = Astro.props;
       x-trap.inert.noscroll="isOpen"
   >
     <div class="px-4">
-      <h2 id="drawer-title" class="text-balance text-subtitle text-center px-4 py-2">
+      <h2 id="drawer-title" class="text-balance text-subtitle text-center py-2">
         {title}
       </h2>
       <!-- Description -->
@@ -66,9 +68,11 @@ const { title, description, open } = Astro.props;
         {description}
       </p>
     </div>
-    <div class="px-4">
-      <!-- Content Slot -->
-      <slot />
+
+    <div class="pt-6 grid grid-rows-2 gap-3">
+      <!-- Action buttons -->
+      <ChonkButton text="Cancel" />
+      <ChonkButton text="Delete" />
     </div>
   </div>
 </div>
