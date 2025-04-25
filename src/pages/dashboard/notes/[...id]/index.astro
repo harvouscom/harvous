@@ -85,7 +85,7 @@ if (result?.data?.success) {
         <!-- <ChonkButton text="Share">
           <ShareIcon class="w-[15px] h-[15px] text-inherit fill-current" />
         </ChonkButton> -->
-        <form method="POST" action={actions.notes.delete}>
+        <form class="grid" method="POST" action={actions.notes.delete}>
           <input type="hidden" name="id" value={noteData.id} />
           <input type="hidden" name="userId" value={userId} />
           <ChonkButton text="Delete">
