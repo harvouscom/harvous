@@ -22,71 +22,73 @@ interface Props {
 const { id } = Astro.props as Props;
 ---
 
-<section id={id} class="bg-(--color-fog-white) rounded-xl p-2 flex items-center gap-0">
-  <button class="toolbar-btn" data-trix-attribute="bold" data-trix-key="b">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaBoldIcon />
-  </button>
+<section id={id} class="bg-(--color-fog-white) rounded-xl p-2 w-full overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+  <div class="flex items-center gap-0 flex-nowrap">
+    <button class="toolbar-btn" data-trix-attribute="bold" data-trix-key="b">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaBoldIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-attribute="italic" data-trix-key="i">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaItalicIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-attribute="italic" data-trix-key="i">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaItalicIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-attribute="strike" data-trix-key="s">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaStrikethroughIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-attribute="strike" data-trix-key="s">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaStrikethroughIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-attribute="heading1">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaHeadingIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-attribute="heading1">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaHeadingIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-attribute="quote">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaQuoteRightIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-attribute="quote">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaQuoteRightIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-attribute="code">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaCodeIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-attribute="code">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaCodeIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-attribute="bullet">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaListUlIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-attribute="bullet">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaListUlIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-attribute="number">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaListOlIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-attribute="number">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaListOlIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-action="decreaseNestingLevel">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaOutdentIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-action="decreaseNestingLevel">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaOutdentIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-action="increaseNestingLevel">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaIndentIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-action="increaseNestingLevel">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaIndentIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-action="attachFiles">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaPaperclipIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-action="attachFiles">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaPaperclipIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-action="undo">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaUndoIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-action="undo">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaUndoIcon />
+    </button>
 
-  <button class="toolbar-btn" data-trix-action="redo">
-    {/* @ts-ignore - Icon import in Astro is borked, but works. */}
-    <FaRedoIcon />
-  </button>
+    <button class="toolbar-btn" data-trix-action="redo">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaRedoIcon />
+    </button>
+  </div>
 </section>
 
 <style>
@@ -94,7 +96,7 @@ const { id } = Astro.props as Props;
     @reference "@/styles/global.css";
 
     .toolbar-btn {
-      @apply flex items-center justify-center w-8 h-8 rounded-full hover:bg-(--color-paper) [&:hover>svg]:!fill-(--color-deep-grey);
+      @apply flex items-center justify-center w-8 h-8 rounded-full hover:bg-(--color-paper) [&:hover>svg]:!fill-(--color-deep-grey) flex-shrink-0;
 
       &[data-trix-active] {
         @apply relative;
