@@ -2,7 +2,6 @@
 import { defineConfig } from 'astro/config';
 import clerk from "@clerk/astro";
 import tailwindcss from '@tailwindcss/vite';
-import alpinejs from '@astrojs/alpinejs';
 import db from '@astrojs/db';
 
 import netlify from '@astrojs/netlify';
@@ -14,9 +13,6 @@ export default defineConfig({
   },
 
   integrations: [
-    alpinejs({
-      entrypoint: './src/entrypoint.ts'
-    }),
     db(),
     clerk(),
   ],

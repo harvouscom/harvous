@@ -39,6 +39,13 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
 
 <script>  
   import Alpine from "alpinejs";
+  // @ts-ignore - no types for this plugin
+  import collapse from "@alpinejs/collapse";
+
+  Alpine.plugin(collapse) 
+  Alpine.start()
+  
+  window.Alpine = Alpine;
   
   document.addEventListener('alpine:init', () => {
     Alpine.data('toast', () => ({
