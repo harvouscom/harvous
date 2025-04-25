@@ -70,6 +70,7 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
           if (message) {
             this.makeToast(message, 'info');
           }
+
           // Now, clear the toast from the URL params.
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('toast');
