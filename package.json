@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@alpinejs/collapse": "^3.14.9",
+    "@alpinejs/focus": "^3.14.9",
     "@astrojs/db": "^0.14.9",
     "@astrojs/netlify": "^6.2.4",
     "@clerk/astro": "^2.1.18",
