@@ -61,6 +61,20 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
           this.message = '';
           this.type = 'info';
         }, 300);
+      },
+      init() {
+        this.$nextTick(() => {
+          // If message is set in the URL params, then make a toast.
+          const urlParams = new URLSearchParams(window.location.search);
+          const message = urlParams.get('toast');
+          if (message) {
+            this.makeToast(message, 'info');
+          }
+          // Now, clear the toast from the URL params.
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('toast');
+          window.history.replaceState({}, '', newUrl);
+        });
       }
     }));
   });
