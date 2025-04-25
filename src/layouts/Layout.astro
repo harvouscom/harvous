@@ -43,8 +43,6 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
   import collapse from "@alpinejs/collapse";
 
   Alpine.plugin(collapse) 
-  Alpine.start()
-  
   window.Alpine = Alpine;
   
   document.addEventListener('alpine:init', () => {
@@ -66,6 +64,8 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
       }
     }));
   });
+
+  Alpine.start();
 </script>
 
 <style>
