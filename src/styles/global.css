@@ -46,7 +46,7 @@
 }
 
 .text-subtitle {
-  @apply font-sans font-medium text-[18px] leading-[100%] tracking-normal;
+  @apply font-sans font-semibold text-[18px] leading-[100%] tracking-normal;
 }
 
 .text-body {
