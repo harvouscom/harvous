@@ -27,6 +27,7 @@ const { title, description, open = false, ...props } = Astro.props;
   aria-labelledby="drawer-title"
   aria-describedby="drawer-description"
   @show-drawer.window="isOpen = true"
+  @hide-drawer.window="isOpen = false"
   x-init={`isOpen = ${Boolean(open)}`}
   {...props}
 >

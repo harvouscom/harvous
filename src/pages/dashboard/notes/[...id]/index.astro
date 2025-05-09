@@ -88,7 +88,11 @@ if (result?.data?.success) {
         variant="warning" 
         @click="deleteNote"
       />
-      <ChonkButton text="Nope" size="large" />
+      <ChonkButton 
+        text="Nope" 
+        size="large" 
+        @click="$dispatch('hide-drawer', { value: true })"
+      />
     </Drawer>
 
     <footer 
