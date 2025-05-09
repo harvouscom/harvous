@@ -2,12 +2,12 @@
 import ChonkButton from "@/components/ChonkButton.astro";
 
 interface Props {
-  open: boolean;
+  open?: boolean;
   title: string;
   description: string;
 }
 
-const { title, description, open } = Astro.props;
+const { title, description, open = false, ...props } = Astro.props;
 ---
 
 <div
@@ -26,12 +26,9 @@ const { title, description, open } = Astro.props;
   aria-modal="true"
   aria-labelledby="drawer-title"
   aria-describedby="drawer-description"
-  x-init={`
-    (function () {
-      $watch("isOpen", value => isOpen = value);
-      isOpen = ${Boolean(open)};
-    })()
-  `}
+  @show-drawer.window="isOpen = true"
+  x-init={`isOpen = ${Boolean(open)}`}
+  {...props}
 >
   <!-- Overlay -->
   <div
@@ -70,9 +67,7 @@ const { title, description, open } = Astro.props;
     </div>
 
     <div class="pt-6 grid grid-rows-2 gap-3">
-      <!-- Action buttons -->
-      <ChonkButton text="Yes, Delete" size="large" variant="warning" />
-      <ChonkButton text="Nope" size="large" />
+      <slot />
     </div>
   </div>
 </div>

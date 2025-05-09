@@ -10,6 +10,7 @@ import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
 import Tab from "@/components/TabBar/Tab.astro";
 import ChonkButton from "@/components/ChonkButton.astro";
 import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky.svg";
+import Drawer from "@/components/Drawer.astro";
 
 const { id } = Astro.params;
 
@@ -77,6 +78,19 @@ if (result?.data?.success) {
       </section>
     </main>
 
+    <Drawer
+      title="Are you sure?" 
+      description="Deleting this note from your Harvous is permanent along with any comments." 
+    >
+      <ChonkButton 
+        text="Yes, Delete" 
+        size="large" 
+        variant="warning" 
+        @click="deleteNote"
+      />
+      <ChonkButton text="Nope" size="large" />
+    </Drawer>
+
     <footer 
       x-show="showActionBar" 
       x-transition
@@ -92,7 +106,7 @@ if (result?.data?.success) {
         <!-- <ChonkButton text="Share">
           <ShareIcon class="w-[15px] h-[15px] text-inherit fill-current" />
         </ChonkButton> -->
-        <form class="grid" method="POST" @submit.prevent="deleteNote">
+        <form class="grid" method="POST" @submit.prevent="$dispatch('show-drawer', { value: true })">
           <input type="hidden" name="id" value={noteData.id} />
           <input type="hidden" name="userId" value={userId} />
           <ChonkButton text="Delete">
@@ -113,20 +127,17 @@ if (result?.data?.success) {
         noteId: null,
         userId: null,
         async deleteNote() {
-          console.log(this.noteId, this.userId);
           if (!this.noteId || !this.userId) {
             return;
           }
   
-          if (confirm('Are you sure you want to delete this note?')) {
-            const formData = new FormData();
-            formData.append('id', this.noteId);
-            formData.append('userId', this.userId);
-            const result = await actions.notes.delete(formData);
-  
-            if (result?.data?.success) {
-              window.location.href = `/dashboard?toast=${encodeURIComponent("Note deleted")}`;
-            }
+          const formData = new FormData();
+          formData.append('id', this.noteId);
+          formData.append('userId', this.userId);
+          const result = await actions.notes.delete(formData);
+
+          if (result?.data?.success) {
+            window.location.href = `/dashboard?toast=${encodeURIComponent("Note deleted")}`;
           }
         },
       }));
