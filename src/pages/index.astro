@@ -1,14 +1,17 @@
 ---
-import { SignedIn, SignInButton, SignedOut } from "@clerk/astro/components";
-
 import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout>
-  <SignedOut>
-    <SignInButton />
-  </SignedOut>
-  <SignedIn>
-    <a href="/dashboard">Go to Dashboard</a>
-  </SignedIn>
+  <div class="flex items-center justify-center min-h-screen">
+    <div class="text-center">
+      <h1 class="text-4xl font-bold mb-4">Welcome to Harvous</h1>
+      <a 
+        href="/dashboard" 
+        class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+      >
+        Go to Dashboard
+      </a>
+    </div>
+  </div>
 </Layout>

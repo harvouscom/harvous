@@ -1,7 +1,7 @@
 ---
 import DOMPurify from "isomorphic-dompurify";
 import IconButton from "@/components/IconButton.astro";
-import FaQuestionIcon from "@fortawesome/fontawesome-free/svgs/solid/question.svg";
+import BookmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/bookmark.svg";
 
 interface Props {
   title: string;
@@ -41,7 +41,7 @@ const trimmedContent = decodedContent.slice(0, 100);
     {/* Circle Icon */}
     <div class="absolute top-3 -right-4">
       <IconButton size="sm">
-        <FaQuestionIcon />
+        <BookmarkIcon />
       </IconButton>
     </div>
   </div>
