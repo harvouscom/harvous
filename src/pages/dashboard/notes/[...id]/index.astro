@@ -96,27 +96,29 @@ if (result?.data?.success) {
     </Drawer>
 
     <footer 
-      x-show="showActionBar" 
-      x-transition
-      x-cloak
-      class="bg-(--color-pebble-grey) p-3"
+      class="action-bar-container"
     >
-      <div class="grid grid-cols-2 gap-3 max-w-screen-sm mx-auto sm:px-6">
-        <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
-          <ChonkButton text="Edit">
-            <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-          </ChonkButton>
-        </a>
-        <!-- <ChonkButton text="Share">
-          <ShareIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-        </ChonkButton> -->
-        <form class="grid" method="POST" @submit.prevent="$dispatch('show-drawer', { value: true })">
-          <input type="hidden" name="id" value={noteData.id} />
-          <input type="hidden" name="userId" value={userId} />
-          <ChonkButton text="Delete">
-            <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-          </ChonkButton>
-        </form>
+      <div 
+        class="bg-(--color-pebble-grey) p-3 action-bar-content" 
+        :class="{ 'action-bar-visible': showActionBar }"
+      >
+        <div class="grid grid-cols-2 gap-3 max-w-screen-sm mx-auto sm:px-6">
+          <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
+            <ChonkButton text="Edit">
+              <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+            </ChonkButton>
+          </a>
+          <!-- <ChonkButton text="Share">
+            <ShareIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+          </ChonkButton> -->
+          <form class="grid" method="POST" @submit.prevent="$dispatch('show-drawer', { value: true })">
+            <input type="hidden" name="id" value={noteData.id} />
+            <input type="hidden" name="userId" value={userId} />
+            <ChonkButton text="Delete">
+              <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+            </ChonkButton>
+          </form>
+        </div>
       </div>
     </footer>
   </div>
@@ -147,4 +149,24 @@ if (result?.data?.success) {
       }));
     });
   </script>
+
+<style>
+  .action-bar-container {
+    position: relative;
+    overflow: hidden;
+    height: auto;
+  }
+  
+  .action-bar-content {
+    max-height: 0;
+    transition: all 0.3s ease-out;
+    overflow: hidden;
+    opacity: 0;
+  }
+  
+  .action-bar-visible {
+    max-height: 100px; /* Adjust based on your actual action bar height */
+    opacity: 1;
+  }
+</style>
 </Layout>
