@@ -1,0 +1,132 @@
+---
+import Drawer from "@/components/Drawer.astro";
+import ChonkButton from "@/components/ChonkButton.astro";
+import ThreadIcon from "@fortawesome/fontawesome-free/svgs/solid/diagram-project.svg";
+import LinkIcon from "@fortawesome/fontawesome-free/svgs/solid/link.svg";
+import PlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
+import SearchIcon from "@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg";
+
+interface Props {
+  noteId: number | string;
+}
+
+const { noteId } = Astro.props;
+
+// Sample connected notes for demonstration
+const connectedNotes = [
+  { id: 101, title: "Connected Note 1" },
+  { id: 102, title: "Connected Note 2" }
+];
+---
+
+<Drawer
+  title="Threads"
+  description="Connect this note to others"
+  id="threads"
+  x-show="activeDrawer === 'threads'"
+>
+  <div x-data="{ 
+    showSearch: false,
+    connectedNotes: [],
+    searchTerm: '',
+    searchResults: [],
+    toggleSearch() {
+      this.showSearch = !this.showSearch;
+      if (!this.showSearch) {
+        this.searchTerm = '';
+        this.searchResults = [];
+      }
+    },
+    addConnection(note) {
+      if (!this.connectedNotes.some(n => n.id === note.id)) {
+        this.connectedNotes.push(note);
+        this.updateCounter();
+      }
+      this.showSearch = false;
+      this.searchTerm = '';
+      this.searchResults = [];
+    },
+    removeConnection(noteId) {
+      this.connectedNotes = this.connectedNotes.filter(note => note.id !== noteId);
+      this.updateCounter();
+    },
+    updateCounter() {
+      // Update the counter in the meta bar
+      const threadCountEl = document.querySelector('[data-counter=threads]');
+      if (threadCountEl) {
+        threadCountEl.textContent = this.connectedNotes.length;
+      }
+    },
+    search() {
+      // Placeholder search logic
+      if (this.searchTerm.trim()) {
+        this.searchResults = [
+          { id: 201, title: 'Search Result 1' },
+          { id: 202, title: 'Search Result 2' }
+        ];
+      } else {
+        this.searchResults = [];
+      }
+    }
+  }" x-init="connectedNotes = JSON.parse('${JSON.stringify(connectedNotes)}'); updateCounter()" class="space-y-4 mb-4">
+    <!-- Connected notes list -->
+    <div class="space-y-2" x-show="connectedNotes.length > 0">
+      <template x-for="note in connectedNotes" :key="note.id">
+        <div class="p-3 bg-(--color-fog-white) rounded-lg flex justify-between items-center">
+          <div class="flex items-center gap-2">
+            <LinkIcon class="w-[10px] h-[10px] text-(--color-stone-grey)" />
+            <p x-text="note.title" class="text-body text-(--color-deep-grey)"></p>
+          </div>
+          <button 
+            @click="removeConnection(note.id)" 
+            class="text-(--color-stone-grey) bg-(--color-paper) rounded-full w-[24px] h-[24px] flex items-center justify-center"
+          >
+            &times;
+          </button>
+        </div>
+      </template>
+    </div>
+    
+    <!-- Empty state -->
+    <div x-show="connectedNotes.length === 0" class="text-center p-6">
+      <p class="text-body text-(--color-stone-grey)">No connected notes yet</p>
+    </div>
+    
+    <!-- Search UI -->
+    <div x-show="showSearch" class="pt-3 border-t border-(--color-pebble-grey) space-y-3">
+      <div class="flex gap-2">
+        <input 
+          x-model="searchTerm"
+          @input="search()"
+          class="flex-1 p-3 bg-(--color-fog-white) rounded-lg text-body" 
+          placeholder="Search notes..."
+        />
+        <button 
+          @click="toggleSearch()"
+          class="bg-(--color-stone-grey) text-white rounded-lg w-[44px] flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset]"
+        >
+          &times;
+        </button>
+      </div>
+      
+      <div x-show="searchResults.length > 0" class="space-y-2 max-h-[200px] overflow-y-auto">
+        <template x-for="result in searchResults" :key="result.id">
+          <button 
+            @click="addConnection(result)"
+            class="w-full p-3 bg-(--color-paper) rounded-lg flex justify-between items-center"
+          >
+            <span x-text="result.title" class="text-body text-(--color-deep-grey)"></span>
+            <PlusIcon class="w-[10px] h-[10px] text-(--color-stone-grey)" />
+          </button>
+        </template>
+      </div>
+    </div>
+    
+    <!-- Actions -->
+    <div class="pt-3" x-show="!showSearch">
+      <ChonkButton text="Connect Note" @click="toggleSearch()">
+        <PlusIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+      </ChonkButton>
+    </div>
+  </div>
+</Drawer> 

@@ -1,0 +1,85 @@
+---
+import Drawer from "@/components/Drawer.astro";
+import ChonkButton from "@/components/ChonkButton.astro";
+import TagIcon from "@fortawesome/fontawesome-free/svgs/solid/tag.svg";
+import PlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
+import XMarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+
+interface Props {
+  noteId: number | string;
+}
+
+const { noteId } = Astro.props;
+
+// Sample tags for demonstration
+const sampleTags = [];
+---
+
+<Drawer
+  title="Tags"
+  description="Add and manage tags for this note"
+  id="tags"
+  x-show="activeDrawer === 'tags'"
+>
+  <div x-data="{ 
+    tags: [],
+    newTag: '',
+    addTag() {
+      if (this.newTag.trim()) {
+        this.tags.push({ id: Date.now(), name: this.newTag.trim() });
+        this.newTag = '';
+        this.updateCounter();
+      }
+    },
+    removeTag(tagId) {
+      this.tags = this.tags.filter(tag => tag.id !== tagId);
+      this.updateCounter();
+    },
+    updateCounter() {
+      // Update the counter in the meta bar
+      const tagCountEl = document.querySelector('[data-counter=tags]');
+      if (tagCountEl) {
+        tagCountEl.textContent = this.tags.length;
+      }
+    }
+  }" x-init="tags = JSON.parse('${JSON.stringify(sampleTags)}')" class="space-y-4 mb-4">
+    <!-- Tag list -->
+    <div class="flex flex-wrap gap-2 min-h-[50px]">
+      <template x-for="tag in tags" :key="tag.id">
+        <div class="flex items-center gap-1 bg-(--color-fog-white) px-2 py-1 rounded-lg">
+          <span x-text="tag.name" class="text-caption text-(--color-stone-grey)"></span>
+          <button @click="removeTag(tag.id)" class="text-(--color-stone-grey) hover:text-(--color-deep-grey)">
+            <XMarkIcon class="w-[10px] h-[10px]" />
+          </button>
+        </div>
+      </template>
+    </div>
+    
+    <!-- Empty state -->
+    <div x-show="tags.length === 0" class="text-center p-6">
+      <p class="text-body text-(--color-stone-grey)">No tags yet</p>
+    </div>
+    
+    <!-- Add tag form -->
+    <div class="pt-3 border-t border-(--color-pebble-grey) space-y-3">
+      <div class="flex gap-2">
+        <input 
+          x-model="newTag"
+          @keyup.enter="addTag()"
+          class="flex-1 p-3 bg-(--color-fog-white) rounded-lg text-body" 
+          placeholder="New tag name..."
+        />
+        <button 
+          @click="addTag()"
+          class="bg-(--color-stone-grey) text-white rounded-lg w-[44px] flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset]"
+        >
+          <PlusIcon class="w-[15px] h-[15px]" />
+        </button>
+      </div>
+      
+      <ChonkButton text="Save Tags">
+        <TagIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+      </ChonkButton>
+    </div>
+  </div>
+</Drawer> 

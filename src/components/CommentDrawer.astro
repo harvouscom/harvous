@@ -1,0 +1,75 @@
+---
+import Drawer from "@/components/Drawer.astro";
+import ChonkButton from "@/components/ChonkButton.astro";
+import CommentIcon from "@fortawesome/fontawesome-free/svgs/solid/comment.svg";
+import SendIcon from "@fortawesome/fontawesome-free/svgs/solid/paper-plane.svg";
+
+interface Props {
+  noteId: number | string;
+}
+
+const { noteId } = Astro.props;
+
+// Sample comments (for demonstration)
+const comments = [];
+---
+
+<Drawer
+  title="Comments"
+  description="Add and view comments for this note"
+  id="comments"
+  x-show="activeDrawer === 'comments'"
+>
+  <div x-data="{
+    comments: [],
+    newComment: '',
+    addComment() {
+      if (this.newComment.trim()) {
+        this.comments.push({
+          id: Date.now(),
+          username: 'You',
+          text: this.newComment,
+          time: '1m ago'
+        });
+        this.newComment = '';
+        
+        // Update the counter in the meta bar
+        const commentCountEl = document.querySelector('[data-counter=comments]');
+        if (commentCountEl) {
+          commentCountEl.textContent = this.comments.length;
+        }
+      }
+    }
+  }" x-init="comments = []" class="space-y-4 mb-4">
+    <!-- Comments list -->
+    <div class="space-y-3 max-h-[300px] overflow-y-auto" x-show="comments.length > 0">
+      <template x-for="comment in comments" :key="comment.id">
+        <div class="p-3 bg-(--color-fog-white) rounded-lg">
+          <div class="flex justify-between mb-1">
+            <p class="text-caption font-bold text-(--color-stone-grey)" x-text="comment.username"></p>
+            <p class="text-caption text-(--color-stone-grey)" x-text="comment.time"></p>
+          </div>
+          <p class="text-body text-(--color-deep-grey)" x-text="comment.text"></p>
+        </div>
+      </template>
+    </div>
+    
+    <!-- Empty state -->
+    <div x-show="comments.length === 0" class="text-center p-6">
+      <p class="text-body text-(--color-stone-grey)">No comments yet</p>
+    </div>
+    
+    <!-- Comment form -->
+    <div class="pt-3 border-t border-(--color-pebble-grey) space-y-3">
+      <textarea 
+        x-model="newComment"
+        class="w-full p-3 bg-(--color-fog-white) rounded-lg text-body resize-none min-h-[100px]" 
+        placeholder="Add a comment..."
+      ></textarea>
+      
+      <ChonkButton text="Send Comment" @click="addComment()">
+        <SendIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+      </ChonkButton>
+    </div>
+  </div>
+</Drawer> 

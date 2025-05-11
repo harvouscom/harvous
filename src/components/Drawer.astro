@@ -5,13 +5,17 @@ interface Props {
   open?: boolean;
   title: string;
   description: string;
+  id?: string;
 }
 
-const { title, description, open = false, ...props } = Astro.props;
+const { title, description, open = false, id, ...props } = Astro.props;
 ---
 
 <div
-  x-data="{ isOpen: false }"
+  x-data="{ 
+    isOpen: false,
+    drawerId: '${id}'
+  }"
   x-show="isOpen"
   x-on:keydown.escape.window="isOpen = false"
   x-transition:enter="transition ease-out duration-300"
@@ -26,7 +30,7 @@ const { title, description, open = false, ...props } = Astro.props;
   aria-modal="true"
   aria-labelledby="drawer-title"
   aria-describedby="drawer-description"
-  @show-drawer.window="isOpen = true"
+  @show-drawer.window="isOpen = $event.detail && ($event.detail.drawer === drawerId || ($event.detail.drawer && drawerId.includes($event.detail.drawer)))"
   @hide-drawer.window="isOpen = false"
   x-init={`isOpen = ${Boolean(open)}`}
   {...props}
