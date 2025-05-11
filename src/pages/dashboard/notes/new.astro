@@ -18,37 +18,42 @@ if (result?.data?.success) {
 }
 ---
 
-<Layout title="Note">
-  <section class="bg-(--color-fog-white) pt-3">
-    <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
-      <Tab label="Feed" href="/dashboard" />
-      <Tab label="Note" active />
-    </div>
-  </section>
+<Layout title="Note" classNames="grid grid-rows-1">
+  <div class="flex flex-col h-full">
+    <section class="bg-(--color-fog-white) pt-3">
+      <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
+        <Tab label="Feed" href="/dashboard" />
+        <Tab label="Note" active />
+      </div>
+    </section>
 
-  <main
-    class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
-  >
-    <form
-      class="grid gap-3"
-      method="POST"
-      action={actions.notes.create}
+    <main
+      class="flex-1 max-w-screen-sm mx-auto w-full px-6 pt-6 pb-6 flex flex-col"
     >
-      <input
-        class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
-        type="text"
-        name="title"
-        placeholder="Title"
-        required
-      />
-      <TrixEditor toolbar="my_toolbar" name="content" content="" placeholder="Content" />
-      <TrixToolbarV2 id="my_toolbar" input="content" />
-      <input type="hidden" name="userId" value={userId} />
-      <input type="hidden" name="isPublic" value="false" />
-      <button
-        class="bg-[var(--color-blue)] text-white py-3 px-3 rounded-xl shadow-[0px_-4px_0px_0px_#0000001A_inset] h-[60px]"
-        type="submit">Create Note</button
+      <form
+        class="grid gap-3 flex-1 grid-rows-[auto_1fr_auto_auto_auto]"
+        method="POST"
+        action={actions.notes.create}
       >
-    </form>
-  </main>
+        <input
+          class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
+          type="text"
+          name="title"
+          placeholder="Title"
+          required
+        />
+        <div class="overflow-auto">
+          <TrixEditor toolbar="my_toolbar" name="content" content="" placeholder="Content" />
+        </div>
+        <TrixToolbarV2 id="my_toolbar" input="content" />
+        <input type="hidden" name="userId" value={userId} />
+        <input type="hidden" name="isPublic" value="false" />
+        <div class="py-3">
+          <button
+            class="w-full bg-[var(--color-blue)] text-white py-3 px-3 rounded-xl shadow-[0px_-4px_0px_0px_#0000001A_inset] h-[60px]"
+            type="submit">Create Note</button>
+        </div>
+      </form>
+    </main>
+  </div>
 </Layout>

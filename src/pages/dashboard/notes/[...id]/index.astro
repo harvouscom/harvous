@@ -45,14 +45,13 @@ if (result?.data?.success) {
 }
 ---
 
-<Layout title="Note" classNames="grid grid-rows-1">
+<Layout title="Note">
   <div 
     x-init={`
       noteId = Number(\`${noteData.id}\` || 0);
       userId = \`${userId}\`;
     `} 
     x-data="viewNotePage"
-    class="flex flex-col h-full"
   >
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
@@ -62,7 +61,7 @@ if (result?.data?.success) {
     </section>
 
     <main
-      class="flex-1 max-w-screen-sm w-full mx-auto px-6 pt-6 pb-6 grid grid-rows-[auto_1fr] gap-3"
+      class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
     >
       <section class="px-1 py-2 flex items-center gap-2">
         <IconButton :class="showActionBar ? '!bg-(--color-stone-grey) !text-(--color-light-paper) !fill-(--color-light-paper)' : ''" size="md" @click="showActionBar = !showActionBar">
@@ -77,6 +76,23 @@ if (result?.data?.success) {
         <div set:html={noteData.content}></div>
       </section>
     </main>
+
+    <div x-show="showActionBar" class="bg-(--color-pebble-grey) p-3 mt-3">
+      <div class="grid grid-cols-2 gap-3 max-w-screen-sm mx-auto px-6">
+        <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
+          <ChonkButton text="Edit">
+            <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+          </ChonkButton>
+        </a>
+        <form class="grid" method="POST" @submit.prevent="$dispatch('show-drawer', { value: true })">
+          <input type="hidden" name="id" value={noteData.id} />
+          <input type="hidden" name="userId" value={userId} />
+          <ChonkButton text="Delete">
+            <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+          </ChonkButton>
+        </form>
+      </div>
+    </div>
 
     <Drawer
       title="Are you sure?" 
@@ -94,33 +110,6 @@ if (result?.data?.success) {
         @click="$dispatch('hide-drawer', { value: true })"
       />
     </Drawer>
-
-    <footer 
-      class="action-bar-container"
-    >
-      <div 
-        class="bg-(--color-pebble-grey) p-3 action-bar-content" 
-        :class="{ 'action-bar-visible': showActionBar }"
-      >
-        <div class="grid grid-cols-2 gap-3 max-w-screen-sm mx-auto sm:px-6">
-          <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
-            <ChonkButton text="Edit">
-              <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-            </ChonkButton>
-          </a>
-          <!-- <ChonkButton text="Share">
-            <ShareIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-          </ChonkButton> -->
-          <form class="grid" method="POST" @submit.prevent="$dispatch('show-drawer', { value: true })">
-            <input type="hidden" name="id" value={noteData.id} />
-            <input type="hidden" name="userId" value={userId} />
-            <ChonkButton text="Delete">
-              <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-            </ChonkButton>
-          </form>
-        </div>
-      </div>
-    </footer>
   </div>
 
   <script>
@@ -149,24 +138,4 @@ if (result?.data?.success) {
       }));
     });
   </script>
-
-<style>
-  .action-bar-container {
-    position: relative;
-    overflow: hidden;
-    height: auto;
-  }
-  
-  .action-bar-content {
-    max-height: 0;
-    transition: all 0.3s ease-out;
-    overflow: hidden;
-    opacity: 0;
-  }
-  
-  .action-bar-visible {
-    max-height: 100px; /* Adjust based on your actual action bar height */
-    opacity: 1;
-  }
-</style>
 </Layout>
