@@ -46,7 +46,7 @@ if (result?.data?.success) {
 ---
 
 <Layout title="Note">
-  <div x-data="{ showActionBar: false }">
+  <div x-data="{ showActionBar: false }" class="flex flex-col min-h-[100vh]">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
         <Tab label="Feed" href="/dashboard" />
@@ -55,7 +55,7 @@ if (result?.data?.success) {
     </section>
 
     <main
-      class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
+      class="max-w-screen-sm mx-auto px-6 pt-6 flex-grow flex flex-col"
     >
       <section class="px-1 py-2 flex items-center gap-2">
         <button 
@@ -69,13 +69,13 @@ if (result?.data?.success) {
         <h1 class="text-title">{noteData.title || "Untitled Note"}</h1>
       </section>
 
-      <section class="!select-text whitespace-normal flex flex-col gap-5 px-6 py-5 bg-(--color-light-paper) rounded-xl trix-content">
+      <section class="!select-text whitespace-normal flex flex-col gap-5 px-6 py-5 bg-(--color-light-paper) rounded-xl trix-content flex-grow mb-6">
         <p class="text-caption text-(--color-stone-grey) w-fit">{noteData.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
         <div set:html={noteData.content}></div>
       </section>
     </main>
 
-    <div x-show="showActionBar" class="bg-(--color-pebble-grey) p-3 mt-3">
+    <div x-show="showActionBar" class="bg-(--color-pebble-grey) p-3 mt-auto">
       <div class="grid grid-cols-2 gap-3 max-w-screen-sm mx-auto px-6">
         <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
           <ChonkButton text="Edit">
