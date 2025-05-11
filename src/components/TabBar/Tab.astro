@@ -3,23 +3,44 @@ interface Props {
   label: string;
   href?: string;
   active?: boolean;
+  closable?: boolean;
 }
 
-const { label, href, active = false }: Props = Astro.props;
+const { label, href, active = false, closable = false }: Props = Astro.props;
 ---
 
 {active ? (
-  <div class="rounded-t-lg px-5 py-4 w-fit tab bg-(--color-soft-paper)" data-active={active} role="tab">
-    <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
+  <div 
+    class="relative rounded-t-lg px-5 py-4 w-fit tab bg-(--color-soft-paper) cursor-pointer" 
+    data-active={active} 
+    role="tab"
+    onclick={closable ? "window.location.href='/dashboard'" : undefined}
+  >
+    <div class="flex items-center gap-2">
+      <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
+      {closable && (
+        <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey)">×</span>
+      )}
+    </div>
   </div>
 ) : (
-  <a href={href} role="tab" class="rounded-t-lg px-5 py-3 w-fit tab">
-    <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
+  <a href={href} role="tab" class="relative rounded-t-lg px-5 py-3 w-fit tab">
+    <div class="flex items-center gap-2">
+      <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
+      {closable && (
+        <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey)">×</span>
+      )}
+    </div>
   </a>
 )}
 
 <style>
   .tab-text {
     text-box: trim-both cap alphabetic;
+  }
+  
+  .close-btn {
+    display: block;
+    transform: scale(1.3);
   }
 </style>

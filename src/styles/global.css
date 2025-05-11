@@ -66,3 +66,29 @@
 .trix-content h1 {
     @apply font-sans font-medium text-[18px] leading-[100%] tracking-normal;
 }
+
+/* Add styles for Trix bullet lists */
+.trix-content ul {
+    list-style-type: disc;
+    padding-left: 1.5em;
+    margin: 0.5em 0;
+}
+
+.trix-content ol {
+    list-style-type: decimal;
+    padding-left: 1.5em;
+    margin: 0.5em 0;
+}
+
+.trix-content li {
+    display: list-item;
+    margin-bottom: 0.25em;
+}
+
+.trix-content ul li {
+    list-style-type: disc;
+}
+
+.trix-content ol li {
+    list-style-type: decimal;
+}
