@@ -11,7 +11,7 @@ const { label, href, active = false, closable = false }: Props = Astro.props;
 
 {active ? (
   <div 
-    class="relative rounded-t-lg px-5 h-[44px] flex items-center justify-center tab bg-(--color-soft-paper) cursor-pointer" 
+    class="relative rounded-t-lg px-5 h-[44px] flex items-center tab bg-(--color-soft-paper) cursor-pointer" 
     data-active={active} 
     role="tab"
     onclick={closable ? "localStorage.removeItem('lastViewedNote'); window.location.href='/dashboard'" : undefined}
@@ -19,7 +19,7 @@ const { label, href, active = false, closable = false }: Props = Astro.props;
     <div class="flex items-center gap-2">
       <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
       {closable && (
-        <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey)">×</span>
+        <span class="close-btn w-[12.5px] h-[12.5px] flex items-center justify-center text-[12px] font-bold leading-none text-(--color-stone-grey)">×</span>
       )}
     </div>
   </div>
@@ -27,12 +27,12 @@ const { label, href, active = false, closable = false }: Props = Astro.props;
   <a 
     href={href} 
     role="tab" 
-    class="relative rounded-t-lg px-5 h-[44px] flex items-center justify-center tab bg-(--color-fog-white)"
+    class="relative rounded-t-lg px-5 h-[44px] flex items-center tab bg-(--color-fog-white)"
   >
     <div class="flex items-center gap-2">
       <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
       {closable && (
-        <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey)">×</span>
+        <span class="close-btn w-[12.5px] h-[12.5px] flex items-center justify-center text-[12px] font-bold leading-none text-(--color-stone-grey)">×</span>
       )}
     </div>
   </a>
