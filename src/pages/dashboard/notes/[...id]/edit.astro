@@ -40,7 +40,7 @@ if (result?.data?.success && result.data.note) {
 ---
 
 <Layout title="Note" classNames="grid grid-rows-1">
-  <div class="flex flex-col h-full">
+  <div class="flex flex-col h-[100dvh]">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
         <Tab label="Feed" href="/dashboard" />
@@ -49,32 +49,34 @@ if (result?.data?.success && result.data.note) {
     </section>
 
     <main
-      class="flex-1 max-w-screen-sm mx-auto w-full px-6 pt-6 pb-6 flex flex-col"
+      class="flex-1 max-w-screen-sm mx-auto w-full px-6 pt-6 flex flex-col h-full overflow-hidden"
     >
       <form
-        class="grid gap-3 flex-1 grid-rows-[auto_1fr_auto_auto_auto_auto]"
+        class="flex flex-col h-full"
         method="POST"
         action={actions.notes.update}
       >
         <input
-          class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
+          class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl mb-3"
           type="text"
           name="title"
           placeholder="Title"
           required
           value={noteData.title}
         />
-        <div class="overflow-auto">
+        <div class="flex-1 min-h-0 mb-3">
           <TrixEditor toolbar="my_toolbar" name="content" content={noteData.content} placeholder="Content" />
         </div>
-        <TrixToolbarV2 id="my_toolbar" input="content" />
-        <input type="hidden" name="id" value={noteData.id} />
-        <input type="hidden" name="userId" value={userId} />
-        <input type="hidden" name="isPublic" value="false" />
-        <div class="py-3">
-          <button
-            class="w-full bg-[var(--color-blue)] text-white py-3 px-3 rounded-xl shadow-[0px_-4px_0px_0px_#0000001A_inset] h-[60px]"
-            type="submit">Save</button>
+        <div class="sticky bottom-0 pt-2 z-10">
+          <TrixToolbarV2 id="my_toolbar" input="content" />
+          <input type="hidden" name="id" value={noteData.id} />
+          <input type="hidden" name="userId" value={userId} />
+          <input type="hidden" name="isPublic" value="false" />
+          <div class="py-3">
+            <button
+              class="w-full bg-[var(--color-blue)] text-white py-3 px-3 rounded-xl shadow-[0px_-4px_0px_0px_#0000001A_inset] h-[60px]"
+              type="submit">Save</button>
+          </div>
         </div>
       </form>
     </main>

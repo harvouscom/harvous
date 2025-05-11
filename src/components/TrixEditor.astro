@@ -21,17 +21,21 @@ const {
 
 <!-- @TODO - Style for ul and ol -->
 
-<div id="trix-editor" class="relative not-prose">
+<div id="trix-editor" class="relative not-prose h-full">
   <input {...props} required id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
-  <trix-editor {...props} class="trix-content" toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
+  <trix-editor {...props} class="trix-content h-full" toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
 </div>
 
 <style>
     /* This is needed to use Tailwind's @apply in v5 */
     @reference "@/styles/global.css";
 
+    #trix-editor {
+      @apply h-full flex flex-col;
+    }
+
     #trix-editor trix-editor {
-      @apply resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl border-none flex flex-col gap-4;
+      @apply resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl border-none flex-1 flex flex-col gap-4 min-h-[200px] overflow-y-auto;
     }
 
     /* Styles for bullet points and numbered lists */
