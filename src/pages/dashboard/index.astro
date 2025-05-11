@@ -19,32 +19,35 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
 ---
 
 <Layout>
-  <section class="bg-(--color-fog-white) pt-3">
-    <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2" x-data>
-      <Tab label="Feed" href="#" active />
-      <div id="note-tab-container"></div>
-    </div>
-  </section>
+  <div class="relative min-h-[100vh]">
+    <section class="bg-(--color-fog-white) pt-3">
+      <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2" x-data>
+        <Tab label="Feed" href="#" active />
+        <div id="note-tab-container"></div>
+      </div>
+    </section>
 
-  <main
-    class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
-  >
-    <ul class="grid max-sm:grid-cols-2 sm:grid-cols-3 gap-3 gap-y-4">
-      {
-        notes.map((note) => (
-          <li class="w-full h-full">
-            <a class="h-full" href={`/dashboard/notes/${note.id}`}>
-              <NoteCard title={note.title ?? ""} content={note.content ?? ""} />
-            </a>
-          </li>
-        ))
-      }
-    </ul>
-
-    <a href="/dashboard/notes/new">
+    <main
+      class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
+    >
+      <ul class="grid max-sm:grid-cols-2 sm:grid-cols-3 gap-3 gap-y-4">
+        {
+          notes.map((note) => (
+            <li class="w-full h-full">
+              <a class="h-full" href={`/dashboard/notes/${note.id}`}>
+                <NoteCard title={note.title ?? ""} content={note.content ?? ""} />
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </main>
+    
+    <!-- Floating Action Button for creating a new note -->
+    <a href="/dashboard/notes/new" class="absolute bottom-[32px] right-[32px] z-50">
       <CtaButton />
     </a>
-  </main>
+  </div>
 
   <script>
     // Check if the user was viewing a note previously and keep the tab if they were
