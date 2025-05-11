@@ -20,8 +20,9 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
 
 <Layout>
   <section class="bg-(--color-fog-white) pt-3">
-    <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
+    <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2" x-data>
       <Tab label="Feed" href="#" active />
+      <div id="note-tab-container"></div>
     </div>
   </section>
 
@@ -43,7 +44,39 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
     <a href="/dashboard/notes/new">
       <CtaButton />
     </a>
-
-    <button @click="$dispatch('toast', { message: 'Hello, world!', type: 'info' });">Show Toast</button>
   </main>
+
+  <script>
+    // Check if the user was viewing a note previously and keep the tab if they were
+    document.addEventListener('DOMContentLoaded', () => {
+      const lastViewedNote = localStorage.getItem('lastViewedNote');
+      const noteTabContainer = document.getElementById('note-tab-container');
+      
+      if (lastViewedNote && noteTabContainer) {
+        const noteId = lastViewedNote;
+        const noteTab = document.createElement('div');
+        
+        // For new notes vs existing notes
+        const href = noteId === 'new' ? '/dashboard/notes/new' : `/dashboard/notes/${noteId}`;
+        
+        noteTab.innerHTML = `
+          <div class="relative rounded-t-lg px-5 py-3 w-fit tab bg-(--color-fog-white)" role="tab">
+            <div class="flex items-center gap-2">
+              <a href="${href}" class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">Note</a>
+              <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer" onclick="closeNoteTab()">×</span>
+            </div>
+          </div>
+        `;
+        noteTabContainer.appendChild(noteTab);
+      }
+    });
+
+    function closeNoteTab() {
+      localStorage.removeItem('lastViewedNote');
+      const noteTabContainer = document.getElementById('note-tab-container');
+      if (noteTabContainer) {
+        noteTabContainer.innerHTML = '';
+      }
+    }
+  </script>
 </Layout>

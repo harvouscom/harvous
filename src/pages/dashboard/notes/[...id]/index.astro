@@ -46,13 +46,7 @@ if (result?.data?.success) {
 ---
 
 <Layout title="Note">
-  <div 
-    x-init={`
-      noteId = Number(\`${noteData.id}\` || 0);
-      userId = \`${userId}\`;
-    `} 
-    x-data="viewNotePage"
-  >
+  <div x-data="{ showActionBar: false }">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
         <Tab label="Feed" href="/dashboard" />
@@ -64,10 +58,14 @@ if (result?.data?.success) {
       class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
     >
       <section class="px-1 py-2 flex items-center gap-2">
-        <IconButton :class="showActionBar ? '!bg-(--color-stone-grey) !text-(--color-light-paper) !fill-(--color-light-paper)' : ''" size="md" @click="showActionBar = !showActionBar">
-          <BookmarkIcon x-show="!showActionBar" />
-          <CheckIcon x-cloak x-show="showActionBar" />
-        </IconButton>
+        <button 
+          class="icon-btn rounded-full w-[44px] h-[44px] flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset]"
+          :class="showActionBar ? 'bg-[var(--color-stone-grey)] text-[var(--color-light-paper)] fill-[var(--color-light-paper)]' : 'bg-[var(--color-paper)] text-[var(--color-stone-grey)] fill-[var(--color-stone-grey)]'"
+          @click="showActionBar = !showActionBar"
+        >
+          <BookmarkIcon x-show="!showActionBar" class="w-[20px] h-[20px]" />
+          <CheckIcon x-cloak x-show="showActionBar" class="w-[20px] h-[20px]" />
+        </button>
         <h1 class="text-title">{noteData.title || "Untitled Note"}</h1>
       </section>
 
@@ -84,58 +82,21 @@ if (result?.data?.success) {
             <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
           </ChonkButton>
         </a>
-        <form class="grid" method="POST" @submit.prevent="$dispatch('show-drawer', { value: true })">
+        <form class="grid" method="POST" action={actions.notes.delete}>
           <input type="hidden" name="id" value={noteData.id} />
           <input type="hidden" name="userId" value={userId} />
-          <ChonkButton text="Delete">
+          <ChonkButton text="Delete" type="submit">
             <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
           </ChonkButton>
         </form>
       </div>
     </div>
-
-    <Drawer
-      title="Are you sure?" 
-      description="Deleting this note from your Harvous is permanent along with any comments." 
-    >
-      <ChonkButton 
-        text="Yes, Delete" 
-        size="large" 
-        variant="warning" 
-        @click="deleteNote"
-      />
-      <ChonkButton 
-        text="Nope" 
-        size="large" 
-        @click="$dispatch('hide-drawer', { value: true })"
-      />
-    </Drawer>
   </div>
 
-  <script>
-    import Alpine from "alpinejs";
-    import { actions } from "astro:actions";
-  
-    document.addEventListener('alpine:init', () => {
-      Alpine.data('viewNotePage', () => ({
-        showActionBar: false,
-        noteId: null,
-        userId: null,
-        async deleteNote() {
-          if (!this.noteId || !this.userId) {
-            return;
-          }
-  
-          const formData = new FormData();
-          formData.append('id', this.noteId);
-          formData.append('userId', this.userId);
-          const result = await actions.notes.delete(formData);
-
-          if (result?.data?.success) {
-            window.location.href = `/dashboard?toast=${encodeURIComponent("Note deleted")}`;
-          }
-        },
-      }));
+  <script define:vars={{ noteId: noteData.id }}>
+    // Save the current note ID to localStorage
+    document.addEventListener('DOMContentLoaded', function() {
+      localStorage.setItem('lastViewedNote', noteId.toString());
     });
   </script>
 </Layout>

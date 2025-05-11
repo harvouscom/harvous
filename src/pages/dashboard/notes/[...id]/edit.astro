@@ -80,3 +80,10 @@ if (result?.data?.success && result.data.note) {
     </main>
   </div>
 </Layout>
+
+<script>
+  // Save the current note ID to localStorage
+  document.addEventListener('DOMContentLoaded', () => {
+    localStorage.setItem('lastViewedNote', '${noteData.id}');
+  });
+</script>

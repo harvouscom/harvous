@@ -57,3 +57,11 @@ if (result?.data?.success) {
     </main>
   </div>
 </Layout>
+
+<script>
+  // For new notes, we'll handle this differently
+  document.addEventListener('DOMContentLoaded', () => {
+    // We mark that a note tab is open, but without an ID yet
+    localStorage.setItem('lastViewedNote', 'new');
+  });
+</script>
