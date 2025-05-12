@@ -7,6 +7,7 @@ import ThreadCard from "@/components/ThreadCard.astro";
 import AddButton from "@/components/AddButton.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import { SignOutButton } from "@clerk/astro/components";
+import EllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
 
 // Get userId from auth and redirect if not authenticated
 const userId = Astro.locals.auth().userId;
@@ -60,69 +61,82 @@ const threadIds = threads.map(thread => thread.id);
       class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
     >
       <!-- New Section -->
-      <section class="flex flex-col py-3 pb-0 items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
-        <div class="flex justify-between items-center w-full px-3">
-          <h2 class="text-lg font-medium">New</h2>
-          <button class="text-2xl">...</button>
-        </div>
-        <div>
-          <p class="text-center text-gray-400">0</p>
+      <section class="flex flex-col items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="px-6 py-3 w-full">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2">
+              <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">New</h2>
+              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">0</span>
+            </div>
+            <div class="flex items-center">
+              <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
+            </div>
+          </div>
+          {/* Hide content area since there are no new items */}
         </div>
       </section>
 
       <!-- Pinned Threads Section -->
-      <section class="flex flex-col py-3 pb-0 items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
-        <div class="flex justify-between items-center w-full px-3">
-          <h2 class="text-lg font-medium">Pinned Threads</h2>
-          <button class="text-2xl">...</button>
-        </div>
-        <div>
-          <p class="text-center text-gray-400">0</p>
+      <section class="flex flex-col items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="px-6 py-3 w-full">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2">
+              <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Pinned Threads</h2>
+              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">0</span>
+            </div>
+            <div class="flex items-center">
+              <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
+            </div>
+          </div>
+          {/* Hide content area since there are no pinned threads */}
         </div>
       </section>
 
       <!-- Unorganized Notes Section -->
-      <section class="flex flex-col py-3 pb-0 items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
-        <div class="flex justify-between items-center w-full px-3">
-          <h2 class="text-lg font-medium">Unorganized Notes</h2>
-          <div class="flex items-center gap-2">
-            <span class="bg-[#E6E4DA] rounded-full px-3 py-1">{notes.length}</span>
-            <button class="text-2xl">...</button>
+      <section class="flex flex-col items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="px-6 py-3 w-full">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2">
+              <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Unorganized Notes</h2>
+              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{notes.length}</span>
+            </div>
+            <div class="flex items-center">
+              <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
+            </div>
           </div>
         </div>
-        <div class="w-full overflow-x-auto">
-          <div class="flex gap-3 min-w-min pl-3 pr-6 pb-4">
-            {
-              notes.map((note) => (
-                <div class="min-w-[160px] max-w-[160px] flex-shrink-0">
-                  <a href={`/dashboard/notes/${note.id}`}>
-                    <NoteCard title={note.title ?? ""} content={note.content ?? ""} />
-                  </a>
-                </div>
-              ))
-            }
+        {notes.length > 0 && (
+          <div class="w-full overflow-x-auto">
+            <div class="flex gap-3 min-w-min pl-3 pr-6">
+              {
+                notes.map((note) => (
+                  <div class="min-w-[160px] max-w-[160px] flex-shrink-0">
+                    <a href={`/dashboard/notes/${note.id}`}>
+                      <NoteCard title={note.title ?? ""} content={note.content ?? ""} />
+                    </a>
+                  </div>
+                ))
+              }
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       <!-- All Threads Section -->
-      <section class="flex flex-col py-3 pb-0 items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
-        <div class="flex justify-between items-center w-full px-3">
-          <h2 class="text-lg font-medium">All Threads</h2>
-          <div class="flex items-center gap-2">
-            <span class="bg-[#E6E4DA] rounded-full px-3 py-1">{threads.length}</span>
-            <button class="text-2xl">...</button>
+      <section class="flex flex-col items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="px-6 py-3 w-full">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2">
+              <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">All Threads</h2>
+              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{threads.length}</span>
+            </div>
+            <div class="flex items-center">
+              <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
+            </div>
           </div>
         </div>
-        {threads.length === 0 ? (
-          <div class="text-center w-full py-4 text-gray-500">
-            <p>You don't have any threads yet.</p>
-            <p class="mt-2">
-              <a href="/dashboard/threads/new" class="text-[var(--color-blue)]">Create a thread</a> to organize your notes.
-            </p>
-          </div>
-        ) : (
-          <div class="w-full px-3 pb-4">
+        {threads.length > 0 && (
+          <div class="w-full px-3">
             <div class="flex flex-col gap-3 w-full">
               {
                 threads.map((thread) => (
