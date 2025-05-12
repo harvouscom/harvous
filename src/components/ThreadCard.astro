@@ -11,27 +11,36 @@ const { title, isPublic, color } = Astro.props;
 
 // Convert color name to CSS variable if provided
 const colorStyle = color ? `background-color: var(--color-${color})` : '';
+const sideHighlightStyle = color ? `background-color: var(--color-${color})` : 'background-color: var(--color-light-paper)';
 ---
 
 <section
-  class="flex h-[85px] p-3 flex-col items-start gap-3 w-full rounded-xl bg-white shadow-[0px_-6px_0px_0px_#D3D0C5_inset]"
+  class="flex h-[85px] rounded-xl bg-white shadow-[var(--shadow-primary)] overflow-hidden"
 >
-  <div class="w-full flex justify-start items-center">
-    <div class="flex items-center gap-3">
-      <button 
-        class={`icon-btn rounded-full w-[44px] h-[44px] flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset] ${color ? '' : 'bg-[var(--color-paper)]'} text-[var(--color-stone-grey)] fill-[var(--color-stone-grey)]`}
-        style={colorStyle}
-      >
-        <svg viewBox="0 0 448 512" role="img" class="w-[20px] h-[20px]">
-          <path d="M144 144v48H304V144c0-44.2-35.8-80-80-80s-80 35.8-80 80zM80 192V144C80 64.5 144.5 0 224 0s144 64.5 144 144v48h16c35.3 0 64 28.7 64 64V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V256c0-35.3 28.7-64 64-64H80z"></path>
-        </svg>
-      </button>
+  <div class="flex w-full">
+    {/* Side Highlight */}
+    <div class="w-[36px] h-full" style={sideHighlightStyle}></div>
+    
+    <div class="flex-1 relative">
+      <div class="absolute left-[-22px] top-3">
+        <button 
+          class="icon-btn rounded-full w-[44px] h-[44px] flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset] bg-[var(--color-paper)] text-[var(--color-stone-grey)] fill-[var(--color-stone-grey)]"
+        >
+          <svg viewBox="0 0 448 512" role="img" class="w-[20px] h-[20px]">
+            <path d="M144 144v48H304V144c0-44.2-35.8-80-80-80s-80 35.8-80 80zM80 192V144C80 64.5 144.5 0 224 0s144 64.5 144 144v48h16c35.3 0 64 28.7 64 64V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V256c0-35.3 28.7-64 64-64H80z"></path>
+          </svg>
+        </button>
+      </div>
       
-      <h3
-        class="overflow-wrap-anywhere text-[var(--Deep-Gray,#4A473D)] text-[18px] font-semibold line-clamp-2 leading-[100%]"
-      >
-        {title}
-      </h3>
+      <div class="pl-[34px] pt-3">
+        <div class="h-[44px] flex items-center">
+          <h3
+            class="overflow-wrap-anywhere text-[var(--Deep-Gray,#4A473D)] text-[18px] font-semibold line-clamp-2 leading-[100%]"
+          >
+            {title}
+          </h3>
+        </div>
+      </div>
     </div>
   </div>
 </section>
