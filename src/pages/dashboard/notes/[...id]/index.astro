@@ -9,7 +9,7 @@ import XmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
 import Tab from "@/components/TabBar/Tab.astro";
 import ChonkButton from "@/components/ChonkButton.astro";
-import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky.svg";
+import PencilIcon from "@fortawesome/fontawesome-free/svgs/solid/pencil.svg";
 import MetaBar from "@/components/MetaBar.astro";
 import ThreadsDrawer from "@/components/ThreadsDrawer.astro";
 
@@ -111,8 +111,8 @@ const noteData = notes[0];
         >
           <div class="grid grid-cols-2 gap-3 w-full">
             <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
-              <ChonkButton text="Edit">
-                <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+              <ChonkButton text="Edit Note">
+                <PencilIcon class="w-[15px] h-[15px] text-inherit fill-current" />
               </ChonkButton>
             </a>
             <form 

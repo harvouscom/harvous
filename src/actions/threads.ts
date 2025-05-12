@@ -98,5 +98,48 @@ export const threads = {
         throw new Error(`Failed to delete thread: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     }
+  }),
+  togglePin: defineAction({
+    accept: "form",
+    input: z.object({
+      id: z.coerce.number().min(1, "ID is required"),
+      userId: z.string().min(1, "User ID is required")
+    }),
+    handler: async ({ id, userId }) => {
+      try {
+        console.log(`Toggling pin for thread ID: ${id}, userId: ${userId}`);
+        
+        // First get the current thread to check its isPinned status
+        const thread = await db.select()
+          .from(Threads)
+          .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
+          .limit(1)
+          .get();
+        
+        if (!thread) {
+          throw new Error("Thread not found or you don't have permission to modify it");
+        }
+        
+        // Toggle the isPinned status
+        const updatedThread = await db.update(Threads)
+          .set({
+            isPinned: !thread.isPinned,
+            updatedAt: new Date()
+          })
+          .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
+          .returning()
+          .get();
+
+        console.log(`Thread updated, isPinned: ${updatedThread.isPinned}`);
+        
+        return {
+          success: `Thread ${updatedThread.isPinned ? 'pinned' : 'unpinned'} successfully!`,
+          thread: updatedThread
+        };
+      } catch (error: any) {
+        console.error(`Error toggling pin status:`, error);
+        throw new Error(`Failed to toggle pin status: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
   })
 }; 

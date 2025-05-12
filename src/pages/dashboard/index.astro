@@ -41,14 +41,18 @@ const notes = await db.select({
   )
   .orderBy(desc(Notes.createdAt));
 
-const threads = await db.select()
+// Get all threads, sorted by last update (or creation if no update)
+const allThreads = await db.select()
   .from(Threads)
   .where(eq(Threads.userId, userId as string))
-  .orderBy(desc(Threads.createdAt));
+  .orderBy(desc(Threads.updatedAt || Threads.createdAt));
+
+// Extract pinned threads for the Pinned Threads section
+const pinnedThreads = allThreads.filter(thread => thread.isPinned);
 
 // Create arrays of note and thread IDs for checking in client-side script
 const noteIds = notes.map(note => note.id);
-const threadIds = threads.map(thread => thread.id);
+const threadIds = allThreads.map(thread => thread.id);
 ---
 
 <Layout>
@@ -96,13 +100,28 @@ const threadIds = threads.map(thread => thread.id);
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
               <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Pinned Threads</h2>
-              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">0</span>
+              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{pinnedThreads.length}</span>
             </div>
             <div class="flex items-center">
               <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
             </div>
           </div>
         </div>
+        {pinnedThreads.length > 0 && (
+          <div class="w-full px-6 pb-[18px]">
+            <div class="flex flex-col gap-3 w-full">
+              {
+                pinnedThreads.map((thread) => (
+                  <div class="w-full">
+                    <a href={`/dashboard/threads/${thread.id}`}>
+                      <ThreadCard title={thread.title} isPublic={thread.isPublic} color={thread.color || undefined} />
+                    </a>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        )}
       </section>
 
       <!-- Unorganized Notes Section -->
@@ -144,18 +163,18 @@ const threadIds = threads.map(thread => thread.id);
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
               <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">All Threads</h2>
-              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{threads.length}</span>
+              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{allThreads.length}</span>
             </div>
             <div class="flex items-center">
               <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
             </div>
           </div>
         </div>
-        {threads.length > 0 && (
+        {allThreads.length > 0 && (
           <div class="w-full px-6 pb-[18px]">
             <div class="flex flex-col gap-3 w-full">
               {
-                threads.map((thread) => (
+                allThreads.map((thread) => (
                   <div class="w-full">
                     <a href={`/dashboard/threads/${thread.id}`}>
                       <ThreadCard title={thread.title} isPublic={thread.isPublic} color={thread.color || undefined} />

@@ -12,6 +12,7 @@ import Tab from "@/components/TabBar/Tab.astro";
 import ChonkButton from "@/components/ChonkButton.astro";
 import NoteCard from "@/components/NoteCard.astro";
 import PencilIcon from "@fortawesome/fontawesome-free/svgs/solid/pencil.svg";
+import ThumbTackIcon from "@fortawesome/fontawesome-free/svgs/solid/thumbtack.svg";
 
 const { id } = Astro.params;
 
@@ -114,12 +115,26 @@ if (noteThreads.length > 0) {
           x-cloak
           class="absolute top-[64px] left-[-12px] right-[-12px] z-10 bg-(--color-pebble-grey) p-3 rounded-xl shadow-lg"
         >
-          <div class="grid grid-cols-2 gap-3 w-full">
+          <div class="grid grid-cols-3 gap-3 w-full">
             <a class="grid" href={`/dashboard/threads/${thread.id}/edit`}>
-              <ChonkButton text="Edit">
+              <ChonkButton text="Edit Thread">
                 <PencilIcon class="w-[15px] h-[15px] text-inherit fill-current" />
               </ChonkButton>
             </a>
+            <form 
+              id="pinForm" 
+              class="grid" 
+              method="POST" 
+              action="/api/threads/toggle-pin"
+            >
+              <input type="hidden" name="id" value={thread.id.toString()} />
+              <input type="hidden" name="userId" value={userId} />
+              <button type="submit" style="width: 100%; height: 100%; padding: 0; background: none; border: none;">
+                <ChonkButton text={thread.isPinned ? "Unpin" : "Pin"}>
+                  <ThumbTackIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+                </ChonkButton>
+              </button>
+            </form>
             <form 
               id="deleteForm" 
               class="grid" 
@@ -207,6 +222,84 @@ if (noteThreads.length > 0) {
           noteTabContainer.appendChild(noteTab);
         }
       }
+    }
+    
+    // Handle form submission for pin toggle
+    const pinForm = document.querySelector('#pinForm');
+    if (pinForm) {
+      pinForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Create FormData and log its contents for debugging
+        const formData = new FormData(pinForm);
+        console.log('Submitting form with data:');
+        for (let [key, value] of formData.entries()) {
+          console.log(`${key}: ${value}`);
+        }
+        
+        // Submit form data via fetch
+        fetch(pinForm.action, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Accept': 'application/json'
+          }
+        })
+        .then(response => {
+          console.log('Response status:', response.status);
+          // Log the raw response for debugging
+          return response.text().then(text => {
+            console.log('Raw response:', text);
+            // Try to parse as JSON
+            try {
+              return text ? JSON.parse(text) : {};
+            } catch (err) {
+              console.error('Error parsing JSON:', err);
+              // Return an error object directly instead of throwing
+              return { error: 'Failed to parse server response' };
+            }
+          });
+        })
+        .then(data => {
+          console.log('Response data:', data);
+          if (data.success) {
+            // Update the button text without reloading
+            const pinButton = pinForm.querySelector('button span');
+            if (pinButton) {
+              pinButton.textContent = data.thread?.isPinned ? "Unpin" : "Pin";
+            }
+            
+            // Show a toast notification
+            window.dispatchEvent(new CustomEvent('toast', { 
+              detail: { 
+                message: data.success,
+                type: 'info'
+              } 
+            }));
+            
+            // Hide the action bar (without Alpine direct access)
+            document.querySelector('.icon-btn')?.click();
+          } else if (data.error) {
+            // Handle error from the parsed data
+            window.dispatchEvent(new CustomEvent('toast', { 
+              detail: { 
+                message: 'Error: ' + data.error,
+                type: 'error'
+              } 
+            }));
+          }
+        })
+        .catch(error => {
+          console.error('Fetch error:', error);
+          // Show error toast
+          window.dispatchEvent(new CustomEvent('toast', { 
+            detail: { 
+              message: 'Failed to update pin status: Network or fetch error',
+              type: 'error'
+            } 
+          }));
+        });
+      });
     }
     
     // Handle form submission for delete
