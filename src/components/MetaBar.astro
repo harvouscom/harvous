@@ -28,6 +28,7 @@ const { noteId } = Astro.props;
   }" 
   class="w-full inline-flex items-center justify-between"
   style="width: 100%;"
+  @hide-drawer.window="activeDrawer = null"
 >
   <div class="flex items-center gap-3">
     <div 

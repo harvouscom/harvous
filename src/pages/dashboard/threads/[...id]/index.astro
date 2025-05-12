@@ -1,54 +1,76 @@
 ---
-import { db, eq, and, Threads } from "astro:db";
-import Layout from "@/layouts/Layout.astro";
-import Tab from "@/components/TabBar/Tab.astro";
-import ThreadMetaBar from "@/components/ThreadMetaBar.astro";
-import ThreadColorPicker from "@/components/ThreadColorPicker.astro";
+import { db, eq, Threads, and, NoteThreads, Notes } from "astro:db";
 import { actions } from "astro:actions";
-import LockIcon from "@fortawesome/fontawesome-free/svgs/solid/lock.svg";
-import GlobeIcon from "@fortawesome/fontawesome-free/svgs/solid/globe.svg";
+import { z } from "zod";
+import Layout from "@/layouts/Layout.astro";
+import IconButton from "@/components/IconButton.astro";
+import BookmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/bookmark.svg";
 import XmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
-import EditIcon from "@fortawesome/fontawesome-free/svgs/solid/pen.svg";
 import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
+import Tab from "@/components/TabBar/Tab.astro";
 import ChonkButton from "@/components/ChonkButton.astro";
+import NoteCard from "@/components/NoteCard.astro";
+import PencilIcon from "@fortawesome/fontawesome-free/svgs/solid/pencil.svg";
 
 const { id } = Astro.params;
-const numericId = parseInt(id || '0', 10);
 
-if (isNaN(numericId) || numericId <= 0) {
-  return Astro.redirect("/dashboard");
+// Validate ID parameter
+if (!id || z.number({ coerce: true }).safeParse(id).success === false) {
+  return Astro.redirect("/dashboard/threads");
 }
 
-if (!Astro.locals.auth().userId) {
+const numericId = parseInt(id);
+const currentUser = Astro.locals.auth();
+const userId = currentUser ? currentUser.userId : null;
+
+if (!userId) {
   return Astro.redirect("/login");
 }
 
-const user = await Astro.locals.currentUser();
-
-if (!user) {
-  return Astro.redirect("/login");
-}
-
-// Fetch the thread
-const thread = await db.select()
+// Only fetch the thread if we're not already redirecting
+const threads = await db
+  .select()
   .from(Threads)
-  .where(and(eq(Threads.id, numericId), eq(Threads.userId, user.id)))
-  .get();
+  .where(and(eq(Threads.id, numericId), eq(Threads.userId, userId as string)))
+  .limit(1);
 
-if (!thread) {
-  return Astro.redirect("/dashboard");
+if (!threads.length) {
+  return Astro.redirect("/dashboard/threads");
 }
 
-// Handle form submission
-const result = Astro.getActionResult(actions.threads.update);
-if (result?.data?.success) {
-  // Refresh the page to show updated thread
-  Astro.redirect(`/dashboard/threads/${thread.id}`);
+const thread = threads[0];
+
+// Get notes for this thread
+const noteThreads = await db
+  .select()
+  .from(NoteThreads)
+  .where(eq(NoteThreads.threadId, numericId));
+
+// Get note details
+let notes = [];
+if (noteThreads.length > 0) {
+  for (const relation of noteThreads) {
+    const noteResults = await db
+      .select()
+      .from(Notes)
+      .where(and(
+        eq(Notes.id, relation.noteId),
+        eq(Notes.userId, userId as string)
+      ))
+      .limit(1);
+    
+    if (noteResults.length > 0) {
+      notes.push(noteResults[0]);
+    }
+  }
+  
+  // Sort notes by creation date (newest first)
+  notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 ---
 
-<Layout title={thread.title}>
-  <div class="flex flex-col h-full" x-data="{ showActionBar: false, isEditing: false }">
+<Layout title="Thread">
+  <div x-data="{ showActionBar: false }" class="flex flex-col min-h-[100vh] relative">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-6 mx-auto max-w-screen-sm flex items-center">
         <Tab label="Feed" href="/dashboard" />
@@ -56,20 +78,27 @@ if (result?.data?.success) {
       </div>
     </section>
 
-    <main class="flex-1 w-full max-w-screen-sm mx-auto px-6 pt-6 pb-6 flex flex-col gap-3">
+    <main
+      class="w-full max-w-screen-sm mx-auto px-6 pt-6 flex-grow flex flex-col gap-3"
+    >
       <section class="w-full px-1 py-2 flex items-center gap-2 relative">
         <button 
           class="icon-btn rounded-full w-[44px] h-[44px] flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset]"
           :class="showActionBar ? 'bg-[var(--color-stone-grey)] text-[var(--color-light-paper)] fill-[var(--color-light-paper)]' : 'bg-[var(--color-paper)] text-[var(--color-stone-grey)] fill-[var(--color-stone-grey)]'"
           @click="showActionBar = !showActionBar"
         >
-          {thread.isPublic ? 
-            <GlobeIcon x-show="!showActionBar" class="w-[20px] h-[20px]" /> : 
-            <LockIcon x-show="!showActionBar" class="w-[20px] h-[20px]" />
-          }
+          <BookmarkIcon x-show="!showActionBar" class="w-[20px] h-[20px]" />
           <XmarkIcon x-cloak x-show="showActionBar" class="w-[20px] h-[20px]" />
         </button>
-        <h1 class="text-2xl font-bold">{thread.title}</h1>
+        <div class="flex items-center gap-2">
+          {thread.color && (
+            <span 
+              class="w-4 h-4 rounded-full inline-block mr-1" 
+              style={`background-color: var(--color-${thread.color})`}
+            ></span>
+          )}
+          <h1 class="text-title">{thread.title || "Untitled Thread"}</h1>
+        </div>
         
         <!-- Floating action bar positioned absolutely below the button -->
         <div 
@@ -77,44 +106,22 @@ if (result?.data?.success) {
           x-cloak
           class="absolute top-[64px] left-[-12px] right-[-12px] z-10 bg-(--color-pebble-grey) p-3 rounded-xl shadow-lg"
         >
-          <div class="grid grid-cols-2 gap-3 w-full mb-3">
-            <form 
-              class="grid" 
-              method="POST" 
-              action={actions.threads.update}
-              id="visibilityForm"
-            >
-              <input type="hidden" name="id" value={thread.id} />
-              <input type="hidden" name="title" value={thread.title} />
-              <input type="hidden" name="userId" value={user.id} />
-              <input type="hidden" name="isPublic" value={(!thread.isPublic).toString()} />
-              <input type="hidden" name="color" value={thread.color || ''} />
-              <button type="submit" style="width: 100%; height: 100%; padding: 0; background: none; border: none;">
-                <ChonkButton text={thread.isPublic ? "Make Private" : "Make Public"}>
-                  {thread.isPublic ? 
-                    <LockIcon class="w-[15px] h-[15px] text-inherit fill-current" /> : 
-                    <GlobeIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-                  }
-                </ChonkButton>
-              </button>
-            </form>
-            <button @click="isEditing = !isEditing; showActionBar = false;" class="grid">
+          <div class="grid grid-cols-2 gap-3 w-full">
+            <a class="grid" href={`/dashboard/threads/${thread.id}/edit`}>
               <ChonkButton text="Edit">
-                <EditIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+                <PencilIcon class="w-[15px] h-[15px] text-inherit fill-current" />
               </ChonkButton>
-            </button>
-          </div>
-          <div class="grid grid-cols-1 w-full">
+            </a>
             <form 
+              id="deleteForm" 
               class="grid" 
               method="POST" 
               action={actions.threads.delete}
-              id="deleteForm"
             >
               <input type="hidden" name="id" value={thread.id} />
-              <input type="hidden" name="userId" value={user.id} />
+              <input type="hidden" name="userId" value={userId} />
               <button type="submit" style="width: 100%; height: 100%; padding: 0; background: none; border: none;">
-                <ChonkButton text="Delete" variant="warning">
+                <ChonkButton text="Delete">
                   <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
                 </ChonkButton>
               </button>
@@ -122,72 +129,40 @@ if (result?.data?.success) {
           </div>
         </div>
       </section>
-      
-      <div class="flex justify-between items-center pb-[12px]">
-        <div class="w-auto">
-          <ThreadMetaBar threadId={thread.id} isPublic={thread.isPublic} />
-        </div>
-      </div>
-      
-      <!-- Thread color indicator -->
-      <div class="py-2">
-        <div x-show="!isEditing" class="flex items-center gap-2">
-          <span class="text-sm font-medium">Color:</span>
-          {thread.color ? (
-            <div class="flex items-center gap-2">
-              <span 
-                class="w-6 h-6 rounded-full" 
-                style={`background-color: var(--color-${thread.color})`}
-              ></span>
-              <span class="text-sm">{thread.color.replace('-', ' ')}</span>
-            </div>
-          ) : (
-            <span class="text-sm text-gray-500">No color selected</span>
-          )}
-        </div>
-        
-        <!-- Edit form -->
-        <form 
-          x-show="isEditing" 
-          method="POST" 
-          action={actions.threads.update}
-          class="space-y-4"
-        >
-          <input type="hidden" name="id" value={thread.id} />
-          <input type="hidden" name="title" value={thread.title} />
-          <input type="hidden" name="userId" value={user.id} />
-          <input type="hidden" name="isPublic" value={thread.isPublic.toString()} />
-          
+
+      <section class="w-full p-6 bg-(--color-light-paper) rounded-xl">
+        <div class="flex justify-between items-center mb-4">
           <div>
-            <label class="block text-sm font-medium mb-2">Thread Color</label>
-            <ThreadColorPicker selectedColor={thread.color || ''} />
+            <p class="text-sm text-gray-500">Created: {thread.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+            {thread.updatedAt && (
+              <p class="text-sm text-gray-500">Updated: {thread.updatedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+            )}
           </div>
-          
-          <div class="flex gap-2">
-            <button
-              type="submit"
-              class="bg-[var(--color-blue)] text-white py-2 px-4 rounded-lg"
-            >
-              Save Changes
-            </button>
-            
-            <button
-              type="button"
-              @click="isEditing = false"
-              class="bg-[var(--color-stone-grey)] text-white py-2 px-4 rounded-lg"
-            >
-              Cancel
-            </button>
+          <div class="text-sm bg-(--color-paper) py-1 px-3 rounded-full">
+            {thread.isPublic ? 'Public' : 'Private'}
           </div>
-        </form>
-      </div>
-      
-      <div class="mt-4 p-4 bg-[var(--color-fog-white)] rounded-xl">
-        <h2 class="text-lg font-medium mb-4">Notes in this thread</h2>
-        <div class="text-center py-8 text-gray-500">
-          <p>This thread doesn't have any notes yet.</p>
-          <p class="mt-2">Add notes to this thread to start organizing your content.</p>
         </div>
+      </section>
+
+      <div class="mt-4 p-4 bg-[var(--color-fog-white)] rounded-xl">
+        <h2 class="text-lg font-medium mb-4">Notes in this thread ({notes.length})</h2>
+        {notes.length === 0 ? (
+          <div class="text-center py-8 text-gray-500">
+            <p>This thread doesn't have any notes yet.</p>
+            <p class="mt-2">Add notes to this thread to start organizing your content.</p>
+          </div>
+        ) : (
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {notes.map((note) => (
+              <a href={`/dashboard/notes/${note.id}`} class="block">
+                <NoteCard 
+                  title={note.title || ''} 
+                  content={note.content} 
+                />
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   </div>

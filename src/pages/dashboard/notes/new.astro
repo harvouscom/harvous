@@ -7,6 +7,7 @@ import TrixEditor from "@/components/TrixEditor.astro";
 import TrixToolbarV2 from "@/components/TrixToolbarV2.astro";
 import MetaBar from "@/components/MetaBar.astro";
 import TitleInput from "@/components/TitleInput.astro";
+import ThreadsDrawer from "@/components/ThreadsDrawer.astro";
 
 const currentUser = Astro.locals.auth();
 const userId = currentUser ? currentUser.userId : null;
@@ -61,44 +62,20 @@ if (result?.data?.success) {
       </form>
     </main>
     
-    <!-- Drawers -->
+    <!-- Thread Drawer -->
+    <ThreadsDrawer noteId={nextNoteId} userId={userId as string} />
   </div>
 </Layout>
 
-<script define:vars={{ nextNoteId }}>
-  // For new notes, we'll handle this differently
+<script define:vars={{ noteId: nextNoteId }}>
   document.addEventListener('DOMContentLoaded', () => {
-    // We mark that a note tab is open, but without an ID yet
+    // Save the current note ID to localStorage
     localStorage.setItem('lastViewedNote', 'new');
     
-    // Listen for drawer events
-    window.addEventListener('show-drawer', (event) => {
-      // Access the CustomEvent detail safely
-      /** @type {{drawer: string}} */
-      const detail = event.detail;
-      const drawerType = detail?.drawer;
-      
-      if (drawerType) {
-        // Using Alpine from window
-        const Alpine = window.Alpine;
-        if (Alpine) {
-          const mainElement = document.querySelector('main');
-          if (mainElement && mainElement.parentElement) {
-            Alpine.$data(mainElement.parentElement).activeDrawer = drawerType;
-          }
-        }
-      }
-    });
-    
-    window.addEventListener('hide-drawer', () => {
-      // Using Alpine from window
-      const Alpine = window.Alpine;
-      if (Alpine) {
-        const mainElement = document.querySelector('main');
-        if (mainElement && mainElement.parentElement) {
-          Alpine.$data(mainElement.parentElement).activeDrawer = null;
-        }
-      }
-    });
+    // Set thread counter to 0
+    const threadCounter = document.querySelector('[data-counter="threads"]');
+    if (threadCounter) {
+      threadCounter.textContent = '0';
+    }
   });
 </script>

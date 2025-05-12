@@ -1,5 +1,5 @@
 ---
-import { db, eq, Notes, and } from "astro:db";
+import { db, eq, Notes, and, NoteThreads, count } from "astro:db";
 import { actions } from "astro:actions";
 import { z } from "zod";
 import Layout from "@/layouts/Layout.astro";
@@ -11,6 +11,7 @@ import Tab from "@/components/TabBar/Tab.astro";
 import ChonkButton from "@/components/ChonkButton.astro";
 import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky.svg";
 import MetaBar from "@/components/MetaBar.astro";
+import ThreadsDrawer from "@/components/ThreadsDrawer.astro";
 
 const { id } = Astro.params;
 
@@ -36,6 +37,19 @@ const notes = await db
 
 if (!notes.length) {
   return Astro.redirect("/dashboard/notes");
+}
+
+// Get thread count for this note
+let threadCountValue = 0;
+try {
+  const threadCount = await db
+    .select({ count: count() })
+    .from(NoteThreads)
+    .where(eq(NoteThreads.noteId, numericId));
+  
+  threadCountValue = threadCount[0]?.count || 0;
+} catch (err) {
+  console.error("Error fetching thread count:", err);
 }
 
 const noteData = notes[0];
@@ -102,44 +116,33 @@ const noteData = notes[0];
         <MetaBar noteId={noteData.id} />
       </div>
     </main>
+    
+    <!-- Thread Drawer -->
+    <ThreadsDrawer noteId={numericId} userId={userId as string} />
   </div>
 
-  <script define:vars={{ noteId: noteData.id }}>
-    // Save the current note ID to localStorage
-    document.addEventListener('DOMContentLoaded', function() {
-      // Make sure noteId is defined before calling toString()
-      if (noteId !== undefined && noteId !== null) {
-        localStorage.setItem('lastViewedNote', noteId.toString());
+<script define:vars={{ threadCountValue, noteId: numericId }}>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Store the current note ID to localStorage
+    localStorage.setItem('lastViewedNote', noteId.toString());
+    
+    // Update thread counter
+    const updateThreadCounter = (count) => {
+      const threadCounter = document.querySelector('[data-counter="threads"]');
+      if (threadCounter) {
+        threadCounter.textContent = count.toString();
       }
-      
-      // Handle form submission
-      const form = document.querySelector('form[action*="delete"]');
-      if (form) {
-        form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          
-          // Clear localStorage
-          localStorage.removeItem('lastViewedNote');
-          
-          // Submit form data via fetch
-          fetch(form.action, {
-            method: 'POST',
-            body: new FormData(form)
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              // Redirect to dashboard
-              window.location.href = '/dashboard';
-            }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            // Redirect anyway on error
-            window.location.href = '/dashboard';
-          });
-        });
+    };
+    
+    // Set initial count
+    updateThreadCounter(threadCountValue);
+    
+    // Listen for thread changes
+    window.addEventListener('thread-changed', (e) => {
+      if (e.detail && typeof e.detail.count === 'number') {
+        updateThreadCounter(e.detail.count);
       }
     });
-  </script>
+  });
+</script>
 </Layout>
