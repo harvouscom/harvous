@@ -1,6 +1,6 @@
 ---
 import { actions } from "astro:actions";
-import { db, eq, Notes, desc } from "astro:db";
+import { db, eq, Notes, Threads, desc } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import NoteCard from "@/components/NoteCard.astro";
 import CtaButton from "@/components/CtaButton.astro";
@@ -19,6 +19,11 @@ const notes = await db.select()
   .from(Notes)
   .where(eq(Notes.userId, user.id))
   .orderBy(desc(Notes.createdAt));
+
+const threads = await db.select()
+  .from(Threads)
+  .where(eq(Threads.userId, user.id))
+  .orderBy(desc(Threads.createdAt));
 ---
 
 <Layout>
@@ -27,6 +32,7 @@ const notes = await db.select()
       <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2" x-data>
         <Tab label="Feed" href="#" active />
         <div id="note-tab-container"></div>
+        <div id="thread-tab-container"></div>
       </div>
     </section>
 
@@ -83,14 +89,38 @@ const notes = await db.select()
       <section class="flex flex-col py-3 pb-0 items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
         <div class="flex justify-between items-center w-full px-3">
           <h2 class="text-lg font-medium">All Threads</h2>
-          <div class="flex items-center">
-            <span>Newest</span>
+          <div class="flex items-center gap-2">
+            <span class="bg-[#E6E4DA] rounded-full px-3 py-1">{threads.length}</span>
             <button class="text-2xl">...</button>
           </div>
         </div>
-        <div>
-          <p class="text-center text-gray-400">0</p>
-        </div>
+        {threads.length === 0 ? (
+          <div class="text-center w-full py-4 text-gray-500">
+            <p>You don't have any threads yet.</p>
+            <p class="mt-2">
+              <a href="/dashboard/threads/new" class="text-[var(--color-blue)]">Create a thread</a> to organize your notes.
+            </p>
+          </div>
+        ) : (
+          <div class="w-full overflow-x-auto">
+            <div class="flex gap-3 min-w-min pl-3 pr-6 pb-4">
+              {
+                threads.map((thread) => (
+                  <div class="min-w-[160px] max-w-[160px] flex-shrink-0">
+                    <a href={`/dashboard/threads/${thread.id}`}>
+                      <div class="bg-white rounded-xl p-4 shadow-sm h-[120px] overflow-hidden flex flex-col">
+                        <h3 class="font-medium text-sm">{thread.title}</h3>
+                        <div class="flex items-center mt-auto">
+                          <span class="text-xs text-gray-500">{thread.isPublic ? 'Public' : 'Private'}</span>
+                        </div>
+                      </div>
+                    </a>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        )}
       </section>
     </main>
     
@@ -123,6 +153,28 @@ const notes = await db.select()
         `;
         noteTabContainer.appendChild(noteTab);
       }
+      
+      // Add the same for thread tabs
+      const lastViewedThread = localStorage.getItem('lastViewedThread');
+      const threadTabContainer = document.getElementById('thread-tab-container');
+      
+      if (lastViewedThread && threadTabContainer) {
+        const threadId = lastViewedThread;
+        const threadTab = document.createElement('div');
+        
+        // For new threads vs existing threads
+        const href = threadId === 'new' ? '/dashboard/threads/new' : `/dashboard/threads/${threadId}`;
+        
+        threadTab.innerHTML = `
+          <div class="relative rounded-t-lg px-5 py-3 w-fit tab bg-(--color-fog-white)" role="tab">
+            <div class="flex items-center gap-2">
+              <a href="${href}" class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">Thread</a>
+              <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer" onclick="closeThreadTab()">×</span>
+            </div>
+          </div>
+        `;
+        threadTabContainer.appendChild(threadTab);
+      }
     });
 
     function closeNoteTab() {
@@ -130,6 +182,14 @@ const notes = await db.select()
       const noteTabContainer = document.getElementById('note-tab-container');
       if (noteTabContainer) {
         noteTabContainer.innerHTML = '';
+      }
+    }
+    
+    function closeThreadTab() {
+      localStorage.removeItem('lastViewedThread');
+      const threadTabContainer = document.getElementById('thread-tab-container');
+      if (threadTabContainer) {
+        threadTabContainer.innerHTML = '';
       }
     }
   </script>

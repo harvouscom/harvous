@@ -1,0 +1,71 @@
+---
+import { db, eq, and, Threads } from "astro:db";
+import Layout from "@/layouts/Layout.astro";
+import Tab from "@/components/TabBar/Tab.astro";
+import ThreadMetaBar from "@/components/ThreadMetaBar.astro";
+
+const { id } = Astro.params;
+const numericId = parseInt(id || '0', 10);
+
+if (isNaN(numericId) || numericId <= 0) {
+  return Astro.redirect("/dashboard/threads");
+}
+
+if (!Astro.locals.auth().userId) {
+  return Astro.redirect("/login");
+}
+
+const user = await Astro.locals.currentUser();
+
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+// Fetch the thread
+const thread = await db.select()
+  .from(Threads)
+  .where(and(eq(Threads.id, numericId), eq(Threads.userId, user.id)))
+  .get();
+
+if (!thread) {
+  return Astro.redirect("/dashboard/threads");
+}
+---
+
+<Layout title={thread.title}>
+  <div class="flex flex-col h-full" x-data="{ activeDrawer: null }">
+    <section class="bg-(--color-fog-white) pt-3">
+      <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
+        <Tab label="Feed" href="/dashboard" />
+        <Tab label="Threads" href="/dashboard/threads" />
+        <Tab label="Thread" active closable />
+      </div>
+    </section>
+
+    <main class="flex-1 w-full max-w-screen-sm mx-auto px-6 pt-6 pb-6 flex flex-col gap-3">
+      <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold">{thread.title}</h1>
+        <button onclick="window.history.back()" class="text-[var(--color-blue)]">Back</button>
+      </div>
+      
+      <div class="w-full pb-[12px]">
+        <ThreadMetaBar threadId={thread.id} isPublic={thread.isPublic} />
+      </div>
+      
+      <div class="mt-4 p-4 bg-[var(--color-fog-white)] rounded-xl">
+        <h2 class="text-lg font-medium mb-4">Notes in this thread</h2>
+        <div class="text-center py-8 text-gray-500">
+          <p>This thread doesn't have any notes yet.</p>
+          <p class="mt-2">Add notes to this thread to start organizing your content.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+</Layout>
+
+<script define:vars={{ threadId: thread.id }}>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Store the current thread ID in localStorage
+    localStorage.setItem('lastViewedThread', threadId.toString());
+  });
+</script> 

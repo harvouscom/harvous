@@ -1,0 +1,136 @@
+---
+import { actions } from "astro:actions";
+import { db, Threads, max, sql } from "astro:db";
+import Layout from "@/layouts/Layout.astro";
+import Tab from "@/components/TabBar/Tab.astro";
+import ThreadMetaBar from "@/components/ThreadMetaBar.astro";
+
+if (!Astro.locals.auth().userId) {
+  return Astro.redirect("/login");
+}
+
+const user = await Astro.locals.currentUser();
+
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+// Find the maximum thread ID to display the next one
+const maxIdResult = await db.select({ maxId: max(Threads.id) }).from(Threads);
+const nextThreadId = maxIdResult[0].maxId ? maxIdResult[0].maxId + 1 : 1;
+
+const result = Astro.getActionResult(actions.threads.create);
+
+if (result?.data?.success) {
+  return Astro.redirect("/dashboard/threads/" + result.data.thread.id);
+}
+---
+
+<Layout title="Thread" classNames="grid grid-rows-1">
+  <div class="flex flex-col h-full" x-data="{ activeDrawer: null }">
+    <section class="bg-(--color-fog-white) pt-3">
+      <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
+        <Tab label="Feed" href="/dashboard" />
+        <Tab label="Thread" active closable />
+      </div>
+    </section>
+
+    <main
+      class="flex-1 w-full max-w-screen-sm mx-auto px-6 pt-6 pb-6 flex flex-col gap-3"
+    >
+      <form
+        class="grid gap-3 flex-1 grid-rows-[auto_auto_auto] w-full"
+        method="POST"
+        action={actions.threads.create}
+      >
+        <input
+          class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl w-full"
+          type="text"
+          name="title"
+          placeholder="Name your Thread"
+          required
+        />
+        <div class="w-full pb-[12px]">
+          <ThreadMetaBar threadId={nextThreadId} />
+          <input type="hidden" name="isPublic" id="isPublic" value="false" />
+        </div>
+        <input type="hidden" name="userId" value={user.id} />
+        <div class="py-3 w-full">
+          <button
+            class="w-full bg-[var(--color-blue)] text-white py-3 px-3 rounded-xl shadow-[0px_-4px_0px_0px_#0000001A_inset] h-[60px]"
+            type="submit">Add</button>
+        </div>
+      </form>
+    </main>
+    
+    <!-- Drawers -->
+  </div>
+</Layout>
+
+<script define:vars={{ nextThreadId }}>
+  // For new threads, handle this differently
+  document.addEventListener('DOMContentLoaded', () => {
+    // Mark that a thread tab is open, but without an ID yet
+    localStorage.setItem('lastViewedThread', 'new');
+    
+    // Set up privacy toggle
+    const metabarPrivacyButton = document.querySelector('.button-wrapper');
+    const isPublicInput = document.getElementById('isPublic');
+    
+    if (metabarPrivacyButton && isPublicInput) {
+      metabarPrivacyButton.addEventListener('click', () => {
+        const currentValue = isPublicInput.value === 'true';
+        isPublicInput.value = (!currentValue).toString();
+        
+        // Update the button text
+        const buttonText = metabarPrivacyButton.querySelector('p');
+        if (buttonText) {
+          buttonText.textContent = !currentValue ? 'Public' : 'Private';
+        }
+        
+        // Update the icon
+        const buttonIcon = metabarPrivacyButton.querySelector('svg');
+        if (buttonIcon) {
+          // Toggle classes for the icon based on public/private state
+          if (!currentValue) {
+            buttonIcon.classList.add('public-icon');
+            buttonIcon.classList.remove('private-icon');
+          } else {
+            buttonIcon.classList.add('private-icon');
+            buttonIcon.classList.remove('public-icon');
+          }
+        }
+      });
+    }
+    
+    // Listen for drawer events
+    window.addEventListener('show-drawer', (event) => {
+      // Access the CustomEvent detail safely
+      /** @type {{drawer: string}} */
+      const detail = event.detail;
+      const drawerType = detail?.drawer;
+      
+      if (drawerType) {
+        // Using Alpine from window
+        const Alpine = window.Alpine;
+        if (Alpine) {
+          const mainElement = document.querySelector('main');
+          if (mainElement && mainElement.parentElement) {
+            Alpine.$data(mainElement.parentElement).activeDrawer = drawerType;
+          }
+        }
+      }
+    });
+    
+    window.addEventListener('hide-drawer', () => {
+      // Using Alpine from window
+      const Alpine = window.Alpine;
+      if (Alpine) {
+        const mainElement = document.querySelector('main');
+        if (mainElement && mainElement.parentElement) {
+          Alpine.$data(mainElement.parentElement).activeDrawer = null;
+        }
+      }
+    });
+  });
+</script> 
