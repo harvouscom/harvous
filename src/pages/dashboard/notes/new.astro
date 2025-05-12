@@ -1,5 +1,6 @@
 ---
 import { actions } from "astro:actions";
+import { db, Notes, max, sql } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import TrixEditor from "@/components/TrixEditor.astro";
@@ -12,6 +13,10 @@ const userId = currentUser ? currentUser.userId : null;
 if (!userId) {
   return Astro.redirect("/login");
 }
+
+// Find the maximum note ID to display the next one
+const maxIdResult = await db.select({ maxId: max(Notes.id) }).from(Notes);
+const nextNoteId = maxIdResult[0].maxId ? maxIdResult[0].maxId + 1 : 1;
 
 const result = Astro.getActionResult(actions.notes.create);
 
@@ -49,7 +54,7 @@ if (result?.data?.success) {
         </div>
         <TrixToolbarV2 id="my_toolbar" input="content" />
         <div class="w-full pb-[12px]">
-          <MetaBar noteId="001" />
+          <MetaBar noteId={nextNoteId} />
         </div>
         <input type="hidden" name="userId" value={userId} />
         <input type="hidden" name="isPublic" value="false" />
@@ -65,7 +70,7 @@ if (result?.data?.success) {
   </div>
 </Layout>
 
-<script>
+<script define:vars={{ nextNoteId }}>
   // For new notes, we'll handle this differently
   document.addEventListener('DOMContentLoaded', () => {
     // We mark that a note tab is open, but without an ID yet
@@ -73,12 +78,17 @@ if (result?.data?.success) {
     
     // Listen for drawer events
     window.addEventListener('show-drawer', (event) => {
-      const drawerType = event.detail?.drawer;
+      // Access the CustomEvent detail safely
+      /** @type {{drawer: string}} */
+      const detail = event.detail;
+      const drawerType = detail?.drawer;
+      
       if (drawerType) {
+        // Using Alpine from window
         const Alpine = window.Alpine;
         if (Alpine) {
           const mainElement = document.querySelector('main');
-          if (mainElement) {
+          if (mainElement && mainElement.parentElement) {
             Alpine.$data(mainElement.parentElement).activeDrawer = drawerType;
           }
         }
@@ -86,10 +96,11 @@ if (result?.data?.success) {
     });
     
     window.addEventListener('hide-drawer', () => {
+      // Using Alpine from window
       const Alpine = window.Alpine;
       if (Alpine) {
         const mainElement = document.querySelector('main');
-        if (mainElement) {
+        if (mainElement && mainElement.parentElement) {
           Alpine.$data(mainElement.parentElement).activeDrawer = null;
         }
       }
