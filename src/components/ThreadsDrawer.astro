@@ -201,7 +201,9 @@ try {
                 {thread.color && (
                   <span class="w-4 h-4 rounded-full flex-shrink-0" style={`background-color: var(--color-${thread.color})`}></span>
                 )}
-                <span class="font-medium flex-grow text-left">{thread.title}</span>
+                <a href={`/dashboard/threads/${thread.id}`} class="font-medium flex-grow text-left hover:underline">
+                  {thread.title}
+                </a>
                 <form method="POST" action="/api/thread-notes/remove">
                   <input type="hidden" name="noteId" value={noteId} />
                   <input type="hidden" name="threadId" value={thread.id} />

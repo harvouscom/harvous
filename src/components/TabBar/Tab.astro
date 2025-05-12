@@ -9,42 +9,76 @@ interface Props {
 const { label, href, active = false, closable = false }: Props = Astro.props;
 
 // Determine which localStorage item to remove based on the tab label
-const storageKey = label === 'Note' ? 'lastViewedNote' : (label === 'Thread' ? 'lastViewedThread' : null);
+let storageKey = null;
+let closeAction = "";
+
+if (label === 'Note') {
+  storageKey = 'lastViewedNote';
+  closeAction = `
+    const sourceThread = localStorage.getItem('sourceThreadForNote'); 
+    localStorage.removeItem('lastViewedNote');
+    
+    // Check if we should maintain thread context
+    if (sourceThread && document.querySelector('a[href^="/dashboard/threads/"]')) {
+      window.location.href='/dashboard/threads/' + sourceThread;
+    } else {
+      localStorage.removeItem('sourceThreadForNote');
+      window.location.href='/dashboard';
+    }
+  `;
+} else if (label === 'Thread') {
+  storageKey = 'lastViewedThread';
+  closeAction = `
+    localStorage.removeItem('lastViewedThread'); 
+    localStorage.removeItem('sourceThreadForNote'); 
+    localStorage.removeItem('lastViewedNote'); 
+    window.location.href='/dashboard'
+  `;
+}
+
+// Common styling for both active and inactive tabs
+const containerStyle = active 
+  ? "h-full rounded-t-lg bg-(--color-soft-paper) flex items-center"
+  : "h-full rounded-t-lg bg-(--color-fog-white) flex items-center";
+
+// Different padding based on whether it's closable or not
+const paddingStyle = closable 
+  ? "pl-[20px] pr-[12px] py-3 flex items-center gap-2"
+  : "px-[20px] py-3 flex items-center";
 ---
 
-{active ? (
-  <div 
-    class="relative rounded-t-lg px-5 h-[44px] flex items-center tab bg-(--color-soft-paper) cursor-pointer" 
-    data-active={active} 
-    role="tab"
-  >
-    <div class="flex items-center gap-2">
-      <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
-      {closable && (
-        <span 
-          class="close-btn w-[12.5px] h-[12.5px] flex items-center justify-center text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer"
-          onclick={`localStorage.removeItem('${storageKey}'); window.location.href='/dashboard'`}
-        >×</span>
-      )}
+<div class="h-[48px]">
+  {active ? (
+    <div class="h-full rounded-t-lg bg-(--color-soft-paper) flex items-center" role="tab">
+      <div class={`h-full flex items-center ${closable ? 'pl-[20px] pr-[12px] gap-2' : 'px-[20px]'}`}>
+        <span class="font-bold text-sm text-(--color-stone-grey)">{label}</span>
+        {closable && (
+          <button 
+            class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) cursor-pointer"
+            onclick={closeAction}
+          >×</button>
+        )}
+      </div>
     </div>
-  </div>
-) : (
-  <a 
-    href={href} 
-    role="tab" 
-    class="relative rounded-t-lg px-5 h-[44px] flex items-center tab bg-(--color-fog-white)"
-  >
-    <div class="flex items-center gap-2">
-      <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
-      {closable && (
-        <span 
-          class="close-btn w-[12.5px] h-[12.5px] flex items-center justify-center text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer"
-          onclick={`localStorage.removeItem('${storageKey}'); window.location.href='/dashboard'`}
-        >×</span>
-      )}
-    </div>
-  </a>
-)}
+  ) : (
+    <a 
+      href={href} 
+      class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" 
+      role="tab"
+    >
+      <div class={`h-full flex items-center ${closable ? 'pl-[20px] pr-[12px] gap-2' : 'px-[20px]'}`}>
+        <span class="font-bold text-sm text-(--color-stone-grey)">{label}</span>
+        {closable && (
+          <button 
+            class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) cursor-pointer"
+            onclick={closeAction}
+            type="button"
+          >×</button>
+        )}
+      </div>
+    </a>
+  )}
+</div>
 
 <style>
   .tab-text {
@@ -52,12 +86,34 @@ const storageKey = label === 'Note' ? 'lastViewedNote' : (label === 'Thread' ? '
   }
   
   .close-btn {
-    display: block;
-    transform: scale(1.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   
   /* Remove any default margins that could cause gaps */
   .tab {
     margin: 0;
   }
+
+  button {
+    padding: 0;
+    border: none;
+    background: transparent;
+    line-height: 1;
+  }
 </style>
+
+<script>
+  // Ensure buttons in tabs prevent navigation
+  document.addEventListener('DOMContentLoaded', () => {
+    const closeButtons = document.querySelectorAll('.h-[48px] button');
+    closeButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // The onclick attribute will handle the actual action
+      });
+    });
+  });
+</script>

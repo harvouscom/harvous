@@ -1,5 +1,5 @@
 ---
-import { db, eq, Notes, and, NoteThreads, count } from "astro:db";
+import { db, eq, Notes, and, NoteThreads, count, Threads } from "astro:db";
 import { actions } from "astro:actions";
 import { z } from "zod";
 import Layout from "@/layouts/Layout.astro";
@@ -14,6 +14,9 @@ import MetaBar from "@/components/MetaBar.astro";
 import ThreadsDrawer from "@/components/ThreadsDrawer.astro";
 
 const { id } = Astro.params;
+// Get the threadId from query param if it exists
+const threadId = Astro.url.searchParams.get('threadId');
+let sourceThread = null;
 
 // Validate ID parameter
 if (!id || z.number({ coerce: true }).safeParse(id).success === false) {
@@ -39,6 +42,19 @@ if (!notes.length) {
   return Astro.redirect("/dashboard/notes");
 }
 
+// Fetch thread if we have a threadId
+if (threadId && z.number({ coerce: true }).safeParse(threadId).success) {
+  const threads = await db
+    .select()
+    .from(Threads)
+    .where(and(eq(Threads.id, parseInt(threadId)), eq(Threads.userId, userId as string)))
+    .limit(1);
+  
+  if (threads.length > 0) {
+    sourceThread = threads[0];
+  }
+}
+
 // Get thread count for this note
 let threadCountValue = 0;
 try {
@@ -59,8 +75,17 @@ const noteData = notes[0];
   <div x-data="{ showActionBar: false }" class="flex flex-col min-h-[100vh] relative">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-6 mx-auto max-w-screen-sm flex items-center">
-        <Tab label="Feed" href="/dashboard" />
-        <Tab label="Note" active closable />
+        <div class="flex h-[48px]">
+          <Tab label="Feed" href="/dashboard" />
+          {sourceThread && (
+            <Tab 
+              label="Thread" 
+              href={`/dashboard/threads/${sourceThread.id}`} 
+              closable 
+            />
+          )}
+          <Tab label="Note" active closable />
+        </div>
       </div>
     </section>
 
@@ -121,10 +146,21 @@ const noteData = notes[0];
     <ThreadsDrawer noteId={numericId} userId={userId as string} />
   </div>
 
-<script define:vars={{ threadCountValue, noteId: numericId }}>
+<script define:vars={{ threadCountValue, noteId: numericId, sourceThreadId: sourceThread?.id }}>
   document.addEventListener('DOMContentLoaded', () => {
     // Store the current note ID to localStorage
     localStorage.setItem('lastViewedNote', noteId.toString());
+    
+    // Store the source thread ID if available
+    if (sourceThreadId) {
+      localStorage.setItem('sourceThreadForNote', sourceThreadId.toString());
+    } else {
+      // If no source thread but coming from thread page, maintain that context
+      const lastViewedThread = localStorage.getItem('lastViewedThread');
+      if (lastViewedThread) {
+        localStorage.setItem('sourceThreadForNote', lastViewedThread);
+      }
+    }
     
     // Update thread counter
     const updateThreadCounter = (count) => {
