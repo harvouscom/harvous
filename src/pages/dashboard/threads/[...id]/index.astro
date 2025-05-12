@@ -10,7 +10,7 @@ const { id } = Astro.params;
 const numericId = parseInt(id || '0', 10);
 
 if (isNaN(numericId) || numericId <= 0) {
-  return Astro.redirect("/dashboard/threads");
+  return Astro.redirect("/dashboard");
 }
 
 if (!Astro.locals.auth().userId) {
@@ -30,7 +30,7 @@ const thread = await db.select()
   .get();
 
 if (!thread) {
-  return Astro.redirect("/dashboard/threads");
+  return Astro.redirect("/dashboard");
 }
 
 // Handle form submission
@@ -46,7 +46,6 @@ if (result?.data?.success) {
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-6 mx-auto max-w-screen-sm flex items-center">
         <Tab label="Feed" href="/dashboard" />
-        <Tab label="Threads" href="/dashboard/threads" />
         <Tab label="Thread" active closable />
       </div>
     </section>

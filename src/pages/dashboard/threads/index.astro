@@ -18,6 +18,9 @@ const threads = await db.select()
   .from(Threads)
   .where(eq(Threads.userId, user.id))
   .orderBy(desc(Threads.createdAt));
+
+// Redirect to dashboard since we don't need a dedicated threads page anymore
+return Astro.redirect("/dashboard");
 ---
 
 <Layout title="Threads">

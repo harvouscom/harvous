@@ -7,6 +7,9 @@ interface Props {
 }
 
 const { label, href, active = false, closable = false }: Props = Astro.props;
+
+// Determine which localStorage item to remove based on the tab label
+const storageKey = label === 'Note' ? 'lastViewedNote' : (label === 'Thread' ? 'lastViewedThread' : null);
 ---
 
 {active ? (
@@ -14,12 +17,14 @@ const { label, href, active = false, closable = false }: Props = Astro.props;
     class="relative rounded-t-lg px-5 h-[44px] flex items-center tab bg-(--color-soft-paper) cursor-pointer" 
     data-active={active} 
     role="tab"
-    onclick={closable ? "localStorage.removeItem('lastViewedNote'); window.location.href='/dashboard'" : undefined}
   >
     <div class="flex items-center gap-2">
       <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
       {closable && (
-        <span class="close-btn w-[12.5px] h-[12.5px] flex items-center justify-center text-[12px] font-bold leading-none text-(--color-stone-grey)">×</span>
+        <span 
+          class="close-btn w-[12.5px] h-[12.5px] flex items-center justify-center text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer"
+          onclick={`localStorage.removeItem('${storageKey}'); window.location.href='/dashboard'`}
+        >×</span>
       )}
     </div>
   </div>
@@ -32,7 +37,10 @@ const { label, href, active = false, closable = false }: Props = Astro.props;
     <div class="flex items-center gap-2">
       <p class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">{label}</p>
       {closable && (
-        <span class="close-btn w-[12.5px] h-[12.5px] flex items-center justify-center text-[12px] font-bold leading-none text-(--color-stone-grey)">×</span>
+        <span 
+          class="close-btn w-[12.5px] h-[12.5px] flex items-center justify-center text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer"
+          onclick={`localStorage.removeItem('${storageKey}'); window.location.href='/dashboard'`}
+        >×</span>
       )}
     </div>
   </a>
