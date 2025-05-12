@@ -1,7 +1,7 @@
 ---
 interface Props {
   text: string;
-  size?: "medium" | "large";
+  size?: "small" | "medium" | "large";
   variant?: "default" | "warning";
 }
 
@@ -13,6 +13,7 @@ const {
 }: Props = Astro.props;
 
 const BUTTON_SIZE_MAP = {
+  small: "pt-[6px] pb-[10px] px-[10px] text-[12px] rounded-[6px]",
   medium: "pt-3 pb-4 px-3 text-[14px]",
   large: "pt-6 pb-7 px-6 text-[18px]",
 };
@@ -23,7 +24,7 @@ const VARIANT = {
 };
 ---
 
-<button {...props} class={`button-inner-shadow rounded-lg flex flex-col items-center gap-2 active:scale-[.99] transition-transform duration-125 ${BUTTON_SIZE_MAP[size]} ${VARIANT[variant]}`}>
+<button {...props} class={`button-inner-shadow rounded-lg flex flex-col items-center gap-2 active:scale-[.99] transition-transform duration-125 ${BUTTON_SIZE_MAP[size]} ${VARIANT[variant]} ${size === "small" ? "bg-[#EBE7DB]" : ""}`}>
   <div class="flex flex-col items-center gap-2">
     <slot />
     <p class="font-sans font-medium text-inherit leading-[100%] tracking-normal">{text}</p>

@@ -1,5 +1,5 @@
 ---
-import IconButton from "@/components/IconButton.astro";
+import ChonkButton from "@/components/ChonkButton.astro";
 import CommentIcon from "@fortawesome/fontawesome-free/svgs/solid/comment.svg";
 import TagIcon from "@fortawesome/fontawesome-free/svgs/solid/tag.svg";
 import ThreadIcon from "@fortawesome/fontawesome-free/svgs/solid/layer-group.svg";
@@ -30,140 +30,158 @@ const { noteId } = Astro.props;
   style="width: 100%;"
 >
   <div class="flex items-center gap-3">
-    <button 
-      @click="toggleDrawer('comments')"
-      :class="activeDrawer === 'comments' ? 'meta-chonk-btn-active' : 'meta-chonk-btn'"
+    <div 
+      x-bind:class="activeDrawer === 'comments' ? 'active-button' : ''"
+      x-on:click="toggleDrawer('comments')"
+      class="button-wrapper"
     >
-      <CommentIcon class="w-[15px] h-[15px]" />
-      <span 
-        :class="activeDrawer === 'comments' ? 'meta-text-active' : 'meta-text'" 
-        data-counter="comments"
-      >0</span>
-    </button>
+      <ChonkButton 
+        text="0"
+        size="small"
+      >
+        <CommentIcon class="w-[15px] h-[15px]" />
+        <span class="hidden" data-counter="comments">0</span>
+      </ChonkButton>
+    </div>
     
-    <button 
-      @click="toggleDrawer('tags')"
-      :class="activeDrawer === 'tags' ? 'meta-chonk-btn-active' : 'meta-chonk-btn'"
+    <div 
+      x-bind:class="activeDrawer === 'tags' ? 'active-button' : ''"
+      x-on:click="toggleDrawer('tags')"
+      class="button-wrapper"
     >
-      <TagIcon class="w-[15px] h-[15px]" />
-      <span 
-        :class="activeDrawer === 'tags' ? 'meta-text-active' : 'meta-text'"
-        data-counter="tags"
-      >0</span>
-    </button>
+      <ChonkButton 
+        text="0"
+        size="small"
+      >
+        <TagIcon class="w-[15px] h-[15px]" />
+        <span class="hidden" data-counter="tags">0</span>
+      </ChonkButton>
+    </div>
     
-    <button 
-      @click="toggleDrawer('threads')"
-      :class="activeDrawer === 'threads' ? 'meta-chonk-btn-active' : 'meta-chonk-btn'"
+    <div 
+      x-bind:class="activeDrawer === 'threads' ? 'active-button' : ''"
+      x-on:click="toggleDrawer('threads')"
+      class="button-wrapper"
     >
-      <ThreadIcon class="w-[15px] h-[15px]" />
-      <span 
-        :class="activeDrawer === 'threads' ? 'meta-text-active' : 'meta-text'"
-        data-counter="threads"
-      >0</span>
-    </button>
+      <ChonkButton 
+        text="0"
+        size="small"
+      >
+        <ThreadIcon class="w-[15px] h-[15px]" />
+        <span class="hidden" data-counter="threads">0</span>
+      </ChonkButton>
+    </div>
   </div>
   
   <div class="flex items-center">
-    <button 
-      @click="toggleDrawer('note-id')"
-      :class="activeDrawer === 'note-id' ? 'meta-chonk-btn-active' : 'meta-chonk-btn'"
+    <div 
+      x-bind:class="activeDrawer === 'note-id' ? 'active-button' : ''"
+      x-on:click="toggleDrawer('note-id')"
+      class="button-wrapper"
     >
-      <HashtagIcon class="w-[15px] h-[15px]" />
-      <span 
-        :class="activeDrawer === 'note-id' ? 'meta-text-active' : 'meta-text'"
-      >N{String(noteId).padStart(3, '0')}</span>
-    </button>
+      <ChonkButton 
+        text={`N${String(noteId).padStart(3, '0')}`}
+        size="small"
+      >
+        <HashtagIcon class="w-[15px] h-[15px]" />
+      </ChonkButton>
+    </div>
   </div>
 </div>
 
+<script>
+  // Update counters from data attributes
+  document.addEventListener('DOMContentLoaded', () => {
+    const updateCounters = () => {
+      const counterElements = document.querySelectorAll('[data-counter]');
+      
+      counterElements.forEach(element => {
+        const type = element.getAttribute('data-counter');
+        const count = element.textContent;
+        const button = element.closest('button');
+        
+        if (button) {
+          const textElement = button.querySelector('p');
+          if (textElement) {
+            textElement.textContent = count;
+          }
+        }
+      });
+    };
+    
+    // Initial update
+    updateCounters();
+    
+    // Listen for changes to counter elements
+    const observer = new MutationObserver(updateCounters);
+    const counterElements = document.querySelectorAll('[data-counter]');
+    
+    counterElements.forEach(element => {
+      observer.observe(element, { childList: true, characterData: true, subtree: true });
+    });
+  });
+</script>
+
 <style>
-  .meta-chonk-btn {
-    display: flex;
-    padding: 6px 12px 10px 10px;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
-    border-radius: 6px;
-    background: var(--color-paper, #EBE7DB);
-    box-shadow: 0px -4px 0px 0px rgba(0, 0, 0, 0.10) inset;
-    color: var(--color-stone-grey);
-    fill: var(--color-stone-grey);
-    transition: transform 0.1s ease, background-color 0.2s ease;
-    min-width: fit-content;
-    outline: none;
+  .button-wrapper {
+    cursor: pointer;
+  }
+
+  /* Adjust ChonkButton styling to match the original metabar buttons */
+  .button-wrapper :global(button) {
+    padding: 6px 12px 10px 10px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 4px !important;
+    border-radius: 6px !important;
+    background: var(--color-paper, #EBE7DB) !important;
+    min-width: fit-content !important;
+    transition: transform 0.1s ease, background-color 0.2s ease !important;
+  }
+
+  .button-wrapper :global(button > div) {
+    flex-direction: row !important;
+    gap: 4px !important;
+  }
+
+  .button-wrapper :global(p) {
+    font-family: "Reddit Mono" !important;
+    font-size: 12px !important;
+    font-style: normal !important;
+    font-weight: 500 !important;
+    line-height: normal !important;
+    color: var(--color-stone-grey, #78766F) !important;
   }
   
-  .meta-chonk-btn:focus {
-    outline: none;
+  /* Make icons stone-gray */
+  .button-wrapper :global(svg) {
+    fill: var(--color-stone-grey, #78766F) !important;
+    color: var(--color-stone-grey, #78766F) !important;
+  }
+
+  .active-button :global(button) {
+    background-color: var(--color-stone-grey, #78766F) !important;
+    color: var(--color-light-paper, #F7F7F6) !important;
   }
   
-  .meta-chonk-btn-active {
-    display: flex;
-    padding: 6px 12px 10px 10px;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
-    border-radius: 6px;
-    background: var(--color-stone-grey, #78766F);
-    box-shadow: 0px -4px 0px 0px rgba(0, 0, 0, 0.10) inset;
-    color: var(--color-light-paper);
-    fill: var(--color-light-paper);
-    transition: transform 0.1s ease, background-color 0.2s ease;
-    min-width: fit-content;
-    outline: none;
+  .active-button :global(p) {
+    color: var(--color-light-paper, #F7F7F6) !important;
   }
   
-  .meta-chonk-btn-active:focus {
-    outline: none;
+  .active-button :global(svg) {
+    fill: var(--color-light-paper, #F7F7F6) !important;
+    color: var(--color-light-paper, #F7F7F6) !important;
   }
-  
-  .meta-chonk-btn:active {
-    transform: translateY(1px);
-    box-shadow: 0px -2px 0px 0px rgba(0, 0, 0, 0.10) inset;
-  }
-  
-  .meta-chonk-btn-active:active {
-    transform: translateY(1px);
-    box-shadow: 0px -2px 0px 0px rgba(0, 0, 0, 0.10) inset;
-  }
-  
-  .meta-text {
-    text-edge: cap;
-    font-family: "Reddit Mono";
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 500;
-    line-height: normal;
-    color: var(--color-stone-grey, #78766F);
-  }
-  
-  .meta-text-active {
-    text-edge: cap;
-    font-family: "Reddit Mono";
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 500;
-    line-height: normal;
-    color: var(--color-light-paper, #F7F7F6);
-  }
-  
-  .meta-chonk-btn svg,
-  .meta-chonk-btn-active svg {
-    fill: inherit;
-    color: inherit;
-  }
-  
+
   @media (max-width: 400px) {
-    .meta-chonk-btn,
-    .meta-chonk-btn-active {
-      padding: 6px 10px 10px 8px;
-      gap: 3px;
+    .button-wrapper :global(button) {
+      padding: 6px 10px 10px 8px !important;
+      gap: 3px !important;
     }
     
-    .meta-text,
-    .meta-text-active {
-      font-size: 10px;
+    .button-wrapper :global(p) {
+      font-size: 10px !important;
     }
   }
 </style> 
