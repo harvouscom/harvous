@@ -5,6 +5,12 @@ import Tab from "@/components/TabBar/Tab.astro";
 import ThreadMetaBar from "@/components/ThreadMetaBar.astro";
 import ThreadColorPicker from "@/components/ThreadColorPicker.astro";
 import { actions } from "astro:actions";
+import LockIcon from "@fortawesome/fontawesome-free/svgs/solid/lock.svg";
+import GlobeIcon from "@fortawesome/fontawesome-free/svgs/solid/globe.svg";
+import XmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import EditIcon from "@fortawesome/fontawesome-free/svgs/solid/pen.svg";
+import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
+import ChonkButton from "@/components/ChonkButton.astro";
 
 const { id } = Astro.params;
 const numericId = parseInt(id || '0', 10);
@@ -42,7 +48,7 @@ if (result?.data?.success) {
 ---
 
 <Layout title={thread.title}>
-  <div class="flex flex-col h-full" x-data="{ activeDrawer: null, isEditing: false }">
+  <div class="flex flex-col h-full" x-data="{ showActionBar: false, isEditing: false }">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-6 mx-auto max-w-screen-sm flex items-center">
         <Tab label="Feed" href="/dashboard" />
@@ -51,23 +57,76 @@ if (result?.data?.success) {
     </section>
 
     <main class="flex-1 w-full max-w-screen-sm mx-auto px-6 pt-6 pb-6 flex flex-col gap-3">
-      <div class="flex justify-between items-center">
+      <section class="w-full px-1 py-2 flex items-center gap-2 relative">
+        <button 
+          class="icon-btn rounded-full w-[44px] h-[44px] flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset]"
+          :class="showActionBar ? 'bg-[var(--color-stone-grey)] text-[var(--color-light-paper)] fill-[var(--color-light-paper)]' : 'bg-[var(--color-paper)] text-[var(--color-stone-grey)] fill-[var(--color-stone-grey)]'"
+          @click="showActionBar = !showActionBar"
+        >
+          {thread.isPublic ? 
+            <GlobeIcon x-show="!showActionBar" class="w-[20px] h-[20px]" /> : 
+            <LockIcon x-show="!showActionBar" class="w-[20px] h-[20px]" />
+          }
+          <XmarkIcon x-cloak x-show="showActionBar" class="w-[20px] h-[20px]" />
+        </button>
         <h1 class="text-2xl font-bold">{thread.title}</h1>
-        <button onclick="window.history.back()" class="text-[var(--color-blue)]">Back</button>
-      </div>
+        
+        <!-- Floating action bar positioned absolutely below the button -->
+        <div 
+          x-show="showActionBar" 
+          x-cloak
+          class="absolute top-[64px] left-[-12px] right-[-12px] z-10 bg-(--color-pebble-grey) p-3 rounded-xl shadow-lg"
+        >
+          <div class="grid grid-cols-2 gap-3 w-full mb-3">
+            <form 
+              class="grid" 
+              method="POST" 
+              action={actions.threads.update}
+              id="visibilityForm"
+            >
+              <input type="hidden" name="id" value={thread.id} />
+              <input type="hidden" name="title" value={thread.title} />
+              <input type="hidden" name="userId" value={user.id} />
+              <input type="hidden" name="isPublic" value={(!thread.isPublic).toString()} />
+              <input type="hidden" name="color" value={thread.color || ''} />
+              <button type="submit" style="width: 100%; height: 100%; padding: 0; background: none; border: none;">
+                <ChonkButton text={thread.isPublic ? "Make Private" : "Make Public"}>
+                  {thread.isPublic ? 
+                    <LockIcon class="w-[15px] h-[15px] text-inherit fill-current" /> : 
+                    <GlobeIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+                  }
+                </ChonkButton>
+              </button>
+            </form>
+            <button @click="isEditing = !isEditing; showActionBar = false;" class="grid">
+              <ChonkButton text="Edit">
+                <EditIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+              </ChonkButton>
+            </button>
+          </div>
+          <div class="grid grid-cols-1 w-full">
+            <form 
+              class="grid" 
+              method="POST" 
+              action={actions.threads.delete}
+              id="deleteForm"
+            >
+              <input type="hidden" name="id" value={thread.id} />
+              <input type="hidden" name="userId" value={user.id} />
+              <button type="submit" style="width: 100%; height: 100%; padding: 0; background: none; border: none;">
+                <ChonkButton text="Delete" variant="warning">
+                  <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+                </ChonkButton>
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
       
       <div class="flex justify-between items-center pb-[12px]">
         <div class="w-auto">
           <ThreadMetaBar threadId={thread.id} isPublic={thread.isPublic} />
         </div>
-        
-        <button 
-          @click="isEditing = !isEditing" 
-          type="button"
-          class="inline-flex items-center px-3 py-1 rounded-md bg-[var(--color-aged-paper)] text-[var(--color-deep-grey)]"
-        >
-          <span x-text="isEditing ? 'Cancel' : 'Edit'"></span>
-        </button>
       </div>
       
       <!-- Thread color indicator -->
@@ -104,12 +163,20 @@ if (result?.data?.success) {
             <ThreadColorPicker selectedColor={thread.color || ''} />
           </div>
           
-          <div>
+          <div class="flex gap-2">
             <button
               type="submit"
               class="bg-[var(--color-blue)] text-white py-2 px-4 rounded-lg"
             >
               Save Changes
+            </button>
+            
+            <button
+              type="button"
+              @click="isEditing = false"
+              class="bg-[var(--color-stone-grey)] text-white py-2 px-4 rounded-lg"
+            >
+              Cancel
             </button>
           </div>
         </form>
@@ -130,5 +197,34 @@ if (result?.data?.success) {
   document.addEventListener('DOMContentLoaded', () => {
     // Store the current thread ID in localStorage
     localStorage.setItem('lastViewedThread', threadId.toString());
+    
+    // Handle form submission for delete
+    const deleteForm = document.querySelector('#deleteForm');
+    if (deleteForm) {
+      deleteForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Clear localStorage
+        localStorage.removeItem('lastViewedThread');
+        
+        // Submit form data via fetch
+        fetch(deleteForm.action, {
+          method: 'POST',
+          body: new FormData(deleteForm)
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Redirect to dashboard
+            window.location.href = '/dashboard';
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          // Redirect anyway on error
+          window.location.href = '/dashboard';
+        });
+      });
+    }
   });
 </script> 
