@@ -3,6 +3,7 @@ import { actions } from "astro:actions";
 import { db, eq, Notes, Threads, desc } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import NoteCard from "@/components/NoteCard.astro";
+import ThreadCard from "@/components/ThreadCard.astro";
 import CtaButton from "@/components/CtaButton.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 if (!Astro.locals.auth().userId) {
@@ -106,18 +107,13 @@ const threadIds = threads.map(thread => thread.id);
             </p>
           </div>
         ) : (
-          <div class="w-full overflow-x-auto">
-            <div class="flex gap-3 min-w-min pl-3 pr-6 pb-4">
+          <div class="w-full px-3 pb-4">
+            <div class="flex flex-col gap-3 w-full">
               {
                 threads.map((thread) => (
-                  <div class="min-w-[160px] max-w-[160px] flex-shrink-0">
+                  <div class="w-full">
                     <a href={`/dashboard/threads/${thread.id}`}>
-                      <div class="bg-white rounded-xl p-4 shadow-sm h-[120px] overflow-hidden flex flex-col">
-                        <h3 class="font-medium text-sm">{thread.title}</h3>
-                        <div class="flex items-center mt-auto">
-                          <span class="text-xs text-gray-500">{thread.isPublic ? 'Public' : 'Private'}</span>
-                        </div>
-                      </div>
+                      <ThreadCard title={thread.title} isPublic={thread.isPublic} />
                     </a>
                   </div>
                 ))
