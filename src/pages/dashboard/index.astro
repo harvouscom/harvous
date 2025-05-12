@@ -6,7 +6,6 @@ import NoteCard from "@/components/NoteCard.astro";
 import ThreadCard from "@/components/ThreadCard.astro";
 import AddButton from "@/components/AddButton.astro";
 import Tab from "@/components/TabBar/Tab.astro";
-import { SignOutButton } from "@clerk/astro/components";
 import EllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
 
 // Get userId from auth and redirect if not authenticated
@@ -63,15 +62,7 @@ const threadIds = allThreads.map(thread => thread.id);
           <Tab label="Feed" href="#" active />
           <div id="thread-tab-container" class="h-full"></div>
           <div id="note-tab-container" class="h-full"></div>
-        </div>
-        
-        <!-- Sign Out Button in header -->
-        <div>
-          <SignOutButton>
-            <span class="text-sm font-medium text-(--color-stone-grey) hover:text-black transition-colors px-3 py-1 rounded-md hover:bg-gray-100 cursor-pointer inline-block">
-              Sign Out
-            </span>
-          </SignOutButton>
+          <Tab label="Profile" href="/dashboard/profile" />
         </div>
       </div>
     </section>
@@ -221,7 +212,7 @@ const threadIds = allThreads.map(thread => thread.id);
               <a href="${href}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
                 <div class="h-full flex items-center pl-[20px] pr-[12px] gap-2">
                   <span class="font-bold text-sm text-(--color-stone-grey)">Thread</span>
-                  <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeThreadTab()">×</button>
+                  <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeThreadTab(event)">×</button>
                 </div>
               </a>
             </div>
@@ -258,7 +249,7 @@ const threadIds = allThreads.map(thread => thread.id);
               <a href="${finalHref}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
                 <div class="h-full flex items-center pl-[20px] pr-[12px] gap-2">
                   <span class="font-bold text-sm text-(--color-stone-grey)">Note</span>
-                  <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeNoteTab()">×</button>
+                  <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeNoteTab(event)">×</button>
                 </div>
               </a>
             </div>
@@ -272,7 +263,12 @@ const threadIds = allThreads.map(thread => thread.id);
       }
     });
 
-    function closeNoteTab() {
+    function closeNoteTab(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
       // When closing note tab in feed view, we shouldn't necessarily clear sourceThreadForNote
       // if the thread tab is still visible
       localStorage.removeItem('lastViewedNote');
@@ -287,9 +283,16 @@ const threadIds = allThreads.map(thread => thread.id);
       if (noteTabContainer) {
         noteTabContainer.innerHTML = '';
       }
+      
+      window.location.reload();
     }
     
-    function closeThreadTab() {
+    function closeThreadTab(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
       localStorage.removeItem('lastViewedThread');
       localStorage.removeItem('sourceThreadForNote');
       const threadTabContainer = document.getElementById('thread-tab-container');
@@ -300,6 +303,11 @@ const threadIds = allThreads.map(thread => thread.id);
       // If we're closing the thread tab, also close the note tab
       // since the note context depends on the thread
       closeNoteTab();
+      
+      window.location.reload();
     }
+    
+    window.closeNoteTab = closeNoteTab;
+    window.closeThreadTab = closeThreadTab;
   </script>
 </Layout>

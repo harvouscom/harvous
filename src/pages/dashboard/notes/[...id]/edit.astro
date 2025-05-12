@@ -57,10 +57,11 @@ if (result?.data?.success && result.data.note) {
 <Layout title={noteData.title || 'Edit Note'}>
   <div class="flex flex-col h-[100dvh]">
     <section class="bg-(--color-fog-white) pt-3">
-      <div class="px-3 mx-auto max-w-screen-sm flex items-center gap-2">
+      <div class="px-3 mx-auto max-w-screen-sm flex items-center">
         <div class="flex h-[48px]">
           <Tab label="Feed" href="/dashboard" />
           <Tab label="Note" active closable />
+          <Tab label="Profile" href="/dashboard/profile" />
         </div>
       </div>
     </section>
