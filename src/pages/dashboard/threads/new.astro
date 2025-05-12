@@ -5,6 +5,7 @@ import Layout from "@/layouts/Layout.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import ThreadMetaBar from "@/components/ThreadMetaBar.astro";
 import TitleInput from "@/components/TitleInput.astro";
+import ThreadColorPicker from "@/components/ThreadColorPicker.astro";
 
 const currentUser = Astro.locals.auth();
 const userId = currentUser ? currentUser.userId : null;
@@ -44,6 +45,12 @@ if (result?.data?.success) {
         <div class="space-y-3">
           <TitleInput placeholder="Name your Thread" name="title" />
           <ThreadMetaBar threadId={nextThreadId} />
+          
+          <div class="mt-4">
+            <label class="block text-sm font-medium mb-2">Thread Color</label>
+            <ThreadColorPicker />
+          </div>
+          
           <input type="hidden" name="isPublic" id="isPublic" value="false" />
           <input type="hidden" name="userId" value={userId} />
           

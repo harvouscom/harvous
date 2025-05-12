@@ -52,7 +52,15 @@ const threads = await db.select()
                 <span class="text-sm text-gray-500">
                   Created {new Date(thread.createdAt).toLocaleDateString()}
                 </span>
-                <a href={`/dashboard/threads/${thread.id}`} class="text-[var(--color-blue)]">View</a>
+                <div class="flex items-center gap-2">
+                  {thread.color && (
+                    <span 
+                      class="w-4 h-4 rounded-full" 
+                      style={`background-color: var(--color-${thread.color})`}
+                    ></span>
+                  )}
+                  <a href={`/dashboard/threads/${thread.id}`} class="text-[var(--color-blue)]">View</a>
+                </div>
               </div>
             </div>
           ))

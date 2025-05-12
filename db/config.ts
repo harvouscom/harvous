@@ -20,6 +20,7 @@ const Threads = defineTable({
     updatedAt: column.date({ optional: true }),
     userId: column.text(), // Clerk user id
     isPublic: column.boolean({ default: false }),
+    color: column.text({ optional: true }), // Store the color name or value
   }
 })
 

@@ -113,7 +113,7 @@ const threadIds = threads.map(thread => thread.id);
                 threads.map((thread) => (
                   <div class="w-full">
                     <a href={`/dashboard/threads/${thread.id}`}>
-                      <ThreadCard title={thread.title} isPublic={thread.isPublic} />
+                      <ThreadCard title={thread.title} isPublic={thread.isPublic} color={thread.color} />
                     </a>
                   </div>
                 ))

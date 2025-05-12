@@ -8,15 +8,17 @@ export const threads = {
     input: z.object({
       title: z.string().min(1, "Title is required"),
       userId: z.string().min(1, "User ID is required"),
-      isPublic: z.boolean().optional()
+      isPublic: z.boolean().optional(),
+      color: z.string().optional()
     }),
-    handler: async ({ title, userId, isPublic = false }) => {
+    handler: async ({ title, userId, isPublic = false, color }) => {
       try {
         const newThread = await db.insert(Threads)
           .values({ 
             title, 
             userId, 
             isPublic,
+            color,
             createdAt: new Date() 
           })
           .returning()
@@ -43,14 +45,16 @@ export const threads = {
       id: z.number().min(1, "ID is required"),
       title: z.string().min(1, "Title is required"),
       userId: z.string().min(1, "User ID is required"),
-      isPublic: z.boolean().optional()
+      isPublic: z.boolean().optional(),
+      color: z.string().optional()
     }),
-    handler: async ({ id, title, userId, isPublic = false }) => {
+    handler: async ({ id, title, userId, isPublic = false, color }) => {
       try {
         const updatedThread = await db.update(Threads)
           .set({
             title,
             isPublic,
+            color,
             updatedAt: new Date()
           })
           .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))

@@ -3,6 +3,8 @@ import { db, eq, and, Threads } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import ThreadMetaBar from "@/components/ThreadMetaBar.astro";
+import ThreadColorPicker from "@/components/ThreadColorPicker.astro";
+import { actions } from "astro:actions";
 
 const { id } = Astro.params;
 const numericId = parseInt(id || '0', 10);
@@ -30,10 +32,17 @@ const thread = await db.select()
 if (!thread) {
   return Astro.redirect("/dashboard/threads");
 }
+
+// Handle form submission
+const result = Astro.getActionResult(actions.threads.update);
+if (result?.data?.success) {
+  // Refresh the page to show updated thread
+  Astro.redirect(`/dashboard/threads/${thread.id}`);
+}
 ---
 
 <Layout title={thread.title}>
-  <div class="flex flex-col h-full" x-data="{ activeDrawer: null }">
+  <div class="flex flex-col h-full" x-data="{ activeDrawer: null, isEditing: false }">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-6 mx-auto max-w-screen-sm flex items-center">
         <Tab label="Feed" href="/dashboard" />
@@ -48,8 +57,63 @@ if (!thread) {
         <button onclick="window.history.back()" class="text-[var(--color-blue)]">Back</button>
       </div>
       
-      <div class="w-full pb-[12px]">
-        <ThreadMetaBar threadId={thread.id} isPublic={thread.isPublic} />
+      <div class="flex justify-between items-center pb-[12px]">
+        <div class="w-auto">
+          <ThreadMetaBar threadId={thread.id} isPublic={thread.isPublic} />
+        </div>
+        
+        <button 
+          @click="isEditing = !isEditing" 
+          type="button"
+          class="inline-flex items-center px-3 py-1 rounded-md bg-[var(--color-aged-paper)] text-[var(--color-deep-grey)]"
+        >
+          <span x-text="isEditing ? 'Cancel' : 'Edit'"></span>
+        </button>
+      </div>
+      
+      <!-- Thread color indicator -->
+      <div class="py-2">
+        <div x-show="!isEditing" class="flex items-center gap-2">
+          <span class="text-sm font-medium">Color:</span>
+          {thread.color ? (
+            <div class="flex items-center gap-2">
+              <span 
+                class="w-6 h-6 rounded-full" 
+                style={`background-color: var(--color-${thread.color})`}
+              ></span>
+              <span class="text-sm">{thread.color.replace('-', ' ')}</span>
+            </div>
+          ) : (
+            <span class="text-sm text-gray-500">No color selected</span>
+          )}
+        </div>
+        
+        <!-- Edit form -->
+        <form 
+          x-show="isEditing" 
+          method="POST" 
+          action={actions.threads.update}
+          class="space-y-4"
+        >
+          <input type="hidden" name="id" value={thread.id} />
+          <input type="hidden" name="title" value={thread.title} />
+          <input type="hidden" name="userId" value={user.id} />
+          <input type="hidden" name="isPublic" value={thread.isPublic.toString()} />
+          
+          <div>
+            <label class="block text-sm font-medium mb-2">Thread Color</label>
+            <ThreadColorPicker selectedColor={thread.color || ''} />
+          </div>
+          
+          <div>
+            <button
+              type="submit"
+              class="bg-[var(--color-blue)] text-white py-2 px-4 rounded-lg"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
       </div>
       
       <div class="mt-4 p-4 bg-[var(--color-fog-white)] rounded-xl">
