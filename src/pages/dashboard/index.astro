@@ -1,6 +1,6 @@
 ---
 import { actions } from "astro:actions";
-import { db, eq, Notes, Threads, desc } from "astro:db";
+import { db, eq, Notes, Threads, desc, NoteThreads, isNull, and } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import NoteCard from "@/components/NoteCard.astro";
 import ThreadCard from "@/components/ThreadCard.astro";
@@ -21,9 +21,24 @@ if (!user) {
   return Astro.redirect("/");
 }
 
-const notes = await db.select()
+// Query for unorganized notes (notes that don't belong to any threads)
+const notes = await db.select({ 
+    id: Notes.id, 
+    title: Notes.title, 
+    content: Notes.content, 
+    createdAt: Notes.createdAt, 
+    updatedAt: Notes.updatedAt, 
+    userId: Notes.userId, 
+    isPublic: Notes.isPublic 
+  })
   .from(Notes)
-  .where(eq(Notes.userId, userId as string))
+  .leftJoin(NoteThreads, eq(Notes.id, NoteThreads.noteId))
+  .where(
+    and(
+      eq(Notes.userId, userId as string),
+      isNull(NoteThreads.id)
+    )
+  )
   .orderBy(desc(Notes.createdAt));
 
 const threads = await db.select()
@@ -96,7 +111,10 @@ const threadIds = threads.map(thread => thread.id);
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
               <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Unorganized Notes</h2>
-              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{notes.length}</span>
+              <div class="group relative">
+                <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{notes.length}</span>
+                <span class="absolute left-1/2 -translate-x-1/2 -top-8 p-1 bg-[#78766F] text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Notes not in any threads</span>
+              </div>
             </div>
             <div class="flex items-center">
               <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
