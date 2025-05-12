@@ -3,7 +3,6 @@ import { db, eq, Notes, Threads, desc, NoteThreads, isNull, and, sql } from "ast
 import Layout from "@/layouts/Layout.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import ChonkButton from "@/components/ChonkButton.astro";
-import { SignOutButton } from "@clerk/astro/components";
 
 // Get userId from auth and redirect if not authenticated
 const userId = Astro.locals.auth().userId;
@@ -96,9 +95,9 @@ const threadCount = await db.select({ count: sql`count(*)` })
           
           <!-- Sign Out Button -->
           <div class="w-full mt-8">
-            <SignOutButton>
+            <a href="/sign-out">
               <ChonkButton text="Sign Out" variant="warning" />
-            </SignOutButton>
+            </a>
           </div>
         </div>
       </section>
