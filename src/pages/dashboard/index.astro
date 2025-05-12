@@ -24,6 +24,10 @@ const threads = await db.select()
   .from(Threads)
   .where(eq(Threads.userId, user.id))
   .orderBy(desc(Threads.createdAt));
+
+// Create arrays of note and thread IDs for checking in client-side script
+const noteIds = notes.map(note => note.id);
+const threadIds = threads.map(thread => thread.id);
 ---
 
 <Layout>
@@ -130,7 +134,7 @@ const threads = await db.select()
     </div>
   </div>
 
-  <script>
+  <script define:vars={{ noteIds, threadIds }}>
     // Check if the user was viewing a note previously and keep the tab if they were
     document.addEventListener('DOMContentLoaded', () => {
       const lastViewedNote = localStorage.getItem('lastViewedNote');
@@ -138,20 +142,27 @@ const threads = await db.select()
       
       if (lastViewedNote && noteTabContainer) {
         const noteId = lastViewedNote;
-        const noteTab = document.createElement('div');
         
-        // For new notes vs existing notes
-        const href = noteId === 'new' ? '/dashboard/notes/new' : `/dashboard/notes/${noteId}`;
-        
-        noteTab.innerHTML = `
-          <div class="relative rounded-t-lg px-5 py-3 w-fit tab bg-(--color-fog-white)" role="tab">
-            <div class="flex items-center gap-2">
-              <a href="${href}" class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">Note</a>
-              <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer" onclick="closeNoteTab()">×</span>
+        // Check if it's a new note or if the note exists in the database
+        if (noteId === 'new' || noteIds.includes(parseInt(noteId))) {
+          const noteTab = document.createElement('div');
+          
+          // For new notes vs existing notes
+          const href = noteId === 'new' ? '/dashboard/notes/new' : `/dashboard/notes/${noteId}`;
+          
+          noteTab.innerHTML = `
+            <div class="relative rounded-t-lg px-5 py-3 w-fit tab bg-(--color-fog-white)" role="tab">
+              <div class="flex items-center gap-2">
+                <a href="${href}" class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">Note</a>
+                <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer" onclick="closeNoteTab()">×</span>
+              </div>
             </div>
-          </div>
-        `;
-        noteTabContainer.appendChild(noteTab);
+          `;
+          noteTabContainer.appendChild(noteTab);
+        } else {
+          // Note doesn't exist anymore, remove from localStorage
+          localStorage.removeItem('lastViewedNote');
+        }
       }
       
       // Add the same for thread tabs
@@ -160,20 +171,27 @@ const threads = await db.select()
       
       if (lastViewedThread && threadTabContainer) {
         const threadId = lastViewedThread;
-        const threadTab = document.createElement('div');
         
-        // For new threads vs existing threads
-        const href = threadId === 'new' ? '/dashboard/threads/new' : `/dashboard/threads/${threadId}`;
-        
-        threadTab.innerHTML = `
-          <div class="relative rounded-t-lg px-5 py-3 w-fit tab bg-(--color-fog-white)" role="tab">
-            <div class="flex items-center gap-2">
-              <a href="${href}" class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">Thread</a>
-              <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer" onclick="closeThreadTab()">×</span>
+        // Check if it's a new thread or if the thread exists in the database
+        if (threadId === 'new' || threadIds.includes(parseInt(threadId))) {
+          const threadTab = document.createElement('div');
+          
+          // For new threads vs existing threads
+          const href = threadId === 'new' ? '/dashboard/threads/new' : `/dashboard/threads/${threadId}`;
+          
+          threadTab.innerHTML = `
+            <div class="relative rounded-t-lg px-5 py-3 w-fit tab bg-(--color-fog-white)" role="tab">
+              <div class="flex items-center gap-2">
+                <a href="${href}" class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">Thread</a>
+                <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer" onclick="closeThreadTab()">×</span>
+              </div>
             </div>
-          </div>
-        `;
-        threadTabContainer.appendChild(threadTab);
+          `;
+          threadTabContainer.appendChild(threadTab);
+        } else {
+          // Thread doesn't exist anymore, remove from localStorage
+          localStorage.removeItem('lastViewedThread');
+        }
       }
     });
 
