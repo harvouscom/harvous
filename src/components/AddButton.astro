@@ -5,64 +5,14 @@ import ThreadIcon from "@fortawesome/fontawesome-free/svgs/solid/layer-group.svg
 import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky.svg";
 ---
 
-<div class="cta-container" x-data="{ isOpen: false }">
-  <!-- Main toggle button -->
-  <button
-    @click="isOpen = !isOpen"
-    class="main-button [&:active>svg]:-translate-y-0 [&:active>svg]:scale-[0.95] cursor-pointer p-2 w-16 h-16 rounded-3xl flex items-center justify-center transition-all duration-300"
-    :class="isOpen ? 'bg-[#E6E4DA]' : 'bg-[var(--color-blue)]'"
-    {...Astro.props}
-  >
-    <FaPlusIcon
-      x-show="!isOpen"
-      class="-translate-y-0.5 w-6 h-6 fill-white transition-transform duration-125"
-    />
-    <FaXmarkIcon
-      x-show="isOpen"
-      x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0 transform scale-90"
-      x-transition:enter-end="opacity-100 transform scale-100"
-      class="-translate-y-0.5 w-6 h-6 fill-gray-500 transition-transform duration-125"
-    />
-  </button>
-
-  <!-- Option buttons (appear when isOpen is true) -->
-  <div 
-    x-show="isOpen"
-    x-transition:enter="transition ease-out duration-300"
-    x-transition:enter-start="opacity-0 transform translate-y-4"
-    x-transition:enter-end="opacity-100 transform translate-y-0"
-    x-transition:leave="transition ease-in duration-200"
-    x-transition:leave-start="opacity-100 transform translate-y-0"
-    x-transition:leave-end="opacity-0 transform translate-y-4"
-    class="option-buttons flex flex-col gap-4 mb-4 items-center"
-  >
-    <!-- New Thread button -->
-    <a 
-      href="/dashboard/threads/new"
-      class="option-button bg-[var(--color-blue)] p-3 w-14 h-14 rounded-full flex items-center justify-center cursor-pointer"
-    >
-      <ThreadIcon class="w-6 h-6 fill-white" />
-    </a>
-    
-    <!-- New Note button -->
-    <a 
-      href="/dashboard/notes/new" 
-      class="option-button bg-[var(--color-blue)] p-3 w-14 h-14 rounded-full flex items-center justify-center cursor-pointer"
-    >
-      <NoteStickyIcon class="w-6 h-6 fill-white" />
-    </a>
-  </div>
-</div>
-
 <style>
   .main-button {
     box-shadow:
       0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
       0px 4px 4px 0px hsla(0, 0%, 0%, 0.25);
     transition:
-      background-color 0.125s ease-in-out,
-      box-shadow 0.125s ease-in-out;
+      background-color 0.1s ease-in-out,
+      box-shadow 0.1s ease-in-out;
     z-index: 10;
   }
 
@@ -79,8 +29,8 @@ import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky
       0px -6px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
       0px 3px 3px 0px hsla(0, 0%, 0%, 0.25);
     transition: 
-      transform 0.2s ease,
-      box-shadow 0.2s ease;
+      transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+      box-shadow 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
 
   .option-button:active {
@@ -96,4 +46,75 @@ import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky
     flex-direction: column-reverse;
     align-items: center;
   }
-</style> 
+</style>
+
+<div class="cta-container" x-data="{ 
+  isOpen: false,
+  showThread: false,
+  showNote: false,
+  toggle() {
+    this.isOpen = !this.isOpen;
+    if (this.isOpen) {
+      // Reset state first
+      this.showThread = false;
+      this.showNote = false;
+      
+      // Staggered animations from bottom to top with bounce effect
+      setTimeout(() => { this.showNote = true; }, 10);
+      setTimeout(() => { this.showThread = true; }, 90);
+    } else {
+      // Hide in reverse order when closing
+      this.showThread = false;
+      setTimeout(() => { this.showNote = false; }, 30);
+    }
+  }
+}">
+  <!-- Main toggle button -->
+  <button
+    @click="toggle()"
+    class="main-button [&:active>svg]:-translate-y-0 [&:active>svg]:scale-[0.95] cursor-pointer p-2 w-16 h-16 rounded-3xl flex items-center justify-center transition-all duration-200"
+    :class="isOpen ? 'bg-[#E6E4DA]' : 'bg-[var(--color-blue)]'"
+    {...Astro.props}
+  >
+    <FaPlusIcon
+      x-show="!isOpen"
+      class="-translate-y-0.5 w-6 h-6 fill-white transition-transform duration-100"
+    />
+    <FaXmarkIcon
+      x-show="isOpen"
+      x-transition:enter="transition ease-out duration-100"
+      x-transition:enter-start="opacity-0 transform scale-90"
+      x-transition:enter-end="opacity-100 transform scale-100"
+      class="-translate-y-0.5 w-6 h-6 fill-gray-500 transition-transform duration-100"
+    />
+  </button>
+
+  <!-- Option buttons container -->
+  <div 
+    x-show="isOpen"
+    x-transition:enter="transition ease-out duration-100"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    class="option-buttons flex flex-col gap-4 mb-4 items-center"
+  >
+    <!-- New Thread button (top button, appears second) -->
+    <a 
+      href="/dashboard/threads/new"
+      class="option-button bg-[var(--color-blue)] p-3 w-14 h-14 rounded-full flex items-center justify-center cursor-pointer"
+      x-show="showThread"
+      :class="showThread ? 'bounce-in-delayed-sm' : ''"
+    >
+      <ThreadIcon class="w-6 h-6 fill-white" />
+    </a>
+    
+    <!-- New Note button (bottom button, appears first) -->
+    <a 
+      href="/dashboard/notes/new" 
+      class="option-button bg-[var(--color-blue)] p-3 w-14 h-14 rounded-full flex items-center justify-center cursor-pointer"
+      x-show="showNote"
+      :class="showNote ? 'bounce-in' : ''"
+    >
+      <NoteStickyIcon class="w-6 h-6 fill-white" />
+    </a>
+  </div>
+</div> 
