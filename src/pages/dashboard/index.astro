@@ -1,6 +1,6 @@
 ---
 import { actions } from "astro:actions";
-import { db, eq, Notes, Threads, desc, NoteThreads, isNull, and } from "astro:db";
+import { db, eq, Notes, Threads, desc, NoteThreads, isNull, and, sql } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import NoteCard from "@/components/NoteCard.astro";
 import ThreadCard from "@/components/ThreadCard.astro";
@@ -41,11 +41,11 @@ const notes = await db.select({
   )
   .orderBy(desc(Notes.createdAt));
 
-// Get all threads, sorted by last update (or creation if no update)
+// Get all threads, sorted by most recently updated first, and if updatedAt is null, then by createdAt
 const allThreads = await db.select()
   .from(Threads)
   .where(eq(Threads.userId, userId as string))
-  .orderBy(desc(Threads.updatedAt || Threads.createdAt));
+  .orderBy(sql`COALESCE(updatedAt, createdAt) DESC`);
 
 // Extract pinned threads for the Pinned Threads section
 const pinnedThreads = allThreads.filter(thread => thread.isPinned);
