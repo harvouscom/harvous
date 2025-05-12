@@ -74,7 +74,7 @@ const noteData = notes[0];
 <Layout title="Note">
   <div x-data="{ showActionBar: false }" class="flex flex-col min-h-[100vh] relative">
     <section class="bg-(--color-fog-white) pt-3">
-      <div class="px-6 mx-auto max-w-screen-sm flex items-center">
+      <div class="px-3 mx-auto max-w-screen-sm flex items-center">
         <div class="flex h-[48px]">
           <Tab label="Feed" href="/dashboard" />
           {sourceThread && (
@@ -90,7 +90,7 @@ const noteData = notes[0];
     </section>
 
     <main
-      class="w-full max-w-screen-sm mx-auto px-6 pt-6 flex-grow flex flex-col gap-3"
+      class="w-full max-w-screen-sm mx-auto px-3 pt-6 flex-grow flex flex-col gap-3"
     >
       <section class="w-full px-1 py-2 flex items-center gap-2 relative">
         <button 
@@ -132,7 +132,7 @@ const noteData = notes[0];
         </div>
       </section>
 
-      <section class="w-full !select-text whitespace-normal flex flex-col gap-5 px-6 py-5 bg-(--color-light-paper) rounded-xl trix-content flex-grow">
+      <section class="w-full !select-text whitespace-normal flex flex-col gap-5 px-3 py-5 bg-(--color-light-paper) rounded-xl trix-content flex-grow">
         <p class="text-caption text-(--color-stone-grey) w-fit">{noteData.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
         <div set:html={noteData.content}></div>
       </section>

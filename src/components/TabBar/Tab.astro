@@ -4,9 +4,10 @@ interface Props {
   href?: string;
   active?: boolean;
   closable?: boolean;
+  color?: string;
 }
 
-const { label, href, active = false, closable = false }: Props = Astro.props;
+const { label, href, active = false, closable = false, color }: Props = Astro.props;
 
 // Determine which localStorage item to remove based on the tab label
 let storageKey = null;
@@ -36,25 +37,27 @@ if (label === 'Note') {
   `;
 }
 
-// Common styling for both active and inactive tabs
-const containerStyle = active 
-  ? "h-full rounded-t-lg bg-(--color-soft-paper) flex items-center"
-  : "h-full rounded-t-lg bg-(--color-fog-white) flex items-center";
-
 // Different padding based on whether it's closable or not
 const paddingStyle = closable 
   ? "pl-[20px] pr-[12px] py-3 flex items-center gap-2"
   : "px-[20px] py-3 flex items-center";
+
+// Text color based on active state
+const textColor = active ? "text-(--color-deep-grey)" : "text-(--color-stone-grey)";
 ---
 
 <div class="h-[48px]">
   {active ? (
-    <div class="h-full rounded-t-lg bg-(--color-soft-paper) flex items-center" role="tab">
+    <div 
+      class="h-full rounded-t-lg flex items-center" 
+      role="tab"
+      style={color ? `background-color: var(--color-${color})` : "background-color: var(--color-soft-paper)"}
+    >
       <div class={`h-full flex items-center ${closable ? 'pl-[20px] pr-[12px] gap-2' : 'px-[20px]'}`}>
-        <span class="font-bold text-sm text-(--color-stone-grey)">{label}</span>
+        <span class={`font-bold text-sm ${textColor}`}>{label}</span>
         {closable && (
           <button 
-            class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) cursor-pointer"
+            class={`w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium ${textColor} cursor-pointer`}
             onclick={closeAction}
           >×</button>
         )}
@@ -67,10 +70,10 @@ const paddingStyle = closable
       role="tab"
     >
       <div class={`h-full flex items-center ${closable ? 'pl-[20px] pr-[12px] gap-2' : 'px-[20px]'}`}>
-        <span class="font-bold text-sm text-(--color-stone-grey)">{label}</span>
+        <span class={`font-bold text-sm ${textColor}`}>{label}</span>
         {closable && (
           <button 
-            class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) cursor-pointer"
+            class={`w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium ${textColor} cursor-pointer`}
             onclick={closeAction}
             type="button"
           >×</button>

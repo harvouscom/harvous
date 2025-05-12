@@ -25,17 +25,19 @@ if (result?.data?.success) {
 }
 ---
 
-<Layout title="Thread" classNames="grid grid-rows-1">
-  <div class="flex flex-col h-full" x-data="{ activeDrawer: null }">
+<Layout title="New Thread">
+  <div class="flex flex-col h-full">
     <section class="bg-(--color-fog-white) pt-3">
-      <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
-        <Tab label="Feed" href="/dashboard" />
-        <Tab label="Thread" active closable />
+      <div class="px-3 mx-auto max-w-screen-sm flex items-center gap-2">
+        <div class="flex h-[48px]">
+          <Tab label="Feed" href="/dashboard" />
+          <Tab label="New Thread" active closable />
+        </div>
       </div>
     </section>
 
     <main
-      class="flex-1 w-full max-w-screen-sm mx-auto px-6 pt-6 pb-6 flex flex-col"
+      class="flex-1 w-full max-w-screen-sm mx-auto px-3 pt-6 pb-6 flex flex-col"
     >
       <form
         class="flex flex-col"
