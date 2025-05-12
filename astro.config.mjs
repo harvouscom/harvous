@@ -2,6 +2,7 @@
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 import db from '@astrojs/db';
+import clerk from "@clerk/astro";
 
 import netlify from '@astrojs/netlify';
 
@@ -13,6 +14,7 @@ export default defineConfig({
 
   integrations: [
     db(),
+    clerk(),
   ],
 
   experimental: {

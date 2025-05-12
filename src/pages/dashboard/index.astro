@@ -6,24 +6,28 @@ import NoteCard from "@/components/NoteCard.astro";
 import ThreadCard from "@/components/ThreadCard.astro";
 import CtaButton from "@/components/CtaButton.astro";
 import Tab from "@/components/TabBar/Tab.astro";
-if (!Astro.locals.auth().userId) {
+import { SignOutButton } from "@clerk/astro/components";
+
+// Get userId from auth and redirect if not authenticated
+const userId = Astro.locals.auth().userId;
+if (!userId) {
   return Astro.redirect("/");
 }
 
+// Verify user exists
 const user = await Astro.locals.currentUser();
-
 if (!user) {
   return Astro.redirect("/");
 }
 
 const notes = await db.select()
   .from(Notes)
-  .where(eq(Notes.userId, user.id))
+  .where(eq(Notes.userId, userId as string))
   .orderBy(desc(Notes.createdAt));
 
 const threads = await db.select()
   .from(Threads)
-  .where(eq(Threads.userId, user.id))
+  .where(eq(Threads.userId, userId as string))
   .orderBy(desc(Threads.createdAt));
 
 // Create arrays of note and thread IDs for checking in client-side script
@@ -34,10 +38,21 @@ const threadIds = threads.map(thread => thread.id);
 <Layout>
   <div class="relative min-h-[100vh]">
     <section class="bg-(--color-fog-white) pt-3">
-      <div class="px-6 mx-auto max-w-screen-sm flex items-center" x-data>
-        <Tab label="Feed" href="#" active />
-        <div id="note-tab-container"></div>
-        <div id="thread-tab-container"></div>
+      <div class="px-6 mx-auto max-w-screen-sm flex items-center justify-between" x-data>
+        <div class="flex">
+          <Tab label="Feed" href="#" active />
+          <div id="note-tab-container"></div>
+          <div id="thread-tab-container"></div>
+        </div>
+        
+        <!-- Sign Out Button in header -->
+        <div>
+          <SignOutButton>
+            <span class="text-sm font-medium text-(--color-stone-grey) hover:text-black transition-colors px-3 py-1 rounded-md hover:bg-gray-100 cursor-pointer inline-block">
+              Sign Out
+            </span>
+          </SignOutButton>
+        </div>
       </div>
     </section>
 

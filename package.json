@@ -13,7 +13,7 @@
   "dependencies": {
     "@alpinejs/collapse": "^3.14.9",
     "@alpinejs/focus": "^3.14.9",
-    "@astrojs/db": "^0.14.9",
+    "@astrojs/db": "^0.14.14",
     "@astrojs/netlify": "^6.2.4",
     "@clerk/astro": "^2.7.2",
     "@fontsource/reddit-mono": "^5.1.1",

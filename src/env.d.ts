@@ -1,5 +1,8 @@
 /// <reference types="astro/client" />
+/// <reference types="@clerk/astro/dist/types" />
 /// <reference path="../.astro/types.d.ts" />
+
+import type { Auth, UserResource } from "@clerk/types";
 
 interface LocalUser {
   id: string;
@@ -20,8 +23,8 @@ declare global {
 
   namespace App {
     interface Locals {
-      auth: () => LocalAuth;
-      currentUser: () => Promise<LocalUser | null>;
+      auth: () => Auth;
+      currentUser: () => Promise<UserResource | null>;
     }
   }
 }
@@ -31,6 +34,10 @@ interface ImportMetaEnv {
   readonly ASTRO_DB_REMOTE_URL: string;
   /** https://docs.astro.build/en/guides/astro-db/#libsql */
   readonly ASTRO_DB_APP_TOKEN: string;
+  /** https://clerk.com/docs/deployments/clerk-environment-variables#clerk-environment-variables */
+  readonly PUBLIC_CLERK_PUBLISHABLE_KEY: string;
+  /** https://clerk.com/docs/deployments/clerk-environment-variables#clerk-environment-variables */
+  readonly CLERK_SECRET_KEY: string;
 }
 
 interface ImportMeta {

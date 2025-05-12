@@ -1,6 +1,16 @@
 ---
+import { SignedIn, SignedOut, SignInButton } from "@clerk/astro/components";
 import Layout from '../layouts/Layout.astro';
 import ThreadCard from '../components/ThreadCard.astro';
+
+// Check if we should force sign-in based on URL parameter
+const url = new URL(Astro.request.url);
+const forceSignIn = url.searchParams.get('sign-in') === 'true';
+
+// If already authenticated, redirect to dashboard
+if (Astro.locals.auth().userId) {
+  return Astro.redirect('/dashboard');
+}
 ---
 
 <Layout title="Harvous Demo">
@@ -12,12 +22,27 @@ import ThreadCard from '../components/ThreadCard.astro';
       </div>
       
       <div class="text-center mt-16">
-        <a 
-          href="/dashboard" 
-          class="inline-block px-6 py-3 bg-[#4A473D] text-white rounded-lg font-medium hover:bg-[#5a574d] transition-colors"
-        >
-          Go to My Feed
-        </a>
+        <SignedIn>
+          <a 
+            href="/dashboard" 
+            class="inline-block px-6 py-3 bg-[#4A473D] text-white rounded-lg font-medium hover:bg-[#5a574d] transition-colors"
+          >
+            Go to My Feed
+          </a>
+        </SignedIn>
+        <SignedOut>
+          <SignInButton mode="modal">
+            <span class="inline-block px-6 py-3 bg-[#4A473D] text-white rounded-lg font-medium hover:bg-[#5a574d] transition-colors cursor-pointer">
+              Sign In
+            </span>
+          </SignInButton>
+          
+          <div class="mt-4">
+            <a href="/?sign-in=true" class="text-sm text-blue-600 hover:underline">
+              Having trouble signing in? Click here
+            </a>
+          </div>
+        </SignedOut>
       </div>
     </div>
   </main>

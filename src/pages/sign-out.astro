@@ -1,0 +1,9 @@
+---
+// This route handles the sign out process
+// Clerk will handle the sign out automatically when this page is accessed
+// We just need to redirect back to the home page
+return Astro.redirect("/?redirected=true");
+---
+
+<!-- This page normally won't be rendered as we redirect immediately -->
+<meta http-equiv="refresh" content="0;url=/" /> 
