@@ -10,14 +10,11 @@ import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
 import Tab from "@/components/TabBar/Tab.astro";
 import ChonkButton from "@/components/ChonkButton.astro";
 import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky.svg";
-import Drawer from "@/components/Drawer.astro";
 import MetaBar from "@/components/MetaBar.astro";
-import CommentDrawer from "@/components/CommentDrawer.astro";
-import TagDrawer from "@/components/TagDrawer.astro";
-import ThreadDrawer from "@/components/ThreadDrawer.astro";
 
 const { id } = Astro.params;
 
+// Validate ID parameter
 if (!id || z.number({ coerce: true }).safeParse(id).success === false) {
   return Astro.redirect("/dashboard/notes");
 }
@@ -30,6 +27,7 @@ if (!userId) {
   return Astro.redirect("/login");
 }
 
+// Only fetch the note if we're not already redirecting
 const notes = await db
   .select()
   .from(Notes)
@@ -41,16 +39,10 @@ if (!notes.length) {
 }
 
 const noteData = notes[0];
-
-const result = Astro.getActionResult(actions.notes.delete);
-
-if (result?.data?.success) {
-  return Astro.redirect("/dashboard");
-}
 ---
 
 <Layout title="Note">
-  <div x-data="{ showActionBar: false, activeDrawer: null }" class="flex flex-col min-h-[100vh] relative">
+  <div x-data="{ showActionBar: false }" class="flex flex-col min-h-[100vh] relative">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-6 mx-auto max-w-screen-sm flex items-center">
         <Tab label="Feed" href="/dashboard" />
@@ -61,7 +53,7 @@ if (result?.data?.success) {
     <main
       class="w-full max-w-screen-sm mx-auto px-6 pt-6 flex-grow flex flex-col gap-3"
     >
-      <section class="w-full px-1 py-2 flex items-center gap-2">
+      <section class="w-full px-1 py-2 flex items-center gap-2 relative">
         <button 
           class="icon-btn rounded-full w-[44px] h-[44px] flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset]"
           :class="showActionBar ? 'bg-[var(--color-stone-grey)] text-[var(--color-light-paper)] fill-[var(--color-light-paper)]' : 'bg-[var(--color-paper)] text-[var(--color-stone-grey)] fill-[var(--color-stone-grey)]'"
@@ -71,6 +63,34 @@ if (result?.data?.success) {
           <CheckIcon x-cloak x-show="showActionBar" class="w-[20px] h-[20px]" />
         </button>
         <h1 class="text-title">{noteData.title || "Untitled Note"}</h1>
+        
+        <!-- Floating action bar positioned absolutely below the button -->
+        <div 
+          x-show="showActionBar" 
+          x-cloak
+          class="absolute top-[64px] left-[-12px] right-[-12px] z-10 bg-(--color-pebble-grey) p-3 rounded-xl shadow-lg"
+        >
+          <div class="grid grid-cols-2 gap-3 w-full">
+            <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
+              <ChonkButton text="Edit">
+                <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+              </ChonkButton>
+            </a>
+            <form 
+              class="grid" 
+              method="POST" 
+              action={actions.notes.delete}
+            >
+              <input type="hidden" name="id" value={noteData.id} />
+              <input type="hidden" name="userId" value={userId} />
+              <button type="submit" style="width: 100%; height: 100%; padding: 0; background: none; border: none;">
+                <ChonkButton text="Delete">
+                  <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+                </ChonkButton>
+              </button>
+            </form>
+          </div>
+        </div>
       </section>
 
       <section class="w-full !select-text whitespace-normal flex flex-col gap-5 px-6 py-5 bg-(--color-light-paper) rounded-xl trix-content flex-grow">
@@ -82,58 +102,44 @@ if (result?.data?.success) {
         <MetaBar noteId={noteData.id} />
       </div>
     </main>
-
-    <div x-show="showActionBar" class="bg-(--color-pebble-grey) p-3 mt-auto">
-      <div class="grid grid-cols-2 gap-3 max-w-screen-sm mx-auto px-6 w-full">
-        <a class="grid" href={`/dashboard/notes/${noteData.id}/edit`}>
-          <ChonkButton text="Edit">
-            <NoteStickyIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-          </ChonkButton>
-        </a>
-        <form class="grid" method="POST" action={actions.notes.delete}>
-          <input type="hidden" name="id" value={noteData.id} />
-          <input type="hidden" name="userId" value={userId} />
-          <ChonkButton text="Delete" type="submit">
-            <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
-          </ChonkButton>
-        </form>
-      </div>
-    </div>
-    
-    <!-- Drawers -->
-    <CommentDrawer noteId={noteData.id} />
-    <TagDrawer noteId={noteData.id} />
-    <ThreadDrawer noteId={noteData.id} />
   </div>
 
   <script define:vars={{ noteId: noteData.id }}>
     // Save the current note ID to localStorage
     document.addEventListener('DOMContentLoaded', function() {
-      localStorage.setItem('lastViewedNote', noteId.toString());
+      // Make sure noteId is defined before calling toString()
+      if (noteId !== undefined && noteId !== null) {
+        localStorage.setItem('lastViewedNote', noteId.toString());
+      }
       
-      // Listen for drawer events
-      window.addEventListener('show-drawer', (event) => {
-        const drawerType = event.detail?.drawer;
-        if (drawerType) {
-          const Alpine = window.Alpine;
-          if (Alpine) {
-            const mainElement = document.querySelector('main');
-            if (mainElement) {
-              Alpine.$data(mainElement.parentElement).activeDrawer = drawerType;
+      // Handle form submission
+      const form = document.querySelector('form[action*="delete"]');
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          
+          // Clear localStorage
+          localStorage.removeItem('lastViewedNote');
+          
+          // Submit form data via fetch
+          fetch(form.action, {
+            method: 'POST',
+            body: new FormData(form)
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Redirect to dashboard
+              window.location.href = '/dashboard';
             }
-          }
-        }
-      });
-      
-      window.addEventListener('hide-drawer', () => {
-        const Alpine = window.Alpine;
-        if (Alpine) {
-          const mainElement = document.querySelector('main');
-          if (mainElement) {
-            Alpine.$data(mainElement.parentElement).activeDrawer = null;
-          }
-        }
-      });
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            // Redirect anyway on error
+            window.location.href = '/dashboard';
+          });
+        });
+      }
     });
   </script>
 </Layout>

@@ -5,9 +5,6 @@ import Tab from "@/components/TabBar/Tab.astro";
 import TrixEditor from "@/components/TrixEditor.astro";
 import TrixToolbarV2 from "@/components/TrixToolbarV2.astro";
 import MetaBar from "@/components/MetaBar.astro";
-import CommentDrawer from "@/components/CommentDrawer.astro";
-import TagDrawer from "@/components/TagDrawer.astro";
-import ThreadDrawer from "@/components/ThreadDrawer.astro";
 
 const currentUser = Astro.locals.auth();
 const userId = currentUser ? currentUser.userId : null;
@@ -65,9 +62,6 @@ if (result?.data?.success) {
     </main>
     
     <!-- Drawers -->
-    <CommentDrawer noteId="001" />
-    <TagDrawer noteId="001" />
-    <ThreadDrawer noteId="001" />
   </div>
 </Layout>
 

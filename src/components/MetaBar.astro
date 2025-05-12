@@ -2,7 +2,7 @@
 import IconButton from "@/components/IconButton.astro";
 import CommentIcon from "@fortawesome/fontawesome-free/svgs/solid/comment.svg";
 import TagIcon from "@fortawesome/fontawesome-free/svgs/solid/tag.svg";
-import ThreadIcon from "@fortawesome/fontawesome-free/svgs/solid/diagram-project.svg";
+import ThreadIcon from "@fortawesome/fontawesome-free/svgs/solid/layer-group.svg";
 import HashtagIcon from "@fortawesome/fontawesome-free/svgs/solid/hashtag.svg";
 
 interface Props {
@@ -65,9 +65,14 @@ const { noteId } = Astro.props;
   </div>
   
   <div class="flex items-center">
-    <button class="meta-chonk-btn">
+    <button 
+      @click="toggleDrawer('note-id')"
+      :class="activeDrawer === 'note-id' ? 'meta-chonk-btn-active' : 'meta-chonk-btn'"
+    >
       <HashtagIcon class="w-[15px] h-[15px]" />
-      <span class="meta-text">N{String(noteId).padStart(3, '0')}</span>
+      <span 
+        :class="activeDrawer === 'note-id' ? 'meta-text-active' : 'meta-text'"
+      >N{String(noteId).padStart(3, '0')}</span>
     </button>
   </div>
 </div>
@@ -86,6 +91,11 @@ const { noteId } = Astro.props;
     fill: var(--color-stone-grey);
     transition: transform 0.1s ease, background-color 0.2s ease;
     min-width: fit-content;
+    outline: none;
+  }
+  
+  .meta-chonk-btn:focus {
+    outline: none;
   }
   
   .meta-chonk-btn-active {
@@ -101,6 +111,11 @@ const { noteId } = Astro.props;
     fill: var(--color-light-paper);
     transition: transform 0.1s ease, background-color 0.2s ease;
     min-width: fit-content;
+    outline: none;
+  }
+  
+  .meta-chonk-btn-active:focus {
+    outline: none;
   }
   
   .meta-chonk-btn:active {
