@@ -75,16 +75,12 @@ const { noteId } = Astro.props;
   
   <div class="flex items-center">
     <div 
-      x-bind:class="activeDrawer === 'note-id' ? 'active-button' : ''"
+      x-bind:class="activeDrawer === 'note-id' ? 'active-button-text' : ''"
       x-on:click="toggleDrawer('note-id')"
-      class="button-wrapper"
+      class="note-id-text-wrapper"
     >
-      <ChonkButton 
-        text={`N${String(noteId).padStart(3, '0')}`}
-        size="small"
-      >
-        <HashtagIcon class="w-[15px] h-[15px]" />
-      </ChonkButton>
+      <HashtagIcon class="w-[15px] h-[15px] note-id-icon" />
+      <span class="note-id-text">{`N${String(noteId).padStart(3, '0')}`}</span>
     </div>
   </div>
 </div>
@@ -182,6 +178,100 @@ const { noteId } = Astro.props;
     
     .button-wrapper :global(p) {
       font-size: 10px !important;
+    }
+  }
+
+  /* Custom styling for note ID without ChonkButton */
+  .custom-note-id {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 12px 10px 10px;
+    border-radius: 6px;
+    background: var(--color-paper, #EBE7DB);
+    min-width: fit-content;
+    transition: transform 0.1s ease, background-color 0.2s ease;
+    box-shadow: 0px -4px 0px 0px #00000040 inset;
+  }
+  
+  .custom-note-id:active {
+    transform: scale(0.99);
+    box-shadow: 0px -2px 0px 0px #0000001a inset,
+      0px 0px 2px 0px #00000040,
+      0px 2px 0px 0px #00000040 inset;
+  }
+  
+  .note-id-text {
+    font-family: "Reddit Mono";
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+    color: var(--color-stone-grey, #78766F);
+  }
+  
+  .active-button .custom-note-id {
+    background-color: var(--color-stone-grey, #78766F);
+  }
+  
+  .active-button .note-id-text {
+    color: var(--color-light-paper, #F7F7F6);
+  }
+  
+  .active-button .custom-note-id svg {
+    fill: var(--color-light-paper, #F7F7F6);
+    color: var(--color-light-paper, #F7F7F6);
+  }
+  
+  @media (max-width: 400px) {
+    .custom-note-id {
+      padding: 6px 10px 10px 8px;
+      gap: 3px;
+    }
+    
+    .note-id-text {
+      font-size: 10px;
+    }
+  }
+
+  /* Simple note ID text styling */
+  .note-id-text-wrapper {
+    cursor: pointer;
+    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .note-id-text {
+    font-family: "Reddit Mono";
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+    color: var(--color-stone-grey, #78766F);
+  }
+  
+  .note-id-icon {
+    fill: var(--color-stone-grey, #78766F);
+    color: var(--color-stone-grey, #78766F);
+  }
+  
+  .active-button-text .note-id-text {
+    color: var(--color-stone-grey, #78766F);
+    text-decoration: underline;
+  }
+  
+  .active-button-text .note-id-icon {
+    fill: var(--color-stone-grey, #78766F);
+    color: var(--color-stone-grey, #78766F);
+  }
+  
+  @media (max-width: 400px) {
+    .note-id-text {
+      font-size: 10px;
     }
   }
 </style> 
