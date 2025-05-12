@@ -13,10 +13,14 @@ export const notes = {
     }),
     handler: async ({ content, title, userId, isPublic = false }) => {
       try {
+        const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
+        
+        const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
+        
         const newNote = await db.insert(Notes)
           .values({ 
-            content, 
-            title, 
+            content: capitalizedContent, 
+            title: capitalizedTitle, 
             userId, 
             isPublic,
             createdAt: new Date() 
@@ -50,10 +54,14 @@ export const notes = {
     }),
     handler: async ({ id, content, title, userId, isPublic = false }) => {
       try {
+        const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
+        
+        const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
+        
         const updatedNote = await db.update(Notes)
           .set({
-            content,
-            title,
+            content: capitalizedContent,
+            title: capitalizedTitle,
             isPublic,
             updatedAt: new Date()
           })

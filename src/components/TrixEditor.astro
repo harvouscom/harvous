@@ -67,4 +67,147 @@ const {
 
 <script>
   import "trix";
+  
+  // Define a type for Trix Editor element
+  interface TrixEditorElement extends HTMLElement {
+    editor: {
+      isEmpty(): boolean;
+      getDocument(): { 
+        toString(): string;
+        getBlocks(): Array<{
+          text: string;
+          toString(): string;
+          getPosition(): number;
+        }>;
+      };
+      getPosition(): number;
+      setSelectedRange(range: [number, number] | number): void;
+      insertString(text: string): void;
+      recordUndoEntry(description: string): void;
+      moveCursorToBeginning(): void;
+      moveCursorToEnd(): void;
+    };
+    dataset: DOMStringMap;
+  }
+  
+  document.addEventListener('DOMContentLoaded', () => {
+    const trixEditor = document.querySelector('trix-editor') as TrixEditorElement;
+    
+    if (trixEditor) {
+      // Initial capitalization when editor loads with content
+      if (trixEditor.editor && !trixEditor.editor.isEmpty()) {
+        capitalizeFirstCharacter(trixEditor.editor);
+      }
+      
+      // Auto-capitalize the first letter when the editor starts from empty
+      trixEditor.addEventListener('trix-focus', function(this: TrixEditorElement) {
+        const isEmpty = this.editor?.isEmpty();
+        
+        if (isEmpty) {
+          // Set a flag to capitalize next input
+          this.dataset.shouldCapitalize = 'true';
+        }
+      });
+      
+      // Handle auto-capitalization during typing
+      trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
+        const editor = this.editor;
+        
+        if (!editor) return;
+        
+        // If this is the first character typed (when editor was empty)
+        if (this.dataset.shouldCapitalize === 'true' && !editor.isEmpty()) {
+          capitalizeFirstCharacter(editor);
+          delete this.dataset.shouldCapitalize;
+        }
+      });
+      
+      // Handle new paragraph capitalization
+      trixEditor.addEventListener('trix-selection-change', function(this: TrixEditorElement) {
+        const editor = this.editor;
+        if (!editor) return;
+        
+        // Set a flag to check for new paragraphs on next change
+        this.dataset.checkNewParagraph = 'true';
+        
+        // Store the current position to detect new paragraphs
+        this.dataset.lastPosition = editor.getPosition().toString();
+      });
+      
+      // Listen for enter key which creates new paragraphs
+      trixEditor.addEventListener('keydown', function(this: TrixEditorElement, event: KeyboardEvent) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          this.dataset.enterPressed = 'true';
+        }
+      } as EventListener);
+      
+      // Handle new paragraph capitalization after changes
+      trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
+        const editor = this.editor;
+        if (!editor || !this.dataset.enterPressed) return;
+        
+        // Clear the flag
+        delete this.dataset.enterPressed;
+        
+        // Try to find the new paragraph that was just created
+        const blocks = editor.getDocument().getBlocks();
+        
+        // If we have blocks and the cursor is in a non-empty one
+        if (blocks.length > 0) {
+          const currentPosition = editor.getPosition();
+          
+          // Find the current block we're in
+          for (let i = 0; i < blocks.length; i++) {
+            const blockText = blocks[i].toString();
+            
+            // If block only has one character (just typed) and it's lowercase
+            if (blockText.length === 1 && blockText[0] !== blockText[0].toUpperCase()) {
+              // Save current position
+              const originalPosition = editor.getPosition();
+              
+              // Record undo entry for this operation
+              editor.recordUndoEntry("Auto-capitalize paragraph");
+              
+              // Move to the beginning of the paragraph
+              const blockStartPosition = blocks[i].getPosition();
+              editor.setSelectedRange([blockStartPosition, blockStartPosition + 1]);
+              
+              // Replace with uppercase
+              editor.insertString(blockText[0].toUpperCase());
+              
+              // Restore cursor position
+              editor.setSelectedRange(originalPosition);
+              break;
+            }
+          }
+        }
+      });
+      
+      // Helper function to capitalize the first character of the document
+      function capitalizeFirstCharacter(editor: TrixEditorElement['editor']) {
+        const text = editor.getDocument().toString();
+        
+        if (text.length > 0) {
+          // Get the first character and capitalize if it's a letter
+          const firstChar = text.charAt(0);
+          const capitalized = firstChar.toUpperCase();
+          
+          if (firstChar !== capitalized) {
+            // Save current position
+            const originalPosition = editor.getPosition();
+            
+            // Record undo entry for this operation
+            editor.recordUndoEntry("Auto-capitalize first letter");
+            
+            // Replace the first character with capitalized version
+            editor.setSelectedRange([0, 1]);
+            editor.insertString(capitalized);
+            
+            // Restore cursor position
+            editor.setSelectedRange(originalPosition);
+          }
+        }
+      }
+    }
+  });
 </script>

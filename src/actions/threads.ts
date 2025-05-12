@@ -13,9 +13,11 @@ export const threads = {
     }),
     handler: async ({ title, userId, isPublic = false, color }) => {
       try {
+        const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+        
         const newThread = await db.insert(Threads)
           .values({ 
-            title, 
+            title: capitalizedTitle, 
             userId, 
             isPublic,
             color,
@@ -50,9 +52,11 @@ export const threads = {
     }),
     handler: async ({ id, title, userId, isPublic = false, color }) => {
       try {
+        const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+        
         const updatedThread = await db.update(Threads)
           .set({
-            title,
+            title: capitalizedTitle,
             isPublic,
             color,
             updatedAt: new Date()

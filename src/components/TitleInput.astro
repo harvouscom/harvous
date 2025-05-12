@@ -18,6 +18,7 @@ const {
   name={name}
   placeholder={placeholder}
   required={required}
+  id="title-input"
 />
 
 <style>
@@ -39,4 +40,34 @@ const {
     outline: none;
     box-shadow: 0 0 0 2px var(--color-blue, #0066FF);
   }
-</style> 
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const titleInput = document.getElementById('title-input') as HTMLInputElement;
+    
+    if (titleInput) {
+      // Function to capitalize first letter while typing
+      titleInput.addEventListener('input', function(this: HTMLInputElement) {
+        const cursorPosition = this.selectionStart || 0;
+        const value = this.value;
+        
+        // Only capitalize if we're editing the first character
+        if (value && cursorPosition <= 1) {
+          this.value = value.charAt(0).toUpperCase() + value.slice(1);
+          
+          // Restore cursor position
+          this.setSelectionRange(cursorPosition, cursorPosition);
+        }
+      });
+      
+      // Auto-capitalize on initial focus if empty
+      titleInput.addEventListener('focus', function(this: HTMLInputElement) {
+        if (!this.value) {
+          // Set initial capitalization for placeholder text that will be typed
+          this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+        }
+      });
+    }
+  });
+</script> 
