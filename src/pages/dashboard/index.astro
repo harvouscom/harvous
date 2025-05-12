@@ -61,8 +61,8 @@ const threadIds = threads.map(thread => thread.id);
       class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
     >
       <!-- New Section -->
-      <section class="flex flex-col items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
-        <div class="px-6 py-3 w-full">
+      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="w-full px-6 py-3">
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
               <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">New</h2>
@@ -72,13 +72,12 @@ const threadIds = threads.map(thread => thread.id);
               <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
             </div>
           </div>
-          {/* Hide content area since there are no new items */}
         </div>
       </section>
 
       <!-- Pinned Threads Section -->
-      <section class="flex flex-col items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
-        <div class="px-6 py-3 w-full">
+      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="w-full px-6 py-3">
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
               <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Pinned Threads</h2>
@@ -88,13 +87,12 @@ const threadIds = threads.map(thread => thread.id);
               <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
             </div>
           </div>
-          {/* Hide content area since there are no pinned threads */}
         </div>
       </section>
 
       <!-- Unorganized Notes Section -->
-      <section class="flex flex-col items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
-        <div class="px-6 py-3 w-full">
+      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="w-full px-6 py-3">
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
               <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Unorganized Notes</h2>
@@ -106,8 +104,8 @@ const threadIds = threads.map(thread => thread.id);
           </div>
         </div>
         {notes.length > 0 && (
-          <div class="w-full overflow-x-auto">
-            <div class="flex gap-3 min-w-min pl-3 pr-6">
+          <div class="w-full overflow-x-auto px-6 pb-[18px]">
+            <div class="flex gap-3 min-w-min">
               {
                 notes.map((note) => (
                   <div class="min-w-[160px] max-w-[160px] flex-shrink-0">
@@ -123,8 +121,8 @@ const threadIds = threads.map(thread => thread.id);
       </section>
 
       <!-- All Threads Section -->
-      <section class="flex flex-col items-start gap-6 self-stretch rounded-xl bg-[#E6E4DA]">
-        <div class="px-6 py-3 w-full">
+      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="w-full px-6 py-3">
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
               <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">All Threads</h2>
@@ -136,7 +134,7 @@ const threadIds = threads.map(thread => thread.id);
           </div>
         </div>
         {threads.length > 0 && (
-          <div class="w-full px-3">
+          <div class="w-full px-6 pb-[18px]">
             <div class="flex flex-col gap-3 w-full">
               {
                 threads.map((thread) => (
