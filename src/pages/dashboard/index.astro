@@ -33,7 +33,7 @@ const threadIds = threads.map(thread => thread.id);
 <Layout>
   <div class="relative min-h-[100vh]">
     <section class="bg-(--color-fog-white) pt-3">
-      <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2" x-data>
+      <div class="px-6 mx-auto max-w-screen-sm flex items-center" x-data>
         <Tab label="Feed" href="#" active />
         <div id="note-tab-container"></div>
         <div id="thread-tab-container"></div>
@@ -146,12 +146,14 @@ const threadIds = threads.map(thread => thread.id);
         // Check if it's a new note or if the note exists in the database
         if (noteId === 'new' || noteIds.includes(parseInt(noteId))) {
           const noteTab = document.createElement('div');
+          noteTab.style.margin = '0'; // Ensure no margin
+          noteTab.style.padding = '0'; // Ensure no padding
           
           // For new notes vs existing notes
           const href = noteId === 'new' ? '/dashboard/notes/new' : `/dashboard/notes/${noteId}`;
           
           noteTab.innerHTML = `
-            <div class="relative rounded-t-lg px-5 py-3 w-fit tab bg-(--color-fog-white)" role="tab">
+            <div class="relative rounded-t-lg px-5 h-[44px] flex items-center tab bg-(--color-fog-white)" role="tab" style="margin: 0;">
               <div class="flex items-center gap-2">
                 <a href="${href}" class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">Note</a>
                 <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer" onclick="closeNoteTab()">×</span>
@@ -175,12 +177,14 @@ const threadIds = threads.map(thread => thread.id);
         // Check if it's a new thread or if the thread exists in the database
         if (threadId === 'new' || threadIds.includes(parseInt(threadId))) {
           const threadTab = document.createElement('div');
+          threadTab.style.margin = '0'; // Ensure no margin
+          threadTab.style.padding = '0'; // Ensure no padding
           
           // For new threads vs existing threads
           const href = threadId === 'new' ? '/dashboard/threads/new' : `/dashboard/threads/${threadId}`;
           
           threadTab.innerHTML = `
-            <div class="relative rounded-t-lg px-5 py-3 w-fit tab bg-(--color-fog-white)" role="tab">
+            <div class="relative rounded-t-lg px-5 h-[44px] flex items-center tab bg-(--color-fog-white)" role="tab" style="margin: 0;">
               <div class="flex items-center gap-2">
                 <a href="${href}" class="tab-text w-fit font-sans font-bold text-sm text-(--color-stone-grey)">Thread</a>
                 <span class="close-btn text-[12px] font-bold leading-none text-(--color-stone-grey) cursor-pointer" onclick="closeThreadTab()">×</span>
