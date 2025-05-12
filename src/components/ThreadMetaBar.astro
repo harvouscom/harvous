@@ -1,6 +1,5 @@
 ---
 import ChonkButton from "@/components/ChonkButton.astro";
-import HashtagIcon from "@fortawesome/fontawesome-free/svgs/solid/hashtag.svg?raw";
 import LockIcon from "@fortawesome/fontawesome-free/svgs/solid/lock.svg?raw";
 import GlobeIcon from "@fortawesome/fontawesome-free/svgs/solid/globe.svg?raw";
 
@@ -26,114 +25,23 @@ const { threadId, isPublic = false } = Astro.props;
       }
     }
   }" 
-  class="w-full inline-flex items-center justify-between"
-  style="width: 100%;"
+  class="w-full flex items-center"
 >
-  <div class="flex items-center gap-3">
-    <div class="button-wrapper">
-      <ChonkButton 
-        text={isPublic ? "Public" : "Private"}
-        size="small"
-      >
-        {isPublic ? 
-          <Fragment set:html={GlobeIcon} class="w-[15px] h-[15px]" /> : 
-          <Fragment set:html={LockIcon} class="w-[15px] h-[15px]" />
-        }
-      </ChonkButton>
-    </div>
-  </div>
-  
-  <div class="flex items-center">
-    <div 
-      x-bind:class="activeDrawer === 'thread-id' ? 'active-button-text' : ''"
-      x-on:click="toggleDrawer('thread-id')"
-      class="thread-id-text-wrapper"
+  <div class="button-wrapper">
+    <ChonkButton 
+      text={isPublic ? "Public" : "Private"}
+      size="small"
     >
-      <Fragment set:html={HashtagIcon} class="w-[15px] h-[15px] thread-id-icon" />
-      <span class="thread-id-text">{`T${String(threadId).padStart(3, '0')}`}</span>
-    </div>
+      {isPublic ? 
+        <Fragment set:html={GlobeIcon} class="w-[15px] h-[15px]" /> : 
+        <Fragment set:html={LockIcon} class="w-[15px] h-[15px]" />
+      }
+    </ChonkButton>
   </div>
 </div>
 
 <style>
   .button-wrapper {
     cursor: pointer;
-  }
-
-  /* Adjust ChonkButton styling to match the original metabar buttons */
-  .button-wrapper :global(button) {
-    padding: 6px 12px 10px 10px !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    gap: 4px !important;
-    border-radius: 6px !important;
-    background: var(--color-paper, #EBE7DB) !important;
-    min-width: fit-content !important;
-    transition: transform 0.1s ease, background-color 0.2s ease !important;
-  }
-
-  .button-wrapper :global(button > div) {
-    flex-direction: row !important;
-    gap: 4px !important;
-  }
-
-  .button-wrapper :global(p) {
-    font-family: "Reddit Mono" !important;
-    font-size: 12px !important;
-    font-style: normal !important;
-    font-weight: 500 !important;
-    line-height: normal !important;
-    color: var(--color-stone-grey, #78766F) !important;
-  }
-  
-  /* Make icons stone-gray */
-  .button-wrapper :global(svg) {
-    fill: var(--color-stone-grey, #78766F) !important;
-    color: var(--color-stone-grey, #78766F) !important;
-  }
-
-  /* Simple thread ID text styling */
-  .thread-id-text-wrapper {
-    cursor: pointer;
-    padding: 6px 8px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  
-  .thread-id-text {
-    font-family: "Reddit Mono";
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 500;
-    line-height: normal;
-    color: var(--color-stone-grey, #78766F);
-  }
-  
-  .thread-id-icon {
-    fill: var(--color-stone-grey, #78766F);
-    color: var(--color-stone-grey, #78766F);
-  }
-  
-  .active-button-text .thread-id-text,
-  .active-button-text .thread-id-icon {
-    color: var(--color-blue, #0066FF);
-    fill: var(--color-blue, #0066FF);
-  }
-  
-  @media (max-width: 400px) {
-    .button-wrapper :global(button) {
-      padding: 6px 10px 10px 8px !important;
-      gap: 3px !important;
-    }
-    
-    .button-wrapper :global(p) {
-      font-size: 10px !important;
-    }
-    
-    .thread-id-text {
-      font-size: 10px;
-    }
   }
 </style> 
