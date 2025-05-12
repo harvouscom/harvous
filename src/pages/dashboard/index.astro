@@ -4,7 +4,7 @@ import { db, eq, Notes, Threads, desc } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import NoteCard from "@/components/NoteCard.astro";
 import ThreadCard from "@/components/ThreadCard.astro";
-import CtaButton from "@/components/CtaButton.astro";
+import AddButton from "@/components/AddButton.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import { SignOutButton } from "@clerk/astro/components";
 
@@ -141,7 +141,7 @@ const threadIds = threads.map(thread => thread.id);
     
     <!-- Floating Action Button for creating a new note -->
     <div class="absolute bottom-[32px] right-[32px] z-50">
-      <CtaButton />
+      <AddButton />
     </div>
   </div>
 
