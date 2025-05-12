@@ -95,7 +95,7 @@ const threadCount = await db.select({ count: sql`count(*)` })
           
           <!-- Sign Out Button -->
           <div class="w-full mt-8">
-            <a href="/sign-out">
+            <a href="/sign-out?force=true">
               <ChonkButton text="Sign Out" variant="warning" />
             </a>
           </div>
