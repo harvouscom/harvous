@@ -460,7 +460,7 @@ const threadIds = allThreads.map(thread => thread.id);
         newActionBar.innerHTML = `
           <div
             id="global-action-bar"
-            class="fixed left-0 right-0 top-0 z-50 opacity-0 pointer-events-none transition-all duration-200 ease-in-out transform translate-y-[-8px]"
+            class="fixed left-0 right-0 top-[32px] z-50 opacity-0 pointer-events-none transition-all duration-200 ease-in-out transform translate-y-[-8px]"
             data-visible="true"
             data-type="${type}"
             data-id="${id}"
@@ -680,3 +680,23 @@ const threadIds = allThreads.map(thread => thread.id);
     });
   </script>
 </Layout>
+
+<style>
+  /* Global action bar styling */
+  #global-action-bar[data-visible="true"] {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+  
+  .action-button {
+    box-shadow: 0px -4px 0px 0px #00000040 inset;
+  }
+  
+  button:active .action-button, a:active .action-button {
+    box-shadow:
+      0px -2px 0px 0px #0000001a inset,
+      0px 0px 2px 0px #00000040,
+      0px 2px 0px 0px #00000040 inset;
+  }
+</style>

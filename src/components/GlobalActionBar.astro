@@ -27,12 +27,12 @@ const showPinButton = type === 'thread'; // Only show pin button for threads
 
 <div
   id="global-action-bar"
-  class="fixed left-0 right-0 top-0 z-50 opacity-0 pointer-events-none transition-opacity duration-200 ease-in-out transform translate-y-[-8px] transition-transform"
+  class="fixed left-0 right-0 top-[64px] z-50 opacity-0 pointer-events-none transition-opacity duration-200 ease-in-out transform translate-y-[-8px] transition-transform"
   data-visible="false"
   data-type={type}
   data-id={id}
 >
-  <div class="max-w-screen-sm mx-auto px-3">
+  <div class="max-w-screen-sm mx-auto px-3 mt-8">
     <div class="bg-[#7d7a6f] p-3 rounded-xl shadow-lg -mx-[12px]">
       <div class={`grid ${showPinButton ? 'grid-cols-3' : 'grid-cols-2'} gap-3 w-full`}>
         <a class="grid" href={editUrl}>
@@ -91,6 +91,7 @@ const showPinButton = type === 'thread'; // Only show pin button for threads
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0);
+    top: 64px;
   }
   
   .button-inner-shadow {
