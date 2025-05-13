@@ -42,6 +42,48 @@
     --primary-color: var(--color-blue);
 }
 
+/* Disable hover effects for touch devices */
+@media (hover: none) {
+    *:hover {
+        /* Reset all hover state properties to their non-hover values */
+        transition: none !important;
+        transform: none !important;
+        box-shadow: inherit !important;
+        background-color: inherit !important;
+        color: inherit !important;
+        fill: inherit !important;
+        opacity: inherit !important;
+        scale: inherit !important;
+        text-decoration: inherit !important;
+    }
+    
+    /* Disable Tailwind hover: classes */
+    .hover\:bg-opacity-80:hover,
+    .hover\:bg-opacity-90:hover,
+    .hover\:underline:hover,
+    .hover\:scale-\[\.99\]:hover,
+    .hover\:opacity-70:hover,
+    .hover\:scale-110:hover,
+    .hover\:bg-\(\-\-color-deep-grey\):hover,
+    .hover\:bg-\(\-\-color-soft-paper\):hover,
+    .hover\:text-\(\-\-color-deep-grey\):hover,
+    .hover\:fill-\(\-\-color-deep-grey\):hover,
+    .hover\:bg-\[\#5a574d\]:hover,
+    .hover\:bg-\(\-\-color-paper\):hover,
+    .hover\:bg-amber-700:hover,
+    .hover\:bg-blue-700:hover {
+        transition: none !important;
+        transform: none !important;
+        box-shadow: inherit !important;
+        background-color: inherit !important;
+        color: inherit !important;
+        fill: inherit !important;
+        opacity: inherit !important;
+        scale: inherit !important;
+        text-decoration: inherit !important;
+    }
+}
+
 .text-title {
     @apply font-sans font-semibold text-[20px] leading-[25.98px] tracking-normal;
 }
