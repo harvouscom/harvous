@@ -22,13 +22,13 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
 ---
 
 <section
-  class="flex h-[85px] rounded-xl bg-white shadow-[var(--shadow-primary)] overflow-hidden relative"
+  class="thread-card flex h-[85px] rounded-xl bg-white shadow-[var(--shadow-primary)] overflow-hidden relative"
 >
   {/* Clickable area over entire card */}
   {id && (
     <a
       href={threadUrl}
-      class="absolute inset-0 z-10 cursor-pointer js-thread-link"
+      class="absolute inset-0 z-[1] cursor-pointer js-thread-link"
       data-id={id}
     ></a>
   )}
@@ -82,8 +82,8 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
         </button>
       </div>
       
-      <div class="pl-[34px] pt-3 pointer-events-none">
-        <div class="h-[44px] flex items-center">
+      <div class="pl-[34px] pt-3">
+        <div class="h-[44px] flex items-center pointer-events-none">
           <h3
             class="overflow-wrap-anywhere text-[var(--Deep-Gray,#4A473D)] text-[18px] font-semibold line-clamp-2 leading-[100%]"
           >
@@ -92,19 +92,21 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
         </div>
       </div>
       
-      {/* Staggered cards visualization */}
+      {/* Note cards visualization - staggered cards */}
       {noteCount > 0 && (
-        <div class="absolute top-[64px]" style="left: 12px;">
+        <div class="absolute top-[64px] note-cards-container" style="left: 12px;">
           <div class="stacked-cards-wrapper">
-            {[...Array(Math.min(noteCount, 3))].map((_, i) => (
+            {/* Display all notes with a practical upper limit for performance */}
+            {[...Array(Math.min(noteCount, 20))].map((_, i) => (
               <NoteCardPlaceholder 
                 color={color} 
-                offset={i * -100}
-                index={i}
+                offset={i * 25}
+                index={Math.min(noteCount, 20) - i - 1}
+                style={`--delay: ${i * 40}ms;`}
               />
             ))}
-            {noteCount > 3 && (
-              <div class="more-notes">+{noteCount - 3}</div>
+            {noteCount > 20 && (
+              <div class="more-notes">+{noteCount - 20}</div>
             )}
           </div>
         </div>
@@ -114,6 +116,12 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
 </section>
 
 <style>
+  .thread-card {
+    transition: transform 0.3s ease-out;
+  }
+  
+  /* Remove the card-specific hover animations */
+  
   .overflow-wrap-anywhere {
     overflow-wrap: anywhere;
   }
@@ -153,10 +161,17 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
   /* Stacked cards visualization styles */
   .stacked-cards-wrapper {
     position: relative;
-    width: 0;
-    height: 0;
+    width: 400px; /* Provide enough width for the cards */
+    height: 140px; /* Match card height */
     overflow: visible;
     z-index: 0;
+    pointer-events: auto;
+  }
+  
+  .note-cards-container {
+    transition: transform 0.3s ease-out;
+    height: 140px;
+    width: 100%;
   }
   
   .more-notes {
@@ -171,7 +186,7 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
 </style>
 
 <script>
-  // Initialize the action buttons when the DOM loads
+  // Initialize the action buttons and hover animations when the DOM loads
   document.addEventListener('DOMContentLoaded', () => {
     const actionButtons = document.querySelectorAll('.thread-action-btn');
     
@@ -199,6 +214,42 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
         if (actionBar && actionBar.getAttribute('data-visible') === 'true') {
           e.preventDefault();
         }
+      });
+    });
+    
+    // Setup hover animations for thread cards
+    const threadCards = document.querySelectorAll('.thread-card');
+    threadCards.forEach(card => {
+      const noteCards = card.querySelectorAll('.note-card-placeholder');
+      const totalCards = noteCards.length;
+      
+      // Set a delay based on the card's position
+      noteCards.forEach((noteCard, index) => {
+        // Calculate delay for staggered animation
+        const delayFactor = Math.min(40, 400 / totalCards);
+        const delay = index * delayFactor;
+        (noteCard as HTMLElement).style.setProperty('--delay', `${delay}ms`);
+      });
+      
+      // Add hover event listeners to control the animation
+      card.addEventListener('mouseenter', () => {
+        // Staggered animation from left to right
+        noteCards.forEach((noteCard, index) => {
+          const delayFactor = Math.min(40, 400 / totalCards);
+          setTimeout(() => {
+            (noteCard as HTMLElement).classList.add('hover-active');
+          }, index * delayFactor);
+        });
+      });
+      
+      card.addEventListener('mouseleave', () => {
+        // Reverse staggered animation from right to left
+        Array.from(noteCards).reverse().forEach((noteCard, index) => {
+          const delayFactor = Math.min(20, 200 / totalCards);
+          setTimeout(() => {
+            (noteCard as HTMLElement).classList.remove('hover-active');
+          }, index * delayFactor);
+        });
       });
     });
   });
