@@ -15,8 +15,8 @@
   ],
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#EEECE3",
-  "theme_color": "#EEECE3",
+  "background_color": "#F7F7F6",
+  "theme_color": "#F7F7F6",
   "scope": "/",
   "description": "Harvous"
 } 
