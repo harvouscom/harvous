@@ -530,8 +530,118 @@ const threadIds = allThreads.map(thread => thread.id);
         if (addedActionBar) {
           addedActionBar.setAttribute('data-visible', 'true');
         }
+        
+        // Add event listener to the pin form
+        const pinForm = document.getElementById('global-pin-form');
+        if (pinForm) {
+          pinForm.addEventListener('submit', handlePinFormSubmit);
+        }
+        
+        // Add event listener to the delete form
+        const deleteForm = document.getElementById('global-delete-form');
+        if (deleteForm) {
+          deleteForm.addEventListener('submit', handleDeleteFormSubmit);
+        }
       }
     };
+    
+    // Handle Pin Form Submission
+    function handlePinFormSubmit(e) {
+      e.preventDefault();
+      const form = e.currentTarget;
+      
+      fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form)
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Show toast
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: data.success,
+              type: 'info'
+            }
+          }));
+          
+          // Refresh the page after a short delay
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: error.message || 'An error occurred',
+            type: 'error'
+          }
+        }));
+      });
+    }
+    
+    // Handle Delete Form Submission
+    function handleDeleteFormSubmit(e) {
+      e.preventDefault();
+      const form = e.currentTarget;
+      
+      // Get the type from the action bar
+      const actionBar = document.getElementById('global-action-bar');
+      const type = actionBar?.dataset.type || 'note';
+      
+      // Clear localStorage depending on type
+      if (type === 'note') {
+        localStorage.removeItem('lastViewedNote');
+      } else if (type === 'thread') {
+        localStorage.removeItem('lastViewedThread');
+        localStorage.removeItem('sourceThreadForNote');
+        localStorage.removeItem('lastViewedThreadColor');
+      }
+      
+      // Submit form data via fetch
+      fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form)
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Delete response:', data);
+        if (data.success) {
+          // Show toast
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: data.message,
+              type: 'info'
+            }
+          }));
+          
+          // Redirect after a short delay
+          setTimeout(() => {
+            window.location.href = '/feed';
+          }, 1500);
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: error.message || 'Failed to delete',
+            type: 'error'
+          }
+        }));
+        
+        // Redirect to feed after a short delay on error
+        setTimeout(() => {
+          window.location.href = '/feed';
+        }, 1500);
+      });
+    }
     
     // Close action bar when clicking outside
     document.addEventListener('click', function(event) {
