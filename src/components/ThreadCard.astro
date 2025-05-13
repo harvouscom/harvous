@@ -2,6 +2,7 @@
 import LockIcon from "@fortawesome/fontawesome-free/svgs/solid/lock.svg";
 import GlobeIcon from "@fortawesome/fontawesome-free/svgs/solid/globe.svg";
 import XmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import NoteCardPlaceholder from "./NoteCardPlaceholder.astro";
 
 interface Props {
   title: string;
@@ -9,9 +10,10 @@ interface Props {
   color?: string;
   id?: number;
   userId?: string;
+  noteCount?: number;
 }
 
-const { title, isPublic, color, id, userId } = Astro.props;
+const { title, isPublic, color, id, userId, noteCount = 0 } = Astro.props;
 
 // Convert color name to CSS variable if provided
 const colorStyle = color ? `background-color: var(--color-${color})` : '';
@@ -89,6 +91,24 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
           </h3>
         </div>
       </div>
+      
+      {/* Staggered cards visualization */}
+      {noteCount > 0 && (
+        <div class="absolute top-[64px]" style="left: 12px;">
+          <div class="stacked-cards-wrapper">
+            {[...Array(Math.min(noteCount, 3))].map((_, i) => (
+              <NoteCardPlaceholder 
+                color={color} 
+                offset={i * -100}
+                index={i}
+              />
+            ))}
+            {noteCount > 3 && (
+              <div class="more-notes">+{noteCount - 3}</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   </div>
 </section>
@@ -128,6 +148,25 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
   
   .hidden {
     display: none;
+  }
+  
+  /* Stacked cards visualization styles */
+  .stacked-cards-wrapper {
+    position: relative;
+    width: 0;
+    height: 0;
+    overflow: visible;
+    z-index: 0;
+  }
+  
+  .more-notes {
+    position: absolute;
+    right: 10px;
+    bottom: 5px;
+    font-size: 14px;
+    color: var(--color-stone-grey);
+    font-weight: 600;
+    z-index: 1;
   }
 </style>
 

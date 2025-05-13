@@ -1,6 +1,6 @@
 ---
 import { actions } from "astro:actions";
-import { db, eq, Notes, Threads, desc, NoteThreads, isNull, and, sql } from "astro:db";
+import { db, eq, Notes, Threads, desc, NoteThreads, isNull, and, sql, count } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import NoteCard from "@/components/NoteCard.astro";
 import ThreadCard from "@/components/ThreadCard.astro";
@@ -46,6 +46,16 @@ const allThreads = await db.select()
   .from(Threads)
   .where(eq(Threads.userId, userId as string))
   .orderBy(sql`COALESCE(updatedAt, createdAt) DESC`);
+
+// Get note counts for each thread
+const threadNoteCounts = new Map();
+for (const thread of allThreads) {
+  const result = await db.select({ count: count() })
+    .from(NoteThreads)
+    .where(eq(NoteThreads.threadId, thread.id));
+  
+  threadNoteCounts.set(thread.id, result[0]?.count || 0);
+}
 
 // Extract pinned threads for the Pinned Threads section
 const pinnedThreads = allThreads.filter(thread => thread.isPinned);
@@ -111,6 +121,7 @@ const threadIds = allThreads.map(thread => thread.id);
                       color={thread.color || undefined} 
                       id={thread.id}
                       userId={userId as string}
+                      noteCount={threadNoteCounts.get(thread.id) || 0}
                     />
                   </div>
                 ))
@@ -181,6 +192,7 @@ const threadIds = allThreads.map(thread => thread.id);
                       color={thread.color || undefined} 
                       id={thread.id}
                       userId={userId as string}
+                      noteCount={threadNoteCounts.get(thread.id) || 0}
                     />
                   </div>
                 ))
