@@ -27,7 +27,7 @@ const showPinButton = type === 'thread'; // Only show pin button for threads
 
 <div
   id="global-action-bar"
-  class="fixed left-0 right-0 top-[64px] z-50 opacity-0 pointer-events-none transition-opacity duration-200 ease-in-out transform translate-y-[-8px] transition-transform"
+  class="fixed left-0 right-0 bottom-[32px] z-50 opacity-0 pointer-events-none transition-opacity duration-200 ease-in-out transform translate-y-[8px] transition-transform"
   data-visible="false"
   data-type={type}
   data-id={id}
@@ -91,7 +91,7 @@ const showPinButton = type === 'thread'; // Only show pin button for threads
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0);
-    top: 64px;
+    bottom: 32px;
   }
   
   .button-inner-shadow {
