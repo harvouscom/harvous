@@ -11,8 +11,9 @@ export const threads = {
       isPublic: z.boolean().optional(),
       color: z.string().optional()
     }),
-    handler: async ({ title, userId, isPublic = false, color }) => {
+    handler: async ({ title, userId, isPublic = false, color = "blessed-blue" }) => {
       try {
+        console.log(`Creating thread with title: ${title}, userId: ${userId}, isPublic: ${isPublic}, color: ${color}`);
         const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
         
         const newThread = await db.insert(Threads)
@@ -26,11 +27,14 @@ export const threads = {
           .returning()
           .get()
 
+        console.log(`Thread created successfully: ${JSON.stringify(newThread)}`);
         return {
           success: "Thread created successfully!",
           thread: newThread
         };
       } catch (error: any) {
+        console.error(`Error creating thread:`, error);
+        
         if (error.validation && error.validation.includes("title")) {
           throw new Error("Thread title is required");
         } else if (error.validation && error.validation.includes("userId")) {

@@ -90,10 +90,10 @@ if (result?.data?.success) {
           
           <div class="mt-4">
             <label class="block text-sm font-medium mb-2">Thread Color</label>
-            <ThreadColorPicker />
+            <ThreadColorPicker selectedColor="blessed-blue" />
           </div>
           
-          <input type="hidden" name="isPublic" id="isPublic" value="false" />
+          <input type="hidden" name="isPublic" id="isPublic" value="false" x-bind:value="isPublic.toString()" />
           <input type="hidden" name="userId" value={userId} />
           
           <div class="py-2">
