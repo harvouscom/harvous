@@ -180,12 +180,12 @@ const threadColorProp = thread.color || undefined;
         ) : (
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {notes.map((note) => (
-              <a href={`/dashboard/notes/${note.id}?threadId=${thread.id}`} class="block">
-                <NoteCard 
-                  title={note.title || ''} 
-                  content={note.content} 
-                />
-              </a>
+              <NoteCard 
+                title={note.title || ''} 
+                content={note.content}
+                id={note.id}
+                userId={userId as string}
+              />
             ))}
           </div>
         )}

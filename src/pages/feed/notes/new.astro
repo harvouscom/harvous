@@ -8,6 +8,11 @@ import TrixToolbarV2 from "@/components/TrixToolbarV2.astro";
 import MetaBar from "@/components/MetaBar.astro";
 import TitleInput from "@/components/TitleInput.astro";
 import ThreadsDrawer from "@/components/ThreadsDrawer.astro";
+import BookmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/bookmark.svg";
+import XmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
+import PencilIcon from "@fortawesome/fontawesome-free/svgs/solid/pencil.svg";
+import ChonkButton from "@/components/ChonkButton.astro";
 
 const currentUser = Astro.locals.auth();
 const userId = currentUser ? currentUser.userId : null;
@@ -28,7 +33,7 @@ if (result?.data?.success) {
 ---
 
 <Layout title="New Note">
-  <div class="flex flex-col h-full" x-data="{ activeDrawer: null }">
+  <div class="flex flex-col h-full" x-data="{ activeDrawer: null, showActionBar: false }">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-3 mx-auto max-w-screen-sm flex items-center">
         <div class="flex h-[48px]">
@@ -42,6 +47,38 @@ if (result?.data?.success) {
     <main
       class="flex-1 w-full max-w-screen-sm mx-auto px-3 pt-6 pb-6 flex flex-col gap-3"
     >
+      <section class="w-full px-1 py-2 flex items-center gap-2 relative">
+        <button 
+          class="icon-btn rounded-full w-[44px] h-[44px] flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset]"
+          :class="showActionBar ? 'bg-[var(--color-stone-grey)] text-[var(--color-light-paper)] fill-[var(--color-light-paper)]' : 'bg-[var(--color-paper)] text-[var(--color-stone-grey)] fill-[var(--color-stone-grey)]'"
+          @click="showActionBar = !showActionBar"
+        >
+          <BookmarkIcon x-show="!showActionBar" class="w-[20px] h-[20px]" />
+          <XmarkIcon x-cloak x-show="showActionBar" class="w-[20px] h-[20px]" />
+        </button>
+        <h1 class="text-title">New Note</h1>
+        
+        <!-- Floating action bar positioned absolutely below the button -->
+        <div 
+          x-show="showActionBar" 
+          x-cloak
+          class="absolute top-[64px] left-[-12px] right-[-12px] z-10 bg-(--color-pebble-grey) p-3 rounded-xl shadow-lg"
+        >
+          <div class="grid grid-cols-2 gap-3 w-full">
+            <a class="grid" href="/feed/notes/new">
+              <ChonkButton text="Reset Form">
+                <PencilIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+              </ChonkButton>
+            </a>
+            <a class="grid" href="/feed">
+              <ChonkButton text="Cancel">
+                <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+              </ChonkButton>
+            </a>
+          </div>
+        </div>
+      </section>
+      
       <form
         class="grid gap-3 flex-1 grid-rows-[auto_1fr_auto_auto_auto] w-full"
         method="POST"

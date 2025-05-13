@@ -104,9 +104,13 @@ const threadIds = allThreads.map(thread => thread.id);
               {
                 pinnedThreads.map((thread) => (
                   <div class="w-full">
-                    <a href={`/dashboard/threads/${thread.id}`}>
-                      <ThreadCard title={thread.title} isPublic={thread.isPublic} color={thread.color || undefined} />
-                    </a>
+                    <ThreadCard 
+                      title={thread.title} 
+                      isPublic={thread.isPublic} 
+                      color={thread.color || undefined} 
+                      id={thread.id}
+                      userId={userId as string}
+                    />
                   </div>
                 ))
               }
@@ -137,9 +141,12 @@ const threadIds = allThreads.map(thread => thread.id);
               {
                 notes.map((note) => (
                   <div class="min-w-[160px] max-w-[160px] flex-shrink-0">
-                    <a href={`/dashboard/notes/${note.id}`}>
-                      <NoteCard title={note.title ?? ""} content={note.content ?? ""} />
-                    </a>
+                    <NoteCard 
+                      title={note.title ?? ""} 
+                      content={note.content ?? ""} 
+                      id={note.id}
+                      userId={userId as string}
+                    />
                   </div>
                 ))
               }
@@ -167,9 +174,13 @@ const threadIds = allThreads.map(thread => thread.id);
               {
                 allThreads.map((thread) => (
                   <div class="w-full">
-                    <a href={`/dashboard/threads/${thread.id}`}>
-                      <ThreadCard title={thread.title} isPublic={thread.isPublic} color={thread.color || undefined} />
-                    </a>
+                    <ThreadCard 
+                      title={thread.title} 
+                      isPublic={thread.isPublic} 
+                      color={thread.color || undefined} 
+                      id={thread.id}
+                      userId={userId as string}
+                    />
                   </div>
                 ))
               }

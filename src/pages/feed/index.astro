@@ -7,6 +7,7 @@ import ThreadCard from "@/components/ThreadCard.astro";
 import AddButton from "@/components/AddButton.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import EllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
+import GlobalActionBar from "@/components/GlobalActionBar.astro";
 
 // Get userId from auth and redirect if not authenticated
 const userId = Astro.locals.auth().userId;
@@ -104,9 +105,13 @@ const threadIds = allThreads.map(thread => thread.id);
               {
                 pinnedThreads.map((thread) => (
                   <div class="w-full">
-                    <a href={`/feed/threads/${thread.id}`}>
-                      <ThreadCard title={thread.title} isPublic={thread.isPublic} color={thread.color || undefined} />
-                    </a>
+                    <ThreadCard 
+                      title={thread.title} 
+                      isPublic={thread.isPublic} 
+                      color={thread.color || undefined} 
+                      id={thread.id}
+                      userId={userId as string}
+                    />
                   </div>
                 ))
               }
@@ -137,9 +142,12 @@ const threadIds = allThreads.map(thread => thread.id);
               {
                 notes.map((note) => (
                   <div class="min-w-[160px] max-w-[160px] flex-shrink-0">
-                    <a href={`/feed/notes/${note.id}`}>
-                      <NoteCard title={note.title ?? ""} content={note.content ?? ""} />
-                    </a>
+                    <NoteCard 
+                      title={note.title ?? ""} 
+                      content={note.content ?? ""} 
+                      id={note.id}
+                      userId={userId as string}
+                    />
                   </div>
                 ))
               }
@@ -167,9 +175,13 @@ const threadIds = allThreads.map(thread => thread.id);
               {
                 allThreads.map((thread) => (
                   <div class="w-full">
-                    <a href={`/feed/threads/${thread.id}`}>
-                      <ThreadCard title={thread.title} isPublic={thread.isPublic} color={thread.color || undefined} />
-                    </a>
+                    <ThreadCard 
+                      title={thread.title} 
+                      isPublic={thread.isPublic} 
+                      color={thread.color || undefined} 
+                      id={thread.id}
+                      userId={userId as string}
+                    />
                   </div>
                 ))
               }
@@ -183,9 +195,12 @@ const threadIds = allThreads.map(thread => thread.id);
     <div class="absolute bottom-[32px] right-[32px] z-50">
       <AddButton />
     </div>
+    
+    <!-- Global Action Bar (empty placeholder - will be populated dynamically) -->
+    <div id="global-action-bar-container"></div>
   </div>
 
-  <script define:vars={{ noteIds, threadIds }}>
+  <script define:vars={{ noteIds, threadIds, pinnedThreads }}>
     // Check if the user was viewing a note previously and keep the tab if they were
     document.addEventListener('DOMContentLoaded', () => {
       const lastViewedNote = localStorage.getItem('lastViewedNote');
@@ -309,5 +324,249 @@ const threadIds = allThreads.map(thread => thread.id);
     
     window.closeNoteTab = closeNoteTab;
     window.closeThreadTab = closeThreadTab;
+
+    // Initialize global action bar component
+    document.addEventListener('DOMContentLoaded', () => {
+      // Create container for global action bar
+      const container = document.getElementById('global-action-bar-container');
+      if (container) {
+        // Add CSS
+        const style = document.createElement('style');
+        style.textContent = `
+          #global-action-bar[data-visible="true"] {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+          }
+          
+          .action-button {
+            background-color: var(--color-stone-grey);
+            box-shadow: 0px -4px 0px 0px #00000040 inset;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+            cursor: pointer;
+            min-height: 64px;
+            font-size: 16px;
+          }
+          
+          .action-button:active {
+            transform: scale(0.99);
+            box-shadow: 0px -2px 0px 0px #0000001a inset,
+              0px 0px 2px 0px #00000040,
+              0px 2px 0px 0px #00000040 inset;
+          }
+          
+          .action-button .icon-container {
+            margin-bottom: 8px;
+          }
+          
+          .action-button .text-container {
+            font-weight: 500;
+            line-height: 100%;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    });
+  </script>
+
+  <script>
+    // Declare types for the global functions
+    declare global {
+      interface Window {
+        handleActionButtonClick: (type: string, id: string | number, userId: string, button: HTMLElement) => void;
+        toggleGlobalActionBar: (type: string, id: string | number, userId: string) => void;
+      }
+    }
+    
+    // Global function to handle action button clicks for both notes and threads
+    window.handleActionButtonClick = function(type: string, id: string | number, userId: string, button: HTMLElement) {
+      console.log('Action button clicked:', type, id, userId);
+      
+      // Toggle button appearance
+      const normalIcon = button.querySelector('.normal-icon');
+      const checkIcon = button.querySelector('.x-icon');
+      
+      if (normalIcon && checkIcon) {
+        // Toggle icon visibility
+        const isActive = button.classList.toggle('active');
+        
+        // Call the global action bar toggle function
+        if (window.toggleGlobalActionBar) {
+          window.toggleGlobalActionBar(type, id, userId);
+        }
+      }
+    }
+  </script>
+
+  <script define:vars={{ pinnedThreads }}>
+    // Add global action bar toggle function to window so components can call it
+    window.toggleGlobalActionBar = function(type, id, userId) {
+      console.log('Toggle global action bar:', type, id, userId);
+      
+      // Find the action bar
+      const actionBar = document.getElementById('global-action-bar');
+      const container = document.getElementById('global-action-bar-container');
+      
+      // Check if clicking the same item
+      const currentType = actionBar?.getAttribute('data-type');
+      const currentId = actionBar?.getAttribute('data-id');
+      const isVisible = actionBar?.getAttribute('data-visible') === 'true';
+      
+      if (isVisible && currentType === type && currentId === id.toString()) {
+        // Close it
+        if (actionBar) {
+          actionBar.setAttribute('data-visible', 'false');
+          actionBar.setAttribute('data-type', '');
+          actionBar.setAttribute('data-id', '');
+        }
+        
+        // Reset the button state
+        const button = document.querySelector(`.${type}-action-btn[data-id="${id}"]`);
+        if (button) {
+          button.classList.remove('bg-[var(--color-stone-grey)]', 'text-[var(--color-light-paper)]', 'fill-[var(--color-light-paper)]');
+          button.classList.add('bg-[var(--color-paper)]', 'text-[var(--color-stone-grey)]', 'fill-[var(--color-stone-grey)]');
+        }
+        
+        return;
+      }
+      
+      // Reset all button states first
+      const allButtons = document.querySelectorAll('.note-action-btn, .thread-action-btn');
+      allButtons.forEach(btn => {
+        btn.classList.remove('bg-[var(--color-stone-grey)]', 'text-[var(--color-light-paper)]', 'fill-[var(--color-light-paper)]');
+        btn.classList.add('bg-[var(--color-paper)]', 'text-[var(--color-stone-grey)]', 'fill-[var(--color-stone-grey)]');
+      });
+      
+      // Update the active button state
+      const activeButton = document.querySelector(`.${type}-action-btn[data-id="${id}"]`);
+      if (activeButton) {
+        activeButton.classList.remove('bg-[var(--color-paper)]', 'text-[var(--color-stone-grey)]', 'fill-[var(--color-stone-grey)]');
+        activeButton.classList.add('bg-[var(--color-stone-grey)]', 'text-[var(--color-light-paper)]', 'fill-[var(--color-light-paper)]');
+      }
+      
+      // Get isPinned status if it's a thread
+      let isPinned = false;
+      if (type === 'thread') {
+        // Try to find the thread in the pinnedThreads array
+        isPinned = pinnedThreads.some(thread => thread.id.toString() === id.toString());
+      }
+      
+      // Create new GlobalActionBar component with correct props
+      if (container) {
+        container.innerHTML = ''; // Clear existing content
+        
+        // Create new action bar
+        const newActionBar = document.createElement('div');
+        newActionBar.innerHTML = `
+          <div
+            id="global-action-bar"
+            class="fixed left-0 right-0 top-0 z-50 opacity-0 pointer-events-none transition-all duration-200 ease-in-out transform translate-y-[-8px]"
+            data-visible="true"
+            data-type="${type}"
+            data-id="${id}"
+          >
+            <div class="max-w-screen-sm mx-auto px-3">
+              <div class="bg-[#7d7a6f] p-3 rounded-xl shadow-lg -mx-[12px]">
+                <div class="grid ${type === 'thread' ? 'grid-cols-3' : 'grid-cols-2'} gap-3 w-full">
+                  <a class="grid" href="${type === 'note' ? `/feed/notes/${id}/edit` : `/feed/threads/${id}/edit`}">
+                    <div class="action-button rounded-lg flex flex-col items-center justify-center pt-3 pb-4 px-3 active:scale-[.99] transition-transform duration-125">
+                      <div class="icon-container">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="w-[18px] h-[18px] text-white fill-current">
+                          <path d="M362.7 19.3L314.3 67.7 444.3 197.7l48.4-48.4c25-25 25-65.5 0-90.5L453.3 19.3c-25-25-65.5-25-90.5 0zm-71 71L58.6 323.5c-10.4 10.4-18 23.3-22.2 37.4L1 481.2C-1.5 489.7 .8 498.8 7 505s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L421.7 220.3 291.7 90.3z"/>
+                        </svg>
+                      </div>
+                      <div class="text-container text-white text-[16px]">${type === 'note' ? 'Edit Note' : 'Edit Thread'}</div>
+                    </div>
+                  </a>
+                  ${type === 'thread' ? `
+                  <form 
+                    class="grid" 
+                    id="global-pin-form"
+                    method="POST" 
+                    action="/api/threads/toggle-pin"
+                  >
+                    <input type="hidden" name="id" value="${id}" />
+                    <input type="hidden" name="userId" value="${userId}" />
+                    <button type="submit" style="width: 100%; height: 100%; padding: 0; background: none; border: none;">
+                      <div class="action-button rounded-lg flex flex-col items-center justify-center pt-3 pb-4 px-3 active:scale-[.99] transition-transform duration-125">
+                        <div class="icon-container">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" class="w-[18px] h-[18px] text-white fill-current">
+                            <path d="M32 32C32 14.3 46.3 0 64 0H320c17.7 0 32 14.3 32 32s-14.3 32-32 32H290.5l11.4 148.2c36.7 19.9 65.7 53.2 79.5 94.7l1 3c3.3 9.8 1.6 20.5-4.4 28.8s-15.7 13.3-26 13.3H32c-10.3 0-19.9-4.9-26-13.3s-7.7-19.1-4.4-28.8l1-3c13.8-41.5 42.8-74.8 79.5-94.7L93.5 64H64C46.3 64 32 49.7 32 32zM160 384h64v96c0 17.7-14.3 32-32 32s-32-14.3-32-32V384z"/>
+                          </svg>
+                        </div>
+                        <div class="text-container text-white text-[16px]">${isPinned ? 'Unpin' : 'Pin'}</div>
+                      </div>
+                    </button>
+                  </form>
+                  ` : ''}
+                  <form 
+                    class="grid" 
+                    id="global-delete-form"
+                    method="POST" 
+                    action="${type === 'note' ? '/api/notes/delete' : '/api/threads/delete'}"
+                  >
+                    <input type="hidden" name="id" value="${id}" />
+                    <input type="hidden" name="userId" value="${userId}" />
+                    <button type="submit" style="width: 100%; height: 100%; padding: 0; background: none; border: none;">
+                      <div class="action-button rounded-lg flex flex-col items-center justify-center pt-3 pb-4 px-3 active:scale-[.99] transition-transform duration-125">
+                        <div class="icon-container">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" class="w-[18px] h-[18px] text-white fill-current">
+                            <path d="M170.5 51.6L151.5 80h145l-19-28.4c-1.5-2.2-4-3.6-6.7-3.6H177.1c-2.7 0-5.2 1.3-6.7 3.6zm147-26.6L354.2 80H368h48 8c13.3 0 24 10.7 24 24s-10.7 24-24 24h-8V432c0 44.2-35.8 80-80 80H112c-44.2 0-80-35.8-80-80V128h-8c-13.3 0-24-10.7-24-24S10.7 80 24 80h8h48 14.2l36.6-55.1C140.9 9.4 158.4 0 177.1 0h93.7c18.7 0 36.2 9.4 46.6 24.9zM80 128V432c0 17.7 14.3 32 32 32H336c17.7 0 32-14.3 32-32V128H80zm80 64V400c0 8.8-7.2 16-16 16s-16-7.2-16-16V192c0-8.8 7.2-16 16-16s16 7.2 16 16zm80 0V400c0 8.8-7.2 16-16 16s-16-7.2-16-16V192c0-8.8 7.2-16 16-16s16 7.2 16 16zm80 0V400c0 8.8-7.2 16-16 16s-16-7.2-16-16V192c0-8.8 7.2-16 16-16s16 7.2 16 16z"/>
+                          </svg>
+                        </div>
+                        <div class="text-container text-white text-[16px]">Delete</div>
+                      </div>
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(newActionBar);
+        
+        // Get the action bar that was just added to the DOM
+        const addedActionBar = document.getElementById('global-action-bar');
+        if (addedActionBar) {
+          addedActionBar.setAttribute('data-visible', 'true');
+        }
+      }
+    };
+    
+    // Close action bar when clicking outside
+    document.addEventListener('click', function(event) {
+      const actionBar = document.getElementById('global-action-bar');
+      if (!actionBar) return;
+      
+      const actionButtons = document.querySelectorAll('.note-action-btn, .thread-action-btn');
+      const target = event.target;
+      
+      // Check if we clicked inside the action bar or on an action button
+      let isActionBarOrButton = false;
+      
+      // Check if target is a Node and contained in actionBar
+      if (target instanceof Node && actionBar.contains(target)) {
+        isActionBarOrButton = true;
+      }
+      
+      // Check action buttons
+      actionButtons.forEach(button => {
+        if (target instanceof Node && button.contains(target)) {
+          isActionBarOrButton = true;
+        }
+      });
+      
+      // If clicking outside, close the action bar
+      if (!isActionBarOrButton && actionBar.getAttribute('data-visible') === 'true') {
+        // Hide the action bar
+        actionBar.setAttribute('data-visible', 'false');
+        
+        // Reset button states
+        actionButtons.forEach(button => {
+          button.classList.remove('bg-[var(--color-stone-grey)]', 'text-[var(--color-light-paper)]', 'fill-[var(--color-light-paper)]');
+          button.classList.add('bg-[var(--color-paper)]', 'text-[var(--color-stone-grey)]', 'fill-[var(--color-stone-grey)]');
+        });
+      }
+    });
   </script>
 </Layout>

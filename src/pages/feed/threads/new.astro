@@ -6,6 +6,12 @@ import Tab from "@/components/TabBar/Tab.astro";
 import ThreadMetaBar from "@/components/ThreadMetaBar.astro";
 import TitleInput from "@/components/TitleInput.astro";
 import ThreadColorPicker from "@/components/ThreadColorPicker.astro";
+import LockIcon from "@fortawesome/fontawesome-free/svgs/solid/lock.svg";
+import GlobeIcon from "@fortawesome/fontawesome-free/svgs/solid/globe.svg";
+import XmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
+import PencilIcon from "@fortawesome/fontawesome-free/svgs/solid/pencil.svg";
+import ChonkButton from "@/components/ChonkButton.astro";
 
 const currentUser = Astro.locals.auth();
 const userId = currentUser ? currentUser.userId : null;
@@ -26,7 +32,7 @@ if (result?.data?.success) {
 ---
 
 <Layout title="New Thread">
-  <div class="flex flex-col h-full">
+  <div class="flex flex-col h-full" x-data="{ activeDrawer: null, showActionBar: false, isPublic: false }">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-3 mx-auto max-w-screen-sm flex items-center">
         <div class="flex h-[48px]">
@@ -40,8 +46,41 @@ if (result?.data?.success) {
     <main
       class="flex-1 w-full max-w-screen-sm mx-auto px-3 pt-6 pb-6 flex flex-col"
     >
+      <section class="w-full px-1 py-2 flex items-center gap-2 relative">
+        <button 
+          class="icon-btn rounded-full w-[44px] h-[44px] flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset]"
+          :class="showActionBar ? 'bg-[var(--color-stone-grey)] text-[var(--color-light-paper)] fill-[var(--color-light-paper)]' : 'bg-[var(--color-paper)] text-[var(--color-stone-grey)] fill-[var(--color-stone-grey)]'"
+          @click="showActionBar = !showActionBar"
+        >
+          <LockIcon x-show="!showActionBar && !isPublic" class="w-[20px] h-[20px]" />
+          <GlobeIcon x-show="!showActionBar && isPublic" class="w-[20px] h-[20px]" />
+          <XmarkIcon x-cloak x-show="showActionBar" class="w-[20px] h-[20px]" />
+        </button>
+        <h1 class="text-title">New Thread</h1>
+        
+        <!-- Floating action bar positioned absolutely below the button -->
+        <div 
+          x-show="showActionBar" 
+          x-cloak
+          class="absolute top-[64px] left-[-12px] right-[-12px] z-10 bg-(--color-pebble-grey) p-3 rounded-xl shadow-lg"
+        >
+          <div class="grid grid-cols-2 gap-3 w-full">
+            <a class="grid" href="/feed/threads/new">
+              <ChonkButton text="Reset Form">
+                <PencilIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+              </ChonkButton>
+            </a>
+            <a class="grid" href="/feed">
+              <ChonkButton text="Cancel">
+                <DeleteIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+              </ChonkButton>
+            </a>
+          </div>
+        </div>
+      </section>
+      
       <form
-        class="flex flex-col"
+        class="flex flex-col mt-3"
         method="POST"
         action={actions.threads.create}
       >
@@ -101,6 +140,15 @@ if (result?.data?.success) {
           } else {
             buttonIcon.classList.add('private-icon');
             buttonIcon.classList.remove('public-icon');
+          }
+        }
+        
+        // Update Alpine state for the main icon button
+        const Alpine = window.Alpine;
+        if (Alpine) {
+          const mainElement = document.querySelector('main');
+          if (mainElement && mainElement.parentElement) {
+            Alpine.$data(mainElement.parentElement).isPublic = !currentValue;
           }
         }
       });
