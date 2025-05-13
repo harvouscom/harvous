@@ -107,6 +107,8 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
     background-color: var(--color-paper);
   }
   
+  .icon-btn:hover,
+  .icon-btn:active,
   .icon-btn.active {
     background-color: var(--color-stone-grey) !important;
     color: white !important;
@@ -118,10 +120,12 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
     fill: currentColor;
   }
   
+  .icon-btn:hover .normal-icon,
   .icon-btn.active .normal-icon {
     display: none;
   }
   
+  .icon-btn:hover .x-icon,
   .icon-btn.active .x-icon {
     display: block;
   }

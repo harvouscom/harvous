@@ -19,12 +19,12 @@ const BUTTON_SIZE_MAP = {
 };
 
 const VARIANT = {
-  default: "bg-(--color-stone-grey) active:bg-(--color-deep-grey) text-(--color-white)",
-  warning: "bg-(--color-red) active:bg-(--color-red) text-(--color-white)",
+  default: "bg-(--color-stone-grey) hover:bg-(--color-deep-grey) active:bg-(--color-deep-grey) text-(--color-white)",
+  warning: "bg-(--color-red) hover:bg-(--color-red) active:bg-(--color-red) text-(--color-white)",
 };
 ---
 
-<button {...props} class={`button-inner-shadow rounded-lg flex flex-col items-center gap-2 active:scale-[.99] transition-transform duration-125 ${BUTTON_SIZE_MAP[size]} ${VARIANT[variant]} ${size === "small" ? "bg-[#EBE7DB]" : ""}`}>
+<button {...props} class={`button-inner-shadow rounded-lg flex flex-col items-center gap-2 hover:scale-[.99] active:scale-[.99] transition-transform duration-125 ${BUTTON_SIZE_MAP[size]} ${VARIANT[variant]} ${size === "small" ? "bg-[#EBE7DB]" : ""}`}>
   <div class="flex flex-col items-center gap-2">
     <slot />
     <p class="font-sans font-medium text-inherit leading-[100%] tracking-normal">{text}</p>
@@ -39,11 +39,13 @@ const VARIANT = {
       transition: transform 125ms;
     }
 
+    &:hover > div,
     &:active > div {
       transform: translateY(1px);
     }
   }
 
+  button:hover,
   button:active {
     box-shadow:
       0px -2px 0px 0px #0000001a inset,

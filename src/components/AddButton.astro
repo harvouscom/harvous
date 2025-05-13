@@ -16,6 +16,7 @@ import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky
     z-index: 10;
   }
 
+  .main-button:hover,
   .main-button:active {
     background-color: var(--color-navy);
     box-shadow:
@@ -33,6 +34,7 @@ import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky
       box-shadow 0.08s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
 
+  .option-button:hover,
   .option-button:active {
     transform: scale(0.95);
     box-shadow:
@@ -72,7 +74,7 @@ import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky
   <!-- Main toggle button -->
   <button
     @click="toggle()"
-    class="main-button [&:active>svg]:-translate-y-0 [&:active>svg]:scale-[0.95] cursor-pointer p-2 w-16 h-16 rounded-3xl flex items-center justify-center transition-all duration-150"
+    class="main-button [&:hover>svg]:-translate-y-0 [&:hover>svg]:scale-[0.95] [&:active>svg]:-translate-y-0 [&:active>svg]:scale-[0.95] cursor-pointer p-2 w-16 h-16 rounded-3xl flex items-center justify-center transition-all duration-150"
     :class="isOpen ? 'bg-[#E6E4DA]' : 'bg-[var(--color-blue)]'"
     {...Astro.props}
   >
