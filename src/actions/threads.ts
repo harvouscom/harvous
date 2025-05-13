@@ -16,6 +16,15 @@ export const threads = {
         console.log(`Creating thread with title: ${title}, userId: ${userId}, isPublic: ${isPublic}, color: ${color}`);
         const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
         
+        // Check if we're in a deployed environment
+        const isProduction = import.meta.env.PROD;
+        if (isProduction) {
+          // Check if we have DB credentials
+          if (!import.meta.env.ASTRO_DB_REMOTE_URL || !import.meta.env.ASTRO_DB_APP_TOKEN) {
+            console.error('Missing database credentials in production environment');
+          }
+        }
+        
         const newThread = await db.insert(Threads)
           .values({ 
             title: capitalizedTitle, 
