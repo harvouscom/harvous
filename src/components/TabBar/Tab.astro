@@ -20,8 +20,16 @@ if (label === 'Note') {
     localStorage.removeItem('lastViewedNote');
     
     // Check if we should maintain thread context
-    if (sourceThread && document.querySelector('a[href^="/feed/threads/"]')) {
-      window.location.href='/feed/threads/' + sourceThread;
+    if (sourceThread) {
+      // If there's a thread tab visible, go back to it
+      const threadTab = document.querySelector('a[href^="/feed/threads/"]');
+      if (threadTab) {
+        window.location.href = '/feed/threads/' + sourceThread;
+      } else {
+        // Thread tab not visible, go to feed but maintain thread reference
+        // so it can be recovered if needed
+        window.location.href='/feed';
+      }
     } else {
       localStorage.removeItem('sourceThreadForNote');
       window.location.href='/feed';

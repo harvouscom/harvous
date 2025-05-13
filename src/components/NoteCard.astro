@@ -12,9 +12,10 @@ interface Props {
   content: string;
   id?: number;
   userId?: string;
+  threadId?: number;
 }
 
-const { title, content, id, userId } = Astro.props;
+const { title, content, id, userId, threadId } = Astro.props;
 
 const sanitizedContent = DOMPurify.sanitize(content, {
   ALLOWED_TAGS: ["div", "p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "br"], // Strip all HTML tags
@@ -37,7 +38,8 @@ const decodedContent = sanitizedContent
 console.log({content, decodedContent});
 
 const trimmedContent = decodedContent.slice(0, 100);
-const noteUrl = id ? `/feed/notes/${id}` : "";
+// If we have a threadId, include it in the URL
+const noteUrl = id ? (threadId ? `/feed/notes/${id}?threadId=${threadId}` : `/feed/notes/${id}`) : "";
 const editUrl = id ? `/feed/notes/${id}/edit` : "";
 ---
 
@@ -50,6 +52,7 @@ const editUrl = id ? `/feed/notes/${id}/edit` : "";
       href={noteUrl}
       class="absolute inset-0 z-10 cursor-pointer js-note-link"
       data-id={id}
+      data-thread-id={threadId}
     ></a>
   )}
   
@@ -63,6 +66,7 @@ const editUrl = id ? `/feed/notes/${id}/edit` : "";
         data-id={id}
         data-type="note"
         data-user-id={userId}
+        data-thread-id={threadId}
       >
         <svg 
           class="normal-icon"

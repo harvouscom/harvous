@@ -156,8 +156,11 @@ const noteData = notes[0];
     // Store the source thread ID if available
     if (sourceThreadId) {
       localStorage.setItem('sourceThreadForNote', sourceThreadId.toString());
+      
+      // Also ensure lastViewedThread has the current thread ID
+      localStorage.setItem('lastViewedThread', sourceThreadId.toString());
     } else {
-      // If no source thread but coming from thread page, maintain that context
+      // If no source thread in URL, but we have a thread ID in localStorage, maintain that context
       const lastViewedThread = localStorage.getItem('lastViewedThread');
       if (lastViewedThread) {
         localStorage.setItem('sourceThreadForNote', lastViewedThread);

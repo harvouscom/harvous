@@ -185,6 +185,7 @@ const threadColorProp = thread.color || undefined;
                 content={note.content}
                 id={note.id}
                 userId={userId as string}
+                threadId={thread.id}
               />
             ))}
           </div>
@@ -229,6 +230,21 @@ const threadColorProp = thread.color || undefined;
         }
       }
     }
+    
+    // Add click event handler for note links
+    document.querySelectorAll('.js-note-link').forEach(link => {
+      link.addEventListener('click', function(e) {
+        const noteId = this.getAttribute('data-id');
+        const threadId = this.getAttribute('data-thread-id');
+        
+        if (noteId && threadId) {
+          // Store both IDs for proper tab navigation
+          localStorage.setItem('lastViewedNote', noteId);
+          localStorage.setItem('sourceThreadForNote', threadId);
+          localStorage.setItem('lastViewedThread', threadId);
+        }
+      });
+    });
     
     // Handle form submission for pin toggle
     const pinForm = document.querySelector('#pinForm');
