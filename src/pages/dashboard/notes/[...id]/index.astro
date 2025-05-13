@@ -117,6 +117,7 @@ const noteData = notes[0];
               </ChonkButton>
             </a>
             <form 
+              id="deleteNoteForm"
               class="grid" 
               method="POST" 
               action={actions.notes.delete}
@@ -161,6 +162,42 @@ const noteData = notes[0];
       if (lastViewedThread) {
         localStorage.setItem('sourceThreadForNote', lastViewedThread);
       }
+    }
+    
+    // Handle note deletion
+    const deleteForm = document.getElementById('deleteNoteForm');
+    if (deleteForm) {
+      deleteForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Clear note-related localStorage items before submitting
+        localStorage.removeItem('lastViewedNote');
+        
+        // Create FormData and submit with fetch
+        fetch(deleteForm.action, {
+          method: 'POST',
+          body: new FormData(deleteForm)
+        })
+        .then(response => response.json())
+        .then(data => {
+          console.log('Note deleted successfully:', data);
+          
+          // Check if we came from a thread view
+          const sourceThread = localStorage.getItem('sourceThreadForNote');
+          if (sourceThread) {
+            // Redirect back to the thread view
+            window.location.href = `/dashboard/threads/${sourceThread}`;
+          } else {
+            // Otherwise, redirect to dashboard
+            window.location.href = '/dashboard';
+          }
+        })
+        .catch(error => {
+          console.error('Error deleting note:', error);
+          // Redirect to dashboard on error
+          window.location.href = '/dashboard';
+        });
+      });
     }
     
     // Update thread counter
