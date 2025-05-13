@@ -27,7 +27,7 @@ const threadCount = await db.select({ count: sql`count(*)` })
 ---
 
 <Layout>
-  <div class="relative min-h-[100vh]">
+  <div class="flex flex-col min-h-[100vh] bg-[var(--color-soft-paper)]">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-3 mx-auto max-w-screen-sm flex items-center justify-between" x-data>
         <div class="flex h-[48px]">
@@ -39,7 +39,7 @@ const threadCount = await db.select({ count: sql`count(*)` })
       </div>
     </section>
 
-    <main class="max-w-screen-sm mx-auto px-3 pt-6 pb-12 flex flex-col gap-6">
+    <main class="max-w-screen-sm mx-auto px-3 pt-6 pb-12 flex flex-col gap-6 flex-grow w-full">
       <!-- Profile Section -->
       <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
         <div class="w-full px-6 py-3">

@@ -56,7 +56,7 @@ const threadIds = allThreads.map(thread => thread.id);
 ---
 
 <Layout>
-  <div class="relative min-h-[100vh]">
+  <div class="flex flex-col min-h-[100vh] bg-[var(--color-soft-paper)]">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-3 mx-auto max-w-screen-sm flex items-center justify-between" x-data>
         <div class="flex h-[48px]">
@@ -69,10 +69,10 @@ const threadIds = allThreads.map(thread => thread.id);
     </section>
 
     <main
-      class="max-w-screen-sm mx-auto px-3 pt-6 pb-12 flex flex-col gap-6"
+      class="max-w-screen-sm mx-auto px-3 pt-6 pb-12 flex flex-col gap-6 flex-grow w-full"
     >
       <!-- New Section -->
-      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+      <section class="flex flex-col items-start w-full rounded-xl bg-[#E6E4DA]">
         <div class="w-full px-6 py-3">
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
@@ -87,7 +87,7 @@ const threadIds = allThreads.map(thread => thread.id);
       </section>
 
       <!-- Pinned Threads Section -->
-      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+      <section class="flex flex-col items-start w-full rounded-xl bg-[#E6E4DA]">
         <div class="w-full px-6 py-3">
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
@@ -121,7 +121,7 @@ const threadIds = allThreads.map(thread => thread.id);
       </section>
 
       <!-- Unorganized Notes Section -->
-      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+      <section class="flex flex-col items-start w-full rounded-xl bg-[#E6E4DA]">
         <div class="w-full px-6 py-3">
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
@@ -157,7 +157,7 @@ const threadIds = allThreads.map(thread => thread.id);
       </section>
 
       <!-- All Threads Section -->
-      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+      <section class="flex flex-col items-start w-full rounded-xl bg-[#E6E4DA]">
         <div class="w-full px-6 py-3">
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
@@ -192,7 +192,7 @@ const threadIds = allThreads.map(thread => thread.id);
     </main>
     
     <!-- Floating Action Button for creating a new note -->
-    <div class="absolute bottom-[32px] right-[32px] z-50">
+    <div class="fixed bottom-[32px] right-[32px] z-50">
       <AddButton />
     </div>
     
