@@ -21,7 +21,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const result = await removeNoteFromThread(noteId, threadId);
     
     // Redirect back to the note page
-    return redirect(`/dashboard/notes/${noteId}`, 303);
+    return redirect(`/feed/notes/${noteId}`, 303);
   } catch (error) {
     console.error("Error in remove note from thread endpoint:", error);
     return new Response(JSON.stringify({ 

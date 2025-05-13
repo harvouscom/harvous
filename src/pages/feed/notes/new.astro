@@ -1,0 +1,127 @@
+---
+import { actions } from "astro:actions";
+import { db, Notes, max, sql } from "astro:db";
+import Layout from "@/layouts/Layout.astro";
+import Tab from "@/components/TabBar/Tab.astro";
+import TrixEditor from "@/components/TrixEditor.astro";
+import TrixToolbarV2 from "@/components/TrixToolbarV2.astro";
+import MetaBar from "@/components/MetaBar.astro";
+import TitleInput from "@/components/TitleInput.astro";
+import ThreadsDrawer from "@/components/ThreadsDrawer.astro";
+
+const currentUser = Astro.locals.auth();
+const userId = currentUser ? currentUser.userId : null;
+
+if (!userId) {
+  return Astro.redirect("/login");
+}
+
+// Find the maximum note ID to display the next one
+const maxIdResult = await db.select({ maxId: max(Notes.id) }).from(Notes);
+const nextNoteId = maxIdResult[0].maxId ? maxIdResult[0].maxId + 1 : 1;
+
+const result = Astro.getActionResult(actions.notes.create);
+
+if (result?.data?.success) {
+  return Astro.redirect("/feed/notes/" + result.data.note.id);
+}
+---
+
+<Layout title="New Note">
+  <div class="flex flex-col h-full" x-data="{ activeDrawer: null }">
+    <section class="bg-(--color-fog-white) pt-3">
+      <div class="px-3 mx-auto max-w-screen-sm flex items-center">
+        <div class="flex h-[48px]">
+          <Tab label="Feed" href="/feed" />
+          <Tab label="Note" active closable />
+          <Tab label="Profile" href="/feed/profile" />
+        </div>
+      </div>
+    </section>
+
+    <main
+      class="flex-1 w-full max-w-screen-sm mx-auto px-3 pt-6 pb-6 flex flex-col gap-3"
+    >
+      <form
+        class="grid gap-3 flex-1 grid-rows-[auto_1fr_auto_auto_auto] w-full"
+        method="POST"
+        action={actions.notes.create}
+      >
+        <TitleInput placeholder="Title" name="title" />
+        <div class="overflow-auto w-full">
+          <TrixEditor toolbar="my_toolbar" name="content" content="" placeholder="Content" />
+        </div>
+        <TrixToolbarV2 id="my_toolbar" input="content" />
+        <div class="w-full pb-[12px]">
+          <MetaBar noteId={nextNoteId} />
+        </div>
+        <input type="hidden" name="userId" value={userId} />
+        <input type="hidden" name="isPublic" value="false" />
+        <div class="py-3 w-full">
+          <button
+            class="w-full bg-[var(--color-blue)] text-white py-3 px-3 rounded-xl shadow-[0px_-4px_0px_0px_#0000001A_inset] h-[60px]"
+            type="submit">Create Note</button>
+        </div>
+      </form>
+    </main>
+    
+    <!-- Thread Drawer -->
+    <ThreadsDrawer noteId={nextNoteId} userId={userId as string} />
+  </div>
+</Layout>
+
+<script define:vars={{ noteId: nextNoteId }}>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Save the current note ID to localStorage
+    localStorage.setItem('lastViewedNote', 'new');
+    
+    // Set thread counter to 0
+    const threadCounter = document.querySelector('[data-counter="threads"]');
+    if (threadCounter) {
+      threadCounter.textContent = '0';
+    }
+    
+    // Check if we're coming from a thread
+    const sourceThread = localStorage.getItem('sourceThreadForNote');
+    if (sourceThread) {
+      // If we have a source thread, add the thread tab
+      const threadTabContainer = document.createElement('div');
+      threadTabContainer.className = 'h-full';
+      threadTabContainer.style.margin = '0';
+      threadTabContainer.style.padding = '0';
+      
+      const href = `/feed/threads/${sourceThread}`;
+      
+      threadTabContainer.innerHTML = `
+        <div class="h-[48px]">
+          <a href="${href}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
+            <div class="h-full flex items-center pl-[20px] pr-[12px] gap-2">
+              <span class="font-bold text-sm text-(--color-stone-grey)">Thread</span>
+              <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeThreadTab(event)">×</button>
+            </div>
+          </a>
+        </div>
+      `;
+      
+      // Insert the thread tab after the Feed tab
+      const tabContainer = document.querySelector('.flex.h-\\[48px\\]');
+      if (tabContainer && tabContainer.children.length > 0) {
+        tabContainer.insertBefore(threadTabContainer, tabContainer.children[1]);
+      }
+      
+      // Define the close function
+      window.closeThreadTab = function(event) {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        
+        localStorage.removeItem('lastViewedThread');
+        localStorage.removeItem('sourceThreadForNote');
+        
+        // Refresh the page
+        window.location.reload();
+      };
+    }
+  });
+</script>

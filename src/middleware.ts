@@ -3,7 +3,7 @@ import type { defineMiddleware } from 'astro:middleware';
 import { clerkMiddleware, createRouteMatcher } from '@clerk/astro/server'
 
 // Define protected routes that require authentication
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)',])
+const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/feed(.*)'])
 
 export const onRequest = clerkMiddleware((auth, context) => {
   const { redirectToSignIn, userId } = auth()
@@ -15,7 +15,7 @@ export const onRequest = clerkMiddleware((auth, context) => {
   if (forceSignIn && !userId) {
     // For direct sign-in links, redirect to Clerk's sign-in page
     return redirectToSignIn({
-      returnBackUrl: `${url.origin}/dashboard`
+      returnBackUrl: `${url.origin}/feed`
     });
   }
 

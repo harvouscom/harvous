@@ -20,11 +20,11 @@ if (label === 'Note') {
     localStorage.removeItem('lastViewedNote');
     
     // Check if we should maintain thread context
-    if (sourceThread && document.querySelector('a[href^="/dashboard/threads/"]')) {
-      window.location.href='/dashboard/threads/' + sourceThread;
+    if (sourceThread && document.querySelector('a[href^="/feed/threads/"]')) {
+      window.location.href='/feed/threads/' + sourceThread;
     } else {
       localStorage.removeItem('sourceThreadForNote');
-      window.location.href='/dashboard';
+      window.location.href='/feed';
     }
   `;
 } else if (label === 'Thread') {
@@ -33,7 +33,7 @@ if (label === 'Note') {
     localStorage.removeItem('lastViewedThread'); 
     localStorage.removeItem('sourceThreadForNote'); 
     localStorage.removeItem('lastViewedNote'); 
-    window.location.href='/dashboard'
+    window.location.href='/feed'
   `;
 }
 

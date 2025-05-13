@@ -128,7 +128,7 @@ try {
     <!-- Available Threads content -->
     <div class="px-3 max-h-[300px] overflow-y-auto">
       <div x-show="activeTab === 'available'" class="space-y-3">
-        <a href="/dashboard/threads/new" class="block">
+        <a href="/feed/threads/new" class="block">
           <ChonkButton text="Create New Thread">
             <PlusIcon class="w-[15px] h-[15px] text-inherit fill-current" />
           </ChonkButton>
@@ -201,7 +201,7 @@ try {
                 {thread.color && (
                   <span class="w-4 h-4 rounded-full flex-shrink-0" style={`background-color: var(--color-${thread.color})`}></span>
                 )}
-                <a href={`/dashboard/threads/${thread.id}`} class="font-medium flex-grow text-left hover:underline">
+                <a href={`/feed/threads/${thread.id}`} class="font-medium flex-grow text-left hover:underline">
                   {thread.title}
                 </a>
                 <form method="POST" action="/api/thread-notes/remove">

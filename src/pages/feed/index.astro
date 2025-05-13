@@ -1,0 +1,313 @@
+---
+import { actions } from "astro:actions";
+import { db, eq, Notes, Threads, desc, NoteThreads, isNull, and, sql } from "astro:db";
+import Layout from "@/layouts/Layout.astro";
+import NoteCard from "@/components/NoteCard.astro";
+import ThreadCard from "@/components/ThreadCard.astro";
+import AddButton from "@/components/AddButton.astro";
+import Tab from "@/components/TabBar/Tab.astro";
+import EllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
+
+// Get userId from auth and redirect if not authenticated
+const userId = Astro.locals.auth().userId;
+if (!userId) {
+  return Astro.redirect("/");
+}
+
+// Verify user exists
+const user = await Astro.locals.currentUser();
+if (!user) {
+  return Astro.redirect("/");
+}
+
+// Query for unorganized notes (notes that don't belong to any threads)
+const notes = await db.select({ 
+    id: Notes.id, 
+    title: Notes.title, 
+    content: Notes.content, 
+    createdAt: Notes.createdAt, 
+    updatedAt: Notes.updatedAt, 
+    userId: Notes.userId, 
+    isPublic: Notes.isPublic 
+  })
+  .from(Notes)
+  .leftJoin(NoteThreads, eq(Notes.id, NoteThreads.noteId))
+  .where(
+    and(
+      eq(Notes.userId, userId as string),
+      isNull(NoteThreads.id)
+    )
+  )
+  .orderBy(desc(Notes.createdAt));
+
+// Get all threads, sorted by most recently updated first, and if updatedAt is null, then by createdAt
+const allThreads = await db.select()
+  .from(Threads)
+  .where(eq(Threads.userId, userId as string))
+  .orderBy(sql`COALESCE(updatedAt, createdAt) DESC`);
+
+// Extract pinned threads for the Pinned Threads section
+const pinnedThreads = allThreads.filter(thread => thread.isPinned);
+
+// Create arrays of note and thread IDs for checking in client-side script
+const noteIds = notes.map(note => note.id);
+const threadIds = allThreads.map(thread => thread.id);
+---
+
+<Layout>
+  <div class="relative min-h-[100vh]">
+    <section class="bg-(--color-fog-white) pt-3">
+      <div class="px-3 mx-auto max-w-screen-sm flex items-center justify-between" x-data>
+        <div class="flex h-[48px]">
+          <Tab label="Feed" href="#" active />
+          <div id="thread-tab-container" class="h-full"></div>
+          <div id="note-tab-container" class="h-full"></div>
+          <Tab label="Profile" href="/feed/profile" />
+        </div>
+      </div>
+    </section>
+
+    <main
+      class="max-w-screen-sm mx-auto px-3 pt-6 pb-12 flex flex-col gap-6"
+    >
+      <!-- New Section -->
+      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="w-full px-6 py-3">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2">
+              <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">New</h2>
+              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">0</span>
+            </div>
+            <div class="flex items-center">
+              <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pinned Threads Section -->
+      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="w-full px-6 py-3">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2">
+              <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Pinned Threads</h2>
+              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{pinnedThreads.length}</span>
+            </div>
+            <div class="flex items-center">
+              <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
+            </div>
+          </div>
+        </div>
+        {pinnedThreads.length > 0 && (
+          <div class="w-full px-3 pb-[18px]">
+            <div class="flex flex-col gap-3 w-full">
+              {
+                pinnedThreads.map((thread) => (
+                  <div class="w-full">
+                    <a href={`/feed/threads/${thread.id}`}>
+                      <ThreadCard title={thread.title} isPublic={thread.isPublic} color={thread.color || undefined} />
+                    </a>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        )}
+      </section>
+
+      <!-- Unorganized Notes Section -->
+      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="w-full px-6 py-3">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2">
+              <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Unorganized Notes</h2>
+              <div class="group relative">
+                <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{notes.length}</span>
+                <span class="absolute left-1/2 -translate-x-1/2 -top-8 p-1 bg-[#78766F] text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Notes not in any threads</span>
+              </div>
+            </div>
+            <div class="flex items-center">
+              <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
+            </div>
+          </div>
+        </div>
+        {notes.length > 0 && (
+          <div class="w-full overflow-x-auto px-3 pb-[18px]">
+            <div class="flex gap-3 min-w-min">
+              {
+                notes.map((note) => (
+                  <div class="min-w-[160px] max-w-[160px] flex-shrink-0">
+                    <a href={`/feed/notes/${note.id}`}>
+                      <NoteCard title={note.title ?? ""} content={note.content ?? ""} />
+                    </a>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        )}
+      </section>
+
+      <!-- All Threads Section -->
+      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="w-full px-6 py-3">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2">
+              <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">All Threads</h2>
+              <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{allThreads.length}</span>
+            </div>
+            <div class="flex items-center">
+              <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
+            </div>
+          </div>
+        </div>
+        {allThreads.length > 0 && (
+          <div class="w-full px-3 pb-[18px]">
+            <div class="flex flex-col gap-3 w-full">
+              {
+                allThreads.map((thread) => (
+                  <div class="w-full">
+                    <a href={`/feed/threads/${thread.id}`}>
+                      <ThreadCard title={thread.title} isPublic={thread.isPublic} color={thread.color || undefined} />
+                    </a>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        )}
+      </section>
+    </main>
+    
+    <!-- Floating Action Button for creating a new note -->
+    <div class="absolute bottom-[32px] right-[32px] z-50">
+      <AddButton />
+    </div>
+  </div>
+
+  <script define:vars={{ noteIds, threadIds }}>
+    // Check if the user was viewing a note previously and keep the tab if they were
+    document.addEventListener('DOMContentLoaded', () => {
+      const lastViewedNote = localStorage.getItem('lastViewedNote');
+      const noteTabContainer = document.getElementById('note-tab-container');
+      const lastViewedThread = localStorage.getItem('lastViewedThread');
+      const sourceThreadForNote = localStorage.getItem('sourceThreadForNote');
+      const threadTabContainer = document.getElementById('thread-tab-container');
+
+      // First add Thread tab if applicable
+      if ((lastViewedThread || sourceThreadForNote) && threadTabContainer) {
+        const threadId = lastViewedThread || sourceThreadForNote;
+        
+        // Check if it's a new thread or if the thread exists in the database
+        if (threadId === 'new' || threadIds.includes(parseInt(threadId))) {
+          const threadTab = document.createElement('div');
+          threadTab.style.margin = '0'; // Ensure no margin
+          threadTab.style.padding = '0'; // Ensure no padding
+          
+          // For new threads vs existing threads
+          const href = threadId === 'new' ? '/feed/threads/new' : `/feed/threads/${threadId}`;
+          
+          threadTab.innerHTML = `
+            <div class="h-[48px]">
+              <a href="${href}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
+                <div class="h-full flex items-center pl-[20px] pr-[12px] gap-2">
+                  <span class="font-bold text-sm text-(--color-stone-grey)">Thread</span>
+                  <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeThreadTab(event)">×</button>
+                </div>
+              </a>
+            </div>
+          `;
+          threadTabContainer.appendChild(threadTab);
+        } else {
+          // Thread doesn't exist anymore, remove from localStorage
+          localStorage.removeItem('lastViewedThread');
+          localStorage.removeItem('sourceThreadForNote');
+        }
+      }
+      
+      // Then add Note tab if applicable
+      if (lastViewedNote && noteTabContainer) {
+        const noteId = lastViewedNote;
+        
+        // Check if it's a new note or if the note exists in the database
+        if (noteId === 'new' || noteIds.includes(parseInt(noteId))) {
+          const noteTab = document.createElement('div');
+          noteTab.style.margin = '0'; // Ensure no margin
+          noteTab.style.padding = '0'; // Ensure no padding
+          
+          // For new notes vs existing notes
+          const href = noteId === 'new' ? '/feed/notes/new' : `/feed/notes/${noteId}`;
+          
+          // If note is from a thread, include the thread ID
+          let finalHref = href;
+          if (sourceThreadForNote) {
+            finalHref = `${href}?threadId=${sourceThreadForNote}`;
+          }
+          
+          noteTab.innerHTML = `
+            <div class="h-[48px]">
+              <a href="${finalHref}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
+                <div class="h-full flex items-center pl-[20px] pr-[12px] gap-2">
+                  <span class="font-bold text-sm text-(--color-stone-grey)">Note</span>
+                  <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeNoteTab(event)">×</button>
+                </div>
+              </a>
+            </div>
+          `;
+          noteTabContainer.appendChild(noteTab);
+        } else {
+          // Note doesn't exist anymore, remove from localStorage
+          localStorage.removeItem('lastViewedNote');
+          localStorage.removeItem('sourceThreadForNote');
+        }
+      }
+    });
+
+    function closeNoteTab(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+      // When closing note tab in feed view, we shouldn't necessarily clear sourceThreadForNote
+      // if the thread tab is still visible
+      localStorage.removeItem('lastViewedNote');
+      
+      // Only clear source thread reference if thread tab is not visible
+      const threadTab = document.querySelector('a[href^="/feed/threads/"]');
+      if (!threadTab) {
+        localStorage.removeItem('sourceThreadForNote');
+      }
+      
+      const noteTabContainer = document.getElementById('note-tab-container');
+      if (noteTabContainer) {
+        noteTabContainer.innerHTML = '';
+      }
+      
+      window.location.reload();
+    }
+    
+    function closeThreadTab(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+      localStorage.removeItem('lastViewedThread');
+      localStorage.removeItem('sourceThreadForNote');
+      const threadTabContainer = document.getElementById('thread-tab-container');
+      if (threadTabContainer) {
+        threadTabContainer.innerHTML = '';
+      }
+      
+      // If we're closing the thread tab, also close the note tab
+      // since the note context depends on the thread
+      closeNoteTab();
+      
+      window.location.reload();
+    }
+    
+    window.closeNoteTab = closeNoteTab;
+    window.closeThreadTab = closeThreadTab;
+  </script>
+</Layout>

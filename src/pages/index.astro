@@ -9,7 +9,7 @@ const forceSignIn = url.searchParams.get('sign-in') === 'true';
 
 // If already authenticated, redirect to dashboard
 if (Astro.locals.auth().userId) {
-  return Astro.redirect('/dashboard');
+  return Astro.redirect('/feed');
 }
 ---
 
@@ -24,7 +24,7 @@ if (Astro.locals.auth().userId) {
       <div class="text-center mt-16">
         <SignedIn>
           <a 
-            href="/dashboard" 
+            href="/feed" 
             class="inline-block px-6 py-3 bg-[#4A473D] text-white rounded-lg font-medium hover:bg-[#5a574d] transition-colors"
           >
             Go to My Feed
