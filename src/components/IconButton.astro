@@ -26,7 +26,7 @@ if (!sizeSchema.safeParse(size).success) {
 ---
 
 <button
-  class={`icon-btn flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset] text-(--color-stone-grey) fill-(--color-stone-grey) text-(--color-stone-grey) bg-[var(--color-paper)] rounded-full hover:shadow-[0px_-1.5px_0px_0px_#0000001A_inset,0px_0px_2px_0px_#00000040,0px_2px_0px_0px_#00000040_inset] hover:text-(--color-deep-grey) hover:fill-(--color-deep-grey) active:shadow-[0px_-1.5px_0px_0px_#0000001A_inset,0px_0px_2px_0px_#00000040,0px_2px_0px_0px_#00000040_inset] active:text-(--color-deep-grey) active:fill-(--color-deep-grey) ${className}`}
+  class={`icon-btn flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset] text-(--color-stone-grey) fill-(--color-stone-grey) text-(--color-stone-grey) bg-[var(--color-paper)] rounded-full ${className}`}
   {...props}
 >
   <slot />
@@ -41,7 +41,6 @@ if (!sizeSchema.safeParse(size).success) {
   .icon-btn {
     width: var(--size);
     height: var(--size);
-    transition: all 0.08s ease-in-out;
 
     svg {
       fill: inherit;
@@ -49,10 +48,5 @@ if (!sizeSchema.safeParse(size).success) {
       width: var(--svg-size);
       height: var(--svg-size);
     }
-  }
-
-  .icon-btn:hover,
-  .icon-btn:active {
-    transform: scale(0.95);
   }
 </style>

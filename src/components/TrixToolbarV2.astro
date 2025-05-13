@@ -96,7 +96,7 @@ const { id } = Astro.props as Props;
     @reference "@/styles/global.css";
 
     .toolbar-btn {
-      @apply flex items-center justify-center w-8 h-8 rounded-full hover:bg-(--color-paper) active:bg-(--color-paper) [&:hover>svg]:!fill-(--color-deep-grey) [&:active>svg]:!fill-(--color-deep-grey) flex-shrink-0;
+      @apply flex items-center justify-center w-8 h-8 rounded-full hover:bg-(--color-paper) [&:hover>svg]:!fill-(--color-deep-grey) flex-shrink-0;
 
       &[data-trix-active] {
         @apply relative;
