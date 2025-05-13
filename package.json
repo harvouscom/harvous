@@ -8,7 +8,11 @@
     "preview": "astro preview",
     "astro": "astro",
     "db:sync": "astro db sync",
-    "db:push": "astro db push"
+    "db:push": "astro db push",
+    "db:check": "node scripts/db-sync.js",
+    "predeploy": "npm run db:push",
+    "deploy": "npm run build",
+    "precommit": "npm run db:check"
   },
   "dependencies": {
     "@alpinejs/collapse": "^3.14.9",
