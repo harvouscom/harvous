@@ -1,5 +1,5 @@
 ---
-import { db, Notes, Threads, NoteThreads, like, desc, or, eq, and } from "astro:db";
+import { db, Notes, Threads, NoteThreads, like, desc, or, eq, and, count } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import NoteCard from "@/components/NoteCard.astro";
 import ThreadCard from "@/components/ThreadCard.astro";
@@ -23,9 +23,9 @@ if (!user) {
 const searchQuery = Astro.url.searchParams.get("q")?.trim() || "";
 
 // Variables to store search results
-let notes = [];
-let threads = [];
-let noteThreadCounts = new Map();
+let notes: any[] = [];
+let threads: any[] = [];
+let noteThreadCounts = new Map<number, number>();
 
 // If there's a search query, perform the search
 if (searchQuery) {
@@ -64,7 +64,7 @@ if (searchQuery) {
 
   // Get note counts for each thread
   for (const thread of threads) {
-    const result = await db.select({ count: db.count() })
+    const result = await db.select({ count: count() })
       .from(NoteThreads)
       .where(eq(NoteThreads.threadId, thread.id));
     
@@ -73,7 +73,7 @@ if (searchQuery) {
 }
 
 // Preserve search history
-const pastSearches = [];
+const pastSearches: string[] = [];
 if (searchQuery && !pastSearches.includes(searchQuery)) {
   pastSearches.unshift(searchQuery);
 }
@@ -99,14 +99,14 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
       class="max-w-screen-sm mx-auto px-3 pt-6 pb-12 flex flex-col gap-6 flex-grow w-full"
     >
       <!-- Search Bar Section -->
-      <section class="flex items-center w-full rounded-xl bg-[#F2F0E6] relative">
+      <section class="flex items-center w-full rounded-xl bg-[var(--color-fog-white)] relative">
         <form action="/feed/search" method="get" class="flex w-full">
           <input 
             type="text" 
             name="q" 
             placeholder="Find something..." 
             value={searchQuery}
-            class="bg-[#F2F0E6] py-3 px-5 flex-grow text-[15px] placeholder-[#78766F] text-[#4C4A41] rounded-l-xl border-none focus:outline-none"
+            class="bg-[var(--color-fog-white)] py-3 px-5 flex-grow text-[15px] placeholder-[#78766F] text-[#4C4A41] rounded-l-xl border-none focus:outline-none"
           />
           <button type="submit" class="bg-[#0066FF] rounded-r-xl p-4 flex items-center justify-center">
             <SearchIcon class="w-5 h-5 fill-white" />
@@ -219,6 +219,15 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
   </div>
 
   <script>
+    declare global {
+      interface Window {
+        closeThreadTab: (event: MouseEvent) => void;
+        closeNoteTab: (event: MouseEvent) => void;
+        addToRecentlyVisited?: (type: string, id: string | number, title: string) => void;
+        handleActionButtonClick: (type: string, id: string | number, userId: string, button: HTMLElement) => void;
+      }
+    }
+    
     document.addEventListener('DOMContentLoaded', () => {
       const lastViewedNote = localStorage.getItem('lastViewedNote');
       const noteTabContainer = document.getElementById('note-tab-container');
@@ -294,7 +303,7 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
           const searchList = document.createElement('div');
           searchList.className = 'flex flex-col gap-2';
           
-          storedSearches.slice(0, 5).forEach(search => {
+          storedSearches.slice(0, 5).forEach((search: string) => {
             const searchItem = document.createElement('a');
             searchItem.href = `/feed/search?q=${encodeURIComponent(search)}`;
             searchItem.className = 'flex items-center p-2 bg-[#EEECE3] rounded-lg';
@@ -322,12 +331,22 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
           const visitedList = document.createElement('div');
           visitedList.className = 'flex flex-col gap-2';
           
-          storedVisited.slice(0, 5).forEach(item => {
+          storedVisited.slice(0, 5).forEach((item: {url: string, title: string, type: string}) => {
             const visitedItem = document.createElement('a');
             visitedItem.href = item.url;
             visitedItem.className = 'flex items-center p-2 bg-[#EEECE3] rounded-lg';
+            
+            // Add icon based on item type
+            const iconHtml = item.type === 'note' 
+              ? '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2 fill-[#78766F]" viewBox="0 0 384 512"><path d="M0 64C0 28.7 28.7 0 64 0H224V128c0 17.7 14.3 32 32 32H384V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V64zm384 64H256V0L384 128z"/></svg>' 
+              : '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2 fill-[#78766F]" viewBox="0 0 512 512"><path d="M96 0C60.7 0 32 28.7 32 64V448c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V64c0-35.3-28.7-64-64-64H96zM208 288h64c8.8 0 16 7.2 16 16v64c0 8.8-7.2 16-16 16H208c-8.8 0-16-7.2-16-16V304c0-8.8 7.2-16 16-16zm-88-16c0-8.8 7.2-16 16-16h64c8.8 0 16 7.2 16 16v64c0 8.8-7.2 16-16 16H136c-8.8 0-16-7.2-16-16V272zm176-16h64c8.8 0 16 7.2 16 16v64c0 8.8-7.2 16-16 16H296c-8.8 0-16-7.2-16-16V272c0-8.8 7.2-16 16-16zM208 128h64c8.8 0 16 7.2 16 16v64c0 8.8-7.2 16-16 16H208c-8.8 0-16-7.2-16-16V144c0-8.8 7.2-16 16-16zm176 16c0-8.8 7.2-16 16-16h64c8.8 0 16 7.2 16 16v64c0 8.8-7.2 16-16 16H400c-8.8 0-16-7.2-16-16V144zM136 128h64c8.8 0 16 7.2 16 16v64c0 8.8-7.2 16-16 16H136c-8.8 0-16-7.2-16-16V144c0-8.8 7.2-16 16-16z"/></svg>';
+            
             visitedItem.innerHTML = `
-              <span class="text-[#4C4A41] font-sans text-[14px]">${item.title}</span>
+              <div class="flex items-center">
+                ${iconHtml}
+                <span class="text-[#4C4A41] font-sans text-[14px]">${item.title}</span>
+              </div>
+              <span class="ml-auto text-[#78766F] text-xs">${item.type}</span>
             `;
             visitedList.appendChild(visitedItem);
           });
@@ -344,7 +363,7 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
         let pastSearches = JSON.parse(localStorage.getItem('pastSearches') || '[]');
         
         // Remove the query if it already exists (to reorder it to the top)
-        pastSearches = pastSearches.filter(q => q !== currentQuery);
+        pastSearches = pastSearches.filter((q: string) => q !== currentQuery);
         
         // Add the query to the beginning of the array
         pastSearches.unshift(currentQuery);
@@ -360,7 +379,7 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
     });
 
     // Define closing functions for tab buttons
-    window.closeThreadTab = function(event) {
+    window.closeThreadTab = function(event: MouseEvent) {
       if (event) {
         event.preventDefault();
         event.stopPropagation();
@@ -371,7 +390,7 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
       window.location.href = '/feed/search';
     };
 
-    window.closeNoteTab = function(event) {
+    window.closeNoteTab = function(event: MouseEvent) {
       if (event) {
         event.preventDefault();
         event.stopPropagation();
@@ -387,5 +406,71 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
         window.location.href = '/feed/search';
       }
     };
+    
+    // Helper function to add an item to recently visited
+    function addToRecentlyVisited(type: string, id: string | number, title: string) {
+      let recentlyVisited = JSON.parse(localStorage.getItem('recentlyVisited') || '[]');
+      
+      // Generate the URL based on type and id
+      const url = type === 'note' ? `/feed/notes/${id}` : `/feed/threads/${id}`;
+      
+      // Check if this item already exists in the array
+      const existingIndex = recentlyVisited.findIndex((item: {type: string, id: string | number}) => 
+        item.type === type && item.id === id
+      );
+      
+      // If it exists, remove it so we can add it to the top
+      if (existingIndex !== -1) {
+        recentlyVisited.splice(existingIndex, 1);
+      }
+      
+      // Add the item to the beginning of the array
+      recentlyVisited.unshift({
+        type,
+        id,
+        title,
+        url,
+        timestamp: Date.now()
+      });
+      
+      // Limit to 10 items
+      if (recentlyVisited.length > 10) {
+        recentlyVisited = recentlyVisited.slice(0, 10);
+      }
+      
+      // Save back to localStorage
+      localStorage.setItem('recentlyVisited', JSON.stringify(recentlyVisited));
+    }
+    
+    // Expose the function globally so it can be called from other pages
+    window.addToRecentlyVisited = addToRecentlyVisited;
+  </script>
+  
+  <!-- Add additional script to dynamically populate Recently Visited on page load -->
+  <script define:vars={{ userId }}>
+    // Listen for clicks on note and thread cards to track visits
+    document.addEventListener('DOMContentLoaded', () => {
+      // Add click listeners to all note cards
+      document.querySelectorAll('.note-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const id = card.getAttribute('data-id');
+          const title = card.getAttribute('data-title') || 'Untitled Note';
+          if (id && window.addToRecentlyVisited) {
+            window.addToRecentlyVisited('note', id, title);
+          }
+        });
+      });
+      
+      // Add click listeners to all thread cards
+      document.querySelectorAll('.thread-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const id = card.getAttribute('data-id');
+          const title = card.getAttribute('data-title') || 'Untitled Thread';
+          if (id && window.addToRecentlyVisited) {
+            window.addToRecentlyVisited('thread', id, title);
+          }
+        });
+      });
+    });
   </script>
 </Layout> 

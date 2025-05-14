@@ -50,9 +50,10 @@ const editUrl = id ? `/feed/notes/${id}/edit` : "";
   {id && (
     <a
       href={noteUrl}
-      class="absolute inset-0 z-10 cursor-pointer js-note-link"
+      class="absolute inset-0 z-10 cursor-pointer js-note-link note-card"
       data-id={id}
       data-thread-id={threadId}
+      data-title={title || "Untitled Note"}
     ></a>
   )}
   

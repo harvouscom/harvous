@@ -12,6 +12,7 @@ import ChonkButton from "@/components/ChonkButton.astro";
 import PencilIcon from "@fortawesome/fontawesome-free/svgs/solid/pencil.svg";
 import MetaBar from "@/components/MetaBar.astro";
 import ThreadsDrawer from "@/components/ThreadsDrawer.astro";
+import RecentVisitTracker from "@/components/RecentVisitTracker.astro";
 
 const { id } = Astro.params;
 // Get the threadId from query param if it exists
@@ -90,6 +91,9 @@ const noteData = notes[0];
       </div>
     </section>
 
+    <!-- Add RecentVisitTracker component -->
+    <RecentVisitTracker type="note" id={numericId} title={noteData.title || "Untitled Note"} />
+    
     <main
       class="w-full max-w-screen-sm mx-auto px-3 pt-6 flex-grow flex flex-col gap-3"
     >

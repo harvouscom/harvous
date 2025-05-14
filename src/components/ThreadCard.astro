@@ -28,8 +28,9 @@ const threadUrl = id ? `/feed/threads/${id}` : "";
   {id && (
     <a
       href={threadUrl}
-      class="absolute inset-0 z-[1] cursor-pointer js-thread-link"
+      class="absolute inset-0 z-[1] cursor-pointer js-thread-link thread-card"
       data-id={id}
+      data-title={title || "Untitled Thread"}
     ></a>
   )}
 

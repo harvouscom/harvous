@@ -13,6 +13,7 @@ import ChonkButton from "@/components/ChonkButton.astro";
 import NoteCard from "@/components/NoteCard.astro";
 import PencilIcon from "@fortawesome/fontawesome-free/svgs/solid/pencil.svg";
 import ThumbTackIcon from "@fortawesome/fontawesome-free/svgs/solid/thumbtack.svg";
+import RecentVisitTracker from "@/components/RecentVisitTracker.astro";
 
 const { id } = Astro.params;
 
@@ -89,6 +90,9 @@ const threadColorProp = thread.color || undefined;
       </div>
     </section>
 
+    <!-- Add RecentVisitTracker component -->
+    <RecentVisitTracker type="thread" id={numericId} title={thread.title || "Untitled Thread"} />
+    
     <main
       class="w-full max-w-screen-sm mx-auto px-3 pt-6 flex-grow flex flex-col gap-3"
     >
