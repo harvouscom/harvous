@@ -90,13 +90,28 @@ const {
     dataset: DOMStringMap;
   }
   
+  // Simple debounce function to improve performance
+  function debounce(func: Function, wait: number) {
+    let timeout: number | null = null;
+    return function(this: unknown, ...args: any[]) {
+      const context = this;
+      clearTimeout(timeout as number);
+      timeout = setTimeout(() => {
+        func.apply(context, args);
+      }, wait) as unknown as number;
+    };
+  }
+  
   document.addEventListener('DOMContentLoaded', () => {
     const trixEditor = document.querySelector('trix-editor') as TrixEditorElement;
     
     if (trixEditor) {
       // Initial capitalization when editor loads with content
       if (trixEditor.editor && !trixEditor.editor.isEmpty()) {
-        capitalizeFirstCharacter(trixEditor.editor);
+        // Do this on a short timeout to avoid blocking initial render
+        setTimeout(() => {
+          capitalizeFirstCharacter(trixEditor.editor);
+        }, 100);
       }
       
       // Auto-capitalize the first letter when the editor starts from empty
@@ -109,6 +124,11 @@ const {
         }
       });
       
+      // Debounce the expensive operations during typing
+      const debouncedCapitalize = debounce((editor: TrixEditorElement['editor']) => {
+        capitalizeFirstCharacter(editor);
+      }, 200);
+      
       // Handle auto-capitalization during typing
       trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
         const editor = this.editor;
@@ -117,37 +137,34 @@ const {
         
         // If this is the first character typed (when editor was empty)
         if (this.dataset.shouldCapitalize === 'true' && !editor.isEmpty()) {
-          capitalizeFirstCharacter(editor);
+          debouncedCapitalize(editor);
           delete this.dataset.shouldCapitalize;
         }
       });
       
+      // Use a single shared flag for paragraph tracking
+      let enterPressed = false;
+      
       // Handle new paragraph capitalization
       trixEditor.addEventListener('trix-selection-change', function(this: TrixEditorElement) {
-        const editor = this.editor;
-        if (!editor) return;
-        
-        // Set a flag to check for new paragraphs on next change
-        this.dataset.checkNewParagraph = 'true';
-        
-        // Store the current position to detect new paragraphs
-        this.dataset.lastPosition = editor.getPosition().toString();
+        // Only store position when needed
+        if (enterPressed) {
+          const editor = this.editor;
+          if (!editor) return;
+          this.dataset.lastPosition = editor.getPosition().toString();
+        }
       });
       
       // Listen for enter key which creates new paragraphs
       trixEditor.addEventListener('keydown', function(this: TrixEditorElement, event: KeyboardEvent) {
         if (event.key === 'Enter' && !event.shiftKey) {
-          this.dataset.enterPressed = 'true';
+          enterPressed = true;
         }
       } as EventListener);
       
-      // Handle new paragraph capitalization after changes
-      trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
-        const editor = this.editor;
-        if (!editor || !this.dataset.enterPressed) return;
-        
-        // Clear the flag
-        delete this.dataset.enterPressed;
+      // Handle new paragraph capitalization after changes with debouncing
+      const debouncedParagraphProcess = debounce(function(editor: TrixEditorElement['editor']) {
+        if (!editor) return;
         
         // Try to find the new paragraph that was just created
         const blocks = editor.getDocument().getBlocks();
@@ -180,6 +197,17 @@ const {
               break;
             }
           }
+        }
+        
+        // Reset flag
+        enterPressed = false;
+      }, 250);
+      
+      // Triggered after content changes
+      trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
+        if (enterPressed) {
+          const editor = this.editor;
+          debouncedParagraphProcess(editor);
         }
       });
       

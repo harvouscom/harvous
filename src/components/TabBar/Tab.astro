@@ -16,22 +16,13 @@ let closeAction = "";
 if (label === 'Note') {
   storageKey = 'lastViewedNote';
   closeAction = `
+    // Use a more efficient approach with less DOM operations
     const sourceThread = localStorage.getItem('sourceThreadForNote'); 
     localStorage.removeItem('lastViewedNote');
-    // Also clear any edit state for this note
     localStorage.removeItem('noteEditState');
     
-    // Check if we should maintain thread context
     if (sourceThread) {
-      // If there's a thread tab visible, go back to it
-      const threadTab = document.querySelector('a[href^="/feed/threads/"]');
-      if (threadTab) {
-        window.location.href = '/feed/threads/' + sourceThread;
-      } else {
-        // Thread tab not visible, go to feed but maintain thread reference
-        // so it can be recovered if needed
-        window.location.href='/feed';
-      }
+      window.location.href = '/feed/threads/' + sourceThread;
     } else {
       localStorage.removeItem('sourceThreadForNote');
       window.location.href='/feed';
@@ -40,10 +31,10 @@ if (label === 'Note') {
 } else if (label === 'Thread') {
   storageKey = 'lastViewedThread';
   closeAction = `
+    // Batch localStorage operations together
     localStorage.removeItem('lastViewedThread'); 
     localStorage.removeItem('sourceThreadForNote'); 
     localStorage.removeItem('lastViewedNote');
-    // Also clear any edit state
     localStorage.removeItem('noteEditState');
     window.location.href='/feed'
   `;
@@ -69,8 +60,8 @@ const textColor = active ? "text-(--color-deep-grey)" : "text-(--color-stone-gre
         <span class={`font-bold text-sm ${textColor}`}>{label}</span>
         {closable && (
           <button 
-            class={`w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium ${textColor} cursor-pointer`}
-            onclick={closeAction}
+            class={`w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium ${textColor} cursor-pointer close-tab-btn`}
+            data-action={closeAction}
           >×</button>
         )}
       </div>
@@ -85,8 +76,8 @@ const textColor = active ? "text-(--color-deep-grey)" : "text-(--color-stone-gre
         <span class={`font-bold text-sm ${textColor}`}>{label}</span>
         {closable && (
           <button 
-            class={`w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium ${textColor} cursor-pointer`}
-            onclick={closeAction}
+            class={`w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium ${textColor} cursor-pointer close-tab-btn`}
+            data-action={closeAction}
             type="button"
           >×</button>
         )}
@@ -120,15 +111,24 @@ const textColor = active ? "text-(--color-deep-grey)" : "text-(--color-stone-gre
 </style>
 
 <script>
-  // Ensure buttons in tabs prevent navigation
+  // More efficient event delegation approach
   document.addEventListener('DOMContentLoaded', () => {
-    const closeButtons = document.querySelectorAll('.h-[48px] button');
-    closeButtons.forEach(button => {
-      button.addEventListener('click', (e) => {
+    // Use a single event listener at the document level
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      
+      // Check if the clicked element is a close button
+      if (target.classList.contains('close-tab-btn')) {
         e.preventDefault();
         e.stopPropagation();
-        // The onclick attribute will handle the actual action
-      });
+        
+        // Get the action from data attribute
+        const action = target.getAttribute('data-action');
+        if (action) {
+          // Use Function constructor to avoid eval
+          new Function(action)();
+        }
+      }
     });
   });
 </script>
