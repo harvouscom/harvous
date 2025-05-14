@@ -1,0 +1,391 @@
+---
+import { db, Notes, Threads, NoteThreads, like, desc, or, eq, and } from "astro:db";
+import Layout from "@/layouts/Layout.astro";
+import NoteCard from "@/components/NoteCard.astro";
+import ThreadCard from "@/components/ThreadCard.astro";
+import Tab from "@/components/TabBar/Tab.astro";
+import EllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
+import SearchIcon from "@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg";
+
+// Get userId from auth and redirect if not authenticated
+const userId = Astro.locals.auth().userId;
+if (!userId) {
+  return Astro.redirect("/");
+}
+
+// Verify user exists
+const user = await Astro.locals.currentUser();
+if (!user) {
+  return Astro.redirect("/");
+}
+
+// Parse the search query if it exists
+const searchQuery = Astro.url.searchParams.get("q")?.trim() || "";
+
+// Variables to store search results
+let notes = [];
+let threads = [];
+let noteThreadCounts = new Map();
+
+// If there's a search query, perform the search
+if (searchQuery) {
+  // Search in notes
+  notes = await db.select({ 
+    id: Notes.id, 
+    title: Notes.title, 
+    content: Notes.content, 
+    createdAt: Notes.createdAt, 
+    updatedAt: Notes.updatedAt, 
+    userId: Notes.userId, 
+    isPublic: Notes.isPublic 
+  })
+  .from(Notes)
+  .where(
+    and(
+      eq(Notes.userId, userId as string),
+      or(
+        like(Notes.title, `%${searchQuery}%`),
+        like(Notes.content, `%${searchQuery}%`)
+      )
+    )
+  )
+  .orderBy(desc(Notes.createdAt));
+
+  // Search in threads
+  threads = await db.select()
+    .from(Threads)
+    .where(
+      and(
+        eq(Threads.userId, userId as string),
+        like(Threads.title, `%${searchQuery}%`)
+      )
+    )
+    .orderBy(desc(Threads.createdAt));
+
+  // Get note counts for each thread
+  for (const thread of threads) {
+    const result = await db.select({ count: db.count() })
+      .from(NoteThreads)
+      .where(eq(NoteThreads.threadId, thread.id));
+    
+    noteThreadCounts.set(thread.id, result[0]?.count || 0);
+  }
+}
+
+// Preserve search history
+const pastSearches = [];
+if (searchQuery && !pastSearches.includes(searchQuery)) {
+  pastSearches.unshift(searchQuery);
+}
+
+// Recently visited items would be implemented with localStorage in client-side script
+---
+
+<Layout>
+  <div class="flex flex-col min-h-[100vh] bg-[var(--color-soft-paper)]">
+    <section class="bg-(--color-fog-white) pt-3">
+      <div class="px-3 mx-auto max-w-screen-sm flex items-center justify-between" x-data>
+        <div class="flex h-[48px]">
+          <Tab label="Feed" href="/feed" />
+          <Tab label="Search" href="/feed/search" active />
+          <div id="thread-tab-container" class="h-full"></div>
+          <div id="note-tab-container" class="h-full"></div>
+          <Tab label="Profile" href="/feed/profile" />
+        </div>
+      </div>
+    </section>
+
+    <main
+      class="max-w-screen-sm mx-auto px-3 pt-6 pb-12 flex flex-col gap-6 flex-grow w-full"
+    >
+      <!-- Search Bar Section -->
+      <section class="flex items-center w-full rounded-xl bg-[#F2F0E6] relative">
+        <form action="/feed/search" method="get" class="flex w-full">
+          <input 
+            type="text" 
+            name="q" 
+            placeholder="Find something..." 
+            value={searchQuery}
+            class="bg-[#F2F0E6] py-3 px-5 flex-grow text-[15px] placeholder-[#78766F] text-[#4C4A41] rounded-l-xl border-none focus:outline-none"
+          />
+          <button type="submit" class="bg-[#0066FF] rounded-r-xl p-4 flex items-center justify-center">
+            <SearchIcon class="w-5 h-5 fill-white" />
+          </button>
+        </form>
+      </section>
+
+      {(notes.length > 0 || threads.length > 0) && searchQuery && (
+        <div class="flex flex-col gap-6">
+          <!-- Notes Results Section -->
+          {notes.length > 0 && (
+            <section class="flex flex-col items-start w-full rounded-xl bg-[#E6E4DA]">
+              <div class="w-full px-6 py-3">
+                <div class="flex items-center justify-between w-full">
+                  <div class="flex items-center gap-2">
+                    <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Notes</h2>
+                    <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{notes.length}</span>
+                  </div>
+                  <div class="flex items-center">
+                    <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
+                  </div>
+                </div>
+              </div>
+              <div class="w-full overflow-x-auto px-3 pb-[18px]">
+                <div class="flex gap-3 min-w-min">
+                  {
+                    notes.map((note) => (
+                      <div class="min-w-[160px] max-w-[160px] flex-shrink-0">
+                        <NoteCard 
+                          title={note.title ?? ""} 
+                          content={note.content ?? ""} 
+                          id={note.id}
+                          userId={userId as string}
+                        />
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            </section>
+          )}
+
+          <!-- Threads Results Section -->
+          {threads.length > 0 && (
+            <section class="flex flex-col items-start w-full rounded-xl bg-[#E6E4DA]">
+              <div class="w-full px-6 py-3">
+                <div class="flex items-center justify-between w-full">
+                  <div class="flex items-center gap-2">
+                    <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Threads</h2>
+                    <span class="flex w-[21px] p-[2.5px_7px] justify-center items-center rounded-[20px] bg-[#EEECE3] text-[#78766F] font-mono text-[12px] font-semibold">{threads.length}</span>
+                  </div>
+                  <div class="flex items-center">
+                    <EllipsisIcon class="w-4 h-4 fill-[#78766F]" />
+                  </div>
+                </div>
+              </div>
+              <div class="w-full px-3 pb-[18px]">
+                <div class="flex flex-col gap-3 w-full">
+                  {
+                    threads.map((thread) => (
+                      <div class="w-full">
+                        <ThreadCard 
+                          title={thread.title} 
+                          isPublic={thread.isPublic} 
+                          color={thread.color || undefined} 
+                          id={thread.id}
+                          userId={userId as string}
+                          noteCount={noteThreadCounts.get(thread.id) || 0}
+                        />
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+
+      {!searchQuery && (
+        <!-- Past Searches Section -->
+        <section class="flex flex-col items-start w-full rounded-xl bg-[#E6E4DA]">
+          <div class="w-full px-6 py-3">
+            <div class="flex items-center justify-between w-full">
+              <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Past Searches</h2>
+              <span class="text-[#78766F] text-sm">...</span>
+            </div>
+          </div>
+          <div id="past-searches-container" class="w-full px-6 pb-4">
+            <!-- This will be populated by the client-side script -->
+            <p class="text-[#78766F] text-sm italic">No recent searches</p>
+          </div>
+        </section>
+      )}
+
+      <!-- Recently Visited Section -->
+      <section class="flex flex-col items-start w-full rounded-xl bg-[#E6E4DA]">
+        <div class="w-full px-6 py-3">
+          <div class="flex items-center justify-between w-full">
+            <h2 class="text-[#78766F] font-sans text-[14px] font-semibold">Recently Visited</h2>
+            <span class="text-[#78766F] text-sm">...</span>
+          </div>
+        </div>
+        <div id="recently-visited-container" class="w-full px-6 pb-4">
+          <!-- This will be populated by the client-side script -->
+          <p class="text-[#78766F] text-sm italic">No recently visited items</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const lastViewedNote = localStorage.getItem('lastViewedNote');
+      const noteTabContainer = document.getElementById('note-tab-container');
+      const lastViewedThread = localStorage.getItem('lastViewedThread');
+      const sourceThreadForNote = localStorage.getItem('sourceThreadForNote');
+      const threadTabContainer = document.getElementById('thread-tab-container');
+
+      // First add Thread tab if applicable
+      if ((lastViewedThread || sourceThreadForNote) && threadTabContainer) {
+        const threadId = lastViewedThread || sourceThreadForNote;
+        
+        // Check if it's a new thread or if the thread exists in the database
+        if (threadId === 'new' || threadId) {
+          const threadTab = document.createElement('div');
+          threadTab.style.margin = '0'; // Ensure no margin
+          threadTab.style.padding = '0'; // Ensure no padding
+          
+          // For new threads vs existing threads
+          const href = threadId === 'new' ? '/feed/threads/new' : `/feed/threads/${threadId}`;
+          
+          threadTab.innerHTML = `
+            <div class="h-[48px]">
+              <a href="${href}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
+                <div class="h-full flex items-center pl-[20px] pr-[12px] gap-2">
+                  <span class="font-bold text-sm text-(--color-stone-grey)">Thread</span>
+                  <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeThreadTab(event)">×</button>
+                </div>
+              </a>
+            </div>
+          `;
+          threadTabContainer.appendChild(threadTab);
+        }
+      }
+      
+      // Then add Note tab if applicable
+      if (lastViewedNote && noteTabContainer) {
+        const noteId = lastViewedNote;
+        
+        // Check if it's a new note
+        if (noteId === 'new' || noteId) {
+          const noteTab = document.createElement('div');
+          noteTab.style.margin = '0'; // Ensure no margin
+          noteTab.style.padding = '0'; // Ensure no padding
+          
+          // For new notes vs existing notes
+          const href = noteId === 'new' ? '/feed/notes/new' : `/feed/notes/${noteId}`;
+          
+          noteTab.innerHTML = `
+            <div class="h-[48px]">
+              <a href="${href}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
+                <div class="h-full flex items-center pl-[20px] pr-[12px] gap-2">
+                  <span class="font-bold text-sm text-(--color-stone-grey)">Note</span>
+                  <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeNoteTab(event)">×</button>
+                </div>
+              </a>
+            </div>
+          `;
+          noteTabContainer.appendChild(noteTab);
+        }
+      }
+
+      // Handle past searches
+      const pastSearchesContainer = document.getElementById('past-searches-container');
+      if (pastSearchesContainer) {
+        // Retrieve past searches from localStorage
+        const storedSearches = JSON.parse(localStorage.getItem('pastSearches') || '[]');
+        
+        if (storedSearches.length > 0) {
+          // Clear the container
+          pastSearchesContainer.innerHTML = '';
+          
+          // Create a list of past searches
+          const searchList = document.createElement('div');
+          searchList.className = 'flex flex-col gap-2';
+          
+          storedSearches.slice(0, 5).forEach(search => {
+            const searchItem = document.createElement('a');
+            searchItem.href = `/feed/search?q=${encodeURIComponent(search)}`;
+            searchItem.className = 'flex items-center p-2 bg-[#EEECE3] rounded-lg';
+            searchItem.innerHTML = `
+              <span class="text-[#4C4A41] font-sans text-[14px]">${search}</span>
+            `;
+            searchList.appendChild(searchItem);
+          });
+          
+          pastSearchesContainer.appendChild(searchList);
+        }
+      }
+
+      // Handle recently visited items
+      const recentlyVisitedContainer = document.getElementById('recently-visited-container');
+      if (recentlyVisitedContainer) {
+        // Retrieve recently visited from localStorage
+        const storedVisited = JSON.parse(localStorage.getItem('recentlyVisited') || '[]');
+        
+        if (storedVisited.length > 0) {
+          // Clear the container
+          recentlyVisitedContainer.innerHTML = '';
+          
+          // Create a list of recently visited items
+          const visitedList = document.createElement('div');
+          visitedList.className = 'flex flex-col gap-2';
+          
+          storedVisited.slice(0, 5).forEach(item => {
+            const visitedItem = document.createElement('a');
+            visitedItem.href = item.url;
+            visitedItem.className = 'flex items-center p-2 bg-[#EEECE3] rounded-lg';
+            visitedItem.innerHTML = `
+              <span class="text-[#4C4A41] font-sans text-[14px]">${item.title}</span>
+            `;
+            visitedList.appendChild(visitedItem);
+          });
+          
+          recentlyVisitedContainer.appendChild(visitedList);
+        }
+      }
+
+      // Store the current search query in past searches if it exists
+      const urlParams = new URLSearchParams(window.location.search);
+      const currentQuery = urlParams.get('q');
+      
+      if (currentQuery && currentQuery.trim() !== '') {
+        let pastSearches = JSON.parse(localStorage.getItem('pastSearches') || '[]');
+        
+        // Remove the query if it already exists (to reorder it to the top)
+        pastSearches = pastSearches.filter(q => q !== currentQuery);
+        
+        // Add the query to the beginning of the array
+        pastSearches.unshift(currentQuery);
+        
+        // Limit to 10 recent searches
+        if (pastSearches.length > 10) {
+          pastSearches = pastSearches.slice(0, 10);
+        }
+        
+        // Save back to localStorage
+        localStorage.setItem('pastSearches', JSON.stringify(pastSearches));
+      }
+    });
+
+    // Define closing functions for tab buttons
+    window.closeThreadTab = function(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+      localStorage.removeItem('lastViewedThread');
+      localStorage.removeItem('sourceThreadForNote');
+      window.location.href = '/feed/search';
+    };
+
+    window.closeNoteTab = function(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+      const sourceThread = localStorage.getItem('sourceThreadForNote');
+      localStorage.removeItem('lastViewedNote');
+      
+      if (sourceThread) {
+        window.location.href = '/feed/threads/' + sourceThread;
+      } else {
+        localStorage.removeItem('sourceThreadForNote');
+        window.location.href = '/feed/search';
+      }
+    };
+  </script>
+</Layout> 
