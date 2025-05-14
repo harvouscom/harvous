@@ -16,27 +16,37 @@ let closeAction = "";
 if (label === 'Note') {
   storageKey = 'lastViewedNote';
   closeAction = `
-    // Use a more efficient approach with less DOM operations
-    const sourceThread = localStorage.getItem('sourceThreadForNote'); 
-    localStorage.removeItem('lastViewedNote');
-    localStorage.removeItem('noteEditState');
-    
-    if (sourceThread) {
-      window.location.href = '/feed/threads/' + sourceThread;
-    } else {
-      localStorage.removeItem('sourceThreadForNote');
+    try {
+      // Ultra-efficient DOM-minimal approach
+      const sourceThread = localStorage.getItem('sourceThreadForNote');
+      localStorage.removeItem('lastViewedNote');
+      localStorage.removeItem('noteEditState');
+      
+      if (sourceThread) {
+        window.location.href = '/feed/threads/' + sourceThread;
+      } else {
+        localStorage.removeItem('sourceThreadForNote');
+        window.location.href='/feed';
+      }
+    } catch(e) {
+      // Fallback if anything fails
       window.location.href='/feed';
     }
   `;
 } else if (label === 'Thread') {
   storageKey = 'lastViewedThread';
   closeAction = `
-    // Batch localStorage operations together
-    localStorage.removeItem('lastViewedThread'); 
-    localStorage.removeItem('sourceThreadForNote'); 
-    localStorage.removeItem('lastViewedNote');
-    localStorage.removeItem('noteEditState');
-    window.location.href='/feed'
+    try {
+      // Batch localStorage operations together
+      localStorage.removeItem('lastViewedThread'); 
+      localStorage.removeItem('sourceThreadForNote'); 
+      localStorage.removeItem('lastViewedNote');
+      localStorage.removeItem('noteEditState');
+      window.location.href='/feed';
+    } catch(e) {
+      // Fallback if anything fails
+      window.location.href='/feed';
+    }
   `;
 }
 
@@ -60,8 +70,10 @@ const textColor = active ? "text-(--color-deep-grey)" : "text-(--color-stone-gre
         <span class={`font-bold text-sm ${textColor}`}>{label}</span>
         {closable && (
           <button 
-            class={`w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium ${textColor} cursor-pointer close-tab-btn`}
+            class={`w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium ${textColor} cursor-pointer close-tab-btn will-change-opacity touch-manipulation`}
             data-action={closeAction}
+            data-tab-type={label}
+            aria-label={`Close ${label} tab`}
           >×</button>
         )}
       </div>
@@ -76,9 +88,11 @@ const textColor = active ? "text-(--color-deep-grey)" : "text-(--color-stone-gre
         <span class={`font-bold text-sm ${textColor}`}>{label}</span>
         {closable && (
           <button 
-            class={`w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium ${textColor} cursor-pointer close-tab-btn`}
+            class={`w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium ${textColor} cursor-pointer close-tab-btn will-change-opacity touch-manipulation`}
             data-action={closeAction}
+            data-tab-type={label}
             type="button"
+            aria-label={`Close ${label} tab`}
           >×</button>
         )}
       </div>
@@ -108,12 +122,21 @@ const textColor = active ? "text-(--color-deep-grey)" : "text-(--color-stone-gre
     background: transparent;
     line-height: 1;
   }
+  
+  /* Performance optimizations */
+  .will-change-opacity {
+    will-change: opacity;
+  }
+  
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
 </style>
 
 <script>
   // More efficient event delegation approach
   document.addEventListener('DOMContentLoaded', () => {
-    // Use a single event listener at the document level
+    // Use a single event listener at the document level for clicks
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       
@@ -130,5 +153,19 @@ const textColor = active ? "text-(--color-deep-grey)" : "text-(--color-stone-gre
         }
       }
     });
+    
+    // Call tab interaction optimizer if it exists (from our special script)
+    if (window.tabInteractionOptimizer) {
+      window.tabInteractionOptimizer.optimize();
+    }
   });
+  
+  // Make TypeScript happy with our global
+  declare global {
+    interface Window {
+      tabInteractionOptimizer?: {
+        optimize: () => void;
+      };
+    }
+  }
 </script>

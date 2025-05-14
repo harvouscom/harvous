@@ -32,12 +32,36 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     
-    <!-- Preload critical fonts for faster render -->
+    <!-- Critical CSS inlined for faster first paint -->
+    <style>
+      /* Essential styles to prevent layout shift */
+      body {
+        margin: 0;
+        opacity: 1 !important;
+        animation: none !important;
+        background-color: #F7F7F6;
+      }
+      /* High-priority animation optimizations */
+      .thread-card, .note-card-placeholder, .close-tab-btn {
+        will-change: transform;
+        contain: content;
+        touch-action: manipulation;
+      }
+      /* Critical UI elements */
+      trix-editor {
+        contain: content;
+      }
+    </style>
+    
+    <!-- Preload critical resources -->
     <link rel="preload" href="/fonts/reddit-sans-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="/fonts/reddit-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/scripts/pwa-startup.js" as="script">
     
     <!-- PWA startup optimization script - inlined for faster execution -->
     <script is:inline src="/scripts/pwa-startup.js"></script>
+    
+    <!-- Special tab interaction handler for first-touch optimization -->
+    <script is:inline src="/scripts/tab-interaction-handler.js"></script>
   </head>
   <body 
     x-data="toast"
