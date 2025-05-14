@@ -263,8 +263,17 @@ const threadIds = allThreads.map(thread => thread.id);
           noteTab.style.margin = '0'; // Ensure no margin
           noteTab.style.padding = '0'; // Ensure no padding
           
+          // Check if this note was in edit mode
+          const noteInEditState = localStorage.getItem('noteEditState');
+          const isInEditMode = noteInEditState === noteId;
+          
           // For new notes vs existing notes
-          const href = noteId === 'new' ? '/feed/notes/new' : `/feed/notes/${noteId}`;
+          let href = noteId === 'new' ? '/feed/notes/new' : `/feed/notes/${noteId}`;
+          
+          // If in edit mode, update the href to point to edit page
+          if (isInEditMode && noteId !== 'new') {
+            href = `/feed/notes/${noteId}/edit`;
+          }
           
           // If note is from a thread, include the thread ID
           let finalHref = href;
@@ -287,6 +296,7 @@ const threadIds = allThreads.map(thread => thread.id);
           // Note doesn't exist anymore, remove from localStorage
           localStorage.removeItem('lastViewedNote');
           localStorage.removeItem('sourceThreadForNote');
+          localStorage.removeItem('noteEditState');
         }
       }
     });
@@ -300,6 +310,9 @@ const threadIds = allThreads.map(thread => thread.id);
       // When closing note tab in feed view, we shouldn't necessarily clear sourceThreadForNote
       // if the thread tab is still visible
       localStorage.removeItem('lastViewedNote');
+      
+      // Clear any edit state for the note
+      localStorage.removeItem('noteEditState');
       
       // Only clear source thread reference if thread tab is not visible
       const threadTab = document.querySelector('a[href^="/feed/threads/"]');
@@ -323,6 +336,9 @@ const threadIds = allThreads.map(thread => thread.id);
       
       localStorage.removeItem('lastViewedThread');
       localStorage.removeItem('sourceThreadForNote');
+      // Also clear any edit state
+      localStorage.removeItem('noteEditState');
+      
       const threadTabContainer = document.getElementById('thread-tab-container');
       if (threadTabContainer) {
         threadTabContainer.innerHTML = '';

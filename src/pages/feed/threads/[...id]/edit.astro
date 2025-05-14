@@ -200,9 +200,22 @@ const threadColorProp = thread.color || undefined;
           noteTab.style.margin = '0';
           noteTab.style.padding = '0';
           
+          // Check if this note was in edit mode
+          const noteInEditState = localStorage.getItem('noteEditState');
+          const isInEditMode = noteInEditState === lastViewedNote;
+          
+          // Prepare the URL based on edit state
+          let noteUrl = `/feed/notes/${lastViewedNote}`;
+          if (isInEditMode) {
+            noteUrl = `/feed/notes/${lastViewedNote}/edit`;
+          }
+          
+          // Add the thread ID parameter
+          noteUrl += `?threadId=${threadId}`;
+          
           noteTab.innerHTML = `
             <div class="h-[48px]">
-              <a href="/feed/notes/${lastViewedNote}?threadId=${threadId}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
+              <a href="${noteUrl}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
                 <div class="h-full flex items-center pl-[20px] pr-[12px] gap-2">
                   <span class="font-bold text-sm text-(--color-stone-grey)">Note</span>
                   <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeNoteTab(event)">×</button>
@@ -220,6 +233,8 @@ const threadColorProp = thread.color || undefined;
             }
             
             localStorage.removeItem('lastViewedNote');
+            // Also clear any edit state
+            localStorage.removeItem('noteEditState');
             noteTabContainer.innerHTML = '';
           };
         }

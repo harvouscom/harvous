@@ -18,6 +18,8 @@ if (label === 'Note') {
   closeAction = `
     const sourceThread = localStorage.getItem('sourceThreadForNote'); 
     localStorage.removeItem('lastViewedNote');
+    // Also clear any edit state for this note
+    localStorage.removeItem('noteEditState');
     
     // Check if we should maintain thread context
     if (sourceThread) {
@@ -40,7 +42,9 @@ if (label === 'Note') {
   closeAction = `
     localStorage.removeItem('lastViewedThread'); 
     localStorage.removeItem('sourceThreadForNote'); 
-    localStorage.removeItem('lastViewedNote'); 
+    localStorage.removeItem('lastViewedNote');
+    // Also clear any edit state
+    localStorage.removeItem('noteEditState');
     window.location.href='/feed'
   `;
 }

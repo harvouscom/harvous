@@ -272,8 +272,17 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
           noteTab.style.margin = '0'; // Ensure no margin
           noteTab.style.padding = '0'; // Ensure no padding
           
+          // Check if this note was in edit mode
+          const noteInEditState = localStorage.getItem('noteEditState');
+          const isInEditMode = noteInEditState === noteId;
+          
           // For new notes vs existing notes
-          const href = noteId === 'new' ? '/feed/notes/new' : `/feed/notes/${noteId}`;
+          let href = noteId === 'new' ? '/feed/notes/new' : `/feed/notes/${noteId}`;
+          
+          // If in edit mode, update the href to point to edit page
+          if (isInEditMode && noteId !== 'new') {
+            href = `/feed/notes/${noteId}/edit`;
+          }
           
           noteTab.innerHTML = `
             <div class="h-[48px]">

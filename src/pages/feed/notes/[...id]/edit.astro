@@ -113,10 +113,28 @@ if (result?.data?.success && result.data.note) {
     // Save the current note ID to localStorage
     localStorage.setItem('lastViewedNote', noteId.toString());
     
+    // Track that this note is in edit mode
+    localStorage.setItem('noteEditState', noteId.toString());
+    
     // Update thread counter
     const threadCounter = document.querySelector('[data-counter="threads"]');
     if (threadCounter) {
       threadCounter.textContent = threadCountValue.toString();
+    }
+    
+    // When user navigates away, ensure we keep edit state in localStorage
+    window.addEventListener('beforeunload', () => {
+      // We only need this event to ensure the localStorage persists
+      // The edit state is already saved above
+    });
+    
+    // Add form submission handler to clear edit state when saving
+    const form = document.querySelector('form[action*="notes.update"]');
+    if (form) {
+      form.addEventListener('submit', () => {
+        // Clear the edit state when saving
+        localStorage.removeItem('noteEditState');
+      });
     }
   });
 </script>
