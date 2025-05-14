@@ -170,15 +170,15 @@ const threadColorProp = thread.color || undefined;
         </div>
       </section>
 
-      <div class="mt-4 p-4 bg-[var(--color-fog-white)] rounded-xl">
-        <h2 class="text-lg font-medium mb-4">Notes in this thread ({notes.length})</h2>
+      <div class="mt-4 p-3 bg-[var(--color-fog-white)] rounded-xl">
+        <h2 class="text-lg font-medium mb-3">Notes in this thread ({notes.length})</h2>
         {notes.length === 0 ? (
           <div class="text-center py-8 text-gray-500">
             <p>This thread doesn't have any notes yet.</p>
             <p class="mt-2">Add notes to this thread to start organizing your content.</p>
           </div>
         ) : (
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-[12px]">
             {notes.map((note) => (
               <NoteCard 
                 title={note.title || ''} 

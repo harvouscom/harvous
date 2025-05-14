@@ -44,7 +44,7 @@ const editUrl = id ? `/feed/notes/${id}/edit` : "";
 ---
 
 <section
-  class="h-full box-border grid grid-cols-[28px_1fr] bg-white rounded-xl shadow-[var(--shadow-primary)] overflow-hidden max-w-[160px] relative"
+  class="note-card-component h-full box-border grid grid-cols-[28px_1fr] bg-white rounded-xl shadow-[var(--shadow-primary)] overflow-hidden w-full relative"
 >
   {/* Clickable area over entire card */}
   {id && (
@@ -62,7 +62,7 @@ const editUrl = id ? `/feed/notes/${id}/edit` : "";
     <div class="absolute top-3 -right-4 z-20">
       <button 
         class="icon-btn note-action-btn rounded-full flex items-center justify-center shadow-[0px_-2.91px_0px_0px_#0000001A_inset]"
-        style="width: 32px; height: 32px; background-color: var(--color-paper);"
+        style="width: 32px; height: 32px; background-color: var(--color-paper); transition: none !important;"
         data-id={id}
         data-type="note"
         data-user-id={userId}
@@ -98,7 +98,7 @@ const editUrl = id ? `/feed/notes/${id}/edit` : "";
       {title}
     </h2>
     <p
-      class="select-text overflow-wrap-anywhere whitespace-pre-line text-[var(--text-color-secondary)] text-[12px] line-clamp-3"     
+      class="select-text overflow-wrap-anywhere whitespace-pre-line text-[var(--text-color-secondary)] text-[12px] line-clamp-4"     
     >
       {trimmedContent}
     </p>
@@ -115,7 +115,7 @@ const editUrl = id ? `/feed/notes/${id}/edit` : "";
     align-items: center;
     justify-content: center;
     color: var(--color-stone-grey);
-    transition: all 0.2s ease-in-out;
+    transition: none !important;  /* Override any transitions */
     background-color: var(--color-paper);
   }
   
@@ -141,6 +141,21 @@ const editUrl = id ? `/feed/notes/${id}/edit` : "";
   .hidden {
     display: none;
   }
+  
+  /* Note card specific styling - no animations */
+  .note-card-component {
+    display: grid;
+    min-height: auto;
+    transition: none !important;
+    transform: none !important;
+    rotate: 0deg !important;
+  }
+  
+  /* Explicitly disable hover effects */
+  .note-card-component:hover {
+    transform: none !important;
+    box-shadow: var(--shadow-primary) !important;
+  }
 </style>
 
 <script>
@@ -148,7 +163,16 @@ const editUrl = id ? `/feed/notes/${id}/edit` : "";
   document.addEventListener('DOMContentLoaded', () => {
     const actionButtons = document.querySelectorAll('.note-action-btn');
     
+    // Ensure no transitions on card components
+    document.querySelectorAll('.note-card-component').forEach(card => {
+      (card as HTMLElement).style.transition = 'none';
+      (card as HTMLElement).style.transform = 'none';
+    });
+    
     actionButtons.forEach(button => {
+      // Disable any transitions
+      (button as HTMLElement).style.transition = 'none';
+      
       button.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
