@@ -20,6 +20,13 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     // Call our function directly
     const result = await removeNoteFromThread(noteId, threadId);
     
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+    
+    // Add a small delay to ensure database operation completes
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Redirect back to the note page
     return redirect(`/feed/notes/${noteId}`, 303);
   } catch (error) {

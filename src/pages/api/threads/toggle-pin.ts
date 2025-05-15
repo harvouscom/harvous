@@ -51,39 +51,60 @@ export async function POST({ request }: APIContext) {
     const currentThread = thread[0];
     console.log("Current thread state:", currentThread);
     
-    // Toggle the isPinned status
-    const updatedThread = await db.update(Threads)
-      .set({
-        isPinned: !currentThread.isPinned,
-        updatedAt: new Date()
-      })
-      .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
-      .returning();
+    // New isPinned value (toggled from current state)
+    const newPinnedState = !currentThread.isPinned;
+    
+    try {
+      // Toggle the isPinned status
+      const updatedThread = await db.update(Threads)
+        .set({
+          isPinned: newPinnedState,
+          updatedAt: new Date()
+        })
+        .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
+        .returning();
+        
+      if (!updatedThread.length) {
+        return new Response(
+          JSON.stringify({ error: "Failed to update thread" }), 
+          { 
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+
+      // Add a small delay to ensure database operation completes
+      await new Promise(resolve => setTimeout(resolve, 100));
       
-    if (!updatedThread.length) {
+      // Verify the update by re-fetching
+      const verifyUpdate = await db.select()
+        .from(Threads)
+        .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
+        .limit(1);
+      
+      if (!verifyUpdate.length || verifyUpdate[0].isPinned !== newPinnedState) {
+        console.warn("Verification failed - database update may not have persisted");
+      }
+      
+      const responseData = {
+        success: `Thread ${updatedThread[0].isPinned ? 'pinned' : 'unpinned'} successfully!`,
+        thread: updatedThread[0]
+      };
+      
+      console.log("Update successful:", responseData);
+      
       return new Response(
-        JSON.stringify({ error: "Failed to update thread" }), 
+        JSON.stringify(responseData), 
         { 
-          status: 500,
+          status: 200,
           headers: { 'Content-Type': 'application/json' }
         }
       );
+    } catch (dbError) {
+      console.error("Database error while updating thread:", dbError);
+      throw dbError;
     }
-    
-    const responseData = {
-      success: `Thread ${updatedThread[0].isPinned ? 'pinned' : 'unpinned'} successfully!`,
-      thread: updatedThread[0]
-    };
-    
-    console.log("Update successful:", responseData);
-    
-    return new Response(
-      JSON.stringify(responseData), 
-      { 
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
   } catch (error) {
     console.error("Error in toggle-pin API:", error);
     return new Response(

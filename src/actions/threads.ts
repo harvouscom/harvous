@@ -36,6 +36,19 @@ export const threads = {
           .returning()
           .get()
 
+        // Add a small delay to ensure the database operation completes
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // Verify the new thread was created
+        const verifyThread = await db.select()
+          .from(Threads)
+          .where(and(eq(Threads.id, newThread.id), eq(Threads.userId, userId)))
+          .limit(1);
+          
+        if (!verifyThread.length) {
+          console.warn("Thread creation verification failed");
+        }
+
         console.log(`Thread created successfully: ${JSON.stringify(newThread)}`);
         return {
           success: "Thread created successfully!",

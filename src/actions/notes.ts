@@ -28,6 +28,19 @@ export const notes = {
           .returning()
           .get()
 
+        // Add a small delay to ensure the database operation completes
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // Verify the new note was created
+        const verifyNote = await db.select()
+          .from(Notes)
+          .where(and(eq(Notes.id, newNote.id), eq(Notes.userId, userId)))
+          .limit(1);
+          
+        if (!verifyNote.length) {
+          console.warn("Note creation verification failed");
+        }
+
         return {
           success: "Note created successfully!",
           note: newNote

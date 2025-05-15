@@ -1,4 +1,4 @@
-import { db, Threads, eq, and } from "astro:db";
+import { db, Threads, eq, and, NoteThreads } from "astro:db";
 import { z } from "zod";
 import type { APIContext } from "astro";
 
@@ -28,32 +28,70 @@ export async function POST({ request }: APIContext) {
     
     const { id, userId } = validation.data;
     
-    // Delete the thread
-    const deletedThread = await db.delete(Threads)
-      .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
-      .returning();
-    
-    if (!deletedThread.length) {
+    try {
+      // First check if the thread exists and belongs to the user
+      const thread = await db.select()
+        .from(Threads)
+        .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
+        .limit(1);
+        
+      if (!thread.length) {
+        return new Response(
+          JSON.stringify({ error: "Thread not found or you don't have permission to delete it" }), 
+          { 
+            status: 404,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
+      // Delete related note-thread relationships first
+      await db.delete(NoteThreads)
+        .where(eq(NoteThreads.threadId, id));
+        
+      // Then delete the thread
+      const deletedThread = await db.delete(Threads)
+        .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
+        .returning();
+      
+      if (!deletedThread.length) {
+        return new Response(
+          JSON.stringify({ error: "Failed to delete thread" }), 
+          { 
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
+      // Add a small delay to ensure database operations complete
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      // Verify the deletion by trying to fetch the thread
+      const verifyDelete = await db.select()
+        .from(Threads)
+        .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
+        .limit(1);
+        
+      if (verifyDelete.length > 0) {
+        console.warn("Verification failed - thread may not have been deleted properly");
+      }
+      
       return new Response(
-        JSON.stringify({ error: "Thread not found or you don't have permission to delete it" }), 
+        JSON.stringify({
+          success: true,
+          message: "Thread deleted successfully!",
+          thread: deletedThread[0]
+        }), 
         { 
-          status: 404,
+          status: 200,
           headers: { 'Content-Type': 'application/json' }
         }
       );
+    } catch (dbError) {
+      console.error("Database error while deleting thread:", dbError);
+      throw dbError;
     }
-    
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Thread deleted successfully!",
-        thread: deletedThread[0]
-      }), 
-      { 
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
   } catch (error) {
     console.error("Error in delete thread API:", error);
     return new Response(

@@ -57,7 +57,9 @@ if (result?.data?.success) {
           <BookmarkIcon x-show="!showActionBar" class="w-[20px] h-[20px]" />
           <XmarkIcon x-cloak x-show="showActionBar" class="w-[20px] h-[20px]" />
         </button>
-        <h1 class="text-title">New Note</h1>
+        <div class="flex-1 min-w-0">
+          <h1 class="text-title">New Note</h1>
+        </div>
         
         <!-- Floating action bar positioned absolutely below the button -->
         <div 
@@ -84,6 +86,7 @@ if (result?.data?.success) {
         class="grid gap-3 flex-1 grid-rows-[auto_1fr_auto_auto_auto] w-full"
         method="POST"
         action={actions.notes.create}
+        id="createNoteForm"
       >
         <TitleInput placeholder="Title" name="title" />
         <div class="overflow-auto w-full">
@@ -117,6 +120,29 @@ if (result?.data?.success) {
     const threadCounter = document.querySelector('[data-counter="threads"]');
     if (threadCounter) {
       threadCounter.textContent = '0';
+    }
+    
+    // Handle form submission to clear cache
+    const form = document.getElementById('createNoteForm');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        // Clear any existing note data from local storage to avoid stale data
+        localStorage.removeItem('lastViewedNote');
+        
+        // Let's also clear the entire localStorage cache for notes to be extra safe
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('note') || key.includes('Note'))) {
+            localStorage.removeItem(key);
+          }
+        }
+        
+        // Create a timestamp to prevent caching
+        sessionStorage.setItem('lastNoteCreatedAt', Date.now().toString());
+        
+        // Submit the form normally
+        return true;
+      });
     }
     
     // Check if we're coming from a thread

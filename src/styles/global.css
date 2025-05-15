@@ -54,6 +54,10 @@
 
 .text-title {
     @apply font-sans font-semibold text-[20px] leading-[25.98px] tracking-normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+    max-width: calc(100% - 44px); /* Account for the icon button */
 }
 
 .text-subtitle {

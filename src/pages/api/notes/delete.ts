@@ -1,4 +1,4 @@
-import { db, Notes, eq, and } from "astro:db";
+import { db, Notes, eq, and, NoteThreads } from "astro:db";
 import { z } from "zod";
 import type { APIContext } from "astro";
 
@@ -28,32 +28,70 @@ export async function POST({ request }: APIContext) {
     
     const { id, userId } = validation.data;
     
-    // Delete the note
-    const deletedNote = await db.delete(Notes)
-      .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
-      .returning();
-    
-    if (!deletedNote.length) {
+    try {
+      // First check if the note exists and belongs to the user
+      const note = await db.select()
+        .from(Notes)
+        .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
+        .limit(1);
+        
+      if (!note.length) {
+        return new Response(
+          JSON.stringify({ error: "Note not found or you don't have permission to delete it" }), 
+          { 
+            status: 404,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
+      // Delete related note-thread relationships first
+      await db.delete(NoteThreads)
+        .where(eq(NoteThreads.noteId, id));
+        
+      // Then delete the note
+      const deletedNote = await db.delete(Notes)
+        .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
+        .returning();
+      
+      if (!deletedNote.length) {
+        return new Response(
+          JSON.stringify({ error: "Failed to delete note" }), 
+          { 
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
+      // Add a small delay to ensure database operations complete
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      // Verify the deletion by trying to fetch the note
+      const verifyDelete = await db.select()
+        .from(Notes)
+        .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
+        .limit(1);
+        
+      if (verifyDelete.length > 0) {
+        console.warn("Verification failed - note may not have been deleted properly");
+      }
+      
       return new Response(
-        JSON.stringify({ error: "Note not found or you don't have permission to delete it" }), 
+        JSON.stringify({
+          success: true,
+          message: "Note deleted successfully!",
+          note: deletedNote[0]
+        }), 
         { 
-          status: 404,
+          status: 200,
           headers: { 'Content-Type': 'application/json' }
         }
       );
+    } catch (dbError) {
+      console.error("Database error while deleting note:", dbError);
+      throw dbError;
     }
-    
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Note deleted successfully!",
-        note: deletedNote[0]
-      }), 
-      { 
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
   } catch (error) {
     console.error("Error in delete note API:", error);
     return new Response(

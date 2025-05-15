@@ -57,7 +57,9 @@ if (result?.data?.success) {
           <GlobeIcon x-show="!showActionBar && isPublic" class="w-[20px] h-[20px]" />
           <XmarkIcon x-cloak x-show="showActionBar" class="w-[20px] h-[20px]" />
         </button>
-        <h1 class="text-title">New Thread</h1>
+        <div class="flex-1 min-w-0">
+          <h1 class="text-title">New Thread</h1>
+        </div>
         
         <!-- Floating action bar positioned absolutely below the button -->
         <div 
@@ -84,6 +86,7 @@ if (result?.data?.success) {
         class="flex flex-col mt-3"
         method="POST"
         action={actions.threads.create}
+        id="createThreadForm"
       >
         <div class="space-y-3">
           <TitleInput placeholder="Name your Thread" name="title" />
@@ -115,6 +118,30 @@ if (result?.data?.success) {
   document.addEventListener('DOMContentLoaded', () => {
     // Mark that a thread tab is open, but without an ID yet
     localStorage.setItem('lastViewedThread', 'new');
+    
+    // Handle form submission to clear cache
+    const form = document.getElementById('createThreadForm');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        // Clear any existing thread data from local storage to avoid stale data
+        localStorage.removeItem('lastViewedThread');
+        localStorage.removeItem('lastViewedThreadColor');
+        
+        // Let's also clear the entire localStorage cache for threads to be extra safe
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('thread') || key.includes('Thread'))) {
+            localStorage.removeItem(key);
+          }
+        }
+        
+        // Create a timestamp to prevent caching
+        sessionStorage.setItem('lastThreadCreatedAt', Date.now().toString());
+        
+        // Submit the form normally
+        return true;
+      });
+    }
     
     // Set up privacy toggle
     const metabarPrivacyButton = document.querySelector('.button-wrapper');

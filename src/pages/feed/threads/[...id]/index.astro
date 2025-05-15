@@ -113,7 +113,7 @@ const threadColorProp = thread.color || undefined;
           )}
           <XmarkIcon x-cloak x-show="showActionBar" class="w-[20px] h-[20px]" />
         </button>
-        <div class="flex items-center gap-2">
+        <div class="flex-1 min-w-0">
           <h1 class="text-title">{thread.title || "Untitled Thread"}</h1>
         </div>
         
@@ -202,6 +202,19 @@ const threadColorProp = thread.color || undefined;
 
 <script define:vars={{ threadId: thread.id, noteIds: notes.map(note => note.id), threadColor: thread.color }}>
   document.addEventListener('DOMContentLoaded', () => {
+    // Check if this page was loaded after creating a new thread
+    const lastThreadCreatedAt = sessionStorage.getItem('lastThreadCreatedAt');
+    if (lastThreadCreatedAt) {
+      // Clear the marker
+      sessionStorage.removeItem('lastThreadCreatedAt');
+      
+      // Force a fresh load by adding a cache-busting parameter
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('t', Date.now().toString());
+      window.location.href = currentUrl.toString();
+      return;
+    }
+    
     // Store the current thread ID in localStorage
     localStorage.setItem('lastViewedThread', threadId.toString());
     if (threadColor) {
