@@ -131,10 +131,10 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
                 </div>
               </div>
               <div class="w-full overflow-x-auto px-3 pb-[18px]">
-                <div class="flex gap-3 min-w-min">
+                <div class="flex gap-3 min-w-min notes-container">
                   {
                     notes.map((note) => (
-                      <div class="min-w-[160px] max-w-[160px] flex-shrink-0">
+                      <div class="min-w-[140px] sm:min-w-[160px] max-w-[140px] sm:max-w-[160px] flex-shrink-0 note-card-wrapper">
                         <NoteCard 
                           title={note.title ?? ""} 
                           content={note.content ?? ""} 
@@ -144,6 +144,10 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
                       </div>
                     ))
                   }
+                  {/* Add an extra spacer element at the end to ensure we have padding for scrolling on small screens */}
+                  {notes.length > 0 && (
+                    <div class="min-w-[30px] sm:min-w-[40px] flex-shrink-0"></div>
+                  )}
                 </div>
               </div>
             </section>
@@ -482,4 +486,24 @@ if (searchQuery && !pastSearches.includes(searchQuery)) {
       });
     });
   </script>
-</Layout> 
+</Layout>
+
+<style>
+  /* Notes container styling */
+  .notes-container {
+    scroll-padding-right: 40px; /* Ensures we always see a bit of the next card */
+  }
+  
+  /* Ensure the note-card-wrapper shows the entire note card inside it */
+  .note-card-wrapper {
+    display: flex;
+    width: 100%;
+  }
+  
+  /* Media query to adjust scroll behavior on smaller screens */
+  @media (max-width: 640px) {
+    .notes-container {
+      scroll-padding-right: 30px; /* Smaller padding on mobile */
+    }
+  }
+</style> 
