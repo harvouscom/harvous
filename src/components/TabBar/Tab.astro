@@ -131,6 +131,28 @@ const textColor = active ? "text-(--color-deep-grey)" : "text-(--color-stone-gre
   .touch-manipulation {
     touch-action: manipulation;
   }
+
+  /* Hide scrollbars across all browsers but keep scrolling functionality */
+  :global(.tab-container) {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -ms-overflow-style: none;  /* Hide scrollbar for IE and Edge */
+    scrollbar-width: none;  /* Hide scrollbar for Firefox */
+  }
+  
+  :global(.tab-container::-webkit-scrollbar) {
+    display: none;  /* Hide scrollbar for Chrome, Safari and Opera */
+  }
+  
+  /* General scrollbar hiding for all elements */
+  :global(*::-webkit-scrollbar) {
+    display: none;
+  }
+  
+  :global(*) {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 </style>
 
 <script>
@@ -158,6 +180,15 @@ const textColor = active ? "text-(--color-deep-grey)" : "text-(--color-stone-gre
     if (window.tabInteractionOptimizer) {
       window.tabInteractionOptimizer.optimize();
     }
+    
+    // Add tab container class to parent elements that contain tabs
+    const tabElements = document.querySelectorAll("[role='tab']");
+    tabElements.forEach(tab => {
+      const parent = tab.closest(".flex");
+      if (parent && !parent.classList.contains('tab-container')) {
+        parent.classList.add('tab-container');
+      }
+    });
   });
   
   // Make TypeScript happy with our global

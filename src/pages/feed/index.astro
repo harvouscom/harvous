@@ -69,7 +69,7 @@ const threadIds = allThreads.map(thread => thread.id);
   <div class="flex flex-col min-h-[100vh] bg-[var(--color-soft-paper)]">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-3 mx-auto max-w-screen-sm flex items-center justify-between" x-data>
-        <div class="flex h-[48px]">
+        <div class="flex h-[48px] overflow-x-auto overflow-y-hidden w-full tab-container">
           <Tab label="Feed" href="#" active />
           <Tab label="Search" href="/feed/search" />
           <div id="thread-tab-container" class="h-full"></div>

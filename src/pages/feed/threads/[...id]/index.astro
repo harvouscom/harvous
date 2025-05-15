@@ -81,7 +81,7 @@ const threadColorProp = thread.color || undefined;
   <div x-data="{ showActionBar: false }" class="flex flex-col min-h-[100vh] bg-[var(--color-soft-paper)]">
     <section class="bg-(--color-fog-white) pt-3">
       <div class="px-3 mx-auto max-w-screen-sm flex items-center">
-        <div class="flex h-[48px]">
+        <div class="flex h-[48px] overflow-x-auto overflow-y-hidden w-full tab-container">
           <Tab label="Feed" href="/feed" />
           <Tab label="Search" href="/feed/search" />
           <Tab label="Thread" active closable color={threadColorProp} />

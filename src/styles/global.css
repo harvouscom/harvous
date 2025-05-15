@@ -9,6 +9,16 @@
     @apply hidden;
 }
 
+/* Hide scrollbars across all browsers but maintain scrolling functionality */
+* {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
+*::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+}
+
 :root {
     --color-blue: #006EFF;
     --color-navy: #0048A6;
