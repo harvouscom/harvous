@@ -43,8 +43,6 @@ const allThreads = await db.select()
   .where(eq(Threads.userId, userId as string))
   .orderBy(sql`COALESCE(updatedAt, createdAt) DESC`);
 
-console.log({ allThreads });
-
 // Get note counts for each thread
 // const threadNoteCounts = new Map();
 // for (const thread of allThreads) {
