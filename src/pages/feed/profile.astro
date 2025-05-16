@@ -1,5 +1,5 @@
 ---
-import { db, eq, Notes, Threads, desc, NoteThreads, isNull, and, sql } from "astro:db";
+import { db, eq, Notes, Threads, desc, NoteThreads, isNull, and, sql, count } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import ChonkButton from "@/components/ChonkButton.astro";
@@ -17,11 +17,11 @@ if (!user) {
 }
 
 // Get stats
-const noteCount = await db.select({ count: sql`count(*)` })
+const noteCount = await db.select({ count: count() })
   .from(Notes)
   .where(eq(Notes.userId, userId as string));
 
-const threadCount = await db.select({ count: sql`count(*)` })
+const threadCount = await db.select({ count: count() })
   .from(Threads)
   .where(eq(Threads.userId, userId as string));
 ---
@@ -64,11 +64,11 @@ const threadCount = await db.select({ count: sql`count(*)` })
           <div class="grid grid-cols-2 gap-4 mb-6">
             <div class="bg-[#EEECE3] p-4 rounded-lg">
               <p class="text-[#78766F] font-sans text-[14px]">Notes</p>
-              <p class="text-[#4C4A41] font-sans text-[24px] font-semibold">{noteCount[0]?.count || 0}</p>
+              <p class="text-[#4C4A41] font-sans text-[24px] font-semibold">{noteCount?.[0]?.count || 0}</p>
             </div>
             <div class="bg-[#EEECE3] p-4 rounded-lg">
               <p class="text-[#78766F] font-sans text-[14px]">Threads</p>
-              <p class="text-[#4C4A41] font-sans text-[24px] font-semibold">{threadCount[0]?.count || 0}</p>
+              <p class="text-[#4C4A41] font-sans text-[24px] font-semibold">{threadCount?.[0]?.count || 0}</p>
             </div>
           </div>
           
