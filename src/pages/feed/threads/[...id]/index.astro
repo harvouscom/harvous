@@ -75,6 +75,10 @@ if (noteThreads.length > 0) {
 const threadColorStyle = thread.color ? `background-color: var(--color-${thread.color})` : '';
 // Make sure color is string or undefined (not null)
 const threadColorProp = thread.color || undefined;
+
+Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+Astro.response.headers.set("Netlify-CDN-Cache-Control", "public, durable, s-maxage=300, stale-while-revalidate=604800");
+Astro.response.headers.set("Netlify-Cache-Tag", `threads-user-${userId}-thread-${numericId}`);
 ---
 
 <Layout title="Thread">

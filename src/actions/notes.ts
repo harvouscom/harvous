@@ -1,6 +1,19 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { db, Notes, eq, and } from "astro:db";
+import { purgeCache } from "@netlify/functions";
+
+const purgeCacheWrapper = async (tags: string[]) => {
+  try {
+    if (!tags || !Array.isArray(tags)) {
+      return new Response("Missing or invalid tags", { status: 400 });
+    }
+
+    await purgeCache({ tags });
+  } catch (e) {
+    console.warn("Cache purge failed", e);
+  }
+};
 
 export const notes = {
   create: defineAction({
@@ -41,6 +54,9 @@ export const notes = {
           console.warn("Note creation verification failed");
         }
 
+        await purgeCacheWrapper([`notes-user-${userId}-note-${newNote.id}`]);
+        await purgeCacheWrapper([`notes-user-${userId}-feed`]);
+
         return {
           success: "Note created successfully!",
           note: newNote
@@ -79,7 +95,10 @@ export const notes = {
             updatedAt: new Date()
           })
           .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
-          .returning()  
+          .returning()
+
+        await purgeCacheWrapper([`notes-user-${userId}-note-${id}`]);
+        await purgeCacheWrapper([`notes-user-${userId}-feed`]);
 
         return {
           success: "Note updated successfully!",
@@ -106,6 +125,9 @@ export const notes = {
         if (!deletedNote) {
           throw new Error("Note not found or you don't have permission to delete it");
         }
+
+        await purgeCacheWrapper([`notes-user-${userId}-note-${id}`]);
+        await purgeCacheWrapper([`notes-user-${userId}-feed`]);
 
         return {
           success: "Note deleted successfully!",

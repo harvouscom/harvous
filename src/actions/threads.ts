@@ -2,6 +2,21 @@ import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { db, Threads, eq, and } from "astro:db";
 
+const purgeCache = async (tags: string[]) => {
+  try {
+    await fetch("/api/purge-cache.json", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Webhook-Secret": process.env.WEBHOOK_SECRET || ""
+      },
+      body: JSON.stringify({ tags })
+    });
+  } catch (e) {
+    console.warn("Cache purge failed", e);
+  }
+};
+
 export const threads = {
   create: defineAction({
     accept: "form",
@@ -50,6 +65,7 @@ export const threads = {
         }
 
         console.log(`Thread created successfully: ${JSON.stringify(newThread)}`);
+        await purgeCache(["threads", `thread-${newThread.id}`]);
         return {
           success: "Thread created successfully!",
           thread: newThread
@@ -90,6 +106,7 @@ export const threads = {
           .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
           .returning()  
 
+        await purgeCache(["threads", `thread-${id}`]);
         return {
           success: "Thread updated successfully!",
           thread: updatedThread
@@ -116,6 +133,7 @@ export const threads = {
           throw new Error("Thread not found or you don't have permission to delete it");
         }
 
+        await purgeCache(["threads", `thread-${id}`]);
         return {
           success: "Thread deleted successfully!",
           thread: deletedThread

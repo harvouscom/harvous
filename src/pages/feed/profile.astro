@@ -24,6 +24,10 @@ const noteCount = await db.select({ count: count() })
 const threadCount = await db.select({ count: count() })
   .from(Threads)
   .where(eq(Threads.userId, userId as string));
+
+Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+Astro.response.headers.set("Netlify-CDN-Cache-Control", "public, durable, s-maxage=300, stale-while-revalidate=604800");
+Astro.response.headers.set("Netlify-Cache-Tag", `profile-user-${user?.id}`);
 ---
 
 <Layout>

@@ -11,6 +11,10 @@ const forceSignIn = url.searchParams.get('sign-in') === 'true';
 if (Astro.locals.auth().userId) {
   return Astro.redirect('/feed');
 }
+
+Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+Astro.response.headers.set("Netlify-CDN-Cache-Control", "public, durable, s-maxage=300, stale-while-revalidate=604800");
+Astro.response.headers.set("Netlify-Cache-Tag", "landing");
 ---
 
 <Layout title="Harvous Demo">

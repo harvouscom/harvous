@@ -70,6 +70,10 @@ try {
 }
 
 const noteData = notes[0];
+
+Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+Astro.response.headers.set("Netlify-CDN-Cache-Control", "public, durable, s-maxage=300, stale-while-revalidate=604800");
+Astro.response.headers.set("Netlify-Cache-Tag", `notes-user-${userId}-note-${numericId}`);
 ---
 
 <Layout title="Note">
