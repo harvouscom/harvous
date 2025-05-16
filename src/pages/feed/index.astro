@@ -7,7 +7,7 @@ import ThreadCard from "@/components/ThreadCard.astro";
 import AddButton from "@/components/AddButton.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import EllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
-import GlobalActionBar from "@/components/GlobalActionBar.astro";
+// import GlobalActionBar from "@/components/GlobalActionBar.astro";
 
 // Get userId from auth and redirect if not authenticated
 const userId = Astro.locals.auth().userId;
@@ -24,12 +24,8 @@ if (!user) {
 // Query for unorganized notes (notes that don't belong to any threads)
 const notes = await db.select({ 
     id: Notes.id, 
-    title: Notes.title, 
-    content: Notes.content, 
-    createdAt: Notes.createdAt, 
-    updatedAt: Notes.updatedAt, 
-    userId: Notes.userId, 
-    isPublic: Notes.isPublic 
+    title: Notes.title,
+    content: Notes.content,
   })
   .from(Notes)
   .leftJoin(NoteThreads, eq(Notes.id, NoteThreads.noteId))
@@ -47,15 +43,17 @@ const allThreads = await db.select()
   .where(eq(Threads.userId, userId as string))
   .orderBy(sql`COALESCE(updatedAt, createdAt) DESC`);
 
+console.log({ allThreads });
+
 // Get note counts for each thread
-const threadNoteCounts = new Map();
-for (const thread of allThreads) {
-  const result = await db.select({ count: count() })
-    .from(NoteThreads)
-    .where(eq(NoteThreads.threadId, thread.id));
+// const threadNoteCounts = new Map();
+// for (const thread of allThreads) {
+//   const result = await db.select({ count: count() })
+//     .from(NoteThreads)
+//     .where(eq(NoteThreads.threadId, thread.id));
   
-  threadNoteCounts.set(thread.id, result[0]?.count || 0);
-}
+//   threadNoteCounts.set(thread.id, result[0]?.count || 0);
+// }
 
 // Extract pinned threads for the Pinned Threads section
 const pinnedThreads = allThreads.filter(thread => thread.isPinned);
@@ -122,7 +120,6 @@ const threadIds = allThreads.map(thread => thread.id);
                       color={thread.color || undefined} 
                       id={thread.id}
                       userId={userId as string}
-                      noteCount={threadNoteCounts.get(thread.id) || 0}
                     />
                   </div>
                 ))
@@ -156,7 +153,7 @@ const threadIds = allThreads.map(thread => thread.id);
                   <div class="min-w-[140px] sm:min-w-[160px] max-w-[140px] sm:max-w-[160px] flex-shrink-0 note-card-wrapper">
                     <NoteCard 
                       title={note.title ?? ""} 
-                      content={note.content ?? ""} 
+                      content={note.content?.substring(0, 100) ?? ""} 
                       id={note.id}
                       userId={userId as string}
                     />
@@ -197,7 +194,7 @@ const threadIds = allThreads.map(thread => thread.id);
                       color={thread.color || undefined} 
                       id={thread.id}
                       userId={userId as string}
-                      noteCount={threadNoteCounts.get(thread.id) || 0}
+                      noteCount={0}
                     />
                   </div>
                 ))
@@ -217,7 +214,7 @@ const threadIds = allThreads.map(thread => thread.id);
     <div id="global-action-bar-container"></div>
   </div>
 
-  <script define:vars={{ noteIds, threadIds, pinnedThreads }}>
+  <!-- <script define:vars={{ noteIds, threadIds, pinnedThreads }}>
     // Check if the user was viewing a note previously and keep the tab if they were
     document.addEventListener('DOMContentLoaded', () => {
       const lastViewedNote = localStorage.getItem('lastViewedNote');
@@ -711,7 +708,7 @@ const threadIds = allThreads.map(thread => thread.id);
         });
       }
     });
-  </script>
+  </script> -->
 </Layout>
 
 <style>

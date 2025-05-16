@@ -1,6 +1,23 @@
 @import "tailwindcss";
 @import "./animations.css";
 
+body {
+  margin: 0;
+  opacity: 1 !important;
+  animation: none !important;
+  background-color: #F7F7F6;
+}
+/* High-priority animation optimizations */
+.thread-card, .note-card-placeholder, .close-tab-btn {
+  will-change: transform;
+  contain: content;
+  touch-action: manipulation;
+}
+/* Critical UI elements */
+trix-editor {
+  contain: content;
+}
+
 * {
     @apply shrink-0 select-none;
 }
