@@ -1,0 +1,130 @@
+/* 
+ * Harvous Animation Library
+ * A collection of reusable, playful animations for UI elements
+ */
+
+/* Bounce In Animation */
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-5px) scale(1.05);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Bounce Out Animation */
+@keyframes bounceOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  20% {
+    transform: translateY(-3px) scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.8);
+  }
+}
+
+/* Wiggle Animation */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-4deg); }
+  75% { transform: rotate(4deg); }
+}
+
+/* Pulse Animation */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Pop Animation */
+@keyframes pop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Utility Classes */
+
+/* Bounce In Utilities */
+.bounce-in {
+  animation: bounceIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation-fill-mode: both;
+}
+
+.bounce-in-delayed-sm {
+  animation: bounceIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation-delay: 0.08s;
+  animation-fill-mode: both;
+}
+
+.bounce-in-delayed-md {
+  animation: bounceIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation-delay: 0.16s;
+  animation-fill-mode: both;
+}
+
+.bounce-in-delayed-lg {
+  animation: bounceIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation-delay: 0.24s;
+  animation-fill-mode: both;
+}
+
+/* Bounce Out Utilities */
+.bounce-out {
+  animation: bounceOut 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+  animation-fill-mode: both;
+}
+
+/* Wiggle Utilities */
+.wiggle {
+  animation: wiggle 0.5s ease-in-out;
+}
+
+.wiggle-infinite {
+  animation: wiggle 0.5s ease-in-out infinite;
+}
+
+/* Pulse Utilities */
+.pulse {
+  animation: pulse 0.8s ease-in-out;
+}
+
+.pulse-infinite {
+  animation: pulse 0.8s ease-in-out infinite;
+}
+
+/* Pop Utilities */
+.pop {
+  animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation-fill-mode: both;
+}
+
+/* Speed Control Utilities */
+.animation-fast {
+  animation-duration: 0.2s !important;
+}
+
+.animation-normal {
+  animation-duration: 0.35s !important;
+}
+
+.animation-slow {
+  animation-duration: 0.5s !important;
+}
+
+/* Stagger Control Utilities */
+.stagger-1 { animation-delay: 0.05s !important; }
+.stagger-2 { animation-delay: 0.1s !important; }
+.stagger-3 { animation-delay: 0.15s !important; }
+.stagger-4 { animation-delay: 0.2s !important; }
+.stagger-5 { animation-delay: 0.25s !important; } 
