@@ -1,0 +1,278 @@
+---
+import ChonkButton from "@/components/ChonkButton.astro";
+import CommentIcon from "@fortawesome/fontawesome-free/svgs/solid/comment.svg";
+import TagIcon from "@fortawesome/fontawesome-free/svgs/solid/tag.svg";
+import ThreadIcon from "@fortawesome/fontawesome-free/svgs/solid/layer-group.svg";
+import HashtagIcon from "@fortawesome/fontawesome-free/svgs/solid/hashtag.svg";
+
+interface Props {
+  noteId: number | string;
+}
+
+const { noteId } = Astro.props;
+---
+
+<div 
+  x-data="{ 
+    activeDrawer: null,
+    toggleDrawer(drawer) {
+      if (this.activeDrawer === drawer) {
+        this.activeDrawer = null;
+        window.dispatchEvent(new CustomEvent('hide-drawer'));
+      } else {
+        this.activeDrawer = drawer;
+        window.dispatchEvent(new CustomEvent('hide-drawer'));
+        window.dispatchEvent(new CustomEvent('show-drawer', { detail: { drawer } }));
+      }
+    }
+  }" 
+  class="w-full inline-flex items-center justify-between"
+  style="width: 100%;"
+  @hide-drawer.window="activeDrawer = null"
+>
+  <div class="flex items-center gap-3">
+    <div 
+      x-bind:class="activeDrawer === 'comments' ? 'active-button' : ''"
+      x-on:click="toggleDrawer('comments')"
+      class="button-wrapper"
+    >
+      <ChonkButton 
+        text="0"
+        size="small"
+      >
+        <CommentIcon class="w-[15px] h-[15px]" />
+        <span class="hidden" data-counter="comments">0</span>
+      </ChonkButton>
+    </div>
+    
+    <div 
+      x-bind:class="activeDrawer === 'tags' ? 'active-button' : ''"
+      x-on:click="toggleDrawer('tags')"
+      class="button-wrapper"
+    >
+      <ChonkButton 
+        text="0"
+        size="small"
+      >
+        <TagIcon class="w-[15px] h-[15px]" />
+        <span class="hidden" data-counter="tags">0</span>
+      </ChonkButton>
+    </div>
+    
+    <div 
+      x-bind:class="activeDrawer === 'threads' ? 'active-button' : ''"
+      x-on:click="toggleDrawer('threads')"
+      class="button-wrapper"
+    >
+      <ChonkButton 
+        text="0"
+        size="small"
+      >
+        <ThreadIcon class="w-[15px] h-[15px]" />
+        <span class="hidden" data-counter="threads">0</span>
+      </ChonkButton>
+    </div>
+  </div>
+  
+  <div class="flex items-center">
+    <div 
+      x-bind:class="activeDrawer === 'note-id' ? 'active-button-text' : ''"
+      x-on:click="toggleDrawer('note-id')"
+      class="note-id-text-wrapper"
+    >
+      <HashtagIcon class="w-[15px] h-[15px] note-id-icon" />
+      <span class="note-id-text">{`N${String(noteId).padStart(3, '0')}`}</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Update counters from data attributes
+  document.addEventListener('DOMContentLoaded', () => {
+    const updateCounters = () => {
+      const counterElements = document.querySelectorAll('[data-counter]');
+      
+      counterElements.forEach(element => {
+        const type = element.getAttribute('data-counter');
+        const count = element.textContent;
+        const button = element.closest('button');
+        
+        if (button) {
+          const textElement = button.querySelector('p');
+          if (textElement) {
+            textElement.textContent = count;
+          }
+        }
+      });
+    };
+    
+    // Initial update
+    updateCounters();
+    
+    // Listen for changes to counter elements
+    const observer = new MutationObserver(updateCounters);
+    const counterElements = document.querySelectorAll('[data-counter]');
+    
+    counterElements.forEach(element => {
+      observer.observe(element, { childList: true, characterData: true, subtree: true });
+    });
+  });
+</script>
+
+<style>
+  .button-wrapper {
+    cursor: pointer;
+  }
+
+  /* Adjust ChonkButton styling to match the original metabar buttons */
+  .button-wrapper :global(button) {
+    padding: 6px 12px 10px 10px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 4px !important;
+    border-radius: 6px !important;
+    background: var(--color-paper, #EBE7DB) !important;
+    min-width: fit-content !important;
+    transition: transform 0.1s ease, background-color 0.2s ease !important;
+  }
+
+  .button-wrapper :global(button > div) {
+    flex-direction: row !important;
+    gap: 4px !important;
+  }
+
+  .button-wrapper :global(p) {
+    font-family: "Reddit Mono" !important;
+    font-size: 12px !important;
+    font-style: normal !important;
+    font-weight: 500 !important;
+    line-height: normal !important;
+    color: var(--color-stone-grey, #78766F) !important;
+  }
+  
+  /* Make icons stone-gray */
+  .button-wrapper :global(svg) {
+    fill: var(--color-stone-grey, #78766F) !important;
+    color: var(--color-stone-grey, #78766F) !important;
+  }
+
+  .active-button :global(button) {
+    background-color: var(--color-stone-grey, #78766F) !important;
+    color: var(--color-light-paper, #F7F7F6) !important;
+  }
+  
+  .active-button :global(p) {
+    color: var(--color-light-paper, #F7F7F6) !important;
+  }
+  
+  .active-button :global(svg) {
+    fill: var(--color-light-paper, #F7F7F6) !important;
+    color: var(--color-light-paper, #F7F7F6) !important;
+  }
+
+  @media (max-width: 400px) {
+    .button-wrapper :global(button) {
+      padding: 6px 10px 10px 8px !important;
+      gap: 3px !important;
+    }
+    
+    .button-wrapper :global(p) {
+      font-size: 10px !important;
+    }
+  }
+
+  /* Custom styling for note ID without ChonkButton */
+  .custom-note-id {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 12px 10px 10px;
+    border-radius: 6px;
+    background: var(--color-paper, #EBE7DB);
+    min-width: fit-content;
+    transition: transform 0.1s ease, background-color 0.2s ease;
+    box-shadow: 0px -4px 0px 0px #00000040 inset;
+  }
+  
+  .custom-note-id:active {
+    transform: scale(0.99);
+    box-shadow: 0px -2px 0px 0px #0000001a inset,
+      0px 0px 2px 0px #00000040,
+      0px 2px 0px 0px #00000040 inset;
+  }
+  
+  .note-id-text {
+    font-family: "Reddit Mono";
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+    color: var(--color-stone-grey, #78766F);
+  }
+  
+  .active-button .custom-note-id {
+    background-color: var(--color-stone-grey, #78766F);
+  }
+  
+  .active-button .note-id-text {
+    color: var(--color-light-paper, #F7F7F6);
+  }
+  
+  .active-button .custom-note-id svg {
+    fill: var(--color-light-paper, #F7F7F6);
+    color: var(--color-light-paper, #F7F7F6);
+  }
+  
+  @media (max-width: 400px) {
+    .custom-note-id {
+      padding: 6px 10px 10px 8px;
+      gap: 3px;
+    }
+    
+    .note-id-text {
+      font-size: 10px;
+    }
+  }
+
+  /* Simple note ID text styling */
+  .note-id-text-wrapper {
+    cursor: pointer;
+    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .note-id-text {
+    font-family: "Reddit Mono";
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+    color: var(--color-stone-grey, #78766F);
+  }
+  
+  .note-id-icon {
+    fill: var(--color-stone-grey, #78766F);
+    color: var(--color-stone-grey, #78766F);
+  }
+  
+  .active-button-text .note-id-text {
+    color: var(--color-stone-grey, #78766F);
+    text-decoration: underline;
+  }
+  
+  .active-button-text .note-id-icon {
+    fill: var(--color-stone-grey, #78766F);
+    color: var(--color-stone-grey, #78766F);
+  }
+  
+  @media (max-width: 400px) {
+    .note-id-text {
+      font-size: 10px;
+    }
+  }
+</style> 

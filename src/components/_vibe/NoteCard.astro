@@ -1,0 +1,66 @@
+---
+import DOMPurify from "isomorphic-dompurify";
+import IconButton from "@/components/IconButton.astro";
+import FaQuestionIcon from "@fortawesome/fontawesome-free/svgs/solid/question.svg";
+
+interface Props {
+  title: string;
+  content: string;
+}
+
+const { title, content } = Astro.props;
+
+const sanitizedContent = DOMPurify.sanitize(content, {
+  ALLOWED_TAGS: ["div", "p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "br"], // Strip all HTML tags
+  ALLOWED_ATTR: [] // Strip all attributes
+});
+
+// Decode HTML entities and normalize whitespace
+const decodedContent = sanitizedContent
+  .replace(/<\/(div|p|h[1-6]|blockquote|pre)>/gi, '\n')
+  .replace(/<br>/gi, '\n')
+  .replace(/<[^>]*>/g, '')
+  .replace(/&nbsp;/g, ' ')
+  .replace(/&amp;/g, '&')
+  .replace(/&lt;/g, '<')
+  .replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"')
+  .replace(/&#39;/g, "'")
+  .trim();
+
+console.log({content, decodedContent});
+
+const trimmedContent = decodedContent.slice(0, 100);
+---
+
+<section
+  class="h-full box-border grid grid-cols-[28px_1fr] bg-white rounded-xl shadow-[var(--shadow-primary)] overflow-hidden"
+>
+  {/* Side Highlight */}
+  <div class="relative h-full w-full bg-[var(--color-light-paper)] py-3">
+    {/* Circle Icon */}
+    <div class="absolute top-3 -right-4">
+      <IconButton size="sm">
+        <FaQuestionIcon />
+      </IconButton>
+    </div>
+  </div>
+  <div class="ps-7 pe-3 flex flex-col gap-1.5 py-3">
+    <h2
+      class="overflow-wrap-anywhere text-[var(--text-color-primary)] text-lg font-bold line-clamp-2"
+    >
+      {title}
+    </h2>
+    <p
+      class="select-text overflow-wrap-anywhere whitespace-pre-line text-[var(--text-color-secondary)] text-sm line-clamp-3"     
+    >
+      {trimmedContent}
+    </p>
+  </div>
+</section>
+
+<style>
+  .overflow-wrap-anywhere {
+    overflow-wrap: anywhere;
+  }
+</style>

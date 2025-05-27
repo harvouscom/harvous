@@ -1,0 +1,54 @@
+---
+import { actions } from "astro:actions";
+import Layout from "@/layouts/Layout.astro";
+import Tab from "@/components/TabBar/Tab.astro";
+import TrixEditor from "@/components/TrixEditor.astro";
+import TrixToolbarV2 from "@/components/TrixToolbarV2.astro";
+const currentUser = Astro.locals.auth();
+const userId = currentUser ? currentUser.userId : null;
+
+if (!userId) {
+  return Astro.redirect("/login");
+}
+
+const result = Astro.getActionResult(actions.notes.create);
+
+if (result?.data?.success) {
+  return Astro.redirect("/dashboard/notes/" + result.data.note.id);
+}
+---
+
+<Layout title="Note">
+  <section class="bg-(--color-fog-white) pt-3">
+    <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
+      <Tab label="Feed" href="/dashboard" />
+      <Tab label="Note" active />
+    </div>
+  </section>
+
+  <main
+    class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
+  >
+    <form
+      class="grid gap-3"
+      method="POST"
+      action={actions.notes.create}
+    >
+      <input
+        class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
+        type="text"
+        name="title"
+        placeholder="Title"
+        required
+      />
+      <TrixEditor toolbar="my_toolbar" name="content" content="" placeholder="Content" />
+      <TrixToolbarV2 id="my_toolbar" input="content" />
+      <input type="hidden" name="userId" value={userId} />
+      <input type="hidden" name="isPublic" value="false" />
+      <button
+        class="bg-[var(--color-blue)] text-white py-3 px-3 rounded-xl shadow-[0px_-4px_0px_0px_#0000001A_inset] h-[60px]"
+        type="submit">Create Note</button
+      >
+    </form>
+  </main>
+</Layout>
