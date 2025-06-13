@@ -21,6 +21,8 @@ const { className = "", placeholder = "Search" } = Astro.props;
         placeholder={placeholder}
     />
     <FaXmarkIcon 
+        role="button"
+        aria-label="Clear search"
         x-cloak
         x-show="Boolean(query)" 
         x-on:click="query = ''"
