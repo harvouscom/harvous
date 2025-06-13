@@ -33,6 +33,8 @@
     --shadow-primary: 0px 6px 0px 0px #D3D0C5;
     --text-color-primary: var(--color-deep-grey);
     --text-color-secondary: var(--color-stone-grey);
+    --color-gradient-gray: linear-gradient(126.64deg, rgba(255, 255, 255, 0.8) 11.71%, #F8F8F8 71.33%);
+    --shadow-small: inset 0px -3px 0px rgba(120, 118, 111, 0.2);
 }
 
 @theme {

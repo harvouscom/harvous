@@ -1,0 +1,37 @@
+---
+import FaSearchIcon from "@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg";
+import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+
+interface Props {
+    className?: string;
+    placeholder?: string;
+}
+
+const { className = "", placeholder = "Search" } = Astro.props;
+---
+
+<div x-data="{ query: '' }" class={`w-xs ${className} search-input rounded-3xl grid items-center grid-cols-[auto_1fr_auto] py-[18px_20px] px-4 gap-3`}>
+    <FaSearchIcon size="20" class="fill-(--color-pebble-grey)" />
+    <input 
+        x-model="query"
+        type="text" 
+        role="searchbox"
+        aria-label="Search"
+        class="outline-none text-subtitle text-(--color-deep-grey) placeholder:text-(--color-pebble-grey)" 
+        placeholder={placeholder}
+    />
+    <FaXmarkIcon 
+        x-cloak
+        x-show="Boolean(query)" 
+        x-on:click="query = ''"
+        size="20" 
+        class="fill-(--color-deep-grey)" 
+    />
+</div>
+
+<style>
+    .search-input {
+        background: var(--color-gradient-gray);
+        box-shadow: var(--shadow-small);
+    }
+</style>
