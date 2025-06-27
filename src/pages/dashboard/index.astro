@@ -6,6 +6,7 @@ import NoteCard from "@/components/NoteCard.astro";
 import CtaButton from "@/components/CtaButton.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import SearchInput from "@/components/SearchInput.astro";
+import SquareButton from "@/components/SquareButton.astro";
 if (!Astro.locals.auth().userId) {
   return Astro.redirect("/");
 }
@@ -25,6 +26,11 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
       <Tab label="Feed" href="#" active />
     </div>
   </section>
+
+  <SquareButton variant="Close" />
+  <SquareButton variant="Add" />
+  <SquareButton variant="More" />
+  <SquareButton variant="Back" />
 
   <main
     class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
