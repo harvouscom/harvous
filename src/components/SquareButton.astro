@@ -1,0 +1,134 @@
+---
+import FaAngleLeftIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-left.svg";
+import FaPlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
+import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import FaEllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
+
+export interface Props {
+  variant?: "Add" | "Close" | "More" | "Back";
+}
+const { variant = "More" } = Astro.props;
+---
+
+{variant === "Back" && (
+  <button
+    class="[&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
+    style="background-image: var(--color-gradient-gray);"
+    {...Astro.props}
+  >
+    <div class="flex flex-row items-center justify-center relative w-full h-full">
+      <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-[18px] px-4 relative w-full h-full">
+        <div class="relative shrink-0 w-[30px] h-[30px] flex items-center justify-center">
+          <FaAngleLeftIcon class="-translate-y-0.5 fill-(--color-pebble-grey) block max-w-none w-full h-full transition-transform duration-125" />
+        </div>
+      </div>
+    </div>
+  </button>
+)}
+
+{variant === "Close" && (
+  <button
+    data-outer-shadow
+    class="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] bg-[var(--color-stone-grey)] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
+    {...Astro.props}
+  >
+    <div class="flex flex-row items-center justify-center relative w-full h-full">
+      <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-4 px-4 relative w-full h-full">
+        <div class="flex h-[42.426px] items-center justify-center relative shrink-0 w-[42.426px]">
+          <div class="flex-none">
+            <div class="relative w-[30px] h-[30px] flex items-center justify-center">
+              <FaXmarkIcon class="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+  </button>
+)}
+
+{variant === "Add" && (
+  <button
+    data-outer-shadow
+    class="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] bg-[var(--color-blue)] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
+    {...Astro.props}
+  >
+    <div class="flex flex-row items-center justify-center relative w-full h-full">
+      <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-4 px-4 relative w-full h-full">
+        <div class="relative shrink-0 w-[30px] h-[30px] flex items-center justify-center">
+          <FaPlusIcon class="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" />
+        </div>
+      </div>
+    </div>
+    <div class="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+  </button>
+)}
+
+{variant === "More" && (
+  <button
+    class="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow]  duration-300"
+    style="background-image: var(--color-gradient-gray);"
+    {...Astro.props}
+  >
+    <div class="flex flex-row items-center justify-center relative w-full h-full">
+      <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-[18px] px-4 relative w-full h-full">
+        <div class="flex h-[30px] items-center justify-center relative shrink-0 w-[30px]">
+          <div class="flex-none">
+            <div class="relative w-[30px] h-[30px] flex items-center justify-center">
+              <FaEllipsisIcon class="rotate-90 -translate-y-0.5 fill-(--color-pebble-grey) block max-w-none w-full h-full transition-transform duration-125" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </button>
+)}
+
+<style>
+  button[data-outer-shadow] {
+    will-change: transform, box-shadow;
+    transition:
+      background-color 0.125s ease-in-out,
+      box-shadow 0.125s ease-in-out;
+    box-shadow:
+      0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+      0px 4px 4px 0px hsla(0, 0%, 0%, 0.25);
+  }
+  
+  button:not([data-outer-shadow]) {
+    transition:
+      box-shadow 0.125s ease-in-out;
+    box-shadow: 0px -3px 0px 0px #78766F33 inset;
+  }
+
+  button:not([data-outer-shadow]):active {
+    filter: brightness(0.97);
+    box-shadow: 
+      0px -1px 0px 0px #78766F33 inset,
+      0px 1px 0px 0px #78766F33 inset;
+  }
+
+  button {
+    will-change: transform, box-shadow;
+  }
+
+  button:active > img {
+    transform: scale(0.95);
+  }
+
+  button:active[class*="bg-[var(--color-blue)]"] {
+    background-color: var(--color-navy);
+    box-shadow:
+      0px -4px 0px 0px #0000001a inset,
+      0px 0px 4px 0px #00000040,
+      0px 4px 0px 0px #00000040 inset;
+  }
+
+  button:active[class*="bg-[var(--color-stone-grey)]"] {
+    background-color: var(--color-deep-grey);
+    box-shadow:
+      0px -4px 0px 0px #0000001a inset,
+      0px 0px 4px 0px #00000040,
+      0px 4px 0px 0px #00000040 inset;
+  }
+</style> 
