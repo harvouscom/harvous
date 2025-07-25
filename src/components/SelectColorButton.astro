@@ -1,0 +1,92 @@
+---
+export interface Props {
+  showCheck?: boolean;
+  color?: "Paper" | "Blue" | "Yellow" | "Orange" | "Green" | "Pink" | "Purple";
+  name?: string;
+  value?: string;
+  checked?: boolean;
+  disabled?: boolean;
+  groupName?: string;
+}
+
+const {
+  showCheck = true,
+  color = "Paper",
+  name = "color",
+  value,
+  checked = false,
+  disabled = false,
+  groupName
+} = Astro.props;
+
+// Color mapping to CSS variables
+const colorMap = {
+  Paper: "var(--color-paper)",
+  Blue: "var(--color-blessed-blue)",
+  Yellow: "var(--color-graceful-gold)",
+  Orange: "var(--color-pleasant-peach)",
+  Green: "var(--color-mindful-mint)",
+  Pink: "var(--color-peaceful-pink)",
+  Purple: "var(--color-lovely-lavender)"
+};
+
+const backgroundColor = colorMap[color];
+---
+
+<div 
+  class="relative rounded-xl w-10 h-10"
+  x-data="{ isChecked: false }"
+  x-init="isChecked = JSON.parse($el.dataset.checked || 'false')"
+  data-checked={checked}
+  data-color={color}
+  data-value={value || color}
+  data-disabled={disabled}
+  data-group-name={groupName}
+  @click={`
+    if (JSON.parse($el.dataset.disabled || 'false')) return;
+    isChecked = !isChecked;
+    $dispatch('color-toggled', { 
+      value: $el.dataset.value, 
+      color: $el.dataset.color, 
+      checked: isChecked 
+    });
+  `}
+>
+  <div
+    class="relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 ease-in-out cursor-pointer"
+    :class={`{
+      'scale-105': isChecked,
+      'opacity-50 cursor-not-allowed': JSON.parse($el.dataset.disabled || 'false')
+    }`}
+    style={`background-color: ${backgroundColor};`}
+  >
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <svg
+            class="w-5 h-5 text-gray-700 transition-opacity duration-200"
+            :class="{ 'opacity-0': !isChecked, 'opacity-100': isChecked }"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            xmlns="http://www.w3.org/2000/svg"
+        >
+            <path
+            fill-rule="evenodd"
+            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+            clip-rule="evenodd"
+            />
+        </svg>
+    </div>
+    
+    <div class="absolute inset-0 pointer-events-none shadow-[0px_-3px_0px_0px_inset_rgba(120,118,111,0.2)] rounded-xl"></div>
+  </div>
+</div>
+
+<style>
+  .relative:active > div {
+    transform: translateY(0);
+  }
+  
+  .relative:focus-within > div {
+    outline: 2px solid var(--color-blue);
+    outline-offset: 2px;
+  }
+</style> 
