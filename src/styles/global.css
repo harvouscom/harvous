@@ -68,3 +68,26 @@
 .trix-content h1 {
     @apply font-sans font-medium text-[18px] leading-[100%] tracking-normal;
 }
+
+.btn-animate-squish {
+    will-change: transform, box-shadow;
+    transition: box-shadow 0.125s ease-in-out;
+    box-shadow: 0px -3px 0px 0px #78766F33 inset;
+}
+
+.btn-animate-squish:active {
+    filter: brightness(0.97);
+    box-shadow: 
+        0px -1px 0px 0px #78766F33 inset,
+        0px 1px 0px 0px #78766F33 inset;
+}
+
+.btn-animate-squish svg {
+    will-change: transform, translate;
+    transition: transform 0.125s ease-in-out, translate 0.125s ease-in-out;
+}
+
+.btn-animate-squish:active svg {
+    translate: 0 0;
+    transform: scale(0.95);
+}
