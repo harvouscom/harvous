@@ -1,5 +1,5 @@
 ---
-import { actions } from "astro:actions";
+// import { actions } from "astro:actions";
 import { db, eq, Notes } from "astro:db";
 import Layout from "@/layouts/Layout.astro";
 import NoteCard from "@/components/NoteCard.astro";
@@ -7,6 +7,9 @@ import CtaButton from "@/components/CtaButton.astro";
 import Tab from "@/components/TabBar/Tab.astro";
 import SearchInput from "@/components/SearchInput.astro";
 import SquareButton from "@/components/SquareButton.astro";
+import ActionButton from "@/components/ActionButton.astro";
+import FaPaperclipIcon from "@fortawesome/fontawesome-free/svgs/solid/paperclip.svg";
+
 if (!Astro.locals.auth().userId) {
   return Astro.redirect("/");
 }
@@ -31,6 +34,9 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
   <SquareButton variant="Add" />
   <SquareButton variant="More" />
   <SquareButton variant="Back" />
+  <ActionButton>
+    <FaPaperclipIcon />
+  </ActionButton>
 
   <main
     class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
