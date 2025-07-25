@@ -5,32 +5,29 @@ export interface Props {
 ---
 
 <button
-  class="group relative rounded-3xl w-10 h-10 cursor-pointer transition-all duration-300 overflow-hidden"
+  class="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-10 h-10 cursor-pointer transition-[scale,shadow] duration-300"
   style="background-image: var(--color-gradient-gray)"
   {...Astro.props}
 >
   <div class="box-border content-stretch flex flex-row gap-3 items-center justify-center relative rounded-3xl size-full">
-    <div class="relative shrink-0 size-5 flex items-center justify-center fill-(--color-pebble-grey) [&>svg]:h-5 [&>svg]:w-5 [&>svg]:-translate-y-0.5">
+    <div class="relative shrink-0 size-5 flex items-center justify-center fill-(--color-pebble-grey) [&>svg]:h-5 [&>svg]:w-5 [&>svg]:-translate-y-0.5 [&>svg]:transition-transform [&>svg]:duration-125">
       <slot />
     </div>
   </div>
-  <div class="absolute rounded-3xl inset-0 pointer-events-none shadow-[0px_-3px_0px_0px_inset_rgba(120,118,111,0.2)]" />
 </button>
 
 <style>
   button {
     will-change: transform, box-shadow;
-    transition: all 0.125s ease-in-out;
+    transition:
+      box-shadow 0.125s ease-in-out;
+    box-shadow: 0px -3px 0px 0px #78766F33 inset;
   }
 
   button:active {
     filter: brightness(0.97);
-    transform: scale(0.95);
-  }
-
-  button:active .shadow-inset {
     box-shadow: 
-      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
-      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+      0px -1px 0px 0px #78766F33 inset,
+      0px 1px 0px 0px #78766F33 inset;
   }
 </style>
