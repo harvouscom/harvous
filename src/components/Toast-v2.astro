@@ -1,54 +1,64 @@
 ---
-interface Props {
-  type?: 'success' | 'error';
-  message: string;
-  onClose?: () => void;
-}
-
-const { type = 'success', message, onClose } = Astro.props;
+import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 ---
 
 <div 
-  class="toast-container fixed top-4 right-4 z-50"
-  x-data="{ show: true }"
-  x-show="show"
+  x-cloak
+  x-show="showToast"
+  class="fixed top-3 left-3 right-3 mx-auto max-w-md z-50"
   x-transition:enter="transition ease-out duration-300"
-  x-transition:enter-start="opacity-0 transform translate-y-2"
-  x-transition:enter-end="opacity-100 transform translate-y-0"
-  x-transition:leave="transition ease-in duration-200"
-  x-transition:leave-start="opacity-100 transform translate-y-0"
-  x-transition:leave-end="opacity-0 transform translate-y-2"
+  x-transition:enter-start="transform translate-y-[-1rem]"
+  x-transition:enter-end="transform translate-y-0"
+  x-transition:leave="transition ease-in duration-300"
+  x-transition:leave-start="transform translate-y-0"
+  x-transition:leave-end="transform translate-y-[-1rem]"
+  @toast.window="makeToast($event.detail.message || 'Notification', $event.detail.type || 'success')"
 >
-  <div class="toast-card bg-white rounded-xl shadow-toast flex items-center gap-3 px-5 py-4 min-w-[280px] max-w-[400px]">
+  <div 
+    role="alert"
+    x-bind:data-type="type"
+    class="toast-card bg-white rounded-xl shadow-toast flex items-center gap-3 px-5 py-4"
+  >
     <!-- Icon -->
     <div class="flex-shrink-0">
-      {type === 'success' ? (
-        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-        </svg>
-      ) : (
-        <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-        </svg>
-      )}
+      <!-- Success Icon -->
+      <svg 
+        x-show="type === 'success'"
+        class="w-5 h-5 text-green-600" 
+        fill="currentColor" 
+        viewBox="0 0 20 20"
+      >
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+      </svg>
+      
+      <!-- Error Icon -->
+      <svg 
+        x-show="type === 'error'"
+        class="w-5 h-5 text-red-600" 
+        fill="currentColor" 
+        viewBox="0 0 20 20"
+      >
+        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+      </svg>
     </div>
 
     <!-- Message -->
     <div class="flex-1">
-      <p class={`font-semibold text-lg leading-tight ${type === 'success' ? 'text-deep-gray' : 'text-red-600'}`}>
-        {message}
-      </p>
+      <p 
+        class="font-semibold text-lg leading-tight"
+        x-bind:class="type === 'success' ? 'text-deep-gray' : 'text-red-600'"
+        x-text="message"
+      ></p>
     </div>
 
     <!-- Close button -->
     <button 
       class="flex-shrink-0 text-deep-gray hover:text-gray-600 transition-colors"
-      @click="show = false"
+      @click="dismissToast()"
       aria-label="Close notification"
     >
-      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-      </svg>
+      {/* @ts-ignore */}
+      <FaXmarkIcon class="w-5 h-5 fill-current" />
     </button>
   </div>
 </div>
