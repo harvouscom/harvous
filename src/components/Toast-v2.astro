@@ -7,19 +7,19 @@ import TriangleExclamationIcon from "@fortawesome/fontawesome-free/svgs/solid/tr
 <div 
   x-cloak
   x-show="showToast"
-  class="fixed top-3 left-3 right-3 mx-auto max-w-md z-50"
-  x-transition:enter="transition ease-out duration-300"
-  x-transition:enter-start="transform translate-y-[-1rem]"
+  class="fixed rounded-xl shadow-toast top-12 left-4 right-4 mx-auto max-w-md z-50 will-change-[translate]"
+  x-transition:enter="transition ease-in-out duration-500"
+  x-transition:enter-start="transform !shadow-none translate-y-[-200%]"
   x-transition:enter-end="transform translate-y-0"
-  x-transition:leave="transition ease-in duration-300"
+  x-transition:leave="transition ease-in-out duration-500"
   x-transition:leave-start="transform translate-y-0"
-  x-transition:leave-end="transform translate-y-[-1rem]"
+  x-transition:leave-end="transform !shadow-none translate-y-[-200%]"
   @toast.window="makeToast($event.detail.message || 'Notification', $event.detail.type || 'success')"
 >
   <div 
     role="alert"
     x-bind:data-type="type"
-    class="toast-card text-(--color-deep-grey) bg-white rounded-xl shadow-toast flex items-center gap-3 px-5 py-4"
+    class="toast-card text-(--color-deep-grey) bg-white rounded-xl flex items-center gap-3 px-5 py-5"
   >
     <!-- Icon -->
     <div class="flex-shrink-0">
@@ -31,7 +31,7 @@ import TriangleExclamationIcon from "@fortawesome/fontawesome-free/svgs/solid/tr
     <!-- Message -->
     <div class="flex-1">
       <p 
-        class="font-semibold text-lg leading-tight"
+        class="text-subtitle"
         :class="{ 'text-(--color-red)': type === 'error' }"
         x-text="message"
       ></p>
@@ -52,10 +52,10 @@ import TriangleExclamationIcon from "@fortawesome/fontawesome-free/svgs/solid/tr
 <style>
   .shadow-toast {
     box-shadow: 
-      0px 185px 52px 0px rgba(0,0,0,0),
-      0px 119px 47px 0px rgba(0,0,0,0.01),
-      0px 67px 40px 0px rgba(0,0,0,0.05),
-      0px 30px 30px 0px rgba(0,0,0,0.09),
-      0px 7px 16px 0px rgba(0,0,0,0.1);
+      0px 7px 16px 0px rgba(0, 0, 0, 0.1),
+      0px 30px 30px 0px rgba(0, 0, 0, 0.09),
+      0px 67px 40px 0px rgba(0, 0, 0, 0.05),
+      0px 119px 47px 0px rgba(0, 0, 0, 0.01),
+      0px 185px 52px 0px rgba(0, 0, 0, 0);
   }
 </style>
