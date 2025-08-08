@@ -1,5 +1,7 @@
 ---
 import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import CircleCheck from "@fortawesome/fontawesome-free/svgs/solid/circle-check.svg";
+import TriangleExclamationIcon from "@fortawesome/fontawesome-free/svgs/solid/triangle-exclamation.svg";
 ---
 
 <div 
@@ -17,36 +19,20 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
   <div 
     role="alert"
     x-bind:data-type="type"
-    class="toast-card bg-white rounded-xl shadow-toast flex items-center gap-3 px-5 py-4"
+    class="toast-card text-(--color-deep-grey) bg-white rounded-xl shadow-toast flex items-center gap-3 px-5 py-4"
   >
     <!-- Icon -->
     <div class="flex-shrink-0">
-      <!-- Success Icon -->
-      <svg 
-        x-show="type === 'success'"
-        class="w-5 h-5 text-green-600" 
-        fill="currentColor" 
-        viewBox="0 0 20 20"
-      >
-        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-      </svg>
+      <CircleCheck x-show="type === 'success'" class="w-5 h-5 fill-(--color-deep-grey)" />
       
-      <!-- Error Icon -->
-      <svg 
-        x-show="type === 'error'"
-        class="w-5 h-5 text-red-600" 
-        fill="currentColor" 
-        viewBox="0 0 20 20"
-      >
-        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-      </svg>
+      <TriangleExclamationIcon x-show="type === 'error'" class="w-5 h-5 fill-(--color-red)" />       
     </div>
 
     <!-- Message -->
     <div class="flex-1">
       <p 
         class="font-semibold text-lg leading-tight"
-        x-bind:class="type === 'success' ? 'text-deep-gray' : 'text-red-600'"
+        :class="{ 'text-(--color-red)': type === 'error' }"
         x-text="message"
       ></p>
     </div>

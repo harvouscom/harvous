@@ -44,6 +44,6 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
       <CtaButton />
     </a>
 
-    <button @click="$dispatch('toast', { message: 'Hello, world!', type: 'info' });">Show Toast</button>
+    <button @click="$dispatch('toast', { message: 'Hello, world!', type: 'success' });">Show Toast</button>
   </main>
 </Layout>

@@ -12,7 +12,7 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
   x-transition:leave-start="transform translate-y-0"
   x-transition:leave-end="transform translate-y-[-1rem]"
   class="fixed top-3 left-3 right-3 mx-auto max-w-md z-50"
-  @toast.window="makeToast($event.detail.message || 'Notification', $event.detail.type || 'info')"
+  @toast.window="makeToast($event.detail.message || 'Notification', $event.detail.type || 'success')"
 >
   <section 
     role="alert" 

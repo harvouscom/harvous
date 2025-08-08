@@ -52,8 +52,8 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
     Alpine.data('toast', () => ({
       showToast: false,
       message: '',
-      type: 'info' as "info" | "error",
-      makeToast(message: string, type: "info" | "error") {
+      type: 'success' as "success" | "error",
+      makeToast(message: string, type: "success" | "error") {
         this.showToast = true;
         this.message = message;
         this.type = type;
@@ -62,7 +62,7 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
         this.showToast = false;
         setTimeout(() => {
           this.message = '';
-          this.type = 'info';
+          this.type = 'success';
         }, 300);
       },
       init() {
@@ -71,7 +71,7 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
           const urlParams = new URLSearchParams(window.location.search);
           const message = urlParams.get('toast');
           if (message) {
-            this.makeToast(message, 'info');
+            this.makeToast(message, 'success');
           }
 
           // Now, clear the toast from the URL params.
