@@ -60,6 +60,7 @@ const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
     </a>
 
     <button @click="$dispatch('toast', { message: 'Hello, world!', type: 'success' });">Show Toast</button>
+    <button @click="$dispatch('toast', { message: 'BIG BOI ERROR OUCH', type: 'error' });">Show Error Toast</button>
 
     <!-- Color Picker Test Section -->
     <div class="mt-8 p-6 bg-white rounded-xl shadow-sm border border-gray-100">

@@ -38,13 +38,13 @@ import TriangleExclamationIcon from "@fortawesome/fontawesome-free/svgs/solid/tr
     </div>
 
     <!-- Close button -->
-    <button 
-      class="flex-shrink-0 text-deep-gray hover:text-gray-600 transition-colors"
+    <button
+      class="flex-shrink-0"
       @click="dismissToast()"
       aria-label="Close notification"
     >
       {/* @ts-ignore */}
-      <FaXmarkIcon class="w-5 h-5 fill-current" />
+      <FaXmarkIcon class="w-5 h-5 transition-colors" :class="{ 'fill-(--color-red)': type === 'error' }" />
     </button>
   </div>
 </div>
