@@ -1,0 +1,77 @@
+---
+import { db, eq, Notes, and } from "astro:db";
+import { z } from "zod";
+import { actions } from "astro:actions";
+import Layout from "@/layouts/Layout.astro";
+import Tab from "@/components/TabBar/Tab.astro";
+import TrixEditor from "@/components/TrixEditor.astro";
+import TrixToolbarV2 from "@/components/TrixToolbarV2.astro";
+
+const { id } = Astro.params;
+
+if (!id || z.number({ coerce: true }).safeParse(id).success === false) {
+  return Astro.redirect("/dashboard/notes");
+}
+
+const numericId = parseInt(id);
+const currentUser = Astro.locals.auth();
+const userId = currentUser ? currentUser.userId : null;
+
+if (!userId) {
+  return Astro.redirect("/login");
+}
+
+const notes = await db
+  .select()
+  .from(Notes)
+  .where(and(eq(Notes.id, numericId), eq(Notes.userId, userId as string)))
+  .limit(1);
+
+if (!notes.length) {
+  return Astro.redirect("/dashboard/notes");
+}
+
+const noteData = notes[0];
+
+const result = Astro.getActionResult(actions.notes.update);
+if (result?.data?.success && result.data.note) {
+  return Astro.redirect("/dashboard/notes/" + result.data.note[0].id);
+}
+---
+
+<Layout title="Note">
+  <section class="bg-(--color-fog-white) pt-3">
+    <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
+      <Tab label="Feed" href="/dashboard" />
+      <Tab label="Note" active />
+    </div>
+  </section>
+
+  <main
+    class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
+  >
+    <form
+      class="grid gap-3"
+      method="POST"
+      action={actions.notes.update}
+    >
+      <input
+        class="bg-[var(--color-fog-white)] py-3 px-3 rounded-xl"
+        type="text"
+        name="title"
+        placeholder="Title"
+        required
+        value={noteData.title}
+      />
+      <TrixEditor toolbar="my_toolbar" name="content" content={noteData.content} placeholder="Content" />
+      <TrixToolbarV2 id="my_toolbar" input="content" />
+      <input type="hidden" name="id" value={noteData.id} />
+      <input type="hidden" name="userId" value={userId} />
+      <input type="hidden" name="isPublic" value="false" />
+      <button
+        class="bg-[var(--color-blue)] text-white py-3 px-3 rounded-xl shadow-[0px_-4px_0px_0px_#0000001A_inset] h-[60px]"
+        type="submit">Save</button
+      >
+    </form>
+  </main>
+</Layout>

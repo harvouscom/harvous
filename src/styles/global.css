@@ -22,7 +22,7 @@
 :root {
     --color-blue: #006EFF;
     --color-navy: #0048A6;
-    --color-red: #CE4A2E;
+    --color-red: #E4062E;
     --color-deep-grey: #4A473D;
     --color-stone-grey: #78766F;
     --color-pebble-grey: #888680;
@@ -44,6 +44,8 @@
     --shadow-primary: 0px 6px 0px 0px #D3D0C5;
     --text-color-primary: var(--color-deep-grey);
     --text-color-secondary: var(--color-stone-grey);
+    --color-gradient-gray: linear-gradient(126.64deg, rgba(255, 255, 255, 0.8) 11.71%, #F8F8F8 71.33%);
+    --shadow-small: inset 0px -3px 0px rgba(120, 118, 111, 0.2);
 }
 
 @theme {
@@ -82,6 +84,28 @@
     @apply font-sans font-medium text-[18px] leading-[100%] tracking-normal;
 }
 
+.btn-animate-squish {
+    will-change: transform, box-shadow;
+    transition: box-shadow 0.125s ease-in-out;
+    box-shadow: 0px -3px 0px 0px #78766F33 inset;
+}
+
+.btn-animate-squish:active {
+    filter: brightness(0.97);
+    box-shadow: 
+        0px -1px 0px 0px #78766F33 inset,
+        0px 1px 0px 0px #78766F33 inset;
+}
+
+.btn-animate-squish svg {
+    will-change: transform, translate;
+    transition: transform 0.125s ease-in-out, translate 0.125s ease-in-out;
+}
+
+.btn-animate-squish:active svg {
+    translate: 0 0;
+    transform: scale(0.95);
+}
 /* Add styles for Trix bullet lists */
 .trix-content ul {
     list-style-type: disc;

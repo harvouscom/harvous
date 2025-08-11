@@ -1,0 +1,61 @@
+---
+import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import CircleCheck from "@fortawesome/fontawesome-free/svgs/solid/circle-check.svg";
+import TriangleExclamationIcon from "@fortawesome/fontawesome-free/svgs/solid/triangle-exclamation.svg";
+---
+
+<div 
+  x-cloak
+  x-show="showToast"
+  class="fixed rounded-xl shadow-toast top-12 left-4 right-4 mx-auto max-w-md z-50 will-change-[translate]"
+  x-transition:enter="transition ease-in-out duration-500"
+  x-transition:enter-start="transform !shadow-none translate-y-[-200%]"
+  x-transition:enter-end="transform translate-y-0"
+  x-transition:leave="transition ease-in-out duration-500"
+  x-transition:leave-start="transform translate-y-0"
+  x-transition:leave-end="transform !shadow-none translate-y-[-200%]"
+  @toast.window="makeToast($event.detail.message || 'Notification', $event.detail.type || 'success')"
+>
+  <div 
+    role="alert"
+    x-bind:data-type="type"
+    class="toast-card text-(--color-deep-grey) bg-white rounded-xl flex items-center gap-3 px-5 py-5"
+  >
+    <!-- Icon -->
+    <div class="flex-shrink-0">
+      <CircleCheck x-show="type === 'success'" class="w-5 h-5 fill-(--color-deep-grey)" />
+      
+      <TriangleExclamationIcon x-show="type === 'error'" class="w-5 h-5 fill-(--color-red)" />       
+    </div>
+
+    <!-- Message -->
+    <div class="flex-1">
+      <p 
+        class="text-subtitle"
+        :class="{ 'text-(--color-red)': type === 'error' }"
+        x-text="message"
+      ></p>
+    </div>
+
+    <!-- Close button -->
+    <button
+      class="flex-shrink-0"
+      @click="dismissToast()"
+      aria-label="Close notification"
+    >
+      {/* @ts-ignore */}
+      <FaXmarkIcon class="w-5 h-5 transition-colors" :class="{ 'fill-(--color-red)': type === 'error' }" />
+    </button>
+  </div>
+</div>
+
+<style>
+  .shadow-toast {
+    box-shadow: 
+      0px 7px 16px 0px rgba(0, 0, 0, 0.1),
+      0px 30px 30px 0px rgba(0, 0, 0, 0.09),
+      0px 67px 40px 0px rgba(0, 0, 0, 0.05),
+      0px 119px 47px 0px rgba(0, 0, 0, 0.01),
+      0px 185px 52px 0px rgba(0, 0, 0, 0);
+  }
+</style>

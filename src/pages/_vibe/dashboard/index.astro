@@ -1,0 +1,49 @@
+---
+import { actions } from "astro:actions";
+import { db, eq, Notes } from "astro:db";
+import Layout from "@/layouts/Layout.astro";
+import NoteCard from "@/components/NoteCard.astro";
+import CtaButton from "@/components/CtaButton.astro";
+import Tab from "@/components/TabBar/Tab.astro";
+if (!Astro.locals.auth().userId) {
+  return Astro.redirect("/");
+}
+
+const user = await Astro.locals.currentUser();
+
+if (!user) {
+  return Astro.redirect("/");
+}
+
+const notes = await db.select().from(Notes).where(eq(Notes.userId, user.id));
+---
+
+<Layout>
+  <section class="bg-(--color-fog-white) pt-3">
+    <div class="px-6 mx-auto max-w-screen-sm flex items-center gap-2">
+      <Tab label="Feed" href="#" active />
+    </div>
+  </section>
+
+  <main
+    class="max-w-screen-sm mx-auto px-6 pt-6 pb-12 grid grid-rows-[auto_1fr] gap-3"
+  >
+    <ul class="grid max-sm:grid-cols-2 sm:grid-cols-3 gap-3 gap-y-4">
+      {
+        notes.map((note) => (
+          <li class="w-full h-full">
+            <a class="h-full" href={`/dashboard/notes/${note.id}`}>
+              <NoteCard title={note.title ?? ""} content={note.content ?? ""} />
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+
+    <a href="/dashboard/notes/new">
+      <CtaButton />
+    </a>
+
+    <button @click="$dispatch('toast', { message: 'Hello, world!', type: 'success' });">Show Toast</button>
+  </main>
+</Layout>

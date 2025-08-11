@@ -1,0 +1,17 @@
+---
+export interface Props {
+  [key: string]: any;
+}
+---
+
+<button
+  class="btn-animate-squish group relative rounded-3xl w-10 h-10 cursor-pointer"
+  style="background-image: var(--color-gradient-gray)"
+  {...Astro.props}
+>
+  <div class="box-border content-stretch flex flex-row gap-3 items-center justify-center relative rounded-3xl size-full">
+    <div class="relative shrink-0 size-5 flex items-center justify-center fill-(--color-pebble-grey) [&>svg]:h-5 [&>svg]:w-5 [&>svg]:-translate-y-0.5 [&>svg]:transition-transform [&>svg]:duration-125">
+      <slot />
+    </div>
+  </div>
+</button>

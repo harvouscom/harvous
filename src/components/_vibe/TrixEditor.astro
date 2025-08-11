@@ -1,0 +1,40 @@
+---
+interface Props {
+  alpineRefName?: string;
+  content: string;
+  id?: string;
+  name?: string;
+  placeholder?: string;
+  toolbar?: string;
+}
+
+const { 
+  content, 
+  id = "content", 
+  name = "content", 
+  alpineRefName = "contentInputEl",
+  placeholder = "Write something...",
+  toolbar = "",
+  ...props
+} = Astro.props as Props;
+---
+
+<!-- @TODO - Style for ul and ol -->
+
+<div id="trix-editor" class="relative not-prose">
+  <input {...props} required id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
+  <trix-editor {...props} class="trix-content" toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
+</div>
+
+<style>
+    /* This is needed to use Tailwind's @apply in v5 */
+    @reference "@/styles/global.css";
+
+    #trix-editor trix-editor {
+      @apply resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl border-none flex flex-col gap-4;
+    }
+</style>
+
+<script>
+  import "trix";
+</script>
