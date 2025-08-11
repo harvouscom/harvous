@@ -1,0 +1,13 @@
+---
+// This route redirects to Clerk's sign-in page
+// If the user is already signed in, redirect to the dashboard
+if (Astro.locals.auth().userId) {
+  return Astro.redirect("/feed");
+}
+
+// Otherwise redirect to homepage with a sign-in mode parameter
+return Astro.redirect("/?sign-in=true");
+---
+
+<!-- This page normally won't be rendered as we redirect immediately -->
+<meta http-equiv="refresh" content="0;url=/" /> 

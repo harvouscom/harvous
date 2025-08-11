@@ -1,0 +1,107 @@
+---
+import PencilIcon from "@fortawesome/fontawesome-free/svgs/solid/pencil.svg";
+import DeleteIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
+import ThumbTackIcon from "@fortawesome/fontawesome-free/svgs/solid/thumbtack.svg";
+import ChonkButton from "@/components/ChonkButton.astro";
+
+interface Props {
+  type: 'note' | 'thread';
+  id: number;
+  userId: string;
+  isPinned?: boolean;
+}
+
+const { type, id, userId, isPinned = false } = Astro.props;
+
+const editUrl = type === 'note' 
+  ? `/feed/notes/${id}/edit` 
+  : `/feed/threads/${id}/edit`;
+
+const deleteAction = type === 'note' 
+  ? '/api/notes/delete' 
+  : '/api/threads/delete';
+
+const editText = type === 'note' ? 'Edit Note' : 'Edit Thread';
+const showPinButton = type === 'thread'; // Only show pin button for threads
+---
+
+<div
+  id="global-action-bar"
+  class="fixed left-0 right-0 bottom-[32px] z-50 opacity-0 pointer-events-none transition-opacity duration-200 ease-in-out transform translate-y-[8px] transition-transform"
+  data-visible="false"
+  data-type={type}
+  data-id={id}
+>
+  <div class="max-w-screen-sm mx-auto px-3 mt-8">
+    <div class="bg-[#7d7a6f] p-3 rounded-xl shadow-lg -mx-[12px]">
+      <div class={`grid ${showPinButton ? 'grid-cols-3' : 'grid-cols-2'} gap-3 w-full`}>
+        <a class="grid" href={editUrl}>
+          <div class="rounded-lg button-inner-shadow bg-[#7d7a6f] min-h-[64px] flex items-center justify-center active:scale-[.99] transition-transform duration-125">
+            <div class="flex flex-col items-center py-4">
+              <PencilIcon class="w-[18px] h-[18px] text-white fill-current mb-2" />
+              <p class="font-sans font-medium text-white text-[16px] leading-[100%] tracking-normal">{editText}</p>
+            </div>
+          </div>
+        </a>
+        
+        {showPinButton && (
+          <form 
+            class="grid" 
+            id="global-pin-form"
+            method="POST" 
+            action="/api/threads/toggle-pin"
+          >
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="userId" value={userId} />
+            <button type="submit" style="width: 100%; height: 100%; padding: 0; background: none; border: none;">
+              <div class="rounded-lg button-inner-shadow bg-[#7d7a6f] min-h-[64px] flex items-center justify-center active:scale-[.99] transition-transform duration-125">
+                <div class="flex flex-col items-center py-4">
+                  <ThumbTackIcon class="w-[18px] h-[18px] text-white fill-current mb-2" />
+                  <p class="font-sans font-medium text-white text-[16px] leading-[100%] tracking-normal">{isPinned ? "Unpin" : "Pin"}</p>
+                </div>
+              </div>
+            </button>
+          </form>
+        )}
+        
+        <form 
+          class="grid" 
+          id="global-delete-form"
+          method="POST" 
+          action={deleteAction}
+        >
+          <input type="hidden" name="id" value={id} />
+          <input type="hidden" name="userId" value={userId} />
+          <button type="submit" style="width: 100%; height: 100%; padding: 0; background: none; border: none;">
+            <div class="rounded-lg button-inner-shadow bg-[#7d7a6f] min-h-[64px] flex items-center justify-center active:scale-[.99] transition-transform duration-125">
+              <div class="flex flex-col items-center py-4">
+                <DeleteIcon class="w-[18px] h-[18px] text-white fill-current mb-2" />
+                <p class="font-sans font-medium text-white text-[16px] leading-[100%] tracking-normal">Delete</p>
+              </div>
+            </div>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #global-action-bar[data-visible="true"] {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+    bottom: 32px;
+  }
+  
+  .button-inner-shadow {
+    box-shadow: 0px -4px 0px 0px #00000040 inset;
+  }
+  
+  button:active .button-inner-shadow, a:active .button-inner-shadow {
+    box-shadow:
+      0px -2px 0px 0px #0000001a inset,
+      0px 0px 2px 0px #00000040,
+      0px 2px 0px 0px #00000040 inset;
+  }
+</style> 

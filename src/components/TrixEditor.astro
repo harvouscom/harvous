@@ -21,20 +21,221 @@ const {
 
 <!-- @TODO - Style for ul and ol -->
 
-<div id="trix-editor" class="relative not-prose">
+<div id="trix-editor" class="relative not-prose h-full">
   <input {...props} required id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
-  <trix-editor {...props} class="trix-content" toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
+  <trix-editor {...props} class="trix-content h-full" toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
 </div>
 
 <style>
     /* This is needed to use Tailwind's @apply in v5 */
     @reference "@/styles/global.css";
 
+    #trix-editor {
+      @apply h-full flex flex-col;
+    }
+
     #trix-editor trix-editor {
-      @apply resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl border-none flex flex-col gap-4;
+      @apply resize-none bg-[var(--color-fog-white)] py-3 px-3 rounded-xl border-none flex-1 flex flex-col gap-4 min-h-[200px] overflow-y-auto;
+    }
+
+    /* Styles for bullet points and numbered lists */
+    #trix-editor trix-editor ul {
+      list-style-type: disc;
+      padding-left: 1.5em;
+      margin: 0.5em 0;
+    }
+
+    #trix-editor trix-editor ol {
+      list-style-type: decimal;
+      padding-left: 1.5em;
+      margin: 0.5em 0;
+    }
+
+    #trix-editor trix-editor li {
+      display: list-item;
+      margin-bottom: 0.25em;
+    }
+
+    #trix-editor trix-editor ul li {
+      list-style-type: disc;
+    }
+
+    #trix-editor trix-editor ol li {
+      list-style-type: decimal;
     }
 </style>
 
 <script>
   import "trix";
+  
+  // Define a type for Trix Editor element
+  interface TrixEditorElement extends HTMLElement {
+    editor: {
+      isEmpty(): boolean;
+      getDocument(): { 
+        toString(): string;
+        getBlocks(): Array<{
+          text: string;
+          toString(): string;
+          getPosition(): number;
+        }>;
+      };
+      getPosition(): number;
+      setSelectedRange(range: [number, number] | number): void;
+      insertString(text: string): void;
+      recordUndoEntry(description: string): void;
+      moveCursorToBeginning(): void;
+      moveCursorToEnd(): void;
+    };
+    dataset: DOMStringMap;
+  }
+  
+  // Simple debounce function to improve performance
+  function debounce(func: Function, wait: number) {
+    let timeout: number | null = null;
+    return function(this: unknown, ...args: any[]) {
+      const context = this;
+      clearTimeout(timeout as number);
+      timeout = setTimeout(() => {
+        func.apply(context, args);
+      }, wait) as unknown as number;
+    };
+  }
+  
+  document.addEventListener('DOMContentLoaded', () => {
+    const trixEditor = document.querySelector('trix-editor') as TrixEditorElement;
+    
+    if (trixEditor) {
+      // Initial capitalization when editor loads with content
+      if (trixEditor.editor && !trixEditor.editor.isEmpty()) {
+        // Do this on a short timeout to avoid blocking initial render
+        setTimeout(() => {
+          capitalizeFirstCharacter(trixEditor.editor);
+        }, 100);
+      }
+      
+      // Auto-capitalize the first letter when the editor starts from empty
+      trixEditor.addEventListener('trix-focus', function(this: TrixEditorElement) {
+        const isEmpty = this.editor?.isEmpty();
+        
+        if (isEmpty) {
+          // Set a flag to capitalize next input
+          this.dataset.shouldCapitalize = 'true';
+        }
+      });
+      
+      // Debounce the expensive operations during typing
+      const debouncedCapitalize = debounce((editor: TrixEditorElement['editor']) => {
+        capitalizeFirstCharacter(editor);
+      }, 200);
+      
+      // Handle auto-capitalization during typing
+      trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
+        const editor = this.editor;
+        
+        if (!editor) return;
+        
+        // If this is the first character typed (when editor was empty)
+        if (this.dataset.shouldCapitalize === 'true' && !editor.isEmpty()) {
+          debouncedCapitalize(editor);
+          delete this.dataset.shouldCapitalize;
+        }
+      });
+      
+      // Use a single shared flag for paragraph tracking
+      let enterPressed = false;
+      
+      // Handle new paragraph capitalization
+      trixEditor.addEventListener('trix-selection-change', function(this: TrixEditorElement) {
+        // Only store position when needed
+        if (enterPressed) {
+          const editor = this.editor;
+          if (!editor) return;
+          this.dataset.lastPosition = editor.getPosition().toString();
+        }
+      });
+      
+      // Listen for enter key which creates new paragraphs
+      trixEditor.addEventListener('keydown', function(this: TrixEditorElement, event: KeyboardEvent) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          enterPressed = true;
+        }
+      } as EventListener);
+      
+      // Handle new paragraph capitalization after changes with debouncing
+      const debouncedParagraphProcess = debounce(function(editor: TrixEditorElement['editor']) {
+        if (!editor) return;
+        
+        // Try to find the new paragraph that was just created
+        const blocks = editor.getDocument().getBlocks();
+        
+        // If we have blocks and the cursor is in a non-empty one
+        if (blocks.length > 0) {
+          const currentPosition = editor.getPosition();
+          
+          // Find the current block we're in
+          for (let i = 0; i < blocks.length; i++) {
+            const blockText = blocks[i].toString();
+            
+            // If block only has one character (just typed) and it's lowercase
+            if (blockText.length === 1 && blockText[0] !== blockText[0].toUpperCase()) {
+              // Save current position
+              const originalPosition = editor.getPosition();
+              
+              // Record undo entry for this operation
+              editor.recordUndoEntry("Auto-capitalize paragraph");
+              
+              // Move to the beginning of the paragraph
+              const blockStartPosition = blocks[i].getPosition();
+              editor.setSelectedRange([blockStartPosition, blockStartPosition + 1]);
+              
+              // Replace with uppercase
+              editor.insertString(blockText[0].toUpperCase());
+              
+              // Restore cursor position
+              editor.setSelectedRange(originalPosition);
+              break;
+            }
+          }
+        }
+        
+        // Reset flag
+        enterPressed = false;
+      }, 250);
+      
+      // Triggered after content changes
+      trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
+        if (enterPressed) {
+          const editor = this.editor;
+          debouncedParagraphProcess(editor);
+        }
+      });
+      
+      // Helper function to capitalize the first character of the document
+      function capitalizeFirstCharacter(editor: TrixEditorElement['editor']) {
+        const text = editor.getDocument().toString();
+        
+        if (text.length > 0) {
+          // Get the first character and capitalize if it's a letter
+          const firstChar = text.charAt(0);
+          const capitalized = firstChar.toUpperCase();
+          
+          if (firstChar !== capitalized) {
+            // Save current position
+            const originalPosition = editor.getPosition();
+            
+            // Record undo entry for this operation
+            editor.recordUndoEntry("Auto-capitalize first letter");
+            
+            // Replace the first character with capitalized version
+            editor.setSelectedRange([0, 1]);
+            editor.insertString(capitalized);
+            
+            // Restore cursor position
+            editor.setSelectedRange(originalPosition);
+          }
+        }
+      }
+    }
+  });
 </script>

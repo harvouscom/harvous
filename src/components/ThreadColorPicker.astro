@@ -1,0 +1,63 @@
+---
+interface Props {
+  selectedColor?: string;
+}
+
+const { selectedColor = '' } = Astro.props;
+
+// Define available colors from our CSS variables
+const colors = [
+  { name: 'blessed-blue', value: 'var(--color-blessed-blue)', hex: '#C3E4FF' },
+  { name: 'graceful-gold', value: 'var(--color-graceful-gold)', hex: '#F9DE78' },
+  { name: 'caring-coral', value: 'var(--color-caring-coral)', hex: '#FCD1C8' },
+  { name: 'mindful-mint', value: 'var(--color-mindful-mint)', hex: '#C7ECBB' },
+  { name: 'peaceful-pink', value: 'var(--color-peaceful-pink)', hex: '#F7CEEE' },
+  { name: 'pleasant-peach', value: 'var(--color-pleasant-peach)', hex: '#FCD8A0' },
+  { name: 'lovely-lavender', value: 'var(--color-lovely-lavender)', hex: '#E8C9FF' },
+];
+---
+
+<div 
+  x-data="{ 
+    isOpen: false,
+    selectedColor: '${selectedColor}',
+    updateColor(colorName) {
+      this.selectedColor = colorName;
+      document.getElementById('colorInput').value = colorName;
+      this.isOpen = false;
+    }
+  }" 
+  class="relative"
+>
+  <button 
+    type="button"
+    @click="isOpen = !isOpen"
+    class="flex items-center gap-2 p-2 rounded-lg border border-gray-200"
+  >
+    <span 
+      class="w-6 h-6 rounded-full" 
+      :style="selectedColor ? `background-color: var(--color-${selectedColor})` : 'background-color: #EBE7DB'"
+    ></span>
+    <span x-text="selectedColor ? 'Color: ' + selectedColor.replace('-', ' ') : 'Choose a color'"></span>
+  </button>
+
+  <div 
+    x-show="isOpen" 
+    @click.outside="isOpen = false"
+    class="absolute mt-1 w-full p-2 bg-white shadow-lg rounded-lg z-10"
+  >
+    <div class="flex flex-wrap gap-2">
+      {colors.map(color => (
+        <button
+          type="button"
+          title={color.name.replace('-', ' ')}
+          @click={`updateColor('${color.name}')`}
+          class="w-8 h-8 rounded-full border border-gray-200 hover:scale-110 transition-transform"
+          style={`background-color: ${color.value}`}
+        ></button>
+      ))}
+    </div>
+  </div>
+  
+  <input type="hidden" id="colorInput" name="color" value={selectedColor} />
+</div> 

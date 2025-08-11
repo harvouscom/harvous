@@ -1,4 +1,3 @@
-
 import { defineDb, defineTable, column } from 'astro:db';
 
 const Notes = defineTable({
@@ -38,6 +37,8 @@ const Notes = defineTable({
 // https://astro.build/db/config
 export default defineDb({
   tables: {
-    Notes
+    Notes,
+    Threads,
+    NoteThreads
   }
 });

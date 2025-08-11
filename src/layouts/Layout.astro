@@ -17,15 +17,51 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en" class="bg-(--color-soft-paper)">
+<html lang="en" class="bg-[#F7F7F6]">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, user-scalable=no" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#F7F7F6" />
+    <!-- Apple specific tags for homescreen icons -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Harvous" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    
+    <!-- Critical CSS inlined for faster first paint -->
+    <style>
+      /* Essential styles to prevent layout shift */
+      body {
+        margin: 0;
+        opacity: 1 !important;
+        animation: none !important;
+        background-color: #F7F7F6;
+      }
+      /* High-priority animation optimizations */
+      .thread-card, .note-card-placeholder, .close-tab-btn {
+        will-change: transform;
+        contain: content;
+        touch-action: manipulation;
+      }
+      /* Critical UI elements */
+      trix-editor {
+        contain: content;
+      }
+    </style>
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/fonts/reddit-sans-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/scripts/pwa-startup.js" as="script">
+    
+    <!-- PWA startup optimization script - inlined for faster execution -->
+    <script is:inline src="/scripts/pwa-startup.js"></script>
+    
+    <!-- Special tab interaction handler for first-touch optimization -->
+    <script is:inline src="/scripts/tab-interaction-handler.js"></script>
   </head>
   <body 
     x-data="toast"
@@ -84,6 +120,104 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
   });
 
   Alpine.start();
+</script>
+
+<!-- Service Worker Registration for PWA -->
+<script>
+  // Register the service worker for PWA support
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('ServiceWorker registration successful');
+          
+          // Check if there's a waiting worker and offer update if needed
+          if (registration.waiting) {
+            // New service worker is waiting - could prompt user to refresh
+          }
+          
+          // Listen for new updates
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New service worker available, could notify user
+                }
+              });
+            }
+          });
+        })
+        .catch(error => {
+          console.log('ServiceWorker registration failed:', error);
+        });
+      
+      // Warm up the app when it's launched or brought back from background
+      // Handle visibility change for different browsers
+      const isHidden = (): boolean => {
+        if (typeof document.hidden !== "undefined") {
+          return document.hidden;
+        } else if (typeof (document as any).msHidden !== "undefined") {
+          return (document as any).msHidden;
+        } else if (typeof (document as any).webkitHidden !== "undefined") {
+          return (document as any).webkitHidden;
+        }
+        return false;
+      };
+      
+      // Get the correct visibility change event name
+      let visibilityEvent = "visibilitychange";
+      if (typeof (document as any).msHidden !== "undefined") {
+        visibilityEvent = "msvisibilitychange";
+      } else if (typeof (document as any).webkitHidden !== "undefined") {
+        visibilityEvent = "webkitvisibilitychange";
+      }
+      
+      // When the app becomes visible after being hidden (returned from background)
+      document.addEventListener(visibilityEvent, () => {
+        if (!isHidden()) {
+          // App is visible again - warm up
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage('warmup');
+          }
+          
+          // Preload critical UI components
+          if ('requestIdleCallback' in window) {
+            (window as any).requestIdleCallback(() => {
+              // Prefetch common navigation paths when idle
+              const prefetcher = document.createElement('link');
+              prefetcher.rel = 'prefetch';
+              prefetcher.href = '/feed';
+              document.head.appendChild(prefetcher);
+            });
+          } else {
+            // Fallback for browsers that don't support requestIdleCallback
+            setTimeout(() => {
+              const prefetcher = document.createElement('link');
+              prefetcher.rel = 'prefetch';
+              prefetcher.href = '/feed';
+              document.head.appendChild(prefetcher);
+            }, 1000);
+          }
+        }
+      });
+      
+      // Also warm up on initial load
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage('warmup');
+      }
+    });
+  }
+  
+  // Add to homescreen prompt handler
+  let deferredPrompt: any;
+  
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent Chrome 67+ from automatically showing the prompt
+    e.preventDefault();
+    // Stash the event so it can be triggered later
+    deferredPrompt = e;
+  });
 </script>
 
 <style>

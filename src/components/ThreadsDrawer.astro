@@ -1,0 +1,299 @@
+---
+import ChonkButton from "@/components/ChonkButton.astro";
+import PlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
+import ThreadIcon from "@fortawesome/fontawesome-free/svgs/solid/layer-group.svg";
+import MinusIcon from "@fortawesome/fontawesome-free/svgs/solid/minus.svg";
+import { db, eq, Threads, and, NoteThreads, Notes } from "astro:db";
+import { noteThreads } from "@/actions/noteThreads";
+
+interface Props {
+  noteId: number;
+  userId: string;
+}
+
+const { noteId, userId } = Astro.props;
+
+// Fetch actual threads from the database for this user
+let userThreads: Array<typeof Threads.$inferSelect> = [];
+try {
+  // Get threads from database
+  userThreads = await db.select()
+    .from(Threads)
+    .where(eq(Threads.userId, userId));
+} catch (error) {
+  console.error("Error fetching threads:", error);
+  userThreads = []; // Fallback to empty array
+}
+
+// Fetch threads this note is already in
+let noteThreadsList: Array<typeof Threads.$inferSelect> = [];
+try {
+  // First get the note-thread relations
+  const noteThreadRelations = await db.select()
+    .from(NoteThreads)
+    .where(eq(NoteThreads.noteId, noteId));
+  
+  // If there are any relations, get the actual thread details
+  if (noteThreadRelations.length > 0) {
+    const threadIds = noteThreadRelations.map(relation => relation.threadId);
+    noteThreadsList = await db.select()
+      .from(Threads)
+      .where(eq(Threads.userId, userId));
+    
+    // Filter to only include threads this note is in
+    noteThreadsList = noteThreadsList.filter(thread => 
+      threadIds.includes(thread.id)
+    );
+  }
+} catch (error) {
+  console.error("Error fetching note threads:", error);
+  noteThreadsList = []; // Fallback to empty array
+}
+---
+
+<div
+  x-data="{ 
+    isOpen: false,
+    activeTab: 'available',
+    drawerId: 'threads'
+  }"
+  x-show="isOpen"
+  x-transition:enter="transition ease-out duration-300"
+  x-transition:enter-start="opacity-0"
+  x-transition:enter-end="opacity-100"
+  x-transition:leave="transition ease-in duration-200"
+  x-transition:leave-start="opacity-100"
+  x-transition:leave-end="opacity-0"
+  x-cloak
+  class="fixed inset-0 z-50 flex items-end justify-center"
+  @show-drawer.window="isOpen = $event.detail && $event.detail.drawer === drawerId"
+  @hide-drawer.window="isOpen = false"
+  x-init="$watch('isOpen', value => { if (!value) window.dispatchEvent(new CustomEvent('hide-drawer')); })"
+>
+  <!-- Overlay -->
+  <div
+    x-show="isOpen"
+    x-transition:enter="transition-opacity ease-out duration-300"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition-opacity ease-in duration-200"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    x-on:click="isOpen = false; window.dispatchEvent(new CustomEvent('hide-drawer'))"
+    class="absolute inset-0 bg-black/50"
+    aria-hidden="true"
+  ></div>
+
+  <!-- Drawer/Modal Panel -->
+  <div
+    x-show="isOpen"
+    x-transition:enter="transition ease-out duration-300"
+    x-transition:enter-start="opacity-0 translate-y-full"
+    x-transition:enter-end="opacity-100 translate-y-0"
+    x-transition:leave="transition ease-in duration-200"
+    x-transition:leave-start="opacity-100 translate-y-0"
+    x-transition:leave-end="opacity-0 translate-y-full"
+    class="relative bg-(--color-soft-paper) text-(--color-deep-grey) rounded-t-lg shadow-xl w-full max-w-md overflow-hidden p-3"
+  >
+    <div class="px-3">
+      <!-- Title with 8px top/bottom padding -->
+      <h2 class="text-balance text-subtitle text-center py-2">
+        Add to Thread
+      </h2>
+      
+      <!-- Description -->
+      <p class="text-balance text-body text-center text-stone-500 mb-4">
+        Add this note to one or more threads to organize your content
+      </p>
+
+      <!-- Tab Navigation -->
+      <div class="flex border-b border-gray-200 mb-4">
+        <button 
+          @click="activeTab = 'available'" 
+          :class="activeTab === 'available' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'"
+          class="flex-1 py-2 text-center font-medium"
+        >
+          Your Threads
+        </button>
+        <button 
+          @click="activeTab = 'added'" 
+          :class="activeTab === 'added' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'"
+          class="flex-1 py-2 text-center font-medium"
+        >
+          In This Note ({noteThreadsList.length})
+        </button>
+      </div>
+    </div>
+
+    <!-- Available Threads content -->
+    <div class="px-3 max-h-[300px] overflow-y-auto">
+      <div x-show="activeTab === 'available'" class="space-y-3">
+        <a href="/feed/threads/new" class="block">
+          <ChonkButton text="Create New Thread">
+            <PlusIcon class="w-[15px] h-[15px] text-inherit fill-current" />
+          </ChonkButton>
+        </a>
+        
+        <div class="mt-3 space-y-2">
+          {userThreads.length === 0 ? (
+            <p class="text-center text-gray-500 my-6">
+              You don't have any threads yet. Create your first one using the button above.
+            </p>
+          ) : (
+            <>
+              <p class="text-sm text-gray-500 mb-2">These are threads you've created. Add this note to organize your content:</p>
+              {userThreads.map(thread => {
+                // Check if this note is already in this thread
+                const isInThread = noteThreadsList.some(t => t.id === thread.id);
+                return (
+                  <div class="bg-(--color-paper) text-(--color-stone-grey) rounded-lg p-3 flex items-center gap-3 w-full shadow-[0px_-4px_0px_0px_#0000001A_inset] hover:bg-opacity-90 transition-colors">
+                    {thread.color && (
+                      <span class="w-4 h-4 rounded-full flex-shrink-0" style={`background-color: var(--color-${thread.color})`}></span>
+                    )}
+                    <span class="font-medium flex-grow text-left">{thread.title}</span>
+                    {isInThread ? (
+                      <form method="POST" action="/api/thread-notes/remove">
+                        <input type="hidden" name="noteId" value={noteId} />
+                        <input type="hidden" name="threadId" value={thread.id} />
+                        <button
+                          class="text-sm px-2 py-1 bg-(--color-soft-paper) text-(--color-stone-grey) rounded-md hover:bg-opacity-80"
+                          type="submit"
+                        >
+                          Remove
+                        </button>
+                      </form>
+                    ) : (
+                      <form method="POST" action="/api/thread-notes/add">
+                        <input type="hidden" name="noteId" value={noteId} />
+                        <input type="hidden" name="threadId" value={thread.id} />
+                        <button
+                          class="text-sm px-2 py-1 bg-(--color-soft-paper) text-(--color-stone-grey) rounded-md hover:bg-opacity-80"
+                          type="submit"
+                        >
+                          Add
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      </div>
+      
+      <!-- Threads this note is in -->
+      <div x-show="activeTab === 'added'" class="space-y-3 py-4">
+        <p class="text-sm text-gray-500 mb-2">Threads this note is currently a part of:</p>
+        {noteThreadsList.length === 0 ? (
+          <div class="text-center">
+            <p class="text-gray-500 text-center mt-4">
+              This note isn't in any threads yet.
+            </p>
+            <p class="text-sm text-gray-500 text-center mt-4">
+              Notes can be added to multiple threads for better organization.
+            </p>
+          </div>
+        ) : (
+          <div class="space-y-2">
+            {noteThreadsList.map(thread => (
+              <div class="bg-(--color-paper) text-(--color-stone-grey) rounded-lg p-3 flex items-center gap-3 w-full shadow-[0px_-4px_0px_0px_#0000001A_inset] hover:bg-opacity-90 transition-colors">
+                {thread.color && (
+                  <span class="w-4 h-4 rounded-full flex-shrink-0" style={`background-color: var(--color-${thread.color})`}></span>
+                )}
+                <a href={`/feed/threads/${thread.id}`} class="font-medium flex-grow text-left hover:underline">
+                  {thread.title}
+                </a>
+                <form method="POST" action="/api/thread-notes/remove">
+                  <input type="hidden" name="noteId" value={noteId} />
+                  <input type="hidden" name="threadId" value={thread.id} />
+                  <button
+                    class="text-sm px-2 py-1 bg-(--color-soft-paper) text-(--color-stone-grey) rounded-md hover:bg-opacity-80"
+                    type="submit"
+                  >
+                    Remove
+                  </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+
+    <!-- Close Button -->
+    <div class="mt-4 px-3">
+      <button 
+        @click="isOpen = false; window.dispatchEvent(new CustomEvent('hide-drawer'))" 
+        class="w-full bg-gray-200 py-2 rounded-lg font-medium text-gray-700"
+      >
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Custom styles */
+  button {
+    transition: all 0.2s ease;
+  }
+  
+  button:active {
+    transform: scale(0.98);
+  }
+</style>
+
+<script>
+  // Updated client-side script to work with native form submissions
+  document.addEventListener('DOMContentLoaded', () => {
+    // Initial setup
+    updateThreadCounter();
+    
+    // Listen for form submissions
+    setupFormSubmissions();
+    
+    function updateThreadCounter() {
+      const counterEl = document.querySelector('[data-counter="threads"]');
+      const tabCountEl = document.querySelector('button[class*="border-blue-500"]:nth-child(2)');
+      
+      if (tabCountEl) {
+        const match = tabCountEl.textContent?.match(/In This Note \((\d+)\)/);
+        const count = match ? match[1] : "0";
+        
+        if (counterEl) {
+          counterEl.textContent = count;
+          
+          // Dispatch event for counter update
+          window.dispatchEvent(new CustomEvent('thread-changed', {
+            detail: { count: parseInt(count) }
+          }));
+        }
+      }
+    }
+    
+    function setupFormSubmissions() {
+      const forms = document.querySelectorAll('form[action*="noteThreads"]');
+      forms.forEach(form => {
+        const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+        
+        // Store original text
+        if (submitBtn) {
+          const originalText = submitBtn.textContent || '';
+          submitBtn.setAttribute('data-original-text', originalText);
+        }
+        
+        // Handle form submission
+        form.addEventListener('submit', function(e) {
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+          }
+          
+          // Form will be submitted normally to action endpoint
+          // No need to prevent default
+        });
+      });
+    }
+  });
+</script> 

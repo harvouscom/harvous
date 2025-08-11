@@ -4,6 +4,17 @@
 
 import type { Auth, UserResource } from "@clerk/types";
 
+interface LocalUser {
+  id: string;
+  username: string;
+  email: string;
+}
+
+interface LocalAuth {
+  userId: string;
+  isLoggedIn: boolean;
+}
+
 declare global {
   interface Window {
     Alpine: import("alpinejs").Alpine;

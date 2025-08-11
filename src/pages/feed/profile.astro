@@ -1,0 +1,211 @@
+---
+import { db, eq, Notes, Threads, desc, NoteThreads, isNull, and, sql } from "astro:db";
+import Layout from "@/layouts/Layout.astro";
+import Tab from "@/components/TabBar/Tab.astro";
+import ChonkButton from "@/components/ChonkButton.astro";
+
+// Get userId from auth and redirect if not authenticated
+const userId = Astro.locals.auth().userId;
+if (!userId) {
+  return Astro.redirect("/");
+}
+
+// Verify user exists
+const user = await Astro.locals.currentUser();
+if (!user) {
+  return Astro.redirect("/");
+}
+
+// Get stats
+const noteCount = await db.select({ count: sql`count(*)` })
+  .from(Notes)
+  .where(eq(Notes.userId, userId as string));
+
+const threadCount = await db.select({ count: sql`count(*)` })
+  .from(Threads)
+  .where(eq(Threads.userId, userId as string));
+---
+
+<Layout>
+  <div class="flex flex-col min-h-[100vh] bg-[var(--color-soft-paper)]">
+    <section class="bg-(--color-fog-white) pt-3">
+      <div class="px-3 mx-auto max-w-screen-sm flex items-center justify-between" x-data>
+        <div class="flex h-[48px] overflow-x-auto overflow-y-hidden w-full tab-container">
+          <Tab label="Feed" href="/feed" />
+          <Tab label="Search" href="/feed/search" />
+          <div id="thread-tab-container" class="h-full"></div>
+          <div id="note-tab-container" class="h-full"></div>
+          <Tab label="Profile" href="/feed/profile" active />
+        </div>
+      </div>
+    </section>
+
+    <main class="max-w-screen-sm mx-auto px-3 pt-6 pb-12 flex flex-col gap-6 flex-grow w-full">
+      <!-- Profile Section -->
+      <section class="flex flex-col items-start self-stretch rounded-xl bg-[#E6E4DA]">
+        <div class="w-full px-6 py-3">
+          <div class="flex items-center justify-between w-full">
+            <h2 class="text-[#78766F] font-sans text-[18px] font-semibold">Your Profile</h2>
+          </div>
+        </div>
+        
+        <div class="w-full px-6 py-3">
+          <div class="flex items-center mb-6">
+            <div class="w-16 h-16 bg-[#C7E9B0] rounded-full flex items-center justify-center mr-4">
+              <span class="text-2xl font-bold text-[#4C4A41]">{user.firstName?.charAt(0) || "U"}</span>
+            </div>
+            <div>
+              <h3 class="text-[#4C4A41] font-sans text-[20px] font-semibold">{user.firstName || "User"}</h3>
+              <p class="text-[#78766F] font-sans text-[14px]">{user.emailAddresses[0]?.emailAddress || ""}</p>
+            </div>
+          </div>
+          
+          <!-- Stats cards -->
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-[#EEECE3] p-4 rounded-lg">
+              <p class="text-[#78766F] font-sans text-[14px]">Notes</p>
+              <p class="text-[#4C4A41] font-sans text-[24px] font-semibold">{noteCount[0]?.count || 0}</p>
+            </div>
+            <div class="bg-[#EEECE3] p-4 rounded-lg">
+              <p class="text-[#78766F] font-sans text-[14px]">Threads</p>
+              <p class="text-[#4C4A41] font-sans text-[24px] font-semibold">{threadCount[0]?.count || 0}</p>
+            </div>
+          </div>
+          
+          <!-- Account Management Section -->
+          <div class="flex flex-col gap-3 mb-6">
+            <h3 class="text-[#4C4A41] font-sans text-[16px] font-semibold">Account Management</h3>
+            <div class="flex flex-col gap-2">
+              <a href="#" class="flex items-center p-2 bg-[#EEECE3] rounded-lg">
+                <span class="text-[#4C4A41] font-sans text-[14px]">Edit Profile</span>
+              </a>
+              <a href="#" class="flex items-center p-2 bg-[#EEECE3] rounded-lg">
+                <span class="text-[#4C4A41] font-sans text-[14px]">Change Password</span>
+              </a>
+              <a href="#" class="flex items-center p-2 bg-[#EEECE3] rounded-lg">
+                <span class="text-[#4C4A41] font-sans text-[14px]">Preferences</span>
+              </a>
+              <a href="#" class="flex items-center p-2 bg-[#EEECE3] rounded-lg">
+                <span class="text-[#4C4A41] font-sans text-[14px]">Notifications</span>
+              </a>
+              <a href="#" class="flex items-center p-2 bg-[#EEECE3] rounded-lg">
+                <span class="text-[#4C4A41] font-sans text-[14px]">Data Management</span>
+              </a>
+            </div>
+          </div>
+          
+          <!-- Sign Out Button -->
+          <div class="w-full mt-8">
+            <a href="/sign-out?force=true">
+              <ChonkButton text="Sign Out" variant="warning" />
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script define:vars={{ userId }}>
+    document.addEventListener('DOMContentLoaded', () => {
+      const lastViewedNote = localStorage.getItem('lastViewedNote');
+      const noteTabContainer = document.getElementById('note-tab-container');
+      const lastViewedThread = localStorage.getItem('lastViewedThread');
+      const sourceThreadForNote = localStorage.getItem('sourceThreadForNote');
+      const threadTabContainer = document.getElementById('thread-tab-container');
+
+      // First add Thread tab if applicable
+      if ((lastViewedThread || sourceThreadForNote) && threadTabContainer) {
+        const threadId = lastViewedThread || sourceThreadForNote;
+        
+        // Check if it's a new thread or if the thread exists in the database
+        if (threadId === 'new' || threadId) {
+          const threadTab = document.createElement('div');
+          threadTab.style.margin = '0'; // Ensure no margin
+          threadTab.style.padding = '0'; // Ensure no padding
+          
+          // For new threads vs existing threads
+          const href = threadId === 'new' ? '/feed/threads/new' : `/feed/threads/${threadId}`;
+          
+          threadTab.innerHTML = `
+            <div class="h-[48px]">
+              <a href="${href}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
+                <div class="h-full flex items-center pl-[20px] pr-[12px] gap-2">
+                  <span class="font-bold text-sm text-(--color-stone-grey)">Thread</span>
+                  <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeThreadTab(event)">×</button>
+                </div>
+              </a>
+            </div>
+          `;
+          threadTabContainer.appendChild(threadTab);
+        }
+      }
+      
+      // Then add Note tab if applicable
+      if (lastViewedNote && noteTabContainer) {
+        const noteId = lastViewedNote;
+        
+        // Check if it's a new note
+        if (noteId === 'new' || noteId) {
+          const noteTab = document.createElement('div');
+          noteTab.style.margin = '0'; // Ensure no margin
+          noteTab.style.padding = '0'; // Ensure no padding
+          
+          // Check if this note was in edit mode
+          const noteInEditState = localStorage.getItem('noteEditState');
+          const isInEditMode = noteInEditState === noteId;
+          
+          // For new notes vs existing notes
+          let href = noteId === 'new' ? '/feed/notes/new' : `/feed/notes/${noteId}`;
+          
+          // If in edit mode, update the href to point to edit page
+          if (isInEditMode && noteId !== 'new') {
+            href = `/feed/notes/${noteId}/edit`;
+          }
+          
+          noteTab.innerHTML = `
+            <div class="h-[48px]">
+              <a href="${href}" class="h-full rounded-t-lg bg-(--color-fog-white) flex items-center" role="tab">
+                <div class="h-full flex items-center pl-[20px] pr-[12px] gap-2">
+                  <span class="font-bold text-sm text-(--color-stone-grey)">Note</span>
+                  <button class="w-[15px] h-[15px] flex items-center justify-center text-[15px] font-medium text-(--color-stone-grey) p-0 border-0 bg-transparent cursor-pointer" onclick="closeNoteTab(event)">×</button>
+                </div>
+              </a>
+            </div>
+          `;
+          noteTabContainer.appendChild(noteTab);
+        }
+      }
+    });
+
+    // Define closing functions for tab buttons
+    window.closeThreadTab = function(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+      localStorage.removeItem('lastViewedThread');
+      localStorage.removeItem('sourceThreadForNote');
+      window.location.href = '/feed/profile';
+    };
+
+    window.closeNoteTab = function(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+      const sourceThread = localStorage.getItem('sourceThreadForNote');
+      localStorage.removeItem('lastViewedNote');
+      // Also clear any edit state
+      localStorage.removeItem('noteEditState');
+      
+      if (sourceThread) {
+        window.location.href = '/feed/threads/' + sourceThread;
+      } else {
+        localStorage.removeItem('sourceThreadForNote');
+        window.location.href = '/feed/profile';
+      }
+    };
+  </script>
+</Layout> 

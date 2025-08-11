@@ -5,13 +5,17 @@ interface Props {
   open?: boolean;
   title: string;
   description: string;
+  id?: string;
 }
 
-const { title, description, open = false, ...props } = Astro.props;
+const { title, description, open = false, id, ...props } = Astro.props;
 ---
 
 <div
-  x-data="{ isOpen: false }"
+  x-data="{ 
+    isOpen: false,
+    drawerId: '${id}'
+  }"
   x-show="isOpen"
   x-on:keydown.escape.window="isOpen = false"
   x-transition:enter="transition ease-out duration-300"
@@ -26,7 +30,7 @@ const { title, description, open = false, ...props } = Astro.props;
   aria-modal="true"
   aria-labelledby="drawer-title"
   aria-describedby="drawer-description"
-  @show-drawer.window="isOpen = true"
+  @show-drawer.window="isOpen = $event.detail && ($event.detail.drawer === drawerId || ($event.detail.drawer && drawerId.includes($event.detail.drawer)))"
   @hide-drawer.window="isOpen = false"
   x-init={`isOpen = ${Boolean(open)}`}
   {...props}
@@ -41,7 +45,7 @@ const { title, description, open = false, ...props } = Astro.props;
       x-transition:leave-start="opacity-100"
       x-transition:leave-end="opacity-0"
       x-on:click="isOpen = false"
-      class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+      class="absolute inset-0 bg-black/50"
       aria-hidden="true"
   ></div>
 
@@ -54,21 +58,31 @@ const { title, description, open = false, ...props } = Astro.props;
       x-transition:leave="transition ease-in duration-200"
       x-transition:leave-start="opacity-100 translate-y-0 md:scale-100"
       x-transition:leave-end="opacity-0 translate-y-full md:translate-y-0 md:scale-95"
-      class="p-3 relative bg-(--color-soft-paper) text-(--color-deep-grey) rounded-t-lg md:rounded-lg shadow-xl w-full max-w-md overflow-hidden"
+      class="relative bg-(--color-soft-paper) text-(--color-deep-grey) rounded-t-lg md:rounded-lg shadow-xl w-full max-w-md overflow-hidden p-3"
       x-trap.inert.noscroll="isOpen"
   >
-    <div class="px-4">
+    <div class="px-3">
+      <!-- Title with 8px top/bottom padding -->
       <h2 id="drawer-title" class="text-balance text-subtitle text-center py-2">
         {title}
       </h2>
+      
       <!-- Description -->
-      <p id="drawer-description" class="text-balance text-body text-center">
+      <p id="drawer-description" class="text-balance text-body text-center text-stone-500 mb-6">
         {description}
       </p>
     </div>
 
-    <div class="pt-6 grid grid-rows-2 gap-3">
+    <!-- Button group with 12px gap -->
+    <div class="space-y-3">
       <slot />
     </div>
   </div>
 </div>
+
+<style>
+  /* Style to make buttons full width */
+  :global(.space-y-3 button) {
+    width: 100%;
+  }
+</style>

@@ -13,16 +13,33 @@ export const notes = {
     }),
     handler: async ({ content, title, userId, isPublic = false }) => {
       try {
+        const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
+        
+        const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
+        
         const newNote = await db.insert(Notes)
           .values({ 
-            content, 
-            title, 
+            content: capitalizedContent, 
+            title: capitalizedTitle, 
             userId, 
             isPublic,
             createdAt: new Date() 
           })
           .returning()
           .get()
+
+        // Add a small delay to ensure the database operation completes
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // Verify the new note was created
+        const verifyNote = await db.select()
+          .from(Notes)
+          .where(and(eq(Notes.id, newNote.id), eq(Notes.userId, userId)))
+          .limit(1);
+          
+        if (!verifyNote.length) {
+          console.warn("Note creation verification failed");
+        }
 
         return {
           success: "Note created successfully!",
@@ -50,10 +67,14 @@ export const notes = {
     }),
     handler: async ({ id, content, title, userId, isPublic = false }) => {
       try {
+        const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
+        
+        const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
+        
         const updatedNote = await db.update(Notes)
           .set({
-            content,
-            title,
+            content: capitalizedContent,
+            title: capitalizedTitle,
             isPublic,
             updatedAt: new Date()
           })

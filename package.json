@@ -8,14 +8,18 @@
     "preview": "astro preview",
     "astro": "astro",
     "db:sync": "astro db sync",
-    "db:push": "astro db push"
+    "db:push": "astro db push",
+    "db:check": "node scripts/db-sync.js",
+    "predeploy": "npm run db:push",
+    "deploy": "npm run build",
+    "precommit": "npm run db:check"
   },
   "dependencies": {
     "@alpinejs/collapse": "^3.14.9",
     "@alpinejs/focus": "^3.14.9",
-    "@astrojs/db": "^0.14.9",
+    "@astrojs/db": "^0.14.14",
     "@astrojs/netlify": "^6.2.4",
-    "@clerk/astro": "^2.1.18",
+    "@clerk/astro": "^2.7.2",
     "@fontsource/reddit-mono": "^5.1.1",
     "@fontsource/reddit-sans": "^5.1.1",
     "@fortawesome/fontawesome-free": "^6.7.2",
