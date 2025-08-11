@@ -38,7 +38,7 @@ const Notes = defineTable({
 export default defineDb({
   tables: {
     Notes,
-    Threads,
-    NoteThreads
+    // Threads,
+    // NoteThreads
   }
 });
