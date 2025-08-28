@@ -1,0 +1,36 @@
+---
+export interface Props {
+  title?: string;
+  subtitle?: string;
+  class?: string;
+  headerBgColor?: string;
+}
+
+const { 
+  title = "Welcome to Harvous", 
+  subtitle = "Private",
+  class: className = "",
+  headerBgColor = "var(--color-paper)"
+} = Astro.props;
+---
+
+<div class={`box-border content-stretch flex flex-col items-start justify-start overflow-clip pb-6 pt-0 px-0 relative rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full ${className}`}>
+  <!-- Header section with dynamic background -->
+  <div class="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full" style={`background-color: ${headerBgColor}`}>
+    <div class="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px]">
+      <p class="leading-[normal]">{title}</p>
+    </div>
+    <div class="font-sans font-semibold relative shrink-0 text-[14px] text-nowrap">
+      <p class="leading-[normal] whitespace-pre">{subtitle}</p>
+    </div>
+  </div>
+  
+  <!-- Content area -->
+  <div class="basis-0 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-px min-w-px overflow-clip relative shrink-0 w-full">
+    <div class="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
+      <div class="basis-0 grow min-h-px min-w-px shrink-0 w-full">
+        <slot />
+      </div>
+    </div>
+  </div>
+</div>

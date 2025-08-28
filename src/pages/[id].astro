@@ -1,0 +1,428 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import CardStack from "@/components/CardStack.astro";
+import CardFull from "@/components/CardFull.astro";
+import SearchInput from "@/components/SearchInput.astro";
+import SpaceButton from "@/components/SpaceButton.astro";
+import Avatar from "@/components/Avatar.astro";
+import SquareButton from "@/components/SquareButton.astro";
+import TabNav from "@/components/TabNav.astro";
+import CardNote from "@/components/CardNote.astro";
+import CardThread from "@/components/CardThread.astro";
+import { db, Threads, Notes, Spaces, eq, and, desc } from "astro:db";
+import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount } from "@/utils/dashboard-data";
+import { getThreadColorCSS } from "@/utils/colors";
+import { SAMPLE_DATA, getNavigationData, shouldUseSampleData } from "@/utils/sample-data";
+import NewNotePanel from "@/components/NewNotePanel.astro";
+// For local development, use placeholder user ID
+// In production, this will be handled by Clerk authentication
+const userId = "user_2abc123"; // Placeholder for local development
+
+const { id } = Astro.params;
+
+// Determine if this is a thread, note, or space based on the ID prefix
+const isThread = id?.startsWith('thread_');
+const isNote = id?.startsWith('note_');
+const isSpace = id?.startsWith('space_');
+
+let content: any = null;
+let threads: any[] = [];
+let spaces: any[] = [];
+let pageTitle = "";
+let pageContent = "";
+let currentThread: any = null;
+let currentSpace: any = null;
+let threadNotes: any[] = [];
+let inboxCount: number = 0;
+
+if (shouldUseSampleData()) {
+  // Use robust sample data system
+  if (isThread) {
+    // Find thread in sample data
+    const thread = [...SAMPLE_DATA.unorganizedThreads, ...SAMPLE_DATA.organizedThreads]
+      .find(t => t.id === id);
+    
+
+    
+    if (thread) {
+      // Get notes for this thread from sample data
+      threadNotes = SAMPLE_DATA.threadNotes.filter(note => note.threadId === thread.id);
+
+      content = {
+        id: thread.id,
+        title: thread.title,
+        subtitle: thread.content,
+        color: thread.color,
+        spaceId: thread.spaceId,
+        notes: threadNotes,
+        noteCount: threadNotes.length
+      };
+      currentThread = {
+        id: thread.id,
+        title: thread.title,
+        color: thread.color,
+        noteCount: threadNotes.length
+      };
+
+      pageTitle = thread.title;
+      pageContent = `${threadNotes.length} notes`;
+    }
+  } else if (isNote) {
+    // Find note in sample data (check both unorganized and thread notes)
+    const note = [...SAMPLE_DATA.unorganizedNotes, ...SAMPLE_DATA.threadNotes].find(n => n.id === id);
+    
+
+    
+    if (note) {
+      content = {
+        id: note.id,
+        title: note.title,
+        content: note.content,
+        threadId: note.threadId,
+        createdAt: note.createdAt,
+        noteId: note.noteId,
+        updatedAt: new Date()
+      };
+      pageTitle = note.title;
+      pageContent = note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "");
+      
+      // Get the thread this note belongs to
+      currentThread = {
+        id: note.threadId,
+        title: "Unorganized",
+        noteCount: SAMPLE_DATA.unorganizedNotes.length
+      };
+    }
+  } else if (isSpace) {
+    // Find space in sample data
+    const space = SAMPLE_DATA.spaces.find(s => s.id === id);
+    
+
+    
+    if (space) {
+      // Get threads for this space
+      const spaceThreads = SAMPLE_DATA.organizedThreads.filter(t => t.spaceId === space.id);
+      
+      content = {
+        id: space.id,
+        title: space.title,
+        color: space.color,
+        threads: spaceThreads,
+        notes: [],
+        threadCount: spaceThreads.length,
+        noteCount: 0
+      };
+      currentSpace = {
+        id: space.id,
+        title: space.title,
+        color: space.color
+      };
+      pageTitle = space.title;
+      pageContent = `${spaceThreads.length} threads`;
+    }
+  }
+
+
+
+  // Get navigation data
+  const navData = getNavigationData();
+  threads = navData.threads;
+  spaces = navData.spaces;
+  inboxCount = navData.inboxCount;
+} else {
+  // Production: fetch from database
+  try {
+    if (isThread) {
+      // Fetch thread data
+      const thread = await db.select({
+        id: Threads.id,
+        title: Threads.title,
+        subtitle: Threads.subtitle,
+        color: Threads.color,
+        spaceId: Threads.spaceId,
+        isPublic: Threads.isPublic,
+        isPinned: Threads.isPinned,
+        createdAt: Threads.createdAt,
+        updatedAt: Threads.updatedAt,
+      })
+      .from(Threads)
+      .where(and(eq(Threads.id, id!), eq(Threads.userId, userId)))
+      .get();
+
+      if (thread) {
+        threadNotes = await getNotesForThread(id!, userId);
+        content = {
+          ...thread,
+          notes: threadNotes,
+          noteCount: threadNotes.length
+        };
+        currentThread = {
+          ...thread,
+          noteCount: threadNotes.length
+        };
+        pageTitle = thread.title;
+        pageContent = thread.subtitle || `${threadNotes.length} notes`;
+      }
+    } else if (isNote) {
+      const note = await db.select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        threadId: Notes.threadId,
+        spaceId: Notes.spaceId,
+        createdAt: Notes.createdAt,
+        updatedAt: Notes.updatedAt,
+      })
+      .from(Notes)
+      .where(and(eq(Notes.id, id!), eq(Notes.userId, userId)))
+      .get();
+
+      if (note) {
+        currentThread = await db.select({
+          id: Threads.id,
+          title: Threads.title,
+          subtitle: Threads.subtitle,
+          color: Threads.color,
+          spaceId: Threads.spaceId,
+        })
+        .from(Threads)
+        .where(eq(Threads.id, note.threadId!))
+        .get();
+
+        content = note;
+        pageTitle = note.title || "Untitled Note";
+        pageContent = note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "");
+        
+        if (currentThread) {
+          const threadNotes = await getNotesForThread(currentThread.id, userId);
+          currentThread.noteCount = threadNotes.length;
+        }
+      }
+    } else if (isSpace) {
+      const space = await db.select({
+        id: Spaces.id,
+        title: Spaces.title,
+        description: Spaces.description,
+        color: Spaces.color,
+        backgroundGradient: Spaces.backgroundGradient,
+        isPublic: Spaces.isPublic,
+        isActive: Spaces.isActive,
+        createdAt: Spaces.createdAt,
+        updatedAt: Spaces.updatedAt,
+      })
+      .from(Spaces)
+      .where(and(eq(Spaces.id, id!), eq(Spaces.userId, userId)))
+      .get();
+
+      if (space) {
+        const [spaceThreads, spaceNotes] = await Promise.all([
+          getThreadsForSpace(id!, userId),
+          getNotesForSpace(id!, userId)
+        ]);
+        
+        const standaloneNotes = spaceNotes.filter((note: any) => note.threadId === "thread_unorganized");
+
+        content = {
+          ...space,
+          threads: spaceThreads,
+          notes: standaloneNotes,
+          threadCount: spaceThreads.length,
+          noteCount: standaloneNotes.length
+        };
+        currentSpace = space;
+        pageTitle = space.title;
+        pageContent = space.description || `${spaceThreads.length} threads, ${standaloneNotes.length} notes`;
+      }
+    }
+
+    // Fetch navigation data
+    [threads, spaces, inboxCount] = await Promise.all([
+      getAllThreadsWithCounts(userId),
+      getSpacesWithCounts(userId),
+      getInboxCount(userId)
+    ]);
+  } catch (error) {
+    console.error("Error fetching content:", error);
+  }
+}
+
+// If content not found, redirect to dashboard
+if (!content) {
+  return Astro.redirect('/dashboard');
+}
+---
+
+<Layout title={pageTitle}>
+  <div class="h-screen bg-[var(--color-light-paper)] p-6">
+    <div class="grid grid-cols-[300px_640px_1fr] gap-6 h-full">
+      <!-- Navigation Column -->
+      <section class="h-full">
+        <slot name="navigation">
+          <div class="content-stretch flex flex-col items-start justify-between relative size-full">
+            <div class="content-stretch flex flex-col gap-12 items-start justify-start relative shrink-0 w-full">
+              <!-- Search Input -->
+              <SearchInput placeholder="Search" className="h-[60px]" />
+              
+              <!-- Navigation Buttons -->
+              <div class="content-stretch flex flex-col items-start justify-start relative shrink-0 w-full">
+                <a href="/dashboard" class="w-full">
+                  <SpaceButton text="For You" count={inboxCount} state="WithCount" className="w-full" isActive={false} />
+                </a>
+                
+                {/* Show created spaces */}
+                {spaces.map(space => (
+                  <a href={`/${space.id}`} class="w-full">
+                    <SpaceButton 
+                      text={space.title} 
+                      count={space.totalItemCount} 
+                      state="WithCount" 
+                      className="w-full" 
+                      backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
+                      isActive={currentSpace?.id === space.id}
+                    />
+                  </a>
+                ))}
+                
+                {/* Show pinned threads */}
+                {threads.filter(thread => thread.isPinned).map(thread => (
+                  <a href={`/${thread.id}`} class="w-full">
+                    <SpaceButton 
+                      text={thread.title} 
+                      count={thread.noteCount} 
+                      state="WithCount" 
+                      className="w-full" 
+                      backgroundGradient={thread.backgroundGradient}
+                      isActive={currentThread?.id === thread.id}
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+            
+            <!-- Bottom Section with New Space Button and Avatar -->
+            <div class="content-stretch flex gap-3 items-center justify-start relative shrink-0 w-full">
+              <SpaceButton text="New Space" className="flex-1" />
+              <Avatar initials="DJ" />
+            </div>
+          </div>
+        </slot>
+      </section>
+
+      <!-- Main Column -->
+      <section class="h-full">
+        <slot name="main">
+          {isNote ? (
+            <CardFull 
+              title={content.title || "Untitled Note"}
+              content={content.content}
+              date={content.createdAt ? content.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Feb 7, 2025"}
+              noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : "N001"}
+              className="h-full"
+            />
+          ) : (
+            <CardStack 
+              title={pageTitle} 
+              subtitle={pageContent} 
+              headerBgColor={isThread && currentThread?.color ? `var(--color-${currentThread.color})` : "var(--color-paper)"}
+            >
+              <div class="flex flex-col gap-6">
+                {isThread && threadNotes && threadNotes.length > 0 ? (
+                  <div class="flex flex-col gap-3">
+                    {threadNotes.map((note: any) => (
+                      <div class="content-item note-item">
+                        <a 
+                          href={`/${note.id}`}
+                          class="block transition-transform duration-200 hover:scale-[1.002]"
+                        >
+                          <CardNote 
+                            title={note.title || "Untitled Note"}
+                            content={note.content.substring(0, 150) + (note.content.length > 150 ? "..." : "")}
+                          />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : isSpace && content.threads && content.threads.length > 0 ? (
+                  <div class="flex flex-col gap-3">
+                    {/* Show threads in this space */}
+                    {content.threads.map((thread: any) => (
+                      <div class="content-item thread-item">
+                        <a 
+                          href={`/${thread.id}`}
+                          class="block transition-transform duration-200 hover:scale-[1.002]"
+                        >
+                          <CardThread 
+                            title={thread.title}
+                            subtitle={thread.subtitle || `${thread.noteCount} notes`}
+                            count={thread.noteCount}
+                            accentColor={thread.accentColor}
+                            lastUpdated={thread.lastUpdated}
+                            isPrivate={!thread.isPublic}
+                          />
+                        </a>
+                      </div>
+                    ))}
+                    
+                    {/* Show standalone notes in this space */}
+                    {content.notes && content.notes.length > 0 && content.notes.map((note: any) => (
+                      <div class="content-item note-item">
+                        <a 
+                          href={`/${note.id}`}
+                          class="block transition-transform duration-200 hover:scale-[1.002]"
+                        >
+                          <CardNote 
+                            title={note.title || "Untitled Note"}
+                            content={note.content.substring(0, 150) + (note.content.length > 150 ? "..." : "")}
+                          />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div class="text-center py-12">
+                    <p class="text-[var(--color-pebble-grey)] text-lg">No content found.</p>
+                  </div>
+                )}
+              </div>
+            </CardStack>
+          )}
+        </slot>
+      </section>
+
+      <!-- Additional Column -->
+      <section class="h-full">
+        <slot name="additional">
+                    <div 
+            class="flex flex-col items-left justify-between h-full"
+            x-data="{ showNewNotePanel: false }"
+            x-init="
+              // Initialize from localStorage
+              showNewNotePanel = localStorage.getItem('showNewNotePanel') === 'true';
+              
+              // Listen for NewNotePanel events
+              window.addEventListener('openNewNotePanel', () => {
+                showNewNotePanel = true;
+                localStorage.setItem('showNewNotePanel', 'true');
+              });
+              window.addEventListener('closeNewNotePanel', () => {
+                showNewNotePanel = false;
+                localStorage.setItem('showNewNotePanel', 'false');
+              });
+            "
+          >
+            <!-- Default state: SquareButtons -->
+            <div x-show="!showNewNotePanel" class="flex flex-col items-left justify-between h-full">
+              <SquareButton variant="More" />
+              <SquareButton variant="Add" withMenu={true} />
+            </div>
+            
+            <!-- New Note Panel -->
+            <div x-show="showNewNotePanel" class="h-full">
+              <NewNotePanel />
+            </div>
+          </div>
+        </slot>
+      </section>
+    </div>
+  </div>
+</Layout>

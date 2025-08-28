@@ -1,44 +1,92 @@
 import { defineDb, defineTable, column } from 'astro:db';
 
-const Notes = defineTable({
+const Spaces = defineTable({
   columns: {
-    id: column.number({ primaryKey: true }),
-    title: column.text({ optional: true }),
-    content: column.text(),
+    id: column.text({ primaryKey: true }),
+    title: column.text(),
+    description: column.text({ optional: true }),
+    color: column.text({ optional: true }),
+    backgroundGradient: column.text({ optional: true }),
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
     userId: column.text(), // Clerk user id
     isPublic: column.boolean({ default: false }),
+    isActive: column.boolean({ default: true }),
+    order: column.number({ default: 0 }),
   }
 })
 
-// const Threads = defineTable({
-//   columns: {
-//     id: column.number({ primaryKey: true }),
-//     title: column.text(),
-//     createdAt: column.date(),
-//     updatedAt: column.date({ optional: true }),
-//     userId: column.text(), // Clerk user id
-//     isPublic: column.boolean({ default: false }),
-//     color: column.text({ optional: true }), // Store the color name or value
-//     isPinned: column.boolean({ default: false }), // Whether the thread is pinned
-//   }
-// })
+const Threads = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    title: column.text(),
+    subtitle: column.text({ optional: true }),
+    spaceId: column.text({ optional: true }), // Space this thread belongs to (optional)
+    createdAt: column.date(),
+    updatedAt: column.date({ optional: true }),
+    userId: column.text(), // Clerk user id
+    isPublic: column.boolean({ default: false }),
+    isPinned: column.boolean({ default: false }), // Whether the thread is pinned
+    color: column.text({ optional: true }), // Store the color name or value
+    order: column.number({ default: 0 }), // Display order
+  }
+})
 
-// const NoteThreads = defineTable({
-//   columns: {
-//     id: column.number({ primaryKey: true }),
-//     noteId: column.number(),
-//     threadId: column.number(),
-//     createdAt: column.date(),
-//   }
-// })
+const Notes = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    title: column.text({ optional: true }),
+    content: column.text(),
+    threadId: column.text(), // Required: every note must belong to a thread (default: "thread_unorganized")
+    spaceId: column.text({ optional: true }), // Optional: direct reference to space
+    createdAt: column.date(),
+    updatedAt: column.date({ optional: true }),
+    userId: column.text(), // Clerk user id
+    isPublic: column.boolean({ default: false }),
+    isFeatured: column.boolean({ default: false }),
+    order: column.number({ default: 0 }),
+  }
+})
+
+// Junction table for many-to-many relationship between notes and threads
+const NoteThreads = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    noteId: column.text(), // Reference to note
+    threadId: column.text(), // Reference to thread
+    createdAt: column.date(),
+  }
+})
+
+const Comments = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    content: column.text(),
+    noteId: column.text(),
+    userId: column.text(),
+    createdAt: column.date(),
+    updatedAt: column.date({ optional: true }),
+  }
+})
+
+const Members = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    userId: column.text(),
+    spaceId: column.text(),
+    role: column.text({ default: "member" }), // member, admin, owner
+    createdAt: column.date(),
+  }
+})
 
 // https://astro.build/db/config
 export default defineDb({
   tables: {
+    Spaces,
+    Threads,
     Notes,
-    // Threads,
-    // NoteThreads
+    NoteThreads,
+    Comments,
+    Members
   }
 });

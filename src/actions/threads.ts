@@ -1,19 +1,26 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { db, Threads, eq, and } from "astro:db";
+import { THREAD_COLORS, getRandomThreadColor } from "@/utils/colors";
+import { generateThreadId } from "@/utils/ids";
 
 export const threads = {
   create: defineAction({
     accept: "form",
     input: z.object({
       title: z.string().min(1, "Title is required"),
+      subtitle: z.string().optional(),
+      spaceId: z.string().min(1, "Space ID is required"),
       userId: z.string().min(1, "User ID is required"),
       isPublic: z.boolean().optional(),
-      color: z.string().optional()
+      color: z.enum(THREAD_COLORS).optional()
     }),
-    handler: async ({ title, userId, isPublic = false, color = "blessed-blue" }) => {
+    handler: async ({ title, subtitle, spaceId, userId, isPublic = false, color }) => {
       try {
-        console.log(`Creating thread with title: ${title}, userId: ${userId}, isPublic: ${isPublic}, color: ${color}`);
+        // Use provided color or generate a random one
+        const threadColor = color || getRandomThreadColor();
+        
+        console.log(`Creating thread with title: ${title}, subtitle: ${subtitle}, spaceId: ${spaceId}, userId: ${userId}, isPublic: ${isPublic}, color: ${threadColor}`);
         const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
         
         // Check if we're in a deployed environment
@@ -27,10 +34,13 @@ export const threads = {
         
         const newThread = await db.insert(Threads)
           .values({ 
+            id: generateThreadId(),
             title: capitalizedTitle, 
+            subtitle: subtitle || null,
+            spaceId,
             userId, 
             isPublic,
-            color,
+            color: threadColor,
             createdAt: new Date() 
           })
           .returning()
@@ -70,19 +80,21 @@ export const threads = {
   update: defineAction({
     accept: "form",
     input: z.object({
-      id: z.number().min(1, "ID is required"),
+      id: z.string().min(1, "ID is required"),
       title: z.string().min(1, "Title is required"),
+      subtitle: z.string().optional(),
       userId: z.string().min(1, "User ID is required"),
       isPublic: z.boolean().optional(),
-      color: z.string().optional()
+      color: z.enum(THREAD_COLORS).optional()
     }),
-    handler: async ({ id, title, userId, isPublic = false, color }) => {
+    handler: async ({ id, title, subtitle, userId, isPublic = false, color }) => {
       try {
         const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
         
         const updatedThread = await db.update(Threads)
           .set({
             title: capitalizedTitle,
+            subtitle: subtitle || null,
             isPublic,
             color,
             updatedAt: new Date()
@@ -102,7 +114,7 @@ export const threads = {
   delete: defineAction({
     accept: "form",
     input: z.object({
-      id: z.number().min(1, "ID is required"),
+      id: z.string().min(1, "ID is required"),
       userId: z.string().min(1, "User ID is required")
     }),
     handler: async ({ id, userId }) => {
@@ -128,7 +140,7 @@ export const threads = {
   togglePin: defineAction({
     accept: "form",
     input: z.object({
-      id: z.coerce.number().min(1, "ID is required"),
+      id: z.string().min(1, "ID is required"),
       userId: z.string().min(1, "User ID is required")
     }),
     handler: async ({ id, userId }) => {

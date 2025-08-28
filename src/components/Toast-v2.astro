@@ -5,6 +5,24 @@ import TriangleExclamationIcon from "@fortawesome/fontawesome-free/svgs/solid/tr
 ---
 
 <div 
+  x-data="{
+    showToast: false,
+    message: '',
+    type: 'success',
+    makeToast(message, type = 'success') {
+      this.message = message;
+      this.type = type;
+      this.showToast = true;
+      
+      // Auto-hide toast after 4 seconds (longer for better visibility)
+      setTimeout(() => {
+        this.showToast = false;
+      }, 4000);
+    },
+    dismissToast() {
+      this.showToast = false;
+    }
+  }"
   x-cloak
   x-show="showToast"
   class="fixed rounded-xl shadow-toast top-12 left-4 right-4 mx-auto max-w-md z-50 will-change-[translate]"

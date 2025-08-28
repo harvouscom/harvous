@@ -1,0 +1,147 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import CardFull from "@/components/CardFull.astro";
+import SearchInput from "@/components/SearchInput.astro";
+import SpaceButton from "@/components/SpaceButton.astro";
+import Avatar from "@/components/Avatar.astro";
+import SquareButton from "@/components/SquareButton.astro";
+
+// Get the note ID from the URL
+const { id } = Astro.params;
+
+// Define note data - in a real app this would come from a database
+const notes = {
+  "founder-note": {
+    title: "Note from our founder, Derek",
+    createdAt: new Date("2025-02-07T10:00:00Z"),
+    noteId: 4,
+    content: "Thank you so much for trying out this notes app designed for Bible study. It's been a project I've been working on for a good amount of time. The goal of Harvous is to be the digital tool and space for you and others to use for your Bible study.\n\nHow it began... I was frustrated with there not being a good notes app just for my Bible study. I used Apple Notes and made a ton of highlights in the YouVersion Bible app. I needed a better app, so I sought out to design one. And with the help of my friend, Cam, we built this Bible study notes app.\n\nPlease if you come across anything that isn't working as it prolly should or if you have any feedback for us send it here.",
+    thread: "welcome"
+  },
+  "quick-tour": {
+    title: "Quick tour of Harvous",
+    createdAt: new Date("2025-02-07T11:00:00Z"),
+    noteId: 5,
+    content: "Play a video walkthrough going through the app. Think of this as a live demo and feel free to leave a comment with questions.",
+    thread: "welcome"
+  },
+  "invitation": {
+    title: "You're invited to Harvous!",
+    createdAt: new Date("2025-02-07T12:00:00Z"),
+    noteId: 6,
+    content: "Share your experience with Harvous! Invite friends, family, and your church community to explore this unique Bible study tool. Let them know how it has enhanced your study sessions and encourage them to join you in this journey.",
+    thread: "welcome"
+  },
+  "note_1756318000004": {
+    title: "Sample Note 1",
+    createdAt: new Date("2025-02-07T09:00:00Z"),
+    noteId: 1,
+    content: "This is a sample note in the thread. It contains some basic content to demonstrate how notes are displayed in the application. This note is part of the Gospel of John thread and serves as an example of the note-taking functionality.",
+    thread: "gospel-of-john"
+  }
+};
+
+const note = notes[id as keyof typeof notes];
+
+// If note doesn't exist, redirect to welcome page
+if (!note) {
+  return Astro.redirect('/welcome');
+}
+
+// Determine which space button should be active based on the note's thread
+const getActiveSpace = (thread: string) => {
+  switch (thread) {
+    case "welcome":
+      return "welcome";
+    case "space":
+      return "space";
+    case "gospel-of-john":
+      return "gospel-of-john";
+    default:
+      return "dashboard";
+  }
+};
+
+const activeSpace = getActiveSpace(note.thread);
+---
+
+<Layout title={note.title}>
+  <div class="h-screen bg-[var(--color-light-paper)] p-6">
+    <div class="grid grid-cols-[300px_640px_1fr] gap-6 h-full">
+      <!-- Navigation Column -->
+      <section class="h-full">
+        <slot name="navigation">
+          <div class="content-stretch flex flex-col items-start justify-between relative size-full">
+            <div class="content-stretch flex flex-col gap-12 items-start justify-start relative shrink-0 w-full">
+              <!-- Search Input -->
+              <SearchInput placeholder="Search" className="h-[60px]" />
+              
+              <!-- Space Buttons -->
+              <div class="content-stretch flex flex-col items-start justify-start relative shrink-0 w-full">
+                <a href="/dashboard" class="w-full">
+                  <SpaceButton 
+                    text="For You" 
+                    count={3} 
+                    state="WithCount" 
+                    className="w-full" 
+                    isActive={activeSpace === "dashboard"} 
+                  />
+                </a>
+                <a href="/space" class="w-full">
+                  <SpaceButton 
+                    text="Bible Study" 
+                    count={1} 
+                    state="WithCount" 
+                    className="w-full" 
+                    backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)" 
+                    isActive={activeSpace === "space"} 
+                  />
+                </a>
+                <a href="/thread_1756318000000" class="w-full">
+                  <SpaceButton 
+                    text="Gospel of John" 
+                    count={2} 
+                    state="WithCount" 
+                    className="w-full" 
+                    backgroundGradient="linear-gradient(180deg, var(--color-lovely-lavender) 0%, var(--color-lovely-lavender) 100%)" 
+                    isActive={activeSpace === "gospel-of-john"} 
+                  />
+                </a>
+              </div>
+            </div>
+            
+            <!-- Bottom Section with New Space Button and Avatar -->
+            <div class="content-stretch flex gap-3 items-center justify-start relative shrink-0 w-full">
+              <SpaceButton text="New Space" className="flex-1" />
+              <Avatar initials="DJ" />
+            </div>
+          </div>
+        </slot>
+      </section>
+
+      <!-- Main Column -->
+      <section class="h-full">
+        <slot name="main">
+          <!-- Note Content -->
+          <CardFull 
+            title={note.title}
+            date={note.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            noteId={`N${note.noteId.toString().padStart(3, '0')}`}
+            content={note.content}
+            className="h-full"
+          />
+        </slot>
+      </section>
+
+      <!-- Additional Column -->
+      <section class="h-full">
+        <slot name="additional">
+          <div class="flex flex-col items-left justify-between h-full ">
+            <SquareButton variant="More" />
+            <SquareButton variant="Add" withMenu={true} />
+          </div>
+        </slot>
+      </section>
+    </div>
+  </div>
+</Layout>

@@ -1,0 +1,52 @@
+---
+export interface Props {
+  title?: string;
+  date?: string;
+  noteId?: string;
+  content?: string;
+  className?: string;
+}
+
+const {
+  title = "Note from our founder, Derek",
+  date = "Feb 7, 2025",
+  noteId = "#N004",
+  content = "Thank you so much for trying out this notes app designed for Bible study. It's been a project I've been working on for a good amount of time. The goal of Harvous is to be the digital tool and space for you and others to use for your Bible study.\n\nHow it began... I was frustrated with there not being a good notes app just for my Bible study. I used Apple Notes and made a ton of highlights in the YouVersion Bible app. I needed a better app, so I sought out to design one. And with the help of my friend, Cam, we built this Bible study notes app.\n\nPlease if you come across anything that isn't working as it prolly should or if you have any feedback for us send it here.",
+  className = ""
+} = Astro.props;
+---
+
+<div class={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full ${className}`}>
+  <!-- Header with title and bookmark icon -->
+  <div class="box-border content-stretch flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
+    <div class="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
+      <p class="leading-[normal]">{title}</p>
+    </div>
+    <div class="relative shrink-0 size-5">
+      <svg class="block max-w-none size-full text-[var(--color-deep-grey)] " fill="currentColor" viewBox="0 0 24 24">
+        <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+      </svg>
+    </div>
+  </div>
+  
+  <!-- Date and Note ID -->
+  <div class="box-border content-stretch flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full">
+    <div class="relative shrink-0">
+      <p class="leading-[normal] text-nowrap whitespace-pre">{date}</p>
+    </div>
+    <div class="relative shrink-0">
+      <p class="leading-[normal] text-nowrap whitespace-pre">#{noteId}</p>
+    </div>
+  </div>
+  
+  <!-- Content -->
+  <div class="basis-0 box-border content-stretch flex grow items-start justify-between min-h-px min-w-px px-3 py-0 relative shrink-0 w-full">
+    <div class="basis-0 flex flex-col font-sans font-normal grow justify-center leading-[1.6] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[16px]">
+      {content.split('\n\n').map((paragraph, index) => (
+        <p class={`mb-0 whitespace-pre-wrap ${index === content.split('\n\n').length - 1 ? '' : 'mb-4'}`}>
+          {paragraph}
+        </p>
+      ))}
+    </div>
+  </div>
+</div>

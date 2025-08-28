@@ -2,12 +2,15 @@
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 import db from '@astrojs/db';
-import clerk from "@clerk/astro";
+import clerkIntegration from '@clerk/astro';
 
 import netlify from '@astrojs/netlify';
 
 // https://astro.build/config
 export default defineConfig({
+  devToolbar: {
+    enabled: false
+  },
   vite: {
     plugins: [tailwindcss()],
     build: {
@@ -18,7 +21,6 @@ export default defineConfig({
         output: {
           // Improve chunk splitting for better caching
           manualChunks: {
-            clerk: ['@clerk/astro'],
             alpinejs: ['alpinejs', '@alpinejs/collapse', '@alpinejs/focus'],
             editor: ['trix', 'isomorphic-dompurify']
           }
@@ -38,7 +40,7 @@ export default defineConfig({
 
   integrations: [
     db(),
-    clerk(),
+    clerkIntegration(),
   ],
 
   experimental: {

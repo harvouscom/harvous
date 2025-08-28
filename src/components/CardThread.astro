@@ -1,0 +1,88 @@
+---
+import OverlappingNotes from "@/components/OverlappingNotes.astro";
+
+export interface Props {
+  title?: string;
+  subtitle?: string;
+  count?: number;
+  class?: string;
+  accentColor?: string;
+  lastUpdated?: string;
+  isPrivate?: boolean;
+}
+
+const { 
+  title = "Prayer Series",
+  subtitle,
+  count = 2,
+  class: className = "",
+  accentColor = "var(--color-lovely-lavender)",
+  lastUpdated = "5 hours ago",
+  isPrivate = true
+} = Astro.props;
+
+// Use lastUpdated if provided, otherwise fall back to subtitle
+const displaySubtitle = lastUpdated || subtitle || "5 hours ago";
+---
+
+<style>
+  .card-thread-container {
+    background-color: var(--color-fog-white);
+  }
+  
+  .lavender-accent {
+    background-color: var(--color-lovely-lavender);
+  }
+  
+
+</style>
+
+<div class={`card-thread-container box-border flex flex-col gap-3 items-start justify-start overflow-hidden pb-0 pt-4 px-3 relative rounded-xl w-full h-[90px] ${className}`}>
+  <!-- Accent bar -->
+  <div class="absolute inset-y-0 left-0 w-11 rounded-l-xl" style={`background-color: ${accentColor};`}></div>
+  
+  <!-- Header content -->
+  <div class="flex flex-col gap-2 items-start justify-center relative shrink-0 w-full">
+    <div class="flex gap-6 items-start justify-start relative shrink-0 w-full">
+      <!-- User icon (Private) or User group icon (Shared) -->
+      <div class="relative shrink-0 size-5">
+        {isPrivate ? (
+          <!-- Single user icon for Private -->
+          <svg class="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+        ) : (
+          <!-- User group icon for Shared -->
+          <svg class="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 640 640">
+            <path d="M96 192C96 130.1 146.1 80 208 80C269.9 80 320 130.1 320 192C320 253.9 269.9 304 208 304C146.1 304 96 253.9 96 192zM32 528C32 430.8 110.8 352 208 352C305.2 352 384 430.8 384 528L384 534C384 557.2 365.2 576 342 576L74 576C50.8 576 32 557.2 32 534L32 528zM464 128C517 128 560 171 560 224C560 277 517 320 464 320C411 320 368 277 368 224C368 171 411 128 464 128zM464 368C543.5 368 608 432.5 608 512L608 534.4C608 557.4 589.4 576 566.4 576L421.6 576C428.2 563.5 432 549.2 432 534L432 528C432 476.5 414.6 429.1 385.5 391.3C408.1 376.6 435.1 368 464 368z"/>
+          </svg>
+        )}
+      </div>
+      
+      <!-- Text content -->
+      <div class="basis-0 flex flex-col gap-2 grow items-center justify-center leading-[0] min-h-px min-w-px relative shrink-0 text-nowrap">
+        <!-- Title -->
+        <div class="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] w-full">
+          <p class="leading-none overflow-hidden text-ellipsis whitespace-nowrap">
+            {title}
+          </p>
+        </div>
+        
+        <!-- Subtitle -->
+        <div class="flex flex-col font-normal justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
+          <p class="leading-none overflow-hidden text-ellipsis whitespace-nowrap">
+            {displaySubtitle}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Overlapping notes area -->
+  <div class="box-border flex h-[120px] items-start justify-start pl-0 py-0 relative shrink-0 w-full">
+    <OverlappingNotes count={count} />
+  </div>
+  
+  <!-- Bottom shadow -->
+  <div class="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-6px_0px_0px_inset_var(--color-gray)]"></div>
+</div>

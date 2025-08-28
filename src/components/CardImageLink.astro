@@ -1,0 +1,78 @@
+---
+export interface Props {
+  title?: string;
+  date?: string;
+  noteId?: string;
+  content?: string;
+  imageUrl?: string;
+  source?: string;
+  className?: string;
+}
+
+const {
+  title = "Abraham",
+  date = "Feb 7, 2025",
+  noteId = "#N004",
+  content = "How can the story of one family who lived thousands of years ago help us see God at work today? As God shapes Abraham through calling and testing, the story of the people of Israel and all of humanity is told in the ups and downs of his life. Journey with Abraham through a lifetime of failures and faithfulness as he learns to trust God's promise and becomes the father of many nations.",
+  imageUrl = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop",
+  source = "BibleProject",
+  className = ""
+} = Astro.props;
+---
+
+<div class={`box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip p-3 relative rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full bg-[var(--color-fog-white)] ${className}`}>
+  <!-- Image -->
+  <div 
+    class="bg-center bg-cover bg-no-repeat h-[180px] rounded-xl shrink-0 w-full" 
+    style={`background-image: url('${imageUrl}')`}
+  ></div>
+  
+  <!-- Title and Bookmark -->
+  <div class="box-border content-stretch flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
+    <div class="basis-0 font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-2xl">
+      <p class="leading-[normal]">{title}</p>
+    </div>
+    <div class="relative shrink-0 size-5">
+      <svg class="size-full" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+      </svg>
+    </div>
+  </div>
+  
+  <!-- Date and Note ID -->
+  <div class="box-border content-stretch flex font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-xs text-nowrap w-full">
+    <div class="relative shrink-0">
+      <p class="leading-[normal] text-nowrap whitespace-pre">{date}</p>
+    </div>
+    <div class="relative shrink-0">
+      <p class="leading-[normal] text-nowrap whitespace-pre">{noteId}</p>
+    </div>
+  </div>
+  
+  <!-- Content -->
+  <div class="basis-0 box-border content-stretch flex grow items-start justify-between min-h-px min-w-px px-3 py-0 relative shrink-0 w-full">
+    <div class="basis-0 flex flex-col font-normal grow justify-center leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-base">
+      <p class="leading-[1.6]">{content}</p>
+    </div>
+  </div>
+  
+  <!-- Source Link -->
+  <div class="bg-[var(--color-aged-paper)] box-border content-stretch flex gap-2.5 h-[52px] items-start justify-start overflow-clip pb-4 pt-3 px-4 relative rounded-xl shrink-0 w-full">
+    <div class="basis-0 content-stretch flex flex-col gap-3 grow items-start justify-center min-h-px min-w-px relative shrink-0">
+      <div class="content-stretch flex items-center justify-between relative shrink-0 w-full">
+        <div class="basis-0 font-medium grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-stone-grey)] text-base">
+          <p class="leading-[1.5]">{source}</p>
+        </div>
+        <div class="relative shrink-0 size-5">
+          <svg class="size-full" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="absolute inset-0 pointer-events-none shadow-[0px_-4px_0px_0px_inset_rgba(0,0,0,0.1)]"></div>
+  </div>
+  
+  <!-- Gradient Overlay -->
+  <div class="absolute bg-gradient-to-b bottom-16 from-[#ffffff00] h-[50px] left-0 to-82% to-[#ffffff] w-full"></div>
+</div>

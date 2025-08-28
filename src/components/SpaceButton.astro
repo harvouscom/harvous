@@ -1,0 +1,154 @@
+---
+import FaAngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down.svg";
+
+interface Props {
+    className?: string;
+    text?: string;
+    count?: number;
+    state?: "Default" | "Dropdown" | "WithCount" | "DropdownTrigger";
+    showCount?: boolean;
+    backgroundGradient?: string;
+    isActive?: boolean;
+}
+
+const { 
+    className = "", 
+    text = "For You", 
+    count = 1, 
+    state = "Default",
+    showCount = false,
+    backgroundGradient = "var(--color-gradient-gray)",
+    isActive = true,
+    ...props 
+} = Astro.props;
+---
+
+{state === "Default" ? (
+    <button 
+        class={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 px-4 ${className}`}
+        style={isActive ? `background-image: ${backgroundGradient};` : ''}
+        {...props}
+    >
+        <div class="flex items-center justify-start relative w-full h-full pl-2 pr-2 transition-transform duration-125">
+            <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+                {text}
+            </span>
+        </div>
+    </button>
+) : state === "WithCount" ? (
+    <button 
+        class={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        style={isActive ? `background-image: ${backgroundGradient};` : ''}
+        {...props}
+    >
+        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+            <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+                {text}
+            </span>
+            <div class="p-[20px]">
+                <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                        {count}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </button>
+) : state === "DropdownTrigger" ? (
+    <button 
+        class={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        style={isActive ? `background-image: ${backgroundGradient};` : ''}
+        {...props}
+    >
+        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+            <div class="flex items-center gap-3">
+                <slot name="text">
+                    <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+                        {text}
+                    </span>
+                </slot>
+                <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                    <slot name="count">
+                        <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                            {count}
+                        </span>
+                    </slot>
+                </div>
+            </div>
+            <div class="flex items-center justify-center relative shrink-0">
+                <div class="flex-none scale-y-[-100%]">
+                    <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                        <div class="flex items-center justify-center relative shrink-0">
+                            <div class="flex-none scale-y-[-100%]">
+                                <div class="relative size-5">
+                                    <FaAngleDownIcon class="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </button>
+) : (
+    <button 
+        class={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        style={isActive ? `background-image: ${backgroundGradient};` : ''}
+        {...props}
+    >
+        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+            <div class="flex items-center gap-3">
+                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+                    {text}
+                </span>
+                <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                        {count}
+                    </span>
+                </div>
+            </div>
+            <div class="flex items-center justify-center relative shrink-0">
+                <div class="flex-none scale-y-[-100%]">
+                    <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                        <div class="flex items-center justify-center relative shrink-0">
+                            <div class="flex-none scale-y-[-100%]">
+                                <div class="relative size-5">
+                                    <FaAngleDownIcon class="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </button>
+)}
+
+<style>
+    button {
+        will-change: transform;
+        transition:
+            box-shadow 0.125s ease-in-out;
+    }
+
+    button[style*="background-image"] {
+        box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+    }
+
+    button:not([data-outer-shadow]):active {
+        filter: brightness(0.97);
+        box-shadow: 
+            0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+            0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+    }
+
+    /* Add text and icon animations similar to Button.astro and SquareButton.astro */
+    button:active > div {
+        translate: 0 0;
+        transform: scale(0.98);
+    }
+
+    button:active svg {
+        transform: scale(0.95);
+    }
+</style>

@@ -1,6 +1,7 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
-import { db, Notes, eq, and } from "astro:db";
+import { db, Notes, Threads, eq, and } from "astro:db";
+import { generateNoteId } from "@/utils/ids";
 
 export const notes = {
   create: defineAction({
@@ -8,19 +9,51 @@ export const notes = {
     input: z.object({
       content: z.string().min(1, "Content is required"),
       title: z.string().optional(),
+      threadId: z.string().optional(),
+      spaceId: z.string().optional(),
       userId: z.string().min(1, "User ID is required"),
       isPublic: z.boolean().optional()
     }),
-    handler: async ({ content, title, userId, isPublic = false }) => {
+    handler: async ({ content, title, threadId, spaceId, userId, isPublic = false }) => {
       try {
         const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
         
         const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
         
+        // Ensure we have a valid threadId - if it's unorganized, use the default
+        let finalThreadId = threadId;
+        if (!finalThreadId || finalThreadId === 'thread_unorganized') {
+          // Check if unorganized thread exists, create it if it doesn't
+          const existingUnorganizedThread = await db.select()
+            .from(Threads)
+            .where(and(eq(Threads.id, 'thread_unorganized'), eq(Threads.userId, userId)))
+            .get();
+            
+          if (!existingUnorganizedThread) {
+            // Create the unorganized thread
+            await db.insert(Threads)
+              .values({
+                id: 'thread_unorganized',
+                title: 'Unorganized',
+                subtitle: 'Notes that haven\'t been organized into threads yet',
+                spaceId: null,
+                userId,
+                isPublic: false,
+                color: null,
+                isPinned: false,
+                createdAt: new Date()
+              });
+          }
+          finalThreadId = 'thread_unorganized';
+        }
+        
         const newNote = await db.insert(Notes)
           .values({ 
+            id: generateNoteId(),
             content: capitalizedContent, 
             title: capitalizedTitle, 
+            threadId: finalThreadId,
+            spaceId: spaceId || null,
             userId, 
             isPublic,
             createdAt: new Date() 
@@ -59,22 +92,53 @@ export const notes = {
   update: defineAction({
     accept: "form",
     input: z.object({
-      id: z.number().min(1, "ID is required"),
+      id: z.string().min(1, "ID is required"),
       content: z.string().min(1, "Content is required"),
       title: z.string().optional(),
+      threadId: z.string().optional(),
+      spaceId: z.string().optional(),
       userId: z.string().min(1, "User ID is required"),
       isPublic: z.boolean().optional()
     }),
-    handler: async ({ id, content, title, userId, isPublic = false }) => {
+    handler: async ({ id, content, title, threadId, spaceId, userId, isPublic = false }) => {
       try {
         const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
         
         const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
         
+        // Ensure we have a valid threadId for updates too
+        let finalThreadId = threadId;
+        if (!finalThreadId || finalThreadId === 'thread_unorganized') {
+          // Check if unorganized thread exists, create it if it doesn't
+          const existingUnorganizedThread = await db.select()
+            .from(Threads)
+            .where(and(eq(Threads.id, 'thread_unorganized'), eq(Threads.userId, userId)))
+            .get();
+            
+          if (!existingUnorganizedThread) {
+            // Create the unorganized thread
+            await db.insert(Threads)
+              .values({
+                id: 'thread_unorganized',
+                title: 'Unorganized',
+                subtitle: 'Notes that haven\'t been organized into threads yet',
+                spaceId: null,
+                userId,
+                isPublic: false,
+                color: null,
+                isPinned: false,
+                createdAt: new Date()
+              });
+          }
+          finalThreadId = 'thread_unorganized';
+        }
+        
         const updatedNote = await db.update(Notes)
           .set({
             content: capitalizedContent,
             title: capitalizedTitle,
+            threadId: finalThreadId,
+            spaceId: spaceId || null,
             isPublic,
             updatedAt: new Date()
           })
@@ -93,7 +157,7 @@ export const notes = {
   delete: defineAction({
     accept: "form",
     input: z.object({
-      id: z.number().min(1, "ID is required"),
+      id: z.string().min(1, "ID is required"),
       userId: z.string().min(1, "User ID is required")
     }),
     handler: async ({ id, userId }) => {

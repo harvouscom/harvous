@@ -3,11 +3,13 @@ import FaAngleLeftIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-left
 import FaPlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
 import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 import FaEllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
+import MoreMenu from "./MoreMenu.astro";
 
 export interface Props {
   variant?: "Add" | "Close" | "More" | "Back";
+  withMenu?: boolean;
 }
-const { variant = "More" } = Astro.props;
+const { variant = "More", withMenu = false } = Astro.props;
 ---
 
 {variant === "Back" && (
@@ -18,7 +20,7 @@ const { variant = "More" } = Astro.props;
   >
     <div class="flex flex-row items-center justify-center relative w-full h-full">
       <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-[18px] px-4 relative w-full h-full">
-        <div class="relative shrink-0 w-[30px] h-[30px] flex items-center justify-center">
+        <div class="relative shrink-0 w-6 h-6 flex items-center justify-center">
           <FaAngleLeftIcon class="-translate-y-0.5 fill-(--color-pebble-grey) block max-w-none w-full h-full transition-transform duration-125" />
         </div>
       </div>
@@ -36,7 +38,7 @@ const { variant = "More" } = Astro.props;
       <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-4 px-4 relative w-full h-full">
         <div class="flex h-[42.426px] items-center justify-center relative shrink-0 w-[42.426px]">
           <div class="flex-none">
-            <div class="relative w-[30px] h-[30px] flex items-center justify-center">
+            <div class="relative w-6 h-6 flex items-center justify-center">
               <FaXmarkIcon class="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" />
             </div>
           </div>
@@ -47,7 +49,7 @@ const { variant = "More" } = Astro.props;
   </button>
 )}
 
-{variant === "Add" && (
+{variant === "Add" && !withMenu && (
   <button
     data-outer-shadow
     class="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] bg-[var(--color-blue)] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
@@ -55,7 +57,7 @@ const { variant = "More" } = Astro.props;
   >
     <div class="flex flex-row items-center justify-center relative w-full h-full">
       <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-4 px-4 relative w-full h-full">
-        <div class="relative shrink-0 w-[30px] h-[30px] flex items-center justify-center">
+        <div class="relative shrink-0 w-6 h-6 flex items-center justify-center">
           <FaPlusIcon class="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" />
         </div>
       </div>
@@ -64,7 +66,91 @@ const { variant = "More" } = Astro.props;
   </button>
 )}
 
-{variant === "More" && (
+{variant === "Add" && withMenu && (
+  <div class="square-button-container" x-data="{ 
+    isOpen: false,
+    menuPosition: 'right',
+    toggle() {
+      this.isOpen = !this.isOpen;
+      if (this.isOpen) {
+        // Calculate position when opening
+        this.$nextTick(() => {
+          const button = this.$el.querySelector('.main-button');
+          const rect = button.getBoundingClientRect();
+          const screenWidth = window.innerWidth;
+          const menuWidth = 223; // Width of MoreMenu
+          
+          // Check if there's enough space on the right for the menu
+          const spaceOnRight = screenWidth - rect.right;
+          const spaceOnLeft = rect.left;
+          
+          // If there's enough space on the right OR button is closer to right edge, align menu to right
+          // Otherwise, align to left
+          this.menuPosition = (spaceOnRight >= menuWidth) || (spaceOnRight > spaceOnLeft) ? 'right' : 'left';
+        });
+      }
+    },
+    closeMenu() {
+      this.isOpen = false;
+    }
+  }" 
+  x-init="
+    window.addEventListener('closeMoreMenu', () => {
+      this.isOpen = false;
+    });
+  "
+  @click.outside="closeMenu()">
+    <!-- Main toggle button -->
+    <button
+      @click="toggle()"
+      data-outer-shadow
+      class="main-button group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
+      :class="isOpen ? 'bg-[var(--color-stone-grey)]' : 'bg-[var(--color-blue)]'"
+      {...Astro.props}
+    >
+      <div class="flex flex-row items-center justify-center relative w-full h-full">
+        <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-4 px-4 relative w-full h-full" :class="isOpen ? 'pb-5 pt-4' : 'pb-5 pt-4'">
+          <div class="relative shrink-0 w-6 h-6 flex items-center justify-center" :class="isOpen ? 'flex h-[42.426px] items-center justify-center relative shrink-0 w-[42.426px]' : ''">
+            <div :class="isOpen ? 'flex-none' : ''">
+              <div class="relative w-6 h-6 flex items-center justify-center">
+                <FaPlusIcon
+                  x-show="!isOpen"
+                  class="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125"
+                />
+                <FaXmarkIcon
+                  x-show="isOpen"
+                  x-transition:enter="transition ease-out duration-80"
+                  x-transition:enter-start="opacity-0 transform scale-90"
+                  x-transition:enter-end="opacity-100 transform scale-100"
+                  class="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125" 
+           :class="isOpen ? 'shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]' : 'shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]'" />
+    </button>
+
+    <!-- MoreMenu container -->
+    <div 
+      x-show="isOpen"
+      x-transition:enter="transition ease-out duration-150"
+      x-transition:enter-start="opacity-0 transform scale-95"
+      x-transition:enter-end="opacity-100 transform scale-100"
+      x-transition:leave="transition ease-in duration-100"
+      x-transition:leave-start="opacity-100 transform scale-100"
+      x-transition:leave-end="opacity-0 transform scale-95"
+      class="more-menu-container flex"
+      :class="menuPosition === 'left' ? 'justify-start' : 'justify-end'"
+    >
+      <MoreMenu />
+    </div>
+  </div>
+)}
+
+{variant === "More" && !withMenu && (
   <button
     class="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow]  duration-300"
     style="background-image: var(--color-gradient-gray);"
@@ -74,7 +160,7 @@ const { variant = "More" } = Astro.props;
       <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-[18px] px-4 relative w-full h-full">
         <div class="flex h-[30px] items-center justify-center relative shrink-0 w-[30px]">
           <div class="flex-none">
-            <div class="relative w-[30px] h-[30px] flex items-center justify-center">
+            <div class="relative w-6 h-6 flex items-center justify-center">
               <FaEllipsisIcon class="rotate-90 -translate-y-0.5 fill-(--color-pebble-grey) block max-w-none w-full h-full transition-transform duration-125" />
             </div>
           </div>
@@ -84,7 +170,97 @@ const { variant = "More" } = Astro.props;
   </button>
 )}
 
+{variant === "More" && withMenu && (
+  <div class="square-button-container" x-data="{ 
+    isOpen: false,
+    menuPosition: 'right',
+    toggle() {
+      this.isOpen = !this.isOpen;
+      if (this.isOpen) {
+        // Calculate position when opening
+        this.$nextTick(() => {
+          const button = this.$el.querySelector('.main-button');
+          const rect = button.getBoundingClientRect();
+          const screenWidth = window.innerWidth;
+          const menuWidth = 223; // Width of MoreMenu
+          
+          // Check if there's enough space on the right for the menu
+          const spaceOnRight = screenWidth - rect.right;
+          const spaceOnLeft = rect.left;
+          
+          // If there's enough space on the right OR button is closer to right edge, align menu to right
+          // Otherwise, align to left
+          this.menuPosition = (spaceOnRight >= menuWidth) || (spaceOnRight > spaceOnLeft) ? 'right' : 'left';
+        });
+      }
+    },
+    closeMenu() {
+      this.isOpen = false;
+    }
+  }" @click.outside="closeMenu()">
+    <!-- Main toggle button -->
+    <button
+      @click="toggle()"
+      class="main-button group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
+      :class="isOpen ? 'bg-[var(--color-stone-grey)]' : ''"
+      :style="isOpen ? '' : 'background-image: var(--color-gradient-gray);'"
+      x-bind:data-outer-shadow="isOpen ? '' : null"
+      {...Astro.props}
+    >
+      <div class="flex flex-row items-center justify-center relative w-full h-full">
+        <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-[18px] px-4 relative w-full h-full">
+          <div class="flex h-[30px] items-center justify-center relative shrink-0 w-[30px]" :class="isOpen ? 'flex h-[42.426px] items-center justify-center relative shrink-0 w-[42.426px]' : ''">
+            <div class="flex-none">
+              <div class="relative w-6 h-6 flex items-center justify-center">
+                <FaEllipsisIcon
+                  x-show="!isOpen"
+                  class="rotate-90 -translate-y-0.5 fill-(--color-pebble-grey) block max-w-none w-full h-full transition-transform duration-125"
+                />
+                <FaXmarkIcon
+                  x-show="isOpen"
+                  x-transition:enter="transition ease-out duration-80"
+                  x-transition:enter-start="opacity-0 transform scale-90"
+                  x-transition:enter-end="opacity-100 transform scale-100"
+                  class="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125" 
+           :class="isOpen ? 'shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]' : ''" />
+    </button>
+
+    <!-- MoreMenu container -->
+    <div 
+      x-show="isOpen"
+      x-transition:enter="transition ease-out duration-150"
+      x-transition:enter-start="opacity-0 transform scale-95"
+      x-transition:enter-end="opacity-100 transform scale-100"
+      x-transition:leave="transition ease-in duration-100"
+      x-transition:leave-start="opacity-100 transform scale-100"
+      x-transition:leave-end="opacity-0 transform scale-95"
+      class="more-menu-container flex"
+      :class="menuPosition === 'left' ? 'justify-start' : 'justify-end'"
+    >
+      <MoreMenu />
+    </div>
+  </div>
+)}
+
 <style>
+  .square-button-container {
+    position: relative;
+    display: inline-block;
+  }
+
+  .more-menu-container {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    z-index: 20;
+  }
+
   button[data-outer-shadow] {
     will-change: transform, box-shadow;
     transition:

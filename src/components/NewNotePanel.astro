@@ -1,0 +1,495 @@
+---
+import SquareButton from "./SquareButton.astro";
+import CardFull from "./CardFull.astro";
+import Button from "./Button.astro";
+import SpaceButton from "./SpaceButton.astro";
+import TrixEditor from "./TrixEditor.astro";
+import Toast from "./Toast-v2.astro";
+import { SAMPLE_DATA } from "@/utils/sample-data";
+import { getThreadGradientCSS } from "@/utils/colors";
+import { notes } from "@/actions/notes";
+
+export interface Props {
+  onClose?: () => void;
+}
+
+const { onClose } = Astro.props;
+
+// Function to get the next available note ID
+function getNextNoteId(): string {
+  // Get all existing note IDs from sample data
+  const allNotes = [...SAMPLE_DATA.unorganizedNotes, ...SAMPLE_DATA.threadNotes];
+  const existingNoteIds = allNotes.map(note => note.noteId);
+  
+  // Find the highest note ID and add 1
+  const maxNoteId = Math.max(...existingNoteIds, 0);
+  const nextNoteId = maxNoteId + 1;
+  
+  // Format as N001, N002, etc.
+  return `N${nextNoteId.toString().padStart(3, '0')}`;
+}
+
+// Function to calculate note counts for each thread
+function getThreadNoteCounts() {
+  const threadCounts: Record<string, number> = {};
+  
+  // Count unorganized notes
+  threadCounts["Unorganized"] = SAMPLE_DATA.unorganizedNotes.length;
+  
+  // Count notes for each thread
+  SAMPLE_DATA.threadNotes.forEach(note => {
+    const thread = [...SAMPLE_DATA.unorganizedThreads, ...SAMPLE_DATA.organizedThreads]
+      .find(t => t.id === note.threadId);
+    if (thread) {
+      threadCounts[thread.title] = (threadCounts[thread.title] || 0) + 1;
+    }
+  });
+  
+  return threadCounts;
+}
+
+// Thread color mapping
+const THREAD_COLORS = {
+  "Unorganized": null,
+  "Gospel of John": "lovely-lavender",
+  "Psalm 23 Study": "blessed-blue"
+};
+
+// Thread ID mapping for form submission
+const THREAD_ID_MAPPING = {
+  "Unorganized": "thread_unorganized", // This will be handled specially in the action
+  "Gospel of John": "thread_1756318000000",
+  "Psalm 23 Study": "thread_1756318000004"
+};
+
+const nextNoteId = getNextNoteId();
+const threadNoteCounts = getThreadNoteCounts();
+
+// For local development, use placeholder user ID
+// In production, this will be handled by Clerk authentication
+const userId = "user_2abc123"; // Placeholder for local development
+---
+
+<form 
+  action={notes.create}
+  method="POST"
+  class="new-note-panel h-full flex flex-col justify-between"
+  x-data="{ 
+    title: localStorage.getItem('newNoteTitle') || '',
+    content: localStorage.getItem('newNoteContent') || '',
+    selectedThread: localStorage.getItem('newNoteThread') || 'Unorganized',
+    isOpen: false,
+    isSubmitting: false,
+
+    THREAD_COLORS: {
+      'Unorganized': null,
+      'Gospel of John': 'lovely-lavender',
+      'Psalm 23 Study': 'blessed-blue'
+    },
+    getThreadGradientCSS(color) {
+      if (!color) return 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
+      const colorMap = {
+        'blessed-blue': 'var(--color-blessed-blue)',
+        'graceful-gold': 'var(--color-graceful-gold)',
+        'caring-coral': 'var(--color-caring-coral)',
+        'mindful-mint': 'var(--color-mindful-mint)',
+        'peaceful-pink': 'var(--color-peaceful-pink)',
+        'pleasant-peach': 'var(--color-pleasant-peach)',
+        'lovely-lavender': 'var(--color-lovely-lavender)'
+      };
+      const baseColor = colorMap[color] || 'var(--color-blessed-blue)';
+      return `linear-gradient(180deg, ${baseColor} 0%, ${baseColor} 100%)`;
+    },
+    submitForm() {
+      this.isSubmitting = true;
+    }
+  }"
+  x-init="
+    // Try to get active thread from URL or page context
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeThread = urlParams.get('thread') || document.querySelector('[data-active-thread]')?.dataset.activeThread;
+    if (activeThread) {
+      selectedThread = activeThread;
+      localStorage.setItem('newNoteThread', activeThread);
+    }
+    
+    // Save form data to localStorage when it changes
+    $watch('title', value => localStorage.setItem('newNoteTitle', value));
+    $watch('content', value => localStorage.setItem('newNoteContent', value));
+    $watch('selectedThread', value => localStorage.setItem('newNoteThread', value));
+    
+    // Clear localStorage when panel closes
+    window.addEventListener('closeNewNotePanel', () => {
+      localStorage.removeItem('newNoteTitle');
+      localStorage.removeItem('newNoteThread');
+      localStorage.removeItem('newNoteContent');
+      title = '';
+      content = '';
+      selectedThread = 'Unorganized';
+    });
+  "
+
+>
+  <!-- Hidden form fields -->
+  <input type="hidden" name="userId" value={userId} />
+  <input type="hidden" name="threadId" x-bind:value="selectedThread === 'Unorganized' ? 'thread_unorganized' : (selectedThread === 'Gospel of John' ? 'thread_1756318000000' : 'thread_1756318000004')" />
+  <input type="hidden" name="content" x-model="content" />
+  <input type="hidden" name="title" x-model="title" />
+
+  <!-- Content area that expands to fill available space -->
+  <div class="flex-1 flex flex-col min-h-0">
+    <!-- Thread Selection using SpaceButton dropdown variant -->
+    <div class="mb-3.5">
+      <div class="relative">
+        <div 
+          @click.prevent.stop="isOpen = !isOpen"
+          class="w-full cursor-pointer"
+        >
+          <SpaceButton 
+            text=""
+            state="DropdownTrigger"
+            count={0}
+            className="w-full"
+            backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
+            isActive={false}
+            x-bind:style="`background-image: ${getThreadGradientCSS(THREAD_COLORS[selectedThread])};`"
+          >
+            <span slot="text" x-text="selectedThread" class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Unorganized</span>
+            <span slot="count" x-text="selectedThread === 'Unorganized' ? 0 : selectedThread === 'Gospel of John' ? 2 : 0" class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">0</span>
+          </SpaceButton>
+        </div>
+        
+        <!-- Dropdown content -->
+        <div 
+          x-show="isOpen"
+          x-transition:enter="transition ease-out duration-200"
+          x-transition:enter-start="opacity-0 transform scale-95"
+          x-transition:enter-end="opacity-100 transform scale-100"
+          x-transition:leave="transition ease-in duration-150"
+          x-transition:leave-start="opacity-100 transform scale-100"
+          x-transition:leave-end="opacity-0 transform scale-95"
+          class="absolute top-full left-0 right-0 mt-2 z-10"
+          style="min-width: 223px;"
+          @click.outside="isOpen = false"
+        >
+          <!-- Thread options using SpaceButton styling -->
+          <div>
+            <button 
+              type="button"
+              @click="selectedThread = 'Unorganized'; isOpen = false"
+              class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+              style="background-image: linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%);"
+            >
+              <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Unorganized</span>
+                <div class="p-[20px]">
+                  <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                      0
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </button>
+            
+            <button 
+              type="button"
+              @click="selectedThread = 'Gospel of John'; isOpen = false"
+              class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+              style="background-image: linear-gradient(180deg, var(--color-lovely-lavender) 0%, var(--color-lovely-lavender) 100%);"
+            >
+              <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Gospel of John</span>
+                <div class="p-[20px]">
+                  <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                      2
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </button>
+            
+
+            
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Note Content using CardFull-style form -->
+    <div class="flex-1 flex flex-col min-h-0 mb-3.5">
+      <div class="bg-white box-border flex flex-col min-h-0 flex-1 items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+      <!-- Header with title input and bookmark icon (like CardFull) -->
+      <div class="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
+        <div class="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
+          <input 
+            type="text"
+            x-model="title"
+            placeholder="Note title"
+            class="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
+          />
+        </div>
+        <div class="relative shrink-0 size-5">
+          <svg class="block max-w-none size-full text-[var(--color-deep-grey)] " fill="currentColor" viewBox="0 0 24 24">
+            <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+          </svg>
+        </div>
+      </div>
+      
+      <!-- Content area with TrixEditor (like CardFull) -->
+      <div class="flex-1 flex items-start justify-between px-3 py-0 relative w-full min-h-0">
+        <div class="flex flex-col font-sans font-normal w-full h-full">
+          <TrixEditor 
+            content=""
+            placeholder="Start writing your note..."
+            x-model="content"
+          />
+        </div>
+      </div>
+
+      <!-- Date and Note ID (like CardFull) -->
+      <div class="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full">
+        <div class="relative shrink-0">
+          <p class="leading-[normal] text-nowrap whitespace-pre">Today</p>
+        </div>
+        <div class="relative shrink-0">
+          <p class="leading-[normal] text-nowrap whitespace-pre" id="new-note-id">#{nextNoteId}</p>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+  </div>
+
+  <!-- Bottom buttons -->
+  <div class="flex items-center justify-between gap-3">
+    <div id="close-new-note-btn">
+      <SquareButton variant="Close" />
+    </div>
+    <Button 
+      state="Default"
+      type="button"
+      id="create-note-btn"
+      class="flex-1"
+      x-bind:disabled="isSubmitting"
+    >
+      <span x-show="!isSubmitting">Create Note</span>
+      <span x-show="isSubmitting">Creating...</span>
+    </Button>
+  </div>
+</form>
+
+<!-- Toast component -->
+<Toast />
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Handle close button click
+    const closeBtn = document.getElementById('close-new-note-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+      });
+    }
+
+    // Handle create note button click
+    const createBtn = document.getElementById('create-note-btn');
+    if (createBtn) {
+      createBtn.addEventListener('click', async () => {
+        const form = document.querySelector('form');
+        if (!form) return;
+        
+        const alpineData = (window as any).Alpine?.$data(form);
+        
+        // Check if we're in sample data mode
+        const isSampleDataMode = window.location.search.includes('useRealData=true') ? false : true;
+        
+        // In sample data mode, show a message instead of creating a note
+        if (isSampleDataMode) {
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Note creation disabled in sample data mode. Switch to Real DB mode to create notes.',
+              type: 'error'
+            }
+          }));
+          
+          // Reset form
+          alpineData.title = '';
+          alpineData.content = '';
+          alpineData.selectedThread = 'Unorganized';
+          alpineData.isSubmitting = false;
+          
+          return;
+        }
+        
+        // Get content from TrixEditor - wait for it to be ready
+        let content = '';
+        
+        // Try multiple approaches to get the content
+        const trixEditor = document.querySelector('trix-editor') as any;
+        
+        // Method 1: Try to get content from the TrixEditor's innerHTML (fallback)
+        if (trixEditor) {
+          // Get the text content from the TrixEditor element
+          const editorContent = trixEditor.textContent || trixEditor.innerText || '';
+          content = editorContent.trim();
+          console.log('TrixEditor text content:', content);
+        }
+        
+        // Method 2: Try the hidden input field
+        if (!content) {
+          const hiddenInput = document.querySelector('input[name="content"]') as HTMLInputElement;
+          if (hiddenInput?.value) {
+            content = hiddenInput.value.trim();
+            console.log('Hidden input content:', content);
+          }
+        }
+        
+        // Method 3: Try to get from TrixEditor's editor property (if available)
+        if (!content && trixEditor?.editor) {
+          try {
+            const document = trixEditor.editor.getDocument();
+            content = document?.toString()?.trim() || '';
+            console.log('TrixEditor editor content:', content);
+          } catch (error) {
+            console.log('Error getting content from editor:', error);
+          }
+        }
+        
+        if (!content) {
+          alert('Please add some content to your note');
+          return;
+        }
+        
+        // Set submitting state
+        alpineData.isSubmitting = true;
+        
+        // Update the hidden content field
+        const contentField = document.querySelector('input[name="content"]') as HTMLInputElement;
+        if (contentField) {
+          contentField.value = content;
+        }
+        
+        const formData = new FormData(form);
+        
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData
+          });
+          
+          console.log('Response status:', response.status);
+          console.log('Response headers:', response.headers);
+          
+          if (response.ok) {
+            const contentType = response.headers.get('content-type');
+            console.log('Content-Type:', contentType);
+            
+            let result;
+            if (contentType && contentType.includes('application/json')) {
+              result = await response.json();
+            } else {
+              // If not JSON, treat as success and show a generic message
+              result = { success: 'Note created successfully!' };
+            }
+            
+            // Show success toast
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: result.success || 'Note created successfully!',
+                type: 'success'
+              }
+            }));
+            
+            // Clear localStorage
+            localStorage.removeItem('newNoteTitle');
+            localStorage.removeItem('newNoteThread');
+            localStorage.removeItem('newNoteContent');
+            
+            // Reset form
+            alpineData.title = '';
+            alpineData.content = '';
+            alpineData.selectedThread = 'Unorganized';
+            alpineData.isSubmitting = false;
+            
+            // Close panel immediately
+            window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+            
+            // In real database mode, no refresh needed - data should update dynamically
+            
+          } else {
+            let errorMessage = 'Error creating note';
+            try {
+              const contentType = response.headers.get('content-type');
+              if (contentType && contentType.includes('application/json')) {
+                const errorData = await response.json();
+                errorMessage = errorData.message || errorMessage;
+              }
+            } catch (e) {
+              console.log('Could not parse error response:', e);
+            }
+            
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: errorMessage,
+                type: 'error'
+              }
+            }));
+            alpineData.isSubmitting = false;
+          }
+        } catch (error) {
+          console.error('Form submission error:', error);
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Error creating note. Please try again.',
+              type: 'error'
+            }
+          }));
+          alpineData.isSubmitting = false;
+        }
+      });
+    }
+  });
+</script>
+
+<style>
+  /* SpaceButton styling for dropdown items */
+  .space-button {
+    will-change: transform;
+    transition: box-shadow 0.125s ease-in-out;
+  }
+
+  .space-button[style*="background-image"] {
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  .space-button:not([data-outer-shadow]):active {
+    filter: brightness(0.97);
+    box-shadow: 
+      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  .space-button:active > div {
+    translate: 0 0;
+    transform: scale(0.98);
+  }
+
+  /* Custom TrixEditor styling for NewNotePanel */
+  .new-note-panel trix-editor {
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+
+  .new-note-panel #trix-editor {
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+</style>

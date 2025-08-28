@@ -10,7 +10,7 @@ interface Props {
 const { className = "", placeholder = "Search", ...props } = Astro.props;
 ---
 
-<div x-data="{ query: '' }" class={`w-xs ${className} search-input rounded-3xl grid items-center grid-cols-[auto_1fr_auto] py-[18px_20px] px-4 gap-3`}>
+<div x-data="{ query: '' }" class={`w-full ${className} search-input rounded-3xl grid items-center grid-cols-[auto_1fr_auto] py-[18px_20px] px-4 gap-3`}>
     <FaSearchIcon size="20" class="fill-(--color-pebble-grey)" />
     <input 
         {...props}

@@ -1,0 +1,88 @@
+---
+export interface Props {
+  tabs: Array<{
+    id: string;
+    label: string;
+    isActive?: boolean;
+  }>;
+  onTabChange?: (tabId: string) => void;
+  class?: string;
+}
+
+const { tabs, class: className = "" } = Astro.props;
+---
+
+<script>
+  // Handle tab clicks for navigation
+  document.addEventListener('DOMContentLoaded', () => {
+    // Only target the main navigation (fixed nav at top), not the example TabNav components
+    const mainNavTabButtons = document.querySelectorAll('nav.fixed [data-tab-id]');
+    if (mainNavTabButtons.length === 0) return; // Exit if no main navigation found
+    
+    // Handle tab clicks
+    mainNavTabButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        const tabId = (e.currentTarget as HTMLElement).getAttribute('data-tab-id');
+        if (tabId) {
+          // Scroll to the corresponding section
+          const targetSection = document.getElementById(tabId);
+          if (targetSection) {
+            // Account for fixed navigation height
+            const navHeight = 100;
+            const targetPosition = targetSection.offsetTop - navHeight;
+            
+            window.scrollTo({
+              top: targetPosition,
+              behavior: 'smooth'
+            });
+          }
+        }
+      });
+    });
+  });
+</script>
+
+<div class:list={[
+  "flex items-center justify-start pb-0 pt-1 px-1 relative w-full",
+  className
+]}>
+  {tabs.map((tab) => (
+    <button
+      class:list={[
+        "flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200",
+        tab.isActive ? "opacity-100" : "opacity-50 hover:opacity-75"
+      ]}
+      data-tab-id={tab.id}
+      data-active={tab.isActive ? "true" : "false"}
+    >
+      <span class="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
+        {tab.label}
+      </span>
+      <div class="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1" data-dot style={tab.isActive ? 'display: block;' : 'display: none;'}>
+        <div class="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+      </div>
+    </button>
+  ))}
+</div>
+
+<style>
+  button[data-active="true"] {
+    position: relative;
+  }
+
+  button[data-active="true"]::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    background-color: var(--color-deep-grey);
+    border-radius: 2px;
+  }
+
+  button:hover {
+    cursor: pointer;
+  }
+</style>
