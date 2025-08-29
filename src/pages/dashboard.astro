@@ -12,9 +12,33 @@ import CardThread from "@/components/CardThread.astro";
 import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 import { getInboxContent, getOrganizedContent, getNavigationData, shouldUseSampleData, getDataMode, toggleDataMode } from "@/utils/sample-data";
 import NewNotePanel from "@/components/NewNotePanel.astro";
-// For local development, use placeholder user ID
-// In production, this will be handled by Clerk authentication
-const userId = "user_2abc123"; // Placeholder for local development
+// Get user ID from Clerk authentication with safe fallbacks
+let userId: string;
+
+try {
+  // Access Clerk auth through Astro.locals (set by clerkMiddleware)
+  const { userId: clerkUserId } = Astro.locals.auth();
+  
+  // If no authenticated user, redirect to sign-in
+  if (!clerkUserId) {
+    console.log("Dashboard: No authenticated user, redirecting to sign-in");
+    return Astro.redirect("/sign-in");
+  }
+  
+  userId = clerkUserId;
+  console.log("Dashboard: Using authenticated user:", userId);
+} catch (error) {
+  console.error("Dashboard: Error getting user from Clerk:", error);
+  // Fallback for development/testing - only use if in development mode
+  if (import.meta.env.DEV) {
+    console.log("Dashboard: Falling back to development user ID");
+    userId = "user_2abc123"; // Fallback for local development
+  } else {
+    // In production, redirect to sign-in if auth fails
+    console.log("Dashboard: Auth failed in production, redirecting to sign-in");
+    return Astro.redirect("/sign-in");
+  }
+}
 
 // Fetch real data from database
 // Use robust sample data system for consistent development experience

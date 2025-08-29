@@ -11,11 +11,16 @@ export const threads = {
       title: z.string().min(1, "Title is required"),
       subtitle: z.string().optional(),
       spaceId: z.string().min(1, "Space ID is required"),
-      userId: z.string().min(1, "User ID is required"),
       isPublic: z.boolean().optional(),
       color: z.enum(THREAD_COLORS).optional()
     }),
-    handler: async ({ title, subtitle, spaceId, userId, isPublic = false, color }) => {
+    handler: async ({ title, subtitle, spaceId, isPublic = false, color }, context) => {
+      // Get userId from authenticated context for security
+      const { userId } = context.locals.auth();
+      
+      if (!userId) {
+        throw new Error("Authentication required");
+      }
       try {
         // Use provided color or generate a random one
         const threadColor = color || getRandomThreadColor();
@@ -69,8 +74,6 @@ export const threads = {
         
         if (error.validation && error.validation.includes("title")) {
           throw new Error("Thread title is required");
-        } else if (error.validation && error.validation.includes("userId")) {
-          throw new Error("User ID is required");
         }
 
         throw new Error(`Failed to submit: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -83,11 +86,16 @@ export const threads = {
       id: z.string().min(1, "ID is required"),
       title: z.string().min(1, "Title is required"),
       subtitle: z.string().optional(),
-      userId: z.string().min(1, "User ID is required"),
       isPublic: z.boolean().optional(),
       color: z.enum(THREAD_COLORS).optional()
     }),
-    handler: async ({ id, title, subtitle, userId, isPublic = false, color }) => {
+    handler: async ({ id, title, subtitle, isPublic = false, color }, context) => {
+      // Get userId from authenticated context for security
+      const { userId } = context.locals.auth();
+      
+      if (!userId) {
+        throw new Error("Authentication required");
+      }
       try {
         const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
         
@@ -114,10 +122,15 @@ export const threads = {
   delete: defineAction({
     accept: "form",
     input: z.object({
-      id: z.string().min(1, "ID is required"),
-      userId: z.string().min(1, "User ID is required")
+      id: z.string().min(1, "ID is required")
     }),
-    handler: async ({ id, userId }) => {
+    handler: async ({ id }, context) => {
+      // Get userId from authenticated context for security
+      const { userId } = context.locals.auth();
+      
+      if (!userId) {
+        throw new Error("Authentication required");
+      }
       try {
         const deletedThread = await db.delete(Threads)
           .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
@@ -140,10 +153,15 @@ export const threads = {
   togglePin: defineAction({
     accept: "form",
     input: z.object({
-      id: z.string().min(1, "ID is required"),
-      userId: z.string().min(1, "User ID is required")
+      id: z.string().min(1, "ID is required")
     }),
-    handler: async ({ id, userId }) => {
+    handler: async ({ id }, context) => {
+      // Get userId from authenticated context for security
+      const { userId } = context.locals.auth();
+      
+      if (!userId) {
+        throw new Error("Authentication required");
+      }
       try {
         console.log(`Toggling pin for thread ID: ${id}, userId: ${userId}`);
         

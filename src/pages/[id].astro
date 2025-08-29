@@ -14,9 +14,33 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThr
 import { getThreadColorCSS } from "@/utils/colors";
 import { SAMPLE_DATA, getNavigationData, shouldUseSampleData } from "@/utils/sample-data";
 import NewNotePanel from "@/components/NewNotePanel.astro";
-// For local development, use placeholder user ID
-// In production, this will be handled by Clerk authentication
-const userId = "user_2abc123"; // Placeholder for local development
+// Get user ID from Clerk authentication with safe fallbacks
+let userId: string;
+
+try {
+  // Access Clerk auth through Astro.locals (set by clerkMiddleware)
+  const { userId: clerkUserId } = Astro.locals.auth();
+  
+  // If no authenticated user, redirect to sign-in
+  if (!clerkUserId) {
+    console.log("Dynamic page: No authenticated user, redirecting to sign-in");
+    return Astro.redirect("/sign-in");
+  }
+  
+  userId = clerkUserId;
+  console.log("Dynamic page: Using authenticated user:", userId);
+} catch (error) {
+  console.error("Dynamic page: Error getting user from Clerk:", error);
+  // Fallback for development/testing - only use if in development mode
+  if (import.meta.env.DEV) {
+    console.log("Dynamic page: Falling back to development user ID");
+    userId = "user_2abc123"; // Fallback for local development
+  } else {
+    // In production, redirect to sign-in if auth fails
+    console.log("Dynamic page: Auth failed in production, redirecting to sign-in");
+    return Astro.redirect("/sign-in");
+  }
+}
 
 const { id } = Astro.params;
 

@@ -65,9 +65,37 @@ const THREAD_ID_MAPPING = {
 const nextNoteId = getNextNoteId();
 const threadNoteCounts = getThreadNoteCounts();
 
-// For local development, use placeholder user ID
-// In production, this will be handled by Clerk authentication
-const userId = "user_2abc123"; // Placeholder for local development
+// Get user ID from Clerk authentication with safe fallbacks
+let userId: string;
+
+try {
+  // Access Clerk auth through Astro.locals (set by clerkMiddleware)
+  const { userId: clerkUserId } = Astro.locals.auth();
+  
+  // If no authenticated user, use a fallback or handle gracefully
+  if (!clerkUserId) {
+    console.log("NewNotePanel: No authenticated user");
+    if (import.meta.env.DEV) {
+      userId = "user_2abc123"; // Fallback for local development
+    } else {
+      // In production, this component shouldn't render without auth
+      throw new Error("User not authenticated");
+    }
+  } else {
+    userId = clerkUserId;
+    console.log("NewNotePanel: Using authenticated user:", userId);
+  }
+} catch (error) {
+  console.error("NewNotePanel: Error getting user from Clerk:", error);
+  // Fallback for development/testing - only use if in development mode
+  if (import.meta.env.DEV) {
+    console.log("NewNotePanel: Falling back to development user ID");
+    userId = "user_2abc123"; // Fallback for local development
+  } else {
+    // In production, this is a critical error
+    throw new Error("Authentication failed in NewNotePanel");
+  }
+}
 ---
 
 <form 
@@ -131,7 +159,7 @@ const userId = "user_2abc123"; // Placeholder for local development
 
 >
   <!-- Hidden form fields -->
-  <input type="hidden" name="userId" value={userId} />
+
   <input type="hidden" name="threadId" x-bind:value="selectedThread === 'Unorganized' ? 'thread_unorganized' : (selectedThread === 'Gospel of John' ? 'thread_1756318000000' : 'thread_1756318000004')" />
   <input type="hidden" name="content" x-model="content" />
   <input type="hidden" name="title" x-model="title" />

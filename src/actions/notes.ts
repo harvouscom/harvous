@@ -11,10 +11,15 @@ export const notes = {
       title: z.string().optional(),
       threadId: z.string().optional(),
       spaceId: z.string().optional(),
-      userId: z.string().min(1, "User ID is required"),
       isPublic: z.boolean().optional()
     }),
-    handler: async ({ content, title, threadId, spaceId, userId, isPublic = false }) => {
+    handler: async ({ content, title, threadId, spaceId, isPublic = false }, context) => {
+      // Get userId from authenticated context for security
+      const { userId } = context.locals.auth();
+      
+      if (!userId) {
+        throw new Error("Authentication required");
+      }
       try {
         const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
         
@@ -81,8 +86,6 @@ export const notes = {
       } catch (error: any) {
         if (error.validation && error.validation.includes("content")) {
           throw new Error("The note was empty");
-        } else if (error.validation && error.validation.includes("userId")) {
-          throw new Error("User ID is required");
         }
 
         throw new Error(`Failed to submit: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -97,10 +100,15 @@ export const notes = {
       title: z.string().optional(),
       threadId: z.string().optional(),
       spaceId: z.string().optional(),
-      userId: z.string().min(1, "User ID is required"),
       isPublic: z.boolean().optional()
     }),
-    handler: async ({ id, content, title, threadId, spaceId, userId, isPublic = false }) => {
+    handler: async ({ id, content, title, threadId, spaceId, isPublic = false }, context) => {
+      // Get userId from authenticated context for security
+      const { userId } = context.locals.auth();
+      
+      if (!userId) {
+        throw new Error("Authentication required");
+      }
       try {
         const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
         
@@ -157,10 +165,15 @@ export const notes = {
   delete: defineAction({
     accept: "form",
     input: z.object({
-      id: z.string().min(1, "ID is required"),
-      userId: z.string().min(1, "User ID is required")
+      id: z.string().min(1, "ID is required")
     }),
-    handler: async ({ id, userId }) => {
+    handler: async ({ id }, context) => {
+      // Get userId from authenticated context for security
+      const { userId } = context.locals.auth();
+      
+      if (!userId) {
+        throw new Error("Authentication required");
+      }
       try {
         const deletedNote = await db.delete(Notes)
           .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
