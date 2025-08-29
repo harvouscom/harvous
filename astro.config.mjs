@@ -43,9 +43,7 @@ export default defineConfig({
     tailwind(),
   ],
 
-  experimental: {
-    svg: true,
-  },
+
 
   output: "server",
   adapter: netlify({
