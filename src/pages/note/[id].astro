@@ -5,6 +5,7 @@ import SearchInput from "@/components/SearchInput.astro";
 import SpaceButton from "@/components/SpaceButton.astro";
 import Avatar from "@/components/Avatar.astro";
 import SquareButton from "@/components/SquareButton.astro";
+import NewNotePanel from "@/components/NewNotePanel.astro";
 
 // Get the note ID from the URL
 const { id } = Astro.params;
@@ -136,9 +137,34 @@ const activeSpace = getActiveSpace(note.thread);
       <!-- Additional Column -->
       <section class="h-full">
         <slot name="additional">
-          <div class="flex flex-col items-left justify-between h-full ">
-            <SquareButton variant="More" />
-            <SquareButton variant="Add" withMenu={true} />
+          <div 
+            class="flex flex-col items-left justify-between h-full"
+            x-data="{ showNewNotePanel: false }"
+            x-init="
+              // Initialize from localStorage to persist across pages
+              showNewNotePanel = localStorage.getItem('showNewNotePanel') === 'true';
+              
+              // Listen for NewNotePanel events
+              window.addEventListener('openNewNotePanel', () => {
+                showNewNotePanel = true;
+                localStorage.setItem('showNewNotePanel', 'true');
+              });
+              window.addEventListener('closeNewNotePanel', () => {
+                showNewNotePanel = false;
+                localStorage.setItem('showNewNotePanel', 'false');
+              });
+            "
+          >
+            <!-- Default state: SquareButtons -->
+            <div x-show="!showNewNotePanel" class="flex flex-col items-left justify-between h-full">
+              <SquareButton variant="More" />
+              <SquareButton variant="Add" withMenu={true} />
+            </div>
+            
+            <!-- New Note Panel -->
+            <div x-show="showNewNotePanel" class="h-full">
+              <NewNotePanel />
+            </div>
           </div>
         </slot>
       </section>

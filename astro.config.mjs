@@ -11,7 +11,18 @@ export default defineConfig({
   devToolbar: {
     enabled: false
   },
+  experimental: {
+    clientPrerender: true
+  },
   vite: {
+    server: {
+      // Fix HMR WebSocket connection issues
+      hmr: {
+        port: 4322,
+        clientPort: 4322,
+        overlay: false
+      }
+    },
     build: {
       // Optimize chunks to improve browser performance
       chunkSizeWarningLimit: 1000,
@@ -29,17 +40,29 @@ export default defineConfig({
     // Add performance optimizations to Vite dev server
     optimizeDeps: {
       exclude: [],
-      include: ['alpinejs', 'trix']
+      include: ['alpinejs', 'trix', '@clerk/astro/client']
     },
     // Improve CSS handling
     css: {
       devSourcemap: false
-    }
+    },
+    // Fix MIME type issues and module loading
+    define: {
+      __DEFINES__: '{}',
+      'process.env.NODE_ENV': '"development"'
+    },
+    ssr: {
+      noExternal: ['@clerk/astro']
+    },
+    // Prevent CSS and Astro files from being treated as JS modules
+    plugins: []
   },
 
   integrations: [
     db(),
-    clerkIntegration(),
+    clerkIntegration({
+      enableEnvSchema: true
+    }),
     tailwind(),
   ],
 

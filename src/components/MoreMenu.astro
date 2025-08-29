@@ -7,16 +7,17 @@ import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky
     class="more-menu bg-white rounded-xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] overflow-hidden"
 >
     <!-- New Thread Option -->
-    <a 
-        href="/feed/threads/new"
+    <button 
         onclick="
-          // Close the menu when any option is selected
+          console.log('MoreMenu: New Thread button clicked');
+          // TODO: Implement new thread functionality
+          // For now, just close the menu
           const threadParentContainer = this.closest('.square-button-container');
           if (threadParentContainer && threadParentContainer.__x) {
             threadParentContainer.__x.$data.isOpen = false;
           }
         "
-        class="more-menu-item flex items-center gap-3 py-[18px] px-4 pb-5 hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+        class="more-menu-item flex items-center gap-3 py-[18px] px-4 pb-5 hover:bg-gray-50 transition-colors duration-150 cursor-pointer w-full text-left"
     >
         <div class="relative shrink-0 w-5 h-5 flex items-center justify-center">
             <ThreadIcon class="fill-[var(--color-deep-grey)] block max-w-none w-full h-full" />
@@ -24,7 +25,7 @@ import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky
         <span class="text-subtitle text-[var(--color-deep-grey)] whitespace-nowrap">
             New Thread
         </span>
-    </a>
+    </button>
     
     <!-- New Note Option -->
     <button 

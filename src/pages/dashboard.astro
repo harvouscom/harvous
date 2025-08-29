@@ -86,7 +86,7 @@ const inboxItemCount = inboxCount;
 
 <Layout title="Dashboard">
   <!-- Alpine.js CDN for SquareButton menu functionality -->
-  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
   
   <div class="h-screen bg-[var(--color-light-paper)] p-6">
     <div class="grid grid-cols-[300px_640px_minmax(auto,640px)] gap-6 h-full">
@@ -255,7 +255,7 @@ const inboxItemCount = inboxCount;
             class="flex flex-col items-left justify-between h-full"
             x-data="{ showNewNotePanel: false }"
             x-init="
-              // Initialize from localStorage
+              // Initialize from localStorage to persist across pages
               showNewNotePanel = localStorage.getItem('showNewNotePanel') === 'true';
               
               // Listen for NewNotePanel events

@@ -21,6 +21,9 @@ const {
 
 <!-- @TODO - Style for ul and ol -->
 
+<!-- Load Trix CSS -->
+<link rel="stylesheet" type="text/css" href="https://unpkg.com/trix@2/dist/trix.css">
+
 <div id="trix-editor" class="relative not-prose h-full">
   <input {...props} required id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
   <trix-editor {...props} class="trix-content h-full" toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
@@ -66,8 +69,6 @@ const {
 </style>
 
 <script>
-  import "trix";
-  
   // Define a type for Trix Editor element
   interface TrixEditorElement extends HTMLElement {
     editor: {
@@ -86,8 +87,10 @@ const {
       recordUndoEntry(description: string): void;
       moveCursorToBeginning(): void;
       moveCursorToEnd(): void;
+      loadHTML(html: string): void;
     };
     dataset: DOMStringMap;
+    value: string;
   }
   
   // Simple debounce function to improve performance
@@ -102,10 +105,41 @@ const {
     };
   }
   
-  document.addEventListener('DOMContentLoaded', () => {
+  // Import Trix only on the client side to avoid SSR issues
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Dynamically import Trix to avoid SSR navigator issues
+    await import('trix' as any);
+    
     const trixEditor = document.querySelector('trix-editor') as TrixEditorElement;
     
     if (trixEditor) {
+      // Alpine.js integration for x-model
+      const hiddenInput = document.querySelector('input[type="hidden"]') as HTMLInputElement;
+      
+      // Update Alpine.js model when Trix content changes
+      trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
+        if (hiddenInput) {
+          const content = this.editor?.getDocument()?.toString() || '';
+          hiddenInput.value = content;
+          
+          // Trigger Alpine.js change event
+          hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+      
+      // Update Trix when Alpine.js model changes (for x-model)
+      if (hiddenInput) {
+        const observer = new MutationObserver(() => {
+          const currentValue = hiddenInput.value;
+          const editorContent = trixEditor.editor?.getDocument()?.toString() || '';
+          
+          if (currentValue !== editorContent) {
+            trixEditor.editor?.loadHTML(currentValue);
+          }
+        });
+        
+        observer.observe(hiddenInput, { attributes: true, attributeFilter: ['value'] });
+      }
       // Initial capitalization when editor loads with content
       if (trixEditor.editor && !trixEditor.editor.isEmpty()) {
         // Do this on a short timeout to avoid blocking initial render

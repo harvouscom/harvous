@@ -167,7 +167,7 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
               // Prefetch common navigation paths when idle
               const prefetcher = document.createElement('link');
               prefetcher.rel = 'prefetch';
-              prefetcher.href = '/feed';
+              prefetcher.href = '/dashboard';
               document.head.appendChild(prefetcher);
             });
           } else {
@@ -175,7 +175,7 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
             setTimeout(() => {
               const prefetcher = document.createElement('link');
               prefetcher.rel = 'prefetch';
-              prefetcher.href = '/feed';
+              prefetcher.href = '/dashboard';
               document.head.appendChild(prefetcher);
             }, 1000);
           }

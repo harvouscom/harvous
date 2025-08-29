@@ -102,12 +102,20 @@ try {
   action={notes.create}
   method="POST"
   class="new-note-panel h-full flex flex-col justify-between"
+  x-show="isPanelVisible"
+  x-transition:enter="transition ease-out duration-300"
+  x-transition:enter-start="opacity-0 transform translate-x-full"
+  x-transition:enter-end="opacity-100 transform translate-x-0"
+  x-transition:leave="transition ease-in duration-200"
+  x-transition:leave-start="opacity-100 transform translate-x-0"
+  x-transition:leave-end="opacity-0 transform translate-x-full"
   x-data="{ 
     title: localStorage.getItem('newNoteTitle') || '',
     content: localStorage.getItem('newNoteContent') || '',
     selectedThread: localStorage.getItem('newNoteThread') || 'Unorganized',
     isOpen: false,
     isSubmitting: false,
+    isPanelVisible: true,
 
     THREAD_COLORS: {
       'Unorganized': null,
@@ -130,12 +138,26 @@ try {
     },
     submitForm() {
       this.isSubmitting = true;
+    },
+    closePanel() {
+      this.isPanelVisible = false;
+      // Clear localStorage
+      localStorage.removeItem('newNoteTitle');
+      localStorage.removeItem('newNoteThread');
+      localStorage.removeItem('newNoteContent');
+      // Reset form
+      this.title = '';
+      this.content = '';
+      this.selectedThread = 'Unorganized';
+      this.isSubmitting = false;
+      // Dispatch close event to update dashboard state
+      window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
     }
   }"
   x-init="
     // Try to get active thread from URL or page context
-    const urlParams = new URLSearchParams(window.location.search);
-    const activeThread = urlParams.get('thread') || document.querySelector('[data-active-thread]')?.dataset.activeThread;
+    urlParams = new URLSearchParams(window.location.search);
+    activeThread = urlParams.get('thread') || document.querySelector('[data-active-thread]')?.dataset.activeThread;
     if (activeThread) {
       selectedThread = activeThread;
       localStorage.setItem('newNoteThread', activeThread);
@@ -148,12 +170,7 @@ try {
     
     // Clear localStorage when panel closes
     window.addEventListener('closeNewNotePanel', () => {
-      localStorage.removeItem('newNoteTitle');
-      localStorage.removeItem('newNoteThread');
-      localStorage.removeItem('newNoteContent');
-      title = '';
-      content = '';
-      selectedThread = 'Unorganized';
+      closePanel();
     });
   "
 
@@ -293,7 +310,7 @@ try {
 
   <!-- Bottom buttons -->
   <div class="flex items-center justify-between gap-3">
-    <div id="close-new-note-btn">
+    <div id="close-new-note-btn" @click="closePanel()">
       <SquareButton variant="Close" />
     </div>
     <Button 
@@ -314,13 +331,7 @@ try {
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    // Handle close button click
-    const closeBtn = document.getElementById('close-new-note-btn');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
-        window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
-      });
-    }
+    // Close button is now handled by Alpine.js @click="closePanel()" directive
 
     // Handle create note button click
     const createBtn = document.getElementById('create-note-btn');
@@ -329,7 +340,12 @@ try {
         const form = document.querySelector('form');
         if (!form) return;
         
-        const alpineData = (window as any).Alpine?.$data(form);
+        let alpineData;
+        try {
+          alpineData = (window as any).Alpine?.$data(form);
+        } catch (e) {
+          console.log('Could not access Alpine data:', e);
+        }
         
         // Check if we're in sample data mode
         const isSampleDataMode = window.location.search.includes('useRealData=true') ? false : true;
@@ -344,10 +360,14 @@ try {
           }));
           
           // Reset form
-          alpineData.title = '';
-          alpineData.content = '';
-          alpineData.selectedThread = 'Unorganized';
-          alpineData.isSubmitting = false;
+          if (alpineData) {
+            alpineData.title = '';
+            alpineData.content = '';
+            alpineData.selectedThread = 'Unorganized';
+            if (alpineData) {
+              alpineData.isSubmitting = false;
+            }
+          }
           
           return;
         }
@@ -392,7 +412,9 @@ try {
         }
         
         // Set submitting state
-        alpineData.isSubmitting = true;
+        if (alpineData) {
+          alpineData.isSubmitting = true;
+        }
         
         // Update the hidden content field
         const contentField = document.querySelector('input[name="content"]') as HTMLInputElement;
@@ -437,13 +459,22 @@ try {
             localStorage.removeItem('newNoteContent');
             
             // Reset form
-            alpineData.title = '';
-            alpineData.content = '';
-            alpineData.selectedThread = 'Unorganized';
-            alpineData.isSubmitting = false;
+            if (alpineData) {
+              alpineData.title = '';
+              alpineData.content = '';
+              alpineData.selectedThread = 'Unorganized';
+              if (alpineData) {
+              alpineData.isSubmitting = false;
+            }
+            }
             
             // Close panel immediately
             window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+            
+            // Also use Alpine method
+            if (alpineData?.closePanel) {
+              alpineData.closePanel();
+            }
             
             // In real database mode, no refresh needed - data should update dynamically
             
@@ -465,7 +496,9 @@ try {
                 type: 'error'
               }
             }));
-            alpineData.isSubmitting = false;
+            if (alpineData) {
+              alpineData.isSubmitting = false;
+            }
           }
         } catch (error) {
           console.error('Form submission error:', error);

@@ -66,8 +66,20 @@ interface ImportMetaEnv {
   readonly ASTRO_DB_REMOTE_URL: string;
   /** https://docs.astro.build/en/guides/astro-db/#libsql */
   readonly ASTRO_DB_APP_TOKEN: string;
+  
+  // Clerk Environment Variables
+  readonly PUBLIC_CLERK_PUBLISHABLE_KEY: string;
+  readonly CLERK_SECRET_KEY: string;
+  readonly PUBLIC_CLERK_SIGN_IN_URL?: string;
+  readonly PUBLIC_CLERK_SIGN_UP_URL?: string;
 }
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
+}
+
+// Trix types declaration
+declare module 'trix' {
+  const Trix: any;
+  export default Trix;
 }
