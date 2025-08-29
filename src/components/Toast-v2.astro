@@ -37,20 +37,20 @@ import TriangleExclamationIcon from "@fortawesome/fontawesome-free/svgs/solid/tr
   <div 
     role="alert"
     x-bind:data-type="type"
-    class="toast-card text-(--color-deep-grey) bg-white rounded-xl flex items-center gap-3 px-5 py-5"
+    class="toast-card text-[var(--color-deep-grey)] bg-white rounded-xl flex items-center gap-3 px-5 py-5"
   >
     <!-- Icon -->
     <div class="flex-shrink-0">
-      <CircleCheck x-show="type === 'success'" class="w-5 h-5 fill-(--color-deep-grey)" />
+      <CircleCheck x-show="type === 'success'" class="w-5 h-5 fill-[var(--color-deep-grey)]" />
       
-      <TriangleExclamationIcon x-show="type === 'error'" class="w-5 h-5 fill-(--color-red)" />       
+      <TriangleExclamationIcon x-show="type === 'error'" class="w-5 h-5 fill-[var(--color-red)]" />       
     </div>
 
     <!-- Message -->
     <div class="flex-1">
       <p 
         class="text-subtitle"
-        :class="{ 'text-(--color-red)': type === 'error' }"
+        :class="{ 'text-[var(--color-red)]': type === 'error' }"
         x-text="message"
       ></p>
     </div>
@@ -62,7 +62,7 @@ import TriangleExclamationIcon from "@fortawesome/fontawesome-free/svgs/solid/tr
       aria-label="Close notification"
     >
       {/* @ts-ignore */}
-      <FaXmarkIcon class="w-5 h-5 transition-colors" :class="{ 'fill-(--color-red)': type === 'error' }" />
+      <FaXmarkIcon class="w-5 h-5 transition-colors" :class="{ 'fill-[var(--color-red)]': type === 'error' }" />
     </button>
   </div>
 </div>

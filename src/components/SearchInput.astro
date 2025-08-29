@@ -11,14 +11,14 @@ const { className = "", placeholder = "Search", ...props } = Astro.props;
 ---
 
 <div x-data="{ query: '' }" class={`w-full ${className} search-input rounded-3xl grid items-center grid-cols-[auto_1fr_auto] py-[18px_20px] px-4 gap-3`}>
-    <FaSearchIcon size="20" class="fill-(--color-pebble-grey)" />
+    <FaSearchIcon size="20" class="fill-[var(--color-pebble-grey)]" />
     <input 
         {...props}
         x-model="query"
         type="text" 
         role="searchbox"
         aria-label="Search"
-        class="outline-none text-subtitle text-(--color-deep-grey) placeholder:text-(--color-pebble-grey)" 
+        class="outline-none bg-transparent text-subtitle text-[var(--color-deep-grey)] placeholder:text-[var(--color-pebble-grey)]" 
         placeholder={placeholder}
     />
     <FaXmarkIcon 
@@ -28,7 +28,7 @@ const { className = "", placeholder = "Search", ...props } = Astro.props;
         x-show="Boolean(query)" 
         x-on:click="query = ''"
         size="20" 
-        class="fill-(--color-deep-grey)" 
+        class="fill-[var(--color-deep-grey)]" 
     />
 </div>
 

@@ -1,8 +1,8 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
-import tailwindcss from '@tailwindcss/vite';
 import db from '@astrojs/db';
 import clerkIntegration from '@clerk/astro';
+import tailwind from '@astrojs/tailwind';
 
 import netlify from '@astrojs/netlify';
 
@@ -12,7 +12,6 @@ export default defineConfig({
     enabled: false
   },
   vite: {
-    plugins: [tailwindcss()],
     build: {
       // Optimize chunks to improve browser performance
       chunkSizeWarningLimit: 1000,
@@ -41,6 +40,7 @@ export default defineConfig({
   integrations: [
     db(),
     clerkIntegration(),
+    tailwind(),
   ],
 
   experimental: {

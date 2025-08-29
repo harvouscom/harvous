@@ -21,7 +21,7 @@ const { variant = "More", withMenu = false } = Astro.props;
     <div class="flex flex-row items-center justify-center relative w-full h-full">
       <div class="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-[18px] px-4 relative w-full h-full">
         <div class="relative shrink-0 w-6 h-6 flex items-center justify-center">
-          <FaAngleLeftIcon class="-translate-y-0.5 fill-(--color-pebble-grey) block max-w-none w-full h-full transition-transform duration-125" />
+          <FaAngleLeftIcon class="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" />
         </div>
       </div>
     </div>
@@ -161,7 +161,7 @@ const { variant = "More", withMenu = false } = Astro.props;
         <div class="flex h-[30px] items-center justify-center relative shrink-0 w-[30px]">
           <div class="flex-none">
             <div class="relative w-6 h-6 flex items-center justify-center">
-              <FaEllipsisIcon class="rotate-90 -translate-y-0.5 fill-(--color-pebble-grey) block max-w-none w-full h-full transition-transform duration-125" />
+              <FaEllipsisIcon class="rotate-90 -translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" />
             </div>
           </div>
         </div>
@@ -214,7 +214,7 @@ const { variant = "More", withMenu = false } = Astro.props;
               <div class="relative w-6 h-6 flex items-center justify-center">
                 <FaEllipsisIcon
                   x-show="!isOpen"
-                  class="rotate-90 -translate-y-0.5 fill-(--color-pebble-grey) block max-w-none w-full h-full transition-transform duration-125"
+                  class="rotate-90 -translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125"
                 />
                 <FaXmarkIcon
                   x-show="isOpen"

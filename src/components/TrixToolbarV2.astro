@@ -96,22 +96,22 @@ const { id } = Astro.props as Props;
     @reference "@/styles/global.css";
 
     .toolbar-btn {
-      @apply flex items-center justify-center w-8 h-8 rounded-full hover:bg-(--color-paper) [&:hover>svg]:!fill-(--color-deep-grey) flex-shrink-0;
+      @apply flex items-center justify-center w-8 h-8 rounded-full hover:bg-[var(--color-paper)] [&:hover>svg]:!fill-[var(--color-deep-grey)] flex-shrink-0;
 
       &[data-trix-active] {
         @apply relative;
 
         &::after {
-          @apply content-[''] absolute -bottom-[2px] left-1/2 -translate-x-1/2 w-1 h-1 bg-(--color-deep-grey) rounded-full;
+          @apply content-[''] absolute -bottom-[2px] left-1/2 -translate-x-1/2 w-1 h-1 bg-[var(--color-deep-grey)] rounded-full;
         }
 
         & svg {
-          @apply fill-(--color-deep-grey);
+          @apply fill-[var(--color-deep-grey)];
         } 
       }
 
       & svg {
-        @apply w-5 h-5 fill-(--color-pebble-grey);
+        @apply w-5 h-5 fill-[var(--color-pebble-grey)];
       }
     }
 </style>

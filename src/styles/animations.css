@@ -53,6 +53,19 @@
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* Stagger Hover Animation for Overlapping Notes */
+@keyframes staggerHover {
+  0% {
+    transform: rotate(4deg) translateY(0px);
+  }
+  50% {
+    transform: rotate(4deg) translateY(-6px);
+  }
+  100% {
+    transform: rotate(4deg) translateY(0px);
+  }
+}
+
 /* Utility Classes */
 
 /* Bounce In Utilities */
