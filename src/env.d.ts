@@ -67,6 +67,11 @@ interface ImportMetaEnv {
   /** https://docs.astro.build/en/guides/astro-db/#libsql */
   readonly ASTRO_DB_APP_TOKEN: string;
   
+  // Astro Environment Variables
+  readonly DEV: boolean;
+  readonly PROD: boolean;
+  readonly MODE: string;
+  
   // Clerk Environment Variables
   readonly PUBLIC_CLERK_PUBLISHABLE_KEY: string;
   readonly CLERK_SECRET_KEY: string;
