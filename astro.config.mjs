@@ -66,9 +66,9 @@ export default defineConfig({
     tailwind(),
   ],
 
-  // Configure for Netlify deployment
-  output: "server",
-  adapter: netlify({
+  // Use static output for development, server output for production
+  output: process.env.NODE_ENV === 'production' ? "server" : "static",
+  adapter: process.env.NODE_ENV === 'production' ? netlify({
     // Optimize for Netlify
-  }),
+  }) : undefined,
 });
