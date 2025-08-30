@@ -72,150 +72,181 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
     
     <!-- Tab functionality script -->
     <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        console.log('Layout: Initializing tab functionality...');
+      // Ensure tab functionality works consistently across environments
+      (function() {
+        // Debug logging to help identify environment differences
+        console.log('Tab script loaded in environment:', typeof window !== 'undefined' ? 'browser' : 'server');
+        console.log('Document ready state:', document.readyState);
+        console.log('Current URL:', window.location.href);
+        let tabsInitialized = false;
         
-        // Initialize tab functionality
         function initTabs() {
-          const tabButtons = document.querySelectorAll('[data-tab-button]');
-          console.log('Layout: Found', tabButtons.length, 'tab buttons');
+          if (tabsInitialized) return;
+          tabsInitialized = true;
           
-          tabButtons.forEach(function(button) {
-            button.addEventListener('click', function(e) {
-              console.log('Layout: Tab clicked!');
-              
-              const clickedButton = e.currentTarget as HTMLElement;
-              if (!clickedButton) return;
-              
-              const tabId = clickedButton.getAttribute('data-tab-id');
-              const tabNavContainer = clickedButton.closest('.tab-nav-container') as HTMLElement;
-              
-              if (!tabId || !tabNavContainer) return;
-              
-              // Update all tabs in this TabNav component
-              const allTabsInNav = tabNavContainer.querySelectorAll('[data-tab-button]');
-              allTabsInNav.forEach(function(tab: Element) {
-                const tabElement = tab as HTMLElement;
-                tabElement.setAttribute('data-active', 'false');
-                tabElement.classList.remove('opacity-100');
-                tabElement.classList.add('opacity-50');
-                
-                // Hide the dot element
-                const dot = tabElement.querySelector('[data-dot]') as HTMLElement;
-                if (dot) dot.style.display = 'none';
-              });
-              
-              // Activate the clicked tab
-              clickedButton.setAttribute('data-active', 'true');
-              clickedButton.classList.remove('opacity-50');
-              clickedButton.classList.add('opacity-100');
-              
-              // Show the dot element for the active tab
-              const activeDot = clickedButton.querySelector('[data-dot]') as HTMLElement;
-              if (activeDot) activeDot.style.display = 'block';
-              
-              // Find and switch content sections that belong to this specific TabNav
-              // We need to find content sections that come AFTER this TabNav but BEFORE the next TabNav
-              const tabNavParent = tabNavContainer.parentElement;
-              if (!tabNavParent) return;
-              
-              const allSiblings = Array.from(tabNavParent.children);
-              const currentTabNavIndex = allSiblings.indexOf(tabNavContainer);
-              
-              console.log('Layout: Current TabNav index:', currentTabNavIndex);
-              
-              // Find the next TabNav (if any) to determine the boundary
-              let nextTabNavIndex = -1;
-              for (let i = currentTabNavIndex + 1; i < allSiblings.length; i++) {
-                const sibling = allSiblings[i] as HTMLElement;
-                if (sibling.classList.contains('tab-nav-container')) {
-                  nextTabNavIndex = i;
-                  break;
-                }
-              }
-              
-              console.log('Layout: Next TabNav index:', nextTabNavIndex);
-              
-              // Find content sections between current TabNav and next TabNav (or end)
-              const endIndex = nextTabNavIndex !== -1 ? nextTabNavIndex : allSiblings.length;
-              const relevantSiblings = allSiblings.slice(currentTabNavIndex + 1, endIndex);
-              
-              console.log('Layout: Relevant siblings:', relevantSiblings.length);
-              
-              relevantSiblings.forEach(function(sibling) {
-                const siblingElement = sibling as HTMLElement;
-                if (siblingElement.hasAttribute('data-tab-content')) {
-                  const sectionTabId = siblingElement.getAttribute('data-tab-content');
-                  console.log('Layout: Content section ID:', sectionTabId, 'for tab:', tabId);
-                  
-                  if (sectionTabId === tabId) {
-                    console.log('Layout: Showing content for tab:', tabId);
-                    siblingElement.classList.remove('hidden');
-                    siblingElement.style.display = 'block';
-                  } else {
-                    console.log('Layout: Hiding content for tab:', sectionTabId);
-                    siblingElement.classList.add('hidden');
-                    siblingElement.style.display = 'none';
-                  }
-                }
-              });
-              
-              // Also handle legacy content IDs (for backward compatibility)
-              const legacyContent = document.getElementById(tabId + '-content') as HTMLElement;
-              if (legacyContent) {
-                console.log('Layout: Found legacy content for tab:', tabId);
-                legacyContent.classList.remove('hidden');
-                legacyContent.style.display = 'block';
-              }
-              
-              // Hide other legacy content sections
-              allTabsInNav.forEach(function(tab: Element) {
-                const tabElement = tab as HTMLElement;
-                const otherTabId = tabElement.getAttribute('data-tab-id');
-                if (otherTabId && otherTabId !== tabId) {
-                  const otherContent = document.getElementById(otherTabId + '-content') as HTMLElement;
-                  if (otherContent) {
-                    console.log('Layout: Hiding legacy content for tab:', otherTabId);
-                    otherContent.classList.add('hidden');
-                    otherContent.style.display = 'none';
-                  }
-                }
-              });
-              
-              // Dispatch a custom event for parent components to listen to
-              const tabChangeEvent = new CustomEvent('tabChange', {
-                detail: { tabId: tabId, tabNavContainer: tabNavContainer },
-                bubbles: true
-              });
-              tabNavContainer.dispatchEvent(tabChangeEvent);
-              console.log('Layout: Dispatched tabChange event for tab:', tabId);
+          console.log('Layout: Initializing tab functionality...');
+          
+          // Remove any existing event listeners to prevent duplicates
+          const existingButtons = document.querySelectorAll('[data-tab-button]');
+          existingButtons.forEach(function(button) {
+            const newButton = button.cloneNode(true);
+            button.parentNode?.replaceChild(newButton, button);
+          });
+          
+          // Initialize tab functionality
+          function setupTabHandlers() {
+            const tabButtons = document.querySelectorAll('[data-tab-button]');
+            console.log('Layout: Found', tabButtons.length, 'tab buttons');
+            
+            tabButtons.forEach(function(button) {
+              // Remove any existing click listeners
+              button.removeEventListener('click', handleTabClick);
+              button.addEventListener('click', handleTabClick);
             });
+          }
+          
+                     function handleTabClick(e: Event) {
+             console.log('Layout: Tab clicked!');
+             
+             const clickedButton = e.currentTarget as HTMLElement;
+             if (!clickedButton) return;
+             
+             const tabId = clickedButton.getAttribute('data-tab-id');
+             const tabNavContainer = clickedButton.closest('.tab-nav-container') as HTMLElement;
+             
+             if (!tabId || !tabNavContainer) return;
+             
+             // Update all tabs in this TabNav component
+             const allTabsInNav = tabNavContainer.querySelectorAll('[data-tab-button]');
+             allTabsInNav.forEach(function(tab: Element) {
+               const tabElement = tab as HTMLElement;
+               tabElement.setAttribute('data-active', 'false');
+               tabElement.classList.remove('opacity-100');
+               tabElement.classList.add('opacity-50');
+               
+               // Hide the dot element
+               const dot = tabElement.querySelector('[data-dot]') as HTMLElement;
+               if (dot) dot.style.display = 'none';
+             });
+             
+             // Activate the clicked tab
+             clickedButton.setAttribute('data-active', 'true');
+             clickedButton.classList.remove('opacity-50');
+             clickedButton.classList.add('opacity-100');
+             
+             // Show the dot element for the active tab
+             const activeDot = clickedButton.querySelector('[data-dot]') as HTMLElement;
+             if (activeDot) activeDot.style.display = 'block';
+             
+             // Find and switch content sections that belong to this specific TabNav
+             const tabNavParent = tabNavContainer.parentElement;
+             if (!tabNavParent) return;
+             
+             const allSiblings = Array.from(tabNavParent.children);
+             const currentTabNavIndex = allSiblings.indexOf(tabNavContainer);
+             
+             // Find the next TabNav (if any) to determine the boundary
+             let nextTabNavIndex = -1;
+             for (let i = currentTabNavIndex + 1; i < allSiblings.length; i++) {
+               const sibling = allSiblings[i] as HTMLElement;
+               if (sibling.classList.contains('tab-nav-container')) {
+                 nextTabNavIndex = i;
+                 break;
+               }
+             }
+             
+             // Find content sections between current TabNav and next TabNav (or end)
+             const endIndex = nextTabNavIndex !== -1 ? nextTabNavIndex : allSiblings.length;
+             const relevantSiblings = allSiblings.slice(currentTabNavIndex + 1, endIndex);
+             
+             relevantSiblings.forEach(function(sibling: Element) {
+               const siblingElement = sibling as HTMLElement;
+               if (siblingElement.hasAttribute('data-tab-content')) {
+                 const sectionTabId = siblingElement.getAttribute('data-tab-content');
+                 
+                 if (sectionTabId === tabId) {
+                   siblingElement.classList.remove('hidden');
+                   siblingElement.style.display = 'block';
+                 } else {
+                   siblingElement.classList.add('hidden');
+                   siblingElement.style.display = 'none';
+                 }
+               }
+             });
+             
+             // Also handle legacy content IDs (for backward compatibility)
+             const legacyContent = document.getElementById(tabId + '-content') as HTMLElement;
+             if (legacyContent) {
+               legacyContent.classList.remove('hidden');
+               legacyContent.style.display = 'block';
+             }
+             
+             // Hide other legacy content sections
+             allTabsInNav.forEach(function(tab: Element) {
+               const tabElement = tab as HTMLElement;
+               const otherTabId = tabElement.getAttribute('data-tab-id');
+               if (otherTabId && otherTabId !== tabId) {
+                 const otherContent = document.getElementById(otherTabId + '-content') as HTMLElement;
+                 if (otherContent) {
+                   otherContent.classList.add('hidden');
+                   otherContent.style.display = 'none';
+                 }
+               }
+             });
+             
+             // Dispatch a custom event for parent components to listen to
+             const tabChangeEvent = new CustomEvent('tabChange', {
+               detail: { tabId: tabId, tabNavContainer: tabNavContainer },
+               bubbles: true
+             });
+             tabNavContainer.dispatchEvent(tabChangeEvent);
+           }
+          
+          // Initialize tabs
+          setupTabHandlers();
+          
+          // Also listen for dynamic content changes (for SPAs)
+          const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+              if (mutation.type === 'childList') {
+                // Check if new tab buttons were added
+                const newTabButtons = document.querySelectorAll('[data-tab-button]');
+                if (newTabButtons.length > 0) {
+                  console.log('Layout: New tab buttons detected, reinitializing...');
+                  setupTabHandlers();
+                }
+              }
+            });
+          });
+          
+          // Start observing
+          observer.observe(document.body, {
+            childList: true,
+            subtree: true
           });
         }
         
-        // Initialize tabs
-        initTabs();
-        
-        // Also listen for dynamic content changes (for SPAs)
-        const observer = new MutationObserver(function(mutations) {
-          mutations.forEach(function(mutation) {
-            if (mutation.type === 'childList') {
-              // Check if new tab buttons were added
-              const newTabButtons = document.querySelectorAll('[data-tab-button]');
-              if (newTabButtons.length > 0) {
-                console.log('Layout: New tab buttons detected, reinitializing...');
-                initTabs();
-              }
-            }
-          });
-        });
-        
-        // Start observing
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true
-        });
-      });
+                 // Initialize when DOM is ready
+         if (document.readyState === 'loading') {
+           document.addEventListener('DOMContentLoaded', initTabs);
+         } else {
+           // DOM is already ready
+           initTabs();
+         }
+         
+         // Also initialize when Alpine.js is ready (if it's being used)
+         if ((window as any).Alpine) {
+           document.addEventListener('alpine:initialized', initTabs);
+         }
+         
+         // Fallback: initialize after a short delay to ensure everything is loaded
+         setTimeout(initTabs, 100);
+         
+         // Additional fallback for development environment
+         if (document.readyState === 'complete') {
+           setTimeout(initTabs, 500);
+         }
+      })();
     </script>
     
 

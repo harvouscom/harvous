@@ -17,7 +17,7 @@
     if (tabsOptimized) return;
     tabsOptimized = true;
     
-    // Find all tab buttons
+    // Find all tab buttons - this script is for close-tab-btn, not data-tab-button
     const tabButtons = document.querySelectorAll('.close-tab-btn');
     if (!tabButtons || tabButtons.length === 0) return;
     
