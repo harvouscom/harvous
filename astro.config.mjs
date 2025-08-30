@@ -66,9 +66,9 @@ export default defineConfig({
     tailwind(),
   ],
 
-  // Temporarily switch to static output for testing
-  output: "static",
-  // adapter: netlify({
-  //   // Optimize for Netlify
-  // }),
+  // Configure for Netlify deployment
+  output: "server",
+  adapter: netlify({
+    // Optimize for Netlify
+  }),
 });
