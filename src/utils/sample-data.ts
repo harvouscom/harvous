@@ -44,8 +44,8 @@ export const SAMPLE_DATA = {
     },
     {
       id: "note_1756318000003",
-      title: "John 3:16 Reflection",
-      content: "For God so loved the world that he gave his one and only Son... This verse shows God's incredible love.",
+      title: "Sermon Notes",
+      content: "Latest sermon notes from recent Sunday service at your church.",
       threadId: "thread_1756318000002",
       lastUpdated: "2 hours ago",
       createdAt: new Date("2025-02-07T08:30:00Z")
@@ -57,7 +57,7 @@ export const SAMPLE_DATA = {
   threadNotes: [
     {
       id: "note_1756318000004",
-      title: "John 3:16 - God's Love",
+      title: "John 3:16",
       content: "For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.",
       threadId: "thread_1756318000000",
       lastUpdated: "1 day ago",
@@ -66,7 +66,7 @@ export const SAMPLE_DATA = {
     },
     {
       id: "note_1756318000005",
-      title: "John 14:1 - Let Not Your Hearts Be Troubled", 
+      title: "John 14:1", 
       content: "Let not your hearts be troubled, neither let them be afraid.",
       threadId: "thread_1756318000000",
       lastUpdated: "1 day ago",
