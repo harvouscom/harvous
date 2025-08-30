@@ -8,7 +8,7 @@ export interface SampleNote {
   threadId: string;
   lastUpdated: string;
   createdAt: Date;
-  noteId: number;
+  noteId?: number; // Simple note ID for user display (N001, N002, etc.) - only for added content
 }
 
 export interface SampleThread {
@@ -31,7 +31,7 @@ export interface SampleSpace {
 
 // Clean, consistent sample data
 export const SAMPLE_DATA = {
-  // Unorganized content (goes to inbox)
+  // Inbox content (not yet added by user) - these should NOT have simple note IDs
   unorganizedNotes: [
     {
       id: "note_1756318000001",
@@ -39,8 +39,8 @@ export const SAMPLE_DATA = {
       content: "Need to pray for Sarah's health, upcoming church meeting, and guidance on the new ministry opportunity.",
       threadId: "thread_1756318000002",
       lastUpdated: "3 hours ago",
-      createdAt: new Date("2025-02-07T08:00:00Z"),
-      noteId: 6
+      createdAt: new Date("2025-02-07T08:00:00Z")
+      // No noteId - this is inbox content, not yet added
     },
     {
       id: "note_1756318000003",
@@ -48,57 +48,30 @@ export const SAMPLE_DATA = {
       content: "For God so loved the world that he gave his one and only Son... This verse shows God's incredible love.",
       threadId: "thread_1756318000002",
       lastUpdated: "2 hours ago",
-      createdAt: new Date("2025-02-07T08:30:00Z"),
-      noteId: 7
+      createdAt: new Date("2025-02-07T08:30:00Z")
+      // No noteId - this is inbox content, not yet added
     }
   ] as SampleNote[],
 
-  // Thread notes (for notes within threads)
+  // Added content (user has added these to their notes) - these have simple note IDs
   threadNotes: [
     {
       id: "note_1756318000004",
-      title: "Sample Note 1",
-      content: "This is a sample note in the thread.",
+      title: "John 3:16 - God's Love",
+      content: "For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.",
       threadId: "thread_1756318000000",
       lastUpdated: "1 day ago",
       createdAt: new Date("2025-02-07T09:00:00Z"),
-      noteId: 1
+      noteId: 1 // This note has been added to user's notes
     },
     {
       id: "note_1756318000005",
-      title: "Sample Note 2", 
-      content: "Another sample note in the thread.",
+      title: "John 14:1 - Let Not Your Hearts Be Troubled", 
+      content: "Let not your hearts be troubled, neither let them be afraid.",
       threadId: "thread_1756318000000",
       lastUpdated: "1 day ago",
       createdAt: new Date("2025-02-07T09:30:00Z"),
-      noteId: 2
-    },
-    {
-      id: "note_1756318000006",
-      title: "Psalm 23:1-3 - The Shepherd",
-      content: "The Lord is my shepherd, I shall not want. He makes me lie down in green pastures, he leads me beside quiet waters, he refreshes my soul.",
-      threadId: "thread_1756318000004",
-      lastUpdated: "1 day ago",
-      createdAt: new Date("2025-02-07T10:00:00Z"),
-      noteId: 3
-    },
-    {
-      id: "note_1756318000007",
-      title: "Psalm 23:4 - The Valley",
-      content: "Even though I walk through the darkest valley, I will fear no evil, for you are with me; your rod and your staff, they comfort me.",
-      threadId: "thread_1756318000004",
-      lastUpdated: "1 day ago",
-      createdAt: new Date("2025-02-07T10:15:00Z"),
-      noteId: 4
-    },
-    {
-      id: "note_1756318000008",
-      title: "Psalm 23:5-6 - The Table",
-      content: "You prepare a table before me in the presence of my enemies. You anoint my head with oil; my cup overflows. Surely your goodness and love will follow me all the days of my life.",
-      threadId: "thread_1756318000004",
-      lastUpdated: "1 day ago",
-      createdAt: new Date("2025-02-07T10:30:00Z"),
-      noteId: 5
+      noteId: 2 // This note has been added to user's notes
     }
   ] as SampleNote[],
 
@@ -154,13 +127,14 @@ export const SAMPLE_DATA = {
 export function getInboxContent() {
   const inboxItems = [
     // Convert unorganized notes to the format expected by CardFeat
+    // These are inbox content, so they should NOT have simple note IDs
     ...SAMPLE_DATA.unorganizedNotes.map(note => ({
       id: note.id,
       type: "note" as const,
       variant: "Note" as const,
       title: note.title,
       content: note.content,
-      noteId: note.id,
+      // No noteId - this is inbox content, not yet added
       threadId: note.threadId,
       lastUpdated: note.lastUpdated
     })),

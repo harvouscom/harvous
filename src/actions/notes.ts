@@ -52,6 +52,20 @@ export const notes = {
           finalThreadId = 'thread_unorganized';
         }
         
+        // Find the next available simple note ID for this user
+        const existingNotes = await db.select({ simpleNoteId: Notes.simpleNoteId })
+          .from(Notes)
+          .where(eq(Notes.userId, userId));
+        
+        const existingSimpleNoteIds = existingNotes
+          .map(note => note.simpleNoteId)
+          .filter(id => id !== null && id !== undefined)
+          .sort((a, b) => a! - b!);
+        
+        const nextSimpleNoteId = existingSimpleNoteIds.length > 0 
+          ? Math.max(...existingSimpleNoteIds) + 1 
+          : 1;
+        
         const newNote = await db.insert(Notes)
           .values({ 
             id: generateNoteId(),
@@ -59,6 +73,7 @@ export const notes = {
             title: capitalizedTitle, 
             threadId: finalThreadId,
             spaceId: spaceId || null,
+            simpleNoteId: nextSimpleNoteId,
             userId, 
             isPublic,
             createdAt: new Date() 

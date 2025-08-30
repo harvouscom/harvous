@@ -17,13 +17,19 @@ const { onClose } = Astro.props;
 
 // Function to get the next available note ID
 function getNextNoteId(): string {
-  // Get all existing note IDs from sample data
+  // Get all existing notes from sample data
   const allNotes = [...SAMPLE_DATA.unorganizedNotes, ...SAMPLE_DATA.threadNotes];
-  const existingNoteIds = allNotes.map(note => note.noteId);
   
-  // Find the highest note ID and add 1
-  const maxNoteId = Math.max(...existingNoteIds, 0);
-  const nextNoteId = maxNoteId + 1;
+  // Only count notes that have been added (have simple note IDs)
+  const addedNotes = allNotes.filter(note => note.noteId !== undefined);
+  
+  // Find the highest existing note ID
+  const existingNoteIds = addedNotes
+    .map(note => note.noteId!)
+    .sort((a, b) => a - b);
+  
+  // Generate next sequential ID
+  const nextNoteId = existingNoteIds.length > 0 ? Math.max(...existingNoteIds) + 1 : 1;
   
   // Format as N001, N002, etc.
   return `N${nextNoteId.toString().padStart(3, '0')}`;

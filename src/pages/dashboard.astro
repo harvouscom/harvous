@@ -26,7 +26,7 @@ let inboxCount: number = 0;
 
 if (shouldUseSampleData()) {
   // Use clean, consistent sample data
-  featuredContent = getInboxContent();
+  featuredContent = getInboxContent(); // Use only inbox content for "For You" section
   contentItems = getOrganizedContent();
   const navData = getNavigationData();
   threads = navData.threads;
@@ -148,7 +148,7 @@ const inboxItemCount = inboxCount;
                         <div class="flex gap-3 overflow-auto">
                           {inboxContent.map(item => (
                             <a 
-                              href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
+                              href={item.type === 'thread' ? `/${item.threadId}` : `/${item.id}`}
                               class="block transition-transform duration-200 hover:scale-[1.002]"
                             >
                               <CardFeat 

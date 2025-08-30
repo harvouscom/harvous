@@ -123,7 +123,7 @@ const activeSpace = getActiveSpace(note.thread);
     <CardFull 
       title={note.title}
       date={note.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-      noteId={`N${note.noteId.toString().padStart(3, '0')}`}
+      noteId={note.noteId ? `N${note.noteId.toString().padStart(3, '0')}` : undefined}
       content={note.content}
       className="h-full"
     />

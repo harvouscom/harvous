@@ -252,7 +252,7 @@ if (!content) {
               title={content.title || "Untitled Note"}
               content={content.content}
               date={content.createdAt ? content.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Feb 7, 2025"}
-              noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : "N001"}
+              noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : undefined}
               className="h-full"
             />
           ) : (

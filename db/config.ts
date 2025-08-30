@@ -39,6 +39,7 @@ const Notes = defineTable({
     content: column.text(),
     threadId: column.text(), // Required: every note must belong to a thread (default: "thread_unorganized")
     spaceId: column.text({ optional: true }), // Optional: direct reference to space
+    simpleNoteId: column.number({ optional: true }), // User-friendly sequential note ID (1, 2, 3, etc.)
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
     userId: column.text(), // Clerk user id

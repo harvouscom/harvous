@@ -31,6 +31,33 @@ export function generateCommentId(): string {
   return generateTimestampId("comment");
 }
 
+// Function to get the next available simple note ID for adding content from inbox/archive
+export function getNextSimpleNoteId(existingNotes: Array<{ noteId?: number }>): number {
+  // Find the highest existing simple note ID
+  const existingNoteIds = existingNotes
+    .filter(note => note.noteId !== undefined)
+    .map(note => note.noteId!)
+    .sort((a, b) => a - b);
+  
+  // Generate next sequential ID
+  return existingNoteIds.length > 0 ? Math.max(...existingNoteIds) + 1 : 1;
+}
+
+// Function to add content from inbox/archive by assigning a simple note ID
+export function addContentToUserNotes(content: any, existingNotes: Array<{ noteId?: number }>): any {
+  if (content.noteId !== undefined) {
+    // Content already has a simple note ID, return as is
+    return content;
+  }
+  
+  // Assign the next available simple note ID
+  const nextSimpleNoteId = getNextSimpleNoteId(existingNotes);
+  return {
+    ...content,
+    noteId: nextSimpleNoteId
+  };
+}
+
 export function generateMemberId(): string {
   return generateTimestampId("member");
 }
