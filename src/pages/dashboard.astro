@@ -193,9 +193,9 @@ const inboxItemCount = inboxCount;
                     <!-- Content wrapper with gap -->
                     <div class="flex flex-col gap-3">
                       <!-- All Content -->
-                      <div class="organized-content flex flex-col gap-3" data-tab-content="all" id="all-content">
+                      <div class="organized-content flex flex-col" data-tab-content="all" id="all-content">
                     {organizedContent.map(item => (
-                      <div class={`content-item ${item.type}-item`}>
+                      <div class={`content-item ${item.type}-item mb-3`}>
                         <a 
                           href={item.type === 'thread' ? `/${item.id}` : `/${item.noteId}`}
                           class="block transition-transform duration-200 hover:scale-[1.002]"
@@ -221,9 +221,9 @@ const inboxItemCount = inboxCount;
                     </div>
                     
                     <!-- Threads Only Content -->
-                    <div class="organized-content flex flex-col gap-3 hidden" data-tab-content="threads" id="threads-content">
+                    <div class="organized-content flex flex-col hidden" data-tab-content="threads" id="threads-content">
                       {organizedContent.filter(item => item.type === 'thread').map(item => (
-                        <div class={`content-item ${item.type}-item`}>
+                        <div class={`content-item ${item.type}-item mb-3`}>
                           <a 
                             href={`/${item.id}`}
                             class="block transition-transform duration-200 hover:scale-[1.002]"
@@ -242,9 +242,9 @@ const inboxItemCount = inboxCount;
                     </div>
                     
                     <!-- Notes Only Content -->
-                    <div class="organized-content flex flex-col gap-3 hidden" data-tab-content="notes" id="notes-content">
+                    <div class="organized-content flex flex-col hidden" data-tab-content="notes" id="notes-content">
                       {organizedContent.filter(item => item.type === 'note').map(item => (
-                        <div class={`content-item ${item.type}-item`}>
+                        <div class={`content-item ${item.type}-item mb-3`}>
                           <a 
                             href={`/${item.noteId}`}
                             class="block transition-transform duration-200 hover:scale-[1.002]"
