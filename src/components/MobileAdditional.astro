@@ -1,0 +1,55 @@
+---
+import SquareButton from "@/components/SquareButton.astro";
+import NewNotePanel from "@/components/NewNotePanel.astro";
+import NewThreadPanel from "@/components/NewThreadPanel.astro";
+---
+
+<div 
+  class="flex items-center justify-center gap-4"
+  x-data="{ showNewNotePanel: false, showNewThreadPanel: false }"
+  x-init="
+    // Initialize from localStorage to persist across pages
+    showNewNotePanel = localStorage.getItem('showNewNotePanel') === 'true';
+    showNewThreadPanel = localStorage.getItem('showNewThreadPanel') === 'true';
+    
+    // Listen for NewNotePanel events
+    window.addEventListener('openNewNotePanel', () => {
+      showNewNotePanel = true;
+      showNewThreadPanel = false;
+      localStorage.setItem('showNewNotePanel', 'true');
+      localStorage.setItem('showNewThreadPanel', 'false');
+    });
+    window.addEventListener('closeNewNotePanel', () => {
+      showNewNotePanel = false;
+      localStorage.setItem('showNewNotePanel', 'false');
+    });
+    
+    // Listen for NewThreadPanel events
+    window.addEventListener('openNewThreadPanel', () => {
+      showNewThreadPanel = true;
+      showNewNotePanel = false;
+      localStorage.setItem('showNewThreadPanel', 'true');
+      localStorage.setItem('showNewNotePanel', 'false');
+    });
+    window.addEventListener('closeNewThreadPanel', () => {
+      showNewThreadPanel = false;
+      localStorage.setItem('showNewThreadPanel', 'false');
+    });
+  "
+>
+  <!-- Default state: SquareButtons in horizontal layout -->
+  <div x-show="!showNewNotePanel && !showNewThreadPanel" class="w-full flex justify-between">
+    <SquareButton variant="More" />
+    <SquareButton variant="Add" withMenu={true} />
+  </div>
+  
+  <!-- New Note Panel -->
+  <div x-show="showNewNotePanel" class="w-full">
+    <NewNotePanel />
+  </div>
+  
+  <!-- New Thread Panel -->
+  <div x-show="showNewThreadPanel" class="w-full">
+    <NewThreadPanel />
+  </div>
+</div>

@@ -10,8 +10,14 @@ import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky
     <button 
         onclick="
           console.log('MoreMenu: New Thread button clicked');
-          // TODO: Implement new thread functionality
-          // For now, just close the menu
+          // Trigger new thread panel
+          console.log('MoreMenu: Dispatching openNewThreadPanel event');
+          try {
+            window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
+          } catch (error) {
+            console.error('Error dispatching openNewThreadPanel event:', error);
+          }
+          // Close the menu when any option is selected
           const threadParentContainer = this.closest('.square-button-container');
           if (threadParentContainer && threadParentContainer.__x) {
             threadParentContainer.__x.$data.isOpen = false;
@@ -33,7 +39,11 @@ import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky
           console.log('MoreMenu: New Note button clicked');
           // Trigger new note panel
           console.log('MoreMenu: Dispatching openNewNotePanel event');
-          window.dispatchEvent(new CustomEvent('openNewNotePanel'));
+          try {
+            window.dispatchEvent(new CustomEvent('openNewNotePanel'));
+          } catch (error) {
+            console.error('Error dispatching openNewNotePanel event:', error);
+          }
           // Close the menu when any option is selected
           const parentContainer = this.closest('.square-button-container');
           if (parentContainer && parentContainer.__x) {

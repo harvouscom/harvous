@@ -1,0 +1,471 @@
+---
+import SquareButton from "./SquareButton.astro";
+import Button from "./Button.astro";
+import SpaceButton from "./SpaceButton.astro";
+import FaAngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down.svg";
+import TabNav from "./TabNav.astro";
+import CardFeat from "./CardFeat.astro";
+import Toast from "./Toast-v2.astro";
+import SearchInput from "./SearchInput.astro";
+import { SAMPLE_DATA } from "@/utils/sample-data";
+import { THREAD_COLORS, getThreadColorCSS, getRandomThreadColor } from "@/utils/colors";
+import { threads } from "@/actions/threads";
+
+export interface Props {
+  onClose?: () => void;
+}
+
+const { onClose } = Astro.props;
+
+// Function to get the next available thread ID
+function getNextThreadId(): string {
+  // Get all existing thread IDs from sample data
+  const allThreads = [...SAMPLE_DATA.unorganizedThreads, ...SAMPLE_DATA.organizedThreads];
+  const existingThreadIds = allThreads.map(thread => parseInt(thread.id.toString().replace(/\D/g, '')) || 0);
+  
+  // Find the highest thread ID and add 1
+  const maxThreadId = Math.max(...existingThreadIds, 0);
+  const nextThreadId = maxThreadId + 1;
+  
+  // Format as T001, T002, etc.
+  return `T${nextThreadId.toString().padStart(3, '0')}`;
+}
+
+// Get recent notes for display
+function getRecentNotes() {
+  // Get the most recent notes from sample data
+  const allNotes = [...SAMPLE_DATA.unorganizedNotes, ...SAMPLE_DATA.threadNotes];
+  return allNotes.slice(0, 3); // Show top 3 most recent
+}
+
+const nextThreadId = getNextThreadId();
+const recentNotes = getRecentNotes();
+
+// Get user ID - use development fallback since middleware is disabled
+let userId: string = "dev_user_123"; // Development fallback
+console.log("NewThreadPanel: Using development user ID:", userId);
+---
+
+<form 
+  action={threads.create}
+  method="POST"
+  class="new-thread-panel h-full flex flex-col justify-between"
+  x-data="{ 
+    title: localStorage.getItem('newThreadTitle') || '',
+    selectedColor: localStorage.getItem('newThreadColor') || 'paper',
+    selectedType: localStorage.getItem('newThreadType') || 'Private',
+    isOpen: false,
+    isSubmitting: false,
+
+    THREAD_COLORS: ['paper', 'blessed-blue', 'mindful-mint', 'graceful-gold', 'pleasant-peach', 'caring-coral', 'peaceful-pink', 'lovely-lavender'],
+    getThreadColorCSS(color) {
+      if (!color) return 'var(--color-paper)';
+      const colorMap = {
+        'paper': 'var(--color-paper)',
+        'blessed-blue': 'var(--color-blessed-blue)',
+        'graceful-gold': 'var(--color-graceful-gold)',
+        'caring-coral': 'var(--color-caring-coral)',
+        'mindful-mint': 'var(--color-mindful-mint)',
+        'peaceful-pink': 'var(--color-peaceful-pink)',
+        'pleasant-peach': 'var(--color-pleasant-peach)',
+        'lovely-lavender': 'var(--color-lovely-lavender)'
+      };
+      return colorMap[color] || 'var(--color-paper)';
+    },
+    submitForm() {
+      this.isSubmitting = true;
+    },
+    closePanel() {
+      // Clear localStorage
+      localStorage.removeItem('newThreadTitle');
+      localStorage.removeItem('newThreadColor');
+      localStorage.removeItem('newThreadType');
+      // Reset form
+      this.title = '';
+      this.selectedColor = 'paper';
+      this.selectedType = 'Private';
+      this.isSubmitting = false;
+      // Dispatch close event to update dashboard state
+      window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+    }
+  }"
+  x-init="
+    // Save form data to localStorage when it changes
+    $watch('title', value => localStorage.setItem('newThreadTitle', value));
+    $watch('selectedColor', value => localStorage.setItem('newThreadColor', value));
+    $watch('selectedType', value => localStorage.setItem('newThreadType', value));
+    
+    // Removed event listener to prevent infinite loop
+    // The closePanel() method already dispatches the close event
+    // Parent components (Layout, MobileAdditional) handle the event
+    
+    // Clear form when panel is opened (in case it was previously closed with data)
+    window.addEventListener('openNewThreadPanel', () => {
+                // Reset form to clean state when opening
+          title = '';
+          selectedColor = 'paper';
+          selectedType = 'Private';
+      isSubmitting = false;
+      // Clear localStorage when opening fresh
+      localStorage.removeItem('newThreadTitle');
+      localStorage.removeItem('newThreadColor');
+      localStorage.removeItem('newThreadType');
+    });
+  "
+>
+  <!-- Hidden form fields -->
+  <input type="hidden" name="title" x-model="title" />
+  <input type="hidden" name="color" x-model="selectedColor" />
+  <input type="hidden" name="isPublic" x-bind:value="selectedType === 'Shared'" />
+  <input type="hidden" name="spaceId" value="default_space" />
+
+  <!-- Content area that expands to fill available space -->
+  <div class="flex-1 flex flex-col min-h-0">
+    <!-- Single unified panel using CardStack structure -->
+    <div class="bg-white box-border flex flex-col min-h-0 flex-1 items-start justify-between overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full h-full mb-3.5">
+      <!-- Header section with thread name input -->
+      <div class="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full" x-bind:style="`background-color: ${getThreadColorCSS(selectedColor)}`">
+        <div class="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px]">
+          <input 
+            type="text"
+            x-model="title"
+            placeholder="Thread name"
+            class="w-full bg-transparent border-none text-[24px] font-bold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)] text-center"
+          />
+        </div>
+      </div>
+      
+      <!-- Content area -->
+      <div class="basis-0 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-px min-w-px overflow-clip relative shrink-0 w-full">
+        <div class="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
+          
+          <!-- Color selection -->
+          <div class="color-selection flex gap-2 items-center justify-start w-full">
+            <template x-for="color in THREAD_COLORS" :key="color">
+              <button 
+                type="button"
+                @click="selectedColor = color"
+                class="relative rounded-xl size-10 cursor-pointer transition-all duration-200"
+                :style="`background-color: ${getThreadColorCSS(color)};`"
+                :class="selectedColor === color ? 'ring-2 ring-[var(--color-deep-grey)] ring-offset-2' : ''"
+              >
+                <!-- Check icon for selected color -->
+                <div x-show="selectedColor === color" class="absolute inset-0 flex items-center justify-center">
+                  <svg class="size-5 text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                  </svg>
+                </div>
+              </button>
+            </template>
+          </div>
+          
+          <!-- Thread type selection using SpaceButton dropdown variant -->
+          <div class="w-full">
+            <div class="relative">
+              <div 
+                @click.prevent.stop="isOpen = !isOpen"
+                class="w-full cursor-pointer"
+              >
+                <div class="relative w-full">
+                  <SpaceButton 
+                    text="Private"
+                    state="Default"
+                    className="w-full pr-12"
+                  />
+                  <div class="absolute right-4 top-1/2 transform -translate-y-1/2">
+                    <FaAngleDownIcon class="w-5 h-5 text-[var(--color-deep-grey)]" />
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Dropdown content -->
+              <div 
+                x-show="isOpen"
+                x-transition:enter="transition ease-out duration-200"
+                x-transition:enter-start="opacity-0 transform scale-95"
+                x-transition:enter-end="opacity-100 transform scale-100"
+                x-transition:leave="transition ease-in duration-150"
+                x-transition:leave-start="opacity-100 transform scale-100"
+                x-transition:leave-end="opacity-0 transform scale-95"
+                class="absolute top-full left-0 right-0 mt-2 z-10"
+                style="min-width: 223px;"
+                @click.outside="isOpen = false"
+              >
+                <!-- Thread type options -->
+                <div>
+                  <button 
+                    type="button"
+                    @click="selectedType = 'Private'; isOpen = false"
+                    class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                    style="background-image: linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%);"
+                  >
+                    <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                      <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Private</span>
+                      <div class="p-[20px]">
+                        <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                          <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                            0
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button 
+                    type="button"
+                    @click="selectedType = 'Shared'; isOpen = false"
+                    class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                    style="background-image: linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%);"
+                  >
+                    <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                      <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
+                      <div class="p-[20px]">
+                        <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                          <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                            0
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Tab navigation with content -->
+          <div class="w-full">
+            <TabNav 
+              tabs={[
+                { id: "recent", label: "Recent", isActive: true },
+                { id: "search", label: "Search", isActive: false }
+              ]}
+            />
+            
+            <!-- Tab content -->
+            <div class="w-full">
+              <!-- Recent notes display -->
+              <div id="recent-content" class="tab-content" data-tab-content="recent">
+                <div class="flex gap-3 items-start justify-start w-full overflow-x-auto">
+                  {recentNotes.map((note) => (
+                    <CardFeat 
+                      variant="Note"
+                      title={note.title}
+                      content={note.content}
+                      class="shrink-0"
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              <!-- Search content -->
+              <div id="search-content" class="tab-content hidden" data-tab-content="search">
+                <div class="flex flex-col gap-3">
+                  <SearchInput placeholder="Search notes..." />
+                  <div class="text-center py-4 text-gray-500">
+                    <p>Search results will appear here...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom buttons -->
+  <div class="flex items-center justify-between gap-3">
+    <div id="close-new-thread-btn" @click.prevent="closePanel()">
+      <SquareButton variant="Close" type="button" />
+    </div>
+    <Button 
+      state="Default"
+      type="button"
+      id="create-thread-btn"
+      class="flex-1"
+      x-bind:disabled="isSubmitting"
+    >
+      <span x-show="!isSubmitting">Create Thread</span>
+      <span x-show="isSubmitting">Creating...</span>
+    </Button>
+  </div>
+</form>
+
+<!-- Toast component -->
+<Toast />
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+
+    
+    // Handle create thread button click
+    const createBtn = document.getElementById('create-thread-btn');
+    if (createBtn) {
+      createBtn.addEventListener('click', async () => {
+        const form = document.querySelector('form');
+        if (!form) return;
+        
+        let alpineData;
+        try {
+          alpineData = (window as any).Alpine?.$data(form);
+        } catch (e) {
+          // Alpine data not available
+        }
+        
+        // Check if we're in sample data mode
+        const isSampleDataMode = !window.location.search.includes('useRealData=true');
+        
+        // In sample data mode, show a message instead of creating a thread
+        if (isSampleDataMode) {
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Thread creation disabled in sample data mode. Switch to Real DB mode to create threads.',
+              type: 'error'
+            }
+          }));
+          
+          // Reset form
+          if (alpineData) {
+            alpineData.title = '';
+            alpineData.selectedColor = 'paper';
+            alpineData.selectedType = 'Private';
+            alpineData.isSubmitting = false;
+          }
+          
+          return;
+        }
+        
+        if (!alpineData?.title?.trim()) {
+          alert('Please enter a thread title');
+          return;
+        }
+        
+        // Set submitting state
+        if (alpineData) {
+          alpineData.isSubmitting = true;
+        }
+        
+        const formData = new FormData(form);
+        
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            const contentType = response.headers.get('content-type');
+            
+            let result;
+            if (contentType && contentType.includes('application/json')) {
+              result = await response.json();
+            } else {
+              // If not JSON, treat as success and show a generic message
+              result = { success: 'Thread created successfully!' };
+            }
+            
+            // Show success toast
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: result.success || 'Thread created successfully!',
+                type: 'success'
+              }
+            }));
+            
+            // Clear localStorage
+            localStorage.removeItem('newThreadTitle');
+            localStorage.removeItem('newThreadColor');
+            localStorage.removeItem('newThreadType');
+            
+            // Reset form
+            if (alpineData) {
+              alpineData.title = '';
+              alpineData.selectedColor = 'paper';
+              alpineData.selectedType = 'Private';
+              alpineData.isSubmitting = false;
+            }
+            
+            // Close panel using Alpine method
+            if (alpineData?.closePanel) {
+              alpineData.closePanel();
+            }
+            
+            // In real database mode, no refresh needed - data should update dynamically
+            
+          } else {
+            let errorMessage = 'Error creating thread';
+            try {
+              const contentType = response.headers.get('content-type');
+              if (contentType && contentType.includes('application/json')) {
+                const errorData = await response.json();
+                errorMessage = errorData.message || errorMessage;
+              }
+            } catch (e) {
+              // Could not parse error response
+            }
+            
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: errorMessage,
+                type: 'error'
+              }
+            }));
+            if (alpineData) {
+              alpineData.isSubmitting = false;
+            }
+          }
+        } catch (error) {
+          console.error('Form submission error:', error);
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Error creating thread. Please try again.',
+              type: 'error'
+            }
+          }));
+          if (alpineData) {
+            alpineData.isSubmitting = false;
+          }
+        }
+      });
+    }
+  });
+</script>
+
+<style>
+  /* SpaceButton styling for dropdown items */
+  .space-button {
+    will-change: transform;
+    transition: box-shadow 0.125s ease-in-out;
+  }
+
+  .space-button[style*="background-image"] {
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  .space-button:not([data-outer-shadow]):active {
+    filter: brightness(0.97);
+    box-shadow: 
+      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  .space-button:active > div {
+    translate: 0 0;
+    transform: scale(0.98);
+  }
+
+  /* Color selection button styling - only for color picker buttons */
+  .new-thread-panel .color-selection button[style*="background-color"] {
+    box-shadow: 0px -4px 0px 0px rgba(0, 0, 0, 0.1) inset;
+  }
+
+  .new-thread-panel .color-selection button[style*="background-color"]:hover {
+    transform: scale(1.05);
+  }
+
+  .new-thread-panel .color-selection button[style*="background-color"]:active {
+    transform: scale(0.95);
+  }
+</style>

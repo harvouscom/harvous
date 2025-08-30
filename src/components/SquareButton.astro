@@ -8,6 +8,7 @@ import MoreMenu from "./MoreMenu.astro";
 export interface Props {
   variant?: "Add" | "Close" | "More" | "Back";
   withMenu?: boolean;
+  type?: "button" | "submit" | "reset";
 }
 const { variant = "More", withMenu = false } = Astro.props;
 ---

@@ -1,0 +1,302 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import Button from "@/components/Button.astro";
+import SquareButton from "@/components/SquareButton.astro";
+import SpaceButton from "@/components/SpaceButton.astro";
+import ActionButton from "@/components/ActionButton.astro";
+import CardFeat from "@/components/CardFeat.astro";
+import CardFull from "@/components/CardFull.astro";
+import CardNote from "@/components/CardNote.astro";
+import CardThread from "@/components/CardThread.astro";
+import CardStack from "@/components/CardStack.astro";
+import CardImageLink from "@/components/CardImageLink.astro";
+import Avatar from "@/components/Avatar.astro";
+import SearchInput from "@/components/SearchInput.astro";
+import TitleInput from "@/components/TitleInput.astro";
+import TabNav from "@/components/TabNav.astro";
+import MoreMenu from "@/components/MoreMenu.astro";
+import Drawer from "@/components/Drawer.astro";
+import OverlappingNotes from "@/components/OverlappingNotes.astro";
+
+import Welcome from "@/components/Welcome.astro";
+---
+
+<Layout title="Components - Harvous">
+  <div class="min-h-screen bg-[var(--color-light-paper)] p-8">
+    <!-- Header -->
+    <div class="max-w-7xl mx-auto mb-12">
+      <div class="text-center mb-8">
+        <h1 class="text-4xl font-bold text-[var(--color-deep-grey)] mb-4">Component Library</h1>
+        <p class="text-lg text-[var(--color-pebble-grey)] mb-6">
+          All the components used in Harvous
+        </p>
+        <a 
+          href="/" 
+          class="inline-block px-6 py-3 bg-[var(--color-blue)] text-white rounded-3xl font-semibold hover:bg-[var(--color-navy)] transition-colors"
+        >
+          Back to Home
+        </a>
+      </div>
+    </div>
+
+    <!-- Components Grid -->
+    <div class="max-w-7xl mx-auto">
+      <!-- Buttons Section -->
+      <section class="mb-16">
+        <h2 class="text-2xl font-bold text-[var(--color-deep-grey)] mb-6">Buttons</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <!-- Button Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">Button</h3>
+            <div class="space-y-4">
+              <Button state="Default">Primary Button</Button>
+              <Button state="Secondary">Secondary Button</Button>
+              <Button state="Delete">Delete Button</Button>
+            </div>
+          </div>
+
+          <!-- SquareButton Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">SquareButton</h3>
+            <div class="flex gap-4 flex-wrap">
+              <SquareButton variant="Close" />
+              <SquareButton variant="Add" />
+              <SquareButton variant="More" />
+              <SquareButton variant="Back" />
+            </div>
+          </div>
+
+          <!-- ActionButton Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">ActionButton</h3>
+            <div class="flex gap-4 flex-wrap">
+              <ActionButton variant="Add" />
+              <ActionButton variant="default">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+              </ActionButton>
+            </div>
+          </div>
+
+          <!-- SpaceButton Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">SpaceButton</h3>
+            <div class="space-y-4">
+              <SpaceButton 
+                text="Unorganized" 
+                state="Default" 
+                count={5}
+                backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
+                isActive={false}
+              />
+              <SpaceButton 
+                text="Gospel of John" 
+                state="Default" 
+                count={12}
+                backgroundGradient="linear-gradient(180deg, var(--color-blessed-blue) 0%, var(--color-blessed-blue) 100%)"
+                isActive={true}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cards Section -->
+      <section class="mb-16">
+        <h2 class="text-2xl font-bold text-[var(--color-deep-grey)] mb-6">Cards</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <!-- CardFeat Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">CardFeat</h3>
+            <div class="space-y-4">
+              <CardFeat 
+                variant="Note" 
+                title="Sample Note" 
+                content="This is a sample note content that demonstrates the CardFeat component."
+              />
+              <CardFeat 
+                variant="Thread" 
+                title="Sample Thread" 
+                content="This is a sample thread with overlapping notes."
+                isPrivate={true}
+              />
+            </div>
+          </div>
+
+          <!-- CardNote Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">CardNote</h3>
+            <CardNote 
+              title="Sample Note"
+              content="This is a sample note that demonstrates the CardNote component with its full layout and styling."
+            />
+          </div>
+
+          <!-- CardThread Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">CardThread</h3>
+            <CardThread 
+              title="Sample Thread"
+              subtitle="This is a sample thread that demonstrates the CardThread component."
+              count={5}
+              isPrivate={true}
+              lastUpdated="2024-01-15"
+            />
+          </div>
+
+          <!-- CardFull Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">CardFull</h3>
+            <CardFull 
+              title="Sample Full Card"
+              content="This is a sample full card that demonstrates the CardFull component with its complete layout."
+              date="2024-01-15"
+              noteId="N002"
+            />
+          </div>
+
+          <!-- CardImageLink Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">CardImageLink</h3>
+            <CardImageLink 
+              title="Sample Image Link"
+              content="This is a sample image link card."
+              imageUrl="https://via.placeholder.com/300x200"
+            />
+          </div>
+
+          <!-- CardStack Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">CardStack</h3>
+            <CardStack>
+              <div class="bg-[var(--color-blessed-blue)] p-4 rounded-xl">
+                <p class="text-[var(--color-deep-grey)]">Stacked content 1</p>
+              </div>
+              <div class="bg-[var(--color-mindful-mint)] p-4 rounded-xl">
+                <p class="text-[var(--color-deep-grey)]">Stacked content 2</p>
+              </div>
+            </CardStack>
+          </div>
+        </div>
+      </section>
+
+      <!-- Input Components Section -->
+      <section class="mb-16">
+        <h2 class="text-2xl font-bold text-[var(--color-deep-grey)] mb-6">Input Components</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <!-- SearchInput Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">SearchInput</h3>
+            <SearchInput placeholder="Search notes..." />
+          </div>
+
+          <!-- TitleInput Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">TitleInput</h3>
+            <TitleInput placeholder="Enter title..." />
+          </div>
+
+
+        </div>
+      </section>
+
+      <!-- Navigation Components Section -->
+      <section class="mb-16">
+        <h2 class="text-2xl font-bold text-[var(--color-deep-grey)] mb-6">Navigation Components</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <!-- TabNav Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">TabNav</h3>
+            <div class="tabnav-demo">
+              <TabNav 
+                tabs={[
+                  { id: "recent", label: "Recent", isActive: true },
+                  { id: "search", label: "Search", isActive: false },
+                  { id: "favorites", label: "Favorites", isActive: false }
+                ]}
+              />
+              
+              <!-- Tab Content -->
+              <div class="mt-4">
+                <div id="recent-content" class="tab-content" data-tab-content="recent">
+                  <p class="text-sm text-gray-600">Recent items will appear here...</p>
+                </div>
+                <div id="search-content" class="tab-content hidden" data-tab-content="search">
+                  <p class="text-sm text-gray-600">Search results will appear here...</p>
+                </div>
+                <div id="favorites-content" class="tab-content hidden" data-tab-content="favorites">
+                  <p class="text-sm text-gray-600">Your favorite items will appear here...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MoreMenu Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">MoreMenu</h3>
+            <MoreMenu />
+          </div>
+
+          <!-- Drawer Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">Drawer</h3>
+            <Drawer>
+              <div class="p-4">
+                <p class="text-[var(--color-deep-grey)]">Drawer content goes here</p>
+              </div>
+            </Drawer>
+          </div>
+        </div>
+      </section>
+
+      <!-- Utility Components Section -->
+      <section class="mb-16">
+        <h2 class="text-2xl font-bold text-[var(--color-deep-grey)] mb-6">Utility Components</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <!-- Avatar Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">Avatar</h3>
+            <div class="flex gap-4">
+              <Avatar initials="JD" />
+              <Avatar initials="JS" />
+            </div>
+          </div>
+
+          <!-- OverlappingNotes Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">OverlappingNotes</h3>
+            <div class="flex gap-4">
+              <OverlappingNotes count={3} />
+              <OverlappingNotes count={5} />
+            </div>
+          </div>
+
+
+        </div>
+      </section>
+
+      <!-- Special Components Section -->
+      <section class="mb-16">
+        <h2 class="text-2xl font-bold text-[var(--color-deep-grey)] mb-6">Special Components</h2>
+        <div class="grid grid-cols-1 gap-8">
+          <!-- Welcome Component -->
+          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">Welcome</h3>
+            <Welcome />
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // Initialize any interactive components
+  document.addEventListener('DOMContentLoaded', () => {
+    // Add any component-specific initialization here
+    console.log('Components page loaded');
+    
+
+  });
+</script>

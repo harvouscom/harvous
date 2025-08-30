@@ -5,49 +5,62 @@ import CardFull from "@/components/CardFull.astro";
 import SearchInput from "@/components/SearchInput.astro";
 import SpaceButton from "@/components/SpaceButton.astro";
 import Avatar from "@/components/Avatar.astro";
-import SquareButton from "@/components/SquareButton.astro";
 import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
-import { db, Threads, Notes, Spaces, eq, and, desc } from "astro:db";
-import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount } from "@/utils/dashboard-data";
+// import { db, Threads, Notes, Spaces, eq, and, desc } from "astro:db"; // Conditionally imported below
+// import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount } from "@/utils/dashboard-data"; // Conditionally imported below
 import { getThreadColorCSS } from "@/utils/colors";
 import { SAMPLE_DATA, getNavigationData, shouldUseSampleData } from "@/utils/sample-data";
-import NewNotePanel from "@/components/NewNotePanel.astro";
-// Get user ID from Clerk authentication with safe fallbacks
-let userId: string;
+import MobileNavigation from "@/components/MobileNavigation.astro";
+import MobileAdditional from "@/components/MobileAdditional.astro";
 
-try {
-  // Access Clerk auth through Astro.locals (set by clerkMiddleware)
-  const { userId: clerkUserId } = Astro.locals.auth();
+// Get static paths for static mode
+export async function getStaticPaths() {
+  const { SAMPLE_DATA } = await import("@/utils/sample-data");
   
-  // If no authenticated user, redirect to sign-in
-  if (!clerkUserId) {
-    console.log("Dynamic page: No authenticated user, redirecting to sign-in");
-    return Astro.redirect("/sign-in");
-  }
+  const paths = [
+    // Add paths for all sample spaces
+    ...SAMPLE_DATA.spaces.map(space => ({
+      params: { id: space.id },
+      props: { id: space.id }
+    })),
+    // Add paths for all sample threads
+    ...SAMPLE_DATA.unorganizedThreads.map(thread => ({
+      params: { id: thread.id },
+      props: { id: thread.id }
+    })),
+    ...SAMPLE_DATA.organizedThreads.map(thread => ({
+      params: { id: thread.id },
+      props: { id: thread.id }
+    })),
+    // Add paths for all sample notes
+    ...SAMPLE_DATA.unorganizedNotes.map(note => ({
+      params: { id: note.id },
+      props: { id: note.id }
+    })),
+    ...SAMPLE_DATA.threadNotes.map(note => ({
+      params: { id: note.id },
+      props: { id: note.id }
+    }))
+  ];
   
-  userId = clerkUserId;
-  console.log("Dynamic page: Using authenticated user:", userId);
-} catch (error) {
-  console.error("Dynamic page: Error getting user from Clerk:", error);
-  // Fallback for development/testing - only use if in development mode
-  if (import.meta.env.DEV) {
-    console.log("Dynamic page: Falling back to development user ID");
-    userId = "user_2abc123"; // Fallback for local development
-  } else {
-    // In production, redirect to sign-in if auth fails
-    console.log("Dynamic page: Auth failed in production, redirecting to sign-in");
-    return Astro.redirect("/sign-in");
-  }
+  console.log("Generated static paths:", paths.length);
+  return paths;
 }
 
+// Get user ID - use development fallback since middleware is disabled
+let userId: string = "dev_user_123"; // Development fallback
+console.log("Dynamic page: Using development user ID:", userId);
+
 const { id } = Astro.params;
+console.log("Dynamic page: ID =", id);
 
 // Determine if this is a thread, note, or space based on the ID prefix
 const isThread = id?.startsWith('thread_');
 const isNote = id?.startsWith('note_');
 const isSpace = id?.startsWith('space_');
+console.log("Dynamic page: isThread =", isThread, "isNote =", isNote, "isSpace =", isSpace);
 
 let content: any = null;
 let threads: any[] = [];
@@ -59,7 +72,16 @@ let currentSpace: any = null;
 let threadNotes: any[] = [];
 let inboxCount: number = 0;
 
+// Declare database functions that will be conditionally imported
+let getAllThreadsWithCounts: any;
+let getSpacesWithCounts: any;
+let getNotesForThread: any;
+let getThreadsForSpace: any;
+let getNotesForSpace: any;
+let getInboxCount: any;
+
 if (shouldUseSampleData()) {
+  console.log("Dynamic page: Using sample data");
   // Use robust sample data system
   if (isThread) {
     // Find thread in sample data
@@ -154,135 +176,27 @@ if (shouldUseSampleData()) {
   spaces = navData.spaces;
   inboxCount = navData.inboxCount;
 } else {
-  // Production: fetch from database
-  try {
-    if (isThread) {
-      // Fetch thread data
-      const thread = await db.select({
-        id: Threads.id,
-        title: Threads.title,
-        subtitle: Threads.subtitle,
-        color: Threads.color,
-        spaceId: Threads.spaceId,
-        isPublic: Threads.isPublic,
-        isPinned: Threads.isPinned,
-        createdAt: Threads.createdAt,
-        updatedAt: Threads.updatedAt,
-      })
-      .from(Threads)
-      .where(and(eq(Threads.id, id!), eq(Threads.userId, userId)))
-      .get();
-
-      if (thread) {
-        threadNotes = await getNotesForThread(id!, userId);
-        content = {
-          ...thread,
-          notes: threadNotes,
-          noteCount: threadNotes.length
-        };
-        currentThread = {
-          ...thread,
-          noteCount: threadNotes.length
-        };
-        pageTitle = thread.title;
-        pageContent = thread.subtitle || `${threadNotes.length} notes`;
-      }
-    } else if (isNote) {
-      const note = await db.select({
-        id: Notes.id,
-        title: Notes.title,
-        content: Notes.content,
-        threadId: Notes.threadId,
-        spaceId: Notes.spaceId,
-        createdAt: Notes.createdAt,
-        updatedAt: Notes.updatedAt,
-      })
-      .from(Notes)
-      .where(and(eq(Notes.id, id!), eq(Notes.userId, userId)))
-      .get();
-
-      if (note) {
-        currentThread = await db.select({
-          id: Threads.id,
-          title: Threads.title,
-          subtitle: Threads.subtitle,
-          color: Threads.color,
-          spaceId: Threads.spaceId,
-        })
-        .from(Threads)
-        .where(eq(Threads.id, note.threadId!))
-        .get();
-
-        content = note;
-        pageTitle = note.title || "Untitled Note";
-        pageContent = note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "");
-        
-        if (currentThread) {
-          const threadNotes = await getNotesForThread(currentThread.id, userId);
-          currentThread.noteCount = threadNotes.length;
-        }
-      }
-    } else if (isSpace) {
-      const space = await db.select({
-        id: Spaces.id,
-        title: Spaces.title,
-        description: Spaces.description,
-        color: Spaces.color,
-        backgroundGradient: Spaces.backgroundGradient,
-        isPublic: Spaces.isPublic,
-        isActive: Spaces.isActive,
-        createdAt: Spaces.createdAt,
-        updatedAt: Spaces.updatedAt,
-      })
-      .from(Spaces)
-      .where(and(eq(Spaces.id, id!), eq(Spaces.userId, userId)))
-      .get();
-
-      if (space) {
-        const [spaceThreads, spaceNotes] = await Promise.all([
-          getThreadsForSpace(id!, userId),
-          getNotesForSpace(id!, userId)
-        ]);
-        
-        const standaloneNotes = spaceNotes.filter((note: any) => note.threadId === "thread_unorganized");
-
-        content = {
-          ...space,
-          threads: spaceThreads,
-          notes: standaloneNotes,
-          threadCount: spaceThreads.length,
-          noteCount: standaloneNotes.length
-        };
-        currentSpace = space;
-        pageTitle = space.title;
-        pageContent = space.description || `${spaceThreads.length} threads, ${standaloneNotes.length} notes`;
-      }
-    }
-
-    // Fetch navigation data
-    [threads, spaces, inboxCount] = await Promise.all([
-      getAllThreadsWithCounts(userId),
-      getSpacesWithCounts(userId),
-      getInboxCount(userId)
-    ]);
-  } catch (error) {
-    console.error("Error fetching content:", error);
-  }
+  // Production: fetch from database - TEMPORARILY DISABLED FOR STATIC MODE
+  console.log("Production database mode disabled for static build");
+  
+  // For now, fall back to sample data
+  const navData = getNavigationData();
+  threads = navData.threads;
+  spaces = navData.spaces;
+  inboxCount = navData.inboxCount;
 }
 
 // If content not found, redirect to dashboard
 if (!content) {
-  return Astro.redirect('/dashboard');
+  // return Astro.redirect('/dashboard'); // Temporarily disabled for static mode
+  console.log("Content not found, would redirect to dashboard");
 }
 ---
 
 <Layout title={pageTitle}>
-  <div class="h-screen bg-[var(--color-light-paper)] p-6">
-    <div class="grid grid-cols-[300px_640px_1fr] gap-6 h-full">
-      <!-- Navigation Column -->
-      <section class="h-full">
-        <slot name="navigation">
-          <div class="content-stretch flex flex-col items-start justify-between relative size-full">
+  <!-- Navigation Column -->
+  <div slot="navigation" class="h-full">
+          <div class="content-stretch flex flex-col items-start justify-between relative h-full">
             <div class="content-stretch flex flex-col gap-12 items-start justify-start relative shrink-0 w-full">
               <!-- Search Input -->
               <SearchInput placeholder="Search" className="h-[60px]" />
@@ -329,12 +243,10 @@ if (!content) {
               <Avatar initials="DJ" />
             </div>
           </div>
-        </slot>
-      </section>
+  </div>
 
-      <!-- Main Column -->
-      <section class="h-full">
-        <slot name="main">
+  <!-- Main Column -->
+  <div slot="main" class="h-full">
           {isNote ? (
             <CardFull 
               title={content.title || "Untitled Note"}
@@ -410,43 +322,19 @@ if (!content) {
               </div>
             </CardStack>
           )}
-        </slot>
-      </section>
+  </div>
 
-      <!-- Additional Column -->
-      <section class="h-full">
-        <slot name="additional">
-                    <div 
-            class="flex flex-col items-left justify-between h-full"
-            x-data="{ showNewNotePanel: false }"
-            x-init="
-              // Initialize from localStorage
-              showNewNotePanel = localStorage.getItem('showNewNotePanel') === 'true';
-              
-              // Listen for NewNotePanel events
-              window.addEventListener('openNewNotePanel', () => {
-                showNewNotePanel = true;
-                localStorage.setItem('showNewNotePanel', 'true');
-              });
-              window.addEventListener('closeNewNotePanel', () => {
-                showNewNotePanel = false;
-                localStorage.setItem('showNewNotePanel', 'false');
-              });
-            "
-          >
-            <!-- Default state: SquareButtons -->
-            <div x-show="!showNewNotePanel" class="flex flex-col items-left justify-between h-full">
-              <SquareButton variant="More" />
-              <SquareButton variant="Add" withMenu={true} />
-            </div>
-            
-            <!-- New Note Panel -->
-            <div x-show="showNewNotePanel" class="h-full">
-              <NewNotePanel />
-            </div>
-          </div>
-        </slot>
-      </section>
-    </div>
+  <!-- Mobile Navigation -->
+  <div slot="mobile-navigation">
+    <MobileNavigation 
+      spaces={spaces}
+      threads={threads}
+      inboxCount={inboxCount}
+    />
+  </div>
+
+  <!-- Mobile Additional -->
+  <div slot="mobile-additional">
+    <MobileAdditional />
   </div>
 </Layout>

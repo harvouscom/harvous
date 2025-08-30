@@ -1,10 +1,12 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 
-// For local development, go directly to dashboard
+// Redirect to dashboard for now since the layout expects proper slot content
 // In production, this will be handled by Clerk authentication
+return Astro.redirect('/dashboard');
 ---
 
+<!-- This content won't be reached due to redirect, but keeping for reference -->
 <Layout title="Harvous">
   <div class="min-h-screen bg-[var(--color-light-paper)] flex items-center justify-center">
     <div class="text-center">
@@ -18,6 +20,12 @@ import Layout from "@/layouts/Layout.astro";
           class="inline-block px-8 py-4 bg-[var(--color-blue)] text-white rounded-3xl font-semibold text-lg hover:bg-[var(--color-navy)] transition-colors"
         >
           Go to Dashboard
+        </a>
+        <a 
+          href="/components" 
+          class="inline-block px-8 py-4 bg-[var(--color-mindful-mint)] text-[var(--color-deep-grey)] rounded-3xl font-semibold text-lg hover:bg-[var(--color-graceful-gold)] transition-colors"
+        >
+          View Components
         </a>
         <a 
           href="/sign-in" 

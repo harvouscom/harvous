@@ -4,41 +4,17 @@ import CardStack from "@/components/CardStack.astro";
 import SearchInput from "@/components/SearchInput.astro";
 import SpaceButton from "@/components/SpaceButton.astro";
 import Avatar from "@/components/Avatar.astro";
-import SquareButton from "@/components/SquareButton.astro";
 import TabNav from "@/components/TabNav.astro";
 import CardFeat from "@/components/CardFeat.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
 import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 import { getInboxContent, getOrganizedContent, getNavigationData, shouldUseSampleData, getDataMode, toggleDataMode } from "@/utils/sample-data";
-import NewNotePanel from "@/components/NewNotePanel.astro";
-// Get user ID from Clerk authentication with safe fallbacks
-let userId: string;
-
-try {
-  // Access Clerk auth through Astro.locals (set by clerkMiddleware)
-  const { userId: clerkUserId } = Astro.locals.auth();
-  
-  // If no authenticated user, redirect to sign-in
-  if (!clerkUserId) {
-    console.log("Dashboard: No authenticated user, redirecting to sign-in");
-    return Astro.redirect("/sign-in");
-  }
-  
-  userId = clerkUserId;
-  console.log("Dashboard: Using authenticated user:", userId);
-} catch (error) {
-  console.error("Dashboard: Error getting user from Clerk:", error);
-  // Fallback for development/testing - only use if in development mode
-  if (import.meta.env.DEV) {
-    console.log("Dashboard: Falling back to development user ID");
-    userId = "user_2abc123"; // Fallback for local development
-  } else {
-    // In production, redirect to sign-in if auth fails
-    console.log("Dashboard: Auth failed in production, redirecting to sign-in");
-    return Astro.redirect("/sign-in");
-  }
-}
+import MobileNavigation from "@/components/MobileNavigation.astro";
+import MobileAdditional from "@/components/MobileAdditional.astro";
+// Get user ID - use development fallback since middleware is disabled
+let userId: string = "dev_user_123"; // Development fallback
+console.log("Dashboard: Using development user ID:", userId);
 
 // Fetch real data from database
 // Use robust sample data system for consistent development experience
@@ -85,15 +61,9 @@ const inboxItemCount = inboxCount;
 ---
 
 <Layout title="Dashboard">
-  <!-- Alpine.js CDN for SquareButton menu functionality -->
-
-  
-  <div class="h-screen bg-[var(--color-light-paper)] p-6">
-    <div class="grid grid-cols-[300px_640px_minmax(auto,640px)] gap-6 h-full">
-      <!-- Navigation Column -->
-      <section class="h-full">
-        <slot name="navigation">
-          <div class="content-stretch flex flex-col items-start justify-between relative size-full">
+  <!-- Navigation Column -->
+  <div slot="navigation" class="h-full">
+          <div class="content-stretch flex flex-col items-start justify-between relative h-full">
             <div class="content-stretch flex flex-col gap-12 items-start justify-start relative shrink-0 w-full">
               <!-- Search Input -->
               <SearchInput placeholder="Search" className="h-[60px]" />
@@ -149,73 +119,81 @@ const inboxItemCount = inboxCount;
               <Avatar initials="DJ" />
             </div>
           </div>
-        </slot>
-      </section>
+  </div>
 
-      <!-- Main Column -->
-      <section class="h-full">
-        <slot name="main">
+  <!-- Main Column -->
+  <div slot="main" class="h-full">
           <div class="flex flex-col h-full">
             
             <!-- Content List -->
             <div class="flex-1">
               <CardStack title="For You" subtitle="" headerBgColor="var(--color-paper)">
                 <div class="flex flex-col gap-6">
-                  <!-- First TabNav - Inbox/Archive -->
-                  <TabNav 
-                    tabs={[
-                      { id: "inbox", label: "Inbox", isActive: true },
-                      { id: "archive", label: "Archive", isActive: false }
-                    ]}
-                    class="inbox-archive-tabs"
-                  />
-                  
-                  <!-- Inbox Content (only unassigned items) -->
-                  <div class="inbox-content" id="inbox-content">
-                    {inboxContent.length > 0 ? (
-                      <div class="flex gap-3 overflow-auto">
-                        {inboxContent.map(item => (
-                          <a 
-                            href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
-                            class="block transition-transform duration-200 hover:scale-[1.002]"
-                          >
-                            <CardFeat 
-                              variant={item.variant}
-                              title={item.title}
-                              content={item.content}
-                              imageUrl={(item as any).imageUrl}
-                              lastUpdated={item.lastUpdated}
-                              isPrivate={(item as any).isPrivate}
-                            />
-                          </a>
-                        ))}
+                  <!-- First TabNav Group -->
+                  <div class="flex flex-col gap-3">
+                    <!-- First TabNav - Inbox/Archive -->
+                    <TabNav 
+                      tabs={[
+                        { id: "inbox", label: "Inbox", isActive: true },
+                        { id: "archive", label: "Archive", isActive: false }
+                      ]}
+                      class="inbox-archive-tabs"
+                    />
+                    
+                    <!-- Content wrapper with gap -->
+                    <div class="flex flex-col gap-3">
+                      <!-- Inbox Content (only unassigned items) -->
+                      <div class="inbox-content" data-tab-content="inbox" id="inbox-content">
+                      {inboxContent.length > 0 ? (
+                        <div class="flex gap-3 overflow-auto">
+                          {inboxContent.map(item => (
+                            <a 
+                              href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
+                              class="block transition-transform duration-200 hover:scale-[1.002]"
+                            >
+                              <CardFeat 
+                                variant={item.variant}
+                                title={item.title}
+                                content={item.content}
+                                imageUrl={(item as any).imageUrl}
+                                lastUpdated={item.lastUpdated}
+                                isPrivate={(item as any).isPrivate}
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <div class="text-center py-8 text-gray-500">
+                          <p>No items in inbox</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                                          <!-- Archive Content (dismissed items) -->
+                      <div class="archive-content hidden" data-tab-content="archive" id="archive-content">
+                        <div class="text-center py-8 text-gray-500">
+                          <p>No archived items</p>
+                        </div>
                       </div>
-                    ) : (
-                      <div class="text-center py-8 text-gray-500">
-                        <p>No items in inbox</p>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <!-- Archive Content (dismissed items) -->
-                  <div class="archive-content hidden" id="archive-content">
-                    <div class="text-center py-8 text-gray-500">
-                      <p>No archived items</p>
                     </div>
                   </div>
                   
-                  <!-- Second TabNav - All/Threads/Notes -->
-                  <TabNav 
-                    tabs={[
-                      { id: "all", label: "All", isActive: true },
-                      { id: "threads", label: "Threads", isActive: false },
-                      { id: "notes", label: "Notes", isActive: false }
-                    ]}
-                    class="content-tabs"
-                  />
-                  
-                  <!-- Organized Content List (items that have been added to Harvous) -->
-                  <div class="organized-content flex flex-col gap-3">
+                  <!-- Second TabNav Group -->
+                  <div class="flex flex-col gap-3">
+                    <!-- Second TabNav - All/Threads/Notes -->
+                    <TabNav 
+                      tabs={[
+                        { id: "all", label: "All", isActive: true },
+                        { id: "threads", label: "Threads", isActive: false },
+                        { id: "notes", label: "Notes", isActive: false }
+                      ]}
+                      class="content-tabs"
+                    />
+                    
+                    <!-- Content wrapper with gap -->
+                    <div class="flex flex-col gap-3">
+                      <!-- All Content -->
+                      <div class="organized-content flex flex-col gap-3" data-tab-content="all" id="all-content">
                     {organizedContent.map(item => (
                       <div class={`content-item ${item.type}-item`}>
                         <a 
@@ -239,140 +217,68 @@ const inboxItemCount = inboxCount;
                           )}
                         </a>
                       </div>
-                    ))}
+                                          ))}
+                    </div>
+                    
+                    <!-- Threads Only Content -->
+                    <div class="organized-content flex flex-col gap-3 hidden" data-tab-content="threads" id="threads-content">
+                      {organizedContent.filter(item => item.type === 'thread').map(item => (
+                        <div class={`content-item ${item.type}-item`}>
+                          <a 
+                            href={`/${item.id}`}
+                            class="block transition-transform duration-200 hover:scale-[1.002]"
+                          >
+                            <CardThread 
+                              title={item.title}
+                              subtitle={item.subtitle}
+                              count={item.count}
+                              accentColor={item.accentColor}
+                              lastUpdated={item.lastUpdated}
+                              isPrivate={(item as any).isPrivate}
+                            />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <!-- Notes Only Content -->
+                    <div class="organized-content flex flex-col gap-3 hidden" data-tab-content="notes" id="notes-content">
+                      {organizedContent.filter(item => item.type === 'note').map(item => (
+                        <div class={`content-item ${item.type}-item`}>
+                          <a 
+                            href={`/${item.noteId}`}
+                            class="block transition-transform duration-200 hover:scale-[1.002]"
+                          >
+                            <CardNote 
+                              title={item.title}
+                              content={item.content}
+                            />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
+              </div>
               </CardStack>
             </div>
           </div>
-        </slot>
-      </section>
-
-      <!-- Additional Column -->
-      <section class="h-full">
-        <slot name="additional">
-                    <div 
-            class="flex flex-col items-left justify-between h-full"
-            x-data="{ showNewNotePanel: false }"
-            x-init="
-              // Initialize from localStorage to persist across pages
-              showNewNotePanel = localStorage.getItem('showNewNotePanel') === 'true';
-              
-              // Listen for NewNotePanel events
-              window.addEventListener('openNewNotePanel', () => {
-                showNewNotePanel = true;
-                localStorage.setItem('showNewNotePanel', 'true');
-              });
-              window.addEventListener('closeNewNotePanel', () => {
-                showNewNotePanel = false;
-                localStorage.setItem('showNewNotePanel', 'false');
-              });
-            "
-          >
-            <!-- Default state: SquareButtons -->
-            <div x-show="!showNewNotePanel" class="flex flex-col items-left justify-between h-full">
-              <SquareButton variant="More" />
-              <SquareButton variant="Add" withMenu={true} />
-            </div>
-            
-            <!-- New Note Panel -->
-            <div x-show="showNewNotePanel" class="h-full">
-              <NewNotePanel />
-            </div>
-          </div>
-        </slot>
-      </section>
-    </div>
   </div>
 
-  <script>
-    // Handle content filtering tabs
-    document.addEventListener('DOMContentLoaded', () => {
-      // Handle inbox/archive tabs
-      const inboxArchiveTabs = document.querySelector('.inbox-archive-tabs');
-      if (inboxArchiveTabs) {
-        const tabButtons = inboxArchiveTabs.querySelectorAll('[data-tab-id]');
-        const inboxContent = document.getElementById('inbox-content');
-        const archiveContent = document.getElementById('archive-content');
-        
-        tabButtons.forEach(button => {
-          button.addEventListener('click', (e) => {
-            const tabId = (e.currentTarget as HTMLElement).getAttribute('data-tab-id');
-            if (!tabId) return;
-            
-            // Update active tab styling
-            tabButtons.forEach(btn => {
-              btn.setAttribute('data-active', 'false');
-              btn.classList.remove('opacity-100');
-              btn.classList.add('opacity-50');
-              // Hide the dot element
-              const dot = btn.querySelector('[data-dot]') as HTMLElement;
-              if (dot) dot.style.display = 'none';
-            });
-            
-            (e.currentTarget as HTMLElement).setAttribute('data-active', 'true');
-            (e.currentTarget as HTMLElement).classList.remove('opacity-50');
-            (e.currentTarget as HTMLElement).classList.add('opacity-100');
-            // Show the dot element for the active tab
-            const activeDot = (e.currentTarget as HTMLElement).querySelector('[data-dot]') as HTMLElement;
-            if (activeDot) activeDot.style.display = 'block';
-            
-            // Show/hide content based on selected tab
-            if (tabId === 'inbox') {
-              if (inboxContent) inboxContent.classList.remove('hidden');
-              if (archiveContent) archiveContent.classList.add('hidden');
-            } else if (tabId === 'archive') {
-              if (inboxContent) inboxContent.classList.add('hidden');
-              if (archiveContent) archiveContent.classList.remove('hidden');
-            }
-          });
-        });
-      }
-      
-      // Handle content filtering tabs
-      const contentTabs = document.querySelector('.content-tabs');
-      if (!contentTabs) return;
-      
-      const contentTabButtons = contentTabs.querySelectorAll('[data-tab-id]');
-      const contentItems = document.querySelectorAll('.content-item');
-      
-      contentTabButtons.forEach(button => {
-        button.addEventListener('click', (e) => {
-          const tabId = (e.currentTarget as HTMLElement).getAttribute('data-tab-id');
-          if (!tabId) return;
-          
-          // Update active tab styling
-          contentTabButtons.forEach(btn => {
-            btn.setAttribute('data-active', 'false');
-            btn.classList.remove('opacity-100');
-            btn.classList.add('opacity-50');
-            // Hide the dot element
-            const dot = btn.querySelector('[data-dot]') as HTMLElement;
-            if (dot) dot.style.display = 'none';
-          });
-          
-          (e.currentTarget as HTMLElement).setAttribute('data-active', 'true');
-          (e.currentTarget as HTMLElement).classList.remove('opacity-50');
-          (e.currentTarget as HTMLElement).classList.add('opacity-100');
-          // Show the dot element for the active tab
-          const activeDot = (e.currentTarget as HTMLElement).querySelector('[data-dot]') as HTMLElement;
-          if (activeDot) activeDot.style.display = 'block';
-          
-          // Show/hide content based on selected tab
-          contentItems.forEach(item => {
-            const element = item as HTMLElement;
-            if (tabId === 'all') {
-              element.style.display = 'block';
-            } else if (tabId === 'notes' && item.classList.contains('note-item')) {
-              element.style.display = 'block';
-            } else if (tabId === 'threads' && item.classList.contains('thread-item')) {
-              element.style.display = 'block';
-            } else {
-              element.style.display = 'none';
-            }
-          });
-        });
-      });
-    });
-  </script>
+  <!-- Mobile Navigation -->
+  <div slot="mobile-navigation">
+    <MobileNavigation 
+      spaces={spaces}
+      threads={threads}
+      inboxCount={inboxItemCount}
+    />
+  </div>
+
+  <!-- Mobile Additional -->
+  <div slot="mobile-additional">
+    <MobileAdditional />
+  </div>
+
+
+
 </Layout>

@@ -2,12 +2,12 @@
 // Improves initial load and re-engagement performance
 
 const CACHE_NAME = 'harvous-cache-v1';
-const OFFLINE_URL = '/feed';
+const OFFLINE_URL = '/dashboard';
 
 // Resources to pre-cache for faster initial load
 const CRITICAL_ASSETS = [
   '/',
-  '/feed',
+  '/dashboard',
   '/favicon.svg',
   '/favicon.png',
   '/manifest.json',
@@ -16,8 +16,8 @@ const CRITICAL_ASSETS = [
 
 // Assets that need to be cached immediately for UI responsiveness
 const UI_CRITICAL_ASSETS = [
-  '/feed',
-  '/feed/threads'
+  '/dashboard',
+  '/dashboard/threads'
 ];
 
 // Install event - precache critical assets
@@ -160,8 +160,8 @@ self.addEventListener('message', (event) => {
     caches.open(CACHE_NAME).then((cache) => {
       // Pre-fetch common navigation targets with high priority
       const criticalFetches = [
-        fetch('/feed').then(response => {
-          cache.put('/feed', response);
+        fetch('/dashboard').then(response => {
+          cache.put('/dashboard', response);
         }).catch(() => {})
       ];
       
@@ -171,8 +171,8 @@ self.addEventListener('message', (event) => {
       // Then schedule less critical pre-fetches
       setTimeout(() => {
         cache.addAll([
-          '/feed/search',
-          '/feed/profile'
+          '/dashboard/search',
+          '/dashboard/profile'
         ]).catch(() => {});
       }, 1000);
     });

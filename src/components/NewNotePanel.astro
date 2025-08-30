@@ -65,57 +65,21 @@ const THREAD_ID_MAPPING = {
 const nextNoteId = getNextNoteId();
 const threadNoteCounts = getThreadNoteCounts();
 
-// Get user ID from Clerk authentication with safe fallbacks
-let userId: string;
-
-try {
-  // Access Clerk auth through Astro.locals (set by clerkMiddleware)
-  const { userId: clerkUserId } = Astro.locals.auth();
-  
-  // If no authenticated user, use a fallback or handle gracefully
-  if (!clerkUserId) {
-    console.log("NewNotePanel: No authenticated user");
-    if (import.meta.env.DEV) {
-      userId = "user_2abc123"; // Fallback for local development
-    } else {
-      // In production, this component shouldn't render without auth
-      throw new Error("User not authenticated");
-    }
-  } else {
-    userId = clerkUserId;
-    console.log("NewNotePanel: Using authenticated user:", userId);
-  }
-} catch (error) {
-  console.error("NewNotePanel: Error getting user from Clerk:", error);
-  // Fallback for development/testing - only use if in development mode
-  if (import.meta.env.DEV) {
-    console.log("NewNotePanel: Falling back to development user ID");
-    userId = "user_2abc123"; // Fallback for local development
-  } else {
-    // In production, this is a critical error
-    throw new Error("Authentication failed in NewNotePanel");
-  }
-}
+// Get user ID - use development fallback since middleware is disabled
+let userId: string = "dev_user_123"; // Development fallback
+console.log("NewNotePanel: Using development user ID:", userId);
 ---
 
 <form 
   action={notes.create}
   method="POST"
   class="new-note-panel h-full flex flex-col justify-between"
-  x-show="isPanelVisible"
-  x-transition:enter="transition ease-out duration-300"
-  x-transition:enter-start="opacity-0 transform translate-x-full"
-  x-transition:enter-end="opacity-100 transform translate-x-0"
-  x-transition:leave="transition ease-in duration-200"
-  x-transition:leave-start="opacity-100 transform translate-x-0"
-  x-transition:leave-end="opacity-0 transform translate-x-full"
   x-data="{ 
     title: localStorage.getItem('newNoteTitle') || '',
     content: localStorage.getItem('newNoteContent') || '',
     selectedThread: localStorage.getItem('newNoteThread') || 'Unorganized',
     isOpen: false,
     isSubmitting: false,
-    isPanelVisible: true,
 
     THREAD_COLORS: {
       'Unorganized': null,
@@ -140,7 +104,6 @@ try {
       this.isSubmitting = true;
     },
     closePanel() {
-      this.isPanelVisible = false;
       // Clear localStorage
       localStorage.removeItem('newNoteTitle');
       localStorage.removeItem('newNoteThread');
@@ -168,9 +131,21 @@ try {
     $watch('content', value => localStorage.setItem('newNoteContent', value));
     $watch('selectedThread', value => localStorage.setItem('newNoteThread', value));
     
-    // Clear localStorage when panel closes
-    window.addEventListener('closeNewNotePanel', () => {
-      closePanel();
+    // Removed event listener to prevent infinite loop
+    // The closePanel() method already dispatches the close event
+    // Parent components (Layout, MobileAdditional) handle the event
+    
+    // Clear form when panel is opened (in case it was previously closed with data)
+    window.addEventListener('openNewNotePanel', () => {
+      // Reset form to clean state when opening
+      title = '';
+      content = '';
+      selectedThread = 'Unorganized';
+      isSubmitting = false;
+      // Clear localStorage when opening fresh
+      localStorage.removeItem('newNoteTitle');
+      localStorage.removeItem('newNoteThread');
+      localStorage.removeItem('newNoteContent');
     });
   "
 
@@ -310,8 +285,8 @@ try {
 
   <!-- Bottom buttons -->
   <div class="flex items-center justify-between gap-3">
-    <div id="close-new-note-btn" @click="closePanel()">
-      <SquareButton variant="Close" />
+    <div id="close-new-note-btn" @click.prevent="closePanel()">
+      <SquareButton variant="Close" type="button" />
     </div>
     <Button 
       state="Default"
@@ -331,8 +306,6 @@ try {
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    // Close button is now handled by Alpine.js @click="closePanel()" directive
-
     // Handle create note button click
     const createBtn = document.getElementById('create-note-btn');
     if (createBtn) {
@@ -344,11 +317,11 @@ try {
         try {
           alpineData = (window as any).Alpine?.$data(form);
         } catch (e) {
-          console.log('Could not access Alpine data:', e);
+          // Alpine data not available
         }
         
         // Check if we're in sample data mode
-        const isSampleDataMode = window.location.search.includes('useRealData=true') ? false : true;
+        const isSampleDataMode = !window.location.search.includes('useRealData=true');
         
         // In sample data mode, show a message instead of creating a note
         if (isSampleDataMode) {
@@ -364,9 +337,7 @@ try {
             alpineData.title = '';
             alpineData.content = '';
             alpineData.selectedThread = 'Unorganized';
-            if (alpineData) {
-              alpineData.isSubmitting = false;
-            }
+            alpineData.isSubmitting = false;
           }
           
           return;
@@ -383,7 +354,6 @@ try {
           // Get the text content from the TrixEditor element
           const editorContent = trixEditor.textContent || trixEditor.innerText || '';
           content = editorContent.trim();
-          console.log('TrixEditor text content:', content);
         }
         
         // Method 2: Try the hidden input field
@@ -391,7 +361,6 @@ try {
           const hiddenInput = document.querySelector('input[name="content"]') as HTMLInputElement;
           if (hiddenInput?.value) {
             content = hiddenInput.value.trim();
-            console.log('Hidden input content:', content);
           }
         }
         
@@ -400,9 +369,8 @@ try {
           try {
             const document = trixEditor.editor.getDocument();
             content = document?.toString()?.trim() || '';
-            console.log('TrixEditor editor content:', content);
           } catch (error) {
-            console.log('Error getting content from editor:', error);
+            // Could not get content from editor
           }
         }
         
@@ -430,12 +398,8 @@ try {
             body: formData
           });
           
-          console.log('Response status:', response.status);
-          console.log('Response headers:', response.headers);
-          
           if (response.ok) {
             const contentType = response.headers.get('content-type');
-            console.log('Content-Type:', contentType);
             
             let result;
             if (contentType && contentType.includes('application/json')) {
@@ -463,15 +427,10 @@ try {
               alpineData.title = '';
               alpineData.content = '';
               alpineData.selectedThread = 'Unorganized';
-              if (alpineData) {
               alpineData.isSubmitting = false;
             }
-            }
             
-            // Close panel immediately
-            window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
-            
-            // Also use Alpine method
+            // Close panel using Alpine method
             if (alpineData?.closePanel) {
               alpineData.closePanel();
             }
@@ -487,7 +446,7 @@ try {
                 errorMessage = errorData.message || errorMessage;
               }
             } catch (e) {
-              console.log('Could not parse error response:', e);
+              // Could not parse error response
             }
             
             window.dispatchEvent(new CustomEvent('toast', {
@@ -508,7 +467,9 @@ try {
               type: 'error'
             }
           }));
-          alpineData.isSubmitting = false;
+          if (alpineData) {
+            alpineData.isSubmitting = false;
+          }
         }
       });
     }

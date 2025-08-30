@@ -55,13 +55,13 @@ function warmUpApp() {
 function prefetchCriticalRoutes() {
   // Only prefetch the current route area
   const currentPath = window.location.pathname;
-  let criticalRoute = '/feed';
+  let criticalRoute = '/dashboard';
   
   // Determine the most likely immediate need
-  if (currentPath.includes('/feed/threads')) {
-    criticalRoute = '/feed/threads';
-  } else if (currentPath.includes('/feed')) {
-    criticalRoute = '/feed';
+  if (currentPath.includes('/dashboard/threads')) {
+    criticalRoute = '/dashboard/threads';
+  } else if (currentPath.includes('/dashboard')) {
+    criticalRoute = '/dashboard';
   }
   
   try {
@@ -78,7 +78,7 @@ function prefetchCriticalRoutes() {
  * Prefetch less critical routes when idle
  */
 function prefetchLowPriorityRoutes() {
-  const routes = ['/feed/search', '/feed/profile'];
+  const routes = ['/dashboard/search', '/dashboard/profile'];
   
   routes.forEach(route => {
     try {

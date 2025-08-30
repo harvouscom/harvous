@@ -4,8 +4,9 @@ import CardFull from "@/components/CardFull.astro";
 import SearchInput from "@/components/SearchInput.astro";
 import SpaceButton from "@/components/SpaceButton.astro";
 import Avatar from "@/components/Avatar.astro";
-import SquareButton from "@/components/SquareButton.astro";
-import NewNotePanel from "@/components/NewNotePanel.astro";
+import MobileNavigation from "@/components/MobileNavigation.astro";
+import MobileAdditional from "@/components/MobileAdditional.astro";
+
 
 // Get the note ID from the URL
 const { id } = Astro.params;
@@ -67,12 +68,9 @@ const activeSpace = getActiveSpace(note.thread);
 ---
 
 <Layout title={note.title}>
-  <div class="h-screen bg-[var(--color-light-paper)] p-6">
-    <div class="grid grid-cols-[300px_640px_1fr] gap-6 h-full">
-      <!-- Navigation Column -->
-      <section class="h-full">
-        <slot name="navigation">
-          <div class="content-stretch flex flex-col items-start justify-between relative size-full">
+  <!-- Navigation Column -->
+  <div slot="navigation" class="h-full">
+          <div class="content-stretch flex flex-col items-start justify-between relative h-full">
             <div class="content-stretch flex flex-col gap-12 items-start justify-start relative shrink-0 w-full">
               <!-- Search Input -->
               <SearchInput placeholder="Search" className="h-[60px]" />
@@ -117,57 +115,31 @@ const activeSpace = getActiveSpace(note.thread);
               <Avatar initials="DJ" />
             </div>
           </div>
-        </slot>
-      </section>
+  </div>
 
-      <!-- Main Column -->
-      <section class="h-full">
-        <slot name="main">
-          <!-- Note Content -->
-          <CardFull 
-            title={note.title}
-            date={note.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            noteId={`N${note.noteId.toString().padStart(3, '0')}`}
-            content={note.content}
-            className="h-full"
-          />
-        </slot>
-      </section>
+  <!-- Main Column -->
+  <div slot="main" class="h-full">
+    <!-- Note Content -->
+    <CardFull 
+      title={note.title}
+      date={note.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+      noteId={`N${note.noteId.toString().padStart(3, '0')}`}
+      content={note.content}
+      className="h-full"
+    />
+  </div>
 
-      <!-- Additional Column -->
-      <section class="h-full">
-        <slot name="additional">
-          <div 
-            class="flex flex-col items-left justify-between h-full"
-            x-data="{ showNewNotePanel: false }"
-            x-init="
-              // Initialize from localStorage to persist across pages
-              showNewNotePanel = localStorage.getItem('showNewNotePanel') === 'true';
-              
-              // Listen for NewNotePanel events
-              window.addEventListener('openNewNotePanel', () => {
-                showNewNotePanel = true;
-                localStorage.setItem('showNewNotePanel', 'true');
-              });
-              window.addEventListener('closeNewNotePanel', () => {
-                showNewNotePanel = false;
-                localStorage.setItem('showNewNotePanel', 'false');
-              });
-            "
-          >
-            <!-- Default state: SquareButtons -->
-            <div x-show="!showNewNotePanel" class="flex flex-col items-left justify-between h-full">
-              <SquareButton variant="More" />
-              <SquareButton variant="Add" withMenu={true} />
-            </div>
-            
-            <!-- New Note Panel -->
-            <div x-show="showNewNotePanel" class="h-full">
-              <NewNotePanel />
-            </div>
-          </div>
-        </slot>
-      </section>
-    </div>
+  <!-- Mobile Navigation -->
+  <div slot="mobile-navigation">
+    <MobileNavigation 
+      spaces={[]}
+      threads={[]}
+      inboxCount={0}
+    />
+  </div>
+
+  <!-- Mobile Additional -->
+  <div slot="mobile-additional">
+    <MobileAdditional />
   </div>
 </Layout>

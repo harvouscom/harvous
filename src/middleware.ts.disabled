@@ -1,5 +1,5 @@
 // Development middleware - provides mock authentication
-export const onRequest = async (context: any, next: any) => {
+export const onRequest = async (context: any) => {
   // Set a mock authenticated user for development
   context.locals.auth = () => ({
     userId: 'dev_user_123',
@@ -10,5 +10,5 @@ export const onRequest = async (context: any, next: any) => {
   });
   
   // Return the response from the next handler
-  return next();
+  return context.next();
 };

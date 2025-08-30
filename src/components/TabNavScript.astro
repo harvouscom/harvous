@@ -1,0 +1,109 @@
+---
+// This component provides the client-side JavaScript for TabNav functionality
+---
+
+<script>
+  console.log('TabNavScript loaded!');
+  alert('TabNavScript loaded!'); // Temporary test
+
+  // Initialize tab functionality when the DOM is ready
+  function initTabs() {
+    console.log('TabNavScript: Initializing tabs...');
+    const tabButtons = document.querySelectorAll('[data-tab-button]');
+    console.log('TabNavScript: Found', tabButtons.length, 'tab buttons');
+    
+    tabButtons.forEach((button: Element) => {
+      button.addEventListener('click', handleTabClick);
+    });
+  }
+
+  function handleTabClick(e: Event) {
+    console.log('TabNavScript: Tab clicked!');
+    alert('Tab clicked: ' + (e.currentTarget as HTMLElement).getAttribute('data-tab-id')); // Temporary test
+    
+    const clickedButton = e.currentTarget as HTMLElement;
+    const tabId = clickedButton.getAttribute('data-tab-id');
+    const tabNavContainer = clickedButton.closest('.tab-nav-container');
+    
+    if (!tabId || !tabNavContainer) return;
+    
+    // Update all tabs in this TabNav component
+    const allTabsInNav = tabNavContainer.querySelectorAll('[data-tab-button]');
+    allTabsInNav.forEach((tab: Element) => {
+      const tabElement = tab as HTMLElement;
+      tabElement.setAttribute('data-active', 'false');
+      tabElement.classList.remove('opacity-100');
+      tabElement.classList.add('opacity-50');
+      
+      // Hide the dot element
+      const dot = tabElement.querySelector('[data-dot]') as HTMLElement;
+      if (dot) dot.style.display = 'none';
+    });
+    
+    // Activate the clicked tab
+    clickedButton.setAttribute('data-active', 'true');
+    clickedButton.classList.remove('opacity-50');
+    clickedButton.classList.add('opacity-100');
+    
+    // Show the dot element for the active tab
+    const activeDot = clickedButton.querySelector('[data-dot]') as HTMLElement;
+    if (activeDot) activeDot.style.display = 'block';
+    
+    // Find and switch content sections
+    const contentSections = document.querySelectorAll('[data-tab-content]');
+    console.log('TabNavScript: Found', contentSections.length, 'content sections');
+    
+    contentSections.forEach((section: Element) => {
+      const sectionElement = section as HTMLElement;
+      const sectionTabId = sectionElement.getAttribute('data-tab-content');
+      console.log('TabNavScript: Content section ID:', sectionTabId, 'for tab:', tabId);
+      
+      if (sectionTabId === tabId) {
+        console.log('TabNavScript: Showing content for tab:', tabId);
+        sectionElement.classList.remove('hidden');
+        sectionElement.style.display = 'block';
+      } else {
+        console.log('TabNavScript: Hiding content for tab:', sectionTabId);
+        sectionElement.classList.add('hidden');
+        sectionElement.style.display = 'none';
+      }
+    });
+    
+    // Also handle legacy content IDs (for backward compatibility)
+    const legacyContent = document.getElementById(`${tabId}-content`);
+    if (legacyContent) {
+      console.log('TabNavScript: Found legacy content for tab:', tabId);
+      legacyContent.classList.remove('hidden');
+      legacyContent.style.display = 'block';
+    }
+    
+    // Hide other legacy content sections
+    allTabsInNav.forEach((tab: Element) => {
+      const tabElement = tab as HTMLElement;
+      const otherTabId = tabElement.getAttribute('data-tab-id');
+      if (otherTabId && otherTabId !== tabId) {
+        const otherContent = document.getElementById(`${otherTabId}-content`);
+        if (otherContent) {
+          console.log('TabNavScript: Hiding legacy content for tab:', otherTabId);
+          otherContent.classList.add('hidden');
+          otherContent.style.display = 'none';
+        }
+      }
+    });
+    
+    // Dispatch a custom event for parent components to listen to
+    const tabChangeEvent = new CustomEvent('tabChange', {
+      detail: { tabId, tabNavContainer },
+      bubbles: true
+    });
+    tabNavContainer.dispatchEvent(tabChangeEvent);
+    console.log('TabNavScript: Dispatched tabChange event for tab:', tabId);
+  }
+
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTabs);
+  } else {
+    initTabs();
+  }
+</script>
