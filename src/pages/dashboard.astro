@@ -10,6 +10,7 @@ import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
 import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 import { getInboxContent, getOrganizedContent, getNavigationData, shouldUseSampleData, getDataMode, toggleDataMode } from "@/utils/sample-data";
+import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 // Get user ID - use development fallback since middleware is disabled
@@ -42,6 +43,18 @@ if (shouldUseSampleData()) {
       getSpacesWithCounts(userId),
       getInboxCount(userId)
     ]);
+    
+    // Ensure threads have backgroundGradient property for consistency
+    threads = threads.map(thread => ({
+      ...thread,
+      backgroundGradient: thread.backgroundGradient || `linear-gradient(180deg, var(--color-${thread.color || 'blessed-blue'}) 0%, var(--color-${thread.color || 'blessed-blue'}) 100%)`
+    }));
+    
+    // Ensure spaces have backgroundGradient property for consistency
+    spaces = spaces.map(space => ({
+      ...space,
+      backgroundGradient: space.backgroundGradient || `linear-gradient(180deg, var(--color-${space.color || 'blessed-blue'}) 0%, var(--color-${space.color || 'blessed-blue'}) 100%)`
+    }));
   } catch (error) {
     console.error("Error fetching dashboard data:", error);
     // Fallback to sample data if database fails
@@ -89,25 +102,28 @@ const inboxItemCount = inboxCount;
                       count={space.totalItemCount} 
                       state="WithCount" 
                       className="w-full" 
-                      backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
+                      backgroundGradient={space.backgroundGradient}
                       isActive={false}
                     />
                   </a>
                 ))}
                 
-                                {/* Show pinned threads */}
-                {threads.filter(thread => thread.isPinned).map(thread => (
-                  <a href={`/${thread.id}`} class="w-full">
-                    <SpaceButton 
-                      text={thread.title} 
-                      count={thread.noteCount} 
-                      state="WithCount" 
-                      className="w-full" 
-                      backgroundGradient={thread.backgroundGradient}
-                      isActive={false}
-                    />
-                  </a>
-                ))}
+                                {/* Show active thread if any (in inactive state) */}
+                {(() => {
+                  const activeThread = detectActiveThreadFromPath('/dashboard');
+                  return activeThread ? (
+                    <a href={`/${activeThread.id}`} class="w-full">
+                      <SpaceButton 
+                        text={activeThread.title} 
+                        count={activeThread.noteCount} 
+                        state="WithCount" 
+                        className="w-full" 
+                        backgroundGradient={activeThread.backgroundGradient}
+                        isActive={false}
+                      />
+                    </a>
+                  ) : null;
+                })()}
                 
 
               </div>
@@ -271,6 +287,8 @@ const inboxItemCount = inboxCount;
       spaces={spaces}
       threads={threads}
       inboxCount={inboxItemCount}
+      currentSpace={null}
+      currentThread={detectActiveThreadFromPath('/dashboard')}
     />
   </div>
 

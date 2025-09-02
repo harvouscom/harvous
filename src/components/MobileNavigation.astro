@@ -2,6 +2,7 @@
 import SearchInput from "@/components/SearchInput.astro";
 import SpaceButton from "@/components/SpaceButton.astro";
 import Avatar from "@/components/Avatar.astro";
+import SquareButton from "@/components/SquareButton.astro";
 
 export interface Props {
   spaces?: any[];
@@ -22,17 +23,13 @@ const {
 
 <div class="grid grid-cols-[auto_1fr_auto] items-center gap-3 w-full">
   <!-- Search Icon Button (Column 1: auto) -->
-  <button class="flex items-center justify-center h-[60px] w-[60px] rounded-[24px] bg-white shadow-[0px_-2.622px_0px_0px_inset_rgba(176,176,176,0.25)]">
-    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-    </svg>
-  </button>
+  <SquareButton variant="Search" />
 
   <!-- Spaces Dropdown (Column 2: 1fr) -->
   <div class="relative" x-data="{ open: false }">
     <SpaceButton 
-      text="For You" 
-      count={inboxCount}
+      text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "For You"}
+      count={currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
       state="DropdownTrigger"
       className="w-full"
       @click="open = !open"
@@ -69,18 +66,28 @@ const {
           </a>
         ))}
         
-        <!-- Pinned Threads -->
-        {threads.filter(thread => thread.isPinned).map(thread => (
-          <a href={`/${thread.id}`} class="block w-full">
-            <div class="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-              <span class="text-sm font-medium">{thread.title}</span>
-              <span class="text-xs text-gray-500">{thread.noteCount}</span>
+        <!-- Threads (context-aware) -->
+        {currentThread && (
+          <a href={`/${currentThread.id}`} class="block w-full">
+            <div class="flex items-center justify-between p-2 rounded hover:bg-gray-50 bg-blue-50">
+              <span class="text-sm font-medium">{currentThread.title}</span>
+              <span class="text-xs text-blue-600">{currentThread.noteCount}</span>
             </div>
           </a>
-        ))}
+        )}
         
-        <!-- Divider -->
-        <div class="border-t border-gray-200 my-2"></div>
+        {currentSpace && threads.length > 0 && (
+          threads.filter(thread => thread.spaceId === currentSpace.id).map(thread => (
+            <a href={`/${thread.id}`} class="block w-full">
+              <div class="flex items-center justify-between p-2 rounded hover:bg-gray-50">
+                <span class="text-sm font-medium">{thread.title}</span>
+                <span class="text-xs text-gray-500">{thread.noteCount}</span>
+              </div>
+            </a>
+          ))
+        )}
+        
+
         
         <!-- New Space Button -->
         <button class="block w-full">

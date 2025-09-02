@@ -12,6 +12,7 @@ import CardThread from "@/components/CardThread.astro";
 // import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount } from "@/utils/dashboard-data"; // Conditionally imported below
 import { getThreadColorCSS } from "@/utils/colors";
 import { SAMPLE_DATA, getNavigationData, shouldUseSampleData } from "@/utils/sample-data";
+import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 
@@ -80,111 +81,149 @@ let getThreadsForSpace: any;
 let getNotesForSpace: any;
 let getInboxCount: any;
 
-if (shouldUseSampleData()) {
-  console.log("Dynamic page: Using sample data");
-  // Use robust sample data system
-  if (isThread) {
-    // Find thread in sample data
-    const thread = [...SAMPLE_DATA.unorganizedThreads, ...SAMPLE_DATA.organizedThreads]
-      .find(t => t.id === id);
-    
-
-    
-    if (thread) {
-      // Get notes for this thread from sample data
-      threadNotes = SAMPLE_DATA.threadNotes.filter(note => note.threadId === thread.id);
-
-      content = {
-        id: thread.id,
-        title: thread.title,
-        subtitle: thread.content,
-        color: thread.color,
-        spaceId: thread.spaceId,
-        notes: threadNotes,
-        noteCount: threadNotes.length
-      };
-      currentThread = {
-        id: thread.id,
-        title: thread.title,
-        color: thread.color,
-        noteCount: threadNotes.length
-      };
-
-      pageTitle = thread.title;
-      pageContent = `${threadNotes.length} notes`;
-    }
-  } else if (isNote) {
-    // Find note in sample data (check both unorganized and thread notes)
-    const note = [...SAMPLE_DATA.unorganizedNotes, ...SAMPLE_DATA.threadNotes].find(n => n.id === id);
-    
-
-    
-    if (note) {
-      content = {
-        id: note.id,
-        title: note.title,
-        content: note.content,
-        threadId: note.threadId,
-        createdAt: note.createdAt,
-        noteId: note.noteId,
-        updatedAt: new Date()
-      };
-      pageTitle = note.title;
-      pageContent = note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "");
+  if (shouldUseSampleData()) {
+    // Use robust sample data system
+    if (isThread) {
+      // Find thread in sample data
+      const thread = [...SAMPLE_DATA.unorganizedThreads, ...SAMPLE_DATA.organizedThreads]
+        .find(t => t.id === id);
       
-      // Get the thread this note belongs to
-      currentThread = {
-        id: note.threadId,
-        title: "Unorganized",
-        noteCount: SAMPLE_DATA.unorganizedNotes.length
-      };
-    }
-  } else if (isSpace) {
-    // Find space in sample data
-    const space = SAMPLE_DATA.spaces.find(s => s.id === id);
-    
+      if (thread) {
+        // Get notes for this thread from sample data
+        threadNotes = SAMPLE_DATA.threadNotes.filter(note => note.threadId === thread.id);
 
-    
-    if (space) {
-      // Get threads for this space
-      const spaceThreads = SAMPLE_DATA.organizedThreads.filter(t => t.spaceId === space.id);
+        content = {
+          id: thread.id,
+          title: thread.title,
+          subtitle: thread.content,
+          color: thread.color,
+          spaceId: thread.spaceId,
+          notes: threadNotes,
+          noteCount: threadNotes.length
+        };
+        currentThread = {
+          id: thread.id,
+          title: thread.title,
+          color: thread.color,
+          noteCount: threadNotes.length,
+          backgroundGradient: `linear-gradient(180deg, var(--color-${thread.color}) 0%, var(--color-${thread.color}) 100%)`
+        };
+
+        // Note: Active thread is now detected from URL path instead of global state
+
+        pageTitle = thread.title;
+        pageContent = `${threadNotes.length} notes`;
+      }
+    } else if (isNote) {
+      // Find note in sample data (check both unorganized and thread notes)
+      const note = [...SAMPLE_DATA.unorganizedNotes, ...SAMPLE_DATA.threadNotes].find(n => n.id === id);
       
-      content = {
-        id: space.id,
-        title: space.title,
-        color: space.color,
-        threads: spaceThreads,
-        notes: [],
-        threadCount: spaceThreads.length,
-        noteCount: 0
-      };
-      currentSpace = {
-        id: space.id,
-        title: space.title,
-        color: space.color
-      };
-      pageTitle = space.title;
-      pageContent = `${spaceThreads.length} threads`;
+
+      
+      if (note) {
+        content = {
+          id: note.id,
+          title: note.title,
+          content: note.content,
+          threadId: note.threadId,
+          createdAt: note.createdAt,
+          noteId: note.noteId,
+          updatedAt: new Date()
+        };
+        pageTitle = note.title;
+        pageContent = note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "");
+        
+        // Get the thread this note belongs to
+        if (note.threadId && note.threadId !== 'thread_unorganized') {
+          // Find the actual thread data
+          const parentThread = [...SAMPLE_DATA.unorganizedThreads, ...SAMPLE_DATA.organizedThreads]
+            .find(t => t.id === note.threadId);
+          
+          if (parentThread) {
+            currentThread = {
+              id: parentThread.id,
+              title: parentThread.title,
+              color: parentThread.color,
+              noteCount: SAMPLE_DATA.threadNotes.filter(n => n.threadId === parentThread.id).length,
+              backgroundGradient: `linear-gradient(180deg, var(--color-${parentThread.color}) 0%, var(--color-${parentThread.color}) 100%)`
+            };
+            
+            // Note: Active thread is now detected from URL path instead of global state
+          }
+        } else {
+          currentThread = {
+            id: note.threadId,
+            title: "Unorganized",
+            noteCount: SAMPLE_DATA.unorganizedNotes.length
+          };
+        }
+      }
+    } else if (isSpace) {
+      // Find space in sample data
+      const space = SAMPLE_DATA.spaces.find(s => s.id === id);
+      
+
+      
+      if (space) {
+        // Get threads for this space
+        const spaceThreads = SAMPLE_DATA.organizedThreads.filter(t => t.spaceId === space.id);
+        
+        content = {
+          id: space.id,
+          title: space.title,
+          color: space.color,
+          threads: spaceThreads,
+          notes: [],
+          threadCount: spaceThreads.length,
+          noteCount: 0
+        };
+        currentSpace = {
+          id: space.id,
+          title: space.title,
+          color: space.color
+        };
+        
+        // Note: Active thread is now detected from URL path instead of global state
+        
+        pageTitle = space.title;
+        pageContent = `${spaceThreads.length} threads`;
+      }
     }
-  }
 
 
-
-  // Get navigation data
+  // Get navigation data (spaces and inbox count only)
   const navData = getNavigationData();
-  threads = navData.threads;
   spaces = navData.spaces;
   inboxCount = navData.inboxCount;
+  
+  // Get all threads for navigation (including organized and unorganized)
+  threads = [
+    ...SAMPLE_DATA.unorganizedThreads,
+    ...SAMPLE_DATA.organizedThreads
+  ].map(thread => ({
+    ...thread,
+    noteCount: SAMPLE_DATA.threadNotes.filter(note => note.threadId === thread.id).length
+  }));
 } else {
   // Production: fetch from database - TEMPORARILY DISABLED FOR STATIC MODE
   console.log("Production database mode disabled for static build");
   
   // For now, fall back to sample data
   const navData = getNavigationData();
-  threads = navData.threads;
   spaces = navData.spaces;
   inboxCount = navData.inboxCount;
+  
+  // Get all threads for navigation (including organized and unorganized)
+  threads = [
+    ...SAMPLE_DATA.unorganizedThreads,
+    ...SAMPLE_DATA.organizedThreads
+  ].map(thread => ({
+    ...thread,
+    noteCount: SAMPLE_DATA.threadNotes.filter(note => note.threadId === thread.id).length
+  }));
 }
+
+
 
 // If content not found, redirect to dashboard
 if (!content) {
@@ -221,19 +260,22 @@ if (!content) {
                   </a>
                 ))}
                 
-                {/* Show pinned threads */}
-                {threads.filter(thread => thread.isPinned).map(thread => (
-                  <a href={`/${thread.id}`} class="w-full">
-                    <SpaceButton 
-                      text={thread.title} 
-                      count={thread.noteCount} 
-                      state="WithCount" 
-                      className="w-full" 
-                      backgroundGradient={thread.backgroundGradient}
-                      isActive={currentThread?.id === thread.id}
-                    />
-                  </a>
-                ))}
+                {/* Show active thread if any (active if on thread page, inactive otherwise) */}
+                {(() => {
+                  const activeThread = detectActiveThreadFromPath(`/${id}`);
+                  return activeThread ? (
+                    <a href={`/${activeThread.id}`} class="w-full">
+                      <SpaceButton 
+                        text={activeThread.title} 
+                        count={activeThread.noteCount} 
+                        state="WithCount" 
+                        className="w-full" 
+                        backgroundGradient={activeThread.backgroundGradient}
+                        isActive={activeThread.id === id}
+                      />
+                    </a>
+                  ) : null;
+                })()}
               </div>
             </div>
             
@@ -326,10 +368,13 @@ if (!content) {
 
   <!-- Mobile Navigation -->
   <div slot="mobile-navigation">
+
     <MobileNavigation 
       spaces={spaces}
       threads={threads}
       inboxCount={inboxCount}
+      currentSpace={currentSpace}
+      currentThread={currentThread}
     />
   </div>
 

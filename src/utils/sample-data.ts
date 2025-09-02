@@ -108,19 +108,9 @@ export const SAMPLE_DATA = {
       id: "space_1756318000006",
       title: "Bible Study",
       totalItemCount: 1,
-      color: "blue"
+      color: "blessed-blue"
     }
-  ] as SampleSpace[],
-
-  // Navigation threads (pinned)
-  pinnedThreads: [
-    {
-      id: "thread_1756318000000",
-      title: "Gospel of John",
-      noteCount: 2,
-      color: "lovely-lavender"
-    }
-  ]
+  ] as SampleSpace[]
 };
 
 // Helper functions to get data in the format expected by components
@@ -189,13 +179,7 @@ export function getOrganizedContent() {
 
 export function getNavigationData() {
   return {
-    threads: SAMPLE_DATA.pinnedThreads.map(thread => ({
-      id: thread.id,
-      title: thread.title,
-      noteCount: thread.noteCount,
-      backgroundGradient: `linear-gradient(180deg, var(--color-${thread.color}) 0%, var(--color-${thread.color}) 100%)`,
-      isPinned: true
-    })),
+    threads: [], // No more pinned threads
     spaces: SAMPLE_DATA.spaces.map(space => ({
       id: space.id,
       title: space.title,
