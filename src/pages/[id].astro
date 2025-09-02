@@ -180,7 +180,8 @@ let getInboxCount: any;
         currentSpace = {
           id: space.id,
           title: space.title,
-          color: space.color
+          color: space.color,
+          backgroundGradient: `linear-gradient(180deg, var(--color-${space.color}) 0%, var(--color-${space.color}) 100%)`
         };
         
         // Note: Active thread is now detected from URL path instead of global state
@@ -261,21 +262,18 @@ if (!content) {
                 ))}
                 
                 {/* Show active thread if any (active if on thread page, inactive otherwise) */}
-                {(() => {
-                  const activeThread = detectActiveThreadFromPath(`/${id}`);
-                  return activeThread ? (
-                    <a href={`/${activeThread.id}`} class="w-full">
-                      <SpaceButton 
-                        text={activeThread.title} 
-                        count={activeThread.noteCount} 
-                        state="WithCount" 
-                        className="w-full" 
-                        backgroundGradient={activeThread.backgroundGradient}
-                        isActive={activeThread.id === id}
-                      />
-                    </a>
-                  ) : null;
-                })()}
+                {currentThread ? (
+                  <a href={`/${currentThread.id}`} class="w-full">
+                    <SpaceButton 
+                      text={currentThread.title} 
+                      count={currentThread.noteCount} 
+                      state="WithCount" 
+                      className="w-full" 
+                      backgroundGradient={currentThread.backgroundGradient}
+                      isActive={isNote || currentThread.id === id}
+                    />
+                  </a>
+                ) : null}
               </div>
             </div>
             

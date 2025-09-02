@@ -17,8 +17,31 @@ const SAMPLE_THREADS = {
     color: "lovely-lavender",
     noteCount: 2,
     backgroundGradient: "linear-gradient(180deg, var(--color-lovely-lavender) 0%, var(--color-lovely-lavender) 100%)"
+  },
+  "welcome": {
+    id: "welcome",
+    title: "Welcome",
+    color: "paper",
+    noteCount: 3,
+    backgroundGradient: "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
   }
 };
+
+// Function to get thread context by thread identifier
+export function getThreadContext(threadId: string): ActiveThread | null {
+  // Map thread identifiers to actual thread data
+  const threadMap: Record<string, string> = {
+    "gospel-of-john": "thread_1756318000000",
+    "welcome": "welcome"
+  };
+  
+  const mappedId = threadMap[threadId];
+  if (mappedId && SAMPLE_THREADS[mappedId as keyof typeof SAMPLE_THREADS]) {
+    return SAMPLE_THREADS[mappedId as keyof typeof SAMPLE_THREADS];
+  }
+  
+  return null;
+}
 
 // Function to detect active thread from current path
 // This is more reliable than global state in SSR environments

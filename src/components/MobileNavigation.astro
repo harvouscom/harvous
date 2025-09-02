@@ -32,6 +32,7 @@ const {
       count={currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
       state="DropdownTrigger"
       className="w-full"
+      backgroundGradient={currentThread?.backgroundGradient || (currentSpace ? "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)" : "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)")}
       @click="open = !open"
     />
     
