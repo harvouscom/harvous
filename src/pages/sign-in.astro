@@ -1,35 +1,10 @@
 ---
-import Layout from "@/layouts/Layout.astro";
-import { SignIn } from "@clerk/astro/components";
+import EmptyLayout from "@/layouts/EmptyLayout.astro";
+import { SignIn as ClerkSignIn } from "@clerk/astro/components";
 ---
 
-<Layout title="Sign In">
+<EmptyLayout title="Sign In">
   <div class="min-h-screen bg-[var(--color-light-paper)] flex items-center justify-center p-6">
-    <div class="w-full max-w-md">
-      <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-[var(--color-deep-grey)] mb-2">Welcome to Harvous</h1>
-        <p class="text-[var(--color-stone-grey)]">Sign in to your account</p>
-      </div>
-      
-      <div class="bg-white rounded-2xl shadow-lg p-8">
-        <SignIn
-          appearance={{
-            elements: {
-              rootBox: "w-full",
-              card: "shadow-none p-0",
-              headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
-              headerSubtitle: "text-[var(--color-stone-grey)]",
-              formButtonPrimary: "bg-[var(--color-blessed-blue)] hover:bg-[var(--color-blessed-blue)]/90 text-white font-semibold py-3 px-4 rounded-xl transition-colors",
-              formFieldInput: "border border-gray-200 rounded-xl px-4 py-3 focus:border-[var(--color-blessed-blue)] focus:ring-2 focus:ring-[var(--color-blessed-blue)]/20 transition-colors",
-              formFieldLabel: "text-[var(--color-deep-grey)] font-medium",
-              footerActionLink: "text-[var(--color-blessed-blue)] hover:text-[var(--color-blessed-blue)]/80 font-medium",
-              dividerLine: "bg-gray-200",
-              dividerText: "text-[var(--color-stone-grey)] bg-white px-4"
-            }
-          }}
-          redirectUrl="/dashboard"
-        />
-      </div>
-    </div>
+    <ClerkSignIn redirectUrl="/dashboard" />
   </div>
-</Layout>
+</EmptyLayout>

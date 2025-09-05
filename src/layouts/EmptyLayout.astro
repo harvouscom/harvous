@@ -1,0 +1,65 @@
+---
+import "../styles/global.css";
+import "@fontsource/reddit-sans/400.css";
+import "@fontsource/reddit-sans/500.css";
+import "@fontsource/reddit-sans/600.css";
+import "@fontsource/reddit-mono/500.css";
+import "@fontsource/reddit-mono/600.css";
+import "trix/dist/trix.css";
+import Toast from "@/components/Toast-v2.astro";
+
+interface Props {
+  classNames?: string;
+  title?: string;
+}
+
+const { classNames = '', title = 'Harvous' }: Props = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" class="bg-[var(--color-light-paper)]">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, user-scalable=no" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="var(--color-fog-white)" />
+    <!-- Apple specific tags for homescreen icons -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Harvous" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/scripts/pwa-startup.js" as="script">
+    
+    <!-- PWA startup optimization script - inlined for faster execution -->
+    <script is:inline src="/scripts/pwa-startup.js"></script>
+    
+    <!-- Special tab interaction handler for first-touch optimization -->
+    <script is:inline src="/scripts/tab-interaction-handler.js"></script>
+    
+    <!-- Alpine.js CDN for SquareButton menu functionality -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  </head>
+  <body 
+    class={`font-sans bg-[var(--color-light-paper)] ${classNames}`}
+  >
+    <Toast />
+
+    <slot />
+  </body>
+</html>
+
+<style>
+  html,
+  body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--color-light-paper);
+    -webkit-background-color: var(--color-light-paper);
+  }
+</style>
