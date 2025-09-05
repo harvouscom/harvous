@@ -13,9 +13,9 @@ import { getInboxContent, getOrganizedContent, getNavigationData, shouldUseSampl
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
-// Get user ID - use development fallback since middleware is disabled
-let userId: string = "dev_user_123"; // Development fallback
-console.log("Dashboard: Using development user ID:", userId);
+// Get user ID from Clerk authentication
+const { userId } = Astro.locals.auth();
+console.log("Dashboard: Using authenticated user ID:", userId);
 
 // Fetch real data from database
 // Use robust sample data system for consistent development experience

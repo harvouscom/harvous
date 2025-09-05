@@ -1,14 +1,3 @@
-// Development middleware - provides mock authentication
-export const onRequest = async (context: any, next: any) => {
-  // Set a mock authenticated user for development
-  context.locals.auth = () => ({
-    userId: 'dev_user_123',
-    sessionId: 'dev_session_123',
-    sessionClaims: { sub: 'dev_user_123' },
-    sessionStatus: 'active',
-    isAuthenticated: true
-  });
-  
-  // Return the response from the next handler
-  return next();
-};
+import { clerkMiddleware } from '@clerk/astro/server'
+
+export const onRequest = clerkMiddleware()

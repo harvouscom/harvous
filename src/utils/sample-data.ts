@@ -193,6 +193,11 @@ export function getNavigationData() {
 
 // Function to check if we should use sample data
 export function shouldUseSampleData(): boolean {
+  // Never use sample data in production
+  if (import.meta.env.PROD) {
+    return false;
+  }
+  
   // Check for a URL parameter to force real database usage
   if (typeof window !== 'undefined') {
     const urlParams = new URLSearchParams(window.location.search);
@@ -201,7 +206,7 @@ export function shouldUseSampleData(): boolean {
     }
   }
   
-  // In development, always use sample data for consistency
+  // In development, use sample data for consistency
   return import.meta.env.DEV;
 }
 
