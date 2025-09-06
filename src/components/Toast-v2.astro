@@ -32,7 +32,7 @@ import TriangleExclamationIcon from "@fortawesome/fontawesome-free/svgs/solid/tr
   x-transition:leave="transition ease-in-out duration-500"
   x-transition:leave-start="transform translate-y-0"
   x-transition:leave-end="transform !shadow-none translate-y-[-200%]"
-  @toast.window="makeToast($event.detail.message || 'Notification', $event.detail.type || 'success')"
+  @toast.window="console.log('Toast event received:', $event.detail); makeToast($event.detail.message || 'Notification', $event.detail.type || 'success')"
 >
   <div 
     role="alert"
