@@ -29,7 +29,7 @@ if (!userId) {
 ---
 
 <form 
-  action={notes.create}
+  action="/api/notes/create"
   method="POST"
   class="new-note-panel h-full flex flex-col justify-between"
   x-data="{ 
@@ -263,16 +263,14 @@ if (!userId) {
     const createBtn = document.getElementById('create-note-btn');
     if (createBtn) {
       createBtn.addEventListener('click', async (e) => {
-        console.log('Button clicked, starting form submission');
+        console.log('Button clicked, validating form');
         e.preventDefault(); // Prevent default form submission
         const form = document.querySelector('form');
-        console.log('Form found:', !!form);
         if (!form) return;
         
         let alpineData;
         try {
           alpineData = (window as any).Alpine?.$data(form);
-          console.log('Alpine data:', alpineData);
         } catch (e) {
           console.log('Alpine data not available:', e);
         }
@@ -282,10 +280,9 @@ if (!userId) {
         if (alpineData?.content) {
           content = alpineData.content;
         }
-        console.log('Content from Alpine:', content);
         
         if (!content.trim()) {
-          console.log('No content, showing alert');
+          console.log('No content, preventing submission');
           alert('Please add some content to your note');
           return;
         }
@@ -295,43 +292,29 @@ if (!userId) {
           alpineData.isSubmitting = true;
         }
         
-        const formData = new FormData(form);
-        console.log('Form action URL:', form.action);
-        console.log('Form data entries:');
-        for (let [key, value] of formData.entries()) {
-          console.log(key, ':', value);
-        }
+        console.log('Form validation passed, submitting via API');
         
         try {
-          console.log('Calling Astro action directly');
+          const formData = new FormData(form);
+          console.log('Submitting to:', form.action);
           
-          // Call the Astro action directly instead of using fetch
-          const result = await notes.create({
-            content: content,
-            title: alpineData?.title || '',
-            threadId: alpineData?.selectedThread || 'thread_unorganized'
+          const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData
           });
           
-          console.log('Action result:', result);
+          console.log('Response status:', response.status);
           
-          // Action completed successfully
-          console.log('Dispatching toast event with:', {
-            message: result.success || 'Note created successfully!',
-            type: 'success'
-          });
-          
-          // Show success toast
-          window.dispatchEvent(new CustomEvent('toast', {
-            detail: {
-              message: result.success || 'Note created successfully!',
-              type: 'success'
-            }
-          }));
+          if (response.ok) {
+            const result = await response.json();
+            console.log('Success result:', result);
             
-            // Clear localStorage
-            localStorage.removeItem('newNoteTitle');
-            localStorage.removeItem('newNoteThread');
-            localStorage.removeItem('newNoteContent');
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: result.success || 'Note created successfully!',
+                type: 'success'
+              }
+            }));
             
             // Reset form
             if (alpineData) {
@@ -339,31 +322,40 @@ if (!userId) {
               alpineData.content = '';
               alpineData.selectedThread = 'Unorganized';
               alpineData.isSubmitting = false;
+              if (alpineData.closePanel) {
+                alpineData.closePanel();
+              }
             }
             
-            // Close panel using Alpine method
-            if (alpineData?.closePanel) {
-              alpineData.closePanel();
-            }
+            // Clear localStorage
+            localStorage.removeItem('newNoteTitle');
+            localStorage.removeItem('newNoteThread');
+            localStorage.removeItem('newNoteContent');
             
-            // Refresh the dashboard content to show the new note
-            const refreshButton = document.querySelector('button[hx-get="/dashboard"]');
-            if (refreshButton && typeof (window as any).htmx !== 'undefined') {
-              // Use HTMX to refresh just the dashboard content
-              (window as any).htmx.trigger(refreshButton, 'click');
-            } else {
-              // Fallback: reload the page
-              window.location.reload();
-            }
+          } else {
+            const error = await response.json();
+            console.error('Error response:', error);
             
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: error.error || 'Error creating note',
+                type: 'error'
+              }
+            }));
+            
+            if (alpineData) {
+              alpineData.isSubmitting = false;
+            }
+          }
         } catch (error) {
-          console.error('Action error:', error);
+          console.error('Fetch error:', error);
           window.dispatchEvent(new CustomEvent('toast', {
             detail: {
-              message: error.message || 'Error creating note. Please try again.',
+              message: 'Error creating note. Please try again.',
               type: 'error'
             }
           }));
+          
           if (alpineData) {
             alpineData.isSubmitting = false;
           }
