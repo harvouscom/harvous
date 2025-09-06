@@ -8,9 +8,9 @@ import NewThreadPanel from "@/components/NewThreadPanel.astro";
   class="flex items-center justify-center gap-4"
   x-data="{ showNewNotePanel: false, showNewThreadPanel: false }"
   x-init="
-    // Initialize from localStorage to persist across pages
-    showNewNotePanel = localStorage.getItem('showNewNotePanel') === 'true';
-    showNewThreadPanel = localStorage.getItem('showNewThreadPanel') === 'true';
+    // Initialize panels as closed by default
+    showNewNotePanel = false;
+    showNewThreadPanel = false;
     
     // Listen for NewNotePanel events
     window.addEventListener('openNewNotePanel', () => {

@@ -23,7 +23,8 @@ function formatRelativeTime(date: Date): string {
 // Helper function to find the unorganized thread
 async function findUnorganizedThread(userId: string) {
   try {
-    const unorganizedThread = await db.select({
+    // First try to find by ID (the way it's created in notes action)
+    let unorganizedThread = await db.select({
       id: Threads.id,
       title: Threads.title,
       subtitle: Threads.subtitle,
@@ -37,9 +38,30 @@ async function findUnorganizedThread(userId: string) {
     .from(Threads)
     .where(and(
       eq(Threads.userId, userId),
-      eq(Threads.title, "Unorganized")
+      eq(Threads.id, "thread_unorganized")
     ))
     .get();
+
+    // If not found by ID, try by title (fallback)
+    if (!unorganizedThread) {
+      unorganizedThread = await db.select({
+        id: Threads.id,
+        title: Threads.title,
+        subtitle: Threads.subtitle,
+        color: Threads.color,
+        spaceId: Threads.spaceId,
+        isPublic: Threads.isPublic,
+        isPinned: Threads.isPinned,
+        createdAt: Threads.createdAt,
+        updatedAt: Threads.updatedAt,
+      })
+      .from(Threads)
+      .where(and(
+        eq(Threads.userId, userId),
+        eq(Threads.title, "Unorganized")
+      ))
+      .get();
+    }
 
     return unorganizedThread;
   } catch (error) {
@@ -347,6 +369,7 @@ export async function getInboxCount(userId: string) {
 
 // Fetch featured content (pinned threads and recent unassigned notes + unorganized threads)
 export async function getFeaturedContent(userId: string) {
+  console.log("getFeaturedContent called with userId:", userId);
   try {
     // Get pinned threads
     const pinnedThreads = await db.select({
@@ -366,6 +389,7 @@ export async function getFeaturedContent(userId: string) {
 
     // Get recent individual notes (in unorganized thread)
     const unorganizedThread = await findUnorganizedThread(userId);
+    console.log("Unorganized thread found:", unorganizedThread);
     const recentIndividualNotes = unorganizedThread ? await db.select({
       id: Notes.id,
       title: Notes.title,
@@ -382,6 +406,8 @@ export async function getFeaturedContent(userId: string) {
     .where(eq(Notes.threadId, unorganizedThread.id))
     .orderBy(desc(Notes.updatedAt || Notes.createdAt))
     .limit(10) : []; // Increased limit to include all individual notes
+    
+    console.log("Recent individual notes found:", recentIndividualNotes.length);
 
     // Get unorganized threads (threads not in any space)
     const unorganizedThreads = await db.select({

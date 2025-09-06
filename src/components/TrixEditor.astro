@@ -27,6 +27,8 @@ const {
 <div id="trix-editor" class="relative not-prose h-full">
   <input {...props} required id={id} x-ref={alpineRefName} value={content} type="hidden" name={name} />
   <trix-editor {...props} class="trix-content h-full" toolbar={toolbar} placeholder={placeholder} input={id}></trix-editor>
+  <!-- Trix dialogs container - required for proper initialization -->
+  <div class="trix-dialogs" style="display: none;"></div>
 </div>
 
 <style>
@@ -110,31 +112,71 @@ const {
     // Dynamically import Trix to avoid SSR navigator issues
     await import('trix' as any);
     
+    // Wait for DOM to be fully ready
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
     const trixEditor = document.querySelector('trix-editor') as TrixEditorElement;
     
     if (trixEditor) {
+      // Ensure Trix has all required DOM elements
+      const ensureTrixDOM = () => {
+        const trixContainer = trixEditor.closest('#trix-editor');
+        if (trixContainer && !trixContainer.querySelector('.trix-dialogs')) {
+          const dialogsContainer = document.createElement('div');
+          dialogsContainer.className = 'trix-dialogs';
+          dialogsContainer.style.display = 'none';
+          trixContainer.appendChild(dialogsContainer);
+        }
+      };
+      
+      ensureTrixDOM();
+      
+      // Wait for Trix editor to be fully initialized
+      const waitForEditor = () => {
+        return new Promise<void>((resolve) => {
+          const checkEditor = () => {
+            if (trixEditor.editor && typeof trixEditor.editor.getDocument === 'function') {
+              resolve();
+            } else {
+              setTimeout(checkEditor, 50);
+            }
+          };
+          checkEditor();
+        });
+      };
+      
+      await waitForEditor();
+      
       // Alpine.js integration for x-model
       const hiddenInput = document.querySelector('input[type="hidden"]') as HTMLInputElement;
       
       // Update Alpine.js model when Trix content changes
       trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
-        if (hiddenInput) {
-          const content = this.editor?.getDocument()?.toString() || '';
-          hiddenInput.value = content;
-          
-          // Trigger Alpine.js change event
-          hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+        if (hiddenInput && this.editor && this.editor.getDocument) {
+          try {
+            const content = this.editor.getDocument().toString() || '';
+            hiddenInput.value = content;
+            
+            // Trigger Alpine.js change event
+            hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+          } catch (error) {
+            console.error('Error in trix-change handler:', error);
+          }
         }
       });
       
       // Update Trix when Alpine.js model changes (for x-model)
       if (hiddenInput) {
         const observer = new MutationObserver(() => {
-          const currentValue = hiddenInput.value;
-          const editorContent = trixEditor.editor?.getDocument()?.toString() || '';
-          
-          if (currentValue !== editorContent) {
-            trixEditor.editor?.loadHTML(currentValue);
+          try {
+            const currentValue = hiddenInput.value;
+            const editorContent = trixEditor.editor?.getDocument()?.toString() || '';
+            
+            if (currentValue !== editorContent && trixEditor.editor) {
+              trixEditor.editor.loadHTML(currentValue);
+            }
+          } catch (error) {
+            console.error('Error in MutationObserver:', error);
           }
         });
         
@@ -144,17 +186,25 @@ const {
       if (trixEditor.editor && !trixEditor.editor.isEmpty()) {
         // Do this on a short timeout to avoid blocking initial render
         setTimeout(() => {
-          capitalizeFirstCharacter(trixEditor.editor);
+          try {
+            capitalizeFirstCharacter(trixEditor.editor);
+          } catch (error) {
+            console.error('Error in initial capitalization:', error);
+          }
         }, 100);
       }
       
       // Auto-capitalize the first letter when the editor starts from empty
       trixEditor.addEventListener('trix-focus', function(this: TrixEditorElement) {
-        const isEmpty = this.editor?.isEmpty();
-        
-        if (isEmpty) {
-          // Set a flag to capitalize next input
-          this.dataset.shouldCapitalize = 'true';
+        try {
+          const isEmpty = this.editor?.isEmpty();
+          
+          if (isEmpty) {
+            // Set a flag to capitalize next input
+            this.dataset.shouldCapitalize = 'true';
+          }
+        } catch (error) {
+          console.error('Error in trix-focus handler:', error);
         }
       });
       
@@ -165,14 +215,18 @@ const {
       
       // Handle auto-capitalization during typing
       trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
-        const editor = this.editor;
-        
-        if (!editor) return;
-        
-        // If this is the first character typed (when editor was empty)
-        if (this.dataset.shouldCapitalize === 'true' && !editor.isEmpty()) {
-          debouncedCapitalize(editor);
-          delete this.dataset.shouldCapitalize;
+        try {
+          const editor = this.editor;
+          
+          if (!editor) return;
+          
+          // If this is the first character typed (when editor was empty)
+          if (this.dataset.shouldCapitalize === 'true' && !editor.isEmpty()) {
+            debouncedCapitalize(editor);
+            delete this.dataset.shouldCapitalize;
+          }
+        } catch (error) {
+          console.error('Error in trix-change capitalization handler:', error);
         }
       });
       
@@ -181,93 +235,114 @@ const {
       
       // Handle new paragraph capitalization
       trixEditor.addEventListener('trix-selection-change', function(this: TrixEditorElement) {
-        // Only store position when needed
-        if (enterPressed) {
-          const editor = this.editor;
-          if (!editor) return;
-          this.dataset.lastPosition = editor.getPosition().toString();
+        try {
+          // Only store position when needed
+          if (enterPressed) {
+            const editor = this.editor;
+            if (!editor) return;
+            this.dataset.lastPosition = editor.getPosition().toString();
+          }
+        } catch (error) {
+          console.error('Error in trix-selection-change handler:', error);
         }
       });
       
       // Listen for enter key which creates new paragraphs
       trixEditor.addEventListener('keydown', function(this: TrixEditorElement, event: KeyboardEvent) {
-        if (event.key === 'Enter' && !event.shiftKey) {
-          enterPressed = true;
+        try {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            enterPressed = true;
+          }
+        } catch (error) {
+          console.error('Error in keydown handler:', error);
         }
       } as EventListener);
       
       // Handle new paragraph capitalization after changes with debouncing
       const debouncedParagraphProcess = debounce(function(editor: TrixEditorElement['editor']) {
-        if (!editor) return;
-        
-        // Try to find the new paragraph that was just created
-        const blocks = editor.getDocument().getBlocks();
-        
-        // If we have blocks and the cursor is in a non-empty one
-        if (blocks.length > 0) {
-          const currentPosition = editor.getPosition();
+        try {
+          if (!editor) return;
           
-          // Find the current block we're in
-          for (let i = 0; i < blocks.length; i++) {
-            const blockText = blocks[i].toString();
+          // Try to find the new paragraph that was just created
+          const blocks = editor.getDocument().getBlocks();
+          
+          // If we have blocks and the cursor is in a non-empty one
+          if (blocks.length > 0) {
+            const currentPosition = editor.getPosition();
             
-            // If block only has one character (just typed) and it's lowercase
-            if (blockText.length === 1 && blockText[0] !== blockText[0].toUpperCase()) {
-              // Save current position
-              const originalPosition = editor.getPosition();
+            // Find the current block we're in
+            for (let i = 0; i < blocks.length; i++) {
+              const blockText = blocks[i].toString();
               
-              // Record undo entry for this operation
-              editor.recordUndoEntry("Auto-capitalize paragraph");
-              
-              // Move to the beginning of the paragraph
-              const blockStartPosition = blocks[i].getPosition();
-              editor.setSelectedRange([blockStartPosition, blockStartPosition + 1]);
-              
-              // Replace with uppercase
-              editor.insertString(blockText[0].toUpperCase());
-              
-              // Restore cursor position
-              editor.setSelectedRange(originalPosition);
-              break;
+              // If block only has one character (just typed) and it's lowercase
+              if (blockText.length === 1 && blockText[0] !== blockText[0].toUpperCase()) {
+                // Save current position
+                const originalPosition = editor.getPosition();
+                
+                // Record undo entry for this operation
+                editor.recordUndoEntry("Auto-capitalize paragraph");
+                
+                // Move to the beginning of the paragraph
+                const blockStartPosition = blocks[i].getPosition();
+                editor.setSelectedRange([blockStartPosition, blockStartPosition + 1]);
+                
+                // Replace with uppercase
+                editor.insertString(blockText[0].toUpperCase());
+                
+                // Restore cursor position
+                editor.setSelectedRange(originalPosition);
+                break;
+              }
             }
           }
+          
+          // Reset flag
+          enterPressed = false;
+        } catch (error) {
+          console.error('Error in debouncedParagraphProcess:', error);
+          enterPressed = false;
         }
-        
-        // Reset flag
-        enterPressed = false;
       }, 250);
       
       // Triggered after content changes
       trixEditor.addEventListener('trix-change', function(this: TrixEditorElement) {
-        if (enterPressed) {
-          const editor = this.editor;
-          debouncedParagraphProcess(editor);
+        try {
+          if (enterPressed) {
+            const editor = this.editor;
+            debouncedParagraphProcess(editor);
+          }
+        } catch (error) {
+          console.error('Error in trix-change paragraph handler:', error);
         }
       });
       
       // Helper function to capitalize the first character of the document
       function capitalizeFirstCharacter(editor: TrixEditorElement['editor']) {
-        const text = editor.getDocument().toString();
-        
-        if (text.length > 0) {
-          // Get the first character and capitalize if it's a letter
-          const firstChar = text.charAt(0);
-          const capitalized = firstChar.toUpperCase();
+        try {
+          const text = editor.getDocument().toString();
           
-          if (firstChar !== capitalized) {
-            // Save current position
-            const originalPosition = editor.getPosition();
+          if (text.length > 0) {
+            // Get the first character and capitalize if it's a letter
+            const firstChar = text.charAt(0);
+            const capitalized = firstChar.toUpperCase();
             
-            // Record undo entry for this operation
-            editor.recordUndoEntry("Auto-capitalize first letter");
-            
-            // Replace the first character with capitalized version
-            editor.setSelectedRange([0, 1]);
-            editor.insertString(capitalized);
-            
-            // Restore cursor position
-            editor.setSelectedRange(originalPosition);
+            if (firstChar !== capitalized) {
+              // Save current position
+              const originalPosition = editor.getPosition();
+              
+              // Record undo entry for this operation
+              editor.recordUndoEntry("Auto-capitalize first letter");
+              
+              // Replace the first character with capitalized version
+              editor.setSelectedRange([0, 1]);
+              editor.insertString(capitalized);
+              
+              // Restore cursor position
+              editor.setSelectedRange(originalPosition);
+            }
           }
+        } catch (error) {
+          console.error('Error in capitalizeFirstCharacter:', error);
         }
       }
     }

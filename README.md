@@ -53,16 +53,13 @@ Space: "For You" (count: 3) - Paper color
 
 ## Core Logic & Data System
 
-### Robust Sample Data System (`src/utils/sample-data.ts`)
+### Real Database System
 
-- **Development Mode**: Uses clean, consistent sample data by default
-- **Production Mode**: Uses database with fallback to sample data
-- **Data Mode Toggle**: In development, toggle between sample data and real database using the indicator in the top-right corner
-- **URL Parameter**: Add `?useRealData=true` to any URL to force real database usage
-- **No Duplicates**: Carefully crafted to avoid content duplication
-- **Consistent Formatting**: Proper TypeScript interfaces and helper functions
-- **Time-Based IDs**: All IDs use timestamp format (e.g., `note_1756318000001`, `thread_1756318000000`)
-- **Available Colors**: Use only existing CSS variables: blessed-blue, graceful-gold, caring-coral, mindful-mint, peaceful-pink, pleasant-peach, lovely-lavender
+- **Production Ready**: Uses Turso database for all data storage
+- **User Authentication**: All data is scoped to authenticated Clerk users
+- **Real-time Updates**: Content updates immediately after creation
+- **Data Persistence**: All notes, threads, and spaces are stored in the remote database
+- **User Isolation**: Each user only sees their own content
 
 ### Color System
 
@@ -94,8 +91,28 @@ Space: "For You" (count: 3) - Paper color
 
 This project is built with Astro and uses TypeScript for type safety.
 
+### Development Server
+
+- **Port**: Always use port 4321 for development
+- **URL**: http://localhost:4321/
+- **Configuration**: Set in `astro.config.mjs` to ensure consistency
+
+### Astro MCP Integration
+
+This project is configured to use the **Astro MCP (Model Context Protocol)** for enhanced development assistance:
+
+- **MCP Server**: Astro docs MCP server is configured and available
+- **Documentation Access**: Real-time access to official Astro documentation
+- **Development Assistance**: Use the Astro MCP for:
+  - Component development guidance
+  - API reference lookups
+  - Best practices and patterns
+  - Framework-specific troubleshooting
+- **Always Check Astro MCP**: When working on Astro-specific features, always consult the Astro MCP for the most up-to-date information and recommendations
+
 ### Development Rules
 
+- **ALWAYS use Astro MCP**: Consult the Astro MCP for component development, API usage, and best practices
 - **ALWAYS double-check your work**: Test functionality before declaring it complete
 - **Verify ID consistency**: Ensure IDs match between sample data and component usage
 - **Test navigation flows**: Click through all links to ensure they work properly
@@ -104,20 +121,58 @@ This project is built with Astro and uses TypeScript for type safety.
 
 ### Development Workflow
 
-- **Sample Data Mode** (default): Use for consistent development and testing UI components
-- **Real Database Mode**: Use to test full data flow and note creation
-- **Toggle Indicator**: Look for the data mode indicator in the top-right corner during development
-- **URL Parameter**: Add `?useRealData=true` to any URL to force real database usage
-- **Note Creation**: When testing note creation, switch to real database mode to see notes appear in the UI
+- **Development Server**: Always runs on port 4321 (configured in `astro.config.mjs`)
+- **Real Database Mode**: All development uses the real Turso database
+- **User Authentication**: Sign in with Clerk to access your personal data
+- **Note Creation**: Create notes and threads that persist in the database
+- **Data Persistence**: All content is automatically saved and available across sessions
+
+### Troubleshooting
+
+#### Dashboard Not Showing Content
+
+If the dashboard appears empty or doesn't load content:
+
+1. **Check Browser Console**: Look for JavaScript errors or database connection issues
+2. **Check Terminal**: Look for `SQLITE_BUSY` or database connection errors
+3. **Database Issues**: If you see `SQLITE_BUSY: database is locked`, restart the dev server
+4. **Panel State Issues**: If panels open by default, check localStorage in browser dev tools
+5. **Port Conflicts**: Ensure port 4321 is available and not being used by other processes
+
+#### Common Issues
+
+- **Port 4321 in use**: Kill other processes using the port or restart your terminal
+- **Database locked**: Restart the development server to clear database locks
+- **Panels opening by default**: Clear browser localStorage or check panel state initialization
+- **Empty dashboard**: Check console for database connection errors
 
 ### Key Files
 
-- `src/utils/sample-data.ts`: Centralized sample data system
+- `src/utils/dashboard-data.ts`: Database queries for dashboard content
 - `src/pages/dashboard.astro`: Main dashboard with inbox/organized content
 - `src/pages/[id].astro`: Dynamic routing for threads, spaces, and notes
 - `src/components/CardStack.astro`: Header component with color logic
 
 ## Alpine.js Integration
+
+### Official Documentation
+
+**ALWAYS consult the official Alpine.js documentation**: [https://alpinejs.dev/start-here](https://alpinejs.dev/start-here)
+
+The Alpine.js documentation provides comprehensive guidance on:
+- **Core Directives**: `x-data`, `x-init`, `x-show`, `x-bind`, `x-on`, `x-text`, `x-html`, `x-model`, `x-for`, `x-transition`, `x-effect`, `x-ignore`, `x-ref`, `x-cloak`, `x-teleport`, `x-if`, `x-id`
+- **Magic Properties**: `$el`, `$refs`, `$store`, `$watch`, `$dispatch`, `$nextTick`, `$root`, `$data`, `$id`
+- **Best Practices**: Proper syntax, event handling, state management, and component patterns
+- **Common Patterns**: Dropdowns, modals, form handling, and reactive data binding
+
+### Development Rules for Alpine.js
+
+- **ALWAYS check Alpine.js docs**: Consult [https://alpinejs.dev/start-here](https://alpinejs.dev/start-here) for syntax and best practices
+- **ALWAYS use proper Alpine.js syntax**: Follow official documentation patterns
+- **NO try-catch in x-init**: Alpine.js expressions don't support complex control structures
+- **NO const/let in x-init**: Use simple variable assignments only
+- **Use separate scripts for complex logic**: Move complex JavaScript outside of Alpine.js expressions
+- **Test Alpine.js functionality**: Verify all directives work as expected
 
 ### SquareButton Component (`src/components/SquareButton.astro`)
 
@@ -146,6 +201,8 @@ This project is built with Astro and uses TypeScript for type safety.
 - **Menu Overlapping**: Check for duplicate Alpine.js loading or conflicting CSS
 - **Menu Positioning**: Verify `menuPosition` calculation logic in SquareButton
 - **State Conflicts**: Avoid `x-init` directives that might interfere with menu state
+- **Syntax Errors**: Always check [Alpine.js documentation](https://alpinejs.dev/start-here) for proper syntax
+- **Expression Errors**: Use simple expressions in Alpine.js directives, move complex logic to separate scripts
 
 ## Component Dependencies
 

@@ -5,9 +5,10 @@ import Button from "./Button.astro";
 import SpaceButton from "./SpaceButton.astro";
 import TrixEditor from "./TrixEditor.astro";
 import Toast from "./Toast-v2.astro";
-import { SAMPLE_DATA } from "@/utils/sample-data";
+// Sample data imports removed - using real database data only
 import { getThreadGradientCSS } from "@/utils/colors";
 import { notes } from "@/actions/notes";
+import { getAllThreadsWithCounts } from "@/utils/dashboard-data";
 
 export interface Props {
   onClose?: () => void;
@@ -15,65 +16,16 @@ export interface Props {
 
 const { onClose } = Astro.props;
 
-// Function to get the next available note ID
-function getNextNoteId(): string {
-  // Get all existing notes from sample data
-  const allNotes = [...SAMPLE_DATA.unorganizedNotes, ...SAMPLE_DATA.threadNotes];
-  
-  // Only count notes that have been added (have simple note IDs)
-  const addedNotes = allNotes.filter(note => note.noteId !== undefined);
-  
-  // Find the highest existing note ID
-  const existingNoteIds = addedNotes
-    .map(note => note.noteId!)
-    .sort((a, b) => a - b);
-  
-  // Generate next sequential ID
-  const nextNoteId = existingNoteIds.length > 0 ? Math.max(...existingNoteIds) + 1 : 1;
-  
-  // Format as N001, N002, etc.
-  return `N${nextNoteId.toString().padStart(3, '0')}`;
+// Get user ID from Clerk authentication
+const { userId } = Astro.locals.auth();
+console.log("NewNotePanel: Using authenticated user ID:", userId);
+
+if (!userId) {
+  return Astro.redirect('/sign-in');
 }
 
-// Function to calculate note counts for each thread
-function getThreadNoteCounts() {
-  const threadCounts: Record<string, number> = {};
-  
-  // Count unorganized notes
-  threadCounts["Unorganized"] = SAMPLE_DATA.unorganizedNotes.length;
-  
-  // Count notes for each thread
-  SAMPLE_DATA.threadNotes.forEach(note => {
-    const thread = [...SAMPLE_DATA.unorganizedThreads, ...SAMPLE_DATA.organizedThreads]
-      .find(t => t.id === note.threadId);
-    if (thread) {
-      threadCounts[thread.title] = (threadCounts[thread.title] || 0) + 1;
-    }
-  });
-  
-  return threadCounts;
-}
-
-// Thread color mapping
-const THREAD_COLORS = {
-  "Unorganized": null,
-  "Gospel of John": "lovely-lavender",
-  "Psalm 23 Study": "blessed-blue"
-};
-
-// Thread ID mapping for form submission
-const THREAD_ID_MAPPING = {
-  "Unorganized": "thread_unorganized", // This will be handled specially in the action
-  "Gospel of John": "thread_1756318000000",
-  "Psalm 23 Study": "thread_1756318000004"
-};
-
-const nextNoteId = getNextNoteId();
-const threadNoteCounts = getThreadNoteCounts();
-
-// Get user ID - use development fallback since middleware is disabled
-let userId: string = "dev_user_123"; // Development fallback
-console.log("NewNotePanel: Using development user ID:", userId);
+// Note: For now, using static thread options to avoid syntax errors
+// Dynamic thread loading can be added later via API calls
 ---
 
 <form 
@@ -86,12 +38,15 @@ console.log("NewNotePanel: Using development user ID:", userId);
     selectedThread: localStorage.getItem('newNoteThread') || 'Unorganized',
     isOpen: false,
     isSubmitting: false,
-
-    THREAD_COLORS: {
-      'Unorganized': null,
-      'Gospel of John': 'lovely-lavender',
-      'Psalm 23 Study': 'blessed-blue'
-    },
+    threadOptions: [
+      {
+        id: 'thread_unorganized',
+        title: 'Unorganized',
+        color: null,
+        noteCount: 0,
+        backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+      }
+    ],
     getThreadGradientCSS(color) {
       if (!color) return 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
       const colorMap = {
@@ -106,59 +61,46 @@ console.log("NewNotePanel: Using development user ID:", userId);
       const baseColor = colorMap[color] || 'var(--color-blessed-blue)';
       return `linear-gradient(180deg, ${baseColor} 0%, ${baseColor} 100%)`;
     },
+    getSelectedThread() {
+      return this.threadOptions.find(thread => thread.title === this.selectedThread) || this.threadOptions[0];
+    },
     submitForm() {
       this.isSubmitting = true;
     },
     closePanel() {
-      // Clear localStorage
       localStorage.removeItem('newNoteTitle');
       localStorage.removeItem('newNoteThread');
       localStorage.removeItem('newNoteContent');
-      // Reset form
       this.title = '';
       this.content = '';
       this.selectedThread = 'Unorganized';
       this.isSubmitting = false;
-      // Dispatch close event to update dashboard state
       window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+    },
+    init() {
+      // Save form data to localStorage when it changes
+      this.$watch('title', value => localStorage.setItem('newNoteTitle', value));
+      this.$watch('content', value => localStorage.setItem('newNoteContent', value));
+      this.$watch('selectedThread', value => localStorage.setItem('newNoteThread', value));
+      
+      // Clear form when panel is opened
+      window.addEventListener('openNewNotePanel', () => {
+        this.title = '';
+        this.content = '';
+        this.selectedThread = 'Unorganized';
+        this.isSubmitting = false;
+        localStorage.removeItem('newNoteTitle');
+        localStorage.removeItem('newNoteThread');
+        localStorage.removeItem('newNoteContent');
+      });
     }
   }"
-  x-init="
-    // Try to get active thread from URL or page context
-    urlParams = new URLSearchParams(window.location.search);
-    activeThread = urlParams.get('thread') || document.querySelector('[data-active-thread]')?.dataset.activeThread;
-    if (activeThread) {
-      selectedThread = activeThread;
-      localStorage.setItem('newNoteThread', activeThread);
-    }
-    
-    // Save form data to localStorage when it changes
-    $watch('title', value => localStorage.setItem('newNoteTitle', value));
-    $watch('content', value => localStorage.setItem('newNoteContent', value));
-    $watch('selectedThread', value => localStorage.setItem('newNoteThread', value));
-    
-    // Removed event listener to prevent infinite loop
-    // The closePanel() method already dispatches the close event
-    // Parent components (Layout, MobileAdditional) handle the event
-    
-    // Clear form when panel is opened (in case it was previously closed with data)
-    window.addEventListener('openNewNotePanel', () => {
-      // Reset form to clean state when opening
-      title = '';
-      content = '';
-      selectedThread = 'Unorganized';
-      isSubmitting = false;
-      // Clear localStorage when opening fresh
-      localStorage.removeItem('newNoteTitle');
-      localStorage.removeItem('newNoteThread');
-      localStorage.removeItem('newNoteContent');
-    });
-  "
+  x-init="init()"
 
 >
   <!-- Hidden form fields -->
 
-  <input type="hidden" name="threadId" x-bind:value="selectedThread === 'Unorganized' ? 'thread_unorganized' : (selectedThread === 'Gospel of John' ? 'thread_1756318000000' : 'thread_1756318000004')" />
+  <input type="hidden" name="threadId" x-bind:value="getSelectedThread().id" />
   <input type="hidden" name="content" x-model="content" />
   <input type="hidden" name="title" x-model="title" />
 
@@ -178,10 +120,10 @@ console.log("NewNotePanel: Using development user ID:", userId);
             className="w-full"
             backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
             isActive={false}
-            x-bind:style="`background-image: ${getThreadGradientCSS(THREAD_COLORS[selectedThread])};`"
+            x-bind:style="`background-image: ${getSelectedThread().backgroundGradient};`"
           >
             <span slot="text" x-text="selectedThread" class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Unorganized</span>
-            <span slot="count" x-text="selectedThread === 'Unorganized' ? 0 : selectedThread === 'Gospel of John' ? 2 : 0" class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">0</span>
+            <span slot="count" x-text="getSelectedThread().noteCount" class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">0</span>
           </SpaceButton>
         </div>
         
@@ -200,43 +142,24 @@ console.log("NewNotePanel: Using development user ID:", userId);
         >
           <!-- Thread options using SpaceButton styling -->
           <div>
-            <button 
-              type="button"
-              @click="selectedThread = 'Unorganized'; isOpen = false"
-              class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-              style="background-image: linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%);"
-            >
-              <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Unorganized</span>
-                <div class="p-[20px]">
-                  <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
-                      0
-                    </span>
+            <template x-for="thread in threadOptions" :key="thread.id">
+              <button 
+                type="button"
+                @click="selectedThread = thread.title; isOpen = false"
+                class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                x-bind:style="`background-image: ${thread.backgroundGradient};`"
+              >
+                <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                  <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap" x-text="thread.title"></span>
+                  <div class="p-[20px]">
+                    <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                      <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]" x-text="thread.noteCount">
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </button>
-            
-            <button 
-              type="button"
-              @click="selectedThread = 'Gospel of John'; isOpen = false"
-              class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-              style="background-image: linear-gradient(180deg, var(--color-lovely-lavender) 0%, var(--color-lovely-lavender) 100%);"
-            >
-              <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Gospel of John</span>
-                <div class="p-[20px]">
-                  <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
-                      2
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </button>
-            
-
+              </button>
+            </template>
             
 
           </div>
@@ -267,11 +190,12 @@ console.log("NewNotePanel: Using development user ID:", userId);
       <!-- Content area with TrixEditor (like CardFull) -->
       <div class="flex-1 flex items-start justify-between px-3 py-0 relative w-full min-h-0">
         <div class="flex flex-col font-sans font-normal w-full h-full">
-          <TrixEditor 
-            content=""
-            placeholder="Start writing your note..."
+          <textarea 
             x-model="content"
-          />
+            placeholder="Start writing your note..."
+            class="w-full h-full min-h-[200px] p-3 border-none bg-transparent resize-none focus:outline-none text-[var(--color-deep-grey)] font-sans font-normal"
+            style="font-family: inherit;"
+          ></textarea>
         </div>
       </div>
 
@@ -281,7 +205,7 @@ console.log("NewNotePanel: Using development user ID:", userId);
           <p class="leading-[normal] text-nowrap whitespace-pre">Today</p>
         </div>
         <div class="relative shrink-0">
-          <p class="leading-[normal] text-nowrap whitespace-pre" id="new-note-id">#{nextNoteId}</p>
+          <p class="leading-[normal] text-nowrap whitespace-pre" id="new-note-id">#New</p>
         </div>
       </div>
       
@@ -311,6 +235,29 @@ console.log("NewNotePanel: Using development user ID:", userId);
 <Toast />
 
 <script>
+  // Handle URL thread detection after component loads
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      const form = document.querySelector('.new-note-panel') as any;
+      if (form && form.__x && form.__x.$data) {
+        const alpineData = form.__x.$data;
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const activeThreadElement = document.querySelector('[data-active-thread]') as HTMLElement;
+          const activeThread = urlParams.get('thread') || activeThreadElement?.dataset.activeThread;
+          if (activeThread) {
+            alpineData.selectedThread = activeThread;
+            localStorage.setItem('newNoteThread', activeThread);
+          }
+        } catch (e) {
+          console.log('Could not get active thread from URL');
+        }
+      }
+    }, 100);
+  });
+</script>
+
+<script>
   document.addEventListener('DOMContentLoaded', () => {
     // Handle create note button click
     const createBtn = document.getElementById('create-note-btn');
@@ -326,61 +273,22 @@ console.log("NewNotePanel: Using development user ID:", userId);
           // Alpine data not available
         }
         
-        // Check if we're in sample data mode
-        const isSampleDataMode = !window.location.search.includes('useRealData=true');
-        
-        // In sample data mode, show a message instead of creating a note
-        if (isSampleDataMode) {
-          window.dispatchEvent(new CustomEvent('toast', {
-            detail: {
-              message: 'Note creation disabled in sample data mode. Switch to Real DB mode to create notes.',
-              type: 'error'
-            }
-          }));
-          
-          // Reset form
-          if (alpineData) {
-            alpineData.title = '';
-            alpineData.content = '';
-            alpineData.selectedThread = 'Unorganized';
-            alpineData.isSubmitting = false;
-          }
-          
-          return;
-        }
-        
-        // Get content from TrixEditor - wait for it to be ready
+        // Get content from Alpine.js data (textarea with x-model)
         let content = '';
-        
-        // Try multiple approaches to get the content
-        const trixEditor = document.querySelector('trix-editor') as any;
-        
-        // Method 1: Try to get content from the TrixEditor's innerHTML (fallback)
-        if (trixEditor) {
-          // Get the text content from the TrixEditor element
-          const editorContent = trixEditor.textContent || trixEditor.innerText || '';
-          content = editorContent.trim();
+        if (alpineData?.content) {
+          content = alpineData.content;
         }
         
-        // Method 2: Try the hidden input field
-        if (!content) {
-          const hiddenInput = document.querySelector('input[name="content"]') as HTMLInputElement;
-          if (hiddenInput?.value) {
-            content = hiddenInput.value.trim();
-          }
-        }
+        // Debug logging
+        console.log('Content extraction debug:', {
+          alpineData: !!alpineData,
+          alpineContent: alpineData?.content,
+          alpineContentLength: alpineData?.content?.length || 0,
+          finalContent: content,
+          finalContentLength: content.length
+        });
         
-        // Method 3: Try to get from TrixEditor's editor property (if available)
-        if (!content && trixEditor?.editor) {
-          try {
-            const document = trixEditor.editor.getDocument();
-            content = document?.toString()?.trim() || '';
-          } catch (error) {
-            // Could not get content from editor
-          }
-        }
-        
-        if (!content) {
+        if (!content.trim()) {
           alert('Please add some content to your note');
           return;
         }
@@ -390,13 +298,17 @@ console.log("NewNotePanel: Using development user ID:", userId);
           alpineData.isSubmitting = true;
         }
         
-        // Update the hidden content field
-        const contentField = document.querySelector('input[name="content"]') as HTMLInputElement;
-        if (contentField) {
-          contentField.value = content;
-        }
+        // Content is already synced via x-model - no manual update needed
         
         const formData = new FormData(form);
+        
+        // Debug logging for form data
+        console.log('Form submission debug:', {
+          formAction: form.action,
+          formData: Object.fromEntries(formData.entries()),
+          content: content,
+          title: alpineData?.title || 'No title'
+        });
         
         try {
           const response = await fetch(form.action, {
@@ -404,18 +316,20 @@ console.log("NewNotePanel: Using development user ID:", userId);
             body: formData
           });
           
+          console.log('Response status:', response.status);
+          console.log('Response ok:', response.ok);
+          
           if (response.ok) {
-            const contentType = response.headers.get('content-type');
-            
             let result;
+            const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
               result = await response.json();
             } else {
-              // If not JSON, treat as success and show a generic message
               result = { success: 'Note created successfully!' };
             }
             
             // Show success toast
+            console.log('Dispatching success toast:', result.success || 'Note created successfully!');
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
                 message: result.success || 'Note created successfully!',
@@ -441,7 +355,15 @@ console.log("NewNotePanel: Using development user ID:", userId);
               alpineData.closePanel();
             }
             
-            // In real database mode, no refresh needed - data should update dynamically
+            // Refresh the dashboard content to show the new note
+            const refreshButton = document.querySelector('button[hx-get="/dashboard"]');
+            if (refreshButton && typeof (window as any).htmx !== 'undefined') {
+              // Use HTMX to refresh just the dashboard content
+              (window as any).htmx.trigger(refreshButton, 'click');
+            } else {
+              // Fallback: reload the page
+              window.location.reload();
+            }
             
           } else {
             let errorMessage = 'Error creating note';
@@ -455,6 +377,7 @@ console.log("NewNotePanel: Using development user ID:", userId);
               // Could not parse error response
             }
             
+            console.log('Dispatching error toast:', errorMessage);
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
                 message: errorMessage,
@@ -467,6 +390,7 @@ console.log("NewNotePanel: Using development user ID:", userId);
           }
         } catch (error) {
           console.error('Form submission error:', error);
+          console.log('Dispatching catch error toast: Error creating note. Please try again.');
           window.dispatchEvent(new CustomEvent('toast', {
             detail: {
               message: 'Error creating note. Please try again.',
@@ -519,5 +443,19 @@ console.log("NewNotePanel: Using development user ID:", userId);
     border-radius: 0 !important;
     padding: 0 !important;
     background: white !important;
+  }
+
+  /* HTMX loading states */
+  .htmx-request #create-note-btn {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .htmx-request #create-note-btn span:first-child {
+    display: none;
+  }
+
+  .htmx-request #create-note-btn span:last-child {
+    display: block;
   }
 </style>

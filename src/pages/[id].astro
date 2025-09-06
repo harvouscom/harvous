@@ -8,51 +8,23 @@ import Avatar from "@/components/Avatar.astro";
 import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
-// import { db, Threads, Notes, Spaces, eq, and, desc } from "astro:db"; // Conditionally imported below
-// import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount } from "@/utils/dashboard-data"; // Conditionally imported below
+import { db, Threads, Notes, Spaces, eq, and, desc } from "astro:db";
+import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount } from "@/utils/dashboard-data";
 import { getThreadColorCSS } from "@/utils/colors";
-import { SAMPLE_DATA, getNavigationData, shouldUseSampleData } from "@/utils/sample-data";
+// Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 
-// Get static paths for static mode
-export async function getStaticPaths() {
-  const { SAMPLE_DATA } = await import("@/utils/sample-data");
-  
-  const paths = [
-    // Add paths for all sample spaces
-    ...SAMPLE_DATA.spaces.map(space => ({
-      params: { id: space.id },
-      props: { id: space.id }
-    })),
-    // Add paths for all sample threads
-    ...SAMPLE_DATA.unorganizedThreads.map(thread => ({
-      params: { id: thread.id },
-      props: { id: thread.id }
-    })),
-    ...SAMPLE_DATA.organizedThreads.map(thread => ({
-      params: { id: thread.id },
-      props: { id: thread.id }
-    })),
-    // Add paths for all sample notes
-    ...SAMPLE_DATA.unorganizedNotes.map(note => ({
-      params: { id: note.id },
-      props: { id: note.id }
-    })),
-    ...SAMPLE_DATA.threadNotes.map(note => ({
-      params: { id: note.id },
-      props: { id: note.id }
-    }))
-  ];
-  
-  console.log("Generated static paths:", paths.length);
-  return paths;
-}
+// Dynamic routing - no static paths needed
 
-// Get user ID - use development fallback since middleware is disabled
-let userId: string = "dev_user_123"; // Development fallback
-console.log("Dynamic page: Using development user ID:", userId);
+// Get user ID from Clerk authentication
+const { userId } = Astro.locals.auth();
+console.log("Dynamic page: Using authenticated user ID:", userId);
+
+if (!userId) {
+  return Astro.redirect('/sign-in');
+}
 
 const { id } = Astro.params;
 console.log("Dynamic page: ID =", id);
@@ -73,15 +45,9 @@ let currentSpace: any = null;
 let threadNotes: any[] = [];
 let inboxCount: number = 0;
 
-// Declare database functions that will be conditionally imported
-let getAllThreadsWithCounts: any;
-let getSpacesWithCounts: any;
-let getNotesForThread: any;
-let getThreadsForSpace: any;
-let getNotesForSpace: any;
-let getInboxCount: any;
+// Database functions are imported at the top
 
-  if (shouldUseSampleData()) {
+  if (false) { // Sample data disabled - always use real database
     // Use robust sample data system
     if (isThread) {
       // Find thread in sample data
@@ -206,22 +172,110 @@ let getInboxCount: any;
     noteCount: SAMPLE_DATA.threadNotes.filter(note => note.threadId === thread.id).length
   }));
 } else {
-  // Production: fetch from database - TEMPORARILY DISABLED FOR STATIC MODE
-  console.log("Production database mode disabled for static build");
-  
-  // For now, fall back to sample data
-  const navData = getNavigationData();
-  spaces = navData.spaces;
-  inboxCount = navData.inboxCount;
-  
-  // Get all threads for navigation (including organized and unorganized)
-  threads = [
-    ...SAMPLE_DATA.unorganizedThreads,
-    ...SAMPLE_DATA.organizedThreads
-  ].map(thread => ({
-    ...thread,
-    noteCount: SAMPLE_DATA.threadNotes.filter(note => note.threadId === thread.id).length
-  }));
+  // Always use real database data
+  try {
+    if (isThread) {
+      // Fetch thread and its notes from database
+      const [threadData, notesData] = await Promise.all([
+        getAllThreadsWithCounts(userId).then(threads => threads.find(t => t.id === id)),
+        getNotesForThread(id!, userId)
+      ]);
+      
+      if (threadData) {
+        content = {
+          id: threadData.id,
+          title: threadData.title,
+          subtitle: threadData.subtitle,
+          color: threadData.color,
+          spaceId: threadData.spaceId,
+          notes: notesData,
+          noteCount: notesData.length
+        };
+        currentThread = {
+          id: threadData.id,
+          title: threadData.title,
+          color: threadData.color,
+          noteCount: notesData.length,
+          backgroundGradient: `linear-gradient(180deg, var(--color-${threadData.color}) 0%, var(--color-${threadData.color}) 100%)`
+        };
+        
+        pageTitle = threadData.title;
+        pageContent = `${notesData.length} notes`;
+      }
+    } else if (isNote) {
+      // Fetch note from database
+      const note = await db.select().from(Notes).where(eq(Notes.id, id!)).get();
+      
+      if (note) {
+        content = {
+          id: note.id,
+          title: note.title,
+          content: note.content,
+          threadId: note.threadId,
+          createdAt: note.createdAt,
+          noteId: note.simpleNoteId,
+          updatedAt: note.updatedAt
+        };
+
+        // Get the thread this note belongs to
+        const thread = await db.select().from(Threads).where(eq(Threads.id, note.threadId)).get();
+        
+        if (thread) {
+          currentThread = {
+            id: thread.id,
+            title: thread.title,
+            color: thread.color,
+            noteCount: await getNotesForThread(thread.id, userId).then(notes => notes.length),
+            backgroundGradient: `linear-gradient(180deg, var(--color-${thread.color}) 0%, var(--color-${thread.color}) 100%)`
+          };
+        }
+      }
+    } else if (isSpace) {
+      // Fetch space and its threads from database
+      const [spaceData, spaceThreads] = await Promise.all([
+        getSpacesWithCounts(userId).then(spaces => spaces.find(s => s.id === id)),
+        getThreadsForSpace(id!, userId)
+      ]);
+      
+      if (spaceData) {
+        content = {
+          id: spaceData.id,
+          title: spaceData.title,
+          totalItemCount: spaceData.totalItemCount,
+          color: spaceData.color
+        };
+        currentSpace = {
+          id: spaceData.id,
+          title: spaceData.title,
+          color: spaceData.color,
+          totalItemCount: spaceData.totalItemCount
+        };
+        
+        threads = spaceThreads;
+        pageTitle = spaceData.title;
+        pageContent = `${spaceData.totalItemCount} items`;
+      }
+    }
+
+    // Get navigation data from database
+    const [allThreads, allSpaces, inboxCountData] = await Promise.all([
+      getAllThreadsWithCounts(userId),
+      getSpacesWithCounts(userId),
+      getInboxCount(userId)
+    ]);
+    
+    spaces = allSpaces;
+    threads = [...allThreads, ...threads]; // Combine with space-specific threads
+    inboxCount = inboxCountData;
+    
+  } catch (error) {
+    console.error("Error fetching data from database:", error);
+    // Fallback to empty data
+    content = null;
+    threads = [];
+    spaces = [];
+    inboxCount = 0;
+  }
 }
 
 

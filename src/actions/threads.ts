@@ -17,6 +17,7 @@ export const threads = {
     handler: async ({ title, subtitle, spaceId, isPublic = false, color }, context) => {
       // Get userId from authenticated context for security
       const { userId } = context.locals.auth();
+      console.log("Creating thread with userId:", userId, "title:", title);
       
       if (!userId) {
         throw new Error("Authentication required");
@@ -50,6 +51,8 @@ export const threads = {
           })
           .returning()
           .get()
+          
+        console.log("Thread created successfully:", newThread);
 
         // Add a small delay to ensure the database operation completes
         await new Promise(resolve => setTimeout(resolve, 150));

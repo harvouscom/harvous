@@ -16,11 +16,13 @@ export default defineConfig({
   },
   vite: {
     server: {
+      port: 4321,
       // Fix HMR WebSocket connection issues
       hmr: {
-        port: 4322,
-        clientPort: 4322,
-        overlay: false
+        port: 4321,
+        clientPort: 4321,
+        overlay: false,
+        host: 'localhost'
       }
     },
     build: {

@@ -9,13 +9,17 @@ import CardFeat from "@/components/CardFeat.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
 import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
-import { getInboxContent, getOrganizedContent, getNavigationData, shouldUseSampleData, getDataMode, toggleDataMode } from "@/utils/sample-data";
+// Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 // Get user ID from Clerk authentication
 const { userId } = Astro.locals.auth();
 console.log("Dashboard: Using authenticated user ID:", userId);
+
+if (!userId) {
+  return Astro.redirect('/sign-in');
+}
 
 // Fetch real data from database
 // Use robust sample data system for consistent development experience
@@ -25,17 +29,8 @@ let threads: any[] = [];
 let spaces: any[] = [];
 let inboxCount: number = 0;
 
-if (shouldUseSampleData()) {
-  // Use clean, consistent sample data
-  featuredContent = getInboxContent(); // Use only inbox content for "For You" section
-  contentItems = getOrganizedContent();
-  const navData = getNavigationData();
-  threads = navData.threads;
-  spaces = navData.spaces;
-  inboxCount = navData.inboxCount;
-} else {
-  // Production: fetch from database
-  try {
+// Always use real database data
+try {
     [featuredContent, contentItems, threads, spaces, inboxCount] = await Promise.all([
       getFeaturedContent(userId),
       getContentItems(userId),
@@ -43,6 +38,20 @@ if (shouldUseSampleData()) {
       getSpacesWithCounts(userId),
       getInboxCount(userId)
     ]);
+    
+    console.log("Dashboard data fetched:", {
+      featuredContent: featuredContent.length,
+      contentItems: contentItems.length,
+      threads: threads.length,
+      spaces: spaces.length,
+      inboxCount
+    });
+    
+    // Debug: Log the actual data
+    console.log("Featured content:", featuredContent);
+    console.log("Content items:", contentItems);
+    console.log("Threads:", threads);
+    console.log("Spaces:", spaces);
     
     // Ensure threads have backgroundGradient property for consistency
     threads = threads.map(thread => ({
@@ -55,16 +64,17 @@ if (shouldUseSampleData()) {
       ...space,
       backgroundGradient: space.backgroundGradient || `linear-gradient(180deg, var(--color-${space.color || 'blessed-blue'}) 0%, var(--color-${space.color || 'blessed-blue'}) 100%)`
     }));
-  } catch (error) {
-    console.error("Error fetching dashboard data:", error);
-    // Fallback to sample data if database fails
-    featuredContent = getInboxContent();
-    contentItems = getOrganizedContent();
-    const navData = getNavigationData();
-    threads = navData.threads;
-    spaces = navData.spaces;
-    inboxCount = navData.inboxCount;
-  }
+} catch (error) {
+  console.error("Error fetching dashboard data:", error);
+  // Fallback to empty data if database fails
+  featuredContent = [];
+  contentItems = [];
+  threads = [];
+  spaces = [];
+  inboxCount = 0;
+  
+  // Add some debug info
+  console.log("Using fallback empty data due to error");
 }
 
 // Sample data is already properly organized - no complex filtering needed
@@ -138,12 +148,25 @@ const inboxItemCount = inboxCount;
   </div>
 
   <!-- Main Column -->
-  <div slot="main" class="h-full">
+  <div slot="main" class="h-full" id="dashboard-content">
           <div class="flex flex-col h-full">
             
             <!-- Content List -->
             <div class="flex-1">
               <CardStack title="For You" subtitle="" headerBgColor="var(--color-paper)">
+                <div slot="header-actions" class="flex gap-2">
+                  <button 
+                    hx-get="/dashboard" 
+                    hx-target="#dashboard-content" 
+                    hx-swap="outerHTML"
+                    class="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    title="Refresh"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                  </button>
+                </div>
                 <div class="flex flex-col gap-6">
                   <!-- First TabNav Group -->
                   <div class="flex flex-col gap-3">

@@ -7,9 +7,10 @@ import TabNav from "./TabNav.astro";
 import CardFeat from "./CardFeat.astro";
 import Toast from "./Toast-v2.astro";
 import SearchInput from "./SearchInput.astro";
-import { SAMPLE_DATA } from "@/utils/sample-data";
+// Sample data imports removed - using real database data only
 import { THREAD_COLORS, getThreadColorCSS, getRandomThreadColor } from "@/utils/colors";
 import { threads } from "@/actions/threads";
+import { getNotesForDashboard } from "@/utils/dashboard-data";
 
 export interface Props {
   onClose?: () => void;
@@ -17,33 +18,23 @@ export interface Props {
 
 const { onClose } = Astro.props;
 
-// Function to get the next available thread ID
-function getNextThreadId(): string {
-  // Get all existing thread IDs from sample data
-  const allThreads = [...SAMPLE_DATA.unorganizedThreads, ...SAMPLE_DATA.organizedThreads];
-  const existingThreadIds = allThreads.map(thread => parseInt(thread.id.toString().replace(/\D/g, '')) || 0);
-  
-  // Find the highest thread ID and add 1
-  const maxThreadId = Math.max(...existingThreadIds, 0);
-  const nextThreadId = maxThreadId + 1;
-  
-  // Format as T001, T002, etc.
-  return `T${nextThreadId.toString().padStart(3, '0')}`;
+// Get user ID from Clerk authentication
+const { userId } = Astro.locals.auth();
+console.log("NewThreadPanel: Using authenticated user ID:", userId);
+
+if (!userId) {
+  return Astro.redirect('/sign-in');
 }
 
-// Get recent notes for display
-function getRecentNotes() {
-  // Get the most recent notes from sample data
-  const allNotes = [...SAMPLE_DATA.unorganizedNotes, ...SAMPLE_DATA.threadNotes];
-  return allNotes.slice(0, 3); // Show top 3 most recent
+// Fetch recent notes from database
+let recentNotes: any[] = [];
+try {
+  recentNotes = await getNotesForDashboard(userId, 5); // Get 5 most recent notes
+  console.log("NewThreadPanel: Fetched recent notes:", recentNotes.length);
+} catch (error) {
+  console.error("Error fetching recent notes for NewThreadPanel:", error);
+  recentNotes = [];
 }
-
-const nextThreadId = getNextThreadId();
-const recentNotes = getRecentNotes();
-
-// Get user ID - use development fallback since middleware is disabled
-let userId: string = "dev_user_123"; // Development fallback
-console.log("NewThreadPanel: Using development user ID:", userId);
 ---
 
 <form 
@@ -247,14 +238,18 @@ console.log("NewThreadPanel: Using development user ID:", userId);
               <!-- Recent notes display -->
               <div id="recent-content" class="tab-content" data-tab-content="recent">
                 <div class="flex gap-3 items-start justify-start w-full overflow-x-auto">
-                  {recentNotes.map((note) => (
+                  {recentNotes.length > 0 ? recentNotes.map((note) => (
                     <CardFeat 
                       variant="Note"
-                      title={note.title}
-                      content={note.content}
+                      title={note.title || "Untitled Note"}
+                      content={note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "")}
                       class="shrink-0"
                     />
-                  ))}
+                  )) : (
+                    <div class="text-center py-4 text-gray-500 w-full">
+                      <p>No recent notes found. Create your first note to see it here!</p>
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -298,8 +293,6 @@ console.log("NewThreadPanel: Using development user ID:", userId);
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-
-    
     // Handle create thread button click
     const createBtn = document.getElementById('create-thread-btn');
     if (createBtn) {
@@ -314,46 +307,55 @@ console.log("NewThreadPanel: Using development user ID:", userId);
           // Alpine data not available
         }
         
-        // Check if we're in sample data mode
-        const isSampleDataMode = !window.location.search.includes('useRealData=true');
-        
-        // In sample data mode, show a message instead of creating a thread
-        if (isSampleDataMode) {
-          window.dispatchEvent(new CustomEvent('toast', {
-            detail: {
-              message: 'Thread creation disabled in sample data mode. Switch to Real DB mode to create threads.',
-              type: 'error'
-            }
-          }));
-          
-          // Reset form
-          if (alpineData) {
-            alpineData.title = '';
-            alpineData.selectedColor = 'paper';
-            alpineData.selectedType = 'Private';
-            alpineData.isSubmitting = false;
-          }
-          
-          return;
+        // Get title from Alpine.js data
+        let title = '';
+        if (alpineData?.title) {
+          title = alpineData.title.trim();
         }
         
-        if (!alpineData?.title?.trim()) {
+        // Fallback: try the visible input field
+        if (!title) {
+          const visibleInput = document.querySelector('input[type="text"][placeholder="Thread name"]') as HTMLInputElement;
+          if (visibleInput?.value) {
+            title = visibleInput.value.trim();
+          }
+        }
+        
+        
+        if (!title) {
           alert('Please enter a thread title');
           return;
         }
         
-        // Set submitting state
+        // Set submitting state and update hidden fields
         if (alpineData) {
           alpineData.isSubmitting = true;
+          // Ensure hidden fields are updated
+          const titleField = document.querySelector('input[name="title"]') as HTMLInputElement;
+          if (titleField) {
+            titleField.value = title;
+          }
         }
         
         const formData = new FormData(form);
+        
+        // Debug logging for form data
+        console.log('Thread form submission debug:', {
+          formAction: form.action,
+          formData: Object.fromEntries(formData.entries()),
+          title: title,
+          selectedColor: alpineData?.selectedColor,
+          selectedType: alpineData?.selectedType
+        });
         
         try {
           const response = await fetch(form.action, {
             method: 'POST',
             body: formData
           });
+          
+          console.log('Thread response status:', response.status);
+          console.log('Thread response ok:', response.ok);
           
           if (response.ok) {
             const contentType = response.headers.get('content-type');
@@ -367,6 +369,7 @@ console.log("NewThreadPanel: Using development user ID:", userId);
             }
             
             // Show success toast
+            console.log('Dispatching thread success toast:', result.success || 'Thread created successfully!');
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
                 message: result.success || 'Thread created successfully!',
@@ -392,7 +395,15 @@ console.log("NewThreadPanel: Using development user ID:", userId);
               alpineData.closePanel();
             }
             
-            // In real database mode, no refresh needed - data should update dynamically
+            // Refresh the dashboard content to show the new thread
+            const refreshButton = document.querySelector('button[hx-get="/dashboard"]');
+            if (refreshButton && typeof (window as any).htmx !== 'undefined') {
+              // Use HTMX to refresh just the dashboard content
+              (window as any).htmx.trigger(refreshButton, 'click');
+            } else {
+              // Fallback: reload the page
+              window.location.reload();
+            }
             
           } else {
             let errorMessage = 'Error creating thread';
@@ -406,6 +417,7 @@ console.log("NewThreadPanel: Using development user ID:", userId);
               // Could not parse error response
             }
             
+            console.log('Dispatching thread error toast:', errorMessage);
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
                 message: errorMessage,
@@ -418,6 +430,7 @@ console.log("NewThreadPanel: Using development user ID:", userId);
           }
         } catch (error) {
           console.error('Form submission error:', error);
+          console.log('Dispatching thread catch error toast: Error creating thread. Please try again.');
           window.dispatchEvent(new CustomEvent('toast', {
             detail: {
               message: 'Error creating thread. Please try again.',
@@ -467,5 +480,19 @@ console.log("NewThreadPanel: Using development user ID:", userId);
 
   .new-thread-panel .color-selection button[style*="background-color"]:active {
     transform: scale(0.95);
+  }
+
+  /* HTMX loading states */
+  .htmx-request #create-thread-btn {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .htmx-request #create-thread-btn span:first-child {
+    display: none;
+  }
+
+  .htmx-request #create-thread-btn span:last-child {
+    display: block;
   }
 </style>
