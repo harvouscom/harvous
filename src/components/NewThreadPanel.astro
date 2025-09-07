@@ -368,6 +368,14 @@ try {
               }
             }));
             
+            // Navigate to the newly created thread
+            if (result.thread && result.thread.id) {
+              // Small delay to show the toast before navigation
+              setTimeout(() => {
+                window.location.href = `/${result.thread.id}`;
+              }, 1000);
+            }
+            
             // Reset form
             if (alpineData) {
               alpineData.title = '';

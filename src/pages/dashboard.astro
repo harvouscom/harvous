@@ -236,7 +236,7 @@ const inboxItemCount = inboxCount;
                     {organizedContent.map(item => (
                       <div class={`content-item ${item.type}-item mb-3`}>
                         <a 
-                          href={item.type === 'thread' ? `/${item.id}` : `/${item.noteId}`}
+                          href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
                           class="block transition-transform duration-200 hover:scale-[1.002]"
                         >
                           {item.type === 'note' ? (
@@ -264,7 +264,7 @@ const inboxItemCount = inboxCount;
                       {organizedContent.filter(item => item.type === 'thread').map(item => (
                         <div class={`content-item ${item.type}-item mb-3`}>
                           <a 
-                            href={`/${item.id}`}
+                            href={`/${item.threadId}`}
                             class="block transition-transform duration-200 hover:scale-[1.002]"
                           >
                             <CardThread 
