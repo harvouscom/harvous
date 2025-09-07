@@ -9,7 +9,6 @@ import Toast from "./Toast-v2.astro";
 import SearchInput from "./SearchInput.astro";
 // Sample data imports removed - using real database data only
 import { THREAD_COLORS, getThreadColorCSS, getRandomThreadColor } from "@/utils/colors";
-import { threads } from "@/actions/threads";
 import { getNotesForDashboard } from "@/utils/dashboard-data";
 
 export interface Props {
@@ -38,7 +37,7 @@ try {
 ---
 
 <form 
-  action={threads.create}
+  action="/api/threads/create"
   method="POST"
   class="new-thread-panel h-full flex flex-col justify-between"
   x-data="{ 
@@ -297,7 +296,7 @@ try {
     const createBtn = document.getElementById('create-thread-btn');
     if (createBtn) {
       createBtn.addEventListener('click', async () => {
-        const form = document.querySelector('form');
+        const form = document.querySelector('.new-thread-panel') as HTMLFormElement;
         if (!form) return;
         
         let alpineData;
@@ -345,31 +344,23 @@ try {
           formData: Object.fromEntries(formData.entries()),
           title: title,
           selectedColor: alpineData?.selectedColor,
-          selectedType: alpineData?.selectedType
+          selectedType: alpineData?.selectedType,
+          formClass: form.className
         });
         
         try {
           const response = await fetch(form.action, {
             method: 'POST',
-            body: formData
+            body: formData,
+            credentials: 'include'
           });
           
-          console.log('Thread response status:', response.status);
-          console.log('Thread response ok:', response.ok);
+          console.log('Response status:', response.status);
           
           if (response.ok) {
-            const contentType = response.headers.get('content-type');
+            const result = await response.json();
+            console.log('Success result:', result);
             
-            let result;
-            if (contentType && contentType.includes('application/json')) {
-              result = await response.json();
-            } else {
-              // If not JSON, treat as success and show a generic message
-              result = { success: 'Thread created successfully!' };
-            }
-            
-            // Show success toast
-            console.log('Dispatching thread success toast:', result.success || 'Thread created successfully!');
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
                 message: result.success || 'Thread created successfully!',
@@ -377,66 +368,46 @@ try {
               }
             }));
             
-            // Clear localStorage
-            localStorage.removeItem('newThreadTitle');
-            localStorage.removeItem('newThreadColor');
-            localStorage.removeItem('newThreadType');
-            
             // Reset form
             if (alpineData) {
               alpineData.title = '';
               alpineData.selectedColor = 'paper';
               alpineData.selectedType = 'Private';
               alpineData.isSubmitting = false;
+              if (alpineData.closePanel) {
+                alpineData.closePanel();
+              }
             }
             
-            // Close panel using Alpine method
-            if (alpineData?.closePanel) {
-              alpineData.closePanel();
-            }
-            
-            // Refresh the dashboard content to show the new thread
-            const refreshButton = document.querySelector('button[hx-get="/dashboard"]');
-            if (refreshButton && typeof (window as any).htmx !== 'undefined') {
-              // Use HTMX to refresh just the dashboard content
-              (window as any).htmx.trigger(refreshButton, 'click');
-            } else {
-              // Fallback: reload the page
-              window.location.reload();
-            }
+            // Clear localStorage
+            localStorage.removeItem('newThreadTitle');
+            localStorage.removeItem('newThreadColor');
+            localStorage.removeItem('newThreadType');
             
           } else {
-            let errorMessage = 'Error creating thread';
-            try {
-              const contentType = response.headers.get('content-type');
-              if (contentType && contentType.includes('application/json')) {
-                const errorData = await response.json();
-                errorMessage = errorData.message || errorMessage;
-              }
-            } catch (e) {
-              // Could not parse error response
-            }
+            const error = await response.json();
+            console.error('Error response:', error);
             
-            console.log('Dispatching thread error toast:', errorMessage);
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
-                message: errorMessage,
+                message: error.error || 'Error creating thread',
                 type: 'error'
               }
             }));
+            
             if (alpineData) {
               alpineData.isSubmitting = false;
             }
           }
         } catch (error) {
-          console.error('Form submission error:', error);
-          console.log('Dispatching thread catch error toast: Error creating thread. Please try again.');
+          console.error('Fetch error:', error);
           window.dispatchEvent(new CustomEvent('toast', {
             detail: {
               message: 'Error creating thread. Please try again.',
               type: 'error'
             }
           }));
+          
           if (alpineData) {
             alpineData.isSubmitting = false;
           }
