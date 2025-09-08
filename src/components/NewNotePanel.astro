@@ -37,6 +37,7 @@ if (!userId) {
     selectedThread: localStorage.getItem('newNoteThread') || 'Unorganized',
     isOpen: false,
     isSubmitting: false,
+    nextNoteId: '#New',
     threadOptions: [
       {
         id: 'thread_unorganized',
@@ -116,11 +117,33 @@ if (!userId) {
     },
     async refreshThreads() {
       await this.loadThreads();
+    },
+    async loadNextNoteId() {
+      try {
+        console.log('Loading next note ID from API...');
+        const response = await fetch('/api/notes/next-id');
+        console.log('Next note ID API response status:', response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Loaded next note ID:', data);
+          this.nextNoteId = `#${data.formattedId}`;
+        } else {
+          console.error('Next note ID API request failed:', response.status, response.statusText);
+          this.nextNoteId = '#New';
+        }
+      } catch (error) {
+        console.error('Error loading next note ID:', error);
+        this.nextNoteId = '#New';
+      }
     }
   }"
   x-init="
     // Load threads from API
     loadThreads();
+    
+    // Load next note ID from API
+    loadNextNoteId();
     
     // Save form data to localStorage when it changes
     $watch('title', value => localStorage.setItem('newNoteTitle', value));
@@ -136,6 +159,8 @@ if (!userId) {
       localStorage.removeItem('newNoteTitle');
       localStorage.removeItem('newNoteThread');
       localStorage.removeItem('newNoteContent');
+      // Refresh the next note ID when panel opens
+      loadNextNoteId();
     });
     
     // Listen for new thread creation to refresh the dropdown
@@ -252,7 +277,7 @@ if (!userId) {
           <p class="leading-[normal] text-nowrap whitespace-pre">Today</p>
         </div>
         <div class="relative shrink-0">
-          <p class="leading-[normal] text-nowrap whitespace-pre" id="new-note-id">#New</p>
+          <p class="leading-[normal] text-nowrap whitespace-pre" id="new-note-id" x-text="nextNoteId">#New</p>
         </div>
       </div>
       
@@ -370,6 +395,10 @@ if (!userId) {
               alpineData.content = '';
               alpineData.selectedThread = 'Unorganized';
               alpineData.isSubmitting = false;
+              // Refresh the next note ID after successful creation
+              if (alpineData.loadNextNoteId) {
+                alpineData.loadNextNoteId();
+              }
               if (alpineData.closePanel) {
                 alpineData.closePanel();
               }
