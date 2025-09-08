@@ -24,8 +24,7 @@ if (!userId) {
   return Astro.redirect('/sign-in');
 }
 
-// Note: For now, using static thread options to avoid syntax errors
-// Dynamic thread loading can be added later via API calls
+// Note: Thread options will be loaded dynamically via API in x-init
 ---
 
 <form 
@@ -77,25 +76,73 @@ if (!userId) {
       this.isSubmitting = false;
       window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
     },
-    init() {
-      // Save form data to localStorage when it changes
-      this.$watch('title', value => localStorage.setItem('newNoteTitle', value));
-      this.$watch('content', value => localStorage.setItem('newNoteContent', value));
-      this.$watch('selectedThread', value => localStorage.setItem('newNoteThread', value));
-      
-      // Clear form when panel is opened
-      window.addEventListener('openNewNotePanel', () => {
-        this.title = '';
-        this.content = '';
-        this.selectedThread = 'Unorganized';
-        this.isSubmitting = false;
-        localStorage.removeItem('newNoteTitle');
-        localStorage.removeItem('newNoteThread');
-        localStorage.removeItem('newNoteContent');
-      });
+    async loadThreads() {
+      try {
+        console.log('Loading threads from API...');
+        const response = await fetch('/api/threads/list');
+        console.log('API response status:', response.status);
+        
+        if (response.ok) {
+          const threads = await response.json();
+          console.log('Loaded threads:', threads);
+          
+          this.threadOptions = threads.map(thread => ({
+            id: thread.id,
+            title: thread.title,
+            color: thread.color,
+            noteCount: thread.noteCount,
+            backgroundGradient: thread.backgroundGradient || `linear-gradient(180deg, var(--color-${thread.color || 'blessed-blue'}) 0%, var(--color-${thread.color || 'blessed-blue'}) 100%)`
+          }));
+          
+          // Ensure 'Unorganized' thread exists
+          const hasUnorganizedThread = this.threadOptions.some(thread => thread.title === 'Unorganized');
+          if (!hasUnorganizedThread) {
+            this.threadOptions.unshift({
+              id: 'thread_unorganized',
+              title: 'Unorganized',
+              color: null,
+              noteCount: 0,
+              backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+            });
+          }
+          
+          console.log('Final threadOptions:', this.threadOptions);
+        } else {
+          console.error('API request failed:', response.status, response.statusText);
+        }
+      } catch (error) {
+        console.error('Error loading threads:', error);
+      }
+    },
+    async refreshThreads() {
+      await this.loadThreads();
     }
   }"
-  x-init="init()"
+  x-init="
+    // Load threads from API
+    loadThreads();
+    
+    // Save form data to localStorage when it changes
+    $watch('title', value => localStorage.setItem('newNoteTitle', value));
+    $watch('content', value => localStorage.setItem('newNoteContent', value));
+    $watch('selectedThread', value => localStorage.setItem('newNoteThread', value));
+    
+    // Clear form when panel is opened
+    window.addEventListener('openNewNotePanel', () => {
+      title = '';
+      content = '';
+      selectedThread = 'Unorganized';
+      isSubmitting = false;
+      localStorage.removeItem('newNoteTitle');
+      localStorage.removeItem('newNoteThread');
+      localStorage.removeItem('newNoteContent');
+    });
+    
+    // Listen for new thread creation to refresh the dropdown
+    window.addEventListener('threadCreated', () => {
+      refreshThreads();
+    });
+  "
 
 >
   <!-- Hidden form fields -->

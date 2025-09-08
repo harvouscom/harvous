@@ -368,6 +368,11 @@ try {
               }
             }));
             
+            // Dispatch event to notify other components that a thread was created
+            window.dispatchEvent(new CustomEvent('threadCreated', {
+              detail: { thread: result.thread }
+            }));
+            
             // Navigate to the newly created thread
             if (result.thread && result.thread.id) {
               // Small delay to show the toast before navigation
