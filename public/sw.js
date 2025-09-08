@@ -5,9 +5,9 @@ const CACHE_NAME = 'harvous-cache-v1';
 const OFFLINE_URL = '/dashboard';
 
 // Resources to pre-cache for faster initial load
+// Note: Removed '/dashboard' to prevent auth conflicts - authenticated routes should use network-first
 const CRITICAL_ASSETS = [
   '/',
-  '/dashboard',
   '/favicon.svg',
   '/favicon.png',
   '/manifest.json',
@@ -15,8 +15,8 @@ const CRITICAL_ASSETS = [
 ];
 
 // Assets that need to be cached immediately for UI responsiveness
+// Note: Removed '/dashboard' to prevent auth conflicts - authenticated routes should use network-first
 const UI_CRITICAL_ASSETS = [
-  '/dashboard',
   '/dashboard/threads'
 ];
 
