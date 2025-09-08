@@ -199,6 +199,9 @@ let inboxCount: number = 0;
           backgroundGradient: `linear-gradient(180deg, var(--color-${threadData.color}) 0%, var(--color-${threadData.color}) 100%)`
         };
         
+        // Set threadNotes for template rendering
+        threadNotes = notesData;
+        
         pageTitle = threadData.title;
         pageContent = `${notesData.length} notes`;
       }
