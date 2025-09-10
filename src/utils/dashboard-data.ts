@@ -438,6 +438,7 @@ export async function getFeaturedContent(userId: string) {
       threadId: thread.id, // Full ID including prefix
       spaceId: thread.spaceId,
       lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
+      updatedAt: thread.updatedAt || thread.createdAt, // Keep actual timestamp for sorting
       isPrivate: !thread.isPublic,
       accentColor: getThreadColorCSS(thread.color),
     }));
@@ -452,6 +453,7 @@ export async function getFeaturedContent(userId: string) {
       threadId: note.threadId, // These are in unorganized thread
       spaceId: note.spaceId,
       lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
+      updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
     }));
 
     const unorganizedThreadItems = unorganizedThreads.map(thread => ({
@@ -463,16 +465,17 @@ export async function getFeaturedContent(userId: string) {
       threadId: thread.id, // Full ID including prefix
       spaceId: thread.spaceId,
       lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
+      updatedAt: thread.updatedAt || thread.createdAt, // Keep actual timestamp for sorting
       isPrivate: !thread.isPublic,
       accentColor: getThreadColorCSS(thread.color),
     }));
 
-    // Combine and sort by last updated
+    // Combine and sort by actual timestamp (newest first)
     const allFeatured = [...featuredThreads, ...featuredNotes, ...unorganizedThreadItems]
       .sort((a, b) => {
-        const aTime = new Date(a.lastUpdated).getTime();
-        const bTime = new Date(b.lastUpdated).getTime();
-        return bTime - aTime;
+        const aTime = new Date(a.updatedAt).getTime();
+        const bTime = new Date(b.updatedAt).getTime();
+        return bTime - aTime; // Newest first
       })
       .slice(0, 10); // Increased limit to include all items
 
@@ -500,6 +503,7 @@ export async function getContentItems(userId: string, limit = 20) {
       threadId: thread.id, // Full ID including prefix
       spaceId: thread.spaceId,
       lastUpdated: thread.lastUpdated,
+      updatedAt: thread.updatedAt || thread.createdAt, // Keep actual timestamp for sorting
       isPrivate: !thread.isPublic,
       accentColor: thread.accentColor,
     }));
@@ -513,14 +517,15 @@ export async function getContentItems(userId: string, limit = 20) {
       threadId: note.threadId,
       spaceId: note.spaceId,
       lastUpdated: note.lastUpdated,
+      updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
     }));
 
-    // Combine and sort by last updated
+    // Combine and sort by actual timestamp (newest first)
     const allItems = [...threadItems, ...noteItems]
       .sort((a, b) => {
-        const aTime = new Date(a.lastUpdated).getTime();
-        const bTime = new Date(b.lastUpdated).getTime();
-        return bTime - aTime;
+        const aTime = new Date(a.updatedAt).getTime();
+        const bTime = new Date(b.updatedAt).getTime();
+        return bTime - aTime; // Newest first
       })
       .slice(0, limit);
 
