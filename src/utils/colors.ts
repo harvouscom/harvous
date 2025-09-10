@@ -1,5 +1,6 @@
 // Thread color mapping utility
 export const THREAD_COLORS = [
+  "paper",           // var(--color-paper)
   "blessed-blue",    // var(--color-blessed-blue)
   "graceful-gold",   // var(--color-graceful-gold)
   "caring-coral",    // var(--color-caring-coral)
@@ -16,6 +17,7 @@ export function getThreadColorCSS(color: ThreadColor | string | null | undefined
   if (!color) return "var(--color-paper)"; // Paper color for null
   
   const colorMap: Record<string, string> = {
+    "paper": "var(--color-paper)",
     "blessed-blue": "var(--color-blessed-blue)",
     "graceful-gold": "var(--color-graceful-gold)",
     "caring-coral": "var(--color-caring-coral)",
@@ -25,7 +27,7 @@ export function getThreadColorCSS(color: ThreadColor | string | null | undefined
     "lovely-lavender": "var(--color-lovely-lavender)"
   };
   
-  return colorMap[color] || "var(--color-blessed-blue)";
+  return colorMap[color] || "var(--color-paper)";
 }
 
 // Convert thread color name to gradient for SpaceButton
