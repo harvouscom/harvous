@@ -389,6 +389,14 @@ if (!userId) {
               }
             }));
             
+            // Navigate to the newly created note
+            if (result.note && result.note.id) {
+              // Small delay to show the toast before navigation
+              setTimeout(() => {
+                window.location.href = `/${result.note.id}`;
+              }, 1000);
+            }
+            
             // Reset form
             if (alpineData) {
               alpineData.title = '';
