@@ -51,20 +51,6 @@ if (!userId) {
         backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
       }
     ],
-    getThreadGradientCSS(color) {
-      if (!color) return 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
-      const colorMap = {
-        'blessed-blue': 'var(--color-blessed-blue)',
-        'graceful-gold': 'var(--color-graceful-gold)',
-        'caring-coral': 'var(--color-caring-coral)',
-        'mindful-mint': 'var(--color-mindful-mint)',
-        'peaceful-pink': 'var(--color-peaceful-pink)',
-        'pleasant-peach': 'var(--color-pleasant-peach)',
-        'lovely-lavender': 'var(--color-lovely-lavender)'
-      };
-      const baseColor = colorMap[color] || 'var(--color-blessed-blue)';
-      return `linear-gradient(180deg, ${baseColor} 0%, ${baseColor} 100%)`;
-    },
     getSelectedThread() {
       return this.threadOptions.find(thread => thread.title === this.selectedThread) || this.threadOptions[0];
     },
@@ -97,7 +83,7 @@ if (!userId) {
             title: thread.title,
             color: thread.color,
             noteCount: thread.noteCount,
-            backgroundGradient: thread.backgroundGradient || `linear-gradient(180deg, var(--color-${thread.color || 'blessed-blue'}) 0%, var(--color-${thread.color || 'blessed-blue'}) 100%)`
+            backgroundGradient: thread.backgroundGradient
           }));
           
           // Ensure 'Unorganized' thread exists
