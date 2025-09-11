@@ -135,6 +135,29 @@ export const threads = {
         throw new Error("Authentication required");
       }
       try {
+        // Don't allow deleting the unorganized thread
+        if (id === 'thread_unorganized') {
+          throw new Error("Cannot delete the unorganized thread");
+        }
+
+        // Move all notes from this thread to the unorganized thread
+        // Note: The unorganized thread always exists by default (hidden from dashboard)
+
+        // Move all notes that have this thread as their primary threadId to unorganized
+        // (These are notes that are primarily in this thread)
+        await db.update(Notes)
+          .set({ 
+            threadId: 'thread_unorganized',
+            updatedAt: new Date()
+          })
+          .where(and(eq(Notes.threadId, id), eq(Notes.userId, userId)));
+
+        // Remove any NoteThreads relationships for this thread
+        // (These are notes that are in this thread via many-to-many relationship)
+        await db.delete(NoteThreads)
+          .where(eq(NoteThreads.threadId, id));
+
+        // Then delete the thread itself
         const deletedThread = await db.delete(Threads)
           .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
           .returning()
@@ -145,7 +168,7 @@ export const threads = {
         }
 
         return {
-          success: "Thread deleted successfully!",
+          success: "Thread deleted successfully! Notes have been moved to the Unorganized thread.",
           thread: deletedThread
         };
       } catch (error: any) {

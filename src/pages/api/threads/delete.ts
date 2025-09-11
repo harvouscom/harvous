@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Threads, Notes, eq, and } from 'astro:db';
+import { db, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
@@ -47,18 +47,31 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // First, delete all notes in this thread
-    await db.delete(Notes)
+    // Move all notes from this thread to the unorganized thread
+    // Note: The unorganized thread always exists by default (hidden from dashboard)
+
+    // Move all notes that have this thread as their primary threadId to unorganized
+    // (These are notes that are primarily in this thread)
+    await db.update(Notes)
+      .set({ 
+        threadId: 'thread_unorganized',
+        updatedAt: new Date()
+      })
       .where(and(eq(Notes.threadId, threadId), eq(Notes.userId, userId)));
+
+    // Remove any NoteThreads relationships for this thread
+    // (These are notes that are in this thread via many-to-many relationship)
+    await db.delete(NoteThreads)
+      .where(eq(NoteThreads.threadId, threadId));
 
     // Then delete the thread itself
     await db.delete(Threads)
       .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
 
-    console.log("Thread and associated notes deleted successfully:", threadId);
+    console.log("Thread deleted and notes moved to unorganized thread:", threadId);
 
     return new Response(JSON.stringify({ 
-      success: "Thread deleted successfully!",
+      success: "Thread deleted successfully! Notes have been moved to the Unorganized thread.",
       threadId: threadId
     }), {
       status: 200,

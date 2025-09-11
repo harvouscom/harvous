@@ -33,6 +33,16 @@ Harvous uses a hierarchical content organization system to help users structure 
   - Threads without a spaceId
 - **Organized Content**: Items assigned to spaces, shown in the "Full list" section
 
+### Thread Deletion Behavior
+
+When a thread is deleted, the system preserves all notes by moving them to the "Unorganized" thread:
+
+- **Primary Thread Notes**: Notes that have the deleted thread as their primary `threadId` are moved to the "Unorganized" thread
+- **Many-to-Many Relationships**: Notes that are in the deleted thread via the `NoteThreads` junction table have their relationship removed (but remain in other threads)
+- **Note Preservation**: No notes are ever deleted when a thread is deleted - they are always preserved and moved to "Unorganized"
+- **Unorganized Thread**: The "Unorganized" thread always exists by default (hidden from dashboard display)
+- **Protection**: The "Unorganized" thread itself cannot be deleted to prevent data loss
+
 ### Example Structure
 
 ```
@@ -60,6 +70,17 @@ Space: "For You" (count: 3) - Paper color
 - **Real-time Updates**: Content updates immediately after creation
 - **Data Persistence**: All notes, threads, and spaces are stored in the remote database
 - **User Isolation**: Each user only sees their own content
+
+### Database Schema & Relationships
+
+The system uses a hybrid approach for note-thread relationships:
+
+- **Primary Relationship**: Each note has a required `threadId` field pointing to its primary thread
+- **Many-to-Many Support**: `NoteThreads` junction table allows notes to belong to multiple threads
+- **Unorganized Thread**: Special thread with ID `thread_unorganized` serves as default for unassigned notes
+- **Thread Deletion Logic**: When a thread is deleted, notes with that thread as primary `threadId` are moved to unorganized thread
+- **Junction Cleanup**: Many-to-many relationships are removed from `NoteThreads` table when threads are deleted
+- **Data Integrity**: No notes are ever deleted - they are always preserved and moved to unorganized thread
 
 ### Color System
 
@@ -147,12 +168,23 @@ If the dashboard appears empty or doesn't load content:
 - **Panels opening by default**: Clear browser localStorage or check panel state initialization
 - **Empty dashboard**: Check console for database connection errors
 
+#### Thread Deletion Issues
+
+- **SQLITE_CONSTRAINT_PRIMARYKEY Error**: This occurs when trying to create a thread that already exists. The "Unorganized" thread always exists by default, so deletion logic should not attempt to create it
+- **Notes Not Moving to Unorganized**: Ensure the unorganized thread exists and has the correct ID `thread_unorganized`
+- **Many-to-Many Relationship Issues**: Check that `NoteThreads` junction table relationships are properly cleaned up when threads are deleted
+
 ### Key Files
 
 - `src/utils/dashboard-data.ts`: Database queries for dashboard content
 - `src/pages/dashboard.astro`: Main dashboard with inbox/organized content
 - `src/pages/[id].astro`: Dynamic routing for threads, spaces, and notes
 - `src/components/CardStack.astro`: Header component with color logic
+- `src/pages/api/threads/delete.ts`: Thread deletion API with note preservation logic
+- `src/actions/threads.ts`: Thread actions including safe deletion
+- `src/components/SquareButton.astro`: Context-aware button with menu functionality
+- `src/components/ContextMoreMenu.astro`: Context-aware menu for different content types
+- `src/utils/menu-options.ts`: Utility for determining available menu options
 
 ## Alpine.js Integration
 
@@ -200,6 +232,18 @@ The Alpine.js documentation provides comprehensive guidance on:
 - **Delete Functionality**: Implements erase actions with API calls and toast notifications
 - **Async Operations**: Properly handles async/await for API requests within Alpine.js
 - **Event System**: Dispatches custom events for edit actions and toast notifications
+
+### SquareButton Component Context-Aware Menus
+
+The SquareButton component supports context-aware menus through the `ContextMoreMenu` component:
+
+- **Content Type Detection**: Automatically shows appropriate menu options based on `contentType` prop (thread/note/space/dashboard)
+- **Dynamic Menu Options**: Uses `getMenuOptions()` utility to determine which actions are available for each content type
+- **Thread Deletion**: Includes "Erase Thread" option that safely moves notes to unorganized thread
+- **Note Deletion**: Includes "Erase Note" option for individual note removal
+- **Space Deletion**: Includes "Erase Space" option for space removal
+- **Edit Actions**: Provides edit options for threads, notes, and spaces
+- **Menu Positioning**: Automatically positions menus to avoid screen overflow
 
 ### Alpine.js Setup
 
