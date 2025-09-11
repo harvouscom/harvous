@@ -13,6 +13,7 @@ import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpaces
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
+import { fade } from 'astro:transitions';
 // Get user ID from Clerk authentication
 const { userId } = Astro.locals.auth();
 console.log("Dashboard: Using authenticated user ID:", userId);
@@ -160,7 +161,7 @@ const inboxItemCount = inboxCount;
   </div>
 
   <!-- Main Column -->
-  <div slot="main" class="h-full" id="dashboard-content">
+  <div slot="main" class="h-full" id="dashboard-content" transition:animate={fade({ duration: '0.1s' })}>
           <div class="flex flex-col h-full">
             
             <!-- Content List -->
