@@ -7,9 +7,10 @@ import { shouldShowMoreButton } from "@/utils/menu-options";
 export interface Props {
   contentType?: "thread" | "note" | "space" | "dashboard";
   contentId?: string;
+  currentThread?: any;
 }
 
-const { contentType = "dashboard", contentId } = Astro.props;
+const { contentType = "dashboard", contentId, currentThread } = Astro.props;
 const showMoreButton = shouldShowMoreButton(contentType);
 ---
 
@@ -56,7 +57,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
   
   <!-- New Note Panel -->
   <div x-show="showNewNotePanel" class="w-full">
-    <NewNotePanel />
+    <NewNotePanel currentThread={currentThread} />
   </div>
   
   <!-- New Thread Panel -->

@@ -188,6 +188,7 @@ let inboxCount: number = 0;
       ]);
       
       if (threadData) {
+        // console.log("Thread page: Found thread data:", threadData);
         content = {
           id: threadData.id,
           title: threadData.title,
@@ -204,12 +205,15 @@ let inboxCount: number = 0;
           noteCount: notesData.length,
           backgroundGradient: `linear-gradient(180deg, var(--color-${threadData.color}) 0%, var(--color-${threadData.color}) 100%)`
         };
+        // console.log("Thread page: Set currentThread:", currentThread);
         
         // Set threadNotes for template rendering
         threadNotes = notesData;
         
         pageTitle = threadData.title;
         pageContent = `${notesData.length} notes`;
+      } else {
+        // console.log("Thread page: Thread not found for ID:", id);
       }
     } else if (isNote) {
       // Fetch note from database
@@ -441,6 +445,6 @@ if (!content) {
 
   <!-- Mobile Additional -->
   <div slot="mobile-additional">
-    <MobileAdditional contentType={contentType} contentId={id} />
+    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} />
   </div>
 </Layout>

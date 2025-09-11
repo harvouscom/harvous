@@ -12,13 +12,15 @@ import { getAllThreadsWithCounts } from "@/utils/dashboard-data";
 
 export interface Props {
   onClose?: () => void;
+  currentThread?: any;
 }
 
-const { onClose } = Astro.props;
+const { onClose, currentThread } = Astro.props;
 
 // Get user ID from Clerk authentication
 const { userId } = Astro.locals.auth();
 console.log("NewNotePanel: Using authenticated user ID:", userId);
+// console.log("NewNotePanel: Current thread data:", currentThread);
 
 if (!userId) {
   return Astro.redirect('/sign-in');
@@ -31,6 +33,8 @@ if (!userId) {
   action="/api/notes/create"
   method="POST"
   class="new-note-panel h-full flex flex-col justify-between"
+  data-current-thread-title={currentThread?.title || ''}
+  data-current-thread-id={currentThread?.id || ''}
   x-data="{ 
     title: localStorage.getItem('newNoteTitle') || '',
     content: localStorage.getItem('newNoteContent') || '',
@@ -86,6 +90,7 @@ if (!userId) {
         if (response.ok) {
           const threads = await response.json();
           console.log('Loaded threads:', threads);
+          console.log('Thread count:', threads.length);
           
           this.threadOptions = threads.map(thread => ({
             id: thread.id,
@@ -139,11 +144,11 @@ if (!userId) {
     }
   }"
   x-init="
-    // Load threads from API
-    loadThreads();
-    
     // Load next note ID from API
     loadNextNoteId();
+    
+    // Load threads from API
+    loadThreads();
     
     // Save form data to localStorage when it changes
     $watch('title', value => localStorage.setItem('newNoteTitle', value));
@@ -154,18 +159,32 @@ if (!userId) {
     window.addEventListener('openNewNotePanel', () => {
       title = '';
       content = '';
-      selectedThread = 'Unorganized';
       isSubmitting = false;
       localStorage.removeItem('newNoteTitle');
-      localStorage.removeItem('newNoteThread');
       localStorage.removeItem('newNoteContent');
+      
       // Refresh the next note ID when panel opens
       loadNextNoteId();
+      
+      // Re-apply smart pre-selection when panel opens (in case data attributes changed)
+      setTimeout(() => {
+        const currentThreadTitle = $el.dataset.currentThreadTitle;
+        if (currentThreadTitle) {
+          selectedThread = currentThreadTitle;
+          localStorage.setItem('newNoteThread', currentThreadTitle);
+        }
+      }, 100); // Small delay to ensure data attributes are set
     });
     
     // Listen for new thread creation to refresh the dropdown
-    window.addEventListener('threadCreated', () => {
-      refreshThreads();
+    window.addEventListener('threadCreated', (event) => {
+      refreshThreads().then(() => {
+        // If a new thread was created, pre-select it
+        if (event.detail && event.detail.thread && event.detail.thread.title) {
+          selectedThread = event.detail.thread.title;
+          localStorage.setItem('newNoteThread', event.detail.thread.title);
+        }
+      });
     });
   "
 
@@ -317,9 +336,26 @@ if (!userId) {
           const urlParams = new URLSearchParams(window.location.search);
           const activeThreadElement = document.querySelector('[data-active-thread]') as HTMLElement;
           const activeThread = urlParams.get('thread') || activeThreadElement?.dataset.activeThread;
+          
+          // Check for current thread from data attribute (smart pre-selection)
+          const currentThreadTitle = form.dataset.currentThreadTitle;
+          
+          console.log('DOMContentLoaded script - activeThread:', activeThread);
+          console.log('DOMContentLoaded script - currentThreadTitle:', currentThreadTitle);
+          console.log('DOMContentLoaded script - stored thread:', localStorage.getItem('newNoteThread'));
+          console.log('DOMContentLoaded script - form dataset:', form.dataset);
+          
           if (activeThread) {
             alpineData.selectedThread = activeThread;
             localStorage.setItem('newNoteThread', activeThread);
+            console.log('DOMContentLoaded script - Set to activeThread:', activeThread);
+          } else if (currentThreadTitle && !localStorage.getItem('newNoteThread')) {
+            // Only use current thread if no stored preference
+            alpineData.selectedThread = currentThreadTitle;
+            localStorage.setItem('newNoteThread', currentThreadTitle);
+            console.log('DOMContentLoaded script - Set to currentThreadTitle:', currentThreadTitle);
+          } else {
+            console.log('DOMContentLoaded script - No pre-selection applied');
           }
         } catch (e) {
           console.log('Could not get active thread from URL');
