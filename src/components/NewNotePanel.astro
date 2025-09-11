@@ -152,29 +152,16 @@ if (!userId) {
       // Refresh the next note ID when panel opens
       loadNextNoteId();
       
-      // Smart pre-selection: check current URL to determine thread context
+      // Trigger pre-selection logic when panel opens
       setTimeout(() => {
-        const currentPath = window.location.pathname;
-        if (currentPath.includes('/thread_')) {
-          // Try to get thread title from the page h1 element
-          const threadTitleElement = document.querySelector('h1');
-          if (threadTitleElement && threadTitleElement.textContent) {
-            const threadTitle = threadTitleElement.textContent.trim();
-            if (threadTitle && threadTitle !== 'Dashboard') {
-              selectedThread = threadTitle;
-              localStorage.setItem('newNoteThread', threadTitle);
-              return;
-            }
-          }
+        // Call the global updateThreadSelection function directly
+        if (typeof window.updateThreadSelection === 'function') {
+          console.log('🚀 openNewNotePanel - calling global updateThreadSelection');
+          window.updateThreadSelection();
+        } else {
+          console.log('🚀 openNewNotePanel - global updateThreadSelection not available yet');
         }
-        
-        // Fallback to data attribute if available
-        const currentThreadTitle = $el.dataset.currentThreadTitle;
-        if (currentThreadTitle) {
-          selectedThread = currentThreadTitle;
-          localStorage.setItem('newNoteThread', currentThreadTitle);
-        }
-      }, 200); // Delay to ensure page content is loaded
+      }, 100);
     });
     
     // Listen for new thread creation to refresh the dropdown
@@ -188,27 +175,6 @@ if (!userId) {
       });
     });
     
-    // Listen for navigation changes to update current thread
-    window.addEventListener('popstate', () => {
-      // When user navigates (back/forward), update the current thread
-      setTimeout(() => {
-        const currentPath = window.location.pathname;
-        if (currentPath.includes('/thread_')) {
-          const threadTitleElement = document.querySelector('h1');
-          if (threadTitleElement && threadTitleElement.textContent) {
-            const threadTitle = threadTitleElement.textContent.trim();
-            if (threadTitle && threadTitle !== 'Dashboard') {
-              selectedThread = threadTitle;
-              localStorage.setItem('newNoteThread', threadTitle);
-            }
-          }
-        } else if (currentPath === '/dashboard' || currentPath === '/') {
-          // If on dashboard, default to Unorganized
-          selectedThread = 'Unorganized';
-          localStorage.setItem('newNoteThread', 'Unorganized');
-        }
-      }, 100);
-    });
   "
 
 >
@@ -349,44 +315,165 @@ if (!userId) {
 <Toast />
 
 <script>
-  // Handle URL thread detection after component loads
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-      const form = document.querySelector('.new-note-panel') as any;
-      if (form && form.__x && form.__x.$data) {
-        const alpineData = form.__x.$data;
-        try {
-          const urlParams = new URLSearchParams(window.location.search);
-          const activeThreadElement = document.querySelector('[data-active-thread]') as HTMLElement;
-          const activeThread = urlParams.get('thread') || activeThreadElement?.dataset.activeThread;
-          
-          // Check for current thread from data attribute (smart pre-selection)
-          const currentThreadTitle = form.dataset.currentThreadTitle;
-          
-          console.log('DOMContentLoaded script - activeThread:', activeThread);
-          console.log('DOMContentLoaded script - currentThreadTitle:', currentThreadTitle);
-          console.log('DOMContentLoaded script - stored thread:', localStorage.getItem('newNoteThread'));
-          console.log('DOMContentLoaded script - form dataset:', form.dataset);
-          
-          if (activeThread) {
-            alpineData.selectedThread = activeThread;
-            localStorage.setItem('newNoteThread', activeThread);
-            console.log('DOMContentLoaded script - Set to activeThread:', activeThread);
-          } else if (currentThreadTitle && !localStorage.getItem('newNoteThread')) {
-            // Only use current thread if no stored preference
-            alpineData.selectedThread = currentThreadTitle;
-            localStorage.setItem('newNoteThread', currentThreadTitle);
-            console.log('DOMContentLoaded script - Set to currentThreadTitle:', currentThreadTitle);
-          } else {
-            console.log('DOMContentLoaded script - No pre-selection applied');
-          }
-        } catch (e) {
-          console.log('Could not get active thread from URL');
+  // Following Astro MCP best practices for View Transitions lifecycle events
+  // Using astro:after-swap for immediate DOM access after content swap
+  document.addEventListener('astro:after-swap', () => {
+    console.log('🔥 astro:after-swap event fired!');
+    console.log('🔥 astro:after-swap - current path:', window.location.pathname);
+    updateThreadSelection();
+  });
+  
+  // Also listen to astro:page-load as backup (runs after scripts are executed)
+  document.addEventListener('astro:page-load', () => {
+    console.log('🔥 astro:page-load event fired!');
+    console.log('🔥 astro:page-load - current path:', window.location.pathname);
+    // Use a small delay to ensure Alpine.js is fully initialized
+    setTimeout(updateThreadSelection, 100);
+  });
+  
+  // Also listen to popstate for browser back/forward navigation
+  window.addEventListener('popstate', () => {
+    console.log('🔥 popstate event fired!');
+    console.log('🔥 popstate - current path:', window.location.pathname);
+    setTimeout(updateThreadSelection, 100);
+  });
+  
+  
+  // Centralized function to update thread selection following Alpine.js best practices
+  function updateThreadSelection(attempt = 1) {
+    const currentPath = window.location.pathname;
+    console.log(`🔥 updateThreadSelection - attempt ${attempt} - currentPath:`, currentPath);
+    
+    // Find the NewNotePanel form element
+    const form = document.querySelector('.new-note-panel') as any;
+    if (!form) {
+      console.log(`🔥 updateThreadSelection - attempt ${attempt} - form not found`);
+      if (attempt < 5) {
+        setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
+      }
+      return;
+    }
+    
+    console.log(`🔥 updateThreadSelection - attempt ${attempt} - form.dataset.currentThreadTitle:`, form.dataset.currentThreadTitle);
+    
+    // Get Alpine.js data using proper Alpine.js API
+    let alpineData;
+    try {
+      // Use Alpine's $data method for proper data access
+      alpineData = (window as any).Alpine?.$data(form);
+    } catch (e) {
+      console.log(`🔥 updateThreadSelection - attempt ${attempt} - Alpine data not available:`, e);
+      if (attempt < 5) {
+        setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
+      }
+      return;
+    }
+    
+    if (!alpineData) {
+      console.log(`🔥 updateThreadSelection - attempt ${attempt} - Alpine data not available`);
+      if (attempt < 5) {
+        setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
+      }
+      return;
+    }
+    
+    let selectedThread = null;
+    let updated = false;
+    
+    if (currentPath.includes('/thread_')) {
+      // For thread pages, get title from CardStack header (p element)
+      const threadTitleElement = document.querySelector('div[style*="background-color"] p');
+      console.log(`🔥 updateThreadSelection - attempt ${attempt} - threadTitleElement:`, threadTitleElement?.textContent);
+      if (threadTitleElement && threadTitleElement.textContent) {
+        const threadTitle = threadTitleElement.textContent.trim();
+        if (threadTitle && threadTitle !== 'Dashboard') {
+          selectedThread = threadTitle;
+          updated = true;
         }
       }
-    }, 100);
+    } else if (currentPath.includes('/note_')) {
+      // For note pages, use data attribute from currentThread prop
+      const currentThreadTitle = form.dataset.currentThreadTitle;
+      console.log(`🔥 updateThreadSelection - attempt ${attempt} - note page, currentThreadTitle:`, currentThreadTitle);
+      if (currentThreadTitle) {
+        selectedThread = currentThreadTitle;
+        updated = true;
+      }
+    } else if (currentPath === '/dashboard' || currentPath === '/') {
+      // If on dashboard, default to Unorganized
+      selectedThread = 'Unorganized';
+      updated = true;
+    }
+    
+    // Update Alpine.js data if we found a thread
+    if (selectedThread && updated) {
+      console.log(`🔥 updateThreadSelection - attempt ${attempt} - Setting selectedThread to:`, selectedThread);
+      alpineData.selectedThread = selectedThread;
+      localStorage.setItem('newNoteThread', selectedThread);
+    } else if (!updated && attempt < 5) {
+      console.log(`🔥 updateThreadSelection - attempt ${attempt} - no update made, trying again`);
+      setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
+    } else if (updated) {
+      console.log(`🔥 updateThreadSelection - attempt ${attempt} - successfully updated!`);
+    }
+  }
+  
+  // Make the function available globally
+  (window as any).updateThreadSelection = updateThreadSelection;
+  
+  // MutationObserver for dynamic attribute changes (following Alpine.js best practices)
+  let observer: MutationObserver | null = null;
+  
+  function setupMutationObserver() {
+    if (observer) {
+      observer.disconnect();
+    }
+    
+    const form = document.querySelector('.new-note-panel');
+    if (!form) return;
+    
+    observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-current-thread-title') {
+          const currentPath = window.location.pathname;
+          const currentThreadTitle = (mutation.target as any).dataset.currentThreadTitle;
+          console.log('🔄 MutationObserver - data-current-thread-title changed:', currentThreadTitle);
+          console.log('🔄 MutationObserver - currentPath:', currentPath);
+          
+          if (currentPath.includes('/note_') && currentThreadTitle) {
+            // Get Alpine.js data using proper API
+            let alpineData;
+            try {
+              alpineData = (window as any).Alpine?.$data(mutation.target);
+            } catch (e) {
+              console.log('Alpine data not available:', e);
+              return;
+            }
+            
+            if (alpineData) {
+              console.log('🔄 MutationObserver - Setting selectedThread to:', currentThreadTitle);
+              alpineData.selectedThread = currentThreadTitle;
+              localStorage.setItem('newNoteThread', currentThreadTitle);
+            }
+          }
+        }
+      });
+    });
+    
+    // Start observing the form element for attribute changes
+    observer.observe(form, {
+      attributes: true,
+      attributeFilter: ['data-current-thread-title']
+    });
+  }
+  
+  // Setup mutation observer following Astro best practices
+  document.addEventListener('DOMContentLoaded', setupMutationObserver);
+  document.addEventListener('astro:after-swap', () => {
+    setTimeout(setupMutationObserver, 50);
   });
 </script>
+
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {

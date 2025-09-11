@@ -11,6 +11,7 @@ import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanel from "@/components/NewNotePanel.astro";
 import NewThreadPanel from "@/components/NewThreadPanel.astro";
 import { shouldShowMoreButton } from "@/utils/menu-options";
+import { ClientRouter } from "astro:transitions";
 
 interface Props {
   classNames?: string;
@@ -40,6 +41,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
     <link rel="apple-touch-icon" href="/favicon.png" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    
+    <!-- Enable View Transitions for client-side navigation -->
+    <ClientRouter />
     
     <!-- Critical CSS inlined for faster first paint -->
     <style>
