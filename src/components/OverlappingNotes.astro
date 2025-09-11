@@ -9,8 +9,8 @@ const {
   class: className = "" 
 } = Astro.props;
 
-// Performance safeguard: limit to maximum 16 notes
-const maxNotes = Math.min(count, 16);
+// Performance safeguard: limit to maximum 26 notes
+const maxNotes = Math.min(count, 26);
 ---
 
 <style>
@@ -31,6 +31,16 @@ const maxNotes = Math.min(count, 16);
   :global(.card-feat-container:hover) .stagger-note:nth-child(14) { animation: staggerHover 0.6s ease-in-out 0.65s forwards; }
   :global(.card-feat-container:hover) .stagger-note:nth-child(15) { animation: staggerHover 0.6s ease-in-out 0.7s forwards; }
   :global(.card-feat-container:hover) .stagger-note:nth-child(16) { animation: staggerHover 0.6s ease-in-out 0.75s forwards; }
+  :global(.card-feat-container:hover) .stagger-note:nth-child(17) { animation: staggerHover 0.6s ease-in-out 0.8s forwards; }
+  :global(.card-feat-container:hover) .stagger-note:nth-child(18) { animation: staggerHover 0.6s ease-in-out 0.85s forwards; }
+  :global(.card-feat-container:hover) .stagger-note:nth-child(19) { animation: staggerHover 0.6s ease-in-out 0.9s forwards; }
+  :global(.card-feat-container:hover) .stagger-note:nth-child(20) { animation: staggerHover 0.6s ease-in-out 0.95s forwards; }
+  :global(.card-feat-container:hover) .stagger-note:nth-child(21) { animation: staggerHover 0.6s ease-in-out 1s forwards; }
+  :global(.card-feat-container:hover) .stagger-note:nth-child(22) { animation: staggerHover 0.6s ease-in-out 1.05s forwards; }
+  :global(.card-feat-container:hover) .stagger-note:nth-child(23) { animation: staggerHover 0.6s ease-in-out 1.1s forwards; }
+  :global(.card-feat-container:hover) .stagger-note:nth-child(24) { animation: staggerHover 0.6s ease-in-out 1.15s forwards; }
+  :global(.card-feat-container:hover) .stagger-note:nth-child(25) { animation: staggerHover 0.6s ease-in-out 1.2s forwards; }
+  :global(.card-feat-container:hover) .stagger-note:nth-child(26) { animation: staggerHover 0.6s ease-in-out 1.25s forwards; }
 
   :global(.card-note-container:hover) .stagger-note:nth-child(1) { animation: staggerHover 0.6s ease-in-out 0s forwards; }
   :global(.card-note-container:hover) .stagger-note:nth-child(2) { animation: staggerHover 0.6s ease-in-out 0.05s forwards; }
@@ -48,6 +58,16 @@ const maxNotes = Math.min(count, 16);
   :global(.card-note-container:hover) .stagger-note:nth-child(14) { animation: staggerHover 0.6s ease-in-out 0.65s forwards; }
   :global(.card-note-container:hover) .stagger-note:nth-child(15) { animation: staggerHover 0.6s ease-in-out 0.7s forwards; }
   :global(.card-note-container:hover) .stagger-note:nth-child(16) { animation: staggerHover 0.6s ease-in-out 0.75s forwards; }
+  :global(.card-note-container:hover) .stagger-note:nth-child(17) { animation: staggerHover 0.6s ease-in-out 0.8s forwards; }
+  :global(.card-note-container:hover) .stagger-note:nth-child(18) { animation: staggerHover 0.6s ease-in-out 0.85s forwards; }
+  :global(.card-note-container:hover) .stagger-note:nth-child(19) { animation: staggerHover 0.6s ease-in-out 0.9s forwards; }
+  :global(.card-note-container:hover) .stagger-note:nth-child(20) { animation: staggerHover 0.6s ease-in-out 0.95s forwards; }
+  :global(.card-note-container:hover) .stagger-note:nth-child(21) { animation: staggerHover 0.6s ease-in-out 1s forwards; }
+  :global(.card-note-container:hover) .stagger-note:nth-child(22) { animation: staggerHover 0.6s ease-in-out 1.05s forwards; }
+  :global(.card-note-container:hover) .stagger-note:nth-child(23) { animation: staggerHover 0.6s ease-in-out 1.1s forwards; }
+  :global(.card-note-container:hover) .stagger-note:nth-child(24) { animation: staggerHover 0.6s ease-in-out 1.15s forwards; }
+  :global(.card-note-container:hover) .stagger-note:nth-child(25) { animation: staggerHover 0.6s ease-in-out 1.2s forwards; }
+  :global(.card-note-container:hover) .stagger-note:nth-child(26) { animation: staggerHover 0.6s ease-in-out 1.25s forwards; }
 
   :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(1) { animation: staggerHover 0.6s ease-in-out 0s forwards; }
   :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(2) { animation: staggerHover 0.6s ease-in-out 0.05s forwards; }
@@ -65,6 +85,16 @@ const maxNotes = Math.min(count, 16);
   :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(14) { animation: staggerHover 0.6s ease-in-out 0.65s forwards; }
   :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(15) { animation: staggerHover 0.6s ease-in-out 0.7s forwards; }
   :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(16) { animation: staggerHover 0.6s ease-in-out 0.75s forwards; }
+  :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(17) { animation: staggerHover 0.6s ease-in-out 0.8s forwards; }
+  :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(18) { animation: staggerHover 0.6s ease-in-out 0.85s forwards; }
+  :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(19) { animation: staggerHover 0.6s ease-in-out 0.9s forwards; }
+  :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(20) { animation: staggerHover 0.6s ease-in-out 0.95s forwards; }
+  :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(21) { animation: staggerHover 0.6s ease-in-out 1s forwards; }
+  :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(22) { animation: staggerHover 0.6s ease-in-out 1.05s forwards; }
+  :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(23) { animation: staggerHover 0.6s ease-in-out 1.1s forwards; }
+  :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(24) { animation: staggerHover 0.6s ease-in-out 1.15s forwards; }
+  :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(25) { animation: staggerHover 0.6s ease-in-out 1.2s forwards; }
+  :global(.overlapping-notes-demo:hover) .stagger-note:nth-child(26) { animation: staggerHover 0.6s ease-in-out 1.25s forwards; }
 
   :global(.card-thread-container:hover) .stagger-note:nth-child(1) { animation: staggerHover 0.6s ease-in-out 0s forwards; }
   :global(.card-thread-container:hover) .stagger-note:nth-child(2) { animation: staggerHover 0.6s ease-in-out 0.05s forwards; }
@@ -82,6 +112,16 @@ const maxNotes = Math.min(count, 16);
   :global(.card-thread-container:hover) .stagger-note:nth-child(14) { animation: staggerHover 0.6s ease-in-out 0.65s forwards; }
   :global(.card-thread-container:hover) .stagger-note:nth-child(15) { animation: staggerHover 0.6s ease-in-out 0.7s forwards; }
   :global(.card-thread-container:hover) .stagger-note:nth-child(16) { animation: staggerHover 0.6s ease-in-out 0.75s forwards; }
+  :global(.card-thread-container:hover) .stagger-note:nth-child(17) { animation: staggerHover 0.6s ease-in-out 0.8s forwards; }
+  :global(.card-thread-container:hover) .stagger-note:nth-child(18) { animation: staggerHover 0.6s ease-in-out 0.85s forwards; }
+  :global(.card-thread-container:hover) .stagger-note:nth-child(19) { animation: staggerHover 0.6s ease-in-out 0.9s forwards; }
+  :global(.card-thread-container:hover) .stagger-note:nth-child(20) { animation: staggerHover 0.6s ease-in-out 0.95s forwards; }
+  :global(.card-thread-container:hover) .stagger-note:nth-child(21) { animation: staggerHover 0.6s ease-in-out 1s forwards; }
+  :global(.card-thread-container:hover) .stagger-note:nth-child(22) { animation: staggerHover 0.6s ease-in-out 1.05s forwards; }
+  :global(.card-thread-container:hover) .stagger-note:nth-child(23) { animation: staggerHover 0.6s ease-in-out 1.1s forwards; }
+  :global(.card-thread-container:hover) .stagger-note:nth-child(24) { animation: staggerHover 0.6s ease-in-out 1.15s forwards; }
+  :global(.card-thread-container:hover) .stagger-note:nth-child(25) { animation: staggerHover 0.6s ease-in-out 1.2s forwards; }
+  :global(.card-thread-container:hover) .stagger-note:nth-child(26) { animation: staggerHover 0.6s ease-in-out 1.25s forwards; }
 </style>
 
 <div class={`flex items-center -space-x-[100px] overlapping-notes-container ${className}`}>
