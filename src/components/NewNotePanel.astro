@@ -152,14 +152,29 @@ if (!userId) {
       // Refresh the next note ID when panel opens
       loadNextNoteId();
       
-      // Re-apply smart pre-selection when panel opens (in case data attributes changed)
+      // Smart pre-selection: check current URL to determine thread context
       setTimeout(() => {
+        const currentPath = window.location.pathname;
+        if (currentPath.includes('/thread_')) {
+          // Try to get thread title from the page h1 element
+          const threadTitleElement = document.querySelector('h1');
+          if (threadTitleElement && threadTitleElement.textContent) {
+            const threadTitle = threadTitleElement.textContent.trim();
+            if (threadTitle && threadTitle !== 'Dashboard') {
+              selectedThread = threadTitle;
+              localStorage.setItem('newNoteThread', threadTitle);
+              return;
+            }
+          }
+        }
+        
+        // Fallback to data attribute if available
         const currentThreadTitle = $el.dataset.currentThreadTitle;
         if (currentThreadTitle) {
           selectedThread = currentThreadTitle;
           localStorage.setItem('newNoteThread', currentThreadTitle);
         }
-      }, 100); // Small delay to ensure data attributes are set
+      }, 200); // Delay to ensure page content is loaded
     });
     
     // Listen for new thread creation to refresh the dropdown
@@ -171,6 +186,28 @@ if (!userId) {
           localStorage.setItem('newNoteThread', event.detail.thread.title);
         }
       });
+    });
+    
+    // Listen for navigation changes to update current thread
+    window.addEventListener('popstate', () => {
+      // When user navigates (back/forward), update the current thread
+      setTimeout(() => {
+        const currentPath = window.location.pathname;
+        if (currentPath.includes('/thread_')) {
+          const threadTitleElement = document.querySelector('h1');
+          if (threadTitleElement && threadTitleElement.textContent) {
+            const threadTitle = threadTitleElement.textContent.trim();
+            if (threadTitle && threadTitle !== 'Dashboard') {
+              selectedThread = threadTitle;
+              localStorage.setItem('newNoteThread', threadTitle);
+            }
+          }
+        } else if (currentPath === '/dashboard' || currentPath === '/') {
+          // If on dashboard, default to Unorganized
+          selectedThread = 'Unorganized';
+          localStorage.setItem('newNoteThread', 'Unorganized');
+        }
+      }, 100);
     });
   "
 
