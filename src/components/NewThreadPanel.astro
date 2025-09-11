@@ -291,18 +291,31 @@ try {
 <Toast />
 
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
+  function initThreadCreation() {
+    console.log('NewThreadPanel: Initializing thread creation functionality...');
+    
+    // Remove existing listeners to prevent duplicates
+    const existingBtn = document.getElementById('create-thread-btn');
+    if (existingBtn) {
+      const newBtn = existingBtn.cloneNode(true);
+      existingBtn.parentNode?.replaceChild(newBtn, existingBtn);
+    }
+    
     // Handle create thread button click
     const createBtn = document.getElementById('create-thread-btn');
     if (createBtn) {
+      console.log('NewThreadPanel: Found create button, adding event listener');
       createBtn.addEventListener('click', async () => {
+        console.log('NewThreadPanel: Create button clicked!');
         const form = document.querySelector('.new-thread-panel') as HTMLFormElement;
         if (!form) return;
         
         let alpineData;
         try {
           alpineData = (window as any).Alpine?.$data(form);
+          console.log('NewThreadPanel: Alpine data accessed:', alpineData);
         } catch (e) {
+          console.log('NewThreadPanel: Alpine data not available:', e);
           // Alpine data not available
         }
         
@@ -310,6 +323,7 @@ try {
         let title = '';
         if (alpineData?.title) {
           title = alpineData.title.trim();
+          console.log('NewThreadPanel: Title from Alpine data:', title);
         }
         
         // Fallback: try the visible input field
@@ -317,6 +331,16 @@ try {
           const visibleInput = document.querySelector('input[type="text"][placeholder="Thread name"]') as HTMLInputElement;
           if (visibleInput?.value) {
             title = visibleInput.value.trim();
+            console.log('NewThreadPanel: Title from input field:', title);
+          }
+        }
+        
+        // Additional fallback: try hidden form field
+        if (!title) {
+          const hiddenTitleField = document.querySelector('input[name="title"]') as HTMLInputElement;
+          if (hiddenTitleField?.value) {
+            title = hiddenTitleField.value.trim();
+            console.log('NewThreadPanel: Title from hidden field:', title);
           }
         }
         
@@ -427,7 +451,17 @@ try {
         }
       });
     }
-  });
+  }
+
+  // Initialize on initial load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initThreadCreation);
+  } else {
+    initThreadCreation();
+  }
+
+  // Re-initialize after View Transitions
+  document.addEventListener('astro:page-load', initThreadCreation);
 </script>
 
 <style>
