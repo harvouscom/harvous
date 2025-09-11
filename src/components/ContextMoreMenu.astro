@@ -38,26 +38,98 @@ const menuOptions = getMenuOptions(contentType);
 {menuOptions.length > 0 && (
   <div 
     class="context-more-menu bg-white rounded-xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] overflow-hidden"
+    x-data={`{
+      contentType: '${contentType}',
+      contentId: '${contentId || ''}',
+      
+      async handleAction(action, label) {
+        console.log('ContextMoreMenu:', label, 'button clicked');
+        
+        // Close the menu when any option is selected
+        const parentContainer = this.$el.closest('.square-button-container');
+        if (parentContainer && parentContainer.__x) {
+          parentContainer.__x.$data.isOpen = false;
+        }
+        
+        // Handle delete actions
+        if (action.includes('erase')) {
+          if (!this.contentId) {
+            console.error('No content ID provided for delete action');
+            return;
+          }
+          
+          // Determine the API endpoint and parameter name
+          let apiUrl, paramName, successMessage;
+          switch (this.contentType) {
+            case 'thread':
+              apiUrl = '/api/threads/delete';
+              paramName = 'threadId';
+              successMessage = 'Thread deleted successfully!';
+              break;
+            case 'note':
+              apiUrl = '/api/notes/delete';
+              paramName = 'noteId';
+              successMessage = 'Note deleted successfully!';
+              break;
+            case 'space':
+              apiUrl = '/api/spaces/delete';
+              paramName = 'spaceId';
+              successMessage = 'Space deleted successfully!';
+              break;
+            default:
+              console.error('Unknown content type for delete:', this.contentType);
+              return;
+          }
+          
+          try {
+            // Make the delete request
+            const response = await fetch(\`\${apiUrl}?\${paramName}=\${encodeURIComponent(this.contentId)}\`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+              // Show success toast
+              window.dispatchEvent(new CustomEvent('toast', {
+                detail: { message: successMessage, type: 'success' }
+              }));
+              
+              // Redirect to dashboard after successful deletion
+              setTimeout(() => {
+                window.location.href = '/dashboard';
+              }, 1000);
+            } else {
+              // Show error toast
+              window.dispatchEvent(new CustomEvent('toast', {
+                detail: { message: data.error || 'Failed to delete item', type: 'error' }
+              }));
+            }
+          } catch (error) {
+            console.error('Error deleting item:', error);
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: { message: 'Failed to delete item', type: 'error' }
+            }));
+          }
+        } else {
+          // Handle other actions (like edit)
+          try {
+            window.dispatchEvent(new CustomEvent(action, {
+              detail: { contentId: this.contentId, contentType: this.contentType }
+            }));
+          } catch (error) {
+            console.error('Error dispatching', action, 'event:', error);
+          }
+        }
+      }
+    }`}
   >
     {menuOptions.map((option, index) => (
       <button 
-        onclick={`
-          console.log('ContextMoreMenu: ${option.label} button clicked');
-          // Handle ${option.action} action
-          console.log('ContextMoreMenu: Dispatching ${option.action} event');
-          try {
-            window.dispatchEvent(new CustomEvent('${option.action}', {
-              detail: { contentId: '${contentId || ''}', contentType: '${contentType}' }
-            }));
-          } catch (error) {
-            console.error('Error dispatching ${option.action} event:', error);
-          }
-          // Close the menu when any option is selected
-          const parentContainer = this.closest('.square-button-container');
-          if (parentContainer && parentContainer.__x) {
-            parentContainer.__x.$data.isOpen = false;
-          }
-        `}
+        x-on:click={`handleAction('${option.action}', '${option.label}')`}
         class="context-more-menu-item flex items-center gap-3 py-[18px] px-4 pb-5 hover:bg-gray-50 transition-colors duration-150 cursor-pointer w-full text-left"
       >
         <div class="relative shrink-0 w-5 h-5 flex items-center justify-center">

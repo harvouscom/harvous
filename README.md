@@ -113,6 +113,7 @@ This project is configured to use the **Astro MCP (Model Context Protocol)** for
 ### Development Rules
 
 - **ALWAYS use Astro MCP**: Consult the Astro MCP for component development, API usage, and best practices
+- **ALWAYS follow Alpine.js best practices**: Use proper Alpine.js syntax with `x-data`, `x-on:click`, `x-show`, etc. - NO inline `onclick` handlers
 - **ALWAYS double-check your work**: Test functionality before declaring it complete
 - **Verify ID consistency**: Ensure IDs match between sample data and component usage
 - **Test navigation flows**: Click through all links to ensure they work properly
@@ -169,10 +170,14 @@ The Alpine.js documentation provides comprehensive guidance on:
 
 - **ALWAYS check Alpine.js docs**: Consult [https://alpinejs.dev/start-here](https://alpinejs.dev/start-here) for syntax and best practices
 - **ALWAYS use proper Alpine.js syntax**: Follow official documentation patterns
+- **NO inline onclick handlers**: Use `x-on:click` instead of `onclick` attributes
+- **Use x-data for component state**: Define reactive data in `x-data` objects
+- **Use x-on for event handling**: Prefer `x-on:click`, `x-on:submit`, etc. over inline handlers
 - **NO try-catch in x-init**: Alpine.js expressions don't support complex control structures
 - **NO const/let in x-init**: Use simple variable assignments only
 - **Use separate scripts for complex logic**: Move complex JavaScript outside of Alpine.js expressions
 - **Test Alpine.js functionality**: Verify all directives work as expected
+- **Use async/await properly**: Alpine.js supports async functions in x-data methods
 
 ### SquareButton Component (`src/components/SquareButton.astro`)
 
@@ -187,6 +192,14 @@ The Alpine.js documentation provides comprehensive guidance on:
 - **Menu Content**: Contains "New Thread" and "New Note" options
 - **Styling**: White rounded container with shadow and hover effects
 - **Icons**: Uses FontAwesome icons for visual consistency
+
+### ContextMoreMenu Component (`src/components/ContextMoreMenu.astro`)
+
+- **Context-Aware Options**: Shows different menu options based on content type (thread/note/space)
+- **Alpine.js Best Practices**: Uses `x-data` for state management and `x-on:click` for event handling
+- **Delete Functionality**: Implements erase actions with API calls and toast notifications
+- **Async Operations**: Properly handles async/await for API requests within Alpine.js
+- **Event System**: Dispatches custom events for edit actions and toast notifications
 
 ### Alpine.js Setup
 
