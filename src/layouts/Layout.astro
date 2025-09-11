@@ -11,7 +11,7 @@ import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanel from "@/components/NewNotePanel.astro";
 import NewThreadPanel from "@/components/NewThreadPanel.astro";
 import { shouldShowMoreButton } from "@/utils/menu-options";
-import { ClientRouter } from "astro:transitions";
+import { ClientRouter, fade } from "astro:transitions";
 
 interface Props {
   classNames?: string;
@@ -282,7 +282,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
   >
     <Toast />
 
-    <div class="h-[100svh] p-3 min-[1080px]:p-6">
+    <div class="h-[100svh] p-3 min-[1080px]:p-6" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1080px and wider) -->
       <div class="hidden min-[1080px]:grid min-[1080px]:grid-cols-[minmax(220px,clamp(220px,20vw,300px))_minmax(380px,640px)_minmax(380px,640px)] min-[1080px]:gap-6 min-[1080px]:h-full">        <!-- Navigation Column -->
         <section class="h-full">
