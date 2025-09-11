@@ -18,9 +18,10 @@ interface Props {
   title?: string;
   contentType?: "thread" | "note" | "space" | "dashboard";
   contentId?: string;
+  currentThread?: any;
 }
 
-const { classNames = '', title = 'Harvous', contentType = 'dashboard', contentId }: Props = Astro.props;
+const { classNames = '', title = 'Harvous', contentType = 'dashboard', contentId, currentThread }: Props = Astro.props;
 
 // Determine if More button should be shown
 const showMoreButton = shouldShowMoreButton(contentType);
@@ -328,7 +329,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
               
               <!-- New Note Panel -->
               <div x-show="showNewNotePanel" class="h-full">
-                <NewNotePanel />
+                <NewNotePanel currentThread={currentThread} />
               </div>
               
               <!-- New Thread Panel -->

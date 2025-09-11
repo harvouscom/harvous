@@ -20,7 +20,8 @@ const { onClose, currentThread } = Astro.props;
 // Get user ID from Clerk authentication
 const { userId } = Astro.locals.auth();
 console.log("NewNotePanel: Using authenticated user ID:", userId);
-// console.log("NewNotePanel: Current thread data:", currentThread);
+console.log("NewNotePanel: Current thread data:", currentThread);
+console.log("NewNotePanel: Current thread title:", currentThread?.title);
 
 if (!userId) {
   return Astro.redirect('/sign-in');
@@ -395,7 +396,8 @@ if (!userId) {
       // For note pages, use data attribute from currentThread prop
       const currentThreadTitle = form.dataset.currentThreadTitle;
       console.log(`🔥 updateThreadSelection - attempt ${attempt} - note page, currentThreadTitle:`, currentThreadTitle);
-      if (currentThreadTitle) {
+      console.log(`🔥 updateThreadSelection - attempt ${attempt} - note page, form.dataset:`, form.dataset);
+      if (currentThreadTitle && currentThreadTitle.trim()) {
         selectedThread = currentThreadTitle;
         updated = true;
       }
@@ -472,16 +474,15 @@ if (!userId) {
   document.addEventListener('astro:after-swap', () => {
     setTimeout(setupMutationObserver, 50);
   });
-</script>
-
-
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    // Handle create note button click
+  
+  // Setup create note button handler
+  function setupCreateNoteButton() {
     const createBtn = document.getElementById('create-note-btn');
+    console.log('🔧 setupCreateNoteButton - createBtn found:', createBtn);
     if (createBtn) {
+      console.log('🔧 Adding click event listener to create button');
       createBtn.addEventListener('click', async (e) => {
-        console.log('Button clicked, validating form');
+        console.log('🔧 Button clicked, validating form');
         e.preventDefault(); // Prevent default form submission
         const form = document.querySelector('form');
         if (!form) return;
@@ -593,8 +594,16 @@ if (!userId) {
         }
       });
     }
+  }
+  
+  // Setup create note button on DOM ready and page load
+  document.addEventListener('DOMContentLoaded', setupCreateNoteButton);
+  document.addEventListener('astro:after-swap', () => {
+    setTimeout(setupCreateNoteButton, 50);
   });
 </script>
+
+
 
 <style>
   /* SpaceButton styling for dropdown items */
