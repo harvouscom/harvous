@@ -17,13 +17,6 @@ const { tabs, class: className = "" } = Astro.props;
     "tab-nav-container",
     className
   ]}
-  x-data="{ 
-    activeTab: '${tabs.find(tab => tab.isActive)?.id || tabs[0]?.id}'
-  }"
-  x-init="
-    // Initialize active tab from server-side data
-    activeTab = '${tabs.find(tab => tab.isActive)?.id || tabs[0]?.id}';
-  "
 >
   <!-- Tab Navigation -->
   <div class:list={[
@@ -38,39 +31,15 @@ const { tabs, class: className = "" } = Astro.props;
         data-tab-id={tab.id}
         data-active={tab.isActive ? "true" : "false"}
         data-tab-button
-        x-on:click="
-          activeTab = '${tab.id}';
-          // Find the parent container to scope the tab switching
-          const container = $el.closest('.tab-nav-container').parentElement;
-          if (container) {
-            // Show/hide content based on tab within this container only
-            const contents = container.querySelectorAll('[data-tab-content]');
-            contents.forEach(content => {
-              if (content.getAttribute('data-tab-content') === '${tab.id}') {
-                content.classList.remove('hidden');
-              } else {
-                content.classList.add('hidden');
-              }
-            });
-            // Update button states within this container only
-            const buttons = container.querySelectorAll('[data-tab-button]');
-            buttons.forEach(button => {
-              const isActive = button.getAttribute('data-tab-id') === '${tab.id}';
-              button.setAttribute('data-active', isActive ? 'true' : 'false');
-              button.classList.toggle('opacity-100', isActive);
-              button.classList.toggle('opacity-50', !isActive);
-              const dot = button.querySelector('[data-dot]');
-              if (dot) {
-                dot.style.display = isActive ? 'block' : 'none';
-              }
-            });
-          }
-        "
       >
         <span class="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
           {tab.label}
         </span>
-        <div class="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1" data-dot style={tab.isActive ? 'display: block;' : 'display: none;'}>
+        <div 
+          class="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1" 
+          data-dot 
+          style={tab.isActive ? 'display: block;' : 'display: none;'}
+        >
           <div class="w-1 h-1 bg-[#4a473d] rounded-full"></div>
         </div>
       </button>

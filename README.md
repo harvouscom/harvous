@@ -217,6 +217,178 @@ The Alpine.js documentation provides comprehensive guidance on:
 - **Syntax Errors**: Always check [Alpine.js documentation](https://alpinejs.dev/start-here) for proper syntax
 - **Expression Errors**: Use simple expressions in Alpine.js directives, move complex logic to separate scripts
 
+## View Transitions Integration
+
+### Overview
+
+This project uses Astro's View Transitions for smooth client-side navigation. View Transitions provide seamless page transitions but require special handling for JavaScript functionality that needs to persist across navigation.
+
+### Key Concepts
+
+- **Client-Side Navigation**: View Transitions intercept page navigation and update the DOM without full page reloads
+- **Script Re-execution**: Bundled scripts only run once, but inline scripts can re-execute on navigation
+- **Lifecycle Events**: Use Astro's lifecycle events to re-initialize functionality after navigation
+
+### Essential Lifecycle Events
+
+- **`astro:page-load`**: Fires after page navigation completes - use for re-initializing functionality
+- **`astro:after-swap`**: Fires immediately after DOM replacement - use for theme/state updates
+- **`DOMContentLoaded`**: Only fires on initial page load, not on View Transitions
+
+### Best Practices for View Transitions
+
+#### 1. Script Re-initialization Pattern
+
+**ALWAYS** wrap functionality that needs to persist across navigation in lifecycle event listeners:
+
+```javascript
+// ❌ BAD: Only works on initial page load
+document.addEventListener('DOMContentLoaded', initTabs);
+
+// ✅ GOOD: Works on initial load AND after View Transitions
+function initTabs() {
+  // Your initialization logic here
+}
+
+// Initialize on initial load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initTabs);
+} else {
+  initTabs();
+}
+
+// Re-initialize after View Transitions
+document.addEventListener('astro:page-load', initTabs);
+```
+
+#### 2. Event Listener Management
+
+**ALWAYS** clean up existing event listeners before re-initializing to prevent duplicates:
+
+```javascript
+function initTabs() {
+  // Remove existing listeners to prevent duplicates
+  const existingButtons = document.querySelectorAll('[data-tab-button]');
+  existingButtons.forEach(function(button) {
+    const newButton = button.cloneNode(true);
+    button.parentNode?.replaceChild(newButton, button);
+  });
+  
+  // Add fresh event listeners
+  setupTabHandlers();
+}
+```
+
+#### 3. State Management
+
+**AVOID** flags that prevent re-initialization:
+
+```javascript
+// ❌ BAD: Prevents re-initialization after View Transitions
+let tabsInitialized = false;
+function initTabs() {
+  if (tabsInitialized) return; // This breaks View Transitions!
+  tabsInitialized = true;
+  // ...
+}
+
+// ✅ GOOD: Allow re-initialization
+function initTabs() {
+  // Always allow re-initialization
+  // ...
+}
+```
+
+### Common View Transitions Issues
+
+#### Issue: Functionality Works on Initial Load but Breaks After Navigation
+
+**Symptoms:**
+- Tabs, menus, or interactive elements work on first page load
+- After navigating away and back, functionality stops working
+- Requires page refresh to restore functionality
+
+**Root Cause:**
+Scripts only initialize once, but View Transitions update the DOM without re-running initialization scripts.
+
+**Solution:**
+Wrap initialization in `astro:page-load` event listener:
+
+```javascript
+document.addEventListener('astro:page-load', initFunctionality);
+```
+
+#### Issue: Duplicate Event Listeners
+
+**Symptoms:**
+- Functionality works but triggers multiple times
+- Console errors about duplicate listeners
+- Performance degradation
+
+**Root Cause:**
+Event listeners accumulate across View Transitions without cleanup.
+
+**Solution:**
+Clean up existing listeners before re-initializing:
+
+```javascript
+// Clone elements to remove all event listeners
+const newElement = element.cloneNode(true);
+element.parentNode?.replaceChild(newElement, element);
+```
+
+#### Issue: State Not Persisting Across Navigation
+
+**Symptoms:**
+- Form data, scroll position, or component state resets
+- User preferences don't persist
+
+**Root Cause:**
+View Transitions replace DOM elements, losing component state.
+
+**Solution:**
+Use `transition:persist` directive or store state in localStorage/sessionStorage:
+
+```astro
+<!-- Persist component state -->
+<MyComponent transition:persist="unique-name" />
+
+<!-- Or use localStorage for state -->
+<script>
+  // Save state before navigation
+  localStorage.setItem('myState', JSON.stringify(state));
+  
+  // Restore state after navigation
+  document.addEventListener('astro:page-load', () => {
+    const savedState = localStorage.getItem('myState');
+    if (savedState) {
+      state = JSON.parse(savedState);
+    }
+  });
+</script>
+```
+
+### Development Workflow with View Transitions
+
+1. **Test Navigation Flows**: Always test functionality after navigating away and back
+2. **Check Console**: Look for duplicate event listener warnings
+3. **Use Lifecycle Events**: Wrap all interactive functionality in `astro:page-load`
+4. **Clean Up Listeners**: Remove existing listeners before re-initializing
+5. **Avoid Initialization Flags**: Don't prevent re-initialization after View Transitions
+
+### Debugging View Transitions
+
+- **Console Logging**: Add logs to track when initialization occurs
+- **Event Listener Count**: Check for duplicate listeners in browser dev tools
+- **DOM Inspection**: Verify elements exist after View Transitions
+- **Network Tab**: Confirm View Transitions are working (no full page reloads)
+
+### Key Files Using View Transitions
+
+- `src/layouts/Layout.astro`: Contains global tab functionality with View Transitions support
+- `src/components/TabNav.astro`: Tab navigation component
+- `src/pages/dashboard.astro`: Dashboard with tab functionality
+
 ## Component Dependencies
 
 ### FontAwesome Icons

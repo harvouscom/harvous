@@ -89,12 +89,8 @@ const showMoreButton = shouldShowMoreButton(contentType);
         console.log('Tab script loaded in environment:', typeof window !== 'undefined' ? 'browser' : 'server');
         console.log('Document ready state:', document.readyState);
         console.log('Current URL:', window.location.href);
-        let tabsInitialized = false;
         
         function initTabs() {
-          if (tabsInitialized) return;
-          tabsInitialized = true;
-          
           console.log('Layout: Initializing tab functionality...');
           
           // Remove any existing event listeners to prevent duplicates
@@ -125,6 +121,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
              const tabId = clickedButton.getAttribute('data-tab-id');
              const tabNavContainer = clickedButton.closest('.tab-nav-container') as HTMLElement;
              
+             console.log('Layout: Tab ID:', tabId);
+             console.log('Layout: TabNav container:', tabNavContainer);
+             
              if (!tabId || !tabNavContainer) return;
              
              // Update all tabs in this TabNav component
@@ -153,8 +152,13 @@ const showMoreButton = shouldShowMoreButton(contentType);
              const tabNavParent = tabNavContainer.parentElement;
              if (!tabNavParent) return;
              
+             console.log('Layout: TabNav parent:', tabNavParent);
+             
              const allSiblings = Array.from(tabNavParent.children);
              const currentTabNavIndex = allSiblings.indexOf(tabNavContainer);
+             
+             console.log('Layout: All siblings:', allSiblings.length);
+             console.log('Layout: Current TabNav index:', currentTabNavIndex);
              
              // Find the next TabNav (if any) to determine the boundary
              let nextTabNavIndex = -1;
@@ -166,19 +170,27 @@ const showMoreButton = shouldShowMoreButton(contentType);
                }
              }
              
+             console.log('Layout: Next TabNav index:', nextTabNavIndex);
+             
              // Find content sections between current TabNav and next TabNav (or end)
              const endIndex = nextTabNavIndex !== -1 ? nextTabNavIndex : allSiblings.length;
              const relevantSiblings = allSiblings.slice(currentTabNavIndex + 1, endIndex);
              
+             console.log('Layout: Relevant siblings:', relevantSiblings.length);
+             
              relevantSiblings.forEach(function(sibling: Element) {
                const siblingElement = sibling as HTMLElement;
+               console.log('Layout: Checking sibling:', siblingElement, 'has data-tab-content:', siblingElement.hasAttribute('data-tab-content'));
                if (siblingElement.hasAttribute('data-tab-content')) {
                  const sectionTabId = siblingElement.getAttribute('data-tab-content');
+                 console.log('Layout: Section tab ID:', sectionTabId, 'matches clicked tab:', sectionTabId === tabId);
                  
                  if (sectionTabId === tabId) {
+                   console.log('Layout: Showing content for:', sectionTabId);
                    siblingElement.classList.remove('hidden');
                    siblingElement.style.display = 'block';
                  } else {
+                   console.log('Layout: Hiding content for:', sectionTabId);
                    siblingElement.classList.add('hidden');
                    siblingElement.style.display = 'none';
                  }
@@ -237,13 +249,16 @@ const showMoreButton = shouldShowMoreButton(contentType);
           });
         }
         
-                 // Initialize when DOM is ready
-         if (document.readyState === 'loading') {
-           document.addEventListener('DOMContentLoaded', initTabs);
-         } else {
-           // DOM is already ready
-           initTabs();
-         }
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initTabs);
+        } else {
+          // DOM is already ready
+          initTabs();
+        }
+        
+        // Re-initialize tabs after View Transitions page loads
+        document.addEventListener('astro:page-load', initTabs);
          
          // Also initialize when Alpine.js is ready (if it's being used)
          if ((window as any).Alpine) {

@@ -191,10 +191,8 @@ const inboxItemCount = inboxCount;
                       class="inbox-archive-tabs"
                     />
                     
-                    <!-- Content wrapper with gap -->
-                    <div class="flex flex-col gap-3">
-                      <!-- Inbox Content (only unassigned items) -->
-                      <div class="inbox-content" data-tab-content="inbox" id="inbox-content">
+                    <!-- Inbox Content (only unassigned items) -->
+                    <div class="inbox-content" data-tab-content="inbox">
                       {inboxContent.length > 0 ? (
                         <div class="flex gap-3 overflow-auto">
                           {inboxContent.map(item => (
@@ -220,11 +218,10 @@ const inboxItemCount = inboxCount;
                       )}
                     </div>
                     
-                                          <!-- Archive Content (dismissed items) -->
-                      <div class="archive-content hidden" data-tab-content="archive" id="archive-content">
-                        <div class="text-center py-8 text-gray-500">
-                          <p>No archived items</p>
-                        </div>
+                    <!-- Archive Content (dismissed items) -->
+                    <div class="archive-content hidden" data-tab-content="archive">
+                      <div class="text-center py-8 text-gray-500">
+                        <p>No archived items</p>
                       </div>
                     </div>
                   </div>
@@ -241,38 +238,36 @@ const inboxItemCount = inboxCount;
                       class="content-tabs"
                     />
                     
-                    <!-- Content wrapper with gap -->
-                    <div class="flex flex-col gap-3">
-                      <!-- All Content -->
-                      <div class="organized-content flex flex-col" data-tab-content="all" id="all-content">
-                    {organizedContent.map(item => (
-                      <div class={`content-item ${item.type}-item mb-3`}>
-                        <a 
-                          href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
-                          class="block transition-transform duration-200 hover:scale-[1.002]"
-                        >
-                          {item.type === 'note' ? (
-                            <CardNote 
-                              title={item.title}
-                              content={item.content}
-                            />
-                          ) : (
-                            <CardThread 
-                              title={item.title}
-                              subtitle={item.subtitle}
-                              count={item.count}
-                              accentColor={item.accentColor}
-                              lastUpdated={item.lastUpdated}
-                              isPrivate={(item as any).isPrivate}
-                            />
-                          )}
-                        </a>
-                      </div>
-                                          ))}
+                    <!-- All Content -->
+                    <div class="organized-content flex flex-col" data-tab-content="all">
+                      {organizedContent.map(item => (
+                        <div class={`content-item ${item.type}-item mb-3`}>
+                          <a 
+                            href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
+                            class="block transition-transform duration-200 hover:scale-[1.002]"
+                          >
+                            {item.type === 'note' ? (
+                              <CardNote 
+                                title={item.title}
+                                content={item.content}
+                              />
+                            ) : (
+                              <CardThread 
+                                title={item.title}
+                                subtitle={item.subtitle}
+                                count={item.count}
+                                accentColor={item.accentColor}
+                                lastUpdated={item.lastUpdated}
+                                isPrivate={(item as any).isPrivate}
+                              />
+                            )}
+                          </a>
+                        </div>
+                      ))}
                     </div>
                     
                     <!-- Threads Only Content -->
-                    <div class="organized-content flex flex-col hidden" data-tab-content="threads" id="threads-content">
+                    <div class="organized-content flex flex-col hidden" data-tab-content="threads">
                       {organizedContent.filter(item => item.type === 'thread').map(item => (
                         <div class={`content-item ${item.type}-item mb-3`}>
                           <a 
@@ -293,7 +288,7 @@ const inboxItemCount = inboxCount;
                     </div>
                     
                     <!-- Notes Only Content -->
-                    <div class="organized-content flex flex-col hidden" data-tab-content="notes" id="notes-content">
+                    <div class="organized-content flex flex-col hidden" data-tab-content="notes">
                       {organizedContent.filter(item => item.type === 'note').map(item => (
                         <div class={`content-item ${item.type}-item mb-3`}>
                           <a 
@@ -308,7 +303,6 @@ const inboxItemCount = inboxCount;
                         </div>
                       ))}
                     </div>
-                  </div>
                 </div>
               </div>
               </CardStack>
