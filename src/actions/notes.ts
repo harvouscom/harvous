@@ -84,6 +84,11 @@ export const notes = {
           
         console.log("Note created successfully:", newNote);
 
+        // Update the thread's updatedAt timestamp
+        await db.update(Threads)
+          .set({ updatedAt: new Date() })
+          .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
+
         // Add a small delay to ensure the database operation completes
         await new Promise(resolve => setTimeout(resolve, 150));
         
@@ -170,6 +175,11 @@ export const notes = {
           })
           .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
           .returning()  
+
+        // Update the thread's updatedAt timestamp
+        await db.update(Threads)
+          .set({ updatedAt: new Date() })
+          .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
 
         return {
           success: "Note updated successfully!",

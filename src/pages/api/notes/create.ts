@@ -96,6 +96,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       
     console.log("Note created successfully:", newNote);
 
+    // Update the thread's updatedAt timestamp
+    await db.update(Threads)
+      .set({ updatedAt: new Date() })
+      .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
+
     return new Response(JSON.stringify({ 
       success: "Note created successfully!",
       note: newNote

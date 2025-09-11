@@ -8,6 +8,7 @@ export interface Props {
   class?: string;
   accentColor?: string;
   lastUpdated?: string;
+  createdAt?: string;
   isPrivate?: boolean;
 }
 
@@ -17,12 +18,13 @@ const {
   count = 2,
   class: className = "",
   accentColor = "var(--color-lovely-lavender)",
-  lastUpdated = "5 hours ago",
+  lastUpdated,
+  createdAt,
   isPrivate = true
 } = Astro.props;
 
-// Use lastUpdated if provided, otherwise fall back to subtitle
-const displaySubtitle = lastUpdated || subtitle || "5 hours ago";
+// Prioritize lastUpdated over createdAt, then fall back to subtitle or default
+const displaySubtitle = lastUpdated || createdAt || subtitle || "5 hours ago";
 ---
 
 <style>
