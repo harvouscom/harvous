@@ -1,0 +1,90 @@
+---
+import EditIcon from "@fortawesome/fontawesome-free/svgs/solid/pen-to-square.svg";
+import TrashIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
+
+export interface Props {
+  contentType: "thread" | "note" | "space" | "dashboard";
+  contentId?: string;
+}
+
+const { contentType = "dashboard", contentId } = Astro.props;
+
+// Determine menu options based on content type
+const getMenuOptions = (type: string) => {
+  switch (type) {
+    case "thread":
+      return [
+        { icon: EditIcon, label: "Edit Thread", action: "editThread" },
+        { icon: TrashIcon, label: "Erase Thread", action: "eraseThread" }
+      ];
+    case "note":
+      return [
+        { icon: EditIcon, label: "Edit Note", action: "editNote" },
+        { icon: TrashIcon, label: "Erase Note", action: "eraseNote" }
+      ];
+    case "space":
+      return [
+        { icon: EditIcon, label: "Edit Space", action: "editSpace" },
+        { icon: TrashIcon, label: "Erase Space", action: "eraseSpace" }
+      ];
+    default:
+      return []; // No options for dashboard
+  }
+};
+
+const menuOptions = getMenuOptions(contentType);
+---
+
+{menuOptions.length > 0 && (
+  <div 
+    class="context-more-menu bg-white rounded-xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] overflow-hidden"
+  >
+    {menuOptions.map((option, index) => (
+      <button 
+        onclick={`
+          console.log('ContextMoreMenu: ${option.label} button clicked');
+          // Handle ${option.action} action
+          console.log('ContextMoreMenu: Dispatching ${option.action} event');
+          try {
+            window.dispatchEvent(new CustomEvent('${option.action}', {
+              detail: { contentId: '${contentId || ''}', contentType: '${contentType}' }
+            }));
+          } catch (error) {
+            console.error('Error dispatching ${option.action} event:', error);
+          }
+          // Close the menu when any option is selected
+          const parentContainer = this.closest('.square-button-container');
+          if (parentContainer && parentContainer.__x) {
+            parentContainer.__x.$data.isOpen = false;
+          }
+        `}
+        class="context-more-menu-item flex items-center gap-3 py-[18px] px-4 pb-5 hover:bg-gray-50 transition-colors duration-150 cursor-pointer w-full text-left"
+      >
+        <div class="relative shrink-0 w-5 h-5 flex items-center justify-center">
+          <option.icon class="fill-[var(--color-deep-grey)] block max-w-none w-full h-full" />
+        </div>
+        <span class="text-subtitle text-[var(--color-deep-grey)] whitespace-nowrap">
+          {option.label}
+        </span>
+      </button>
+    ))}
+  </div>
+)}
+
+<style>
+  .context-more-menu {
+    min-width: 223px;
+  }
+  
+  .context-more-menu-item:first-child {
+    border-radius: 12px 12px 0 0;
+  }
+  
+  .context-more-menu-item:last-child {
+    border-radius: 0 0 12px 12px;
+  }
+  
+  .context-more-menu-item:only-child {
+    border-radius: 12px;
+  }
+</style>

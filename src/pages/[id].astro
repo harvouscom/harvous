@@ -35,6 +35,12 @@ const isNote = id?.startsWith('note_');
 const isSpace = id?.startsWith('space_');
 console.log("Dynamic page: isThread =", isThread, "isNote =", isNote, "isSpace =", isSpace);
 
+// Determine content type for context-aware More menu
+let contentType: "thread" | "note" | "space" | "dashboard" = "dashboard";
+if (isThread) contentType = "thread";
+else if (isNote) contentType = "note";
+else if (isSpace) contentType = "space";
+
 let content: any = null;
 let threads: any[] = [];
 let spaces: any[] = [];
@@ -290,7 +296,7 @@ if (!content) {
 }
 ---
 
-<Layout title={pageTitle}>
+<Layout title={pageTitle} contentType={contentType} contentId={id}>
   <!-- Navigation Column -->
   <div slot="navigation" class="h-full">
           <div class="content-stretch flex flex-col items-start justify-between relative h-full">

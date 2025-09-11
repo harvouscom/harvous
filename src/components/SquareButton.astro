@@ -5,13 +5,16 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 import FaEllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
 import FaMagnifyingGlassIcon from "@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg";
 import MoreMenu from "./MoreMenu.astro";
+import ContextMoreMenu from "./ContextMoreMenu.astro";
 
 export interface Props {
   variant?: "Add" | "Close" | "More" | "Back" | "Search";
   withMenu?: boolean;
   type?: "button" | "submit" | "reset";
+  contentType?: "thread" | "note" | "space" | "dashboard";
+  contentId?: string;
 }
-const { variant = "More", withMenu = false } = Astro.props;
+const { variant = "More", withMenu = false, contentType = "dashboard", contentId } = Astro.props;
 ---
 
 {variant === "Back" && (
@@ -175,26 +178,8 @@ const { variant = "More", withMenu = false } = Astro.props;
 {variant === "More" && withMenu && (
   <div class="square-button-container" x-data="{ 
     isOpen: false,
-    menuPosition: 'right',
     toggle() {
       this.isOpen = !this.isOpen;
-      if (this.isOpen) {
-        // Calculate position when opening
-        this.$nextTick(() => {
-          const button = this.$el.querySelector('.main-button');
-          const rect = button.getBoundingClientRect();
-          const screenWidth = window.innerWidth;
-          const menuWidth = 223; // Width of MoreMenu
-          
-          // Check if there's enough space on the right for the menu
-          const spaceOnRight = screenWidth - rect.right;
-          const spaceOnLeft = rect.left;
-          
-          // If there's enough space on the right OR button is closer to right edge, align menu to right
-          // Otherwise, align to left
-          this.menuPosition = (spaceOnRight >= menuWidth) || (spaceOnRight > spaceOnLeft) ? 'right' : 'left';
-        });
-      }
     },
     closeMenu() {
       this.isOpen = false;
@@ -234,7 +219,7 @@ const { variant = "More", withMenu = false } = Astro.props;
            :class="isOpen ? 'shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]' : ''" />
     </button>
 
-    <!-- MoreMenu container -->
+    <!-- MoreMenu container - positioned to the right -->
     <div 
       x-show="isOpen"
       x-transition:enter="transition ease-out duration-150"
@@ -243,10 +228,9 @@ const { variant = "More", withMenu = false } = Astro.props;
       x-transition:leave="transition ease-in duration-100"
       x-transition:leave-start="opacity-100 transform scale-100"
       x-transition:leave-end="opacity-0 transform scale-95"
-      class="more-menu-container flex"
-      :class="menuPosition === 'left' ? 'justify-start' : 'justify-end'"
+      class="more-menu-container right-positioned"
     >
-      <MoreMenu />
+      <ContextMoreMenu contentType={contentType} contentId={contentId} />
     </div>
   </div>
 )}
@@ -277,6 +261,26 @@ const { variant = "More", withMenu = false } = Astro.props;
     position: absolute;
     bottom: calc(100% + 12px);
     z-index: 20;
+  }
+
+  .more-menu-container.right-positioned {
+    position: absolute;
+    left: 76px; /* 64px button width + 12px gap */
+    top: 0;
+    bottom: auto;
+    z-index: 20;
+  }
+
+  /* Mobile layout - use original top positioning */
+  @media (max-width: 1079px) {
+    .more-menu-container.right-positioned {
+      position: absolute;
+      left: 0;
+      right: auto;
+      bottom: calc(100% + 12px);
+      top: auto;
+      z-index: 20;
+    }
   }
 
   button[data-outer-shadow] {

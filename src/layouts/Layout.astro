@@ -14,9 +14,11 @@ import NewThreadPanel from "@/components/NewThreadPanel.astro";
 interface Props {
   classNames?: string;
   title?: string;
+  contentType?: "thread" | "note" | "space" | "dashboard";
+  contentId?: string;
 }
 
-const { classNames = '', title = 'Harvous' }: Props = Astro.props;
+const { classNames = '', title = 'Harvous', contentType = 'dashboard', contentId }: Props = Astro.props;
 ---
 
 <!doctype html>
@@ -310,7 +312,7 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
             >
               <!-- Default state: SquareButtons -->
               <div x-show="!showNewNotePanel && !showNewThreadPanel" class="flex flex-col items-left justify-between h-full">
-                <SquareButton variant="More" />
+                <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
                 <SquareButton variant="Add" withMenu={true} />
               </div>
               
