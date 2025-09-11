@@ -1,6 +1,7 @@
 ---
 import EditIcon from "@fortawesome/fontawesome-free/svgs/solid/pen-to-square.svg";
 import TrashIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
+import { getMenuOptions } from "@/utils/menu-options";
 
 export interface Props {
   contentType: "thread" | "note" | "space" | "dashboard";
@@ -9,30 +10,28 @@ export interface Props {
 
 const { contentType = "dashboard", contentId } = Astro.props;
 
-// Determine menu options based on content type
-const getMenuOptions = (type: string) => {
-  switch (type) {
-    case "thread":
-      return [
-        { icon: EditIcon, label: "Edit Thread", action: "editThread" },
-        { icon: TrashIcon, label: "Erase Thread", action: "eraseThread" }
-      ];
-    case "note":
-      return [
-        { icon: EditIcon, label: "Edit Note", action: "editNote" },
-        { icon: TrashIcon, label: "Erase Note", action: "eraseNote" }
-      ];
-    case "space":
-      return [
-        { icon: EditIcon, label: "Edit Space", action: "editSpace" },
-        { icon: TrashIcon, label: "Erase Space", action: "eraseSpace" }
-      ];
-    default:
-      return []; // No options for dashboard
-  }
-};
+// Get menu options using the utility function
+const menuOptionsData = getMenuOptions(contentType);
 
-const menuOptions = getMenuOptions(contentType);
+// Add icons to the menu options
+const menuOptions = menuOptionsData.map(option => {
+  let icon;
+  switch (option.action) {
+    case "editThread":
+    case "editNote":
+    case "editSpace":
+      icon = EditIcon;
+      break;
+    case "eraseThread":
+    case "eraseNote":
+    case "eraseSpace":
+      icon = TrashIcon;
+      break;
+    default:
+      icon = EditIcon;
+  }
+  return { ...option, icon };
+});
 ---
 
 {menuOptions.length > 0 && (

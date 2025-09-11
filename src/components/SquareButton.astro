@@ -6,6 +6,7 @@ import FaEllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.sv
 import FaMagnifyingGlassIcon from "@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg";
 import MoreMenu from "./MoreMenu.astro";
 import ContextMoreMenu from "./ContextMoreMenu.astro";
+import { shouldShowMoreButton } from "@/utils/menu-options";
 
 export interface Props {
   variant?: "Add" | "Close" | "More" | "Back" | "Search";
@@ -155,7 +156,7 @@ const { variant = "More", withMenu = false, contentType = "dashboard", contentId
   </div>
 )}
 
-{variant === "More" && !withMenu && (
+{variant === "More" && !withMenu && shouldShowMoreButton(contentType) && (
   <button
     class="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow]  duration-300"
     style="background-image: var(--color-gradient-gray);"
@@ -175,7 +176,7 @@ const { variant = "More", withMenu = false, contentType = "dashboard", contentId
   </button>
 )}
 
-{variant === "More" && withMenu && (
+{variant === "More" && withMenu && shouldShowMoreButton(contentType) && (
   <div class="square-button-container" x-data="{ 
     isOpen: false,
     toggle() {

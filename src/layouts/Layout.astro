@@ -10,6 +10,7 @@ import Toast from "@/components/Toast-v2.astro";
 import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanel from "@/components/NewNotePanel.astro";
 import NewThreadPanel from "@/components/NewThreadPanel.astro";
+import { shouldShowMoreButton } from "@/utils/menu-options";
 
 interface Props {
   classNames?: string;
@@ -19,6 +20,9 @@ interface Props {
 }
 
 const { classNames = '', title = 'Harvous', contentType = 'dashboard', contentId }: Props = Astro.props;
+
+// Determine if More button should be shown
+const showMoreButton = shouldShowMoreButton(contentType);
 ---
 
 <!doctype html>
@@ -311,8 +315,10 @@ const { classNames = '', title = 'Harvous', contentType = 'dashboard', contentId
               "
             >
               <!-- Default state: SquareButtons -->
-              <div x-show="!showNewNotePanel && !showNewThreadPanel" class="flex flex-col items-left justify-between h-full">
-                <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
+              <div x-show="!showNewNotePanel && !showNewThreadPanel" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
+                {showMoreButton && (
+                  <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
+                )}
                 <SquareButton variant="Add" withMenu={true} />
               </div>
               
