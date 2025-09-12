@@ -445,12 +445,13 @@ export async function getFeaturedContent(userId: string) {
   }
 }
 
-// Get content items for the main list (organized content only)
+// Get content items for the main list (organized content + unorganized notes)
 export async function getContentItems(userId: string, limit = 20) {
   try {
-    const [threads, assignedNotes] = await Promise.all([
+    const [threads, assignedNotes, unorganizedNotes] = await Promise.all([
       getAllThreadsWithCounts(userId),
-      getAssignedNotesForDashboard(userId, limit)
+      getAssignedNotesForDashboard(userId, limit),
+      getUnorganizedNotesForDashboard(userId, limit)
     ]);
 
     const threadItems = threads.map(thread => ({
@@ -467,7 +468,19 @@ export async function getContentItems(userId: string, limit = 20) {
       accentColor: thread.accentColor,
     }));
 
-    const noteItems = assignedNotes.map(note => ({
+    const assignedNoteItems = assignedNotes.map(note => ({
+      id: `note-${note.id}`,
+      type: "note" as const,
+      title: note.title || "Untitled Note",
+      content: note.content.substring(0, 150) + (note.content.length > 150 ? "..." : ""),
+      noteId: note.id, // Full ID including prefix
+      threadId: note.threadId,
+      spaceId: note.spaceId,
+      lastUpdated: note.lastUpdated,
+      updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
+    }));
+
+    const unorganizedNoteItems = unorganizedNotes.map(note => ({
       id: `note-${note.id}`,
       type: "note" as const,
       title: note.title || "Untitled Note",
@@ -480,7 +493,8 @@ export async function getContentItems(userId: string, limit = 20) {
     }));
 
     // Combine and sort by actual timestamp (newest first)
-    const allItems = [...threadItems, ...noteItems]
+    // This ensures notes from unorganized threads are sorted by their actual update time
+    const allItems = [...threadItems, ...assignedNoteItems, ...unorganizedNoteItems]
       .sort((a, b) => {
         const aTime = new Date(a.updatedAt).getTime();
         const bTime = new Date(b.updatedAt).getTime();
@@ -491,6 +505,44 @@ export async function getContentItems(userId: string, limit = 20) {
     return allItems;
   } catch (error) {
     console.error("Error fetching content items:", error);
+    return [];
+  }
+}
+
+// Fetch unorganized notes for dashboard (notes in unorganized thread)
+export async function getUnorganizedNotesForDashboard(userId: string, limit = 10) {
+  try {
+    const unorganizedThread = await findUnorganizedThread(userId);
+    if (!unorganizedThread) {
+      return [];
+    }
+
+    const notes = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      threadId: Notes.threadId,
+      spaceId: Notes.spaceId,
+      simpleNoteId: Notes.simpleNoteId,
+      isPublic: Notes.isPublic,
+      isFeatured: Notes.isFeatured,
+      createdAt: Notes.createdAt,
+      updatedAt: Notes.updatedAt,
+    })
+    .from(Notes)
+    .where(and(
+      eq(Notes.userId, userId),
+      eq(Notes.threadId, unorganizedThread.id)
+    ))
+    .orderBy(desc(Notes.updatedAt || Notes.createdAt))
+    .limit(limit);
+
+    return notes.map(note => ({
+      ...note,
+      lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
+    }));
+  } catch (error) {
+    console.error("Error fetching unorganized notes:", error);
     return [];
   }
 }

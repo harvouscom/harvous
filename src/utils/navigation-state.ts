@@ -73,6 +73,11 @@ export async function detectActiveThreadFromPath(currentPath: string, userId: st
         .get();
 
         if (note) {
+          // Special case: if note belongs to unorganized thread, use paper color
+          if (note.threadId === "thread_unorganized") {
+            return null; // This will use paper color
+          }
+          // For all other threads, use the thread's color
           return await getThreadContext(note.threadId, userId);
         }
       }
