@@ -96,9 +96,10 @@ try {
   console.log("Using fallback empty data due to error");
 }
 
-// Sample data is already properly organized - no complex filtering needed
-const inboxContent = featuredContent;
-const organizedContent = contentItems;
+// Combine all content for the main content section
+// Inbox shows only unorganized threads (not individual notes)
+const inboxContent = featuredContent.filter(item => item.type === 'thread');
+const organizedContent = [...contentItems, ...featuredContent.filter(item => item.type === 'note')];
 const inboxItemCount = inboxCount;
 
 // Get active thread context for navigation

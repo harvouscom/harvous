@@ -155,37 +155,14 @@ export async function getAllThreadsWithCounts(userId: string) {
       .where(eq(Notes.threadId, unorganizedThread.id))
       .get() : { count: 0 };
 
-    // Ensure "Unorganized" thread always exists
-    const hasUnorganizedThread = threadsWithCounts.some(thread => thread.title === "Unorganized");
-    if (!hasUnorganizedThread && unorganizedThread) {
-      threadsWithCounts.unshift({
-        ...unorganizedThread,
-        noteCount: unorganizedNoteCount?.count || 0,
-        lastUpdated: formatRelativeTime(unorganizedThread.updatedAt || unorganizedThread.createdAt),
-        accentColor: "var(--color-paper)",
-        backgroundGradient: "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)",
-      });
-    }
+    // Don't add unorganized thread to the threads list - it should be hidden from dashboard display
+    // The unorganized thread exists for data organization but shouldn't appear in navigation
 
     return threadsWithCounts;
   } catch (error) {
     console.error("Error fetching threads:", error);
-    // Return default unorganized thread if database fails
-    return [{
-      id: "thread_unorganized",
-      title: "Unorganized",
-      subtitle: null,
-      color: null,
-      spaceId: null,
-      isPublic: true,
-      isPinned: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      noteCount: 0,
-      lastUpdated: "Just now",
-      accentColor: "var(--color-paper)",
-      backgroundGradient: "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)",
-    }];
+    // Return empty array if database fails - unorganized thread should not be displayed
+    return [];
   }
 }
 
