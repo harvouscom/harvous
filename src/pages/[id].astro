@@ -184,39 +184,67 @@ let inboxCount: number = 0;
   // Always use real database data
   try {
     if (isThread) {
-      // Fetch thread and its notes from database
-      const [threadData, notesData] = await Promise.all([
-        getAllThreadsWithCounts(userId).then(threads => threads.find(t => t.id === id)),
-        getNotesForThread(id!, userId)
-      ]);
-      
-      if (threadData) {
-        // console.log("Thread page: Found thread data:", threadData);
+      // Special handling for unorganized thread
+      if (id === 'thread_unorganized') {
+        const notesData = await getNotesForThread(id!, userId);
+        
         content = {
-          id: threadData.id,
-          title: threadData.title,
-          subtitle: threadData.subtitle,
-          color: threadData.color,
-          spaceId: threadData.spaceId,
+          id: 'thread_unorganized',
+          title: 'Unorganized',
+          subtitle: 'Individual notes and unassigned content',
+          color: null,
+          spaceId: null,
           notes: notesData,
           noteCount: notesData.length
         };
         currentThread = {
-          id: threadData.id,
-          title: threadData.title,
-          color: threadData.color,
+          id: 'thread_unorganized',
+          title: 'Unorganized',
+          color: null,
           noteCount: notesData.length,
-          backgroundGradient: `linear-gradient(180deg, var(--color-${threadData.color}) 0%, var(--color-${threadData.color}) 100%)`
+          backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
         };
-        // console.log("Thread page: Set currentThread:", currentThread);
         
         // Set threadNotes for template rendering
         threadNotes = notesData;
         
-        pageTitle = threadData.title;
+        pageTitle = 'Unorganized';
         pageContent = `${notesData.length} notes`;
       } else {
-        // console.log("Thread page: Thread not found for ID:", id);
+        // Fetch thread and its notes from database
+        const [threadData, notesData] = await Promise.all([
+          getAllThreadsWithCounts(userId).then(threads => threads.find(t => t.id === id)),
+          getNotesForThread(id!, userId)
+        ]);
+        
+        if (threadData) {
+          // console.log("Thread page: Found thread data:", threadData);
+          content = {
+            id: threadData.id,
+            title: threadData.title,
+            subtitle: threadData.subtitle,
+            color: threadData.color,
+            spaceId: threadData.spaceId,
+            notes: notesData,
+            noteCount: notesData.length
+          };
+          currentThread = {
+            id: threadData.id,
+            title: threadData.title,
+            color: threadData.color,
+            noteCount: notesData.length,
+            backgroundGradient: `linear-gradient(180deg, var(--color-${threadData.color}) 0%, var(--color-${threadData.color}) 100%)`
+          };
+          // console.log("Thread page: Set currentThread:", currentThread);
+          
+          // Set threadNotes for template rendering
+          threadNotes = notesData;
+          
+          pageTitle = threadData.title;
+          pageContent = `${notesData.length} notes`;
+        } else {
+          // console.log("Thread page: Thread not found for ID:", id);
+        }
       }
     } else if (isNote) {
       // Fetch note from database
@@ -234,16 +262,28 @@ let inboxCount: number = 0;
         };
 
         // Get the thread this note belongs to
-        const thread = await db.select().from(Threads).where(eq(Threads.id, note.threadId)).get();
-        
-        if (thread) {
+        if (note.threadId === 'thread_unorganized') {
+          // Special handling for unorganized thread
+          const noteCount = await getNotesForThread('thread_unorganized', userId).then(notes => notes.length);
           currentThread = {
-            id: thread.id,
-            title: thread.title,
-            color: thread.color,
-            noteCount: await getNotesForThread(thread.id, userId).then(notes => notes.length),
-            backgroundGradient: `linear-gradient(180deg, var(--color-${thread.color}) 0%, var(--color-${thread.color}) 100%)`
+            id: 'thread_unorganized',
+            title: 'Unorganized',
+            color: null,
+            noteCount: noteCount,
+            backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
           };
+        } else {
+          const thread = await db.select().from(Threads).where(eq(Threads.id, note.threadId)).get();
+          
+          if (thread) {
+            currentThread = {
+              id: thread.id,
+              title: thread.title,
+              color: thread.color,
+              noteCount: await getNotesForThread(thread.id, userId).then(notes => notes.length),
+              backgroundGradient: `linear-gradient(180deg, var(--color-${thread.color}) 0%, var(--color-${thread.color}) 100%)`
+            };
+          }
         }
       }
     } else if (isSpace) {

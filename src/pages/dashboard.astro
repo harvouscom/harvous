@@ -100,7 +100,8 @@ try {
 // Inbox shows only unorganized threads (not individual notes)
 const inboxContent = featuredContent.filter(item => item.type === 'thread');
 const organizedContent = [...contentItems, ...featuredContent.filter(item => item.type === 'note')];
-const inboxItemCount = inboxCount;
+// Use the actual count of items displayed in inbox, not the total inbox count
+const inboxItemCount = inboxContent.length;
 
 // Get active thread context for navigation
 const activeThread = await detectActiveThreadFromPath('/dashboard', userId);
@@ -149,7 +150,7 @@ const activeThread = await detectActiveThreadFromPath('/dashboard', userId);
                       count={activeThread.noteCount} 
                       state="WithCount" 
                       className="w-full" 
-                      backgroundGradient={activeThread.backgroundGradient}
+                      backgroundGradient={activeThread.id === 'thread_unorganized' ? "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)" : activeThread.backgroundGradient}
                       isActive={false}
                     />
                   </a>
