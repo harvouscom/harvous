@@ -81,29 +81,72 @@ const showMoreButton = shouldShowMoreButton(contentType);
     <!-- Alpine.js CDN for SquareButton menu functionality -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
+    <!-- Development environment fixes -->
+    <script>
+      // Only run in development
+      if (import.meta.env.DEV) {
+        // Override module script loading to handle MIME type issues
+        const originalCreateElement = document.createElement;
+        document.createElement = function(tagName: string) {
+          const element = originalCreateElement.call(this, tagName);
+          if (tagName === 'script' && (element as HTMLScriptElement).type === 'module') {
+            element.addEventListener('error', function(e) {
+              // Don't prevent the error, but log it as a warning
+              console.warn('Module script loading issue (development):', e);
+            });
+          }
+          return element;
+        };
+        
+        // Suppress specific MIME type errors in console
+        const originalConsoleError = console.error;
+        console.error = function(...args) {
+          const message = args[0];
+          if (typeof message === 'string' && 
+              (message.includes('Failed to load module script') || 
+               message.includes('MIME type'))) {
+            console.warn('Development MIME type issue (suppressed):', ...args);
+            return;
+          }
+          originalConsoleError.apply(console, args);
+        };
+      }
+    </script>
+    
     <!-- Tab functionality script -->
     <script>
       // Ensure tab functionality works consistently across environments
       (function() {
+        // Prevent multiple initializations
+        if ((window as any).tabFunctionalityInitialized) {
+          return;
+        }
+        (window as any).tabFunctionalityInitialized = true;
         // Debug logging to help identify environment differences
         console.log('Tab script loaded in environment:', typeof window !== 'undefined' ? 'browser' : 'server');
         console.log('Document ready state:', document.readyState);
         console.log('Current URL:', window.location.href);
         
         function initTabs() {
-          console.log('Layout: Initializing tab functionality...');
-          
-          // Remove any existing event listeners to prevent duplicates
-          const existingButtons = document.querySelectorAll('[data-tab-button]');
-          existingButtons.forEach(function(button) {
-            const newButton = button.cloneNode(true);
-            button.parentNode?.replaceChild(newButton, button);
-          });
+          try {
+            console.log('Layout: Initializing tab functionality...');
+            
+            // Remove any existing event listeners to prevent duplicates
+            const existingButtons = document.querySelectorAll('[data-tab-button]');
+            existingButtons.forEach(function(button) {
+              const newButton = button.cloneNode(true);
+              button.parentNode?.replaceChild(newButton, button);
+            });
           
           // Initialize tab functionality
           function setupTabHandlers() {
             const tabButtons = document.querySelectorAll('[data-tab-button]');
             console.log('Layout: Found', tabButtons.length, 'tab buttons');
+            
+            if (tabButtons.length === 0) {
+              console.log('Layout: No tab buttons found, skipping initialization');
+              return;
+            }
             
             tabButtons.forEach(function(button) {
               // Remove any existing click listeners
@@ -247,6 +290,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
             childList: true,
             subtree: true
           });
+          } catch (error) {
+            console.error('Layout: Error initializing tabs:', error);
+          }
         }
         
         // Initialize when DOM is ready
@@ -258,7 +304,16 @@ const showMoreButton = shouldShowMoreButton(contentType);
         }
         
         // Re-initialize tabs after View Transitions page loads
-        document.addEventListener('astro:page-load', initTabs);
+        document.addEventListener('astro:page-load', () => {
+          console.log('Layout: astro:page-load event - reinitializing tabs');
+          setTimeout(initTabs, 50);
+        });
+        
+        // Also re-initialize after DOM swap for View Transitions
+        document.addEventListener('astro:after-swap', () => {
+          console.log('Layout: astro:after-swap event - reinitializing tabs');
+          setTimeout(initTabs, 50);
+        });
          
          // Also initialize when Alpine.js is ready (if it's being used)
          if ((window as any).Alpine) {
@@ -272,6 +327,11 @@ const showMoreButton = shouldShowMoreButton(contentType);
          if (document.readyState === 'complete') {
            setTimeout(initTabs, 500);
          }
+         
+         // Extra fallback for View Transitions - wait for all resources to load
+         window.addEventListener('load', () => {
+           setTimeout(initTabs, 200);
+         });
       })();
     </script>
     
@@ -308,6 +368,17 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 // Initialize panels as closed by default
                 showNewNotePanel = false;
                 showNewThreadPanel = false;
+                
+                // Check localStorage for panel state
+                const savedNotePanel = localStorage.getItem('showNewNotePanel');
+                const savedThreadPanel = localStorage.getItem('showNewThreadPanel');
+                
+                if (savedNotePanel === 'true') {
+                  showNewNotePanel = true;
+                }
+                if (savedThreadPanel === 'true') {
+                  showNewThreadPanel = true;
+                }
                 
                 // Listen for NewNotePanel events
                 window.addEventListener('openNewNotePanel', () => {

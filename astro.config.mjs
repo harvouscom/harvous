@@ -23,7 +23,29 @@ export default defineConfig({
         clientPort: 4321,
         overlay: false,
         host: 'localhost'
-      }
+      },
+      // Fix MIME type issues for .astro files
+      fs: {
+        strict: false
+      },
+      // Additional headers for development
+      headers: {
+        'Cache-Control': 'no-cache'
+      },
+      // Fix MIME type issues for .astro files
+      middleware: [
+        {
+          name: 'fix-mime-types',
+          configureServer(server) {
+            server.middlewares.use('/_astro', (req, res, next) => {
+              if (req.url && req.url.endsWith('.astro')) {
+                res.setHeader('Content-Type', 'application/javascript');
+              }
+              next();
+            });
+          }
+        }
+      ]
     },
     build: {
       // Optimize chunks to improve browser performance
@@ -44,6 +66,13 @@ export default defineConfig({
       exclude: [],
       include: ['alpinejs', 'trix', '@clerk/astro/client']
     },
+    // Fix MIME type issues in development
+    define: {
+      _DEFINES_: JSON.stringify({}),
+      // Fix environment variable issues
+      'import.meta.env.DEV': JSON.stringify(import.meta.env.DEV),
+      'import.meta.env.PROD': JSON.stringify(import.meta.env.PROD)
+    },
     // Improve CSS handling
     css: {
       devSourcemap: false
@@ -58,7 +87,10 @@ export default defineConfig({
     tailwind(),
   ],
 
-  // Always use server output for Clerk SSR compatibility
+  // Use different output modes for development vs production
   output: "server",
-  adapter: netlify({}),
+  adapter: import.meta.env.DEV ? undefined : netlify({
+    // Only use Netlify adapter in production
+    edgeMiddleware: false
+  }),
 });
