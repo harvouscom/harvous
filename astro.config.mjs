@@ -47,17 +47,7 @@ export default defineConfig({
     // Improve CSS handling
     css: {
       devSourcemap: false
-    },
-    // Fix MIME type issues and module loading
-    define: {
-      __DEFINES__: '{}',
-      'process.env.NODE_ENV': '"development"'
-    },
-    // ssr: {
-    //   noExternal: ['@clerk/astro']
-    // },
-    // Prevent CSS and Astro files from being treated as JS modules
-    plugins: []
+    }
   },
 
   integrations: [

@@ -20,11 +20,10 @@ function formatRelativeTime(date: Date): string {
   }
 }
 
-// Helper function to find or create the unorganized thread
-async function findOrCreateUnorganizedThread(userId: string) {
+// Helper function to find unorganized thread (don't create it)
+async function findUnorganizedThread(userId: string) {
   try {
-    // First try to find by ID (the way it's created in notes action)
-    let unorganizedThread = await db.select({
+    const unorganizedThread = await db.select({
       id: Threads.id,
       title: Threads.title,
       subtitle: Threads.subtitle,
@@ -42,77 +41,15 @@ async function findOrCreateUnorganizedThread(userId: string) {
     ))
     .get();
 
-    // If not found by ID, try by title (fallback)
-    if (!unorganizedThread) {
-      unorganizedThread = await db.select({
-        id: Threads.id,
-        title: Threads.title,
-        subtitle: Threads.subtitle,
-        color: Threads.color,
-        spaceId: Threads.spaceId,
-        isPublic: Threads.isPublic,
-        isPinned: Threads.isPinned,
-        createdAt: Threads.createdAt,
-        updatedAt: Threads.updatedAt,
-      })
-      .from(Threads)
-      .where(and(
-        eq(Threads.userId, userId),
-        eq(Threads.title, "Unorganized")
-      ))
-      .get();
-    }
-
-    // If still not found, create it
-    if (!unorganizedThread) {
-      console.log("Creating unorganized thread for user:", userId);
-      try {
-        unorganizedThread = await db.insert(Threads)
-          .values({
-            id: 'thread_unorganized',
-            title: 'Unorganized',
-            subtitle: 'Notes that haven\'t been organized into threads yet',
-            spaceId: null,
-            userId,
-            isPublic: false,
-            color: null,
-            isPinned: false,
-            createdAt: new Date()
-          })
-          .returning()
-          .get();
-        console.log("Successfully created unorganized thread:", unorganizedThread);
-      } catch (createError) {
-        console.error("Error creating unorganized thread:", createError);
-        // Thread might already exist due to race condition, try to find it again
-        unorganizedThread = await db.select({
-          id: Threads.id,
-          title: Threads.title,
-          subtitle: Threads.subtitle,
-          color: Threads.color,
-          spaceId: Threads.spaceId,
-          isPublic: Threads.isPublic,
-          isPinned: Threads.isPinned,
-          createdAt: Threads.createdAt,
-          updatedAt: Threads.updatedAt,
-        })
-        .from(Threads)
-        .where(and(
-          eq(Threads.userId, userId),
-          eq(Threads.id, "thread_unorganized")
-        ))
-        .get();
-      }
-    }
-
     return unorganizedThread;
   } catch (error) {
-    console.error("Error finding/creating unorganized thread:", error);
+    console.error("Error finding unorganized thread:", error);
     return null;
   }
 }
 
-// Fetch all threads with note counts (including unorganized)
+
+// Fetch all threads with note counts (excluding unorganized thread)
 export async function getAllThreadsWithCounts(userId: string) {
   try {
     const threads = await db.select({
@@ -127,7 +64,10 @@ export async function getAllThreadsWithCounts(userId: string) {
       updatedAt: Threads.updatedAt,
     })
     .from(Threads)
-    .where(eq(Threads.userId, userId))
+    .where(and(
+      eq(Threads.userId, userId),
+      ne(Threads.id, "thread_unorganized") // Exclude unorganized thread from dashboard display
+    ))
     .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt));
 
     // Get note counts for each thread
@@ -149,7 +89,7 @@ export async function getAllThreadsWithCounts(userId: string) {
     );
 
     // Get count for unorganized notes
-    const unorganizedThread = await findOrCreateUnorganizedThread(userId);
+    const unorganizedThread = await findUnorganizedThread(userId);
     const unorganizedNoteCount = unorganizedThread ? await db.select({ count: count() })
       .from(Notes)
       .where(eq(Notes.threadId, unorganizedThread.id))
@@ -360,7 +300,7 @@ export async function getNotesForDashboard(userId: string, limit = 10) {
 export async function getInboxCount(userId: string) {
   try {
     // Count individual notes in unorganized thread
-    const unorganizedThread = await findOrCreateUnorganizedThread(userId);
+    const unorganizedThread = await findUnorganizedThread(userId);
     const individualNotesCount = unorganizedThread ? await db.select({ count: count() })
       .from(Notes)
       .where(eq(Notes.threadId, unorganizedThread.id))
@@ -407,7 +347,7 @@ export async function getFeaturedContent(userId: string) {
     .limit(3);
 
     // Get recent individual notes (in unorganized thread)
-    const unorganizedThread = await findOrCreateUnorganizedThread(userId);
+    const unorganizedThread = await findUnorganizedThread(userId);
     console.log("Unorganized thread found:", unorganizedThread);
     const recentIndividualNotes = unorganizedThread ? await db.select({
       id: Notes.id,
@@ -428,7 +368,7 @@ export async function getFeaturedContent(userId: string) {
     
     console.log("Recent individual notes found:", recentIndividualNotes.length);
 
-    // Get unorganized threads (threads not in any space)
+    // Get unorganized threads (threads not in any space, excluding the unorganized thread itself)
     const unorganizedThreads = await db.select({
       id: Threads.id,
       title: Threads.title,
@@ -443,7 +383,7 @@ export async function getFeaturedContent(userId: string) {
     .where(and(
       eq(Threads.userId, userId),
       isNull(Threads.spaceId),
-      ne(Threads.title, "Unorganized") // Exclude the unorganized thread itself
+      ne(Threads.id, "thread_unorganized") // Exclude the unorganized thread by ID
     ))
     .orderBy(desc(Threads.updatedAt || Threads.createdAt))
     .limit(2);
@@ -558,7 +498,7 @@ export async function getContentItems(userId: string, limit = 20) {
 // Fetch assigned notes for dashboard (excludes unorganized notes)
 export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
   try {
-    const unorganizedThread = await findOrCreateUnorganizedThread(userId);
+    const unorganizedThread = await findUnorganizedThread(userId);
     if (!unorganizedThread) {
       // If no unorganized thread exists, return all notes
       const notes = await db.select({

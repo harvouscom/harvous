@@ -516,6 +516,7 @@ if (!userId) {
         try {
           const formData = new FormData(form);
           console.log('Submitting to:', form.action);
+          console.log('Form data entries:', Array.from(formData.entries()));
           
           const response = await fetch(form.action, {
             method: 'POST',

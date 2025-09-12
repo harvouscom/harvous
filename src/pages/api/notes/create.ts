@@ -35,31 +35,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Ensure we have a valid threadId - if it's unorganized, use the default
     let finalThreadId = threadId;
     if (!finalThreadId || finalThreadId === 'thread_unorganized') {
-      // Check if unorganized thread exists, create it if it doesn't
-      const existingUnorganizedThread = await db.select()
-        .from(Threads)
-        .where(and(eq(Threads.id, 'thread_unorganized'), eq(Threads.userId, userId)))
-        .get();
-        
-      if (!existingUnorganizedThread) {
-        try {
-          // Create the unorganized thread
-          await db.insert(Threads)
-            .values({
-              id: 'thread_unorganized',
-              title: 'Unorganized',
-              subtitle: 'Notes that haven\'t been organized into threads yet',
-              spaceId: null,
-              userId,
-              isPublic: false,
-              color: null,
-              isPinned: false,
-              createdAt: new Date()
-            });
-          console.log('Created unorganized thread for user:', userId);
-        } catch (error) {
-          // Thread might already exist due to race condition, that's okay
-          console.log('Unorganized thread already exists for user:', userId);
+      // Create the unorganized thread if it doesn't exist
+      try {
+        await db.insert(Threads).values({
+          id: "thread_unorganized",
+          title: "Unorganized",
+          subtitle: "Notes that haven't been organized into threads yet",
+          spaceId: null,
+          userId: userId,
+          isPublic: true,
+          isPinned: false,
+          color: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }).returning().get();
+        console.log("Created unorganized thread for user:", userId);
+      } catch (createError: any) {
+        if (createError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || createError.rawCode === 1555) {
+          console.log("Unorganized thread already exists for user:", userId);
+        } else {
+          console.error("Error creating unorganized thread:", createError);
         }
       }
       finalThreadId = 'thread_unorganized';
