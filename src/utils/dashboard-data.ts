@@ -326,6 +326,20 @@ export async function getInboxCount(userId: string) {
   }
 }
 
+// Get inbox display count (only unorganized threads, matching what's shown in the inbox section)
+export async function getInboxDisplayCount(userId: string) {
+  try {
+    // Get featured content to count unorganized threads
+    const featuredContent = await getFeaturedContent(userId);
+    const inboxContent = featuredContent.filter(item => item.type === 'thread');
+    
+    return inboxContent.length;
+  } catch (error) {
+    console.error("Error fetching inbox display count:", error);
+    return 0;
+  }
+}
+
 // Fetch featured content (pinned threads and recent unassigned notes + unorganized threads)
 export async function getFeaturedContent(userId: string) {
   console.log("getFeaturedContent called with userId:", userId);

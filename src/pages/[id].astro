@@ -9,7 +9,7 @@ import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
 import { db, Threads, Notes, Spaces, eq, and, desc } from "astro:db";
-import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount } from "@/utils/dashboard-data";
+import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount } from "@/utils/dashboard-data";
 import { getThreadColorCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
@@ -317,7 +317,7 @@ let inboxCount: number = 0;
     const [allThreads, allSpaces, inboxCountData] = await Promise.all([
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
-      getInboxCount(userId)
+      getInboxDisplayCount(userId)
     ]);
     
     spaces = allSpaces;
