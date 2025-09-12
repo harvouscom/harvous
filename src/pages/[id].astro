@@ -53,7 +53,9 @@ let inboxCount: number = 0;
 
 // Database functions are imported at the top
 
-  if (false) { // Sample data disabled - always use real database
+  // Sample data code removed - always use real database
+  /*
+  if (false) {
     // Use robust sample data system
     if (isThread) {
       // Find thread in sample data
@@ -177,7 +179,8 @@ let inboxCount: number = 0;
     ...thread,
     noteCount: SAMPLE_DATA.threadNotes.filter(note => note.threadId === thread.id).length
   }));
-} else {
+  */
+  
   // Always use real database data
   try {
     if (isThread) {
@@ -289,7 +292,6 @@ let inboxCount: number = 0;
     spaces = [];
     inboxCount = 0;
   }
-}
 
 
 

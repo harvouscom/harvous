@@ -20,8 +20,8 @@ function formatRelativeTime(date: Date): string {
   }
 }
 
-// Helper function to find the unorganized thread
-async function findUnorganizedThread(userId: string) {
+// Helper function to find or create the unorganized thread
+async function findOrCreateUnorganizedThread(userId: string) {
   try {
     // First try to find by ID (the way it's created in notes action)
     let unorganizedThread = await db.select({
@@ -63,9 +63,51 @@ async function findUnorganizedThread(userId: string) {
       .get();
     }
 
+    // If still not found, create it
+    if (!unorganizedThread) {
+      console.log("Creating unorganized thread for user:", userId);
+      try {
+        unorganizedThread = await db.insert(Threads)
+          .values({
+            id: 'thread_unorganized',
+            title: 'Unorganized',
+            subtitle: 'Notes that haven\'t been organized into threads yet',
+            spaceId: null,
+            userId,
+            isPublic: false,
+            color: null,
+            isPinned: false,
+            createdAt: new Date()
+          })
+          .returning()
+          .get();
+        console.log("Successfully created unorganized thread:", unorganizedThread);
+      } catch (createError) {
+        console.error("Error creating unorganized thread:", createError);
+        // Thread might already exist due to race condition, try to find it again
+        unorganizedThread = await db.select({
+          id: Threads.id,
+          title: Threads.title,
+          subtitle: Threads.subtitle,
+          color: Threads.color,
+          spaceId: Threads.spaceId,
+          isPublic: Threads.isPublic,
+          isPinned: Threads.isPinned,
+          createdAt: Threads.createdAt,
+          updatedAt: Threads.updatedAt,
+        })
+        .from(Threads)
+        .where(and(
+          eq(Threads.userId, userId),
+          eq(Threads.id, "thread_unorganized")
+        ))
+        .get();
+      }
+    }
+
     return unorganizedThread;
   } catch (error) {
-    console.error("Error finding unorganized thread:", error);
+    console.error("Error finding/creating unorganized thread:", error);
     return null;
   }
 }
@@ -107,7 +149,7 @@ export async function getAllThreadsWithCounts(userId: string) {
     );
 
     // Get count for unorganized notes
-    const unorganizedThread = await findUnorganizedThread(userId);
+    const unorganizedThread = await findOrCreateUnorganizedThread(userId);
     const unorganizedNoteCount = unorganizedThread ? await db.select({ count: count() })
       .from(Notes)
       .where(eq(Notes.threadId, unorganizedThread.id))
@@ -341,7 +383,7 @@ export async function getNotesForDashboard(userId: string, limit = 10) {
 export async function getInboxCount(userId: string) {
   try {
     // Count individual notes in unorganized thread
-    const unorganizedThread = await findUnorganizedThread(userId);
+    const unorganizedThread = await findOrCreateUnorganizedThread(userId);
     const individualNotesCount = unorganizedThread ? await db.select({ count: count() })
       .from(Notes)
       .where(eq(Notes.threadId, unorganizedThread.id))
@@ -388,7 +430,7 @@ export async function getFeaturedContent(userId: string) {
     .limit(3);
 
     // Get recent individual notes (in unorganized thread)
-    const unorganizedThread = await findUnorganizedThread(userId);
+    const unorganizedThread = await findOrCreateUnorganizedThread(userId);
     console.log("Unorganized thread found:", unorganizedThread);
     const recentIndividualNotes = unorganizedThread ? await db.select({
       id: Notes.id,
@@ -539,7 +581,7 @@ export async function getContentItems(userId: string, limit = 20) {
 // Fetch assigned notes for dashboard (excludes unorganized notes)
 export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
   try {
-    const unorganizedThread = await findUnorganizedThread(userId);
+    const unorganizedThread = await findOrCreateUnorganizedThread(userId);
     if (!unorganizedThread) {
       // If no unorganized thread exists, return all notes
       const notes = await db.select({

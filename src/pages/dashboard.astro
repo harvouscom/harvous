@@ -75,8 +75,15 @@ try {
     }));
 } catch (error) {
   console.error("Error fetching dashboard data:", error);
-  console.error("Error details:", error.message);
-  console.error("Error stack:", error.stack);
+  console.error("Error details:", error instanceof Error ? error.message : String(error));
+  console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace available');
+  
+  // In production, we want to see the actual error instead of silent fallback
+  if (import.meta.env.PROD) {
+    console.error("PRODUCTION ERROR: Dashboard data fetch failed");
+    console.error("This indicates a serious issue with database connectivity or data integrity");
+    // Still provide fallback data but log the error prominently
+  }
   
   // Fallback to empty data if database fails
   featuredContent = [];
@@ -93,6 +100,9 @@ try {
 const inboxContent = featuredContent;
 const organizedContent = contentItems;
 const inboxItemCount = inboxCount;
+
+// Get active thread context for navigation
+const activeThread = await detectActiveThreadFromPath('/dashboard', userId);
 ---
 
 <Layout title="Dashboard" contentType="dashboard" currentThread={null}>
@@ -131,21 +141,18 @@ const inboxItemCount = inboxCount;
                 ))}
                 
                                 {/* Show active thread if any (in inactive state) */}
-                {(() => {
-                  const activeThread = detectActiveThreadFromPath('/dashboard');
-                  return activeThread ? (
-                    <a href={`/${activeThread.id}`} class="w-full">
-                      <SpaceButton 
-                        text={activeThread.title} 
-                        count={activeThread.noteCount} 
-                        state="WithCount" 
-                        className="w-full" 
-                        backgroundGradient={activeThread.backgroundGradient}
-                        isActive={false}
-                      />
-                    </a>
-                  ) : null;
-                })()}
+                {activeThread ? (
+                  <a href={`/${activeThread.id}`} class="w-full">
+                    <SpaceButton 
+                      text={activeThread.title} 
+                      count={activeThread.noteCount} 
+                      state="WithCount" 
+                      className="w-full" 
+                      backgroundGradient={activeThread.backgroundGradient}
+                      isActive={false}
+                    />
+                  </a>
+                ) : null}
                 
 
               </div>
@@ -317,7 +324,7 @@ const inboxItemCount = inboxCount;
       threads={threads}
       inboxCount={inboxItemCount}
       currentSpace={null}
-      currentThread={detectActiveThreadFromPath('/dashboard')}
+      currentThread={activeThread}
     />
   </div>
 
