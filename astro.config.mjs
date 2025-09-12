@@ -1,7 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import db from '@astrojs/db';
-import clerkIntegration from '@clerk/astro';
+import clerk from '@clerk/astro';
 import tailwind from '@astrojs/tailwind';
 
 import netlify from '@astrojs/netlify';
@@ -53,16 +53,16 @@ export default defineConfig({
       __DEFINES__: '{}',
       'process.env.NODE_ENV': '"development"'
     },
-    ssr: {
-      noExternal: ['@clerk/astro']
-    },
+    // ssr: {
+    //   noExternal: ['@clerk/astro']
+    // },
     // Prevent CSS and Astro files from being treated as JS modules
     plugins: []
   },
 
   integrations: [
     db(),
-    clerkIntegration({
+    clerk({
       enableEnvSchema: true
     }),
     tailwind(),
@@ -70,7 +70,5 @@ export default defineConfig({
 
   // Always use server output for Clerk SSR compatibility
   output: "server",
-  adapter: process.env.NODE_ENV === 'production' ? netlify({
-    // Optimize for Netlify
-  }) : undefined,
+  adapter: netlify({}),
 });
