@@ -1,6 +1,7 @@
 ---
 import SpaceButton from "./SpaceButton.astro";
 import { getNavigationHistory } from "../stores/navigation-history";
+import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 ---
 
 <!-- Persistent Navigation Component -->
@@ -56,42 +57,38 @@ import { getNavigationHistory } from "../stores/navigation-history";
       const isActive = window.location.pathname === `/${item.id}`;
       
       return `
-        <div data-navigation-item="${item.id}" class="w-full">
-          <a href="/${item.id}" class="w-full">
+        <div data-navigation-item="${item.id}" class="w-full nav-item-container ${isActive ? 'active' : ''}">
+          <a href="/${item.id}" class="w-full relative block">
             <button
               class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full"
               style="${isActive ? `background-image: ${item.backgroundGradient || 'var(--color-gradient-gray)'};` : ''}"
-              x-data="{ showClose: false }"
-              @mouseenter="showClose = true; console.log('🔥 Persistent nav hover enter - showClose:', showClose)"
-              @mouseleave="showClose = false; console.log('🔥 Persistent nav hover leave - showClose:', showClose)"
             >
               <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
                 <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
                   ${item.title}
                 </span>
-                <div class="p-[20px] relative">
+                <!-- Right box - simple flex container for badge -->
+                <div class="flex items-center justify-center p-[20px]">
                   <!-- Badge count - show when not hovering -->
-                  <div 
-                    x-show="!showClose"
-                    class="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative"
-                  >
+                  <div class="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
                     <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
                       ${item.count || 0}
                     </span>
                   </div>
-                  <!-- Close icon - show when hovering -->
-                  <div 
-                    x-show="showClose"
-                    @click.stop.prevent="if (window.closeNavigationItemWithHistory) { window.closeNavigationItemWithHistory('${item.id}'); } else if (window.closeNavigationItem) { window.closeNavigationItem('${item.id}'); }"
-                    class="close-icon-container absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center cursor-pointer z-10"
-                  >
-                    <svg class="fill-[var(--color-deep-grey)]" width="16" height="16" viewBox="0 0 24 24">
-                      <path d="M18 6L6 18M6 6l12 12"/>
-                    </svg>
-                  </div>
                 </div>
               </div>
             </button>
+            <!-- Close icon - only show for inactive items -->
+            ${!isActive ? `
+            <div 
+              class="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
+              @click.stop.prevent="if (window.closeNavigationItemWithHistory) { window.closeNavigationItemWithHistory('${item.id}'); } else if (window.closeNavigationItem) { window.closeNavigationItem('${item.id}'); }"
+            >
+              <svg class="w-4 h-4 fill-current" style="color: var(--color-deep-grey);" viewBox="0 0 384 512">
+                <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+              </svg>
+            </div>
+            ` : ''}
           </a>
         </div>
       `;
@@ -99,38 +96,25 @@ import { getNavigationHistory } from "../stores/navigation-history";
     
     container.innerHTML = itemsHTML;
     
+    // Add CSS for hover states - only for inactive items
+    const style = document.createElement('style');
+    style.textContent = `
+      .nav-item-container:not(.active):hover .badge-count {
+        display: none !important;
+      }
+      .nav-item-container:not(.active):hover .close-icon {
+        display: flex !important;
+      }
+      .close-icon {
+        display: none;
+      }
+    `;
+    document.head.appendChild(style);
+    
     // Re-initialize Alpine.js for the new elements
     if ((window as any).Alpine) {
       setTimeout(() => {
-        try {
-          // Re-initialize Alpine.js for this container
-          (window as any).Alpine.initTree(container);
-          console.log('🔄 Alpine.js re-initialized for persistent navigation');
-          
-          // Also call global re-initialization
-          if ((window as any).reinitializeAlpine) {
-            (window as any).reinitializeAlpine();
-          }
-          
-          // Debug: Check if Alpine.js is working on the new elements
-          const alpineElements = container.querySelectorAll('[x-data]');
-          console.log('🔍 Found Alpine.js elements:', alpineElements.length);
-          
-          // Test hover functionality
-          const testButton = container.querySelector('button');
-          if (testButton) {
-            console.log('🧪 Testing hover functionality on first button');
-            // Simulate hover to test
-            testButton.dispatchEvent(new Event('mouseenter'));
-            setTimeout(() => {
-              const closeIcon = testButton.querySelector('[x-show="showClose"]');
-              console.log('🔍 Close icon visible after hover:', closeIcon ? 'Yes' : 'No');
-              testButton.dispatchEvent(new Event('mouseleave'));
-            }, 100);
-          }
-        } catch (error) {
-          console.error('❌ Error initializing Alpine.js:', error);
-        }
+        (window as any).Alpine.initTree(container);
       }, 150); // Increased timeout
     } else {
       console.log('❌ Alpine.js not available for persistent navigation');

@@ -79,13 +79,29 @@ window.debugNavigation = {
           if (button.hasAttribute('x-data')) {
             console.log(`🧪 Testing button ${index + 1}:`, button);
             
-            // Simulate hover
-            button.dispatchEvent(new Event('mouseenter'));
-            setTimeout(() => {
-              const closeIcon = button.querySelector('[x-show="showClose"]');
-              console.log(`🔍 Button ${index + 1} close icon visible:`, closeIcon ? 'Yes' : 'No');
-              button.dispatchEvent(new Event('mouseleave'));
-            }, 100);
+            // Check if Alpine.js is initialized on this button
+            if (button._x_dataStack) {
+              console.log(`✅ Button ${index + 1} has Alpine.js data stack`);
+            } else {
+              console.log(`❌ Button ${index + 1} missing Alpine.js data stack - re-initializing`);
+              // Try to re-initialize Alpine.js on this button
+              window.Alpine.initTree(button);
+            }
+            
+            // Test the new close area hover functionality
+            const closeArea = button.querySelector('[title="Close"]');
+            if (closeArea) {
+              console.log(`🧪 Testing close area for button ${index + 1}`);
+              // Simulate hover on close area
+              closeArea.dispatchEvent(new Event('mouseenter'));
+              setTimeout(() => {
+                const closeIcon = button.querySelector('[x-show="showClose"]');
+                console.log(`🔍 Button ${index + 1} close icon visible after close area hover:`, closeIcon ? 'Yes' : 'No');
+                closeArea.dispatchEvent(new Event('mouseleave'));
+              }, 100);
+            } else {
+              console.log(`❌ Button ${index + 1} missing close area`);
+            }
           }
         });
         
@@ -96,6 +112,33 @@ window.debugNavigation = {
       }
     } catch (error) {
       console.log('❌ Alpine.js test error:', error);
+      return false;
+    }
+  },
+  
+  // Force re-initialize Alpine.js on all navigation buttons
+  forceReinitAlpine: function() {
+    console.log('🔄 Force re-initializing Alpine.js on navigation buttons...');
+    try {
+      if (window.Alpine) {
+        const navButtons = document.querySelectorAll('[data-navigation-item] button');
+        console.log('🔍 Found navigation buttons to re-initialize:', navButtons.length);
+        
+        navButtons.forEach((button, index) => {
+          if (button.hasAttribute('x-data')) {
+            console.log(`🔄 Re-initializing button ${index + 1}`);
+            window.Alpine.initTree(button);
+          }
+        });
+        
+        console.log('✅ Alpine.js re-initialization complete');
+        return true;
+      } else {
+        console.log('❌ Alpine.js not available');
+        return false;
+      }
+    } catch (error) {
+      console.log('❌ Force re-initialization error:', error);
       return false;
     }
   },

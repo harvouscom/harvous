@@ -582,27 +582,11 @@ const showMoreButton = shouldShowMoreButton(contentType);
 
 <!-- Global Alpine.js re-initialization for View Transitions -->
 <script>
-  // Global function to re-initialize Alpine.js after View Transitions
-  (window as any).reinitializeAlpine = function() {
-    if ((window as any).Alpine) {
-      console.log('🔄 Re-initializing Alpine.js globally');
-      try {
-        // Re-initialize all Alpine.js elements
-        (window as any).Alpine.initTree(document.body);
-        console.log('✅ Alpine.js re-initialized successfully');
-      } catch (error) {
-        console.error('❌ Error re-initializing Alpine.js:', error);
-      }
-    } else {
-      console.log('❌ Alpine.js not available for re-initialization');
-    }
-  };
-  
-  // Re-initialize Alpine.js after View Transitions
+  // Simple Alpine.js re-initialization after View Transitions
   document.addEventListener('astro:page-load', () => {
-    setTimeout(() => {
-      (window as any).reinitializeAlpine();
-    }, 100);
+    if ((window as any).Alpine) {
+      (window as any).Alpine.initTree(document.body);
+    }
   });
 </script>
 
