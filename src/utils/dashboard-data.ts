@@ -20,7 +20,7 @@ function formatRelativeTime(date: Date): string {
   }
 }
 
-// Helper function to find unorganized thread (don't create it)
+// Helper function to find unorganized thread (create it if it doesn't exist)
 async function findUnorganizedThread(userId: string) {
   try {
     const unorganizedThread = await db.select({
@@ -41,9 +41,57 @@ async function findUnorganizedThread(userId: string) {
     ))
     .get();
 
-    return unorganizedThread;
+    if (unorganizedThread) {
+      return unorganizedThread;
+    }
+
+    // If not found, create it
+    console.log("Creating unorganized thread for user:", userId);
+    try {
+      const newUnorganizedThread = await db.insert(Threads).values({
+        id: "thread_unorganized",
+        title: "Unorganized",
+        subtitle: "Notes that haven't been organized into threads yet",
+        spaceId: null,
+        userId: userId,
+        isPublic: true,
+        isPinned: false,
+        color: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }).returning().get();
+
+      console.log("✅ Created unorganized thread:", newUnorganizedThread);
+      return newUnorganizedThread;
+    } catch (createError: any) {
+      // If creation failed due to constraint, it means another process created it
+      if (createError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || createError.rawCode === 1555) {
+        console.log("Unorganized thread already exists, fetching it...");
+        // Try to fetch it again
+        const existingThread = await db.select({
+          id: Threads.id,
+          title: Threads.title,
+          subtitle: Threads.subtitle,
+          color: Threads.color,
+          spaceId: Threads.spaceId,
+          isPublic: Threads.isPublic,
+          isPinned: Threads.isPinned,
+          createdAt: Threads.createdAt,
+          updatedAt: Threads.updatedAt,
+        })
+        .from(Threads)
+        .where(and(
+          eq(Threads.userId, userId),
+          eq(Threads.id, "thread_unorganized")
+        ))
+        .get();
+        
+        return existingThread;
+      }
+      throw createError;
+    }
   } catch (error) {
-    console.error("Error finding unorganized thread:", error);
+    console.error("Error finding/creating unorganized thread:", error);
     return null;
   }
 }

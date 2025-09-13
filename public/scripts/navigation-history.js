@@ -75,15 +75,15 @@ function addToNavigationHistory(item) {
 }
 
 // Remove an item from navigation history
-function removeFromNavigationHistory(itemId) {
+function removeFromNavigationHistory(itemId, shouldRerender = true) {
   const currentHistory = getNavigationHistory();
   const updatedHistory = currentHistory.filter(item => item.id !== itemId);
   saveNavigationHistory(updatedHistory);
   console.log('🗑️ Removed from navigation history:', itemId);
   console.log('📚 Updated navigation history:', updatedHistory);
   
-  // Trigger re-render of persistent navigation
-  if (window.renderPersistentNavigation) {
+  // Only trigger re-render if explicitly requested
+  if (shouldRerender && window.renderPersistentNavigation) {
     window.renderPersistentNavigation();
   }
 }
@@ -119,8 +119,52 @@ function trackNavigationAccess() {
         console.log('📝 Adding thread to navigation history:', itemData);
         addToNavigationHistory(itemData);
       }
+      
+      // Special case: if this note belongs to the unorganized thread, ensure the unorganized thread is tracked
+      if (itemData.id === 'thread_unorganized') {
+        const unorganizedThreadData = {
+          id: 'thread_unorganized',
+          title: 'Unorganized',
+          type: 'thread',
+          count: itemData.count || 0,
+          backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+          color: 'paper'
+        };
+        console.log('📝 Adding unorganized thread to navigation history (from note):', unorganizedThreadData);
+        addToNavigationHistory(unorganizedThreadData);
+      }
       return;
     }
+    
+    // If we couldn't extract item data, try to get thread data from navigation attributes
+    const navigationElement = document.querySelector('[slot="navigation"]');
+    if (navigationElement && navigationElement.dataset.threadId) {
+      const threadData = {
+        id: navigationElement.dataset.threadId,
+        title: navigationElement.dataset.threadTitle || 'Unknown Thread',
+        type: 'thread',
+        count: parseInt(navigationElement.dataset.threadNoteCount) || 0,
+        backgroundGradient: navigationElement.dataset.threadBackgroundGradient,
+        color: navigationElement.dataset.threadColor
+      };
+      console.log('📝 Adding thread to navigation history (from navigation attributes):', threadData);
+      addToNavigationHistory(threadData);
+      
+      // If this is the unorganized thread, also add it specifically
+      if (threadData.id === 'thread_unorganized') {
+        const unorganizedThreadData = {
+          id: 'thread_unorganized',
+          title: 'Unorganized',
+          type: 'thread',
+          count: threadData.count,
+          backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+          color: 'paper'
+        };
+        console.log('📝 Adding unorganized thread to navigation history (from navigation attributes):', unorganizedThreadData);
+        addToNavigationHistory(unorganizedThreadData);
+      }
+    }
+    return;
   }
   
   // Special handling for unorganized thread itself
@@ -249,26 +293,31 @@ function extractItemDataFromPage(itemId) {
 window.closeNavigationItemWithHistory = function(itemId) {
   console.log('🔥 closeNavigationItemWithHistory called with itemId:', itemId);
   
-  // Remove from navigation history
-  removeFromNavigationHistory(itemId);
+  // Remove from navigation history without triggering re-render
+  removeFromNavigationHistory(itemId, false);
   
-  // Also remove from the DOM if it exists
-  const itemToClose = document.querySelector(`[data-navigation-item="${itemId}"]`);
-  if (itemToClose) {
-    itemToClose.style.display = 'none';
-    itemToClose.setAttribute('data-closed', 'true');
-  }
-  
-  // Navigate to dashboard if this was the current page
-  const currentPath = window.location.pathname;
-  const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-  
-  if (currentItemId === itemId) {
-    console.log('🚀 Navigating to dashboard because current item was closed');
-    if (window.astroNavigate) {
-      window.astroNavigate('/dashboard');
-    } else {
-      window.location.replace('/dashboard');
+  // Use the regular close functionality which handles navigation properly
+  if (window.closeNavigationItem) {
+    window.closeNavigationItem(itemId);
+  } else {
+    // Fallback: just hide the item and navigate to dashboard
+    const itemToClose = document.querySelector(`[data-navigation-item="${itemId}"]`);
+    if (itemToClose) {
+      itemToClose.style.display = 'none';
+      itemToClose.setAttribute('data-closed', 'true');
+    }
+    
+    // Navigate to dashboard if this was the current page
+    const currentPath = window.location.pathname;
+    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    
+    if (currentItemId === itemId) {
+      console.log('🚀 Navigating to dashboard because current item was closed');
+      if (window.astroNavigate) {
+        window.astroNavigate('/dashboard');
+      } else {
+        window.location.replace('/dashboard');
+      }
     }
   }
 };
