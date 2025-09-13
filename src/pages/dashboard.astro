@@ -99,7 +99,9 @@ try {
 // Combine all content for the main content section
 // Inbox shows only unorganized threads (not individual notes)
 const inboxContent = featuredContent.filter(item => item.type === 'thread');
-const organizedContent = [...contentItems, ...featuredContent.filter(item => item.type === 'note')];
+// Organized content should only include contentItems, not featuredContent notes
+// to avoid duplication of unorganized notes
+const organizedContent = contentItems;
 // Use the actual count of items displayed in inbox, not the total inbox count
 const inboxItemCount = inboxContent.length;
 
@@ -107,7 +109,7 @@ const inboxItemCount = inboxContent.length;
 const activeThread = await detectActiveThreadFromPath('/dashboard', userId);
 ---
 
-<Layout title="Dashboard" contentType="dashboard" currentThread={null}>
+<Layout title="Harvous" contentType="dashboard" currentThread={null}>
   <!-- Navigation Column -->
   <div slot="navigation" class="h-full">
           <div class="content-stretch flex flex-col items-start justify-between relative h-full">
