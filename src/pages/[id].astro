@@ -358,30 +358,36 @@ if (!content) {
                 
                 {/* Show created spaces */}
                 {spaces.map(space => (
-                  <a href={`/${space.id}`} class="w-full">
-                    <SpaceButton 
-                      text={space.title} 
-                      count={space.totalItemCount} 
-                      state="WithCount" 
-                      className="w-full" 
-                      backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
-                      isActive={currentSpace?.id === space.id}
-                    />
-                  </a>
+                  <div data-navigation-item={space.id} class="w-full">
+                    <a href={`/${space.id}`} class="w-full">
+                      <SpaceButton 
+                        text={space.title} 
+                        count={space.totalItemCount} 
+                        state="Close" 
+                        className="w-full" 
+                        backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
+                        isActive={currentSpace?.id === space.id}
+                        itemId={space.id}
+                      />
+                    </a>
+                  </div>
                 ))}
                 
                 {/* Show active thread if any (active if on thread page, inactive otherwise) */}
                 {currentThread ? (
-                  <a href={`/${currentThread.id}`} class="w-full">
-                    <SpaceButton 
-                      text={currentThread.title} 
-                      count={currentThread.noteCount} 
-                      state="WithCount" 
-                      className="w-full" 
-                      backgroundGradient={currentThread.backgroundGradient}
-                      isActive={isNote || currentThread.id === id}
-                    />
-                  </a>
+                  <div data-navigation-item={currentThread.id} class="w-full">
+                    <a href={`/${currentThread.id}`} class="w-full">
+                      <SpaceButton 
+                        text={currentThread.title} 
+                        count={currentThread.noteCount} 
+                        state="Close" 
+                        className="w-full" 
+                        backgroundGradient={currentThread.backgroundGradient}
+                        isActive={isNote || currentThread.id === id}
+                        itemId={currentThread.id}
+                      />
+                    </a>
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -490,3 +496,5 @@ if (!content) {
     <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} />
   </div>
 </Layout>
+
+<script defer src="/scripts/navigation-close.js"></script>

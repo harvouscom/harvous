@@ -1,14 +1,16 @@
 ---
 import FaAngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down.svg";
+import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 
 interface Props {
     className?: string;
     text?: string;
     count?: number;
-    state?: "Default" | "Dropdown" | "WithCount" | "DropdownTrigger";
+    state?: "Default" | "Dropdown" | "WithCount" | "DropdownTrigger" | "Close";
     showCount?: boolean;
     backgroundGradient?: string;
     isActive?: boolean;
+    itemId?: string;
 }
 
 const { 
@@ -19,6 +21,7 @@ const {
     showCount = false,
     backgroundGradient = "var(--color-gradient-gray)",
     isActive = true,
+    itemId,
     ...props 
 } = Astro.props;
 ---
@@ -124,6 +127,44 @@ const {
             </div>
         </div>
     </button>
+) : state === "Close" ? (
+    <button
+        class={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group ${className}`}
+        style={isActive ? `background-image: ${backgroundGradient};` : ''}
+        {...props}
+        x-data="{ showClose: false }"
+        @mouseenter="showClose = true"
+        @mouseleave="showClose = false"
+    >
+        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+            <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+                {text}
+            </span>
+            <div class="p-[20px] relative">
+                <!-- Badge count - show when not hovering -->
+                <div 
+                    x-show="!showClose"
+                    class="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative"
+                >
+                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                        {count}
+                    </span>
+                </div>
+                <!-- Close icon - show when hovering -->
+                <div 
+                    x-show="showClose"
+                    @click.stop.prevent={`console.log('🔥 ALPINE CLICK DETECTED for:', '${itemId}'); if (window.closeNavigationItem) { window.closeNavigationItem('${itemId}'); }`}
+                    class="close-icon-container absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center cursor-pointer"
+                >
+                    <FaXmarkIcon 
+                        class="fill-[var(--color-deep-grey)]"
+                        width="16" 
+                        height="16"
+                    />
+                </div>
+            </div>
+        </div>
+    </button>
 ) : (
     <button 
         class={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
@@ -186,3 +227,11 @@ const {
         transform: scale(0.95);
     }
 </style>
+
+<script>
+    import { navigate } from 'astro:transitions/client';
+    
+    // Provide Astro's navigate function to the global scope for the close functionality
+    (window as any).astroNavigate = navigate;
+</script>
+

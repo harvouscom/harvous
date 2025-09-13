@@ -132,30 +132,36 @@ const activeThread = await detectActiveThreadFromPath('/dashboard', userId);
                 
                 {/* Show created spaces */}
                 {spaces.map(space => (
-                  <a href={`/${space.id}`} class="w-full">
-                    <SpaceButton 
-                      text={space.title} 
-                      count={space.totalItemCount} 
-                      state="WithCount" 
-                      className="w-full" 
-                      backgroundGradient={space.backgroundGradient}
-                      isActive={false}
-                    />
-                  </a>
+                  <div data-navigation-item={space.id} class="w-full">
+                    <a href={`/${space.id}`} class="w-full">
+                      <SpaceButton 
+                        text={space.title} 
+                        count={space.totalItemCount} 
+                        state="Close" 
+                        className="w-full" 
+                        backgroundGradient={space.backgroundGradient}
+                        isActive={false}
+                        itemId={space.id}
+                      />
+                    </a>
+                  </div>
                 ))}
                 
                                 {/* Show active thread if any (in inactive state) */}
                 {activeThread ? (
-                  <a href={`/${activeThread.id}`} class="w-full">
-                    <SpaceButton 
-                      text={activeThread.title} 
-                      count={activeThread.noteCount} 
-                      state="WithCount" 
-                      className="w-full" 
-                      backgroundGradient={activeThread.id === 'thread_unorganized' ? "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)" : activeThread.backgroundGradient}
-                      isActive={false}
-                    />
-                  </a>
+                  <div data-navigation-item={activeThread.id} class="w-full">
+                    <a href={`/${activeThread.id}`} class="w-full">
+                      <SpaceButton 
+                        text={activeThread.title} 
+                        count={activeThread.noteCount} 
+                        state="Close" 
+                        className="w-full" 
+                        backgroundGradient={activeThread.id === 'thread_unorganized' ? "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)" : activeThread.backgroundGradient}
+                        isActive={false}
+                        itemId={activeThread.id}
+                      />
+                    </a>
+                  </div>
                 ) : null}
                 
 
@@ -340,3 +346,5 @@ const activeThread = await detectActiveThreadFromPath('/dashboard', userId);
 
 
 </Layout>
+
+<script defer src="/scripts/navigation-close.js"></script>
