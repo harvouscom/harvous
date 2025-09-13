@@ -31,21 +31,7 @@ export default defineConfig({
       // Additional headers for development
       headers: {
         'Cache-Control': 'no-cache'
-      },
-      // Fix MIME type issues for .astro files
-      middleware: [
-        {
-          name: 'fix-mime-types',
-          configureServer(server) {
-            server.middlewares.use('/_astro', (req, res, next) => {
-              if (req.url && req.url.endsWith('.astro')) {
-                res.setHeader('Content-Type', 'application/javascript');
-              }
-              next();
-            });
-          }
-        }
-      ]
+      }
     },
     build: {
       // Optimize chunks to improve browser performance

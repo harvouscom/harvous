@@ -346,7 +346,17 @@ const showMoreButton = shouldShowMoreButton(contentType);
       <!-- Desktop Layout (1080px and wider) -->
       <div class="hidden min-[1080px]:grid min-[1080px]:grid-cols-[minmax(220px,clamp(220px,20vw,300px))_minmax(380px,640px)_minmax(380px,640px)] min-[1080px]:gap-6 min-[1080px]:h-full">        <!-- Navigation Column -->
         <section class="h-full">
-          <div class="h-full">
+          <div 
+            slot="navigation" 
+            class="h-full"
+            data-thread-id={currentThread?.id}
+            data-thread-title={currentThread?.title}
+            data-thread-color={currentThread?.color}
+            data-thread-note-count={currentThread?.noteCount}
+            data-thread-background-gradient={currentThread?.backgroundGradient}
+            data-content-type={contentType}
+            data-content-id={contentId}
+          >
             <slot name="navigation" />
           </div>
         </section>
@@ -569,6 +579,38 @@ const showMoreButton = shouldShowMoreButton(contentType);
     deferredPrompt = e;
   });
 </script>
+
+<!-- Global Alpine.js re-initialization for View Transitions -->
+<script>
+  // Global function to re-initialize Alpine.js after View Transitions
+  (window as any).reinitializeAlpine = function() {
+    if ((window as any).Alpine) {
+      console.log('🔄 Re-initializing Alpine.js globally');
+      try {
+        // Re-initialize all Alpine.js elements
+        (window as any).Alpine.initTree(document.body);
+        console.log('✅ Alpine.js re-initialized successfully');
+      } catch (error) {
+        console.error('❌ Error re-initializing Alpine.js:', error);
+      }
+    } else {
+      console.log('❌ Alpine.js not available for re-initialization');
+    }
+  };
+  
+  // Re-initialize Alpine.js after View Transitions
+  document.addEventListener('astro:page-load', () => {
+    setTimeout(() => {
+      (window as any).reinitializeAlpine();
+    }, 100);
+  });
+</script>
+
+<!-- Navigation history tracking -->
+<script type="module" defer src="/scripts/navigation-history.js"></script>
+
+<!-- Debug script for navigation (temporary) -->
+<script defer src="/scripts/debug-navigation.js"></script>
 
 <style>
   html,

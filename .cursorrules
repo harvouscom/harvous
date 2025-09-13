@@ -1,0 +1,24 @@
+# Cursor Rules for Harvous Project
+
+## Development Server
+- **ALWAYS use port 4321** for the development server
+- If port 4321 is busy, kill the process using: `lsof -ti:4321 | xargs kill -9`
+- Then restart with: `npm run dev`
+- Never use other ports (4322, 4323, etc.) - always force port 4321
+
+## Astro Development
+- Always consult Astro MCP for component development, API usage, and best practices
+- Use proper Alpine.js syntax with `x-data`, `x-on:click`, `x-show`, etc.
+- NO inline `onclick` handlers - use Alpine.js directives instead
+
+## Navigation System
+- The persistent navigation system uses localStorage for history
+- Navigation items should only appear once (no duplicates)
+- Close icons should appear on hover and work properly
+- Use `window.debugNavigation.clearHistory()` to clear navigation history for testing
+
+## Code Quality
+- Always test functionality before declaring it complete
+- Check for linting errors after making changes
+- Use proper TypeScript types and avoid `any` when possible
+- Follow existing code patterns and architecture

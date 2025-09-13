@@ -8,6 +8,7 @@ import Avatar from "@/components/Avatar.astro";
 import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
+import PersistentNavigation from "@/components/PersistentNavigation.astro";
 import { db, Threads, Notes, Spaces, eq, and, desc } from "astro:db";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount } from "@/utils/dashboard-data";
 import { getThreadColorCSS } from "@/utils/colors";
@@ -345,16 +346,20 @@ if (!content) {
 <Layout title={pageTitle} contentType={contentType} contentId={id} currentThread={currentThread}>
   <!-- Navigation Column -->
   <div slot="navigation" class="h-full">
-          <div class="content-stretch flex flex-col items-start justify-between relative h-full">
-            <div class="content-stretch flex flex-col gap-12 items-start justify-start relative shrink-0 w-full">
+          <div class="flex flex-col items-start justify-between relative h-full">
+            <!-- Top Section - Search and Navigation -->
+            <div class="flex flex-col gap-12 items-start justify-start w-full flex-1 min-h-0">
               <!-- Search Input -->
               <SearchInput placeholder="Search" className="h-[60px]" />
               
               <!-- Navigation Buttons -->
-              <div class="content-stretch flex flex-col items-start justify-start relative shrink-0 w-full">
+              <div class="flex flex-col items-start justify-start w-full">
                 <a href="/dashboard" class="w-full">
                   <SpaceButton text="For You" count={inboxCount} state="WithCount" className="w-full" isActive={false} />
                 </a>
+                
+                {/* Persistent Navigation - shows recently accessed items */}
+                <PersistentNavigation />
                 
                 {/* Show created spaces */}
                 {spaces.map(space => (
@@ -393,7 +398,7 @@ if (!content) {
             </div>
             
             <!-- Bottom Section with New Space Button and Avatar -->
-            <div class="content-stretch flex gap-3 items-center justify-start relative shrink-0 w-full">
+            <div class="flex gap-3 items-center justify-start w-full shrink-0">
               <SpaceButton text="New Space" className="flex-1" />
               <Avatar initials="DJ" />
             </div>
@@ -497,4 +502,3 @@ if (!content) {
   </div>
 </Layout>
 
-<script defer src="/scripts/navigation-close.js"></script>

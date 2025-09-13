@@ -133,8 +133,8 @@ const {
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
         x-data="{ showClose: false }"
-        @mouseenter="showClose = true"
-        @mouseleave="showClose = false"
+        @mouseenter="showClose = true; console.log('🔥 Hover enter - showClose:', showClose)"
+        @mouseleave="showClose = false; console.log('🔥 Hover leave - showClose:', showClose)"
     >
         <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
             <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
@@ -153,8 +153,8 @@ const {
                 <!-- Close icon - show when hovering -->
                 <div 
                     x-show="showClose"
-                    @click.stop.prevent={`console.log('🔥 ALPINE CLICK DETECTED for:', '${itemId}'); if (window.closeNavigationItem) { window.closeNavigationItem('${itemId}'); }`}
-                    class="close-icon-container absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center cursor-pointer"
+                    @click.stop.prevent={`if (window.closeNavigationItemWithHistory) { window.closeNavigationItemWithHistory('${itemId}'); } else if (window.closeNavigationItem) { window.closeNavigationItem('${itemId}'); }`}
+                    class="close-icon-container absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center cursor-pointer z-10"
                 >
                     <FaXmarkIcon 
                         class="fill-[var(--color-deep-grey)]"
