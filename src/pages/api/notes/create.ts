@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, eq, and } from 'astro:db';
+import { db, Notes, Threads, UserMetadata, eq, and } from 'astro:db';
 import { generateNoteId } from '@/utils/ids';
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -60,19 +60,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
       finalThreadId = 'thread_unorganized';
     }
     
-    // Find the next available simple note ID for this user
-    const existingNotes = await db.select({ simpleNoteId: Notes.simpleNoteId })
-      .from(Notes)
-      .where(eq(Notes.userId, userId));
+    // Get or create user metadata to track highest simpleNoteId used
+    let userMetadata = await db.select()
+      .from(UserMetadata)
+      .where(eq(UserMetadata.userId, userId))
+      .get();
     
-    const existingSimpleNoteIds = existingNotes
-      .map(note => note.simpleNoteId)
-      .filter(id => id !== null && id !== undefined)
-      .sort((a, b) => a! - b!);
+    if (!userMetadata) {
+      // Create user metadata record if it doesn't exist
+      await db.insert(UserMetadata).values({
+        id: `user_metadata_${userId}`,
+        userId: userId,
+        highestSimpleNoteId: 0,
+        createdAt: new Date()
+      });
+      userMetadata = { highestSimpleNoteId: 0 };
+    }
     
-    const nextSimpleNoteId = existingSimpleNoteIds.length > 0 
-      ? Math.max(...existingSimpleNoteIds) + 1 
-      : 1;
+    // The next simple note ID is always the highest used + 1
+    // This ensures we never reuse deleted IDs
+    const nextSimpleNoteId = userMetadata.highestSimpleNoteId + 1;
     
     const newNote = await db.insert(Notes)
       .values({ 
@@ -90,6 +97,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .get();
       
     console.log("Note created successfully:", newNote);
+
+    // Update user metadata to track the new highest simpleNoteId
+    await db.update(UserMetadata)
+      .set({ 
+        highestSimpleNoteId: nextSimpleNoteId,
+        updatedAt: new Date()
+      })
+      .where(eq(UserMetadata.userId, userId));
 
     // Update the thread's updatedAt timestamp
     await db.update(Threads)

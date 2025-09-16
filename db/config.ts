@@ -80,6 +80,17 @@ const Members = defineTable({
   }
 })
 
+// User metadata table to track highest simpleNoteId used per user
+const UserMetadata = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    userId: column.text({ unique: true }), // Clerk user id
+    highestSimpleNoteId: column.number({ default: 0 }), // Highest simpleNoteId ever used by this user
+    createdAt: column.date(),
+    updatedAt: column.date({ optional: true }),
+  }
+})
+
 // https://astro.build/db/config
 export default defineDb({
   tables: {
@@ -88,6 +99,7 @@ export default defineDb({
     Notes,
     NoteThreads,
     Comments,
-    Members
+    Members,
+    UserMetadata
   }
 });
