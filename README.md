@@ -21,6 +21,11 @@ Aka our approach to a Bible notes app.
 
 ## Documentation
 
+### For Users
+- **[USER_GUIDE.md](./USER_GUIDE.md)**: Complete user guide for using Harvous
+- **[FEATURES.md](./FEATURES.md)**: Feature overview and examples
+
+### For Developers
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)**: Core functionality, data structures, and implementation details
 - **[Development Rules](#development)**: Setup, workflow, and best practices
 
