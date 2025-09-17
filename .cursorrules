@@ -1,5 +1,21 @@
 # Cursor Rules for Harvous Project
 
+## Documentation Structure
+- **README.md**: Project overview, setup, and quick start guide
+- **ARCHITECTURE.md**: Core functionality, data structures, and implementation details
+- **ALWAYS consult ARCHITECTURE.md** when working on:
+  - Content organization (Spaces/Threads/Notes)
+  - Note ID system and UserMetadata
+  - Database schema and relationships
+  - Navigation logic and color system
+  - Thread deletion behavior
+  - Alpine.js integration patterns
+  - View Transitions handling
+- **ALWAYS consult README.md** for:
+  - Development server setup
+  - Project overview and features
+  - Quick reference links
+
 ## Development Server
 - **ALWAYS use port 4321** for the development server
 - If port 4321 is busy, kill the process using: `lsof -ti:4321 | xargs kill -9`
@@ -10,6 +26,12 @@
 - Always consult Astro MCP for component development, API usage, and best practices
 - Use proper Alpine.js syntax with `x-data`, `x-on:click`, `x-show`, etc.
 - NO inline `onclick` handlers - use Alpine.js directives instead
+
+## Note ID System
+- **CRITICAL**: Never reuse deleted note IDs - always increment from highest ever used
+- Use UserMetadata table to track `highestSimpleNoteId` per user
+- Next ID = `highestSimpleNoteId + 1` (never reuses deleted IDs)
+- See ARCHITECTURE.md for complete implementation details
 
 ## Navigation System
 - The persistent navigation system uses localStorage for history
@@ -22,3 +44,4 @@
 - Check for linting errors after making changes
 - Use proper TypeScript types and avoid `any` when possible
 - Follow existing code patterns and architecture
+- **Update documentation** when making architectural changes

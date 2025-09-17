@@ -24,7 +24,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    console.log("Deleting note with ID:", noteId, "for user:", userId);
+    console.log("DELETE API - Deleting note with ID:", noteId, "for user:", userId);
 
     // Verify the note belongs to the user before deleting
     const existingNote = await db.select()
@@ -43,7 +43,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     await db.delete(Notes)
       .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
 
-    console.log("Note deleted successfully:", noteId);
+    console.log("DELETE API - Note deleted successfully:", noteId);
 
     return new Response(JSON.stringify({ 
       success: "Note deleted successfully!",

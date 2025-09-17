@@ -557,7 +557,10 @@ if (!userId) {
               alpineData.isSubmitting = false;
               // Refresh the next note ID after successful creation
               if (alpineData.loadNextNoteId) {
-                alpineData.loadNextNoteId();
+                // Add a small delay to ensure the database transaction is committed
+                setTimeout(() => {
+                  alpineData.loadNextNoteId();
+                }, 200);
               }
               if (alpineData.closePanel) {
                 alpineData.closePanel();
