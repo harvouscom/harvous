@@ -344,30 +344,19 @@ export async function getNotesForDashboard(userId: string, limit = 10) {
   }
 }
 
-// Get inbox count (individual notes + threads that are unorganized)
+// Get inbox count (only individual notes - threads should never appear in inbox)
 export async function getInboxCount(userId: string) {
   try {
-    // Count individual notes in unorganized thread
+    // Count only individual notes in unorganized thread
+    // Threads should never appear in the inbox section
     const unorganizedThread = await findUnorganizedThread(userId);
     const individualNotesCount = unorganizedThread ? await db.select({ count: count() })
       .from(Notes)
       .where(eq(Notes.threadId, unorganizedThread.id))
       .get() : { count: 0 };
 
-    // Count threads that are not in any space (unorganized threads)
-    const unorganizedThreadsCount = await db.select({ count: count() })
-      .from(Threads)
-      .where(and(
-        eq(Threads.userId, userId),
-        isNull(Threads.spaceId),
-        ne(Threads.title, "Unorganized") // Exclude the unorganized thread itself
-      ))
-      .get();
-
-    // Total inbox count = individual notes + unorganized threads
-    const totalCount = (individualNotesCount?.count || 0) + (unorganizedThreadsCount?.count || 0);
-    
-    return totalCount;
+    // Inbox count = only individual notes (no threads)
+    return individualNotesCount?.count || 0;
   } catch (error) {
     console.error("Error fetching inbox count:", error);
     return 0;
@@ -430,25 +419,9 @@ export async function getFeaturedContent(userId: string) {
     
     console.log("Recent individual notes found:", recentIndividualNotes.length);
 
-    // Get unorganized threads (threads not in any space, excluding the unorganized thread itself)
-    const unorganizedThreads = await db.select({
-      id: Threads.id,
-      title: Threads.title,
-      subtitle: Threads.subtitle,
-      color: Threads.color,
-      spaceId: Threads.spaceId,
-      isPublic: Threads.isPublic,
-      createdAt: Threads.createdAt,
-      updatedAt: Threads.updatedAt,
-    })
-    .from(Threads)
-    .where(and(
-      eq(Threads.userId, userId),
-      isNull(Threads.spaceId),
-      ne(Threads.id, "thread_unorganized") // Exclude the unorganized thread by ID
-    ))
-    .orderBy(desc(Threads.updatedAt || Threads.createdAt))
-    .limit(2);
+    // Note: Threads should never appear in the inbox section
+    // The inbox is reserved for individual notes and future content from Harvous/other users
+    const unorganizedThreads: any[] = [];
 
     const featuredThreads = pinnedThreads.map(thread => ({
       id: `feat-thread-${thread.id}`,

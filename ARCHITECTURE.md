@@ -27,10 +27,13 @@ Harvous uses a hierarchical content organization system to help users structure 
 
 ### Content Classification
 
-- **Inbox Content**: Unassigned items that appear in the "For You" view
-  - Notes in the unorganized thread
-  - Threads without a spaceId
+- **Inbox Content**: Individual notes that appear in the "For You" view
+  - Only individual notes in the unorganized thread
+  - Reserved for future content from Harvous or other users
+  - **Threads should NEVER appear in the inbox section**
 - **Organized Content**: Items assigned to spaces, shown in the "Full list" section
+  - All threads (regardless of spaceId) appear in organized content
+  - Individual notes assigned to spaces
 
 ### Thread Deletion Behavior
 
@@ -48,10 +51,13 @@ When a thread is deleted, the system preserves all notes by moving them to the "
 Space: "Bible Study" (count: 1) - Paper color
 └── Thread: "Gospel of John" (count: 2) - Lovely-lavender color
 
-Space: "For You" (count: 3) - Paper color
+Space: "For You" (count: 2) - Paper color
 ├── Note: "Prayer Request" (unorganized)
-├── Note: "John 3:16 Reflection" (unorganized)
-└── Thread: "Psalm 23 Study" (unorganized) - Green color
+└── Note: "John 3:16 Reflection" (unorganized)
+
+Organized Content:
+├── Thread: "Psalm 23 Study" (unorganized) - Green color
+└── Thread: "Gospel of John" (in Bible Study space) - Lovely-lavender color
 ```
 
 ## Note ID System

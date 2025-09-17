@@ -8,9 +8,10 @@ export interface Props {
   contentType?: "thread" | "note" | "space" | "dashboard";
   contentId?: string;
   currentThread?: any;
+  currentSpace?: any;
 }
 
-const { contentType = "dashboard", contentId, currentThread } = Astro.props;
+const { contentType = "dashboard", contentId, currentThread, currentSpace } = Astro.props;
 const showMoreButton = shouldShowMoreButton(contentType);
 ---
 
@@ -62,6 +63,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
   
   <!-- New Thread Panel -->
   <div x-show="showNewThreadPanel" class="w-full">
-    <NewThreadPanel />
+    <NewThreadPanel currentSpace={currentSpace} />
   </div>
 </div>

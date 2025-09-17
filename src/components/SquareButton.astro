@@ -81,8 +81,15 @@ const { variant = "More", withMenu = false, contentType = "dashboard", contentId
       if (this.isOpen) {
         // Calculate position when opening
         this.$nextTick(() => {
-          const button = this.$el.querySelector('.main-button');
-          const rect = button.getBoundingClientRect();
+          // Use the container element directly for positioning
+          const container = this.$el;
+          if (!container) {
+            console.warn('SquareButton: Container element not found, using default position');
+            this.menuPosition = 'right';
+            return;
+          }
+          
+          const rect = container.getBoundingClientRect();
           const screenWidth = window.innerWidth;
           const menuWidth = 223; // Width of MoreMenu
           

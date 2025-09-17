@@ -343,7 +343,7 @@ if (!content) {
 }
 ---
 
-<Layout title={pageTitle} contentType={contentType} contentId={id} currentThread={currentThread}>
+<Layout title={pageTitle} contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace ? content : null}>
   <!-- Navigation Column -->
   <div slot="navigation" class="h-full">
           <div class="flex flex-col items-start justify-between relative h-full">
@@ -498,7 +498,7 @@ if (!content) {
 
   <!-- Mobile Additional -->
   <div slot="mobile-additional">
-    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} />
+    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace ? content : null} />
   </div>
 </Layout>
 

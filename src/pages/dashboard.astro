@@ -99,8 +99,8 @@ try {
 }
 
 // Combine all content for the main content section
-// Inbox shows only unorganized threads (not individual notes)
-const inboxContent = featuredContent.filter(item => item.type === 'thread');
+// Inbox shows only individual notes (threads should never appear in inbox)
+const inboxContent = featuredContent.filter(item => item.type === 'note');
 // Organized content should only include contentItems, not featuredContent notes
 // to avoid duplication of unorganized notes
 const organizedContent = contentItems;
@@ -247,7 +247,7 @@ try {
 }
 ---
 
-<Layout title="Harvous" contentType="dashboard" currentThread={null}>
+<Layout title="Harvous" contentType="dashboard" currentThread={null} currentSpace={null}>
   <!-- Navigation Column -->
   <div slot="navigation" class="h-full">
           <div class="flex flex-col items-start justify-between relative h-full">
@@ -538,7 +538,7 @@ try {
 
   <!-- Mobile Additional -->
   <div slot="mobile-additional">
-    <MobileAdditional contentType="dashboard" />
+    <MobileAdditional contentType="dashboard" currentSpace={null} />
   </div>
 
 

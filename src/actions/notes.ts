@@ -1,6 +1,6 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
-import { db, Notes, Threads, UserMetadata, eq, and } from "astro:db";
+import { db, Notes, Threads, UserMetadata, eq, and, desc, isNotNull } from "astro:db";
 import { generateNoteId } from "@/utils/ids";
 
 export const notes = {
@@ -61,19 +61,39 @@ export const notes = {
           .get();
         
         if (!userMetadata) {
-          // Create user metadata record if it doesn't exist
+          // Check if user has existing notes to get the highest ID
+          const existingNotes = await db.select({
+            simpleNoteId: Notes.simpleNoteId
+          })
+          .from(Notes)
+          .where(and(
+            eq(Notes.userId, userId),
+            isNotNull(Notes.simpleNoteId)
+          ))
+          .orderBy(desc(Notes.simpleNoteId))
+          .limit(1);
+          
+          const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
+          
+          // Create user metadata record with the highest existing ID
           await db.insert(UserMetadata).values({
             id: `user_metadata_${userId}`,
             userId: userId,
-            highestSimpleNoteId: 0,
+            highestSimpleNoteId: highestExistingId,
             createdAt: new Date()
           });
-          userMetadata = { highestSimpleNoteId: 0 };
+          userMetadata = { 
+            id: `user_metadata_${userId}`,
+            userId: userId,
+            highestSimpleNoteId: highestExistingId,
+            createdAt: new Date(),
+            updatedAt: null
+          };
         }
         
         // The next simple note ID is always the highest used + 1
         // This ensures we never reuse deleted IDs
-        const nextSimpleNoteId = userMetadata.highestSimpleNoteId + 1;
+        const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
         
         const newNote = await db.insert(Notes)
           .values({ 
