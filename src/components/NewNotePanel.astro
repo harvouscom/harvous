@@ -71,7 +71,9 @@ if (!userId) {
     async loadThreads() {
       try {
         console.log('Loading threads from API...');
-        const response = await fetch('/api/threads/list');
+        const response = await fetch('/api/threads/list', {
+          credentials: 'include'
+        });
         console.log('API response status:', response.status);
         
         if (response.ok) {
@@ -113,7 +115,9 @@ if (!userId) {
     async loadNextNoteId() {
       try {
         console.log('Loading next note ID from API...');
-        const response = await fetch('/api/notes/next-id');
+        const response = await fetch('/api/notes/next-id', {
+          credentials: 'include'
+        });
         console.log('Next note ID API response status:', response.status);
         
         if (response.ok) {

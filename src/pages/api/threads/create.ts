@@ -31,11 +31,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    if (!spaceId || !spaceId.trim()) {
-      return new Response(JSON.stringify({ error: 'Space ID is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+    // Make spaceId optional - if not provided or is 'default_space', set to null
+    let finalSpaceId = null;
+    if (spaceId && spaceId.trim() && spaceId !== 'default_space') {
+      finalSpaceId = spaceId;
     }
 
     // Validate color if provided
@@ -54,7 +53,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         id: generateThreadId(),
         title: capitalizedTitle,
         subtitle: null,
-        spaceId,
+        spaceId: finalSpaceId,
         userId,
         isPublic,
         color: threadColor,
