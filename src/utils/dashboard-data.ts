@@ -46,7 +46,6 @@ async function findUnorganizedThread(userId: string) {
     }
 
     // If not found, create it
-    console.log("Creating unorganized thread for user:", userId);
     try {
       const newUnorganizedThread = await db.insert(Threads).values({
         id: "thread_unorganized",
@@ -61,12 +60,10 @@ async function findUnorganizedThread(userId: string) {
         updatedAt: new Date(),
       }).returning().get();
 
-      console.log("✅ Created unorganized thread:", newUnorganizedThread);
       return newUnorganizedThread;
     } catch (createError: any) {
       // If creation failed due to constraint, it means another process created it
       if (createError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || createError.rawCode === 1555) {
-        console.log("Unorganized thread already exists, fetching it...");
         // Try to fetch it again
         const existingThread = await db.select({
           id: Threads.id,
@@ -273,7 +270,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     .where(and(eq(Notes.threadId, threadId), eq(Notes.userId, userId)))
     .orderBy(desc(Notes.updatedAt || Notes.createdAt))
     .limit(limit);
-
+    
     return notes.map(note => ({
       ...note,
       lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
@@ -353,7 +350,6 @@ export async function getInboxCount(userId: string) {
     
     // For now, return 0 since we don't have external content yet
     // In the future, this will count external content items
-    console.log("Inbox count is 0 - reserved for external content only");
     return 0;
   } catch (error) {
     console.error("Error fetching inbox count:", error);
@@ -368,7 +364,6 @@ export async function getInboxDisplayCount(userId: string) {
     // User-generated content should NEVER appear in the inbox
     
     // For now, return 0 since we don't have external content yet
-    console.log("Inbox display count is 0 - reserved for external content only");
     return 0;
   } catch (error) {
     console.error("Error fetching inbox display count:", error);
@@ -378,7 +373,6 @@ export async function getInboxDisplayCount(userId: string) {
 
 // Fetch featured content (reserved for external content only - no user-generated content)
 export async function getFeaturedContent(userId: string) {
-  console.log("getFeaturedContent called with userId:", userId);
   try {
     // IMPORTANT: The inbox section is reserved for external content only
     // User-generated notes and threads should NEVER appear in the inbox
@@ -394,7 +388,6 @@ export async function getFeaturedContent(userId: string) {
     // - Curated Bible study materials
     // - Community highlights
     
-    console.log("Inbox is empty - reserved for external content only");
     return [];
   } catch (error) {
     console.error("Error fetching featured content:", error);

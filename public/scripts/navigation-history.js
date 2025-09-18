@@ -67,7 +67,6 @@ function addToNavigationHistory(item) {
   }
   
   saveNavigationHistory(updatedHistory);
-  console.log('📚 Navigation history updated:', updatedHistory);
   
   // Trigger re-render of persistent navigation
   if (window.renderPersistentNavigation) {
@@ -104,13 +103,8 @@ function trackNavigationAccess() {
   const currentPath = window.location.pathname;
   const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
   
-  console.log('🔍 Tracking navigation access for:', currentItemId);
-  console.log('🔍 Current path:', currentPath);
-  console.log('🔍 Current itemId:', currentItemId);
-  
   // Skip tracking for dashboard and empty paths
   if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
-    console.log('⏭️ Skipping tracking for:', currentItemId);
     return;
   }
   
@@ -118,16 +112,12 @@ function trackNavigationAccess() {
   const itemData = extractItemDataFromPage(currentItemId);
   
   if (itemData) {
-    console.log('📝 Adding to navigation history:', itemData);
     addToNavigationHistory(itemData);
-  } else {
-    console.log('❌ Could not extract item data for:', currentItemId);
   }
 }
 
 // Extract item data from the current page
 function extractItemDataFromPage(itemId) {
-  console.log('🔍 Extracting data for itemId:', itemId);
   
   // Try to get data from navigation element attributes first
   const navigationElement = document.querySelector('[slot="navigation"]');
@@ -259,39 +249,10 @@ window.debugNavigation = {
       console.log(`${index + 1}. ${item.title} (${item.id}) - First: ${firstAccess}, Last: ${lastAccess}`);
     });
   },
-  clearUnorganizedThread: async () => {
-    try {
-      const response = await fetch('/api/notes/delete-all-unorganized', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (response.ok) {
-        console.log('🗑️ Cleared all notes from unorganized thread');
-        // Reload the page to refresh navigation
-        window.location.reload();
-      } else {
-        console.error('❌ Failed to clear unorganized thread notes');
-      }
-    } catch (error) {
-      console.error('❌ Error clearing unorganized thread:', error);
-    }
-  },
   removeUnorganizedFromHistory: () => {
     removeFromNavigationHistory('thread_unorganized');
-    console.log('🗑️ Removed unorganized thread from navigation history');
     if (window.renderPersistentNavigation) {
       window.renderPersistentNavigation();
     }
-  },
-  debugState: () => {
-    console.log('🔍 Navigation Debug State:');
-    console.log('  Current page:', window.location.pathname);
-    console.log('  Current itemId:', window.location.pathname.startsWith('/') ? window.location.pathname.substring(1) : window.location.pathname);
-    console.log('  Navigation history:', getNavigationHistory());
-    console.log('  localStorage raw:', localStorage.getItem('navigation-history'));
-    console.log('  renderPersistentNavigation available:', typeof window.renderPersistentNavigation);
   }
 };

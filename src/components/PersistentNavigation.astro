@@ -23,12 +23,10 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
   function renderPersistentNavigation() {
     const container = document.getElementById('persistent-navigation');
     if (!container) {
-      console.log('❌ Persistent navigation container not found');
       return;
     }
     
     const history = getNavigationHistory();
-    console.log('📚 Rendering persistent navigation with history:', history);
     
     if (history.length === 0) {
       container.innerHTML = '';
@@ -39,8 +37,6 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
     const visibleItems = Array.from(document.querySelectorAll('[data-navigation-item]'))
       .map(item => item.getAttribute('data-navigation-item'))
       .filter(id => id !== null);
-    
-    console.log('👁️ Currently visible navigation items:', visibleItems);
     
     // Filter out items that are already visible in regular navigation
     // Also filter out the current page to avoid showing it as inactive
@@ -63,8 +59,6 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
       return true;
     });
     
-    console.log('📚 Items to show in persistent navigation:', persistentItems);
-    
     if (persistentItems.length === 0) {
       container.innerHTML = '';
       return;
@@ -76,8 +70,6 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
       const bTime = b.firstAccessed || 0;
       return bTime - aTime; // Most recent first access first
     });
-    
-    console.log('📚 Sorted items by first access time:', sortedItems);
     
     // Create navigation items HTML
     const itemsHTML = sortedItems.map((item: any) => {
@@ -143,16 +135,11 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
       setTimeout(() => {
         (window as any).Alpine.initTree(container);
       }, 150);
-    } else {
-      console.log('❌ Alpine.js not available for persistent navigation');
     }
   }
   
   // Initialize persistent navigation
   function initializePersistentNavigation() {
-    console.log('🚀 Initializing persistent navigation');
-    console.log('🚀 Current page:', window.location.pathname);
-    console.log('🚀 Navigation history from localStorage:', localStorage.getItem('navigation-history'));
     renderPersistentNavigation();
   }
   
@@ -165,7 +152,6 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
   
   // Re-initialize after View Transitions
   document.addEventListener('astro:page-load', () => {
-    console.log('📄 Page loaded, re-initializing persistent navigation');
     initializePersistentNavigation();
   });
   

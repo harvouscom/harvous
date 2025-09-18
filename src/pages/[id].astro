@@ -21,20 +21,17 @@ import MobileAdditional from "@/components/MobileAdditional.astro";
 
 // Get user ID from Clerk authentication
 const { userId } = Astro.locals.auth();
-console.log("Dynamic page: Using authenticated user ID:", userId);
 
 if (!userId) {
   return Astro.redirect('/sign-in');
 }
 
 const { id } = Astro.params;
-console.log("Dynamic page: ID =", id);
 
 // Determine if this is a thread, note, or space based on the ID prefix
 const isThread = id?.startsWith('thread_');
 const isNote = id?.startsWith('note_');
 const isSpace = id?.startsWith('space_');
-console.log("Dynamic page: isThread =", isThread, "isNote =", isNote, "isSpace =", isSpace);
 
 // Determine content type for context-aware More menu
 let contentType: "thread" | "note" | "space" | "dashboard" = "dashboard";
@@ -187,8 +184,6 @@ let inboxCount: number = 0;
   let otherThreads: any[] = [];
   
   try {
-    console.log("Thread page: Ensuring unorganized thread exists...");
-    
     // First, ensure the unorganized thread exists in the database
     const ensureResponse = await fetch('/api/threads/ensure-unorganized', {
       method: 'POST',
@@ -197,14 +192,11 @@ let inboxCount: number = 0;
       }
     });
     
-    if (ensureResponse.ok) {
-      console.log("Thread page: Unorganized thread ensured in database");
-    } else {
+    if (!ensureResponse.ok) {
       console.error("Thread page: Failed to ensure unorganized thread exists");
     }
     
     // Now check if it has notes
-    console.log("Thread page: Checking for unorganized thread notes...");
     const noteCount = await db.select({ count: count() })
       .from(Notes)
       .where(and(
@@ -212,8 +204,6 @@ let inboxCount: number = 0;
         eq(Notes.threadId, "thread_unorganized")
       ))
       .get();
-    
-    console.log("Thread page: Unorganized thread note count:", noteCount);
     
     if (noteCount && noteCount.count > 0) {
       unorganizedThread = {
@@ -223,12 +213,10 @@ let inboxCount: number = 0;
         noteCount: noteCount.count,
         backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
       };
-      console.log("Thread page: Created unorganized thread object:", unorganizedThread);
     }
     
     // If we're on the unorganized thread, get other threads to show in navigation
     if (id === 'thread_unorganized') {
-      console.log("Thread page: On unorganized thread, fetching other threads...");
       
       const threads = await db.select({
         id: Threads.id,
@@ -265,8 +253,6 @@ let inboxCount: number = 0;
           };
         })
       );
-      
-      console.log("Thread page: Found other threads:", otherThreads);
     }
   } catch (error) {
     console.error("Thread page: Error checking unorganized thread notes:", error);
@@ -284,10 +270,6 @@ let inboxCount: number = 0;
             'Content-Type': 'application/json',
           }
         });
-        
-        if (ensureResponse.ok) {
-          console.log("Thread page: Unorganized thread ensured for current thread");
-        }
         
         const notesData = await getNotesForThread(id!, userId);
         
@@ -321,7 +303,6 @@ let inboxCount: number = 0;
         ]);
         
         if (threadData) {
-          // console.log("Thread page: Found thread data:", threadData);
           content = {
             id: threadData.id,
             title: threadData.title,
@@ -338,15 +319,12 @@ let inboxCount: number = 0;
             noteCount: notesData.length,
             backgroundGradient: `linear-gradient(180deg, var(--color-${threadData.color}) 0%, var(--color-${threadData.color}) 100%)`
           };
-          // console.log("Thread page: Set currentThread:", currentThread);
           
           // Set threadNotes for template rendering
           threadNotes = notesData;
           
           pageTitle = threadData.title;
           pageContent = `${notesData.length} notes`;
-        } else {
-          // console.log("Thread page: Thread not found for ID:", id);
         }
       }
     } else if (isNote) {
@@ -441,7 +419,6 @@ let inboxCount: number = 0;
 // If content not found, redirect to dashboard
 if (!content) {
   // return Astro.redirect('/dashboard'); // Temporarily disabled for static mode
-  console.log("Content not found, would redirect to dashboard");
 }
 ---
 
@@ -558,6 +535,7 @@ if (!content) {
               headerBgColor={isThread && currentThread?.color ? `var(--color-${currentThread.color})` : "var(--color-paper)"}
             >
               <div class="flex flex-col gap-6">
+                
                 {isThread && threadNotes && threadNotes.length > 0 ? (
                   <div class="flex flex-col gap-3">
                     {threadNotes.map((note: any) => (
@@ -609,6 +587,10 @@ if (!content) {
                         </a>
                       </div>
                     ))}
+                  </div>
+                ) : isThread ? (
+                  <div class="text-center py-12">
+                    <p>No notes found in this thread.</p>
                   </div>
                 ) : (
                   <div class="text-center py-12">

@@ -17,7 +17,6 @@ import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 // Get user ID from Clerk authentication
 const { userId } = Astro.locals.auth();
-console.log("Dashboard: Using authenticated user ID:", userId);
 
 if (!userId) {
   return Astro.redirect('/sign-in');
@@ -33,36 +32,12 @@ let inboxCount: number = 0;
 
 // Always use real database data
 try {
-    console.log("Starting dashboard data fetch for user:", userId);
-    
     // Fetch data one by one to isolate any issues
-    console.log("Fetching featured content...");
     featuredContent = await getFeaturedContent(userId);
-    console.log("Featured content fetched:", featuredContent.length);
-    
-    console.log("Fetching content items...");
     contentItems = await getContentItems(userId);
-    console.log("Content items fetched:", contentItems.length);
-    
-    console.log("Fetching threads...");
     threads = await getAllThreadsWithCounts(userId);
-    console.log("Threads fetched:", threads.length);
-    
-    console.log("Fetching spaces...");
     spaces = await getSpacesWithCounts(userId);
-    console.log("Spaces fetched:", spaces.length);
-    
-    console.log("Fetching inbox count...");
     inboxCount = await getInboxCount(userId);
-    console.log("Inbox count fetched:", inboxCount);
-    
-    console.log("Dashboard data fetched successfully:", {
-      featuredContent: featuredContent.length,
-      contentItems: contentItems.length,
-      threads: threads.length,
-      spaces: spaces.length,
-      inboxCount
-    });
     
     // Ensure threads have backgroundGradient property for consistency
     threads = threads.map(thread => ({
@@ -94,8 +69,6 @@ try {
   spaces = [];
   inboxCount = 0;
   
-  // Add some debug info
-  console.log("Using fallback empty data due to error");
 }
 
 // Combine all content for the main content section
@@ -113,8 +86,6 @@ const activeThread = await detectActiveThreadFromPath('/dashboard', userId);
 // Ensure unorganized thread exists in database and check if it has notes
 let unorganizedThread = null;
 try {
-  console.log("Dashboard: Ensuring unorganized thread exists...");
-  
   // First, ensure the unorganized thread exists in the database
   const ensureResponse = await fetch('/api/threads/ensure-unorganized', {
     method: 'POST',
@@ -123,14 +94,11 @@ try {
     }
   });
   
-  if (ensureResponse.ok) {
-    console.log("Dashboard: Unorganized thread ensured in database");
-  } else {
+  if (!ensureResponse.ok) {
     console.error("Dashboard: Failed to ensure unorganized thread exists");
   }
   
   // Now check if it has notes
-  console.log("Dashboard: Checking for unorganized thread notes...");
   const noteCount = await db.select({ count: count() })
     .from(Notes)
     .where(and(
@@ -138,8 +106,6 @@ try {
       eq(Notes.threadId, "thread_unorganized")
     ))
     .get();
-  
-  console.log("Dashboard: Unorganized thread note count:", noteCount);
   
   if (noteCount && noteCount.count > 0) {
     unorganizedThread = {
@@ -149,7 +115,6 @@ try {
       noteCount: noteCount.count,
       backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
     };
-    console.log("Dashboard: Created unorganized thread object:", unorganizedThread);
   }
 } catch (error) {
   console.error("Dashboard: Error ensuring unorganized thread:", error);
