@@ -1,6 +1,5 @@
 ---
 import SpaceButton from "./SpaceButton.astro";
-import { getNavigationHistory } from "../stores/navigation-history";
 import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 ---
 
@@ -44,7 +43,26 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
     console.log('👁️ Currently visible navigation items:', visibleItems);
     
     // Filter out items that are already visible in regular navigation
-    const persistentItems = history.filter((item: any) => !visibleItems.includes(item.id));
+    // Also filter out the current page to avoid showing it as inactive
+    const currentPath = window.location.pathname;
+    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    
+    const persistentItems = history.filter((item: any) => {
+      // Don't show if already visible in regular navigation
+      if (visibleItems.includes(item.id)) {
+        return false;
+      }
+      // Don't show if it's the current page
+      if (item.id === currentItemId) {
+        return false;
+      }
+      // Don't show dashboard
+      if (item.id === 'dashboard') {
+        return false;
+      }
+      return true;
+    });
+    
     console.log('📚 Items to show in persistent navigation:', persistentItems);
     
     if (persistentItems.length === 0) {
@@ -52,8 +70,17 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
       return;
     }
     
+    // Sort items by first access time (most recent first access at the top)
+    const sortedItems = persistentItems.sort((a: any, b: any) => {
+      const aTime = a.firstAccessed || 0;
+      const bTime = b.firstAccessed || 0;
+      return bTime - aTime; // Most recent first access first
+    });
+    
+    console.log('📚 Sorted items by first access time:', sortedItems);
+    
     // Create navigation items HTML
-    const itemsHTML = persistentItems.map((item: any) => {
+    const itemsHTML = sortedItems.map((item: any) => {
       const isActive = window.location.pathname === `/${item.id}`;
       
       return `
@@ -115,7 +142,7 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
     if ((window as any).Alpine) {
       setTimeout(() => {
         (window as any).Alpine.initTree(container);
-      }, 150); // Increased timeout
+      }, 150);
     } else {
       console.log('❌ Alpine.js not available for persistent navigation');
     }
@@ -124,6 +151,8 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
   // Initialize persistent navigation
   function initializePersistentNavigation() {
     console.log('🚀 Initializing persistent navigation');
+    console.log('🚀 Current page:', window.location.pathname);
+    console.log('🚀 Navigation history from localStorage:', localStorage.getItem('navigation-history'));
     renderPersistentNavigation();
   }
   

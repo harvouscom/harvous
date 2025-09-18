@@ -1,16 +1,5 @@
-// Navigation history tracking - Simple localStorage approach
+// Simple Navigation History - Clean localStorage approach
 console.log('🚀 Navigation history script loaded');
-
-// Navigation item interface
-const NavigationItem = {
-  id: '',
-  title: '',
-  type: 'thread', // 'thread' | 'space' | 'note'
-  count: 0,
-  backgroundGradient: '',
-  color: '',
-  lastAccessed: 0
-};
 
 // Get navigation history from localStorage
 function getNavigationHistory() {
@@ -44,25 +33,37 @@ function addToNavigationHistory(item) {
   let updatedHistory;
   
   if (existingIndex !== -1) {
-    // Item exists - move it to the end (most recent) and update its data
+    // Item exists - keep it in the same position but update its data
     const existingItem = currentHistory[existingIndex];
-    updatedHistory = [
-      ...currentHistory.filter((_, index) => index !== existingIndex),
-      {
-        ...existingItem,
-        ...item,
-        lastAccessed: now
+    updatedHistory = currentHistory.map((historyItem, index) => {
+      if (index === existingIndex) {
+        return {
+          ...existingItem,
+          ...item,
+          lastAccessed: now
+          // Keep the original firstAccessed time
+        };
       }
-    ];
+      return historyItem;
+    });
   } else {
-    // New item - add to the end
+    // New item - add to the end (most recent first access)
     updatedHistory = [
       ...currentHistory,
       {
         ...item,
+        firstAccessed: now,
         lastAccessed: now
       }
     ];
+  }
+  
+  // Limit to 10 items to prevent clutter
+  if (updatedHistory.length > 10) {
+    // Remove oldest items (those with earliest firstAccessed times)
+    updatedHistory = updatedHistory
+      .sort((a, b) => a.firstAccessed - b.firstAccessed) // Sort by first access time
+      .slice(-10); // Keep the most recent first accesses
   }
   
   saveNavigationHistory(updatedHistory);
@@ -75,15 +76,25 @@ function addToNavigationHistory(item) {
 }
 
 // Remove an item from navigation history
-function removeFromNavigationHistory(itemId, shouldRerender = true) {
+function removeFromNavigationHistory(itemId) {
   const currentHistory = getNavigationHistory();
   const updatedHistory = currentHistory.filter(item => item.id !== itemId);
   saveNavigationHistory(updatedHistory);
   console.log('🗑️ Removed from navigation history:', itemId);
-  console.log('📚 Updated navigation history:', updatedHistory);
   
-  // Only trigger re-render if explicitly requested
-  if (shouldRerender && window.renderPersistentNavigation) {
+  // Trigger re-render of persistent navigation
+  if (window.renderPersistentNavigation) {
+    window.renderPersistentNavigation();
+  }
+}
+
+// Clear all navigation history
+function clearNavigationHistory() {
+  localStorage.removeItem('navigation-history');
+  console.log('🧹 Navigation history cleared');
+  
+  // Trigger re-render of persistent navigation
+  if (window.renderPersistentNavigation) {
     window.renderPersistentNavigation();
   }
 }
@@ -94,91 +105,12 @@ function trackNavigationAccess() {
   const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
   
   console.log('🔍 Tracking navigation access for:', currentItemId);
+  console.log('🔍 Current path:', currentPath);
+  console.log('🔍 Current itemId:', currentItemId);
   
-  // Skip tracking for dashboard
-  if (currentItemId === 'dashboard' || currentItemId === '') {
-    console.log('⏭️ Skipping tracking for dashboard');
-    return;
-  }
-  
-  // Special handling for notes in unorganized thread
-  if (currentItemId.startsWith('note_')) {
-    const itemData = extractItemDataFromPage(currentItemId);
-    if (itemData) {
-      // For notes, always treat them as individual items, not part of unorganized thread
-      const noteData = {
-        ...itemData,
-        type: 'note',
-        title: itemData.title || 'Note'
-      };
-      console.log('📝 Adding note to navigation history:', noteData);
-      addToNavigationHistory(noteData);
-      
-      // Also track the thread this note belongs to (including unorganized thread)
-      if (itemData.type === 'thread') {
-        console.log('📝 Adding thread to navigation history:', itemData);
-        addToNavigationHistory(itemData);
-      }
-      
-      // Special case: if this note belongs to the unorganized thread, ensure the unorganized thread is tracked
-      if (itemData.id === 'thread_unorganized') {
-        const unorganizedThreadData = {
-          id: 'thread_unorganized',
-          title: 'Unorganized',
-          type: 'thread',
-          count: itemData.count || 0,
-          backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
-          color: 'paper'
-        };
-        console.log('📝 Adding unorganized thread to navigation history (from note):', unorganizedThreadData);
-        addToNavigationHistory(unorganizedThreadData);
-      }
-      return;
-    }
-    
-    // If we couldn't extract item data, try to get thread data from navigation attributes
-    const navigationElement = document.querySelector('[slot="navigation"]');
-    if (navigationElement && navigationElement.dataset.threadId) {
-      const threadData = {
-        id: navigationElement.dataset.threadId,
-        title: navigationElement.dataset.threadTitle || 'Unknown Thread',
-        type: 'thread',
-        count: parseInt(navigationElement.dataset.threadNoteCount) || 0,
-        backgroundGradient: navigationElement.dataset.threadBackgroundGradient,
-        color: navigationElement.dataset.threadColor
-      };
-      console.log('📝 Adding thread to navigation history (from navigation attributes):', threadData);
-      addToNavigationHistory(threadData);
-      
-      // If this is the unorganized thread, also add it specifically
-      if (threadData.id === 'thread_unorganized') {
-        const unorganizedThreadData = {
-          id: 'thread_unorganized',
-          title: 'Unorganized',
-          type: 'thread',
-          count: threadData.count,
-          backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
-          color: 'paper'
-        };
-        console.log('📝 Adding unorganized thread to navigation history (from navigation attributes):', unorganizedThreadData);
-        addToNavigationHistory(unorganizedThreadData);
-      }
-    }
-    return;
-  }
-  
-  // Special handling for unorganized thread itself
-  if (currentItemId === 'thread_unorganized') {
-    const unorganizedThreadData = {
-      id: 'thread_unorganized',
-      title: 'Unorganized',
-      type: 'thread',
-      count: 0, // We'll update this when we have better data
-      backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
-      color: 'paper'
-    };
-    console.log('📝 Adding unorganized thread to navigation history:', unorganizedThreadData);
-    addToNavigationHistory(unorganizedThreadData);
+  // Skip tracking for dashboard and empty paths
+  if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
+    console.log('⏭️ Skipping tracking for:', currentItemId);
     return;
   }
   
@@ -197,19 +129,9 @@ function trackNavigationAccess() {
 function extractItemDataFromPage(itemId) {
   console.log('🔍 Extracting data for itemId:', itemId);
   
-  // Try to get data from navigation element attributes
+  // Try to get data from navigation element attributes first
   const navigationElement = document.querySelector('[slot="navigation"]');
   if (navigationElement) {
-    console.log('🔍 Navigation element data:', {
-      threadId: navigationElement.dataset.threadId,
-      threadTitle: navigationElement.dataset.threadTitle,
-      threadNoteCount: navigationElement.dataset.threadNoteCount,
-      threadBackgroundGradient: navigationElement.dataset.threadBackgroundGradient,
-      threadColor: navigationElement.dataset.threadColor,
-      contentType: navigationElement.dataset.contentType,
-      contentId: navigationElement.dataset.contentId
-    });
-    
     // Check for thread data
     if (navigationElement.dataset.threadId === itemId) {
       const itemData = {
@@ -217,109 +139,72 @@ function extractItemDataFromPage(itemId) {
         title: navigationElement.dataset.threadTitle || 'Unknown Thread',
         type: 'thread',
         count: parseInt(navigationElement.dataset.threadNoteCount) || 0,
-        backgroundGradient: navigationElement.dataset.threadBackgroundGradient,
-        color: navigationElement.dataset.threadColor
+        backgroundGradient: navigationElement.dataset.threadBackgroundGradient || 'var(--color-gradient-gray)',
+        color: navigationElement.dataset.threadColor || 'blessed-blue'
       };
       console.log('✅ Extracted thread data:', itemData);
       return itemData;
     }
     
-    // Check for space data (spaces don't have specific data attributes yet)
-    if (itemId.startsWith('space_')) {
-      const itemData = {
-        id: itemId,
-        title: 'Space', // We'll need to get this from the page content
-        type: 'space',
-        count: 0,
-        backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
-        color: 'paper'
-      };
-      console.log('✅ Extracted space data:', itemData);
-      return itemData;
-    }
-    
-    // For notes, try to get the thread data from the navigation element
+    // For notes, get the thread data from the navigation element
     if (itemId.startsWith('note_') && navigationElement.dataset.threadId) {
       const threadData = {
         id: navigationElement.dataset.threadId,
         title: navigationElement.dataset.threadTitle || 'Unknown Thread',
         type: 'thread',
         count: parseInt(navigationElement.dataset.threadNoteCount) || 0,
-        backgroundGradient: navigationElement.dataset.threadBackgroundGradient,
-        color: navigationElement.dataset.threadColor
+        backgroundGradient: navigationElement.dataset.threadBackgroundGradient || 'var(--color-gradient-gray)',
+        color: navigationElement.dataset.threadColor || 'blessed-blue'
       };
       console.log('✅ Extracted thread data for note:', threadData);
       return threadData;
     }
   }
   
-  // Try to get data from page title and content
-  const pageTitle = document.title;
-  if (pageTitle && pageTitle !== 'Harvous') {
-    // Determine type based on ID prefix
-    let type = 'note'; // default
-    if (itemId.startsWith('thread_')) type = 'thread';
-    else if (itemId.startsWith('space_')) type = 'space';
-    else if (itemId.startsWith('note_')) type = 'note';
-    
-    // For notes, try to get a better title from the page content
-    let title = pageTitle;
-    if (type === 'note') {
-      // Try to find the note title in the page
-      const noteTitleElement = document.querySelector('h1, .note-title, [data-note-title]');
-      if (noteTitleElement && noteTitleElement.textContent.trim()) {
-        title = noteTitleElement.textContent.trim();
-      } else {
-        title = 'Note'; // Fallback title
-      }
-    }
-    
-    const itemData = {
-      id: itemId,
-      title: title,
-      type: type,
-      count: 0, // We'll update this when we have better data
-      backgroundGradient: type === 'space' ? 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)' : 'var(--color-gradient-gray)'
-    };
-    console.log('✅ Extracted data from page title:', itemData);
-    return itemData;
+  // Fallback: create basic data based on ID pattern
+  let type = 'note';
+  let title = 'Unknown';
+  let backgroundGradient = 'var(--color-gradient-gray)';
+  
+  if (itemId.startsWith('thread_')) {
+    type = 'thread';
+    title = itemId === 'thread_unorganized' ? 'Unorganized' : 'Thread';
+    backgroundGradient = itemId === 'thread_unorganized' 
+      ? 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+      : 'var(--color-gradient-gray)';
+  } else if (itemId.startsWith('space_')) {
+    type = 'space';
+    title = 'Space';
+    backgroundGradient = 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
+  } else if (itemId.startsWith('note_')) {
+    type = 'note';
+    title = 'Note';
+    backgroundGradient = 'var(--color-gradient-gray)';
   }
   
-  console.log('❌ Could not extract data for itemId:', itemId);
-  return null;
+  const itemData = {
+    id: itemId,
+    title: title,
+    type: type,
+    count: 0,
+    backgroundGradient: backgroundGradient,
+    color: type === 'space' ? 'paper' : 'blessed-blue'
+  };
+  
+  console.log('✅ Extracted fallback data:', itemData);
+  return itemData;
 }
 
 // Enhanced close function that also removes from navigation history
 window.closeNavigationItemWithHistory = function(itemId) {
   console.log('🔥 closeNavigationItemWithHistory called with itemId:', itemId);
   
-  // Remove from navigation history without triggering re-render
-  removeFromNavigationHistory(itemId, false);
+  // Remove from navigation history
+  removeFromNavigationHistory(itemId);
   
-  // Use the regular close functionality which handles navigation properly
-  if (window.closeNavigationItem) {
-    window.closeNavigationItem(itemId);
-  } else {
-    // Fallback: just hide the item and navigate to dashboard
-    const itemToClose = document.querySelector(`[data-navigation-item="${itemId}"]`);
-    if (itemToClose) {
-      itemToClose.style.display = 'none';
-      itemToClose.setAttribute('data-closed', 'true');
-    }
-    
-    // Navigate to dashboard if this was the current page
-    const currentPath = window.location.pathname;
-    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-    
-    if (currentItemId === itemId) {
-      console.log('🚀 Navigating to dashboard because current item was closed');
-      if (window.astroNavigate) {
-        window.astroNavigate('/dashboard');
-      } else {
-        window.location.replace('/dashboard');
-      }
-    }
-  }
+  // For persistent navigation items, we just remove them from history
+  // We don't navigate away or hide regular navigation items
+  console.log('✅ Removed item from navigation history:', itemId);
 };
 
 // Track if we've already initialized to prevent duplicates
@@ -345,28 +230,11 @@ function initializeNavigationTracking() {
   });
 }
 
-// Reset initialization flag on page unload to allow re-initialization
-document.addEventListener('astro:before-preparation', () => {
-  navigationTrackingInitialized = false;
-  console.log('🔄 Reset navigation tracking initialization flag');
-});
-
 // Initialize on DOM ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializeNavigationTracking);
 } else {
   initializeNavigationTracking();
-}
-
-// Clear all navigation history (for debugging)
-function clearNavigationHistory() {
-  localStorage.removeItem('navigation-history');
-  console.log('🧹 Navigation history cleared');
-  
-  // Trigger re-render of persistent navigation
-  if (window.renderPersistentNavigation) {
-    window.renderPersistentNavigation();
-  }
 }
 
 // Export functions for global access
@@ -375,3 +243,55 @@ window.getNavigationHistory = getNavigationHistory;
 window.addToNavigationHistory = addToNavigationHistory;
 window.removeFromNavigationHistory = removeFromNavigationHistory;
 window.clearNavigationHistory = clearNavigationHistory;
+
+// Debug function to clear navigation history
+window.debugNavigation = {
+  clearHistory: clearNavigationHistory,
+  getHistory: getNavigationHistory,
+  addItem: addToNavigationHistory,
+  removeItem: removeFromNavigationHistory,
+  showOrder: () => {
+    const history = getNavigationHistory();
+    console.log('📋 Navigation order (most recent first access at top):');
+    history.forEach((item, index) => {
+      const firstAccess = new Date(item.firstAccessed || 0).toLocaleTimeString();
+      const lastAccess = new Date(item.lastAccessed || 0).toLocaleTimeString();
+      console.log(`${index + 1}. ${item.title} (${item.id}) - First: ${firstAccess}, Last: ${lastAccess}`);
+    });
+  },
+  clearUnorganizedThread: async () => {
+    try {
+      const response = await fetch('/api/notes/delete-all-unorganized', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        console.log('🗑️ Cleared all notes from unorganized thread');
+        // Reload the page to refresh navigation
+        window.location.reload();
+      } else {
+        console.error('❌ Failed to clear unorganized thread notes');
+      }
+    } catch (error) {
+      console.error('❌ Error clearing unorganized thread:', error);
+    }
+  },
+  removeUnorganizedFromHistory: () => {
+    removeFromNavigationHistory('thread_unorganized');
+    console.log('🗑️ Removed unorganized thread from navigation history');
+    if (window.renderPersistentNavigation) {
+      window.renderPersistentNavigation();
+    }
+  },
+  debugState: () => {
+    console.log('🔍 Navigation Debug State:');
+    console.log('  Current page:', window.location.pathname);
+    console.log('  Current itemId:', window.location.pathname.startsWith('/') ? window.location.pathname.substring(1) : window.location.pathname);
+    console.log('  Navigation history:', getNavigationHistory());
+    console.log('  localStorage raw:', localStorage.getItem('navigation-history'));
+    console.log('  renderPersistentNavigation available:', typeof window.renderPersistentNavigation);
+  }
+};

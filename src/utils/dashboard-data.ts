@@ -344,136 +344,58 @@ export async function getNotesForDashboard(userId: string, limit = 10) {
   }
 }
 
-// Get inbox count (only individual notes - threads should never appear in inbox)
+// Get inbox count (reserved for external content only - no user-generated content)
 export async function getInboxCount(userId: string) {
   try {
-    // Count only individual notes in unorganized thread
-    // Threads should never appear in the inbox section
-    const unorganizedThread = await findUnorganizedThread(userId);
-    const individualNotesCount = unorganizedThread ? await db.select({ count: count() })
-      .from(Notes)
-      .where(eq(Notes.threadId, unorganizedThread.id))
-      .get() : { count: 0 };
-
-    // Inbox count = only individual notes (no threads)
-    return individualNotesCount?.count || 0;
+    // IMPORTANT: The inbox section is reserved for external content only
+    // User-generated notes and threads should NEVER appear in the inbox
+    // This includes individual notes in unorganized thread
+    
+    // For now, return 0 since we don't have external content yet
+    // In the future, this will count external content items
+    console.log("Inbox count is 0 - reserved for external content only");
+    return 0;
   } catch (error) {
     console.error("Error fetching inbox count:", error);
     return 0;
   }
 }
 
-// Get inbox display count (only unorganized threads, matching what's shown in the inbox section)
+// Get inbox display count (reserved for external content only)
 export async function getInboxDisplayCount(userId: string) {
   try {
-    // Get featured content to count unorganized threads
-    const featuredContent = await getFeaturedContent(userId);
-    const inboxContent = featuredContent.filter(item => item.type === 'thread');
+    // IMPORTANT: The inbox section is reserved for external content only
+    // User-generated content should NEVER appear in the inbox
     
-    return inboxContent.length;
+    // For now, return 0 since we don't have external content yet
+    console.log("Inbox display count is 0 - reserved for external content only");
+    return 0;
   } catch (error) {
     console.error("Error fetching inbox display count:", error);
     return 0;
   }
 }
 
-// Fetch featured content (pinned threads and recent unassigned notes + unorganized threads)
+// Fetch featured content (reserved for external content only - no user-generated content)
 export async function getFeaturedContent(userId: string) {
   console.log("getFeaturedContent called with userId:", userId);
   try {
-    // Get pinned threads
-    const pinnedThreads = await db.select({
-      id: Threads.id,
-      title: Threads.title,
-      subtitle: Threads.subtitle,
-      color: Threads.color,
-      spaceId: Threads.spaceId,
-      isPublic: Threads.isPublic,
-      createdAt: Threads.createdAt,
-      updatedAt: Threads.updatedAt,
-    })
-    .from(Threads)
-    .where(and(eq(Threads.userId, userId), eq(Threads.isPinned, true)))
-    .orderBy(desc(Threads.updatedAt || Threads.createdAt))
-    .limit(3);
-
-    // Get recent individual notes (in unorganized thread)
-    const unorganizedThread = await findUnorganizedThread(userId);
-    console.log("Unorganized thread found:", unorganizedThread);
-    const recentIndividualNotes = unorganizedThread ? await db.select({
-      id: Notes.id,
-      title: Notes.title,
-      content: Notes.content,
-      threadId: Notes.threadId,
-      spaceId: Notes.spaceId,
-      simpleNoteId: Notes.simpleNoteId,
-      isPublic: Notes.isPublic,
-      isFeatured: Notes.isFeatured,
-      createdAt: Notes.createdAt,
-      updatedAt: Notes.updatedAt,
-    })
-    .from(Notes)
-    .where(eq(Notes.threadId, unorganizedThread.id))
-    .orderBy(desc(Notes.updatedAt || Notes.createdAt))
-    .limit(10) : []; // Increased limit to include all individual notes
+    // IMPORTANT: The inbox section is reserved for external content only
+    // User-generated notes and threads should NEVER appear in the inbox
+    // This includes:
+    // - Individual notes in unorganized thread
+    // - Pinned threads
+    // - Any other user-created content
     
-    console.log("Recent individual notes found:", recentIndividualNotes.length);
-
-    // Note: Threads should never appear in the inbox section
-    // The inbox is reserved for individual notes and future content from Harvous/other users
-    const unorganizedThreads: any[] = [];
-
-    const featuredThreads = pinnedThreads.map(thread => ({
-      id: `feat-thread-${thread.id}`,
-      type: "thread" as const,
-      variant: "Thread" as const,
-      title: thread.title,
-      content: thread.subtitle || "Thread", // Use subtitle or fallback
-      threadId: thread.id, // Full ID including prefix
-      spaceId: thread.spaceId,
-      lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
-      updatedAt: thread.updatedAt || thread.createdAt, // Keep actual timestamp for sorting
-      isPrivate: !thread.isPublic,
-      accentColor: getThreadColorCSS(thread.color),
-    }));
-
-    const featuredNotes = recentIndividualNotes.map(note => ({
-      id: `feat-note-${note.id}`,
-      type: "note" as const,
-      variant: "Note" as const,
-      title: note.title || "Untitled Note",
-      content: note.content.substring(0, 100) + (note.content.length > 100 ? "..." : ""),
-      noteId: note.id, // Full ID including prefix
-      threadId: note.threadId, // These are in unorganized thread
-      spaceId: note.spaceId,
-      lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
-      updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
-    }));
-
-    const unorganizedThreadItems = unorganizedThreads.map(thread => ({
-      id: `feat-thread-${thread.id}`,
-      type: "thread" as const,
-      variant: "Thread" as const,
-      title: thread.title,
-      content: thread.subtitle || "Thread", // Use subtitle or fallback
-      threadId: thread.id, // Full ID including prefix
-      spaceId: thread.spaceId,
-      lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
-      updatedAt: thread.updatedAt || thread.createdAt, // Keep actual timestamp for sorting
-      isPrivate: !thread.isPublic,
-      accentColor: getThreadColorCSS(thread.color),
-    }));
-
-    // Combine and sort by actual timestamp (newest first)
-    const allFeatured = [...featuredThreads, ...featuredNotes, ...unorganizedThreadItems]
-      .sort((a, b) => {
-        const aTime = new Date(a.updatedAt).getTime();
-        const bTime = new Date(b.updatedAt).getTime();
-        return bTime - aTime; // Newest first
-      })
-      .slice(0, 10); // Increased limit to include all items
-
-    return allFeatured;
+    // For now, return empty array since we don't have external content yet
+    // In the future, this will fetch content from:
+    // - Harvous team recommendations
+    // - Shared content from other users
+    // - Curated Bible study materials
+    // - Community highlights
+    
+    console.log("Inbox is empty - reserved for external content only");
+    return [];
   } catch (error) {
     console.error("Error fetching featured content:", error);
     return [];

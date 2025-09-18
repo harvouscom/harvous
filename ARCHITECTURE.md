@@ -27,13 +27,14 @@ Harvous uses a hierarchical content organization system to help users structure 
 
 ### Content Classification
 
-- **Inbox Content**: Individual notes that appear in the "For You" view
-  - Only individual notes in the unorganized thread
-  - Reserved for future content from Harvous or other users
-  - **Threads should NEVER appear in the inbox section**
+- **Inbox Content**: Reserved for external content only
+  - **NO user-generated content** (notes, threads, spaces) should appear in the inbox
+  - Reserved for future content from Harvous team, shared content from other users, curated Bible study materials, and community highlights
+  - **User-generated notes and threads should NEVER appear in the inbox section**
 - **Organized Content**: Items assigned to spaces, shown in the "Full list" section
   - All threads (regardless of spaceId) appear in organized content
   - Individual notes assigned to spaces
+  - Individual notes in unorganized thread (these are user-generated and belong in organized content, not inbox)
 
 ### Thread Deletion Behavior
 
@@ -125,9 +126,10 @@ The system uses a hybrid approach for note-thread relationships:
 
 ## Navigation Logic
 
-- **"For You"**: Shows inbox count of unassigned items
+- **"For You"**: Shows inbox count (currently 0, reserved for external content only)
 - **Spaces**: Show total item count, use paper color, highlight when active
 - **Pinned Threads**: Show note count, use thread color, highlight when active
+- **Persistent Navigation**: Simple localStorage-based system that tracks recently accessed items
 
 ## Page Routing (`src/pages/[id].astro`)
 
@@ -359,6 +361,32 @@ if (window.astroNavigate) {
 - **Consistent theming**: Matches existing design system colors
 - **Performance**: No JavaScript event listeners for hover states
 
+## Simplified Navigation History System
+
+The navigation history system has been simplified to use a clean, single-file approach:
+
+### Key Components
+
+- **`public/scripts/navigation-history.js`**: Single file containing all navigation history logic
+- **`src/components/PersistentNavigation.astro`**: Simplified component that renders navigation history
+- **localStorage**: Simple key-value storage for navigation history data
+
+### How It Works
+
+1. **Tracking**: When users navigate to threads, spaces, or notes, the system automatically tracks the access
+2. **Storage**: Navigation history is stored in localStorage as a JSON array
+3. **Display**: Recently accessed items appear in the persistent navigation section
+4. **Deduplication**: Items already visible in regular navigation are filtered out
+5. **Close Functionality**: Users can close items from persistent navigation, removing them from history
+
+### Benefits of Simplified Approach
+
+- **Single Source of Truth**: All navigation logic in one file
+- **No Complex Dependencies**: Uses only localStorage and vanilla JavaScript
+- **Easy to Debug**: Clear, readable code with comprehensive logging
+- **View Transitions Compatible**: Works seamlessly with Astro's View Transitions
+- **Alpine.js Integration**: Properly integrates with Alpine.js for interactive elements
+
 ## Key Files
 
 - `src/utils/dashboard-data.ts`: Database queries for dashboard content
@@ -371,7 +399,8 @@ if (window.astroNavigate) {
 - `src/components/ContextMoreMenu.astro`: Context-aware menu for different content types
 - `src/utils/menu-options.ts`: Utility for determining available menu options
 - `src/components/SpaceButton.astro`: Button component with close functionality
-- `public/scripts/navigation-close.js`: Core navigation close logic
+- `public/scripts/navigation-history.js`: Simplified navigation history system
+- `src/components/PersistentNavigation.astro`: Simplified persistent navigation component
 - `src/layouts/Layout.astro`: Alpine.js and View Transitions setup
 
 ## Component Dependencies
