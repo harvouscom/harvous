@@ -468,13 +468,23 @@ if (!content) {
   <!-- Main Column -->
   <div slot="main" class="h-full">
           {isNote ? (
-            <CardFull 
-              title={content.title || "Untitled Note"}
-              content={content.content}
-              date={content.createdAt ? content.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Feb 7, 2025"}
-              noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : undefined}
-              className="h-full"
-            />
+            <div 
+              data-note-id={content.id}
+              data-parent-thread-id={currentThread?.id || 'thread_unorganized'}
+              data-parent-thread-title={currentThread?.title || 'Unorganized'}
+              data-parent-thread-count={currentThread?.noteCount || 0}
+              data-parent-thread-background-gradient={currentThread?.backgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)'}
+              data-parent-thread-color={currentThread?.color || 'blue'}
+              class="h-full"
+            >
+              <CardFull 
+                title={content.title || "Untitled Note"}
+                content={content.content}
+                date={content.createdAt ? content.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Feb 7, 2025"}
+                noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : undefined}
+                className="h-full"
+              />
+            </div>
           ) : (
             <CardStack 
               title={pageTitle} 
