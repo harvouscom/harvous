@@ -355,6 +355,11 @@ const showMoreButton = shouldShowMoreButton(contentType);
             data-thread-color={currentThread?.color}
             data-thread-note-count={currentThread?.noteCount}
             data-thread-background-gradient={currentThread?.backgroundGradient}
+            data-space-id={currentSpace?.id}
+            data-space-title={currentSpace?.title}
+            data-space-color={currentSpace?.color}
+            data-space-item-count={currentSpace?.totalItemCount}
+            data-space-background-gradient={currentSpace?.backgroundGradient}
             data-content-type={contentType}
             data-content-id={contentId}
           >
@@ -698,7 +703,7 @@ function extractItemDataFromPage(currentItemId) {
           id: threadId,
           title: navigationElement.dataset.threadTitle || 'Thread',
           type: 'thread',
-          count: parseInt(navigationElement.dataset.threadCount) || 0,
+          count: parseInt(navigationElement.dataset.threadNoteCount) || 0,
           backgroundGradient: navigationElement.dataset.threadBackgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
           color: navigationElement.dataset.threadColor || 'blue'
         };
@@ -709,7 +714,7 @@ function extractItemDataFromPage(currentItemId) {
           id: spaceId,
           title: navigationElement.dataset.spaceTitle || 'Space',
           type: 'space',
-          count: parseInt(navigationElement.dataset.spaceCount) || 0,
+          count: parseInt(navigationElement.dataset.spaceItemCount) || 0,
           backgroundGradient: navigationElement.dataset.spaceBackgroundGradient || 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
           color: navigationElement.dataset.spaceColor || 'paper'
         };

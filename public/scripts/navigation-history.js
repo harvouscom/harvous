@@ -126,16 +126,29 @@ function trackNavigationAccess() {
       if (threadId === 'thread_unorganized') {
         localStorage.removeItem('unorganized-thread-closed');
       }
+    } else if (currentItemId.startsWith('space_') && navigationElement.dataset.spaceId) {
+      // For spaces, get the actual count from the navigation element
+      itemData = {
+        id: currentItemId,
+        title: navigationElement.dataset.spaceTitle || 'Space',
+        type: 'space',
+        count: parseInt(navigationElement.dataset.spaceItemCount) || 0,
+        backgroundGradient: navigationElement.dataset.spaceBackgroundGradient || 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+        color: navigationElement.dataset.spaceColor || 'paper'
+      };
     }
   }
   
-  // Special handling for unorganized thread
-  if (currentItemId === 'thread_unorganized') {
+  // Special handling for unorganized thread (only if not already handled above)
+  if (currentItemId === 'thread_unorganized' && (!navigationElement || !navigationElement.dataset.threadId)) {
+    // Try to get the actual count from the navigation element if available
+    const unorganizedCount = navigationElement ? parseInt(navigationElement.dataset.threadNoteCount) || 0 : 0;
+    
     itemData = {
       id: 'thread_unorganized',
       title: 'Unorganized',
       type: 'thread',
-      count: 0,
+      count: unorganizedCount,
       backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
       color: 'blessed-blue'
     };
@@ -144,13 +157,16 @@ function trackNavigationAccess() {
     localStorage.removeItem('unorganized-thread-closed');
   }
   
-  // Special handling for spaces
-  if (currentItemId.startsWith('space_')) {
+  // Special handling for spaces (only if not already handled above)
+  if (currentItemId.startsWith('space_') && (!navigationElement || !navigationElement.dataset.spaceId)) {
+    // Try to get the actual count from the navigation element if available
+    const spaceCount = navigationElement ? parseInt(navigationElement.dataset.spaceItemCount) || 0 : 0;
+    
     itemData = {
       id: currentItemId,
       title: 'Space',
       type: 'space',
-      count: 0,
+      count: spaceCount,
       backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
       color: 'paper'
     };
