@@ -35,28 +35,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Ensure we have a valid threadId - if it's unorganized, use the default
     let finalThreadId = threadId;
     if (!finalThreadId || finalThreadId === 'thread_unorganized') {
-      // Create the unorganized thread if it doesn't exist
-      try {
-        await db.insert(Threads).values({
-          id: "thread_unorganized",
-          title: "Unorganized",
-          subtitle: "Notes that haven't been organized into threads yet",
-          spaceId: null,
-          userId: userId,
-          isPublic: true,
-          isPinned: false,
-          color: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }).returning().get();
-        console.log("Created unorganized thread for user:", userId);
-      } catch (createError: any) {
-        if (createError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || createError.rawCode === 1555) {
-          console.log("Unorganized thread already exists for user:", userId);
-        } else {
-          console.error("Error creating unorganized thread:", createError);
-        }
-      }
+      // Ensure the unorganized thread exists
+      const { ensureUnorganizedThread } = await import('@/utils/unorganized-thread');
+      await ensureUnorganizedThread(userId);
       finalThreadId = 'thread_unorganized';
     }
     

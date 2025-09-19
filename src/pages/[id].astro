@@ -14,6 +14,7 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThr
 import { getThreadColorCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
+import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 
@@ -179,40 +180,23 @@ let inboxCount: number = 0;
   }));
   */
   
+  // Get active thread context for navigation
+  const activeThread = await detectActiveThreadFromPath(Astro.url.pathname, userId);
+  console.log('🔍 [id].astro activeThread detection:', {
+    pathname: Astro.url.pathname,
+    id: id,
+    activeThread: activeThread,
+    isUnorganizedActive: activeThread && activeThread.id === 'thread_unorganized'
+  });
+
   // Ensure unorganized thread exists in database and check if it has notes
   let unorganizedThread: any = null;
   let otherThreads: any[] = [];
   
   try {
-    // First, ensure the unorganized thread exists in the database
-    const ensureResponse = await fetch('/api/threads/ensure-unorganized', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-    
-    if (!ensureResponse.ok) {
-      console.error("Thread page: Failed to ensure unorganized thread exists");
-    }
-    
-    // Now check if it has notes
-    const noteCount = await db.select({ count: count() })
-      .from(Notes)
-      .where(and(
-        eq(Notes.userId, userId),
-        eq(Notes.threadId, "thread_unorganized")
-      ))
-      .get();
-    
-    if (noteCount && noteCount.count > 0) {
-      unorganizedThread = {
-        id: 'thread_unorganized',
-        title: 'Unorganized',
-        color: null,
-        noteCount: noteCount.count,
-        backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
-      };
+    const threadData = await ensureUnorganizedThread(userId);
+    if (threadData.noteCount > 0) {
+      unorganizedThread = threadData;
     }
     
     // If we're on the unorganized thread, get other threads to show in navigation
@@ -263,13 +247,8 @@ let inboxCount: number = 0;
     if (isThread) {
       // Special handling for unorganized thread
       if (id === 'thread_unorganized') {
-        // First ensure the unorganized thread exists in database
-        const ensureResponse = await fetch('/api/threads/ensure-unorganized', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
+        // Ensure the unorganized thread exists in database
+        await ensureUnorganizedThread(userId);
         
         const notesData = await getNotesForThread(id!, userId);
         
@@ -457,8 +436,8 @@ if (!content) {
                   </div>
                 ))}
                 
-                {/* Show unorganized thread if it has notes and is not the current thread */}
-                {unorganizedThread && (!currentThread || currentThread.id !== 'thread_unorganized') ? (
+                {/* Show unorganized thread if it has notes */}
+                {unorganizedThread ? (
                   <div data-navigation-item={unorganizedThread.id} class="w-full">
                     <a href={`/${unorganizedThread.id}`} class="w-full">
                       <SpaceButton 
@@ -467,7 +446,7 @@ if (!content) {
                         state="Close" 
                         className="w-full" 
                         backgroundGradient={unorganizedThread.backgroundGradient}
-                        isActive={false}
+                        isActive={activeThread && activeThread.id === 'thread_unorganized'}
                         itemId={unorganizedThread.id}
                       />
                     </a>

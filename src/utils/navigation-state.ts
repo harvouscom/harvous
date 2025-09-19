@@ -56,6 +56,23 @@ export async function detectActiveThreadFromPath(currentPath: string, userId: st
     if (currentPath.includes('/thread_') || currentPath.match(/^\/[a-zA-Z0-9_-]+$/)) {
       const threadId = currentPath.split('/').pop();
       if (threadId && threadId !== 'dashboard' && threadId !== 'sign-in' && threadId !== 'sign-up') {
+        // Special handling for unorganized thread
+        if (threadId === 'thread_unorganized') {
+          // Import the ensureUnorganizedThread function
+          const { ensureUnorganizedThread } = await import('./unorganized-thread');
+          const unorganizedData = await ensureUnorganizedThread(userId);
+          if (unorganizedData.noteCount > 0) {
+            return {
+              id: unorganizedData.id,
+              title: unorganizedData.title,
+              color: unorganizedData.color,
+              noteCount: unorganizedData.noteCount,
+              backgroundGradient: unorganizedData.backgroundGradient,
+            };
+          }
+          return null;
+        }
+        
         return await getThreadContext(threadId, userId);
       }
     }

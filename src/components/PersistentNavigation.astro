@@ -9,49 +9,69 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 </div>
 
 <script>
-  // Simple localStorage-based navigation history
-  function getNavigationHistory() {
-    try {
-      const stored = localStorage.getItem('navigation-history');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('❌ Error getting navigation history:', error);
-      return [];
-    }
-  }
-  
+  // Simple function to render persistent navigation
   function renderPersistentNavigation() {
     const container = document.getElementById('persistent-navigation');
     if (!container) {
       return;
     }
     
-    const history = getNavigationHistory();
+    // Use the global navigation history functions
+    if (typeof (window as any).getNavigationHistory !== 'function') {
+      return; // Navigation history script not loaded yet
+    }
+    
+    const history = (window as any).getNavigationHistory();
     
     if (history.length === 0) {
       container.innerHTML = '';
       return;
     }
     
-    // Get currently visible navigation items to avoid duplicates
-    const visibleItems = Array.from(document.querySelectorAll('[data-navigation-item]'))
-      .map(item => item.getAttribute('data-navigation-item'))
-      .filter(id => id !== null);
-    
-    // Filter out items that are already visible in regular navigation
-    // Also filter out the current page to avoid showing it as inactive
+    // Clean up navigation history by removing items that are currently active or permanently visible
     const currentPath = window.location.pathname;
     const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
     
-    const persistentItems = history.filter((item: any) => {
-      // Don't show if already visible in regular navigation
-      if (visibleItems.includes(item.id)) {
-        return false;
-      }
-      // Don't show if it's the current page
+    console.log(`🧹 PERSISTENT NAV DEBUG - Current path: ${currentPath}, Item ID: ${currentItemId}`);
+    console.log(`🧹 PERSISTENT NAV DEBUG - History before filtering:`, history);
+    
+    const cleanedHistory = history.filter((item: any) => {
+      // Don't show if it's currently active
       if (item.id === currentItemId) {
+        console.log(`🧹 Filtering out currently active item: ${item.id}`);
         return false;
       }
+      
+      // Don't show if it's permanently visible (spaces only)
+      if (item.id.startsWith('space_')) {
+        console.log(`🧹 Filtering out permanently visible space: ${item.id}`);
+        return false;
+      }
+      
+      // Don't show if it's the unorganized thread and we're currently on it
+      if (item.id === 'thread_unorganized' && currentItemId === 'thread_unorganized') {
+        console.log(`🧹 Filtering out unorganized thread (currently active): ${item.id}`);
+        return false;
+      }
+      
+      // Note: Threads can appear in persistent navigation even if they have data-navigation-item
+      // because they're only temporarily visible when active
+      
+      return true;
+    });
+    
+    console.log(`🧹 PERSISTENT NAV DEBUG - History after filtering:`, cleanedHistory);
+    
+    // If we cleaned up items, save the cleaned history
+    if (cleanedHistory.length !== history.length) {
+      console.log(`🧹 Cleaned up navigation history: ${history.length} -> ${cleanedHistory.length} items`);
+      if ((window as any).saveNavigationHistory) {
+        (window as any).saveNavigationHistory(cleanedHistory);
+      }
+    }
+    
+    // Filter out dashboard and any remaining items
+    const persistentItems = cleanedHistory.filter((item: any) => {
       // Don't show dashboard
       if (item.id === 'dashboard') {
         return false;
@@ -64,11 +84,11 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
       return;
     }
     
-    // Sort items by first access time (most recent first access at the top)
+    // Sort items by last access time (most recent last access at the bottom)
     const sortedItems = persistentItems.sort((a: any, b: any) => {
-      const aTime = a.firstAccessed || 0;
-      const bTime = b.firstAccessed || 0;
-      return bTime - aTime; // Most recent first access first
+      const aTime = a.lastAccessed || 0;
+      const bTime = b.lastAccessed || 0;
+      return aTime - bTime; // Most recent last access last
     });
     
     // Create navigation items HTML
@@ -101,7 +121,8 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
             ${!isActive ? `
             <div 
               class="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
-              @click.stop.prevent="if (window.closeNavigationItemWithHistory) { window.closeNavigationItemWithHistory('${item.id}'); } else if (window.closeNavigationItem) { window.closeNavigationItem('${item.id}'); }"
+              onclick="handlePersistentCloseClick(event, this)"
+              data-item-id="${item.id}"
             >
               <svg class="w-4 h-4 fill-current" style="color: var(--color-deep-grey);" viewBox="0 0 384 512">
                 <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
@@ -129,18 +150,17 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
       }
     `;
     document.head.appendChild(style);
-    
-    // Re-initialize Alpine.js for the new elements
-    if ((window as any).Alpine) {
-      setTimeout(() => {
-        (window as any).Alpine.initTree(container);
-      }, 150);
-    }
   }
   
   // Initialize persistent navigation
   function initializePersistentNavigation() {
-    renderPersistentNavigation();
+    // Wait for navigation history script to load
+    if (typeof (window as any).getNavigationHistory === 'function') {
+      renderPersistentNavigation();
+    } else {
+      // Retry after a short delay
+      setTimeout(initializePersistentNavigation, 100);
+    }
   }
   
   // Initialize on DOM ready
@@ -155,8 +175,28 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
     initializePersistentNavigation();
   });
   
+  // Simple close handler for persistent navigation items
+  function handlePersistentCloseClick(event: Event, element: HTMLElement) {
+    event.stopPropagation();
+    event.preventDefault();
+    
+    const itemId = element.getAttribute('data-item-id');
+    if (!itemId) return;
+    
+    console.log('🔥 Persistent close clicked for item:', itemId);
+    
+    // Remove from navigation history
+    if ((window as any).removeFromNavigationHistory) {
+      (window as any).removeFromNavigationHistory(itemId);
+    }
+    
+    // Re-render persistent navigation
+    renderPersistentNavigation();
+  }
+  
   // Export for global access
   (window as any).renderPersistentNavigation = renderPersistentNavigation;
+  (window as any).handlePersistentCloseClick = handlePersistentCloseClick;
 </script>
 
 <style>

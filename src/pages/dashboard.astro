@@ -12,7 +12,7 @@ import PersistentNavigation from "@/components/PersistentNavigation.astro";
 import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
-import { db, Threads, Notes, eq, and, count } from "astro:db";
+import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 // Get user ID from Clerk authentication
@@ -81,40 +81,19 @@ const organizedContent = contentItems;
 const inboxItemCount = inboxContent.length;
 
 // Get active thread context for navigation
-const activeThread = await detectActiveThreadFromPath('/dashboard', userId);
+const activeThread = await detectActiveThreadFromPath(Astro.url.pathname, userId);
+console.log('🔍 Dashboard activeThread detection:', {
+  pathname: Astro.url.pathname,
+  activeThread: activeThread,
+  isUnorganizedActive: activeThread && activeThread.id === 'thread_unorganized'
+});
 
 // Ensure unorganized thread exists in database and check if it has notes
 let unorganizedThread = null;
 try {
-  // First, ensure the unorganized thread exists in the database
-  const ensureResponse = await fetch('/api/threads/ensure-unorganized', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    }
-  });
-  
-  if (!ensureResponse.ok) {
-    console.error("Dashboard: Failed to ensure unorganized thread exists");
-  }
-  
-  // Now check if it has notes
-  const noteCount = await db.select({ count: count() })
-    .from(Notes)
-    .where(and(
-      eq(Notes.userId, userId),
-      eq(Notes.threadId, "thread_unorganized")
-    ))
-    .get();
-  
-  if (noteCount && noteCount.count > 0) {
-    unorganizedThread = {
-      id: 'thread_unorganized',
-      title: 'Unorganized',
-      color: null,
-      noteCount: noteCount.count,
-      backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
-    };
+  const threadData = await ensureUnorganizedThread(userId);
+  if (threadData.noteCount > 0) {
+    unorganizedThread = threadData;
   }
 } catch (error) {
   console.error("Dashboard: Error ensuring unorganized thread:", error);
@@ -163,8 +142,8 @@ try {
                   </div>
                 ))}
                 
-                {/* Show unorganized thread if it has notes and is not the active thread */}
-                {unorganizedThread && (!activeThread || activeThread.id !== 'thread_unorganized') ? (
+                {/* Show unorganized thread if it has notes */}
+                {unorganizedThread ? (
                   <div data-navigation-item={unorganizedThread.id} class="w-full">
                     <a href={`/${unorganizedThread.id}`} class="w-full">
                       <SpaceButton 
@@ -173,12 +152,24 @@ try {
                         state="Close" 
                         className="w-full" 
                         backgroundGradient={unorganizedThread.backgroundGradient}
-                        isActive={false}
+                        isActive={activeThread && activeThread.id === 'thread_unorganized'}
                         itemId={unorganizedThread.id}
                       />
                     </a>
                   </div>
                 ) : null}
+                
+                {/* Debug info for unorganized thread */}
+                {unorganizedThread && (
+                  <script is:inline>
+                    console.log('🔍 Unorganized thread SpaceButton props:', {
+                      text: '{unorganizedThread.title}',
+                      isActive: {activeThread && activeThread.id === 'thread_unorganized'},
+                      activeThreadId: '{activeThread?.id}',
+                      pathname: '{Astro.url.pathname}'
+                    });
+                  </script>
+                )}
 
                 {/* Show active thread if any (excluding unorganized thread) */}
                 {activeThread && activeThread.id !== 'thread_unorganized' ? (
@@ -418,7 +409,6 @@ try {
   <div slot="mobile-additional">
     <MobileAdditional contentType="dashboard" currentSpace={null} />
   </div>
-
 
 
 </Layout>

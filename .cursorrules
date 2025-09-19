@@ -45,3 +45,11 @@
 - Use proper TypeScript types and avoid `any` when possible
 - Follow existing code patterns and architecture
 - **Update documentation** when making architectural changes
+
+## Critical Development Rules
+- **NEVER undo or revert working functionality without fully understanding the issue**
+- **ALWAYS ask for clarification if the user's problem description is unclear**
+- **NEVER make assumptions about what the user wants - ask first**
+- **If you don't understand a problem completely, ask questions before making changes**
+- **When debugging, add logging/debugging first, don't immediately change working code**
+- **Preserve existing functionality unless explicitly asked to change it**
