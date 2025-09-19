@@ -436,41 +436,9 @@ if (!content) {
                   </div>
                 ))}
                 
-                {/* Show unorganized thread if it has notes */}
-                {unorganizedThread ? (
-                  <div data-navigation-item={unorganizedThread.id} class="w-full">
-                    <a href={`/${unorganizedThread.id}`} class="w-full">
-                      <SpaceButton 
-                        text={unorganizedThread.title} 
-                        count={unorganizedThread.noteCount} 
-                        state="Close" 
-                        className="w-full" 
-                        backgroundGradient={unorganizedThread.backgroundGradient}
-                        isActive={activeThread && activeThread.id === 'thread_unorganized'}
-                        itemId={unorganizedThread.id}
-                      />
-                    </a>
-                  </div>
-                ) : null}
-
-                {/* Show other threads when on unorganized thread */}
-                {id === 'thread_unorganized' && otherThreads.map(thread => (
-                  <div data-navigation-item={thread.id} class="w-full">
-                    <a href={`/${thread.id}`} class="w-full">
-                      <SpaceButton 
-                        text={thread.title} 
-                        count={thread.noteCount} 
-                        state="Close" 
-                        className="w-full" 
-                        backgroundGradient={thread.backgroundGradient}
-                        isActive={false}
-                        itemId={thread.id}
-                      />
-                    </a>
-                  </div>
-                ))}
-
-                {/* Show active thread if any (active if on thread page, inactive otherwise) */}
+                {/* Unorganized thread now appears in persistent navigation when visited */}
+                
+                {/* Show active thread if any (including unorganized thread when it's the current thread) */}
                 {currentThread ? (
                   <div data-navigation-item={currentThread.id} class="w-full">
                     <a href={`/${currentThread.id}`} class="w-full">

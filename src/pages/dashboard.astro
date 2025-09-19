@@ -142,35 +142,8 @@ try {
                   </div>
                 ))}
                 
-                {/* Show unorganized thread if it has notes */}
-                {unorganizedThread ? (
-                  <div data-navigation-item={unorganizedThread.id} class="w-full">
-                    <a href={`/${unorganizedThread.id}`} class="w-full">
-                      <SpaceButton 
-                        text={unorganizedThread.title} 
-                        count={unorganizedThread.noteCount} 
-                        state="Close" 
-                        className="w-full" 
-                        backgroundGradient={unorganizedThread.backgroundGradient}
-                        isActive={activeThread && activeThread.id === 'thread_unorganized'}
-                        itemId={unorganizedThread.id}
-                      />
-                    </a>
-                  </div>
-                ) : null}
+                {/* Unorganized thread now appears in persistent navigation when visited */}
                 
-                {/* Debug info for unorganized thread */}
-                {unorganizedThread && (
-                  <script is:inline>
-                    console.log('🔍 Unorganized thread SpaceButton props:', {
-                      text: '{unorganizedThread.title}',
-                      isActive: {activeThread && activeThread.id === 'thread_unorganized'},
-                      activeThreadId: '{activeThread?.id}',
-                      pathname: '{Astro.url.pathname}'
-                    });
-                  </script>
-                )}
-
                 {/* Show active thread if any (excluding unorganized thread) */}
                 {activeThread && activeThread.id !== 'thread_unorganized' ? (
                   <div data-navigation-item={activeThread.id} class="w-full">

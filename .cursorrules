@@ -53,3 +53,9 @@
 - **If you don't understand a problem completely, ask questions before making changes**
 - **When debugging, add logging/debugging first, don't immediately change working code**
 - **Preserve existing functionality unless explicitly asked to change it**
+- **NEVER overcomplicate simple problems - use the simplest solution that works**
+- **If something was working before, figure out what changed and revert only that change**
+- **NEVER add multiple debugging scripts or complex fallbacks - keep it simple**
+- **When the user says "it's broken", focus on fixing the core issue, not adding features**
+- **ASK MORE QUESTIONS - if you're less than 80% positive about something, ask for clarification**
+- **NEVER assume implementation details - always ask "how should this work?" before coding**

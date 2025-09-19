@@ -1,6 +1,5 @@
 ---
 import SpaceButton from "./SpaceButton.astro";
-import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 ---
 
 <!-- Persistent Navigation Component -->
@@ -9,72 +8,42 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 </div>
 
 <script>
-  // Simple function to render persistent navigation
+  // Type declarations for window properties
+  declare global {
+    interface Window {
+      getNavigationHistory: () => any[];
+      removeFromNavigationHistory: (itemId: string) => void;
+      renderPersistentNavigation: () => void;
+      handlePersistentCloseClick: (event: Event, element: HTMLElement) => void;
+    }
+  }
+
   function renderPersistentNavigation() {
     const container = document.getElementById('persistent-navigation');
-    if (!container) {
-      return;
-    }
+    if (!container) return;
     
-    // Use the global navigation history functions
-    if (typeof (window as any).getNavigationHistory !== 'function') {
-      return; // Navigation history script not loaded yet
-    }
+    if (typeof window.getNavigationHistory !== 'function') return;
     
-    const history = (window as any).getNavigationHistory();
+    const history = window.getNavigationHistory();
     
     if (history.length === 0) {
       container.innerHTML = '';
       return;
     }
     
-    // Clean up navigation history by removing items that are currently active or permanently visible
-    const currentPath = window.location.pathname;
-    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    // Get currently visible navigation items to avoid duplicates
+    const visibleItems = Array.from(document.querySelectorAll('[data-navigation-item]'))
+      .map((item: Element) => item.getAttribute('data-navigation-item'))
+      .filter((id: string | null): id is string => id !== null);
     
-    console.log(`🧹 PERSISTENT NAV DEBUG - Current path: ${currentPath}, Item ID: ${currentItemId}`);
-    console.log(`🧹 PERSISTENT NAV DEBUG - History before filtering:`, history);
+    // Filter out items that are already visible in regular navigation
+    let persistentItems = history.filter((item: any) => !visibleItems.includes(item.id));
     
-    const cleanedHistory = history.filter((item: any) => {
-      // Don't show if it's currently active
-      if (item.id === currentItemId) {
-        console.log(`🧹 Filtering out currently active item: ${item.id}`);
-        return false;
-      }
-      
-      // Don't show if it's permanently visible (spaces only)
-      if (item.id.startsWith('space_')) {
-        console.log(`🧹 Filtering out permanently visible space: ${item.id}`);
-        return false;
-      }
-      
-      // Don't show if it's the unorganized thread and we're currently on it
-      if (item.id === 'thread_unorganized' && currentItemId === 'thread_unorganized') {
-        console.log(`🧹 Filtering out unorganized thread (currently active): ${item.id}`);
-        return false;
-      }
-      
-      // Note: Threads can appear in persistent navigation even if they have data-navigation-item
-      // because they're only temporarily visible when active
-      
-      return true;
-    });
-    
-    console.log(`🧹 PERSISTENT NAV DEBUG - History after filtering:`, cleanedHistory);
-    
-    // If we cleaned up items, save the cleaned history
-    if (cleanedHistory.length !== history.length) {
-      console.log(`🧹 Cleaned up navigation history: ${history.length} -> ${cleanedHistory.length} items`);
-      if ((window as any).saveNavigationHistory) {
-        (window as any).saveNavigationHistory(cleanedHistory);
-      }
-    }
-    
-    // Filter out dashboard and any remaining items
-    const persistentItems = cleanedHistory.filter((item: any) => {
-      // Don't show dashboard
-      if (item.id === 'dashboard') {
-        return false;
+    // Filter out unorganized thread if it's been closed
+    persistentItems = persistentItems.filter((item: any) => {
+      if (item.id === 'thread_unorganized') {
+        const isClosed = localStorage.getItem('unorganized-thread-closed') === 'true';
+        return !isClosed;
       }
       return true;
     });
@@ -84,15 +53,8 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
       return;
     }
     
-    // Sort items by last access time (most recent last access at the bottom)
-    const sortedItems = persistentItems.sort((a: any, b: any) => {
-      const aTime = a.lastAccessed || 0;
-      const bTime = b.lastAccessed || 0;
-      return aTime - bTime; // Most recent last access last
-    });
-    
     // Create navigation items HTML
-    const itemsHTML = sortedItems.map((item: any) => {
+    const itemsHTML = persistentItems.map((item: any) => {
       const isActive = window.location.pathname === `/${item.id}`;
       
       return `
@@ -106,9 +68,7 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
                 <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
                   ${item.title}
                 </span>
-                <!-- Right box - simple flex container for badge -->
                 <div class="flex items-center justify-center p-[20px]">
-                  <!-- Badge count - show when not hovering -->
                   <div class="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
                     <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
                       ${item.count || 0}
@@ -117,7 +77,6 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
                 </div>
               </div>
             </button>
-            <!-- Close icon - only show for inactive items -->
             ${!isActive ? `
             <div 
               class="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
@@ -136,7 +95,7 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
     
     container.innerHTML = itemsHTML;
     
-    // Add CSS for hover states - only for inactive items
+    // Add CSS for hover states
     const style = document.createElement('style');
     style.textContent = `
       .nav-item-container:not(.active):hover .badge-count {
@@ -154,11 +113,9 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
   
   // Initialize persistent navigation
   function initializePersistentNavigation() {
-    // Wait for navigation history script to load
-    if (typeof (window as any).getNavigationHistory === 'function') {
+    if (typeof window.getNavigationHistory === 'function') {
       renderPersistentNavigation();
     } else {
-      // Retry after a short delay
       setTimeout(initializePersistentNavigation, 100);
     }
   }
@@ -171,11 +128,9 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
   }
   
   // Re-initialize after View Transitions
-  document.addEventListener('astro:page-load', () => {
-    initializePersistentNavigation();
-  });
+  document.addEventListener('astro:page-load', initializePersistentNavigation);
   
-  // Simple close handler for persistent navigation items
+  // Simple close handler
   function handlePersistentCloseClick(event: Event, element: HTMLElement) {
     event.stopPropagation();
     event.preventDefault();
@@ -183,24 +138,19 @@ import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
     const itemId = element.getAttribute('data-item-id');
     if (!itemId) return;
     
-    console.log('🔥 Persistent close clicked for item:', itemId);
-    
-    // Remove from navigation history
-    if ((window as any).removeFromNavigationHistory) {
-      (window as any).removeFromNavigationHistory(itemId);
+    if (window.removeFromNavigationHistory) {
+      window.removeFromNavigationHistory(itemId);
     }
     
-    // Re-render persistent navigation
     renderPersistentNavigation();
   }
   
   // Export for global access
-  (window as any).renderPersistentNavigation = renderPersistentNavigation;
-  (window as any).handlePersistentCloseClick = handlePersistentCloseClick;
+  window.renderPersistentNavigation = renderPersistentNavigation;
+  window.handlePersistentCloseClick = handlePersistentCloseClick;
 </script>
 
 <style>
-  /* Reuse SpaceButton styles */
   .space-button {
     will-change: transform;
     transition: box-shadow 0.125s ease-in-out;

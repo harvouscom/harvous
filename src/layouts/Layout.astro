@@ -591,41 +591,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
   });
 </script>
 
-<!-- Navigation history tracking script -->
-<script src="/scripts/navigation-history.js?v=4.1&t=20250119&force=true"></script>
+<!-- Simple Navigation History Script -->
+<script src="/scripts/navigation-history.js?v=6.0&t=20250119&force=true"></script>
 
-<!-- Fallback functions for navigation history -->
-<script is:inline>
-  // Simple fallback functions to ensure navigation history works
-  window.removeFromNavigationHistory = function(itemId) {
-    console.log('🔥 Fallback removeFromNavigationHistory called for:', itemId);
-    
-    // Remove from navigation history manually
-    const history = JSON.parse(localStorage.getItem('navigation-history') || '[]');
-    const filteredHistory = history.filter(item => item.id !== itemId);
-    localStorage.setItem('navigation-history', JSON.stringify(filteredHistory));
-    
-    console.log('🔥 Fallback: Removed item from history');
-    
-    // Special handling for unorganized thread - mark it as closed
-    if (itemId === 'thread_unorganized') {
-      localStorage.setItem('unorganized-thread-closed', 'true');
-      console.log('🔥 Marked unorganized thread as closed');
-      
-      // Hide it immediately
-      const unorganizedElement = document.querySelector('[data-navigation-item="thread_unorganized"]');
-      if (unorganizedElement) {
-        unorganizedElement.style.display = 'none';
-        console.log('🔥 Immediately hiding unorganized thread');
-      }
-    }
-    
-    // Re-render persistent navigation
-    if (window.renderPersistentNavigation) {
-      window.renderPersistentNavigation();
-    }
-  };
-</script>
 
 <!-- Hide unorganized thread if it's been closed -->
 <script is:inline>
