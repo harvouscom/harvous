@@ -1,6 +1,6 @@
 // Simple Navigation History - Clean localStorage approach
 console.log('🚀 Navigation history script loaded');
-console.log('🔍 Script version: 2.7 - Added error handling for extractItemDataFromPage');
+console.log('🔍 Script version: 4.1 - Fixed Blue wave duplication issue');
 console.log('🔍 Current URL:', window.location.href);
 console.log('🔍 Current path:', window.location.pathname);
 
@@ -27,6 +27,14 @@ function saveNavigationHistory(history) {
 
 // Add or update an item in navigation history
 function addToNavigationHistory(item) {
+  console.log('📝 addToNavigationHistory called for:', item.id);
+  
+  // CRITICAL FIX: Don't add Blue wave thread when on unorganized thread
+  if (item.id === 'thread_1758241289251' && window.location.pathname === '/thread_unorganized') {
+    console.log('🚫 BLUE WAVE BLOCKED - Not adding Blue wave when on unorganized thread');
+    return;
+  }
+  
   const currentHistory = getNavigationHistory();
   const now = Date.now();
   
@@ -70,6 +78,7 @@ function addToNavigationHistory(item) {
   }
   
   saveNavigationHistory(updatedHistory);
+  console.log('✅ Added to navigation history:', item);
   
   // Trigger re-render of persistent navigation
   if (window.renderPersistentNavigation) {

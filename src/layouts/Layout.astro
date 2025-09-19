@@ -591,89 +591,21 @@ const showMoreButton = shouldShowMoreButton(contentType);
   });
 </script>
 
-<!-- Navigation history tracking - INLINE VERSION -->
+<!-- Navigation history tracking script -->
+<script src="/scripts/navigation-history.js?v=4.1&t=20250119&force=true"></script>
+
+<!-- Fallback functions for navigation history -->
 <script is:inline>
-  // Simple Navigation History - Clean localStorage approach
-  console.log('🚀 Navigation history script loaded - INLINE VERSION');
-  console.log('🔍 Script version: 3.7 - Fixed Blue wave duplication issue');
-  console.log('🔍 Current URL:', window.location.href);
-  console.log('🔍 Current path:', window.location.pathname);
-
-  // Get navigation history from localStorage
-  function getNavigationHistory() {
-    try {
-      const stored = localStorage.getItem('navigation-history');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Error loading navigation history:', error);
-      return [];
-    }
-  }
-
-  // Save navigation history to localStorage
-  function saveNavigationHistory(history) {
-    try {
-      localStorage.setItem('navigation-history', JSON.stringify(history));
-    } catch (error) {
-      console.error('Error saving navigation history:', error);
-    }
-  }
-
-  // Add item to navigation history
-  function addToNavigationHistory(item) {
-    const history = getNavigationHistory();
+  // Simple fallback functions to ensure navigation history works
+  window.removeFromNavigationHistory = function(itemId) {
+    console.log('🔥 Fallback removeFromNavigationHistory called for:', itemId);
     
-    // Special debugging for Blue wave thread
-    if (item.id === 'thread_1758241289251') {
-      console.log('🔍 BLUE WAVE DEBUG - Before adding:', {
-        item,
-        currentHistory: history,
-        existingItem: history.find(h => h.id === item.id),
-        historyLength: history.length,
-        historyIds: history.map(h => h.id),
-        currentPath: window.location.pathname
-      });
-    }
-    
-    // CRITICAL FIX: Don't add Blue wave thread when on unorganized thread
-    if (item.id === 'thread_1758241289251' && window.location.pathname === '/thread_unorganized') {
-      console.log('🚫 BLUE WAVE BLOCKED - Not adding Blue wave when on unorganized thread');
-      return;
-    }
-    
-    // Remove if already exists
-    const filteredHistory = history.filter(existingItem => existingItem.id !== item.id);
-    
-    // Add to beginning
-    filteredHistory.unshift(item);
-    
-    // Limit to 10 items
-    const limitedHistory = filteredHistory.slice(0, 10);
-    
-    saveNavigationHistory(limitedHistory);
-    console.log('✅ Added to navigation history:', item);
-    
-    // Special debugging for Blue wave thread
-    if (item.id === 'thread_1758241289251') {
-      console.log('🔍 BLUE WAVE DEBUG - After adding:', {
-        newHistory: limitedHistory,
-        blueWaveCount: limitedHistory.filter(h => h.id === 'thread_1758241289251').length
-      });
-    }
-
-    // Re-render persistent navigation after history change
-    if (window.renderPersistentNavigation) {
-      console.log('🔄 Re-rendering persistent navigation after history change');
-      window.renderPersistentNavigation();
-    }
-  }
-
-  // Remove item from navigation history
-  function removeFromNavigationHistory(itemId) {
-    const history = getNavigationHistory();
+    // Remove from navigation history manually
+    const history = JSON.parse(localStorage.getItem('navigation-history') || '[]');
     const filteredHistory = history.filter(item => item.id !== itemId);
-    saveNavigationHistory(filteredHistory);
-    console.log('✅ Removed from navigation history:', itemId);
+    localStorage.setItem('navigation-history', JSON.stringify(filteredHistory));
+    
+    console.log('🔥 Fallback: Removed item from history');
     
     // Special handling for unorganized thread - mark it as closed
     if (itemId === 'thread_unorganized') {
@@ -682,261 +614,35 @@ const showMoreButton = shouldShowMoreButton(contentType);
       
       // Hide it immediately
       const unorganizedElement = document.querySelector('[data-navigation-item="thread_unorganized"]');
-      console.log('🔥 Looking for unorganized element:', unorganizedElement);
       if (unorganizedElement) {
         unorganizedElement.style.display = 'none';
         console.log('🔥 Immediately hiding unorganized thread');
-      } else {
-        console.log('❌ Could not find unorganized element to hide');
       }
     }
     
-    // Re-render persistent navigation using the main function
+    // Re-render persistent navigation
     if (window.renderPersistentNavigation) {
-      console.log('🔄 Re-rendering persistent navigation after removal');
       window.renderPersistentNavigation();
     }
-  }
+  };
+</script>
 
-  // Clear navigation history
-  function clearNavigationHistory() {
-    saveNavigationHistory([]);
-    console.log('✅ Cleared navigation history');
-  }
-
-  // Check if an item is currently active (being viewed)
-  function isItemCurrentlyActive(itemId) {
-    const currentPath = window.location.pathname;
-    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-    const isActive = currentItemId === itemId;
-    console.log(`🔍 Checking if ${itemId} is currently active:`, isActive, `(current: ${currentItemId})`);
-    
-    // Special debugging for unorganized thread
-    if (itemId === 'thread_unorganized') {
-      console.log(`🔍 UNORGANIZED DEBUG:`, {
-        itemId,
-        currentPath,
-        currentItemId,
-        isActive,
-        pathMatch: currentItemId === itemId
-      });
-    }
-    
-    return isActive;
-  }
-
-  // Check if an item is permanently visible in regular navigation (spaces only)
-  function isItemPermanentlyVisible(itemId) {
-    // Check if it's a space (starts with space_)
-    if (itemId.startsWith('space_')) {
-      console.log(`🔍 ${itemId} is a space - permanently visible`);
-      return true;
-    }
-    
-    // Note: Threads (including unorganized) are NOT permanently visible - they can be closed
-    // Only spaces are permanently visible
-    console.log(`🔍 ${itemId} is a thread - NOT permanently visible`);
-    return false;
-  }
-
-  // Track navigation when items are accessed
-  function trackNavigationAccess() {
-    console.log('📊 trackNavigationAccess called');
-    const currentPath = window.location.pathname;
-    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-    
-    console.log('📊 Current path:', currentPath, 'Item ID:', currentItemId);
-    
-    // Skip tracking for dashboard and empty paths
-    if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
-      console.log('⏭️ Skipping tracking for:', currentItemId);
-      return;
-    }
-    
-    // Check if this item is currently active (being viewed)
-    const isCurrentlyActive = isItemCurrentlyActive(currentItemId);
-    
-    // Check if this item is permanently visible in regular navigation
-    const isPermanentlyVisible = isItemPermanentlyVisible(currentItemId);
-    
-    console.log(`📊 Tracking navigation access for ${currentItemId}:`, {
-      isCurrentlyActive,
-      isPermanentlyVisible,
-      willTrack: !isPermanentlyVisible
-    });
-    
-    // Special debugging for the Blue wave duplication issue
-    if (currentItemId === 'thread_unorganized') {
-      console.log('🔍 UNORGANIZED VISIT DEBUG - Current history before processing:', getNavigationHistory());
-    }
-    
-    // Only track items that are NOT permanently visible (spaces)
-    // We track items when they are accessed, regardless of whether they're currently active
-    if (!isPermanentlyVisible) {
-      const itemData = extractItemDataFromPage(currentItemId);
-      
-      if (itemData) {
-        console.log(`✅ Adding ${currentItemId} to navigation history:`, itemData);
-        addToNavigationHistory(itemData);
-        
-        // Special debugging for the Blue wave duplication issue
-        if (currentItemId === 'thread_unorganized') {
-          console.log('🔍 UNORGANIZED VISIT DEBUG - History after adding unorganized:', getNavigationHistory());
-        }
-      } else {
-        console.log(`⏭️ Skipping ${currentItemId} - no valid data extracted`);
+<!-- Hide unorganized thread if it's been closed -->
+<script is:inline>
+  function hideUnorganizedThread() {
+    const isClosed = localStorage.getItem('unorganized-thread-closed') === 'true';
+    if (isClosed) {
+      const unorganizedElement = document.querySelector('[data-navigation-item="thread_unorganized"]');
+      if (unorganizedElement) {
+        unorganizedElement.style.display = 'none';
       }
-    } else {
-      console.log(`⏭️ Skipping ${currentItemId} - permanently visible in regular navigation (space)`);
     }
   }
-
-  // Extract item data from the current page
-  function extractItemDataFromPage(itemId) {
-    console.log('🔍 extractItemDataFromPage called for:', itemId);
-    
-    try {
-      // Try to get data from navigation element attributes first
-      const navigationElement = document.querySelector('[slot="navigation"]');
-      console.log('🔍 Found navigation element:', navigationElement);
-      
-      // Special debugging for Blue wave thread extraction
-      if (itemId === 'thread_1758241289251') {
-        console.log('🔍 BLUE WAVE EXTRACTION DEBUG:', {
-          itemId,
-          navigationElement: !!navigationElement,
-          threadId: navigationElement?.dataset?.threadId,
-          threadTitle: navigationElement?.dataset?.threadTitle,
-          currentPath: window.location.pathname
-        });
-      }
-      
-      if (navigationElement) {
-        // For notes, always track the parent thread instead of the note itself
-        if (itemId.startsWith('note_') && navigationElement.dataset.threadId) {
-          const threadId = navigationElement.dataset.threadId;
-          const threadTitle = navigationElement.dataset.threadTitle || 'Unknown Thread';
-          const threadNoteCount = parseInt(navigationElement.dataset.threadNoteCount) || 0;
-          const threadBackgroundGradient = navigationElement.dataset.threadBackgroundGradient || 'var(--color-gradient-gray)';
-          const threadColor = navigationElement.dataset.threadColor || 'blessed-blue';
-          
-          const threadData = {
-            id: threadId,
-            title: threadTitle,
-            type: 'thread',
-            count: threadNoteCount,
-            backgroundGradient: threadBackgroundGradient,
-            color: threadColor
-          };
-          console.log('✅ Extracted parent thread data for note:', threadData);
-          return threadData;
-        }
-        
-        // Check for direct thread data
-        if (navigationElement.dataset.threadId === itemId) {
-          const itemData = {
-            id: itemId,
-            title: navigationElement.dataset.threadTitle || 'Unknown Thread',
-            type: 'thread',
-            count: parseInt(navigationElement.dataset.threadNoteCount) || 0,
-            backgroundGradient: navigationElement.dataset.threadBackgroundGradient || 'var(--color-gradient-gray)',
-            color: navigationElement.dataset.threadColor || 'blessed-blue'
-          };
-          console.log('✅ Extracted thread data:', itemData);
-          return itemData;
-        }
-      }
-      
-      // Fallback: create basic data based on ID pattern
-      let type = 'note';
-      let title = 'Unknown';
-      let backgroundGradient = 'var(--color-gradient-gray)';
-      
-      if (itemId.startsWith('thread_')) {
-        type = 'thread';
-        title = itemId === 'thread_unorganized' ? 'Unorganized' : 'Thread';
-        backgroundGradient = itemId === 'thread_unorganized' 
-          ? 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
-          : 'var(--color-gradient-gray)';
-      } else if (itemId.startsWith('space_')) {
-        type = 'space';
-        title = 'Space';
-        backgroundGradient = 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
-      } else if (itemId.startsWith('note_')) {
-        // For notes without navigation element data, don't track them individually
-        console.log('⏭️ Skipping individual note tracking for:', itemId);
-        return null;
-      }
-      
-      const itemData = {
-        id: itemId,
-        title: title,
-        type: type,
-        count: 0,
-        backgroundGradient: backgroundGradient,
-        color: type === 'space' ? 'paper' : 'blessed-blue'
-      };
-      
-      console.log('✅ Extracted fallback data:', itemData);
-      return itemData;
-      
-    } catch (error) {
-      console.error('❌ Error in extractItemDataFromPage:', error);
-      console.error('❌ ItemId:', itemId);
-      
-      // Return basic fallback data
-      return {
-        id: itemId,
-        title: 'Unknown',
-        type: 'unknown',
-        count: 0,
-        backgroundGradient: 'var(--color-gradient-gray)',
-        color: 'blessed-blue'
-      };
-    }
-  }
-
-  // Initialize navigation tracking
-  function initializeNavigationTracking() {
-    // Prevent multiple initializations
-    if (window.navigationTrackingInitialized) {
-      console.log('⏭️ Navigation tracking already initialized, skipping');
-      return;
-    }
-    
-    console.log('🚀 Initializing navigation tracking - INLINE VERSION');
-    console.log('🔍 Document ready state:', document.readyState);
-    console.log('🔍 Current path at init:', window.location.pathname);
-    
-    // Mark as initialized
-    window.navigationTrackingInitialized = true;
-    
-    // Track current page access with a small delay to ensure DOM is rendered
-    setTimeout(() => {
-      trackNavigationAccess();
-    }, 100);
-    
-    // Track navigation on page changes (for View Transitions)
-    document.addEventListener('astro:page-load', () => {
-      console.log('📄 Page loaded, tracking navigation access - INLINE VERSION');
-      console.log('📄 New path:', window.location.pathname);
-      // Add delay to ensure DOM is fully rendered
-      setTimeout(() => {
-        trackNavigationAccess();
-      }, 100);
-    });
-  }
-
-  // Export functions for global access
-  window.trackNavigationAccess = trackNavigationAccess;
-  window.getNavigationHistory = getNavigationHistory;
-  window.addToNavigationHistory = addToNavigationHistory;
-  window.removeFromNavigationHistory = removeFromNavigationHistory;
-  window.clearNavigationHistory = clearNavigationHistory;
-  window.saveNavigationHistory = saveNavigationHistory;
-
-  // Initialize
-  initializeNavigationTracking();
+  
+  // Run immediately and on page events
+  hideUnorganizedThread();
+  document.addEventListener('DOMContentLoaded', hideUnorganizedThread);
+  document.addEventListener('astro:page-load', hideUnorganizedThread);
 </script>
 
 <!-- Fallback test function -->

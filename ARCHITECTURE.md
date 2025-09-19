@@ -361,31 +361,42 @@ if (window.astroNavigate) {
 - **Consistent theming**: Matches existing design system colors
 - **Performance**: No JavaScript event listeners for hover states
 
-## Simplified Navigation History System
+## Navigation History System
 
-The navigation history system has been simplified to use a clean, single-file approach:
+The navigation history system uses a clean, single-file approach with proper deduplication and state management:
 
 ### Key Components
 
 - **`public/scripts/navigation-history.js`**: Single file containing all navigation history logic
-- **`src/components/PersistentNavigation.astro`**: Simplified component that renders navigation history
+- **`src/components/PersistentNavigation.astro`**: Component that renders navigation history
+- **`src/layouts/Layout.astro`**: Contains fallback functions and unorganized thread hiding logic
 - **localStorage**: Simple key-value storage for navigation history data
 
 ### How It Works
 
 1. **Tracking**: When users navigate to threads, spaces, or notes, the system automatically tracks the access
-2. **Storage**: Navigation history is stored in localStorage as a JSON array
+2. **Storage**: Navigation history is stored in localStorage as a JSON array with `firstAccessed` and `lastAccessed` timestamps
 3. **Display**: Recently accessed items appear in the persistent navigation section
 4. **Deduplication**: Items already visible in regular navigation are filtered out
 5. **Close Functionality**: Users can close items from persistent navigation, removing them from history
+6. **Unorganized Thread Management**: Special handling for the unorganized thread with localStorage-based hiding
 
-### Benefits of Simplified Approach
+### Critical Implementation Details
+
+- **Blue Wave Duplication Fix**: Prevents Blue wave thread from being added to history when on unorganized thread
+- **Position Retention**: Items maintain their original position in history (don't jump to bottom)
+- **Unorganized Thread Closability**: Unorganized thread can be closed and stays closed via localStorage flag
+- **Fallback Functions**: Layout.astro contains fallback functions to ensure navigation works even if main script fails
+- **Cache Busting**: Script includes version parameters to prevent caching issues
+
+### Benefits of Current Approach
 
 - **Single Source of Truth**: All navigation logic in one file
 - **No Complex Dependencies**: Uses only localStorage and vanilla JavaScript
 - **Easy to Debug**: Clear, readable code with comprehensive logging
 - **View Transitions Compatible**: Works seamlessly with Astro's View Transitions
 - **Alpine.js Integration**: Properly integrates with Alpine.js for interactive elements
+- **Robust Fallbacks**: Multiple fallback mechanisms ensure functionality even if main script fails
 
 ## Key Files
 
