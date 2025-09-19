@@ -591,8 +591,225 @@ const showMoreButton = shouldShowMoreButton(contentType);
   });
 </script>
 
-<!-- Simple Navigation History Script -->
-<script src="/scripts/navigation-history.js?v=6.0&t=20250119&force=true"></script>
+<!-- Simple Navigation History Script - Embedded -->
+<script is:inline>
+// Simple Navigation History - Clean and Working
+
+// Get navigation history from localStorage
+function getNavigationHistory() {
+  try {
+    const stored = localStorage.getItem('navigation-history');
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error getting navigation history:', error);
+    return [];
+  }
+}
+
+// Save navigation history to localStorage
+function saveNavigationHistory(history) {
+  try {
+    localStorage.setItem('navigation-history', JSON.stringify(history));
+  } catch (error) {
+    console.error('Error saving navigation history:', error);
+  }
+}
+
+// Add item to navigation history
+function addToNavigationHistory(item) {
+  const history = getNavigationHistory();
+  
+  // Remove if already exists
+  const filteredHistory = history.filter(h => h.id !== item.id);
+  
+  // Add to end (oldest at top, newest at bottom)
+  const newHistory = [...filteredHistory, item];
+  
+  // Limit to 8 items
+  const limitedHistory = newHistory.slice(-8);
+  
+  saveNavigationHistory(limitedHistory);
+  
+  // Re-render persistent navigation
+  if (window.renderPersistentNavigation) {
+    window.renderPersistentNavigation();
+  }
+}
+
+// Remove item from navigation history
+function removeFromNavigationHistory(itemId) {
+  const history = getNavigationHistory();
+  const filteredHistory = history.filter(item => item.id !== itemId);
+  
+  // Special handling for unorganized thread
+  if (itemId === 'thread_unorganized') {
+    localStorage.setItem('unorganized-thread-closed', 'true');
+  }
+  
+  saveNavigationHistory(filteredHistory);
+  
+  // Re-render persistent navigation
+  if (window.renderPersistentNavigation) {
+    window.renderPersistentNavigation();
+  }
+}
+
+// Track navigation access
+function trackNavigationAccess() {
+  const currentPath = window.location.pathname;
+  const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+  
+  // Skip dashboard and empty paths
+  if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
+    return;
+  }
+  
+  // Track spaces too (they should be persistent and closable)
+  // if (currentItemId.startsWith('space_')) {
+  //   return;
+  // }
+  
+  // Extract item data from page
+  const itemData = extractItemDataFromPage(currentItemId);
+  
+  if (itemData) {
+    // Special handling for unorganized thread
+    if (currentItemId === 'thread_unorganized' || itemData.id === 'thread_unorganized') {
+      localStorage.removeItem('unorganized-thread-closed');
+    }
+    
+    addToNavigationHistory(itemData);
+  }
+}
+
+// Extract item data from page
+function extractItemDataFromPage(currentItemId) {
+  try {
+    // Try to get data from navigation element
+    const navigationElement = document.querySelector('[slot="navigation"]');
+    
+    if (navigationElement) {
+      const threadId = navigationElement.dataset.threadId;
+      const spaceId = navigationElement.dataset.spaceId;
+      const noteId = navigationElement.dataset.noteId;
+      
+      if (threadId) {
+        return {
+          id: threadId,
+          title: navigationElement.dataset.threadTitle || 'Thread',
+          type: 'thread',
+          count: parseInt(navigationElement.dataset.threadCount) || 0,
+          backgroundGradient: navigationElement.dataset.threadBackgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+          color: navigationElement.dataset.threadColor || 'blue'
+        };
+      }
+      
+      if (spaceId) {
+        return {
+          id: spaceId,
+          title: navigationElement.dataset.spaceTitle || 'Space',
+          type: 'space',
+          count: parseInt(navigationElement.dataset.spaceCount) || 0,
+          backgroundGradient: navigationElement.dataset.spaceBackgroundGradient || 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+          color: navigationElement.dataset.spaceColor || 'paper'
+        };
+      }
+      
+      if (noteId) {
+        // For notes, track the parent thread
+        const parentThreadId = navigationElement.dataset.parentThreadId;
+        const parentThreadTitle = navigationElement.dataset.parentThreadTitle;
+        const parentThreadCount = navigationElement.dataset.parentThreadCount;
+        
+        if (parentThreadId) {
+          return {
+            id: parentThreadId,
+            title: parentThreadTitle || 'Thread',
+            type: 'thread',
+            count: parseInt(parentThreadCount) || 0,
+            backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+            color: navigationElement.dataset.parentThreadColor || 'blue'
+          };
+        }
+      }
+    }
+    
+    // Fallback: create basic data from current path
+    let itemData = null;
+    
+    if (currentItemId.startsWith('thread_')) {
+      itemData = {
+        id: currentItemId,
+        title: currentItemId === 'thread_unorganized' ? 'Unorganized' : 'Thread',
+        type: 'thread',
+        count: 0,
+        backgroundGradient: 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+        color: 'blue'
+      };
+    } else if (currentItemId.startsWith('space_')) {
+      itemData = {
+        id: currentItemId,
+        title: 'Space',
+        type: 'space',
+        count: 0,
+        backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+        color: 'paper'
+      };
+    } else if (currentItemId.startsWith('note_')) {
+      // For notes, we need to determine the parent thread
+      // Try to get parent thread info from the page
+      const noteElement = document.querySelector('[data-note-id]');
+      
+      if (noteElement) {
+        const parentThreadId = noteElement.dataset.parentThreadId || 'thread_unorganized';
+        const parentThreadTitle = noteElement.dataset.parentThreadTitle || 'Unorganized';
+        
+        itemData = {
+          id: parentThreadId,
+          title: parentThreadTitle,
+          type: 'thread',
+          count: parseInt(noteElement.dataset.parentThreadCount) || 0,
+          backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+          color: noteElement.dataset.parentThreadColor || 'blue'
+        };
+      } else {
+        // Fallback: default to unorganized
+        itemData = {
+          id: 'thread_unorganized',
+          title: 'Unorganized',
+          type: 'thread',
+          count: 0,
+          backgroundGradient: 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+          color: 'blue'
+        };
+      }
+    }
+    
+    return itemData;
+  } catch (error) {
+    console.error('Error extracting item data:', error);
+    return null;
+  }
+}
+
+// Initialize tracking
+function initTracking() {
+  trackNavigationAccess();
+}
+
+// Make functions globally available
+window.getNavigationHistory = getNavigationHistory;
+window.addToNavigationHistory = addToNavigationHistory;
+window.removeFromNavigationHistory = removeFromNavigationHistory;
+window.trackNavigationAccess = trackNavigationAccess;
+window.initTracking = initTracking;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', initTracking);
+document.addEventListener('astro:page-load', initTracking);
+
+// Navigation history functions loaded and available
+</script>
 
 
 <!-- Hide unorganized thread if it's been closed -->
@@ -617,7 +834,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
 <script is:inline>
   // Fallback test function in case the main script doesn't load
   window.testAddBlueWaveFallback = function() {
-    console.log('🧪 Fallback: Manually adding Blue wave thread to history...');
     const blueWaveItem = {
       id: 'thread_1758241289251',
       title: 'Blue wave',
@@ -640,7 +856,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
     // Save back to localStorage
     localStorage.setItem('navigation-history', JSON.stringify(filteredHistory));
     
-    console.log('🧪 Fallback: Added Blue wave to history');
     
     // Trigger re-render if function exists
     if (window.renderPersistentNavigation) {
@@ -650,11 +865,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
     return blueWaveItem;
   };
   
-  console.log('🧪 Fallback test function loaded');
   
   // Quick test function to add Blue wave thread
   window.quickTestBlueWave = function() {
-    console.log('🧪 Quick test: Adding Blue wave thread...');
     const blueWaveItem = {
       id: 'thread_1758241289251',
       title: 'Blue wave',
@@ -677,15 +890,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
     // Save back to localStorage
     localStorage.setItem('navigation-history', JSON.stringify(filteredHistory));
     
-    console.log('🧪 Added Blue wave to history:', blueWaveItem);
-    console.log('🧪 Current history:', filteredHistory);
-    
     // Trigger re-render of persistent navigation
     if (window.renderPersistentNavigation) {
       window.renderPersistentNavigation();
-      console.log('🧪 Triggered persistent navigation re-render');
-    } else {
-      console.log('❌ renderPersistentNavigation function not found');
     }
     
     return blueWaveItem;
@@ -693,27 +900,19 @@ const showMoreButton = shouldShowMoreButton(contentType);
   
   // Test function to force re-render persistent navigation
   window.forceRenderPersistentNavigation = function() {
-    console.log('🧪 Forcing persistent navigation re-render...');
     if (window.renderPersistentNavigation) {
       window.renderPersistentNavigation();
-      console.log('🧪 Called renderPersistentNavigation');
-    } else {
-      console.log('❌ renderPersistentNavigation function not found');
     }
   };
   
   // Manual persistent navigation renderer
   window.manualRenderPersistentNavigation = function() {
-    console.log('🧪 Manually rendering persistent navigation...');
-    
     // Get navigation history
     const history = JSON.parse(localStorage.getItem('navigation-history') || '[]');
-    console.log('🧪 Navigation history:', history);
     
     // Find the persistent navigation container
     const container = document.querySelector('#persistent-navigation');
     if (!container) {
-      console.log('❌ Persistent navigation container not found');
       return;
     }
     
@@ -745,26 +944,20 @@ const showMoreButton = shouldShowMoreButton(contentType);
       container.appendChild(itemElement);
     });
     
-    console.log(`🧪 Rendered ${history.length} items in persistent navigation`);
   };
   
   // Fallback close function for when main script isn't loaded
   window.handlePersistentCloseClick = function(event, element) {
-    console.log('🔥 Fallback handlePersistentCloseClick called');
     event.stopPropagation();
     event.preventDefault();
     
     const itemId = element.getAttribute('data-item-id');
     if (!itemId) return;
     
-    console.log('🔥 Fallback close clicked for item:', itemId);
-    
     // Remove from navigation history manually
     const history = JSON.parse(localStorage.getItem('navigation-history') || '[]');
     const filteredHistory = history.filter(item => item.id !== itemId);
     localStorage.setItem('navigation-history', JSON.stringify(filteredHistory));
-    
-    console.log('🔥 Fallback: Removed item from history');
     
     // Re-render persistent navigation
     if (window.manualRenderPersistentNavigation) {
@@ -784,18 +977,12 @@ const showMoreButton = shouldShowMoreButton(contentType);
   
   // Hide unorganized thread if it's been closed
   function hideUnorganizedThread() {
-    console.log('🧪 hideUnorganizedThread called');
     const isClosed = localStorage.getItem('unorganized-thread-closed') === 'true';
-    console.log('🧪 Is unorganized thread closed?', isClosed);
     
     if (isClosed) {
       const unorganizedElement = document.querySelector('[data-navigation-item="thread_unorganized"]');
-      console.log('🧪 Found unorganized element:', unorganizedElement);
       if (unorganizedElement) {
         unorganizedElement.style.display = 'none';
-        console.log('🔥 Hiding unorganized thread (marked as closed)');
-      } else {
-        console.log('❌ Unorganized element not found');
       }
     }
   }
@@ -803,24 +990,15 @@ const showMoreButton = shouldShowMoreButton(contentType);
   // Debug function to reset unorganized thread state
   window.resetUnorganizedThread = function() {
     localStorage.removeItem('unorganized-thread-closed');
-    console.log('🧪 Reset unorganized thread state - should now be visible');
     // Re-run the hide function to check current state
     hideUnorganizedThread();
   };
   
   // Run hideUnorganizedThread immediately and on page events
-  console.log('🧪 Running hideUnorganizedThread immediately from Layout');
   hideUnorganizedThread();
   
-  document.addEventListener('DOMContentLoaded', () => {
-    console.log('🧪 DOMContentLoaded - running hideUnorganizedThread from Layout');
-    hideUnorganizedThread();
-  });
-  
-  document.addEventListener('astro:page-load', () => {
-    console.log('🧪 astro:page-load - running hideUnorganizedThread from Layout');
-    hideUnorganizedThread();
-  });
+  document.addEventListener('DOMContentLoaded', hideUnorganizedThread);
+  document.addEventListener('astro:page-load', hideUnorganizedThread);
 </script>
 
 <style>

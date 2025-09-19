@@ -1,5 +1,7 @@
 // Simple Navigation History - Clean and Working
 console.log('🚀 Simple navigation history loaded');
+console.log('🔍 Current URL:', window.location.href);
+console.log('🔍 Current path:', window.location.pathname);
 
 // Get navigation history from localStorage
 function getNavigationHistory() {
@@ -23,7 +25,9 @@ function saveNavigationHistory(history) {
 
 // Add item to navigation history
 function addToNavigationHistory(item) {
+  console.log('📝 Adding to navigation history:', item);
   const history = getNavigationHistory();
+  console.log('📝 Current history:', history);
   
   // Remove if already exists
   const filteredHistory = history.filter(h => h.id !== item.id);
@@ -34,11 +38,15 @@ function addToNavigationHistory(item) {
   // Limit to 8 items
   const limitedHistory = newHistory.slice(-8);
   
+  console.log('📝 New history:', limitedHistory);
   saveNavigationHistory(limitedHistory);
   
   // Re-render persistent navigation
   if (window.renderPersistentNavigation) {
+    console.log('📝 Re-rendering persistent navigation');
     window.renderPersistentNavigation();
+  } else {
+    console.log('❌ renderPersistentNavigation not available');
   }
 }
 
@@ -64,15 +72,19 @@ function trackNavigationAccess() {
   const currentPath = window.location.pathname;
   const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
   
+  console.log('🔍 Tracking navigation access for:', currentItemId);
+  console.log('🔍 Current path:', currentPath);
+  
   // Skip dashboard and empty paths
   if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
+    console.log('⏭️ Skipping tracking for:', currentItemId);
     return;
   }
   
-  // Skip spaces (they're permanently visible)
-  if (currentItemId.startsWith('space_')) {
-    return;
-  }
+  // Track spaces too (they should be persistent and closable)
+  // if (currentItemId.startsWith('space_')) {
+  //   return;
+  // }
   
   // Create item data
   let itemData = {
@@ -132,6 +144,19 @@ function trackNavigationAccess() {
     localStorage.removeItem('unorganized-thread-closed');
   }
   
+  // Special handling for spaces
+  if (currentItemId.startsWith('space_')) {
+    itemData = {
+      id: currentItemId,
+      title: 'Space',
+      type: 'space',
+      count: 0,
+      backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+      color: 'paper'
+    };
+  }
+  
+  console.log('📝 Final item data:', itemData);
   addToNavigationHistory(itemData);
 }
 

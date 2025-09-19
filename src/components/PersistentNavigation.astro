@@ -20,9 +20,13 @@ import SpaceButton from "./SpaceButton.astro";
 
   function renderPersistentNavigation() {
     const container = document.getElementById('persistent-navigation');
-    if (!container) return;
+    if (!container) {
+      return;
+    }
     
-    if (typeof window.getNavigationHistory !== 'function') return;
+    if (typeof window.getNavigationHistory !== 'function') {
+      return;
+    }
     
     const history = window.getNavigationHistory();
     
@@ -31,18 +35,65 @@ import SpaceButton from "./SpaceButton.astro";
       return;
     }
     
-    // Get currently visible navigation items to avoid duplicates
-    const visibleItems = Array.from(document.querySelectorAll('[data-navigation-item]'))
-      .map((item: Element) => item.getAttribute('data-navigation-item'))
-      .filter((id: string | null): id is string => id !== null);
+    // Get currently active item (the one being viewed)
+    const currentPath = window.location.pathname;
+    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
     
-    // Filter out items that are already visible in regular navigation
-    let persistentItems = history.filter((item: any) => !visibleItems.includes(item.id));
+    // Determine what the current active thread/space is
+    let currentActiveItemId = currentItemId;
+    
+    // If we're on a note page, we need to determine the parent thread
+    if (currentItemId.startsWith('note_')) {
+      // Try to get parent thread from page data
+      const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+      
+      if (noteElement && noteElement.dataset.parentThreadId) {
+        currentActiveItemId = noteElement.dataset.parentThreadId;
+      } else {
+        // Try to get from navigation element
+        const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+        
+        if (navigationElement && navigationElement.dataset.parentThreadId) {
+          currentActiveItemId = navigationElement.dataset.parentThreadId;
+        } else {
+          // Fallback: assume unorganized thread
+          currentActiveItemId = 'thread_unorganized';
+        }
+      }
+    }
+    
+    // Filter out the current active item and items that are permanently visible (spaces)
+    let persistentItems = history.filter((item: any) => {
+      // Don't show the currently active item (use the resolved active item ID)
+      if (item.id === currentActiveItemId) {
+        return false;
+      }
+      
+      // Show spaces in persistent navigation (they should be closable)
+      // if (item.id.startsWith('space_')) {
+      //   return false;
+      // }
+      
+      // Don't show dashboard
+      if (item.id === 'dashboard') {
+        return false;
+      }
+      
+      return true;
+    });
     
     // Filter out unorganized thread if it's been closed
     persistentItems = persistentItems.filter((item: any) => {
       if (item.id === 'thread_unorganized') {
         const isClosed = localStorage.getItem('unorganized-thread-closed') === 'true';
+        
+        // If we're currently viewing a note that belongs to the unorganized thread,
+        // clear the closed state and show it
+        if (isClosed && currentActiveItemId === 'thread_unorganized') {
+          localStorage.removeItem('unorganized-thread-closed');
+          return true; // Show the unorganized thread
+        }
+        
         return !isClosed;
       }
       return true;
@@ -55,7 +106,8 @@ import SpaceButton from "./SpaceButton.astro";
     
     // Create navigation items HTML
     const itemsHTML = persistentItems.map((item: any) => {
-      const isActive = window.location.pathname === `/${item.id}`;
+      // Check if this item is currently active (either directly or as parent of a note)
+      const isActive = item.id === currentActiveItemId;
       
       return `
         <div data-navigation-item="${item.id}" class="w-full nav-item-container ${isActive ? 'active' : ''}">
