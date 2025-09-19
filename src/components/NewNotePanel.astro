@@ -70,16 +70,12 @@ if (!userId) {
     },
     async loadThreads() {
       try {
-        console.log('Loading threads from API...');
         const response = await fetch('/api/threads/list', {
           credentials: 'include'
         });
-        console.log('API response status:', response.status);
         
         if (response.ok) {
           const threads = await response.json();
-          console.log('Loaded threads:', threads);
-          console.log('Thread count:', threads.length);
           
           this.threadOptions = threads.map(thread => ({
             id: thread.id,
@@ -100,8 +96,6 @@ if (!userId) {
               backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
             });
           }
-          
-          console.log('Final threadOptions:', this.threadOptions);
         } else {
           console.error('API request failed:', response.status, response.statusText);
         }
@@ -114,15 +108,12 @@ if (!userId) {
     },
     async loadNextNoteId() {
       try {
-        console.log('Loading next note ID from API...');
         const response = await fetch('/api/notes/next-id', {
           credentials: 'include'
         });
-        console.log('Next note ID API response status:', response.status);
         
         if (response.ok) {
           const data = await response.json();
-          console.log('Loaded next note ID:', data);
           this.nextNoteId = `#${data.formattedId}`;
         } else {
           console.error('Next note ID API request failed:', response.status, response.statusText);
@@ -161,10 +152,7 @@ if (!userId) {
       setTimeout(() => {
         // Call the global updateThreadSelection function directly
         if (typeof window.updateThreadSelection === 'function') {
-          console.log('🚀 openNewNotePanel - calling global updateThreadSelection');
           window.updateThreadSelection();
-        } else {
-          console.log('🚀 openNewNotePanel - global updateThreadSelection not available yet');
         }
       }, 100);
     });
@@ -323,23 +311,17 @@ if (!userId) {
   // Following Astro MCP best practices for View Transitions lifecycle events
   // Using astro:after-swap for immediate DOM access after content swap
   document.addEventListener('astro:after-swap', () => {
-    console.log('🔥 astro:after-swap event fired!');
-    console.log('🔥 astro:after-swap - current path:', window.location.pathname);
     updateThreadSelection();
   });
   
   // Also listen to astro:page-load as backup (runs after scripts are executed)
   document.addEventListener('astro:page-load', () => {
-    console.log('🔥 astro:page-load event fired!');
-    console.log('🔥 astro:page-load - current path:', window.location.pathname);
     // Use a small delay to ensure Alpine.js is fully initialized
     setTimeout(updateThreadSelection, 100);
   });
   
   // Also listen to popstate for browser back/forward navigation
   window.addEventListener('popstate', () => {
-    console.log('🔥 popstate event fired!');
-    console.log('🔥 popstate - current path:', window.location.pathname);
     setTimeout(updateThreadSelection, 100);
   });
   
@@ -347,19 +329,15 @@ if (!userId) {
   // Centralized function to update thread selection following Alpine.js best practices
   function updateThreadSelection(attempt = 1) {
     const currentPath = window.location.pathname;
-    console.log(`🔥 updateThreadSelection - attempt ${attempt} - currentPath:`, currentPath);
     
     // Find the NewNotePanel form element
     const form = document.querySelector('.new-note-panel') as any;
     if (!form) {
-      console.log(`🔥 updateThreadSelection - attempt ${attempt} - form not found`);
       if (attempt < 5) {
         setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
       }
       return;
     }
-    
-    console.log(`🔥 updateThreadSelection - attempt ${attempt} - form.dataset.currentThreadTitle:`, form.dataset.currentThreadTitle);
     
     // Get Alpine.js data using proper Alpine.js API
     let alpineData;
@@ -367,7 +345,6 @@ if (!userId) {
       // Use Alpine's $data method for proper data access
       alpineData = (window as any).Alpine?.$data(form);
     } catch (e) {
-      console.log(`🔥 updateThreadSelection - attempt ${attempt} - Alpine data not available:`, e);
       if (attempt < 5) {
         setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
       }
@@ -375,7 +352,6 @@ if (!userId) {
     }
     
     if (!alpineData) {
-      console.log(`🔥 updateThreadSelection - attempt ${attempt} - Alpine data not available`);
       if (attempt < 5) {
         setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
       }
@@ -388,7 +364,6 @@ if (!userId) {
     if (currentPath.includes('/thread_')) {
       // For thread pages, get title from CardStack header (p element)
       const threadTitleElement = document.querySelector('div[style*="background-color"] p');
-      console.log(`🔥 updateThreadSelection - attempt ${attempt} - threadTitleElement:`, threadTitleElement?.textContent);
       if (threadTitleElement && threadTitleElement.textContent) {
         const threadTitle = threadTitleElement.textContent.trim();
         if (threadTitle && threadTitle !== 'Dashboard') {
@@ -399,8 +374,6 @@ if (!userId) {
     } else if (currentPath.includes('/note_')) {
       // For note pages, use data attribute from currentThread prop
       const currentThreadTitle = form.dataset.currentThreadTitle;
-      console.log(`🔥 updateThreadSelection - attempt ${attempt} - note page, currentThreadTitle:`, currentThreadTitle);
-      console.log(`🔥 updateThreadSelection - attempt ${attempt} - note page, form.dataset:`, form.dataset);
       if (currentThreadTitle && currentThreadTitle.trim()) {
         selectedThread = currentThreadTitle;
         updated = true;
@@ -413,14 +386,10 @@ if (!userId) {
     
     // Update Alpine.js data if we found a thread
     if (selectedThread && updated) {
-      console.log(`🔥 updateThreadSelection - attempt ${attempt} - Setting selectedThread to:`, selectedThread);
       alpineData.selectedThread = selectedThread;
       localStorage.setItem('newNoteThread', selectedThread);
     } else if (!updated && attempt < 5) {
-      console.log(`🔥 updateThreadSelection - attempt ${attempt} - no update made, trying again`);
       setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
-    } else if (updated) {
-      console.log(`🔥 updateThreadSelection - attempt ${attempt} - successfully updated!`);
     }
   }
   
@@ -443,8 +412,6 @@ if (!userId) {
         if (mutation.type === 'attributes' && mutation.attributeName === 'data-current-thread-title') {
           const currentPath = window.location.pathname;
           const currentThreadTitle = (mutation.target as any).dataset.currentThreadTitle;
-          console.log('🔄 MutationObserver - data-current-thread-title changed:', currentThreadTitle);
-          console.log('🔄 MutationObserver - currentPath:', currentPath);
           
           if (currentPath.includes('/note_') && currentThreadTitle) {
             // Get Alpine.js data using proper API
@@ -452,12 +419,10 @@ if (!userId) {
             try {
               alpineData = (window as any).Alpine?.$data(mutation.target);
             } catch (e) {
-              console.log('Alpine data not available:', e);
               return;
             }
             
             if (alpineData) {
-              console.log('🔄 MutationObserver - Setting selectedThread to:', currentThreadTitle);
               alpineData.selectedThread = currentThreadTitle;
               localStorage.setItem('newNoteThread', currentThreadTitle);
             }
@@ -482,11 +447,8 @@ if (!userId) {
   // Setup create note button handler
   function setupCreateNoteButton() {
     const createBtn = document.getElementById('create-note-btn');
-    console.log('🔧 setupCreateNoteButton - createBtn found:', createBtn);
     if (createBtn) {
-      console.log('🔧 Adding click event listener to create button');
       createBtn.addEventListener('click', async (e) => {
-        console.log('🔧 Button clicked, validating form');
         e.preventDefault(); // Prevent default form submission
         const form = document.querySelector('form');
         if (!form) return;
@@ -495,7 +457,7 @@ if (!userId) {
         try {
           alpineData = (window as any).Alpine?.$data(form);
         } catch (e) {
-          console.log('Alpine data not available:', e);
+          // Alpine data not available
         }
         
         // Get content from Alpine.js data (textarea with x-model)
@@ -505,7 +467,6 @@ if (!userId) {
         }
         
         if (!content.trim()) {
-          console.log('No content, preventing submission');
           alert('Please add some content to your note');
           return;
         }
@@ -515,12 +476,8 @@ if (!userId) {
           alpineData.isSubmitting = true;
         }
         
-        console.log('Form validation passed, submitting via API');
-        
         try {
           const formData = new FormData(form);
-          console.log('Submitting to:', form.action);
-          console.log('Form data entries:', Array.from(formData.entries()));
           
           const response = await fetch(form.action, {
             method: 'POST',
@@ -528,11 +485,8 @@ if (!userId) {
             credentials: 'include'
           });
           
-          console.log('Response status:', response.status);
-          
           if (response.ok) {
             const result = await response.json();
-            console.log('Success result:', result);
             
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
@@ -579,7 +533,6 @@ if (!userId) {
             
           } else {
             const error = await response.json();
-            console.error('Error response:', error);
             
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
@@ -593,7 +546,6 @@ if (!userId) {
             }
           }
         } catch (error) {
-          console.error('Fetch error:', error);
           window.dispatchEvent(new CustomEvent('toast', {
             detail: {
               message: 'Error creating note. Please try again.',

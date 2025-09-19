@@ -130,8 +130,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
         
         function initTabs() {
           try {
-            console.log('Layout: Initializing tab functionality...');
-            
             // Remove any existing event listeners to prevent duplicates
             const existingButtons = document.querySelectorAll('[data-tab-button]');
             existingButtons.forEach(function(button) {
@@ -142,10 +140,8 @@ const showMoreButton = shouldShowMoreButton(contentType);
           // Initialize tab functionality
           function setupTabHandlers() {
             const tabButtons = document.querySelectorAll('[data-tab-button]');
-            console.log('Layout: Found', tabButtons.length, 'tab buttons');
             
             if (tabButtons.length === 0) {
-              console.log('Layout: No tab buttons found, skipping initialization');
               return;
             }
             
@@ -157,16 +153,11 @@ const showMoreButton = shouldShowMoreButton(contentType);
           }
           
                      function handleTabClick(e: Event) {
-             console.log('Layout: Tab clicked!');
-             
              const clickedButton = e.currentTarget as HTMLElement;
              if (!clickedButton) return;
              
              const tabId = clickedButton.getAttribute('data-tab-id');
              const tabNavContainer = clickedButton.closest('.tab-nav-container') as HTMLElement;
-             
-             console.log('Layout: Tab ID:', tabId);
-             console.log('Layout: TabNav container:', tabNavContainer);
              
              if (!tabId || !tabNavContainer) return;
              
@@ -196,13 +187,8 @@ const showMoreButton = shouldShowMoreButton(contentType);
              const tabNavParent = tabNavContainer.parentElement;
              if (!tabNavParent) return;
              
-             console.log('Layout: TabNav parent:', tabNavParent);
-             
              const allSiblings = Array.from(tabNavParent.children);
              const currentTabNavIndex = allSiblings.indexOf(tabNavContainer);
-             
-             console.log('Layout: All siblings:', allSiblings.length);
-             console.log('Layout: Current TabNav index:', currentTabNavIndex);
              
              // Find the next TabNav (if any) to determine the boundary
              let nextTabNavIndex = -1;
@@ -214,27 +200,19 @@ const showMoreButton = shouldShowMoreButton(contentType);
                }
              }
              
-             console.log('Layout: Next TabNav index:', nextTabNavIndex);
-             
              // Find content sections between current TabNav and next TabNav (or end)
              const endIndex = nextTabNavIndex !== -1 ? nextTabNavIndex : allSiblings.length;
              const relevantSiblings = allSiblings.slice(currentTabNavIndex + 1, endIndex);
              
-             console.log('Layout: Relevant siblings:', relevantSiblings.length);
-             
              relevantSiblings.forEach(function(sibling: Element) {
                const siblingElement = sibling as HTMLElement;
-               console.log('Layout: Checking sibling:', siblingElement, 'has data-tab-content:', siblingElement.hasAttribute('data-tab-content'));
                if (siblingElement.hasAttribute('data-tab-content')) {
                  const sectionTabId = siblingElement.getAttribute('data-tab-content');
-                 console.log('Layout: Section tab ID:', sectionTabId, 'matches clicked tab:', sectionTabId === tabId);
                  
                  if (sectionTabId === tabId) {
-                   console.log('Layout: Showing content for:', sectionTabId);
                    siblingElement.classList.remove('hidden');
                    siblingElement.style.display = 'block';
                  } else {
-                   console.log('Layout: Hiding content for:', sectionTabId);
                    siblingElement.classList.add('hidden');
                    siblingElement.style.display = 'none';
                  }
@@ -279,7 +257,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 // Check if new tab buttons were added
                 const newTabButtons = document.querySelectorAll('[data-tab-button]');
                 if (newTabButtons.length > 0) {
-                  console.log('Layout: New tab buttons detected, reinitializing...');
                   setupTabHandlers();
                 }
               }
@@ -306,13 +283,11 @@ const showMoreButton = shouldShowMoreButton(contentType);
         
         // Re-initialize tabs after View Transitions page loads
         document.addEventListener('astro:page-load', () => {
-          console.log('Layout: astro:page-load event - reinitializing tabs');
           setTimeout(initTabs, 50);
         });
         
         // Also re-initialize after DOM swap for View Transitions
         document.addEventListener('astro:after-swap', () => {
-          console.log('Layout: astro:after-swap event - reinitializing tabs');
           setTimeout(initTabs, 50);
         });
          
@@ -597,26 +572,89 @@ const showMoreButton = shouldShowMoreButton(contentType);
 </script>
 
 <!-- Simple Navigation History Script - Embedded -->
-<script is:inline>
+<script is:inline data-astro-rerun>
 // Simple Navigation History - Clean and Working
+console.log('🚀 NAVIGATION SCRIPT LOADING - This should appear immediately');
+console.log('🚀 NAVIGATION SCRIPT LOADING - Timestamp:', new Date().toISOString());
+console.log('🚀 NAVIGATION SCRIPT LOADING - Current URL:', window.location.href);
 
-// Get navigation history from localStorage
-function getNavigationHistory() {
+// Storage utility with localStorage fallback to sessionStorage
+function getStorage() {
   try {
-    const stored = localStorage.getItem('navigation-history');
-    return stored ? JSON.parse(stored) : [];
+    // Test localStorage first
+    const testKey = 'test-storage-' + Date.now();
+    localStorage.setItem(testKey, 'test');
+    const retrieved = localStorage.getItem(testKey);
+    localStorage.removeItem(testKey);
+    
+    if (retrieved === 'test') {
+      console.log('🔧 Using localStorage for navigation history');
+      return localStorage;
+    } else {
+      throw new Error('localStorage test failed');
+    }
   } catch (error) {
-    console.error('Error getting navigation history:', error);
-    return [];
+    console.log('🔧 localStorage failed, falling back to sessionStorage');
+    return sessionStorage;
   }
 }
 
-// Save navigation history to localStorage
+// Alternative storage approach using a global variable as backup
+let navigationHistoryBackup = null;
+
+// Get navigation history from storage (localStorage or sessionStorage)
+function getNavigationHistory() {
+  try {
+    const storage = getStorage();
+    const stored = storage.getItem('harvous-navigation-history-v2');
+    console.log('🔍 getNavigationHistory - raw stored data:', stored);
+    console.log('🔍 getNavigationHistory - stored data type:', typeof stored);
+    console.log('🔍 getNavigationHistory - stored data length:', stored ? stored.length : 'null');
+    
+    let parsed = stored ? JSON.parse(stored) : [];
+    
+    // If localStorage is empty but we have a backup, use it
+    if (parsed.length === 0 && navigationHistoryBackup && navigationHistoryBackup.length > 0) {
+      console.log('🔧 Using backup navigation history:', navigationHistoryBackup);
+      parsed = navigationHistoryBackup;
+    }
+    
+    console.log('🔍 getNavigationHistory - parsed data:', parsed);
+    console.log('🔍 getNavigationHistory - parsed data length:', parsed.length);
+    
+    return parsed;
+  } catch (error) {
+    console.error('Error getting navigation history:', error);
+    console.error('Error details:', error.message, error.name);
+    return navigationHistoryBackup || [];
+  }
+}
+
+// Save navigation history to storage (localStorage or sessionStorage)
 function saveNavigationHistory(history) {
   try {
-    localStorage.setItem('navigation-history', JSON.stringify(history));
+    const storage = getStorage();
+    const jsonString = JSON.stringify(history);
+    console.log('💾 saveNavigationHistory - attempting to save:', jsonString);
+    storage.setItem('harvous-navigation-history-v2', jsonString);
+    
+    // Also update the backup
+    navigationHistoryBackup = [...history];
+    console.log('💾 saveNavigationHistory - backup updated:', navigationHistoryBackup);
+    
+    // Verify the save worked
+    const verification = storage.getItem('harvous-navigation-history-v2');
+    console.log('💾 saveNavigationHistory - verification read:', verification);
+    console.log('💾 saveNavigationHistory - verification matches:', verification === jsonString);
+    
+    if (verification !== jsonString) {
+      console.error('💾 saveNavigationHistory - SAVE FAILED! Data mismatch');
+    } else {
+      console.log('💾 saveNavigationHistory - save verified successfully');
+    }
   } catch (error) {
     console.error('Error saving navigation history:', error);
+    console.error('Error details:', error.message, error.name);
   }
 }
 
@@ -624,14 +662,30 @@ function saveNavigationHistory(history) {
 function addToNavigationHistory(item) {
   const history = getNavigationHistory();
   
-  // Remove if already exists
-  const filteredHistory = history.filter(h => h.id !== item.id);
+  // Check if item already exists
+  const existingIndex = history.findIndex(h => h.id === item.id);
   
-  // Add to end (oldest at top, newest at bottom)
-  const newHistory = [...filteredHistory, item];
+  if (existingIndex !== -1) {
+    // Item already exists - this shouldn't happen if called correctly
+    console.log('🔍 addToNavigationHistory - Item already exists, skipping:', item.id);
+    return;
+  } else {
+    // Item doesn't exist - add to end first, then sort
+    const newItem = {
+      ...item,
+      firstAccessed: Date.now(),
+      lastAccessed: Date.now()
+    };
+    history.push(newItem);
+    console.log('🔍 addToNavigationHistory - Added new item:', item.id);
+  }
   
-  // Limit to 8 items
-  const limitedHistory = newHistory.slice(-8);
+  // Limit to 10 items, keeping the most recently accessed
+  let limitedHistory = history;
+  if (history.length > 10) {
+    limitedHistory = history.slice(0, 10);
+    console.log('🔍 addToNavigationHistory - Limited to 10 items, kept most recent 10');
+  }
   
   saveNavigationHistory(limitedHistory);
   
@@ -663,14 +717,17 @@ function removeFromNavigationHistory(itemId) {
 function trackNavigationAccess() {
   const currentPath = window.location.pathname;
   const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-  
-  console.log('🔍 trackNavigationAccess called:', { currentPath, currentItemId });
-  
+
+  console.log('🔍 trackNavigationAccess called for:', currentItemId);
+
   // Skip dashboard and empty paths
   if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
     console.log('⏭️ Skipping navigation tracking for:', currentItemId);
     return;
   }
+  
+  // Debug: Log the exact currentItemId to see what's being processed
+  console.log('🔍 Processing navigation for currentItemId:', currentItemId, 'length:', currentItemId.length);
   
   // Track spaces too (they should be persistent and closable)
   // if (currentItemId.startsWith('space_')) {
@@ -679,30 +736,47 @@ function trackNavigationAccess() {
   
   // Extract item data from page
   const itemData = extractItemDataFromPage(currentItemId);
-  console.log('📊 Extracted item data:', itemData);
+  console.log('🔍 extractItemDataFromPage returned:', itemData);
   
   if (itemData) {
     // Special handling for unorganized thread
     if (currentItemId === 'thread_unorganized' || itemData.id === 'thread_unorganized') {
-      console.log('🧹 Clearing unorganized-thread-closed flag');
       localStorage.removeItem('unorganized-thread-closed');
     }
     
-    console.log('➕ Adding to navigation history:', itemData);
-    addToNavigationHistory(itemData);
-  } else {
-    console.log('❌ No item data extracted, skipping navigation tracking');
+    // Check if this is a new item (not in history yet)
+    const history = getNavigationHistory();
+    const existingItem = history.find(h => h.id === itemData.id);
+    
+    if (!existingItem) {
+      // Only add new items to history - this preserves the order
+      console.log('🔍 trackNavigationAccess - Adding new item to history:', itemData.id);
+      addToNavigationHistory(itemData);
+    } else {
+      // Update the item data but DON'T change its position
+      const existingIndex = history.findIndex(h => h.id === itemData.id);
+      history[existingIndex] = {
+        ...history[existingIndex],
+        ...itemData,
+        lastAccessed: Date.now()
+      };
+      console.log('🔍 trackNavigationAccess - Updated existing item:', itemData.id, 'at index:', existingIndex);
+      
+      saveNavigationHistory(history);
+      
+      // Re-render persistent navigation
+      if (window.renderPersistentNavigation) {
+        window.renderPersistentNavigation();
+      }
+    }
   }
 }
 
 // Extract item data from page
 function extractItemDataFromPage(currentItemId) {
   try {
-    console.log('🔍 extractItemDataFromPage called for:', currentItemId);
-    
     // Try to get data from navigation element first
     const navigationElement = document.querySelector('[slot="navigation"]');
-    console.log('📍 Navigation element found:', !!navigationElement);
     
     if (navigationElement) {
       const threadId = navigationElement.dataset.threadId;
@@ -752,18 +826,9 @@ function extractItemDataFromPage(currentItemId) {
     
     // For note pages, try to get parent thread data from the main content area
     if (currentItemId.startsWith('note_')) {
-      console.log('📝 Processing note page, looking for note element...');
       const noteElement = document.querySelector('[data-note-id]');
-      console.log('📝 Note element found:', !!noteElement);
       
       if (noteElement) {
-        console.log('📝 Note element data attributes:', {
-          parentThreadId: noteElement.dataset.parentThreadId,
-          parentThreadTitle: noteElement.dataset.parentThreadTitle,
-          parentThreadCount: noteElement.dataset.parentThreadCount,
-          parentThreadBackgroundGradient: noteElement.dataset.parentThreadBackgroundGradient,
-          parentThreadColor: noteElement.dataset.parentThreadColor
-        });
         const parentThreadId = noteElement.dataset.parentThreadId || 'thread_unorganized';
         const parentThreadTitle = noteElement.dataset.parentThreadTitle || 'Unorganized';
         const parentThreadCount = noteElement.dataset.parentThreadCount || '0';
@@ -837,8 +902,92 @@ function extractItemDataFromPage(currentItemId) {
 
 // Initialize tracking
 function initTracking() {
+  console.log('🚀 initTracking called');
+  console.log('🚀 initTracking - current URL:', window.location.href);
   trackNavigationAccess();
 }
+
+// Debug function to inspect localStorage
+window.debugNavigation = {
+  getHistory: () => {
+    const history = getNavigationHistory();
+    console.log('🔍 Current navigation history:', history);
+    return history;
+  },
+  clearHistory: () => {
+    const storage = getStorage();
+    storage.removeItem('harvous-navigation-history-v2');
+    console.log('🗑️ Navigation history cleared');
+  },
+  inspectStorage: () => {
+    const storage = getStorage();
+    const stored = storage.getItem('harvous-navigation-history-v2');
+    console.log('🔍 Raw storage data:', stored);
+    console.log('🔍 Storage type:', storage === localStorage ? 'localStorage' : 'sessionStorage');
+    try {
+      const parsed = JSON.parse(stored || '[]');
+      console.log('🔍 Parsed data:', parsed);
+      return parsed;
+    } catch (error) {
+      console.error('❌ Error parsing storage:', error);
+      return null;
+    }
+  },
+  checkAllLocalStorage: () => {
+    console.log('🔍 All localStorage keys:', Object.keys(localStorage));
+    console.log('🔍 All localStorage data:', {...localStorage});
+  },
+  testLocalStorage: () => {
+    console.log('🧪 Testing localStorage functionality...');
+    const testKey = 'test-navigation-key';
+    const testValue = 'test-value-' + Date.now();
+    
+    try {
+      localStorage.setItem(testKey, testValue);
+      const retrieved = localStorage.getItem(testKey);
+      console.log('🧪 Test save/retrieve:', testValue === retrieved ? 'SUCCESS' : 'FAILED');
+      console.log('🧪 Expected:', testValue);
+      console.log('🧪 Retrieved:', retrieved);
+      localStorage.removeItem(testKey);
+    } catch (error) {
+      console.error('🧪 localStorage test failed:', error);
+    }
+  },
+  monitorLocalStorage: () => {
+    const originalSetItem = localStorage.setItem;
+    const originalRemoveItem = localStorage.removeItem;
+    const originalClear = localStorage.clear;
+    
+    localStorage.setItem = function(key, value) {
+      if (key === 'harvous-navigation-history-v2') {
+        console.log('🔍 localStorage.setItem called for harvous-navigation-history-v2:', value);
+      }
+      return originalSetItem.call(this, key, value);
+    };
+
+    localStorage.removeItem = function(key) {
+      if (key === 'harvous-navigation-history-v2') {
+        console.log('🔍 localStorage.removeItem called for harvous-navigation-history-v2');
+      }
+      return originalRemoveItem.call(this, key);
+    };
+    
+    localStorage.clear = function() {
+      console.log('🔍 localStorage.clear called - ALL DATA CLEARED!');
+      return originalClear.call(this);
+    };
+    
+    console.log('🔍 localStorage monitoring enabled');
+  },
+  manualTrack: () => {
+    console.log('🔧 Manual navigation tracking triggered');
+    initTracking();
+  },
+  testTrackCurrentPage: () => {
+    console.log('🔧 Testing navigation tracking for current page:', window.location.pathname);
+    trackNavigationAccess();
+  }
+};
 
 // Make functions globally available
 window.getNavigationHistory = getNavigationHistory;
@@ -848,16 +997,92 @@ window.trackNavigationAccess = trackNavigationAccess;
 window.initTracking = initTracking;
 
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', initTracking);
-document.addEventListener('astro:page-load', initTracking);
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('📄 DOMContentLoaded event fired - about to call initTracking');
+  console.log('📄 DOMContentLoaded event fired - typeof initTracking:', typeof initTracking);
+  console.log('📄 DOMContentLoaded event fired - current URL:', window.location.href);
+  
+  if (typeof initTracking === 'function') {
+    console.log('📄 DOMContentLoaded event fired - calling initTracking now');
+    initTracking();
+  } else {
+    console.error('📄 DOMContentLoaded event fired - initTracking is not a function!');
+  }
+});
+
+// Listen for astro:page-load events
+document.addEventListener('astro:page-load', () => {
+  console.log('🔄 astro:page-load event fired - about to call initTracking');
+  console.log('🔄 astro:page-load event fired - typeof initTracking:', typeof initTracking);
+  console.log('🔄 astro:page-load event fired - current URL:', window.location.href);
+  
+  if (typeof initTracking === 'function') {
+    console.log('🔄 astro:page-load event fired - calling initTracking now');
+    initTracking();
+  } else {
+    console.error('🔄 astro:page-load event fired - initTracking is not a function!');
+  }
+});
+
+// Also listen for astro:after-swap events (alternative to astro:page-load)
+document.addEventListener('astro:after-swap', () => {
+  initTracking();
+});
 
 // Also listen for note creation events to update navigation
 document.addEventListener('noteCreated', () => {
-  console.log('Note created event detected, updating navigation tracking...');
   setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
 });
 
-// Navigation history functions loaded and available
+// Fallback: also try to track on window load
+window.addEventListener('load', () => {
+  initTracking();
+});
+
+// Additional fallback: track on any navigation change
+window.addEventListener('popstate', () => {
+  initTracking();
+});
+
+// Track on hash change
+window.addEventListener('hashchange', () => {
+  initTracking();
+});
+
+// Aggressive fallback: track on any DOM change that might indicate navigation
+let lastUrl = window.location.href;
+const urlObserver = new MutationObserver(() => {
+  if (window.location.href !== lastUrl) {
+    lastUrl = window.location.href;
+    setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
+  }
+});
+
+// Start observing
+urlObserver.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+// Test function to manually trigger navigation tracking
+window.testNavigationTracking = function() {
+  if (typeof trackNavigationAccess === 'function') {
+    trackNavigationAccess();
+  } else {
+    console.error('trackNavigationAccess function not found');
+  }
+};
+
+console.log('🚀 NAVIGATION SCRIPT COMPLETED - All functions should be available');
+
+// Test function to verify script is working
+window.testNavigationScript = function() {
+  console.log('🧪 TEST: Navigation script is working!');
+  console.log('🧪 TEST: getNavigationHistory function:', typeof window.getNavigationHistory);
+  console.log('🧪 TEST: trackNavigationAccess function:', typeof window.trackNavigationAccess);
+  console.log('🧪 TEST: Current history:', window.getNavigationHistory());
+  return 'Navigation script is working!';
+};
 </script>
 
 

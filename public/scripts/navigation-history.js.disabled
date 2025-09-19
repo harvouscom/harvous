@@ -29,14 +29,30 @@ function addToNavigationHistory(item) {
   const history = getNavigationHistory();
   console.log('📝 Current history:', history);
   
-  // Remove if already exists
-  const filteredHistory = history.filter(h => h.id !== item.id);
+  // Check if item already exists
+  const existingIndex = history.findIndex(h => h.id === item.id);
   
-  // Add to end (oldest at top, newest at bottom)
-  const newHistory = [...filteredHistory, item];
+  if (existingIndex !== -1) {
+    // Item already exists - update its data but keep its position
+    console.log('🔄 Updating existing item in position:', existingIndex);
+    history[existingIndex] = {
+      ...history[existingIndex],
+      ...item,
+      lastAccessed: Date.now()
+    };
+  } else {
+    // Item doesn't exist - add to end
+    console.log('➕ Adding new item to end of history');
+    const newItem = {
+      ...item,
+      firstAccessed: Date.now(),
+      lastAccessed: Date.now()
+    };
+    history.push(newItem);
+  }
   
-  // Limit to 8 items
-  const limitedHistory = newHistory.slice(-8);
+  // Limit to 8 items (remove oldest if over limit)
+  const limitedHistory = history.slice(-8);
   
   console.log('📝 New history:', limitedHistory);
   saveNavigationHistory(limitedHistory);
