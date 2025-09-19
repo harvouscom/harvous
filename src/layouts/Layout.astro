@@ -664,8 +664,11 @@ function trackNavigationAccess() {
   const currentPath = window.location.pathname;
   const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
   
+  console.log('🔍 trackNavigationAccess called:', { currentPath, currentItemId });
+  
   // Skip dashboard and empty paths
   if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
+    console.log('⏭️ Skipping navigation tracking for:', currentItemId);
     return;
   }
   
@@ -676,22 +679,30 @@ function trackNavigationAccess() {
   
   // Extract item data from page
   const itemData = extractItemDataFromPage(currentItemId);
+  console.log('📊 Extracted item data:', itemData);
   
   if (itemData) {
     // Special handling for unorganized thread
     if (currentItemId === 'thread_unorganized' || itemData.id === 'thread_unorganized') {
+      console.log('🧹 Clearing unorganized-thread-closed flag');
       localStorage.removeItem('unorganized-thread-closed');
     }
     
+    console.log('➕ Adding to navigation history:', itemData);
     addToNavigationHistory(itemData);
+  } else {
+    console.log('❌ No item data extracted, skipping navigation tracking');
   }
 }
 
 // Extract item data from page
 function extractItemDataFromPage(currentItemId) {
   try {
-    // Try to get data from navigation element
+    console.log('🔍 extractItemDataFromPage called for:', currentItemId);
+    
+    // Try to get data from navigation element first
     const navigationElement = document.querySelector('[slot="navigation"]');
+    console.log('📍 Navigation element found:', !!navigationElement);
     
     if (navigationElement) {
       const threadId = navigationElement.dataset.threadId;
@@ -739,6 +750,49 @@ function extractItemDataFromPage(currentItemId) {
       }
     }
     
+    // For note pages, try to get parent thread data from the main content area
+    if (currentItemId.startsWith('note_')) {
+      console.log('📝 Processing note page, looking for note element...');
+      const noteElement = document.querySelector('[data-note-id]');
+      console.log('📝 Note element found:', !!noteElement);
+      
+      if (noteElement) {
+        console.log('📝 Note element data attributes:', {
+          parentThreadId: noteElement.dataset.parentThreadId,
+          parentThreadTitle: noteElement.dataset.parentThreadTitle,
+          parentThreadCount: noteElement.dataset.parentThreadCount,
+          parentThreadBackgroundGradient: noteElement.dataset.parentThreadBackgroundGradient,
+          parentThreadColor: noteElement.dataset.parentThreadColor
+        });
+        const parentThreadId = noteElement.dataset.parentThreadId || 'thread_unorganized';
+        const parentThreadTitle = noteElement.dataset.parentThreadTitle || 'Unorganized';
+        const parentThreadCount = noteElement.dataset.parentThreadCount || '0';
+        const parentThreadBackgroundGradient = noteElement.dataset.parentThreadBackgroundGradient;
+        const parentThreadColor = noteElement.dataset.parentThreadColor;
+        
+        // Special handling for unorganized thread
+        if (parentThreadId === 'thread_unorganized') {
+          return {
+            id: 'thread_unorganized',
+            title: 'Unorganized',
+            type: 'thread',
+            count: parseInt(parentThreadCount) || 0,
+            backgroundGradient: parentThreadBackgroundGradient || 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+            color: parentThreadColor || 'paper'
+          };
+        } else {
+          return {
+            id: parentThreadId,
+            title: parentThreadTitle,
+            type: 'thread',
+            count: parseInt(parentThreadCount) || 0,
+            backgroundGradient: parentThreadBackgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+            color: parentThreadColor || 'blue'
+          };
+        }
+      }
+    }
+    
     // Fallback: create basic data from current path
     let itemData = null;
     
@@ -748,8 +802,10 @@ function extractItemDataFromPage(currentItemId) {
         title: currentItemId === 'thread_unorganized' ? 'Unorganized' : 'Thread',
         type: 'thread',
         count: 0,
-        backgroundGradient: 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
-        color: 'blue'
+        backgroundGradient: currentItemId === 'thread_unorganized' 
+          ? 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+          : 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+        color: currentItemId === 'thread_unorganized' ? 'paper' : 'blue'
       };
     } else if (currentItemId.startsWith('space_')) {
       itemData = {
@@ -761,33 +817,15 @@ function extractItemDataFromPage(currentItemId) {
         color: 'paper'
       };
     } else if (currentItemId.startsWith('note_')) {
-      // For notes, we need to determine the parent thread
-      // Try to get parent thread info from the page
-      const noteElement = document.querySelector('[data-note-id]');
-      
-      if (noteElement) {
-        const parentThreadId = noteElement.dataset.parentThreadId || 'thread_unorganized';
-        const parentThreadTitle = noteElement.dataset.parentThreadTitle || 'Unorganized';
-        
-        itemData = {
-          id: parentThreadId,
-          title: parentThreadTitle,
-          type: 'thread',
-          count: parseInt(noteElement.dataset.parentThreadCount) || 0,
-          backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
-          color: noteElement.dataset.parentThreadColor || 'blue'
-        };
-      } else {
-        // Fallback: default to unorganized
-        itemData = {
-          id: 'thread_unorganized',
-          title: 'Unorganized',
-          type: 'thread',
-          count: 0,
-          backgroundGradient: 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
-          color: 'blue'
-        };
-      }
+      // Final fallback for notes: default to unorganized
+      itemData = {
+        id: 'thread_unorganized',
+        title: 'Unorganized',
+        type: 'thread',
+        count: 0,
+        backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+        color: 'paper'
+      };
     }
     
     return itemData;
@@ -812,6 +850,12 @@ window.initTracking = initTracking;
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', initTracking);
 document.addEventListener('astro:page-load', initTracking);
+
+// Also listen for note creation events to update navigation
+document.addEventListener('noteCreated', () => {
+  console.log('Note created event detected, updating navigation tracking...');
+  setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
+});
 
 // Navigation history functions loaded and available
 </script>

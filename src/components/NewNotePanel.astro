@@ -541,6 +541,11 @@ if (!userId) {
               }
             }));
             
+            // Dispatch note created event for navigation tracking
+            window.dispatchEvent(new CustomEvent('noteCreated', {
+              detail: { note: result.note }
+            }));
+            
             // Navigate to the newly created note
             if (result.note && result.note.id) {
               // Small delay to show the toast before navigation
