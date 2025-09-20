@@ -4,6 +4,7 @@ import CardStack from "@/components/CardStack.astro";
 import CardFull from "@/components/CardFull.astro";
 import SearchInput from "@/components/SearchInput.astro";
 import SpaceButton from "@/components/SpaceButton.astro";
+import SquareButton from "@/components/SquareButton.astro";
 import Avatar from "@/components/Avatar.astro";
 import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
@@ -405,11 +406,8 @@ if (!content) {
   <!-- Navigation Column -->
   <div slot="navigation" class="h-full">
           <div class="flex flex-col items-start justify-between relative h-full">
-            <!-- Top Section - Search and Navigation -->
+            <!-- Top Section - Navigation -->
             <div class="flex flex-col gap-12 items-start justify-start w-full flex-1 min-h-0">
-              <!-- Search Input -->
-              <SearchInput placeholder="Search" className="h-[60px]" />
-              
               <!-- Navigation Buttons -->
               <div class="flex flex-col items-start justify-start w-full">
                 <a href="/dashboard" class="w-full">
@@ -457,9 +455,10 @@ if (!content) {
               </div>
             </div>
             
-            <!-- Bottom Section with New Space Button and Avatar -->
+            <!-- Bottom Section with New Space Button, Search, and Avatar -->
             <div class="flex gap-3 items-center justify-start w-full shrink-0">
               <SpaceButton text="New Space" className="flex-1" />
+              <SquareButton variant="Search" />
               <Avatar initials="DJ" />
             </div>
           </div>
