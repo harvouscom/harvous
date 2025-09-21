@@ -123,10 +123,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
           return;
         }
         (window as any).tabFunctionalityInitialized = true;
-        // Debug logging to help identify environment differences
-        console.log('Tab script loaded in environment:', typeof window !== 'undefined' ? 'browser' : 'server');
-        console.log('Document ready state:', document.readyState);
-        console.log('Current URL:', window.location.href);
         
         function initTabs() {
           try {
@@ -574,9 +570,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
 <!-- Simple Navigation History Script - Embedded -->
 <script is:inline data-astro-rerun>
 // Simple Navigation History - Clean and Working
-console.log('🚀 NAVIGATION SCRIPT LOADING - This should appear immediately');
-console.log('🚀 NAVIGATION SCRIPT LOADING - Timestamp:', new Date().toISOString());
-console.log('🚀 NAVIGATION SCRIPT LOADING - Current URL:', window.location.href);
 
 // Storage utility with localStorage fallback to sessionStorage
 function getStorage() {
@@ -588,45 +581,38 @@ function getStorage() {
     localStorage.removeItem(testKey);
     
     if (retrieved === 'test') {
-      console.log('🔧 Using localStorage for navigation history');
       return localStorage;
     } else {
       throw new Error('localStorage test failed');
     }
   } catch (error) {
-    console.log('🔧 localStorage failed, falling back to sessionStorage');
     return sessionStorage;
   }
 }
 
 // Alternative storage approach using a global variable as backup
-let navigationHistoryBackup = null;
+window.navigationHistoryBackup = window.navigationHistoryBackup || null;
 
 // Get navigation history from storage (localStorage or sessionStorage)
 function getNavigationHistory() {
   try {
     const storage = getStorage();
     const stored = storage.getItem('harvous-navigation-history-v2');
-    console.log('🔍 getNavigationHistory - raw stored data:', stored);
-    console.log('🔍 getNavigationHistory - stored data type:', typeof stored);
-    console.log('🔍 getNavigationHistory - stored data length:', stored ? stored.length : 'null');
     
     let parsed = stored ? JSON.parse(stored) : [];
     
     // If localStorage is empty but we have a backup, use it
-    if (parsed.length === 0 && navigationHistoryBackup && navigationHistoryBackup.length > 0) {
-      console.log('🔧 Using backup navigation history:', navigationHistoryBackup);
-      parsed = navigationHistoryBackup;
+    if (parsed.length === 0 && window.navigationHistoryBackup && window.navigationHistoryBackup.length > 0) {
+      console.log('🔧 Using backup navigation history:', window.navigationHistoryBackup);
+      parsed = window.navigationHistoryBackup;
     }
     
-    console.log('🔍 getNavigationHistory - parsed data:', parsed);
-    console.log('🔍 getNavigationHistory - parsed data length:', parsed.length);
     
     return parsed;
   } catch (error) {
     console.error('Error getting navigation history:', error);
     console.error('Error details:', error.message, error.name);
-    return navigationHistoryBackup || [];
+    return window.navigationHistoryBackup || [];
   }
 }
 
@@ -639,8 +625,8 @@ function saveNavigationHistory(history) {
     storage.setItem('harvous-navigation-history-v2', jsonString);
     
     // Also update the backup
-    navigationHistoryBackup = [...history];
-    console.log('💾 saveNavigationHistory - backup updated:', navigationHistoryBackup);
+    window.navigationHistoryBackup = [...history];
+    console.log('💾 saveNavigationHistory - backup updated:', window.navigationHistoryBackup);
     
     // Verify the save worked
     const verification = storage.getItem('harvous-navigation-history-v2');
@@ -718,16 +704,14 @@ function trackNavigationAccess() {
   const currentPath = window.location.pathname;
   const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
 
-  console.log('🔍 trackNavigationAccess called for:', currentItemId);
 
   // Skip dashboard and empty paths
   if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
-    console.log('⏭️ Skipping navigation tracking for:', currentItemId);
+    // Skipping navigation tracking for dashboard
     return;
   }
   
-  // Debug: Log the exact currentItemId to see what's being processed
-  console.log('🔍 Processing navigation for currentItemId:', currentItemId, 'length:', currentItemId.length);
+  // Debug: Processing navigation for currentItemId
   
   // Track spaces too (they should be persistent and closable)
   // if (currentItemId.startsWith('space_')) {
@@ -902,8 +886,6 @@ function extractItemDataFromPage(currentItemId) {
 
 // Initialize tracking
 function initTracking() {
-  console.log('🚀 initTracking called');
-  console.log('🚀 initTracking - current URL:', window.location.href);
   trackNavigationAccess();
 }
 
@@ -998,12 +980,9 @@ window.initTracking = initTracking;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('📄 DOMContentLoaded event fired - about to call initTracking');
-  console.log('📄 DOMContentLoaded event fired - typeof initTracking:', typeof initTracking);
-  console.log('📄 DOMContentLoaded event fired - current URL:', window.location.href);
   
   if (typeof initTracking === 'function') {
-    console.log('📄 DOMContentLoaded event fired - calling initTracking now');
+    // DOMContentLoaded event fired - calling initTracking
     initTracking();
   } else {
     console.error('📄 DOMContentLoaded event fired - initTracking is not a function!');
@@ -1012,12 +991,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Listen for astro:page-load events
 document.addEventListener('astro:page-load', () => {
-  console.log('🔄 astro:page-load event fired - about to call initTracking');
-  console.log('🔄 astro:page-load event fired - typeof initTracking:', typeof initTracking);
-  console.log('🔄 astro:page-load event fired - current URL:', window.location.href);
   
   if (typeof initTracking === 'function') {
-    console.log('🔄 astro:page-load event fired - calling initTracking now');
+    // astro:page-load event fired - calling initTracking
     initTracking();
   } else {
     console.error('🔄 astro:page-load event fired - initTracking is not a function!');
@@ -1073,7 +1049,6 @@ window.testNavigationTracking = function() {
   }
 };
 
-console.log('🚀 NAVIGATION SCRIPT COMPLETED - All functions should be available');
 
 // Test function to verify script is working
 window.testNavigationScript = function() {

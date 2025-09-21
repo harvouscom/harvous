@@ -19,9 +19,7 @@ const { onClose, currentThread } = Astro.props;
 
 // Get user ID from Clerk authentication
 const { userId } = Astro.locals.auth();
-console.log("NewNotePanel: Using authenticated user ID:", userId);
-console.log("NewNotePanel: Current thread data:", currentThread);
-console.log("NewNotePanel: Current thread title:", currentThread?.title);
+// Debug logs removed for cleaner console output
 
 if (!userId) {
   return Astro.redirect('/sign-in');

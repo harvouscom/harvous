@@ -44,7 +44,7 @@ export async function ensureUnorganizedThread(userId: string) {
       } catch (insertError: any) {
         // If insert fails due to constraint (thread already exists), that's fine
         if (insertError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || insertError.rawCode === 1555) {
-          console.log("ℹ️ Unorganized thread already exists for user:", userId);
+          // Unorganized thread already exists
         } else {
           console.error("❌ Error creating unorganized thread:", insertError);
           throw insertError; // Re-throw if it's a different error

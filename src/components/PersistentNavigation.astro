@@ -21,21 +21,14 @@ import SpaceButton from "./SpaceButton.astro";
 function renderPersistentNavigation() {
   const container = document.getElementById('persistent-navigation');
   if (!container) {
-    console.log('🎨 renderPersistentNavigation - no container found');
-    console.log('🎨 Available elements with id:', document.querySelectorAll('[id]'));
-    console.log('🎨 All elements in document:', document.body.innerHTML.substring(0, 500));
     return;
   }
 
   if (typeof window.getNavigationHistory !== 'function') {
-    console.log('🎨 renderPersistentNavigation - getNavigationHistory not available');
     return;
   }
 
   const history = window.getNavigationHistory();
-  console.log('🎨 renderPersistentNavigation - history order:', history.map(h => ({ id: h.id, title: h.title, firstAccessed: h.firstAccessed })));
-  console.log('🎨 renderPersistentNavigation - current URL:', window.location.href);
-  console.log('🎨 renderPersistentNavigation - timestamp:', new Date().toISOString());
     
     if (history.length === 0) {
       container.innerHTML = '';
@@ -45,9 +38,6 @@ function renderPersistentNavigation() {
     // Get currently active item (the one being viewed)
     const currentPath = window.location.pathname;
     const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-    
-    console.log('🎨 renderPersistentNavigation - currentPath:', currentPath);
-    console.log('🎨 renderPersistentNavigation - currentItemId:', currentItemId);
     
     // Determine what the current active thread/space is
     let currentActiveItemId = currentItemId;
@@ -76,7 +66,6 @@ function renderPersistentNavigation() {
     let persistentItems = history.filter((item: any) => {
       // Don't show the currently active item (use the resolved active item ID)
       if (item.id === currentActiveItemId) {
-        console.log('🎨 renderPersistentNavigation - filtering out active item:', item.id);
         return false;
       }
       
@@ -115,9 +104,6 @@ function renderPersistentNavigation() {
       return;
     }
     
-    console.log('🎨 renderPersistentNavigation - currentActiveItemId:', currentActiveItemId);
-    console.log('🎨 renderPersistentNavigation - persistentItems after filtering:', persistentItems.map(h => ({ id: h.id, title: h.title, firstAccessed: h.firstAccessed })));
-    console.log('🎨 renderPersistentNavigation - FULL persistentItems array:', persistentItems);
     
     // Create navigation items HTML
     const itemsHTML = persistentItems.map((item: any) => {
@@ -180,23 +166,12 @@ function renderPersistentNavigation() {
   
   // Initialize persistent navigation
   function initializePersistentNavigation() {
-    console.log('🔄 initializePersistentNavigation called');
-    
     // Ensure container exists
     let container = document.getElementById('persistent-navigation');
-    if (!container) {
-      console.log('🔄 Container not found, checking if we need to create it');
-      // Check if we're in the right context (not trying to create container where it shouldn't exist)
-      const existingContainer = document.querySelector('#persistent-navigation');
-      if (!existingContainer) {
-        console.log('🔄 No persistent navigation container found at all');
-      }
-    }
     
     if (typeof window.getNavigationHistory === 'function') {
       renderPersistentNavigation();
     } else {
-      console.log('🔄 getNavigationHistory not available, retrying in 100ms');
       setTimeout(initializePersistentNavigation, 100);
     }
   }

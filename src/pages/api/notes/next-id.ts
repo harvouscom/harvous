@@ -52,13 +52,13 @@ export const GET: APIRoute = async ({ locals }) => {
       };
     }
     
-    console.log('Next ID API - userMetadata:', userMetadata);
+    // Debug: userMetadata retrieved
     
     // The next simple note ID is always the highest used + 1
     // This ensures we never reuse deleted IDs
     const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
     
-    console.log('Next ID API - nextSimpleNoteId:', nextSimpleNoteId);
+    // Debug: nextSimpleNoteId calculated
 
     // Format the ID with leading zeros (e.g., N001, N002, N003, etc.)
     const formattedId = `N${nextSimpleNoteId.toString().padStart(3, '0')}`;

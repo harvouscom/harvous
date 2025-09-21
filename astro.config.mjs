@@ -3,6 +3,7 @@ import { defineConfig } from 'astro/config';
 import db from '@astrojs/db';
 import clerk from '@clerk/astro';
 import tailwind from '@astrojs/tailwind';
+import alpinejs from '@astrojs/alpinejs';
 
 import netlify from '@astrojs/netlify';
 
@@ -71,6 +72,7 @@ export default defineConfig({
       enableEnvSchema: true
     }),
     tailwind(),
+    alpinejs(),
   ],
 
   // Use different output modes for development vs production

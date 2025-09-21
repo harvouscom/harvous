@@ -46,7 +46,7 @@ export const notes = {
             console.log("Created unorganized thread for user:", userId);
           } catch (createError: any) {
             if (createError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || createError.rawCode === 1555) {
-              console.log("Unorganized thread already exists for user:", userId);
+              // Unorganized thread already exists
             } else {
               console.error("Error creating unorganized thread:", createError);
             }

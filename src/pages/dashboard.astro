@@ -83,11 +83,6 @@ const inboxItemCount = inboxContent.length;
 
 // Get active thread context for navigation
 const activeThread = await detectActiveThreadFromPath(Astro.url.pathname, userId);
-console.log('🔍 Dashboard activeThread detection:', {
-  pathname: Astro.url.pathname,
-  activeThread: activeThread,
-  isUnorganizedActive: activeThread && activeThread.id === 'thread_unorganized'
-});
 
 // Ensure unorganized thread exists in database and check if it has notes
 let unorganizedThread = null;
