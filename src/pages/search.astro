@@ -14,6 +14,25 @@ import MobileAdditional from "@/components/MobileAdditional.astro";
 import { db, Notes, Threads, eq, and, or, like, desc, count } from "astro:db";
 import { getThreadColorCSS } from "@/utils/colors";
 
+// Helper function to format relative time (same as dashboard)
+function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const diffInMs = now.getTime() - date.getTime();
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+
+  if (diffInDays > 0) {
+    return diffInDays === 1 ? "1 day ago" : `${diffInDays} days ago`;
+  } else if (diffInHours > 0) {
+    return diffInHours === 1 ? "1 hour ago" : `${diffInHours} hours ago`;
+  } else if (diffInMinutes > 0) {
+    return diffInMinutes === 1 ? "1 minute ago" : `${diffInMinutes} minutes ago`;
+  } else {
+    return "Just now";
+  }
+}
+
 // Get user ID from Clerk authentication
 const { userId } = Astro.locals.auth();
 
@@ -99,7 +118,7 @@ if (query.trim()) {
         count: noteCount,
         threadId: thread.id,
         spaceId: thread.spaceId,
-        lastUpdated: thread.updatedAt || thread.createdAt,
+        lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
         updatedAt: thread.updatedAt || thread.createdAt,
         accentColor: getThreadColorCSS(thread.color),
       };
@@ -336,21 +355,6 @@ if (query.trim()) {
           <!-- Empty State (no search query) -->
           {!query && (
             <div class="flex flex-col gap-6">
-              <!-- Main empty state -->
-              <div class="flex flex-col items-center justify-center min-h-[200px] w-full text-center">
-                <div class="flex flex-col gap-4 items-center justify-center">
-                  <div class="w-16 h-16 rounded-full bg-[var(--color-pebble-grey)] bg-opacity-20 flex items-center justify-center">
-                    <svg width="32" height="32" class="fill-[var(--color-pebble-grey)]" viewBox="0 0 512 512">
-                    </svg>
-                  </div>
-                  <div class="font-sans font-semibold text-[#4a473d] text-[24px] leading-[1.2]">
-                    <p>Search your content</p>
-                  </div>
-                  <div class="font-sans font-normal text-[#78766f] text-[16px] leading-[1.3] max-w-[300px]">
-                    <p>Find notes and threads by searching their titles and content.</p>
-                  </div>
-                </div>
-              </div>
 
               <!-- Recent Searches -->
               <div class="flex flex-col gap-3" x-data="{ recentSearches: [] }" x-init="
