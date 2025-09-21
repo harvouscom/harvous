@@ -256,21 +256,35 @@ const {
             return;
         }
         
-        // Remove from navigation history
-        if ((window as any).removeFromNavigationHistory) {
-            console.log('🔥 Removing from navigation history');
-            (window as any).removeFromNavigationHistory(itemId);
-        } else {
-            console.log('❌ removeFromNavigationHistory function not available');
-        }
+        // Check if this is a recent search item (on search page)
+        const isRecentSearch = window.location.pathname === '/search' && 
+                              element.closest('.recent-search-item');
         
-        // For regular navigation items, navigate to dashboard
-        if ((window as any).astroNavigate) {
-            console.log('🔥 Navigating to dashboard with astroNavigate');
-            (window as any).astroNavigate('/dashboard');
+        if (isRecentSearch) {
+            // Remove from recent searches
+            if ((window as any).removeFromRecentSearches) {
+                console.log('🔥 Removing from recent searches');
+                (window as any).removeFromRecentSearches(itemId);
+            } else {
+                console.log('❌ removeFromRecentSearches function not available');
+            }
         } else {
-            console.log('🔥 Navigating to dashboard with location.replace');
-            window.location.replace('/dashboard');
+            // Remove from navigation history
+            if ((window as any).removeFromNavigationHistory) {
+                console.log('🔥 Removing from navigation history');
+                (window as any).removeFromNavigationHistory(itemId);
+            } else {
+                console.log('❌ removeFromNavigationHistory function not available');
+            }
+            
+            // For regular navigation items, navigate to dashboard
+            if ((window as any).astroNavigate) {
+                console.log('🔥 Navigating to dashboard with astroNavigate');
+                (window as any).astroNavigate('/dashboard');
+            } else {
+                console.log('🔥 Navigating to dashboard with location.replace');
+                window.location.replace('/dashboard');
+            }
         }
     }
     
