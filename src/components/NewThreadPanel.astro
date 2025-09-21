@@ -47,6 +47,9 @@ try {
     selectedType: localStorage.getItem('newThreadType') || 'Private',
     isOpen: false,
     isSubmitting: false,
+    activeTab: 'recent',
+    searchQuery: '',
+    searchResults: [],
 
     THREAD_COLORS: ['paper', 'blessed-blue', 'mindful-mint', 'graceful-gold', 'pleasant-peach', 'caring-coral', 'peaceful-pink', 'lovely-lavender'],
     getThreadColorCSS(color) {
@@ -76,8 +79,32 @@ try {
       this.selectedColor = 'paper';
       this.selectedType = 'Private';
       this.isSubmitting = false;
+      this.activeTab = 'recent';
+      this.searchQuery = '';
       // Dispatch close event to update dashboard state
       window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+    },
+    switchTab(tabId) {
+      this.activeTab = tabId;
+    },
+    async searchNotes(query) {
+      if (!query || query.trim().length < 2) {
+        this.searchResults = [];
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&type=notes`);
+        if (response.ok) {
+          const data = await response.json();
+          this.searchResults = data.results || [];
+        } else {
+          this.searchResults = [];
+        }
+      } catch (error) {
+        console.error('Search error:', error);
+        this.searchResults = [];
+      }
     }
   }"
   x-init="
@@ -85,6 +112,13 @@ try {
     $watch('title', value => localStorage.setItem('newThreadTitle', value));
     $watch('selectedColor', value => localStorage.setItem('newThreadColor', value));
     $watch('selectedType', value => localStorage.setItem('newThreadType', value));
+    
+    // Watch search query and trigger search
+    $watch('searchQuery', value => {
+      if (this.activeTab === 'search') {
+        this.searchNotes(value);
+      }
+    });
     
     // Removed event listener to prevent infinite loop
     // The closePanel() method already dispatches the close event
@@ -226,25 +260,63 @@ try {
           
           <!-- Tab navigation with content -->
           <div class="w-full">
-            <TabNav 
-              tabs={[
-                { id: "recent", label: "Recent", isActive: true },
-                { id: "search", label: "Search", isActive: false }
-              ]}
-            />
-            
-            <!-- Tab content -->
+            <div class="flex flex-col gap-3">
+              <div class="tab-nav-container">
+                <!-- Tab Navigation -->
+                <div class="flex items-center justify-start gap-0 pb-0 pt-1 px-1 relative w-full">
+                <button
+                  type="button"
+                  class="flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200"
+                  :class="activeTab === 'recent' ? 'opacity-100' : 'opacity-50 hover:opacity-75'"
+                  @click="switchTab('recent')"
+                  data-tab-id="recent"
+                  :data-active="activeTab === 'recent' ? 'true' : 'false'"
+                >
+                  <span class="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
+                    Recent
+                  </span>
+                  <div 
+                    class="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1" 
+                    x-show="activeTab === 'recent'"
+                  >
+                    <div class="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200"
+                  :class="activeTab === 'search' ? 'opacity-100' : 'opacity-50 hover:opacity-75'"
+                  @click="switchTab('search')"
+                  data-tab-id="search"
+                  :data-active="activeTab === 'search' ? 'true' : 'false'"
+                >
+                  <span class="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
+                    Search
+                  </span>
+                  <div 
+                    class="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1" 
+                    x-show="activeTab === 'search'"
+                  >
+                    <div class="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                  </div>
+                </button>
+                </div>
+              </div>
+              
+              <!-- Tab content -->
             <div class="w-full">
               <!-- Recent notes display -->
-              <div id="recent-content" class="tab-content" data-tab-content="recent">
+              <div x-show="activeTab === 'recent'" class="tab-content">
                 <div class="flex gap-3 items-start justify-start w-full overflow-x-auto">
                   {recentNotes.length > 0 ? recentNotes.map((note) => (
-                    <CardFeat 
-                      variant="Note"
-                      title={note.title || "Untitled Note"}
-                      content={note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "")}
-                      class="shrink-0"
-                    />
+                    <div class="shrink-0">
+                      <CardFeat 
+                        variant="Note"
+                        title={note.title || "Untitled Note"}
+                        content={note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "")}
+                        class="shrink-0"
+                      />
+                    </div>
                   )) : (
                     <div class="text-center py-4 text-gray-500 w-full">
                       <p>No recent notes found. Create your first note to see it here!</p>
@@ -254,14 +326,72 @@ try {
               </div>
               
               <!-- Search content -->
-              <div id="search-content" class="tab-content hidden" data-tab-content="search">
+              <div x-show="activeTab === 'search'" class="tab-content">
                 <div class="flex flex-col gap-3">
-                  <SearchInput placeholder="Search notes..." />
-                  <div class="text-center py-4 text-gray-500">
-                    <p>Search results will appear here...</p>
+                  <div x-data="{ query: searchQuery }" x-init="
+                    $watch('query', value => searchQuery = value);
+                    $watch('searchQuery', value => query = value);
+                  ">
+                    <SearchInput placeholder="Search notes..." />
+                  </div>
+                  
+                  <!-- Search results -->
+                  <div class="search-results">
+                    <div x-show="!searchQuery" class="text-center py-4 text-gray-500">
+                      <p>Enter a search term to find notes...</p>
+                    </div>
+                    <div x-show="searchQuery && !searchResults.length" class="text-center py-4 text-gray-500">
+                      <p>No notes found matching your search...</p>
+                    </div>
+                    <div x-show="searchQuery && searchResults.length > 0" class="flex gap-3 items-start justify-start w-full overflow-x-auto">
+                      <template x-for="note in searchResults" :key="note.id">
+                        <div class="shrink-0">
+                          <div class="bg-white box-border flex flex-col gap-3 h-[180px] items-start justify-start max-w-[220px] overflow-clip pb-3 pt-2 px-2 relative rounded-2xl shrink-0 w-[220px]">
+                            <!-- Light Paper background area -->
+                            <div class="basis-0 bg-[#f3f2ec] grow min-h-px min-w-px overflow-clip relative rounded-xl shrink-0 w-full">
+                              <!-- Bookmark icon -->
+                              <div class="absolute left-3.5 size-5 top-[17px]">
+                                <svg class="block max-w-none size-full text-[#4a473d] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                                </svg>
+                              </div>
+                              
+                              <!-- Plus button -->
+                              <div class="absolute right-2 top-2">
+                                <button type="button" class="btn-animate-squish group relative rounded-3xl w-10 h-10 cursor-pointer" style="background-image: var(--color-gradient-gray)">
+                                  <div class="box-border content-stretch flex flex-row gap-3 items-center justify-center relative rounded-3xl size-full">
+                                    <div class="relative shrink-0 w-4 h-4 flex items-center justify-center fill-[var(--color-pebble-grey)] [&>svg]:h-4 [&>svg]:w-4 [&>svg]:-translate-y-0.5 [&>svg]:transition-transform [&>svg]:duration-125">
+                                      <svg class="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 24 24">
+                                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                      </svg>
+                                    </div>
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+                            
+                            <!-- Text content area -->
+                            <div class="box-border flex gap-6 items-start justify-start px-2 py-0 relative shrink-0 w-full">
+                              <div class="basis-0 flex flex-col gap-2 grow items-start justify-start leading-[0] min-h-px min-w-px relative self-stretch shrink-0">
+                                <!-- Title -->
+                                <div class="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#4a473d] text-[18px] w-full">
+                                  <p class="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap" x-text="note.title || 'Untitled Note'"></p>
+                                </div>
+                                
+                                <!-- Content -->
+                                <div class="flex flex-col font-normal justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#78766f] text-[12px] w-full">
+                                  <p class="leading-[1.3] overflow-hidden text-ellipsis whitespace-nowrap" x-text="note.content"></p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
                   </div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
           
@@ -514,4 +644,5 @@ try {
   .htmx-request #create-thread-btn span:last-child {
     display: block;
   }
+
 </style>
