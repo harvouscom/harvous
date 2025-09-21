@@ -160,6 +160,86 @@ The system uses a hybrid approach for note-thread relationships:
 - **Test Alpine.js functionality**: Verify all directives work as expected
 - **Use async/await properly**: Alpine.js supports async functions in x-data methods
 
+### Alpine.js Scope Limitations & Solutions
+
+**The Problem**: Alpine.js has scope limitations when trying to access component data from external functions or event handlers.
+
+**Common Issues**:
+- `this.searchNotes is not a function` errors in `$watch` callbacks
+- Lost context when calling methods from event handlers
+- Inability to access Alpine.js data from global functions
+
+**Solutions**:
+
+1. **Global Functions for Scope Bypass**:
+   ```javascript
+   // Create global function to access Alpine.js data
+   (window as any).componentSearch = async function(query: string) {
+     const form = document.querySelector('.component');
+     if (form && (window as any).Alpine) {
+       const alpineData = (window as any).Alpine.$data(form);
+       if (alpineData) {
+         alpineData.searchResults = await fetchSearchResults(query);
+       }
+     }
+   };
+   ```
+
+2. **Client-Side API Calls vs Server-Side Data Injection**:
+   - ❌ **Don't inject server-side data directly into `x-data`**: `searchQuery: '{serverData}'` doesn't work reliably
+   - ✅ **Use client-side API calls**: Fetch data from `/api/endpoint` and update Alpine.js data reactively
+   - ✅ **Separate concerns**: Keep server-side data fetching separate from client-side reactivity
+
+3. **When to Use Global Functions**:
+   - When Alpine.js scope prevents access to component methods
+   - For complex async operations that need to update component state
+   - When working with external libraries that need to modify Alpine.js data
+   - For event handlers that need to access component data from outside the component
+
+**Key Principle**: Sometimes the "cleaner" approach isn't the right approach. Global functions are a valid solution for working around Alpine.js scope limitations when client-server separation is important.
+
+### NewThreadPanel Search Implementation
+
+The NewThreadPanel component includes a sophisticated search functionality that demonstrates proper Alpine.js integration patterns:
+
+**Architecture**:
+- **Tab Persistence**: Uses localStorage to maintain active tab state across page navigations
+- **Real-time Search**: Client-side search via `/api/search` endpoint with immediate results
+- **Scope Management**: Global function approach to bypass Alpine.js scope limitations
+- **State Management**: Proper cleanup and reset functionality for form state
+
+**Key Components**:
+- **Search Input**: Custom input with clear functionality and proper event handling
+- **Search Results**: Rendered using CardFeat components for consistency
+- **Tab Navigation**: Persistent tab state with localStorage integration
+- **Global Search Function**: `window.newThreadPanelSearch` for scope bypass
+
+**Implementation Details**:
+```javascript
+// Global function for scope bypass
+(window as any).newThreadPanelSearch = async function(query: string) {
+  // Fetch from API and update Alpine.js data
+  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&type=notes`);
+  const data = await response.json();
+  
+  // Update Alpine.js component data
+  const form = document.querySelector('.new-thread-panel');
+  if (form && (window as any).Alpine) {
+    const alpineData = (window as any).Alpine.$data(form);
+    if (alpineData) {
+      alpineData.searchResults = data.results || [];
+    }
+  }
+};
+```
+
+**Benefits**:
+- **Real-time UX**: Immediate search results as user types
+- **Consistent API**: Uses existing `/api/search` endpoint
+- **Proper Error Handling**: Clears results on errors or short queries
+- **State Persistence**: Maintains search state across navigation
+- **Clean Separation**: Server-side API, client-side reactivity
+
 ### SquareButton Component Context-Aware Menus
 
 The SquareButton component supports context-aware menus through the `ContextMoreMenu` component:
@@ -410,6 +490,8 @@ The navigation history system uses a clean, single-file approach with proper ded
 - `src/components/ContextMoreMenu.astro`: Context-aware menu for different content types
 - `src/utils/menu-options.ts`: Utility for determining available menu options
 - `src/components/SpaceButton.astro`: Button component with close functionality
+- `src/components/NewThreadPanel.astro`: Thread creation panel with search functionality and tab persistence
+- `src/pages/api/search.ts`: Search API endpoint for notes and threads
 - `public/scripts/navigation-history.js`: Simplified navigation history system
 - `src/components/PersistentNavigation.astro`: Simplified persistent navigation component
 - `src/layouts/Layout.astro`: Alpine.js and View Transitions setup

@@ -35,6 +35,7 @@ try {
   console.error("Error fetching recent notes for NewThreadPanel:", error);
   recentNotes = [];
 }
+
 ---
 
 <form 
@@ -47,7 +48,7 @@ try {
     selectedType: localStorage.getItem('newThreadType') || 'Private',
     isOpen: false,
     isSubmitting: false,
-    activeTab: 'recent',
+    activeTab: localStorage.getItem('newThreadActiveTab') || 'recent',
     searchQuery: '',
     searchResults: [],
 
@@ -74,6 +75,7 @@ try {
       localStorage.removeItem('newThreadTitle');
       localStorage.removeItem('newThreadColor');
       localStorage.removeItem('newThreadType');
+      localStorage.removeItem('newThreadActiveTab');
       // Reset form
       this.title = '';
       this.selectedColor = 'paper';
@@ -85,56 +87,65 @@ try {
       window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
     },
     switchTab(tabId) {
+      console.log('NewThreadPanel: switchTab called with:', tabId);
       this.activeTab = tabId;
-    },
-    async searchNotes(query) {
-      if (!query || query.trim().length < 2) {
-        this.searchResults = [];
-        return;
-      }
-      
-      try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&type=notes`);
-        if (response.ok) {
-          const data = await response.json();
-          this.searchResults = data.results || [];
-        } else {
-          this.searchResults = [];
-        }
-      } catch (error) {
-        console.error('Search error:', error);
-        this.searchResults = [];
-      }
+      console.log('NewThreadPanel: activeTab set to:', this.activeTab);
     }
   }"
   x-init="
+    // Debug initial activeTab value
+    console.log('NewThreadPanel: Initial activeTab value:', activeTab);
+    console.log('NewThreadPanel: localStorage newThreadActiveTab:', localStorage.getItem('newThreadActiveTab'));
+    
+    // Force activeTab to be properly set if it's undefined
+    if (!activeTab) {
+      activeTab = 'recent';
+      console.log('NewThreadPanel: Forced activeTab to:', activeTab);
+    }
+    
     // Save form data to localStorage when it changes
     $watch('title', value => localStorage.setItem('newThreadTitle', value));
     $watch('selectedColor', value => localStorage.setItem('newThreadColor', value));
     $watch('selectedType', value => localStorage.setItem('newThreadType', value));
+    $watch('activeTab', value => {
+      console.log('NewThreadPanel: activeTab watcher triggered, new value:', value);
+      localStorage.setItem('newThreadActiveTab', value);
+    });
     
     // Watch search query and trigger search
     $watch('searchQuery', value => {
-      if (this.activeTab === 'search') {
-        this.searchNotes(value);
+      console.log('NewThreadPanel: searchQuery changed to:', value, 'activeTab:', this.activeTab);
+      console.log('NewThreadPanel: searchQuery length:', value ? value.length : 0);
+      
+      // Get activeTab from localStorage as fallback (more reliable than this.activeTab)
+      const currentActiveTab = this.activeTab || localStorage.getItem('newThreadActiveTab') || 'recent';
+      console.log('NewThreadPanel: Using activeTab:', currentActiveTab, '(from this.activeTab:', this.activeTab, ', localStorage:', localStorage.getItem('newThreadActiveTab'), ')');
+      
+      if (currentActiveTab === 'search') {
+        console.log('NewThreadPanel: Active tab is search, calling searchNotes');
+        // Use the global search function to avoid scope issues
+        window.newThreadPanelSearch(value);
+      } else {
+        console.log('NewThreadPanel: Active tab is not search, skipping search');
       }
     });
     
-    // Removed event listener to prevent infinite loop
-    // The closePanel() method already dispatches the close event
-    // Parent components (Layout, MobileAdditional) handle the event
-    
-    // Clear form when panel is opened (in case it was previously closed with data)
+    // Only reset form when panel is actually being opened fresh (not when navigating between pages)
     window.addEventListener('openNewThreadPanel', () => {
-                // Reset form to clean state when opening
-          title = '';
-          selectedColor = 'paper';
-          selectedType = 'Private';
-      isSubmitting = false;
-      // Clear localStorage when opening fresh
-      localStorage.removeItem('newThreadTitle');
-      localStorage.removeItem('newThreadColor');
-      localStorage.removeItem('newThreadType');
+      // Only reset if the panel was previously closed (no localStorage data exists)
+      if (!localStorage.getItem('newThreadTitle') && !localStorage.getItem('newThreadActiveTab')) {
+        // Reset form to clean state when opening fresh
+        title = '';
+        selectedColor = 'paper';
+        selectedType = 'Private';
+        activeTab = 'recent';
+        isSubmitting = false;
+        // Clear localStorage when opening fresh
+        localStorage.removeItem('newThreadTitle');
+        localStorage.removeItem('newThreadColor');
+        localStorage.removeItem('newThreadType');
+        localStorage.removeItem('newThreadActiveTab');
+      }
     });
   "
 >
@@ -328,11 +339,34 @@ try {
               <!-- Search content -->
               <div x-show="activeTab === 'search'" class="tab-content">
                 <div class="flex flex-col gap-3">
-                  <div x-data="{ query: searchQuery }" x-init="
-                    $watch('query', value => searchQuery = value);
-                    $watch('searchQuery', value => query = value);
-                  ">
-                    <SearchInput placeholder="Search notes..." />
+                  <!-- Custom search input that properly binds to searchQuery -->
+                  <div class="w-full search-input rounded-3xl grid items-center grid-cols-[auto_1fr_auto] py-5 px-4 gap-3 min-h-[64px]">
+                    <svg width="20" height="20" class="fill-[var(--color-pebble-grey)]" viewBox="0 0 512 512">
+                      <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
+                    </svg>
+                    <input 
+                      type="text" 
+                      x-model="searchQuery"
+                      role="searchbox"
+                      aria-label="Search"
+                      class="outline-none bg-transparent text-subtitle text-[var(--color-deep-grey)] placeholder:text-[var(--color-pebble-grey)]" 
+                      placeholder="Search notes..."
+                      @keydown.enter.prevent
+                      @input="console.log('NewThreadPanel: Input event, searchQuery:', searchQuery)"
+                    />
+                    <svg 
+                      x-show="Boolean(searchQuery)" 
+                      x-cloak
+                      x-on:click="searchQuery = ''"
+                      role="button"
+                      aria-label="Clear search"
+                      width="20" 
+                      height="20"
+                      class="fill-[var(--color-deep-grey)] cursor-pointer" 
+                      viewBox="0 0 384 512"
+                    >
+                      <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+                    </svg>
                   </div>
                   
                   <!-- Search results -->
@@ -422,6 +456,64 @@ try {
 <Toast />
 
 <script>
+  // Global search function to avoid Alpine.js scope issues
+  (window as any).newThreadPanelSearch = async function(query: string) {
+    console.log('NewThreadPanel: Global search function called with query:', query);
+    if (!query || query.trim().length < 2) {
+      console.log('NewThreadPanel: Query too short, clearing results');
+      // Find the Alpine.js component and update searchResults
+      const form = document.querySelector('.new-thread-panel');
+      if (form && (window as any).Alpine) {
+        const alpineData = (window as any).Alpine.$data(form);
+        if (alpineData) {
+          alpineData.searchResults = [];
+        }
+      }
+      return;
+    }
+    
+    try {
+      console.log('NewThreadPanel: Making search request...');
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&type=notes`);
+      console.log('NewThreadPanel: Search response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('NewThreadPanel: Search results:', data);
+        
+        // Find the Alpine.js component and update searchResults
+        const form = document.querySelector('.new-thread-panel');
+        if (form && (window as any).Alpine) {
+          const alpineData = (window as any).Alpine.$data(form);
+          if (alpineData) {
+            alpineData.searchResults = data.results || [];
+            console.log('NewThreadPanel: Set searchResults to:', alpineData.searchResults);
+          }
+        }
+      } else {
+        console.log('NewThreadPanel: Search response not ok');
+        // Find the Alpine.js component and clear searchResults
+        const form = document.querySelector('.new-thread-panel');
+        if (form && (window as any).Alpine) {
+          const alpineData = (window as any).Alpine.$data(form);
+          if (alpineData) {
+            alpineData.searchResults = [];
+          }
+        }
+      }
+    } catch (error) {
+      console.error('NewThreadPanel: Search error:', error);
+      // Find the Alpine.js component and clear searchResults
+      const form = document.querySelector('.new-thread-panel');
+      if (form && (window as any).Alpine) {
+        const alpineData = (window as any).Alpine.$data(form);
+        if (alpineData) {
+          alpineData.searchResults = [];
+        }
+      }
+    }
+  };
+
   function initThreadCreation() {
     console.log('NewThreadPanel: Initializing thread creation functionality...');
     
@@ -551,6 +643,7 @@ try {
             localStorage.removeItem('newThreadTitle');
             localStorage.removeItem('newThreadColor');
             localStorage.removeItem('newThreadType');
+            localStorage.removeItem('newThreadActiveTab');
             
           } else {
             const error = await response.json();
@@ -643,6 +736,12 @@ try {
 
   .htmx-request #create-thread-btn span:last-child {
     display: block;
+  }
+
+  /* Search input styling */
+  .search-input {
+    background: var(--color-gradient-gray);
+    box-shadow: var(--shadow-small);
   }
 
 </style>
