@@ -8,7 +8,7 @@ export interface Props {
 
 const { 
   title = "Welcome to Harvous", 
-  subtitle = "Private",
+  subtitle,
   class: className = "",
   headerBgColor = "var(--color-paper)"
 } = Astro.props;
@@ -20,9 +20,11 @@ const {
     <div class="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px]">
       <p class="leading-[normal]">{title}</p>
     </div>
-    <div class="font-sans font-semibold relative shrink-0 text-[14px] text-nowrap">
-      <p class="leading-[normal] whitespace-pre">{subtitle}</p>
-    </div>
+    {subtitle && (
+      <div class="font-sans font-semibold relative shrink-0 text-[14px] text-nowrap">
+        <p class="leading-[normal] whitespace-pre">{subtitle}</p>
+      </div>
+    )}
   </div>
   
   <!-- Content area -->
