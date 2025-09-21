@@ -1,0 +1,455 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import CardStack from "@/components/CardStack.astro";
+import SearchInput from "@/components/SearchInput.astro";
+import TabNav from "@/components/TabNav.astro";
+import CardNote from "@/components/CardNote.astro";
+import CardThread from "@/components/CardThread.astro";
+import PersistentNavigation from "@/components/PersistentNavigation.astro";
+import SpaceButton from "@/components/SpaceButton.astro";
+import SquareButton from "@/components/SquareButton.astro";
+import Avatar from "@/components/Avatar.astro";
+import MobileNavigation from "@/components/MobileNavigation.astro";
+import MobileAdditional from "@/components/MobileAdditional.astro";
+import { db, Notes, Threads, eq, and, or, like, desc, count } from "astro:db";
+import { getThreadColorCSS } from "@/utils/colors";
+
+// Get user ID from Clerk authentication
+const { userId } = Astro.locals.auth();
+
+if (!userId) {
+  return Astro.redirect('/sign-in');
+}
+
+// Get search query from URL parameters
+const url = new URL(Astro.request.url);
+const query = url.searchParams.get('q') || '';
+const activeTab = url.searchParams.get('tab') || 'all';
+
+// Search results
+let searchResults: any[] = [];
+let notesResults: any[] = [];
+let threadsResults: any[] = [];
+
+// Perform search if query exists
+if (query.trim()) {
+  try {
+    const searchTerm = `%${query.trim()}%`;
+    
+    // Search notes (title and content)
+    const notes = await db
+      .select()
+      .from(Notes)
+      .where(
+        and(
+          eq(Notes.userId, userId),
+          or(
+            like(Notes.title, searchTerm),
+            like(Notes.content, searchTerm)
+          )
+        )
+      )
+      .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt));
+
+    // Search threads (title only)
+    const threads = await db
+      .select()
+      .from(Threads)
+      .where(
+        and(
+          eq(Threads.userId, userId),
+          like(Threads.title, searchTerm)
+        )
+      )
+      .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt));
+
+    // Format notes results
+    notesResults = notes.map(note => ({
+      id: `note-${note.id}`,
+      type: "note" as const,
+      title: note.title || "Untitled Note",
+      content: note.content.substring(0, 150) + (note.content.length > 150 ? "..." : ""),
+      noteId: note.id,
+      threadId: note.threadId,
+      spaceId: note.spaceId,
+      lastUpdated: note.updatedAt || note.createdAt,
+      updatedAt: note.updatedAt || note.createdAt,
+    }));
+
+    // Get note counts for threads
+    const threadNoteCounts = await Promise.all(
+      threads.map(async (thread) => {
+        const noteCount = await db
+          .select({ count: count() })
+          .from(Notes)
+          .where(and(eq(Notes.userId, userId), eq(Notes.threadId, thread.id)));
+        return { threadId: thread.id, count: noteCount[0]?.count || 0 };
+      })
+    );
+
+    // Format threads results
+    threadsResults = threads.map(thread => {
+      const noteCountData = threadNoteCounts.find(tc => tc.threadId === thread.id);
+      const noteCount = noteCountData?.count || 0;
+      return {
+        id: `thread-${thread.id}`,
+        type: "thread" as const,
+        title: thread.title,
+        subtitle: `${noteCount} notes`,
+        count: noteCount,
+        threadId: thread.id,
+        spaceId: thread.spaceId,
+        lastUpdated: thread.updatedAt || thread.createdAt,
+        updatedAt: thread.updatedAt || thread.createdAt,
+        accentColor: getThreadColorCSS(thread.color),
+      };
+    });
+
+    // Combine all results
+    searchResults = [...notesResults, ...threadsResults].sort((a, b) => 
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+
+  } catch (error) {
+    console.error("Error performing search:", error);
+    searchResults = [];
+    notesResults = [];
+    threadsResults = [];
+  }
+}
+
+// Note: Tab filtering is now handled by the TabNav component with data-tab-content attributes
+---
+
+<Layout title="Search - Harvous" contentType="dashboard" currentThread={null} currentSpace={null}>
+  <!-- Navigation Column -->
+  <div slot="navigation" class="h-full">
+    <div class="flex flex-col items-start justify-between relative h-full">
+      <!-- Top Section - Navigation -->
+      <div class="flex flex-col gap-12 items-start justify-start w-full flex-1 min-h-0">
+        <!-- Navigation Buttons -->
+        <div class="flex flex-col items-start justify-start w-full">
+          <a href="/dashboard" class="w-full">
+            <SpaceButton text="For You" count={0} state="WithCount" className="w-full" isActive={false} />
+          </a>
+          
+          {/* Persistent Navigation - shows recently accessed items */}
+          <PersistentNavigation />
+        </div>
+      </div>
+      
+      <!-- Bottom Section with New Space Button, Search, and Avatar -->
+      <div class="flex gap-3 items-center justify-start w-full shrink-0">
+        <SpaceButton text="New Space" className="flex-1" />
+        <SquareButton variant="Search" />
+        <Avatar initials="DJ" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Column -->
+  <div slot="main" class="h-full">
+    <div class="flex flex-col h-full">
+      <CardStack title="Search" subtitle="Find your content" headerBgColor="var(--color-paper)">
+        <div class="flex flex-col gap-6">
+          <!-- Search Input -->
+          <div class="w-full" x-data="{ searchQuery: '' }" x-init="
+              const updateSearchQuery = () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                searchQuery = urlParams.get('q') || '';
+              };
+              updateSearchQuery();
+              
+              // Listen for URL changes (for View Transitions)
+              window.addEventListener('popstate', updateSearchQuery);
+              document.addEventListener('astro:page-load', updateSearchQuery);
+            ">
+            <form method="GET" action="/search" class="w-full" x-on:submit="
+              if (!searchQuery.trim()) { 
+                $event.preventDefault(); 
+              } else {
+                // Save to recent searches
+                const recentSearches = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
+                const newSearches = [searchQuery.trim(), ...recentSearches.filter(s => s !== searchQuery.trim())];
+                localStorage.setItem('harvous-recent-searches', JSON.stringify(newSearches.slice(0, 10)));
+              }
+            ">
+              <div class="w-full search-input rounded-3xl grid items-center grid-cols-[auto_1fr_auto] py-5 px-4 gap-3 min-h-[64px]">
+                <svg width="20" height="20" class="fill-[var(--color-pebble-grey)]" viewBox="0 0 512 512">
+                  <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
+                </svg>
+                <input 
+                  type="text" 
+                  name="q"
+                  x-model="searchQuery"
+                  role="searchbox"
+                  aria-label="Search"
+                  class="outline-none bg-transparent text-subtitle text-[var(--color-deep-grey)] placeholder:text-[var(--color-pebble-grey)]" 
+                  placeholder="Search notes and threads..."
+                />
+                <svg 
+                  x-show="Boolean(searchQuery)" 
+                  x-cloak
+                  x-on:click="searchQuery = ''; window.location.href = '/search';"
+                  role="button"
+                  aria-label="Clear search"
+                  width="20" 
+                  height="20"
+                  class="fill-[var(--color-deep-grey)] cursor-pointer" 
+                  viewBox="0 0 384 512"
+                >
+                  <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+                </svg>
+              </div>
+            </form>
+          </div>
+
+          <!-- Tab Navigation -->
+          {query && (
+            <div class="flex flex-col gap-3">
+              <TabNav 
+                tabs={[
+                  { 
+                    id: "all", 
+                    label: "All", 
+                    isActive: activeTab === 'all' 
+                  },
+                  { 
+                    id: "notes", 
+                    label: "Notes", 
+                    isActive: activeTab === 'notes' 
+                  },
+                  { 
+                    id: "threads", 
+                    label: "Threads", 
+                    isActive: activeTab === 'threads' 
+                  }
+                ]}
+                class="search-tabs"
+              />
+              
+              <!-- All Content -->
+              <div class="search-results flex flex-col" data-tab-content="all">
+                {searchResults.length > 0 ? (
+                  searchResults.map(item => (
+                    <div class={`content-item ${item.type}-item mb-3`}>
+                      <a 
+                        href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
+                        class="block transition-transform duration-200 hover:scale-[1.002]"
+                      >
+                        {item.type === 'note' ? (
+                          <CardNote 
+                            title={item.title}
+                            content={item.content}
+                          />
+                        ) : (
+                          <CardThread 
+                            title={item.title}
+                            subtitle={item.subtitle}
+                            count={item.count}
+                            accentColor={item.accentColor}
+                            lastUpdated={item.lastUpdated}
+                          />
+                        )}
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div class="flex flex-col items-center justify-center min-h-[300px] w-full text-center">
+                    <div class="flex flex-col gap-2 items-center justify-center">
+                      <div class="font-sans font-semibold text-[#4a473d] text-[24px] leading-[1.2]">
+                        <p>No results found</p>
+                      </div>
+                      <div class="font-sans font-normal text-[#78766f] text-[16px] leading-[1.3] max-w-[250px]">
+                        <p>Try searching for different keywords or check your spelling.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <!-- Notes Only Content -->
+              <div class="search-results flex flex-col hidden" data-tab-content="notes">
+                {notesResults.length > 0 ? (
+                  notesResults.map(item => (
+                    <div class={`content-item ${item.type}-item mb-3`}>
+                      <a 
+                        href={`/${item.noteId}`}
+                        class="block transition-transform duration-200 hover:scale-[1.002]"
+                      >
+                        <CardNote 
+                          title={item.title}
+                          content={item.content}
+                        />
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div class="flex flex-col items-center justify-center min-h-[300px] w-full text-center">
+                    <div class="flex flex-col gap-2 items-center justify-center">
+                      <div class="font-sans font-semibold text-[#4a473d] text-[24px] leading-[1.2]">
+                        <p>No notes found</p>
+                      </div>
+                      <div class="font-sans font-normal text-[#78766f] text-[16px] leading-[1.3] max-w-[250px]">
+                        <p>Try searching for different keywords or check your spelling.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <!-- Threads Only Content -->
+              <div class="search-results flex flex-col hidden" data-tab-content="threads">
+                {threadsResults.length > 0 ? (
+                  threadsResults.map(item => (
+                    <div class={`content-item ${item.type}-item mb-3`}>
+                      <a 
+                        href={`/${item.threadId}`}
+                        class="block transition-transform duration-200 hover:scale-[1.002]"
+                      >
+                        <CardThread 
+                          title={item.title}
+                          subtitle={item.subtitle}
+                          count={item.count}
+                          accentColor={item.accentColor}
+                          lastUpdated={item.lastUpdated}
+                        />
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div class="flex flex-col items-center justify-center min-h-[300px] w-full text-center">
+                    <div class="flex flex-col gap-2 items-center justify-center">
+                      <div class="font-sans font-semibold text-[#4a473d] text-[24px] leading-[1.2]">
+                        <p>No threads found</p>
+                      </div>
+                      <div class="font-sans font-normal text-[#78766f] text-[16px] leading-[1.3] max-w-[250px]">
+                        <p>Try searching for different keywords or check your spelling.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <!-- Empty State (no search query) -->
+          {!query && (
+            <div class="flex flex-col gap-6">
+              <!-- Main empty state -->
+              <div class="flex flex-col items-center justify-center min-h-[200px] w-full text-center">
+                <div class="flex flex-col gap-4 items-center justify-center">
+                  <div class="w-16 h-16 rounded-full bg-[var(--color-pebble-grey)] bg-opacity-20 flex items-center justify-center">
+                    <svg width="32" height="32" class="fill-[var(--color-pebble-grey)]" viewBox="0 0 512 512">
+                    </svg>
+                  </div>
+                  <div class="font-sans font-semibold text-[#4a473d] text-[24px] leading-[1.2]">
+                    <p>Search your content</p>
+                  </div>
+                  <div class="font-sans font-normal text-[#78766f] text-[16px] leading-[1.3] max-w-[300px]">
+                    <p>Find notes and threads by searching their titles and content.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recent Searches -->
+              <div class="flex flex-col gap-3" x-data="{ recentSearches: [] }" x-init="
+                recentSearches = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
+                // Remove duplicates and limit to 5
+                recentSearches = [...new Set(recentSearches)].slice(0, 5);
+              ">
+                <div x-show="recentSearches.length > 0" class="flex flex-col gap-3">
+                  <div class="font-sans font-semibold text-[#4a473d] text-[16px] leading-[1.2]">
+                    <p>Recent searches</p>
+                  </div>
+                  <div class="flex flex-col gap-2">
+                    <template x-for="searchTerm in recentSearches" :key="searchTerm">
+                      <a 
+                        :href="`/search?q=${encodeURIComponent(searchTerm)}`"
+                        class="flex items-center gap-3 p-3 rounded-xl bg-[var(--color-fog-white)] hover:bg-[var(--color-paper)] transition-colors cursor-pointer group"
+                      >
+                        <div class="w-8 h-8 rounded-full bg-[var(--color-pebble-grey)] bg-opacity-20 flex items-center justify-center shrink-0">
+                          <svg width="16" height="16" class="fill-[var(--color-pebble-grey)]" viewBox="0 0 512 512">
+                          </svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <div class="font-sans font-medium text-[#4a473d] text-[14px] leading-[1.2] truncate">
+                            <span x-text="searchTerm"></span>
+                          </div>
+                        </div>
+                        <div class="w-6 h-6 rounded-full bg-[var(--color-pebble-grey)] bg-opacity-10 flex items-center justify-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg width="12" height="12" class="fill-[var(--color-pebble-grey)]" viewBox="0 0 24 24">
+                            <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                          </svg>
+                        </div>
+                      </a>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </CardStack>
+    </div>
+  </div>
+
+  <!-- Mobile Navigation -->
+  <div slot="mobile-navigation">
+    <MobileNavigation 
+      spaces={[]}
+      threads={[]}
+      inboxCount={0}
+      currentSpace={null}
+      currentThread={null}
+    />
+  </div>
+
+  <!-- Mobile Additional -->
+  <div slot="mobile-additional">
+    <MobileAdditional contentType="dashboard" currentSpace={null} />
+  </div>
+</Layout>
+
+<style>
+  .search-input {
+    background: var(--color-gradient-gray);
+    box-shadow: var(--shadow-small);
+  }
+  
+  .space-button {
+    will-change: transform;
+    transition: box-shadow 0.125s ease-in-out;
+  }
+
+  .space-button:active {
+    filter: brightness(0.97);
+    box-shadow: 
+      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  .space-button:active > div {
+    translate: 0 0;
+    transform: scale(0.98);
+  }
+</style>
+
+<script>
+  // Handle tab navigation with URL updates
+  document.addEventListener('DOMContentLoaded', () => {
+    const tabButtons = document.querySelectorAll('.search-tabs [data-tab-button]');
+    
+    tabButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        const tabId = button.getAttribute('data-tab-id');
+        if (tabId) {
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', tabId);
+          window.location.href = url.toString();
+        }
+      });
+    });
+  });
+</script>
