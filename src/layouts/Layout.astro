@@ -716,9 +716,7 @@ function trackNavigationAccess() {
   // Debug: Processing navigation for currentItemId
   
   // Track spaces too (they should be persistent and closable)
-  // if (currentItemId.startsWith('space_')) {
-  //   return;
-  // }
+  // Spaces are now tracked in navigation history
   
   // Extract item data from page
   const itemData = extractItemDataFromPage(currentItemId);

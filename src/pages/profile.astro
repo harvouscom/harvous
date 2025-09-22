@@ -140,7 +140,9 @@ const contentId = "profile";
       
       <!-- Bottom Section with New Space Button, Search, and Back Button -->
       <div class="flex gap-3 items-center justify-start w-full shrink-0">
-        <SpaceButton text="New Space" className="flex-1" />
+        <a href="/new-space" class="flex-1">
+          <SpaceButton text="New Space" className="w-full" />
+        </a>
         <SquareButton variant="Search" />
         <a href="/dashboard">
           <SquareButton variant="Back" />

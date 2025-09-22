@@ -144,22 +144,7 @@ try {
                 {/* Persistent Navigation - shows recently accessed items */}
                 <PersistentNavigation />
                 
-                {/* Show created spaces */}
-                {spaces.map(space => (
-                  <div data-navigation-item={space.id} class="w-full">
-                    <a href={`/${space.id}`} class="w-full">
-                      <SpaceButton 
-                        text={space.title} 
-                        count={space.totalItemCount} 
-                        state="Close" 
-                        className="w-full" 
-                        backgroundGradient={space.backgroundGradient}
-                        isActive={false}
-                        itemId={space.id}
-                      />
-                    </a>
-                  </div>
-                ))}
+                {/* Spaces now appear only in persistent navigation when accessed */}
                 
                 {/* Unorganized thread now appears in persistent navigation when visited */}
                 
@@ -186,7 +171,9 @@ try {
             
             <!-- Bottom Section with New Space Button, Search, and Avatar -->
             <div class="flex gap-3 items-center justify-start w-full shrink-0">
-              <SpaceButton text="New Space" className="flex-1" />
+              <a href="/new-space" class="flex-1">
+                <SpaceButton text="New Space" className="w-full" />
+              </a>
               <SquareButton variant="Search" />
           <a href="/profile">
             <Avatar initials={initials} />
@@ -408,4 +395,5 @@ try {
 
 
 </Layout>
+
 

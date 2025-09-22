@@ -264,7 +264,7 @@ const {
     // Provide Astro's navigate function to the global scope for the close functionality
     (window as any).astroNavigate = navigate;
     
-    // Simple close click handler
+    // Close click handler with confirmation for spaces
     function handleCloseClick(event: Event, element: HTMLElement) {
         console.log('🔥 handleCloseClick called');
         event.stopPropagation();
@@ -276,6 +276,20 @@ const {
         if (!itemId) {
             console.log('❌ No item ID found');
             return;
+        }
+        
+        // Check if this is a space (spaces can't be recovered once closed)
+        if (itemId.startsWith('space_')) {
+            // Get the space title from the button
+            const button = element.closest('.space-button');
+            const spaceTitle = button?.querySelector('span')?.textContent || 'this space';
+            
+            // Show confirmation dialog
+            const confirmed = confirm(`Are you sure you want to close "${spaceTitle}"?\n\nThis will remove it from your navigation and you won't be able to bring it back.`);
+            
+            if (!confirmed) {
+                return; // User cancelled
+            }
         }
         
         // Check if this is a recent search item (on search page)

@@ -185,7 +185,9 @@ if (query.trim()) {
       
       <!-- Bottom Section with New Space Button, Search, and Avatar -->
       <div class="flex gap-3 items-center justify-start w-full shrink-0">
-        <SpaceButton text="New Space" className="flex-1" />
+        <a href="/new-space" class="flex-1">
+          <SpaceButton text="New Space" className="w-full" />
+        </a>
         <SquareButton variant="Search" />
         <a href="/profile">
           <Avatar initials={initials} />

@@ -65,14 +65,10 @@ function renderPersistentNavigation() {
     // Filter out items that shouldn't be shown in persistent navigation
     let persistentItems = history.filter((item: any) => {
       // Don't show the currently active item (use the resolved active item ID)
-      if (item.id === currentActiveItemId) {
+      // EXCEPT for spaces - spaces should always be shown even when active
+      if (item.id === currentActiveItemId && !item.id.startsWith('space_')) {
         return false;
       }
-      
-      // Show spaces in persistent navigation (they should be closable)
-      // if (item.id.startsWith('space_')) {
-      //   return false;
-      // }
       
       // Don't show dashboard
       if (item.id === 'dashboard') {
@@ -148,7 +144,7 @@ function renderPersistentNavigation() {
     
     container.innerHTML = itemsHTML;
     
-    // Add CSS for hover states
+    // Add CSS for hover states and active shadow
     const style = document.createElement('style');
     style.textContent = `
       .nav-item-container:not(.active):hover .badge-count {
@@ -159,6 +155,9 @@ function renderPersistentNavigation() {
       }
       .close-icon {
         display: none;
+      }
+      .space-button[style*="background-image"] {
+        box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
       }
     `;
     document.head.appendChild(style);
@@ -186,13 +185,27 @@ function renderPersistentNavigation() {
   // Re-initialize after View Transitions
   document.addEventListener('astro:page-load', initializePersistentNavigation);
   
-  // Simple close handler
+  // Close handler with confirmation for spaces
   function handlePersistentCloseClick(event: Event, element: HTMLElement) {
     event.stopPropagation();
     event.preventDefault();
     
     const itemId = element.getAttribute('data-item-id');
     if (!itemId) return;
+    
+    // Check if this is a space (spaces can't be recovered once closed)
+    if (itemId.startsWith('space_')) {
+      // Get the space title from the navigation item
+      const navItem = element.closest('[data-navigation-item]');
+      const spaceTitle = navItem?.querySelector('span')?.textContent || 'this space';
+      
+      // Show confirmation dialog
+      const confirmed = confirm(`Are you sure you want to close "${spaceTitle}"?\n\nThis will remove it from your navigation and you won't be able to bring it back.`);
+      
+      if (!confirmed) {
+        return; // User cancelled
+      }
+    }
     
     if (window.removeFromNavigationHistory) {
       window.removeFromNavigationHistory(itemId);

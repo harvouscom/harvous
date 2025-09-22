@@ -1,0 +1,577 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import CardStack from "@/components/CardStack.astro";
+import SquareButton from "@/components/SquareButton.astro";
+import SpaceButton from "@/components/SpaceButton.astro";
+import PersistentNavigation from "@/components/PersistentNavigation.astro";
+import Button from "@/components/Button.astro";
+import MobileNavigation from "@/components/MobileNavigation.astro";
+import MobileAdditional from "@/components/MobileAdditional.astro";
+import CardFeat from "@/components/CardFeat.astro";
+import Avatar from "@/components/Avatar.astro";
+import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount, getNotesForDashboard } from "@/utils/dashboard-data";
+import { calculateTotalXP } from "@/utils/xp-system";
+
+// Get user data from Clerk authentication
+const auth = Astro.locals.auth();
+const { userId, getToken } = auth;
+
+if (!userId) {
+  return Astro.redirect('/sign-in');
+}
+
+// Try to fetch user data from Clerk API using secret key
+let userData: any = null;
+try {
+  const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
+  console.log('Clerk secret key available:', clerkSecretKey ? 'Yes' : 'No');
+  
+  if (clerkSecretKey) {
+    const response = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
+      headers: {
+        'Authorization': `Bearer ${clerkSecretKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('API response status:', response.status);
+    
+    if (response.ok) {
+      userData = await response.json();
+      console.log('User data from Clerk API:', userData);
+    } else {
+      const errorText = await response.text();
+      console.log('API error response:', errorText);
+    }
+  }
+} catch (error) {
+  console.log('Error fetching user data:', error);
+}
+
+// Extract user data from API response or use fallbacks
+const firstName = userData?.first_name || userData?.firstName || '';
+const lastName = userData?.last_name || userData?.lastName || '';
+const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
+
+// Generate initials from first and last name
+const initials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase() || 'U';
+const displayName = `${firstName} ${lastName.charAt(0)}`.trim() || 'User';
+
+// Fetch navigation data for mobile components and XP data
+let spaces: any[] = [];
+let threads: any[] = [];
+let inboxCount: number = 0;
+let userXP: number = 0;
+let recentNotes: any[] = [];
+
+try {
+  const [spacesData, threadsData, inboxCountData, xpData, recentNotesData] = await Promise.all([
+    getSpacesWithCounts(userId),
+    getAllThreadsWithCounts(userId),
+    getInboxCount(userId),
+    calculateTotalXP(userId),
+    getNotesForDashboard(userId, 5) // Get 5 most recent notes
+  ]);
+  
+  spaces = spacesData;
+  threads = threadsData;
+  inboxCount = inboxCountData;
+  userXP = xpData;
+  recentNotes = recentNotesData;
+  
+  // Ensure threads have backgroundGradient property for consistency
+  threads = threads.map(thread => ({
+    ...thread,
+    backgroundGradient: thread.backgroundGradient || `linear-gradient(180deg, var(--color-${thread.color || 'blessed-blue'}) 0%, var(--color-${thread.color || 'blessed-blue'}) 100%)`
+  }));
+  
+  // Ensure spaces have backgroundGradient property for consistency
+  spaces = spaces.map(space => ({
+    ...space,
+    backgroundGradient: space.backgroundGradient || `linear-gradient(180deg, var(--color-${space.color || 'blessed-blue'}) 0%, var(--color-${space.color || 'blessed-blue'}) 100%)`
+  }));
+} catch (error) {
+  console.error("Error fetching navigation data:", error);
+  // Fallback to empty data
+  spaces = [];
+  threads = [];
+  inboxCount = 0;
+  userXP = 0;
+  recentNotes = [];
+}
+
+const contentType = "profile";
+const contentId = "new-space";
+---
+
+<Layout title="New Space" contentType={contentType} contentId={contentId}>
+  <!-- Navigation Column -->
+  <div slot="navigation" class="h-full">
+    <div class="flex flex-col items-start justify-between relative h-full">
+      <!-- Top Section - Navigation -->
+      <div class="flex flex-col gap-12 items-start justify-start w-full flex-1 min-h-0">
+        <!-- Navigation Buttons -->
+        <div class="flex flex-col items-start justify-start w-full">
+          <a href="/dashboard" class="w-full">
+            <SpaceButton 
+              text="For You" 
+              count={inboxCount} 
+              state="WithCount" 
+              className="w-full" 
+              isActive={false} 
+            />
+          </a>
+          
+          {/* Persistent Navigation - shows recently accessed items */}
+          <PersistentNavigation />
+        </div>
+      </div>
+      
+      <!-- Bottom Section with New Space Button, Search, and Avatar -->
+      <div class="flex gap-3 items-center justify-start w-full shrink-0">
+        <SpaceButton text="New Space" className="flex-1" isActive={true} />
+        <SquareButton variant="Search" />
+        <a href="/profile">
+          <Avatar initials={initials} />
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Column -->
+  <div slot="main" class="h-full flex flex-col">
+    <form 
+      action="/api/spaces/create"
+      method="POST"
+      class="new-space-panel h-full flex flex-col justify-between"
+      x-data="{ 
+        title: localStorage.getItem('newSpaceTitle') || '',
+        isSubmitting: false,
+        activeTab: localStorage.getItem('newSpaceActiveTab') || 'recent',
+        searchQuery: '',
+        searchResults: [],
+        switchTab(tabId) {
+          this.activeTab = tabId;
+        }
+      }"
+      x-init="
+        // Initialize activeTab if undefined
+        activeTab = activeTab || 'recent';
+        
+        // Watch for changes and save to localStorage
+        $watch('title', value => localStorage.setItem('newSpaceTitle', value));
+        $watch('activeTab', value => localStorage.setItem('newSpaceActiveTab', value));
+        
+        // Watch search query and trigger search
+        $watch('searchQuery', value => {
+          const currentActiveTab = activeTab || localStorage.getItem('newSpaceActiveTab') || 'recent';
+          if (currentActiveTab === 'search' && window.newSpacePanelSearch) {
+            window.newSpacePanelSearch(value);
+          }
+        });
+      "
+    >
+      <!-- Hidden form fields -->
+      <input type="hidden" name="title" x-model="title" />
+
+      <!-- Content area that expands to fill available space -->
+      <div class="flex-1 flex flex-col min-h-0">
+        <!-- Single unified panel using CardStack structure -->
+        <div class="bg-white box-border flex flex-col min-h-0 flex-1 items-start justify-between overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full h-full mb-3.5">
+          <!-- Header section with space name input -->
+          <div class="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full" style="background-color: var(--color-paper)">
+            <div class="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px]">
+              <input 
+                type="text"
+                x-model="title"
+                placeholder="Space name"
+                class="w-full bg-transparent border-none text-[24px] font-bold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)] text-center"
+              />
+            </div>
+          </div>
+          
+          <!-- Content area -->
+          <div class="basis-0 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-px min-w-px overflow-clip relative shrink-0 w-full">
+            <div class="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
+              
+              <!-- Tab navigation with content -->
+              <div class="w-full">
+                <div class="flex flex-col gap-3">
+                  <div class="tab-nav-container">
+                    <!-- Tab Navigation -->
+                    <div class="flex items-center justify-start gap-0 pb-0 pt-1 px-1 relative w-full">
+                    <button
+                      type="button"
+                      class="flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200"
+                      :class="activeTab === 'recent' ? 'opacity-100' : 'opacity-50 hover:opacity-75'"
+                      @click="switchTab('recent')"
+                      data-tab-id="recent"
+                      :data-active="activeTab === 'recent' ? 'true' : 'false'"
+                    >
+                      <span class="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
+                        Recent
+                      </span>
+                      <div 
+                        class="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1" 
+                        x-show="activeTab === 'recent'"
+                      >
+                        <div class="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      class="flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200"
+                      :class="activeTab === 'search' ? 'opacity-100' : 'opacity-50 hover:opacity-75'"
+                      @click="switchTab('search')"
+                      data-tab-id="search"
+                      :data-active="activeTab === 'search' ? 'true' : 'false'"
+                    >
+                      <span class="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
+                        Search
+                      </span>
+                      <div 
+                        class="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1" 
+                        x-show="activeTab === 'search'"
+                      >
+                        <div class="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                      </div>
+                    </button>
+                    </div>
+                  </div>
+                  
+                  <!-- Tab content -->
+                <div class="w-full">
+                  <!-- Recent notes display -->
+                  <div x-show="activeTab === 'recent'" class="tab-content">
+                    <div class="flex gap-3 items-start justify-start w-full overflow-x-auto">
+                      {recentNotes.length > 0 ? recentNotes.map((note) => (
+                        <div class="shrink-0">
+                          <CardFeat 
+                            variant="Note"
+                            title={note.title || "Untitled Note"}
+                            content={note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "")}
+                            class="shrink-0"
+                          />
+                        </div>
+                      )) : (
+                        <div class="text-center py-4 text-gray-500 w-full">
+                          <p>No recent notes found. Create your first note to see it here!</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <!-- Search content -->
+                  <div x-show="activeTab === 'search'" class="tab-content">
+                    <div class="flex flex-col gap-3">
+                      <!-- Custom search input that properly binds to searchQuery -->
+                      <div class="w-full search-input rounded-3xl grid items-center grid-cols-[auto_1fr_auto] py-5 px-4 gap-3 min-h-[64px]">
+                        <svg width="20" height="20" class="fill-[var(--color-pebble-grey)]" viewBox="0 0 512 512">
+                          <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
+                        </svg>
+                        <input 
+                          type="text" 
+                          x-model="searchQuery"
+                          role="searchbox"
+                          aria-label="Search"
+                          class="outline-none bg-transparent text-subtitle text-[var(--color-deep-grey)] placeholder:text-[var(--color-pebble-grey)]" 
+                          placeholder="Search notes..."
+                          @keydown.enter.prevent
+                        />
+                        <svg 
+                          x-show="Boolean(searchQuery)" 
+                          x-cloak
+                          x-on:click="searchQuery = ''"
+                          role="button"
+                          aria-label="Clear search"
+                          width="20" 
+                          height="20"
+                          class="fill-[var(--color-deep-grey)] cursor-pointer" 
+                          viewBox="0 0 384 512"
+                        >
+                          <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+                        </svg>
+                      </div>
+                      
+                      <!-- Search results -->
+                      <div class="search-results">
+                        <div x-show="!searchQuery" class="text-center py-4 text-gray-500">
+                          <p>Enter a search term to find notes...</p>
+                        </div>
+                        <div x-show="searchQuery && !searchResults.length" class="text-center py-4 text-gray-500">
+                          <p>No notes found matching your search...</p>
+                        </div>
+                        <div x-show="searchQuery && searchResults.length > 0" class="flex gap-3 items-start justify-start w-full overflow-x-auto">
+                          <template x-for="note in searchResults" :key="note.id">
+                            <div class="shrink-0">
+                              <div class="bg-white box-border flex flex-col gap-3 h-[180px] items-start justify-start max-w-[220px] overflow-clip pb-3 pt-2 px-2 relative rounded-2xl shrink-0 w-[220px]">
+                                <!-- Light Paper background area -->
+                                <div class="basis-0 bg-[#f3f2ec] grow min-h-px min-w-px overflow-clip relative rounded-xl shrink-0 w-full">
+                                  <!-- Bookmark icon -->
+                                  <div class="absolute left-3.5 size-5 top-[17px]">
+                                    <svg class="block max-w-none size-full text-[#4a473d] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                                    </svg>
+                                  </div>
+                                  
+                                  <!-- Plus button -->
+                                  <div class="absolute right-2 top-2">
+                                    <button type="button" class="btn-animate-squish group relative rounded-3xl w-10 h-10 cursor-pointer" style="background-image: var(--color-gradient-gray)">
+                                      <div class="box-border content-stretch flex flex-row gap-3 items-center justify-center relative rounded-3xl size-full">
+                                        <div class="relative shrink-0 w-4 h-4 flex items-center justify-center fill-[var(--color-pebble-grey)] [&>svg]:h-4 [&>svg]:w-4 [&>svg]:-translate-y-0.5 [&>svg]:transition-transform [&>svg]:duration-125">
+                                          <svg class="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 24 24">
+                                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                          </svg>
+                                        </div>
+                                      </div>
+                                    </button>
+                                  </div>
+                                </div>
+                                
+                                <!-- Text content area -->
+                                <div class="box-border flex gap-6 items-start justify-start px-2 py-0 relative shrink-0 w-full">
+                                  <div class="basis-0 flex flex-col gap-2 grow items-start justify-start leading-[0] min-h-px min-w-px relative self-stretch shrink-0">
+                                    <!-- Title -->
+                                    <div class="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#4a473d] text-[18px] w-full">
+                                      <p class="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap" x-text="note.title || 'Untitled Note'"></p>
+                                    </div>
+                                    
+                                    <!-- Content -->
+                                    <div class="flex flex-col font-normal justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#78766f] text-[12px] w-full">
+                                      <p class="leading-[1.3] overflow-hidden text-ellipsis whitespace-nowrap" x-text="note.content"></p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                </div>
+              </div>
+              
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom buttons -->
+      <div class="flex items-center justify-between gap-3">
+        <a href="/dashboard">
+          <SquareButton variant="Close" type="button" />
+        </a>
+        <Button 
+          state="Default"
+          type="button"
+          id="create-space-btn"
+          class="flex-1"
+          x-bind:disabled="isSubmitting"
+        >
+          <span x-show="!isSubmitting">Create Space</span>
+          <span x-show="isSubmitting">Creating...</span>
+        </Button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Mobile Navigation -->
+  <div slot="mobile-navigation">
+    <MobileNavigation 
+      spaces={spaces}
+      threads={threads}
+      inboxCount={inboxCount}
+      currentSpace={null}
+      currentThread={null}
+      initials={initials}
+    />
+  </div>
+
+  <!-- Mobile Additional -->
+  <div slot="mobile-additional">
+    <MobileAdditional contentType="profile" contentId={contentId} currentThread={null} currentSpace={null} />
+  </div>
+</Layout>
+
+<script>
+  // Import Astro's navigate function for View Transitions compatibility
+  import { navigate } from 'astro:transitions/client';
+  (window as any).astroNavigate = navigate;
+
+  // Global search function to avoid Alpine.js scope issues
+  (window as any).newSpacePanelSearch = async function(query: string) {
+    if (!query || query.trim().length < 2) {
+      // Find the Alpine.js component and update searchResults
+      const form = document.querySelector('.new-space-panel');
+      if (form && (window as any).Alpine) {
+        const alpineData = (window as any).Alpine.$data(form);
+        if (alpineData) {
+          alpineData.searchResults = [];
+        }
+      }
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&type=notes`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Find the Alpine.js component and update searchResults
+        const form = document.querySelector('.new-space-panel');
+        if (form && (window as any).Alpine) {
+          const alpineData = (window as any).Alpine.$data(form);
+          if (alpineData) {
+            alpineData.searchResults = data.results || [];
+          }
+        }
+      } else {
+        // Find the Alpine.js component and clear searchResults
+        const form = document.querySelector('.new-space-panel');
+        if (form && (window as any).Alpine) {
+          const alpineData = (window as any).Alpine.$data(form);
+          if (alpineData) {
+            alpineData.searchResults = [];
+          }
+        }
+      }
+    } catch (error) {
+      console.error('NewSpacePanel: Search error:', error);
+      // Find the Alpine.js component and clear searchResults
+      const form = document.querySelector('.new-space-panel');
+      if (form && (window as any).Alpine) {
+        const alpineData = (window as any).Alpine.$data(form);
+        if (alpineData) {
+          alpineData.searchResults = [];
+        }
+      }
+    }
+  };
+
+  function initSpaceCreation() {
+    // Remove existing listeners to prevent duplicates
+    const existingBtn = document.getElementById('create-space-btn');
+    if (existingBtn) {
+      const newBtn = existingBtn.cloneNode(true);
+      existingBtn.parentNode?.replaceChild(newBtn, existingBtn);
+    }
+    
+    // Handle create space button click
+    const createBtn = document.getElementById('create-space-btn');
+    if (createBtn) {
+      createBtn.addEventListener('click', async () => {
+        const form = document.querySelector('.new-space-panel') as HTMLFormElement;
+        if (!form) return;
+        
+        let alpineData;
+        try {
+          alpineData = (window as any).Alpine?.$data(form);
+        } catch (e) {
+          // Alpine data not available
+        }
+        
+        // Get title from Alpine.js data
+        let title = '';
+        if (alpineData?.title) {
+          title = alpineData.title.trim();
+        }
+        
+        // Fallback: try the visible input field
+        if (!title) {
+          const visibleInput = document.querySelector('input[type="text"][placeholder="Space name"]') as HTMLInputElement;
+          if (visibleInput?.value) {
+            title = visibleInput.value.trim();
+          }
+        }
+        
+        // Additional fallback: try hidden form field
+        if (!title) {
+          const hiddenTitleField = document.querySelector('input[name="title"]') as HTMLInputElement;
+          if (hiddenTitleField?.value) {
+            title = hiddenTitleField.value.trim();
+          }
+        }
+        
+        if (!title) {
+          alert('Please enter a space name');
+          return;
+        }
+        
+        // Set submitting state and update hidden fields
+        if (alpineData) {
+          alpineData.isSubmitting = true;
+          // Ensure hidden fields are updated
+          const titleField = document.querySelector('input[name="title"]') as HTMLInputElement;
+          if (titleField) {
+            titleField.value = title;
+          }
+        }
+        
+        const formData = new FormData(form);
+        
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            
+            // Clear localStorage
+            localStorage.removeItem('newSpaceTitle');
+            localStorage.removeItem('newSpaceActiveTab');
+            
+            // Navigate to the newly created space
+            if (result.space && result.space.id) {
+              // Use Astro's navigate for View Transitions compatibility
+              if ((window as any).astroNavigate) {
+                (window as any).astroNavigate(`/${result.space.id}`);
+              } else {
+                window.location.href = `/${result.space.id}`;
+              }
+            }
+            
+          } else {
+            const error = await response.json();
+            console.error('Error response:', error);
+            alert(error.error || 'Error creating space');
+            
+            if (alpineData) {
+              alpineData.isSubmitting = false;
+            }
+          }
+        } catch (error) {
+          console.error('Fetch error:', error);
+          alert('Error creating space. Please try again.');
+          
+          if (alpineData) {
+            alpineData.isSubmitting = false;
+          }
+        }
+      });
+    }
+  }
+
+  // Initialize on initial load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSpaceCreation);
+  } else {
+    initSpaceCreation();
+  }
+
+  // Re-initialize after View Transitions
+  document.addEventListener('astro:page-load', initSpaceCreation);
+</script>
+
+<style>
+  /* Search input styling */
+  .search-input {
+    background: var(--color-gradient-gray);
+    box-shadow: var(--shadow-small);
+  }
+</style>
