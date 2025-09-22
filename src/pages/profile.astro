@@ -54,6 +54,19 @@ const firstName = userData?.first_name || userData?.firstName || '';
 const lastName = userData?.last_name || userData?.lastName || '';
 const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
 
+// Extract and format join date
+const currentDate = new Date();
+const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'short' });
+const currentYear = currentDate.getFullYear();
+let joinDate = `${currentMonth} ${currentYear}`; // fallback to current date
+
+if (userData?.created_at) {
+  const date = new Date(userData.created_at);
+  const month = date.toLocaleDateString('en-US', { month: 'short' });
+  const year = date.getFullYear();
+  joinDate = `${month} ${year}`;
+}
+
 // Get user's color preference from database
 let userColor = 'paper'; // default
 try {
@@ -72,7 +85,7 @@ const initials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpp
 const displayName = `${firstName} ${lastName.charAt(0)}`.trim() || 'User';
 
 // Debug: Show what we got
-console.log('Final values:', { firstName, lastName, email, initials, displayName, userColor });
+console.log('Final values:', { firstName, lastName, email, initials, displayName, userColor, joinDate });
 
 // Fetch navigation data for mobile components and XP data
 let spaces: any[] = [];
@@ -192,7 +205,7 @@ const contentId = "profile";
                 <path d="M152 24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64H64C28.7 64 0 92.7 0 128v16 48V448c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V192 144 128c0-35.3-28.7-64-64-64H344V24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64H152V24zM48 192H400V448c0 8.8-7.2 16-16 16H64c-8.8 0-16-7.2-16-16V192z"/>
               </svg>
               <div>
-                <div class="text-lg font-bold text-[var(--color-deep-grey)]">Oct 2025</div>
+                <div class="text-lg font-bold text-[var(--color-deep-grey)]">{joinDate}</div>
                 <div class="text-sm text-[var(--color-pebble-grey)]">Joined</div>
               </div>
             </div>
