@@ -59,6 +59,16 @@ const email = userData?.email_addresses?.[0]?.email_address || userData?.email |
 const initials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase() || 'U';
 const displayName = `${firstName} ${lastName.charAt(0)}`.trim() || 'User';
 
+// Get user color from database
+let userColor = 'paper'; // default
+try {
+  const { db, UserMetadata, eq } = await import('astro:db');
+  const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
+  userColor = userMetadata?.userColor || 'paper';
+} catch (error) {
+  console.log('Error fetching user color:', error);
+}
+
 // Fetch navigation data for mobile components and XP data
 let spaces: any[] = [];
 let threads: any[] = [];
@@ -134,7 +144,7 @@ const contentId = "new-space";
         <SpaceButton text="New Space" className="flex-1" isActive={true} />
         <SquareButton variant="Search" />
         <a href="/profile">
-          <Avatar initials={initials} />
+          <Avatar initials={initials} color={userColor} />
         </a>
       </div>
     </div>

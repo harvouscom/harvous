@@ -24,6 +24,8 @@ interface Props {
   isNote?: boolean;
   currentId?: string;
   showProfile?: boolean;
+  initials?: string;
+  userColor?: string;
 }
 
 const { 
@@ -33,7 +35,9 @@ const {
   currentSpace = null,
   isNote = false,
   currentId = null,
-  showProfile = false
+  showProfile = false,
+  initials = "DJ",
+  userColor = "paper"
 } = Astro.props;
 ---
 
@@ -103,7 +107,7 @@ const {
         </a>
       ) : (
         <a href="/profile">
-          <Avatar initials="DJ" />
+          <Avatar initials={initials} color={userColor} />
         </a>
       )}
     </div>

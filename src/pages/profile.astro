@@ -10,6 +10,9 @@ import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 import { calculateTotalXP } from "@/utils/xp-system";
+import FaBoltIcon from "@fortawesome/fontawesome-free/svgs/solid/bolt.svg";
+import EditNameColorPanel from "@/components/EditNameColorPanel.astro";
+import Toast from "@/components/Toast-v2.astro";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -52,12 +55,25 @@ const firstName = userData?.first_name || userData?.firstName || '';
 const lastName = userData?.last_name || userData?.lastName || '';
 const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
 
+// Get user's color preference from database
+let userColor = 'paper'; // default
+try {
+  const { db, UserMetadata, eq } = await import('astro:db');
+  const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
+  userColor = userMetadata?.userColor || 'paper';
+  console.log('User metadata from database:', userMetadata);
+  console.log('User color set to:', userColor);
+} catch (error) {
+  console.error('Could not fetch user color preference:', error);
+  userColor = 'paper'; // fallback
+}
+
 // Generate initials from first and last name
 const initials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase() || 'U';
 const displayName = `${firstName} ${lastName.charAt(0)}`.trim() || 'User';
 
 // Debug: Show what we got
-console.log('Final values:', { firstName, lastName, email, initials, displayName });
+console.log('Final values:', { firstName, lastName, email, initials, displayName, userColor });
 
 // Fetch navigation data for mobile components and XP data
 let spaces: any[] = [];
@@ -152,12 +168,18 @@ const contentId = "profile";
   </div>
 
   <!-- Main Column -->
-  <div slot="main" class="h-full flex flex-col">
+  <div slot="main" class="h-full flex flex-col" x-data="{
+    openPanel(panelName) {
+      console.log('Main column openPanel called with:', panelName);
+      window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName } }));
+    }
+  }">
     <CardStack 
       title={displayName}
-      headerBgColor="var(--color-pleasant-peach)"
+      headerBgColor={`var(--color-${userColor})`}
       centerTitle={true}
       class="flex-1"
+      id="profile-cardstack"
     >
       <!-- Profile Content -->
       <div class="flex flex-col justify-between h-full w-full">
@@ -178,9 +200,7 @@ const contentId = "profile";
             
             <!-- XP Card -->
             <div class="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3">
-              <svg class="w-5 h-5 fill-current text-[var(--color-deep-grey)]" viewBox="0 0 320 512">
-                <path d="M0 256L192 96V192H320L128 416V320H0L0 256z"/>
-              </svg>
+              <FaBoltIcon class="w-5 h-5 fill-current text-[var(--color-deep-grey)]" />
               <div>
                 <div class="text-lg font-bold text-[var(--color-deep-grey)]">{userXP}</div>
                 <div class="text-sm text-[var(--color-pebble-grey)]">XP</div>
@@ -191,36 +211,44 @@ const contentId = "profile";
           <!-- Settings Options -->
           <div class="flex flex-col gap-3">
             <!-- Edit Name & Color -->
-            <SpaceButton 
-              text="Edit Name & Color"
-              state="WithArrow"
-              backgroundGradient="var(--color-gradient-gray)"
-              className="w-full"
-            />
+            <div x-on:click="console.log('Edit Name & Color div clicked'); openPanel('editNameColor')" class="w-full">
+              <SpaceButton 
+                text="Edit Name & Color"
+                state="WithArrow"
+                backgroundGradient="var(--color-gradient-gray)"
+                className="w-full"
+              />
+            </div>
             
             <!-- Email & Password -->
-            <SpaceButton 
-              text="Email & Password"
-              state="WithArrow"
-              backgroundGradient="var(--color-gradient-gray)"
-              className="w-full"
-            />
+            <div x-on:click="openPanel('emailPassword')" class="w-full">
+              <SpaceButton 
+                text="Email & Password"
+                state="WithArrow"
+                backgroundGradient="var(--color-gradient-gray)"
+                className="w-full"
+              />
+            </div>
             
             <!-- My Church -->
-            <SpaceButton 
-              text="My Church"
-              state="WithArrow"
-              backgroundGradient="var(--color-gradient-gray)"
-              className="w-full"
-            />
+            <div x-on:click="openPanel('myChurch')" class="w-full">
+              <SpaceButton 
+                text="My Church"
+                state="WithArrow"
+                backgroundGradient="var(--color-gradient-gray)"
+                className="w-full"
+              />
+            </div>
             
             <!-- My Data -->
-            <SpaceButton 
-              text="My Data"
-              state="WithArrow"
-              backgroundGradient="var(--color-gradient-gray)"
-              className="w-full"
-            />
+            <div x-on:click="openPanel('myData')" class="w-full">
+              <SpaceButton 
+                text="My Data"
+                state="WithArrow"
+                backgroundGradient="var(--color-gradient-gray)"
+                className="w-full"
+              />
+            </div>
           </div>
         </div>
 
@@ -253,7 +281,89 @@ const contentId = "profile";
       currentSpace={null}
       currentThread={null}
       initials={initials}
+      userColor={userColor}
     />
+  </div>
+
+  <!-- Additional Column for Panels -->
+  <div slot="additional" class="h-full" x-data="{ 
+    showNewNotePanel: false, 
+    showNewThreadPanel: false,
+    showEditNameColorPanel: false,
+    showEmailPasswordPanel: false,
+    showMyChurchPanel: false,
+    showMyDataPanel: false,
+    openProfilePanel(panelName) {
+      // Close all other panels first
+      this.showNewNotePanel = false;
+      this.showNewThreadPanel = false;
+      this.showEditNameColorPanel = false;
+      this.showEmailPasswordPanel = false;
+      this.showMyChurchPanel = false;
+      this.showMyDataPanel = false;
+      
+      // Open the requested panel
+      if (panelName === 'editNameColor') this.showEditNameColorPanel = true;
+      else if (panelName === 'emailPassword') this.showEmailPasswordPanel = true;
+      else if (panelName === 'myChurch') this.showMyChurchPanel = true;
+      else if (panelName === 'myData') this.showMyDataPanel = true;
+    },
+    closeProfilePanel() {
+      this.showEditNameColorPanel = false;
+      this.showEmailPasswordPanel = false;
+      this.showMyChurchPanel = false;
+      this.showMyDataPanel = false;
+    }
+  }" x-init="
+    console.log('Additional slot initialized');
+    // Listen for profile panel events using Alpine.js context
+    window.addEventListener('openProfilePanel', (event) => {
+      console.log('openProfilePanel event received:', event.detail);
+      // Access the Alpine.js component data directly
+      const alpineData = $el._x_dataStack && $el._x_dataStack[0];
+      console.log('Alpine data:', alpineData);
+      if (alpineData && alpineData.openProfilePanel) {
+        alpineData.openProfilePanel(event.detail.panelName);
+      } else {
+        console.error('openProfilePanel method not found on Alpine data');
+      }
+    });
+    window.addEventListener('closeProfilePanel', () => {
+      console.log('closeProfilePanel event received');
+      const alpineData = $el._x_dataStack && $el._x_dataStack[0];
+      if (alpineData && alpineData.closeProfilePanel) {
+        alpineData.closeProfilePanel();
+      }
+    });
+  ">
+    <!-- Default state: SquareButtons -->
+    <div x-show="!showNewNotePanel && !showNewThreadPanel && !showEditNameColorPanel && !showEmailPasswordPanel && !showMyChurchPanel && !showMyDataPanel" class="flex flex-col items-left h-full justify-end">
+      <!-- No buttons for profile page -->
+    </div>
+    
+    <!-- Edit Name & Color Panel -->
+    <div x-show="showEditNameColorPanel" class="h-full">
+      <EditNameColorPanel firstName={firstName} lastName={lastName} selectedColor={userColor} />
+    </div>
+    
+    <!-- Placeholder for other panels -->
+    <div x-show="showEmailPasswordPanel">
+      <div class="text-center text-[var(--color-deep-grey)] p-8">
+        <p>Email & Password panel coming soon...</p>
+      </div>
+    </div>
+    
+    <div x-show="showMyChurchPanel">
+      <div class="text-center text-[var(--color-deep-grey)] p-8">
+        <p>My Church panel coming soon...</p>
+      </div>
+    </div>
+    
+    <div x-show="showMyDataPanel">
+      <div class="text-center text-[var(--color-deep-grey)] p-8">
+        <p>My Data panel coming soon...</p>
+      </div>
+    </div>
   </div>
 
   <!-- Mobile Additional -->
@@ -261,6 +371,9 @@ const contentId = "profile";
     <MobileAdditional contentType="profile" contentId={contentId} currentThread={null} currentSpace={null} />
   </div>
 </Layout>
+
+<!-- Toast component for notifications -->
+<Toast />
 
 <script>
   // Get the logout button and add click handler
@@ -284,5 +397,221 @@ const contentId = "profile";
         }
       });
     }
+    
+    // Global function to close profile panels
+    (window as any).closeProfilePanel = () => {
+      console.log('closeProfilePanel function called');
+      window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+    };
+    
+    // Global function to update all avatars
+    (window as any).updateAllAvatars = (color: string, initials: string) => {
+      console.log('updateAllAvatars called with:', { color, initials });
+      const newColor = `var(--color-${color})`;
+      
+      // Find all avatar elements - simple approach
+      const avatars = document.querySelectorAll('.avatar-button');
+      const avatarsWithData = document.querySelectorAll('.avatar-button[data-avatar-color]');
+      
+      console.log(`Found ${avatarsWithData.length} avatar elements with data attribute`);
+      console.log(`Found ${avatars.length} total avatar elements on page`);
+      console.log(`Will update all ${avatars.length} avatar elements`);
+      
+      // Log details about each avatar found
+      avatars.forEach((avatar, index) => {
+        const avatarElement = avatar as HTMLElement;
+        const currentColor = avatarElement.getAttribute('data-avatar-color') || 'no-data-attr';
+        const currentStyle = avatarElement.getAttribute('style') || 'no-style';
+        const parentElement = avatarElement.parentElement?.tagName || 'no-parent';
+        const parentHref = avatarElement.parentElement?.getAttribute('href') || 'no-href';
+        
+        console.log(`Avatar ${index + 1}:`, {
+          hasDataAttr: avatarElement.hasAttribute('data-avatar-color'),
+          currentColor,
+          currentStyle: currentStyle.substring(0, 50) + '...',
+          parentElement,
+          parentHref,
+          element: avatarElement
+        });
+      });
+      
+      let totalUpdated = 0;
+      avatars.forEach((avatar, index) => {
+        const avatarElement = avatar as HTMLElement;
+        
+        // Log before update
+        console.log(`Before update - Avatar ${index + 1}:`, {
+          currentStyle: avatarElement.getAttribute('style'),
+          computedStyle: window.getComputedStyle(avatarElement).backgroundColor
+        });
+        
+        // Update color with multiple approaches
+        avatarElement.style.background = newColor;
+        avatarElement.style.backgroundColor = newColor;
+        avatarElement.setAttribute('style', `background: ${newColor} !important; background-color: ${newColor} !important;`);
+        
+        // Force update with CSS custom property
+        avatarElement.style.setProperty('--avatar-color', newColor);
+        avatarElement.style.setProperty('background', newColor, 'important');
+        avatarElement.style.setProperty('background-color', newColor, 'important');
+        
+        // Update data attribute (add it if it doesn't exist)
+        avatarElement.setAttribute('data-avatar-color', color);
+        
+        // Update initials
+        const initialsElement = avatarElement.querySelector('p');
+        if (initialsElement) {
+          initialsElement.textContent = initials;
+          avatarElement.setAttribute('data-avatar-initials', initials);
+        }
+        
+        // Log after update
+        console.log(`After update - Avatar ${index + 1}:`, {
+          newStyle: avatarElement.getAttribute('style'),
+          computedStyle: window.getComputedStyle(avatarElement).backgroundColor,
+          color: color,
+          initials: initials,
+          parentElement: avatarElement.parentElement?.tagName,
+          parentHref: avatarElement.parentElement?.getAttribute('href')
+        });
+        
+        totalUpdated++;
+      });
+      
+      console.log(`Total avatars updated: ${totalUpdated}`);
+      return totalUpdated;
+    };
+    
+    // Test function to manually update avatars
+    (window as any).testAvatarUpdate = (color = 'peaceful-pink', initials = 'TJ') => {
+      console.log('Testing avatar update with:', { color, initials });
+      return (window as any).updateAllAvatars(color, initials);
+    };
+    
+    // Debug function to inspect all avatars on the page
+    (window as any).debugAllAvatars = () => {
+      console.log('=== DEBUGGING ALL AVATARS ON PAGE ===');
+      
+      // Find all possible avatar elements
+      const selectors = [
+        '.avatar-button',
+        '[class*="avatar"]',
+        'div[style*="background"]',
+        'a[href="/profile"] div',
+        '.mobile-navigation div'
+      ];
+      
+      selectors.forEach((selector, index) => {
+        const elements = document.querySelectorAll(selector);
+        console.log(`\nSelector ${index + 1}: "${selector}"`);
+        console.log(`Found ${elements.length} elements`);
+        
+        elements.forEach((element, elementIndex) => {
+          const el = element as HTMLElement;
+          const rect = el.getBoundingClientRect();
+          const computedStyle = window.getComputedStyle(el);
+          
+          console.log(`  Element ${elementIndex + 1}:`, {
+            tagName: el.tagName,
+            className: el.className,
+            id: el.id,
+            style: el.getAttribute('style'),
+            computedBackground: computedStyle.backgroundColor,
+            computedBackgroundColor: computedStyle.backgroundColor,
+            visible: rect.width > 0 && rect.height > 0,
+            position: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+            parentElement: el.parentElement?.tagName,
+            parentHref: el.parentElement?.getAttribute('href'),
+            textContent: el.textContent?.trim()
+          });
+        });
+      });
+      
+      console.log('=== END AVATAR DEBUG ===');
+    };
+    
+    // Make sure the functions are available globally
+    (window as any).closeProfilePanel = (window as any).closeProfilePanel;
+    
+    // Listen for profile updates and update the CardStack header
+    window.addEventListener('updateProfile', async (event) => {
+      console.log('updateProfile event received:', event);
+      const detail = (event as any).detail;
+      console.log('Event detail:', detail);
+      if (detail) {
+        try {
+          console.log('Starting profile update process...');
+          // Update user data in Clerk
+          const response = await fetch('/api/user/update-profile', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              firstName: detail.firstName,
+              lastName: detail.lastName,
+              color: detail.selectedColor
+            })
+          });
+          
+          if (response.ok) {
+            // Show success toast
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: 'Profile updated successfully!',
+                type: 'success'
+              }
+            }));
+            
+            // Update CardStack title
+            const cardStack = document.getElementById('profile-cardstack');
+            if (cardStack) {
+              const titleElement = cardStack.querySelector('p');
+              if (titleElement) {
+                titleElement.textContent = `${detail.firstName} ${detail.lastName.charAt(0)}`.trim();
+              }
+              
+              // Update header background color
+              const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement;
+              if (headerElement) {
+                headerElement.style.backgroundColor = `var(--color-${detail.selectedColor})`;
+              }
+            }
+            
+            // Update all avatars using the global function
+            const newInitials = `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase();
+            console.log('Updating all avatars with:', { color: detail.selectedColor, initials: newInitials });
+            
+            // Use the global function to update all avatars
+            const updatedCount = (window as any).updateAllAvatars(detail.selectedColor, newInitials);
+            console.log(`Successfully updated ${updatedCount} avatars`);
+            
+            // Also dispatch events for any reactive components
+            window.dispatchEvent(new CustomEvent('colorChanged', {
+              detail: { color: detail.selectedColor }
+            }));
+            console.log('Dispatched colorChanged event with color:', detail.selectedColor);
+          
+          } else {
+            // Show error toast
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: 'Failed to update profile. Please try again.',
+                type: 'error'
+              }
+            }));
+          }
+        } catch (error) {
+          console.error('Error updating profile:', error);
+          // Show error toast
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Failed to update profile. Please try again.',
+              type: 'error'
+            }
+          }));
+        }
+      }
+    });
   });
 </script>

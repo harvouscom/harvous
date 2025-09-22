@@ -182,7 +182,7 @@ N004: Prayer Request - Healing for Sarah
 - **Daily bonuses**: +5 XP bonus for your first note of each day
 - **Smart caps**: Daily limits prevent gaming while encouraging genuine engagement
 - **Real-time tracking**: See your XP grow as you create and engage with content
-- **Profile display**: Your total XP is prominently displayed on your profile page
+- **Profile display**: Your total XP is prominently displayed on your profile page with Font Awesome bolt icon
 
 ### XP Values:
 - **Creating a new thread**: 10 XP
@@ -195,6 +195,28 @@ N004: Prayer Request - Healing for Sarah
 - **Achievement system** for specific behaviors
 - **Leaderboards** and social features
 - **More activity types** (sharing, commenting, etc.)
+
+## 👤 Profile Customization
+
+### Personal Profile Management
+- **Edit Name & Color Panel**: Customize your first name, last name, and avatar color
+- **Dynamic Avatar Colors**: Choose from 8 beautiful colors for your avatar
+- **Real-time Updates**: Changes apply immediately across desktop and mobile
+- **Persistent Preferences**: Your color choice is saved and remembered across sessions
+- **Name Display**: Profile shows "First Name + Last Initial" format (e.g., "John D")
+- **Avatar Initials**: Avatar displays "First Initial + Last Initial" format (e.g., "JD")
+
+### Color Options:
+- **Paper** (default), **Blessed Blue**, **Mindful Mint**, **Graceful Gold**
+- **Pleasant Peach**, **Caring Coral**, **Peaceful Pink**, **Lovely Lavender**
+- Colors match the same palette used for spaces and threads
+- Your avatar color preference is stored in your user profile
+
+### Profile Features:
+- **Panel System**: Organized profile editing with dedicated panels for different settings
+- **Toast Notifications**: Success feedback when profile is updated
+- **Cross-Device Sync**: Profile changes sync across all devices
+- **Database Persistence**: All profile data is securely stored and retrieved
 
 ## 🎯 Bible Study Focused
 

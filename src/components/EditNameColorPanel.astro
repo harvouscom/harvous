@@ -1,0 +1,228 @@
+---
+import CardStack from "./CardStack.astro";
+import SquareButton from "./SquareButton.astro";
+import Button from "./Button.astro";
+import FaCheckIcon from "@fortawesome/fontawesome-free/svgs/solid/check.svg";
+
+interface Props {
+  firstName?: string;
+  lastName?: string;
+  selectedColor?: string;
+}
+
+const { 
+  firstName = "Derek", 
+  lastName = "Jensen", 
+  selectedColor = "paper" 
+} = Astro.props;
+
+// Define available colors with CSS variables - same order as NewThreadPanel
+const colors = [
+  { id: "paper", name: "Paper", bg: "bg-[#ebe7db]", cssVar: "var(--color-paper)", selected: selectedColor === "paper" },
+  { id: "blessed-blue", name: "Blessed Blue", bg: "bg-[#c3e4ff]", cssVar: "var(--color-blessed-blue)", selected: selectedColor === "blessed-blue" },
+  { id: "mindful-mint", name: "Mindful Mint", bg: "bg-[#c7ecbb]", cssVar: "var(--color-mindful-mint)", selected: selectedColor === "mindful-mint" },
+  { id: "graceful-gold", name: "Graceful Gold", bg: "bg-[#f9de78]", cssVar: "var(--color-graceful-gold)", selected: selectedColor === "graceful-gold" },
+  { id: "pleasant-peach", name: "Pleasant Peach", bg: "bg-[#fcd8a0]", cssVar: "var(--color-pleasant-peach)", selected: selectedColor === "pleasant-peach" },
+  { id: "caring-coral", name: "Caring Coral", bg: "bg-[#ff8a80]", cssVar: "var(--color-caring-coral)", selected: selectedColor === "caring-coral" },
+  { id: "peaceful-pink", name: "Peaceful Pink", bg: "bg-[#f7ceee]", cssVar: "var(--color-peaceful-pink)", selected: selectedColor === "peaceful-pink" },
+  { id: "lovely-lavender", name: "Lovely Lavender", bg: "bg-[#e1cef7]", cssVar: "var(--color-lovely-lavender)", selected: selectedColor === "lovely-lavender" }
+];
+
+// Get the selected color's CSS variable
+const selectedColorData = colors.find(color => color.selected) || colors.find(color => color.id === selectedColor) || colors[0];
+
+// Create a unique ID for this component instance
+const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
+---
+
+<script>
+  // Set initial values in a global object before Alpine.js initializes
+  (window as any).editPanelData = (window as any).editPanelData || {};
+  (window as any).editPanelData['{componentId}'] = {
+    firstName: '{firstName || ""}',
+    lastName: '{lastName || ""}',
+    selectedColor: '{selectedColor || "paper"}'
+  };
+  console.log('Set initial data for component:', '{componentId}', (window as any).editPanelData['{componentId}']);
+  
+  // Also set it directly on window for easier access
+  (window as any).editPanelInitialData = {
+    firstName: '{firstName || ""}',
+    lastName: '{lastName || ""}',
+    selectedColor: '{selectedColor || "paper"}'
+  };
+</script>
+
+<div 
+  class="edit-name-color-panel flex flex-col"
+  data-component-id="{componentId}"
+  x-data="{ 
+    firstName: window.editPanelInitialData?.firstName || '',
+    lastName: window.editPanelInitialData?.lastName || '',
+    selectedColor: window.editPanelInitialData?.selectedColor || 'paper',
+    THREAD_COLORS: ['paper', 'blessed-blue', 'mindful-mint', 'graceful-gold', 'pleasant-peach', 'caring-coral', 'peaceful-pink', 'lovely-lavender'],
+    getThreadColorCSS(color) {
+      if (!color) return 'var(--color-paper)';
+      const colorMap = {
+        'paper': 'var(--color-paper)',
+        'blessed-blue': 'var(--color-blessed-blue)',
+        'graceful-gold': 'var(--color-graceful-gold)',
+        'caring-coral': 'var(--color-caring-coral)',
+        'mindful-mint': 'var(--color-mindful-mint)',
+        'peaceful-pink': 'var(--color-peaceful-pink)',
+        'pleasant-peach': 'var(--color-pleasant-peach)',
+        'lovely-lavender': 'var(--color-lovely-lavender)'
+      };
+      return colorMap[color] || 'var(--color-paper)';
+    },
+    async updateProfile() {
+      try {
+        console.log('updateProfile called with:', {
+          firstName: this.firstName,
+          lastName: this.lastName,
+          selectedColor: this.selectedColor
+        });
+        
+        // Dispatch event to update profile header and avatar
+        const event = new CustomEvent('updateProfile', {
+          detail: {
+            firstName: this.firstName,
+            lastName: this.lastName,
+            selectedColor: this.selectedColor
+          }
+        });
+        
+        console.log('Dispatching updateProfile event:', event);
+        window.dispatchEvent(event);
+        console.log('Event dispatched successfully');
+        
+        // Close the panel after a short delay
+        setTimeout(() => {
+          console.log('Attempting to close panel...');
+          if (window.closeProfilePanel) {
+            window.closeProfilePanel();
+            console.log('Panel closed');
+          } else {
+            console.log('closeProfilePanel function not found, trying alternative...');
+            // Try to dispatch the close event directly
+            window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+            console.log('Dispatched closeProfilePanel event directly');
+          }
+        }, 500);
+      } catch (error) {
+        console.error('Error in updateProfile:', error);
+      }
+    },
+    async refreshFromDatabase() {
+      try {
+        const response = await fetch('/api/user/get-profile');
+        if (response.ok) {
+          const data = await response.json();
+          this.selectedColor = data.userColor || 'paper';
+          console.log('Refreshed color from database:', this.selectedColor);
+        }
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+      }
+    }
+  }"
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0 transform scale-95"
+  x-transition:enter-end="opacity-100 transform scale-100"
+  x-transition:leave="transition ease-in duration-150"
+  x-transition:leave-start="opacity-100 transform scale-100"
+  x-transition:leave-end="opacity-0 transform scale-95"
+  x-init="refreshFromDatabase()"
+>
+  <!-- Compact CardStack structure - CardStack styling but compact height -->
+  <div class="bg-white rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full">
+    <!-- Header section with dynamic background - CardStack styling -->
+    <div class="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full rounded-t-3xl" x-bind:style="`background-color: ${getThreadColorCSS(selectedColor)}`">
+      <div class="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
+        <p class="leading-[normal]">Edit Name & Color</p>
+      </div>
+    </div>
+    
+    <!-- Content area - CardStack styling but compact -->
+    <div class="bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start p-[12px] relative rounded-b-3xl rounded-tl-[24px] rounded-tr-[24px] w-full">
+      
+      <!-- First Name Input - SearchInput style -->
+      <div class="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+        <input 
+          type="text"
+          x-model="firstName"
+          class="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+          :placeholder="firstName ? '' : 'First Name'"
+        />
+      </div>
+      
+      <!-- Last Name Input - SearchInput style -->
+      <div class="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+        <input 
+          type="text"
+          x-model="lastName"
+          class="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+          :placeholder="lastName ? '' : 'Last Name'"
+        />
+      </div>
+      
+      <!-- Color selection - exact same as NewThreadPanel -->
+      <div class="color-selection flex gap-2 items-center justify-start w-full">
+        <template x-for="color in THREAD_COLORS" :key="color">
+          <button 
+            type="button"
+            @click="selectedColor = color"
+            class="relative rounded-xl size-10 cursor-pointer transition-all duration-200"
+            :style="`background-color: ${getThreadColorCSS(color)};`"
+            :class="selectedColor === color ? 'ring-2 ring-[var(--color-deep-grey)] ring-offset-2' : ''"
+          >
+            <!-- Check icon for selected color -->
+            <div x-show="selectedColor === color" class="absolute inset-0 flex items-center justify-center">
+              <svg class="size-5 text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+              </svg>
+            </div>
+          </button>
+        </template>
+      </div>
+      
+      <!-- Save Button -->
+      <div @click="updateProfile()" class="w-full">
+        <Button 
+          state="Default" 
+          class="w-full h-[60px] text-[18px] font-semibold"
+        >
+          Save Changes
+        </Button>
+      </div>
+      
+    </div>
+  </div>
+  
+  <!-- Close Button directly below -->
+  <div class="mt-4" @click="console.log('Close button clicked'); if (window.closeProfilePanel) { window.closeProfilePanel(); } else { console.error('closeProfilePanel function not found'); }">
+    <SquareButton variant="Back" />
+  </div>
+</div>
+
+<style>
+  .search-input {
+    background: var(--color-gradient-gray);
+    box-shadow: var(--shadow-small);
+  }
+
+  /* Color selection button styling - same as NewThreadPanel */
+  .color-selection button[style*="background-color"] {
+    box-shadow: 0px -4px 0px 0px rgba(0, 0, 0, 0.1) inset;
+  }
+
+  .color-selection button[style*="background-color"]:hover {
+    transform: scale(1.05);
+  }
+
+  .color-selection button[style*="background-color"]:active {
+    transform: scale(0.95);
+  }
+</style>
+
+

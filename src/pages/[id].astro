@@ -54,6 +54,16 @@ const firstName = userData?.first_name || userData?.firstName || '';
 const lastName = userData?.last_name || userData?.lastName || '';
 const initials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase() || 'U';
 
+// Get user color from database
+let userColor = 'paper'; // default
+try {
+  const { db, UserMetadata, eq } = await import('astro:db');
+  const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
+  userColor = userMetadata?.userColor || 'paper';
+} catch (error) {
+  console.log('Error fetching user color:', error);
+}
+
 const { id } = Astro.params;
 
 // Determine if this is a thread, note, or space based on the ID prefix
@@ -471,7 +481,7 @@ if (!content) {
               </a>
               <SquareButton variant="Search" />
           <a href="/profile">
-            <Avatar initials={initials} />
+            <Avatar initials={initials} color={userColor} />
           </a>
             </div>
           </div>

@@ -11,6 +11,7 @@ export interface Props {
   currentSpace?: any;
   currentThread?: any;
   initials?: string;
+  userColor?: string;
 }
 
 const { 
@@ -19,8 +20,12 @@ const {
   inboxCount = 0,
   currentSpace,
   currentThread,
-  initials = 'U'
+  initials = 'U',
+  userColor = 'paper'
 } = Astro.props;
+
+// Debug: Log the props received
+console.log('MobileNavigation received props:', { initials, userColor });
 ---
 
 <div class="grid grid-cols-[auto_1fr_auto] items-center gap-3 w-full">
@@ -107,6 +112,8 @@ const {
 
   <!-- Avatar (Column 3: auto) -->
   <a href="/profile">
-    <Avatar initials={initials} />
+    <Avatar initials={initials} color={userColor} />
   </a>
 </div>
+
+
