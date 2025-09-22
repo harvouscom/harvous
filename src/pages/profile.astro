@@ -535,7 +535,7 @@ const contentId = "profile";
       window.addEventListener('closeProfilePanel', handleCloseProfilePanel);
     }
     
-    function handleOpenProfilePanel(event) {
+    function handleOpenProfilePanel(event: any) {
       console.log('openProfilePanel event received:', event.detail);
       const panelName = event.detail.panelName;
       
@@ -563,10 +563,10 @@ const contentId = "profile";
       }
       
       console.log('Additional slot element:', additionalSlot);
-      console.log('Alpine data stack:', additionalSlot._x_dataStack);
+      console.log('Alpine data stack:', (additionalSlot as any)._x_dataStack);
       
-      if (additionalSlot._x_dataStack && additionalSlot._x_dataStack[0]) {
-        const alpineData = additionalSlot._x_dataStack[0];
+      if ((additionalSlot as any)._x_dataStack && (additionalSlot as any)._x_dataStack[0]) {
+        const alpineData = (additionalSlot as any)._x_dataStack[0];
         console.log('Alpine data:', alpineData);
         if (alpineData.openProfilePanel) {
           alpineData.openProfilePanel(panelName);
@@ -576,14 +576,14 @@ const contentId = "profile";
         }
       } else {
         console.error('Alpine component not found in additional slot');
-        console.log('Element has Alpine data:', !!additionalSlot._x_dataStack);
+        console.log('Element has Alpine data:', !!(additionalSlot as any)._x_dataStack);
         
         // Fallback: Try to directly show the EditNameColorPanel
         if (panelName === 'editNameColor') {
           console.log('Attempting fallback: directly showing EditNameColorPanel');
           const editPanel = additionalSlot.querySelector('[x-show="showEditNameColorPanel"]');
           if (editPanel) {
-            editPanel.style.display = 'block';
+            (editPanel as HTMLElement).style.display = 'block';
             console.log('Fallback: EditNameColorPanel shown directly');
           } else {
             console.error('Fallback: EditNameColorPanel element not found');
@@ -618,10 +618,10 @@ const contentId = "profile";
       }
       
       console.log('Additional slot element:', additionalSlot);
-      console.log('Alpine data stack:', additionalSlot._x_dataStack);
+      console.log('Alpine data stack:', (additionalSlot as any)._x_dataStack);
       
-      if (additionalSlot._x_dataStack && additionalSlot._x_dataStack[0]) {
-        const alpineData = additionalSlot._x_dataStack[0];
+      if ((additionalSlot as any)._x_dataStack && (additionalSlot as any)._x_dataStack[0]) {
+        const alpineData = (additionalSlot as any)._x_dataStack[0];
         console.log('Alpine data:', alpineData);
         if (alpineData.closeProfilePanel) {
           alpineData.closeProfilePanel();
@@ -631,13 +631,13 @@ const contentId = "profile";
         }
       } else {
         console.error('Alpine component not found in additional slot');
-        console.log('Element has Alpine data:', !!additionalSlot._x_dataStack);
+        console.log('Element has Alpine data:', !!(additionalSlot as any)._x_dataStack);
         
         // Fallback: Try to directly hide all panels
         console.log('Attempting fallback: directly hiding all panels');
         const panels = additionalSlot.querySelectorAll('[x-show*="Panel"]');
         panels.forEach(panel => {
-          panel.style.display = 'none';
+          (panel as HTMLElement).style.display = 'none';
         });
         console.log('Fallback: All panels hidden directly');
       }
@@ -679,7 +679,7 @@ const contentId = "profile";
     window.removeEventListener('updateProfile', handleProfileUpdate);
     window.addEventListener('updateProfile', handleProfileUpdate);
     
-    async function handleProfileUpdate(event) {
+    async function handleProfileUpdate(event: any) {
       console.log('updateProfile event received:', event);
       const detail = (event as any).detail;
       console.log('Event detail:', detail);
