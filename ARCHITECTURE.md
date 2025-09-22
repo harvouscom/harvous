@@ -112,6 +112,30 @@ The system uses a hybrid approach for note-thread relationships:
 - **Junction Cleanup**: Many-to-many relationships are removed from `NoteThreads` table when threads are deleted
 - **Data Integrity**: No notes are ever deleted - they are always preserved and moved to unorganized thread
 
+### XP System & Gamification
+
+The application includes a comprehensive XP (Experience Points) system to gamify user engagement and encourage content creation:
+
+#### XP Tracking Table (`UserXP`)
+- **Activity Tracking**: Records all user activities that earn XP
+- **Activity Types**: `thread_created`, `note_created`, `note_opened`, `first_note_daily`
+- **XP Amounts**: Configurable XP values for different activities
+- **Related IDs**: Links XP records to specific notes/threads
+- **Metadata**: JSON field for additional data (daily caps, etc.)
+
+#### XP Values & Rules
+- **Thread Creation**: 10 XP per new thread
+- **Note Creation**: 10 XP per new note
+- **Note Opening**: 1 XP per note opened (50 XP daily cap to prevent gaming)
+- **First Note Daily Bonus**: +5 XP bonus for the first note created each day
+
+#### XP System Features
+- **Automatic Awarding**: XP is automatically awarded when users create content
+- **Daily Caps**: Prevents gaming by limiting note opening XP to 50 per day
+- **Backfill System**: Can retroactively calculate XP for existing users
+- **Real-time Display**: Profile page shows current XP total
+- **Future Expansion**: Designed to support levels, badges, and achievements
+
 ### ID Format Examples
 
 - **Notes**: `note_1756318000001`, `note_1756318000003`
@@ -495,6 +519,10 @@ The navigation history system uses a clean, single-file approach with proper ded
 - `public/scripts/navigation-history.js`: Simplified navigation history system
 - `src/components/PersistentNavigation.astro`: Simplified persistent navigation component
 - `src/layouts/Layout.astro`: Alpine.js and View Transitions setup
+- `src/utils/xp-system.ts`: XP calculation and awarding system
+- `src/pages/api/user/xp.ts`: User XP API endpoint
+- `src/pages/api/test/xp.ts`: XP system testing endpoint
+- `src/pages/profile.astro`: User profile with dynamic XP display
 
 ## Component Dependencies
 

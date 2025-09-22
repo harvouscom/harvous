@@ -91,6 +91,19 @@ const UserMetadata = defineTable({
   }
 })
 
+// XP tracking table to track user activities and XP earned
+const UserXP = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    userId: column.text(), // Clerk user id
+    activityType: column.text(), // 'thread_created', 'note_created', 'note_opened', 'first_note_daily'
+    xpAmount: column.number(), // XP earned for this activity
+    relatedId: column.text({ optional: true }), // ID of related note/thread (optional)
+    createdAt: column.date(),
+    metadata: column.text({ optional: true }), // JSON string for additional data (e.g., daily caps)
+  }
+})
+
 // https://astro.build/db/config
 export default defineDb({
   tables: {
@@ -100,6 +113,7 @@ export default defineDb({
     NoteThreads,
     Comments,
     Members,
-    UserMetadata
+    UserMetadata,
+    UserXP
   }
 });

@@ -9,6 +9,7 @@ import Button from "@/components/Button.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
+import { calculateTotalXP } from "@/utils/xp-system";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -58,21 +59,24 @@ const displayName = `${firstName} ${lastName.charAt(0)}`.trim() || 'User';
 // Debug: Show what we got
 console.log('Final values:', { firstName, lastName, email, initials, displayName });
 
-// Fetch navigation data for mobile components
+// Fetch navigation data for mobile components and XP data
 let spaces: any[] = [];
 let threads: any[] = [];
 let inboxCount: number = 0;
+let userXP: number = 0;
 
 try {
-  const [spacesData, threadsData, inboxCountData] = await Promise.all([
+  const [spacesData, threadsData, inboxCountData, xpData] = await Promise.all([
     getSpacesWithCounts(userId),
     getAllThreadsWithCounts(userId),
-    getInboxCount(userId)
+    getInboxCount(userId),
+    calculateTotalXP(userId)
   ]);
   
   spaces = spacesData;
   threads = threadsData;
   inboxCount = inboxCountData;
+  userXP = xpData;
   
   // Ensure threads have backgroundGradient property for consistency
   threads = threads.map(thread => ({
@@ -91,6 +95,7 @@ try {
   spaces = [];
   threads = [];
   inboxCount = 0;
+  userXP = 0;
 }
 
 // Mock data for profile - in a real app this would come from a database
@@ -175,7 +180,7 @@ const contentId = "profile";
                 <path d="M0 256L192 96V192H320L128 416V320H0L0 256z"/>
               </svg>
               <div>
-                <div class="text-lg font-bold text-[var(--color-deep-grey)]">125</div>
+                <div class="text-lg font-bold text-[var(--color-deep-grey)]">{userXP}</div>
                 <div class="text-sm text-[var(--color-pebble-grey)]">XP</div>
               </div>
             </div>

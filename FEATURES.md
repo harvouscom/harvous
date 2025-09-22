@@ -124,6 +124,27 @@ N004: Prayer Request - Healing for Sarah
 - **Mobile**: Optimized for quick capture and review
 - **Progressive Web App**: Install as a native app
 
+## 🎮 Gamification & XP System
+
+### Experience Points (XP) System
+- **Earn XP for activities**: Create threads (10 XP), notes (10 XP), and open content (1 XP)
+- **Daily bonuses**: +5 XP bonus for your first note of each day
+- **Smart caps**: Daily limits prevent gaming while encouraging genuine engagement
+- **Real-time tracking**: See your XP grow as you create and engage with content
+- **Profile display**: Your total XP is prominently displayed on your profile page
+
+### XP Values:
+- **Creating a new thread**: 10 XP
+- **Creating a full note**: 10 XP
+- **Opening notes/threads**: 1 XP (50 XP daily cap)
+- **First note of the day**: +5 XP bonus
+
+### Future Expansion Ready:
+- **Levels and badges** based on total XP
+- **Achievement system** for specific behaviors
+- **Leaderboards** and social features
+- **More activity types** (sharing, commenting, etc.)
+
 ## 🎯 Bible Study Focused
 
 ### Designed for Spiritual Growth

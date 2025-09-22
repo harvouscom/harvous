@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { db, Threads, eq, and } from 'astro:db';
 import { generateThreadId } from '@/utils/ids';
 import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
+import { awardThreadCreatedXP } from '@/utils/xp-system';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -64,6 +65,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .get();
 
     console.log("Thread created successfully:", newThread);
+
+    // Award XP for thread creation
+    await awardThreadCreatedXP(userId, newThread.id);
 
     // Add a small delay to ensure the database operation completes
     await new Promise(resolve => setTimeout(resolve, 150));

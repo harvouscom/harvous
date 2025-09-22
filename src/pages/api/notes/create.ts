@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, UserMetadata, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId } from '@/utils/ids';
+import { awardNoteCreatedXP } from '@/utils/xp-system';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -111,6 +112,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await db.update(Threads)
       .set({ updatedAt: new Date() })
       .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
+
+    // Award XP for note creation
+    await awardNoteCreatedXP(userId, newNote.id);
 
     return new Response(JSON.stringify({ 
       success: "Note created successfully!",

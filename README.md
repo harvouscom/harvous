@@ -18,6 +18,7 @@ Aka our approach to a Bible notes app.
 - **Bible Study Focused**: Designed specifically for Bible study workflows
 - **Real Database**: Production-ready with Turso database and Clerk authentication
 - **Sequential Note IDs**: User-friendly IDs (N001, N002, N003) that never reuse deleted numbers
+- **XP System**: Gamified experience with points for creating content and daily bonuses
 
 ## Documentation
 

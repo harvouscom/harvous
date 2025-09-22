@@ -20,6 +20,7 @@ When you first open Harvous, you'll see:
   - **"Full List"**: All your organized content by spaces
 - **Navigation**: Quick access to your spaces and threads
 - **Create Buttons**: Add new notes, threads, and spaces
+- **Profile**: View your XP (Experience Points) and account settings
 
 ## Core Concepts
 
@@ -155,6 +156,25 @@ Your space will appear in the navigation and "Full List" view.
 3. **Date your notes** and track how prayers are answered
 
 ## Advanced Features
+
+### XP System (Experience Points)
+Harvous includes a gamification system to encourage engagement and content creation:
+
+#### How to Earn XP:
+- **Create a new thread**: 10 XP
+- **Create a new note**: 10 XP
+- **Open notes/threads**: 1 XP (up to 50 XP per day)
+- **First note of the day**: +5 XP bonus
+
+#### Viewing Your XP:
+- Visit your **Profile page** to see your total XP
+- XP updates in real-time as you create content
+- Your XP reflects your engagement with the app
+
+#### Why XP Matters:
+- **Motivation**: Encourages regular Bible study and note-taking
+- **Progress Tracking**: See your spiritual study journey quantified
+- **Future Features**: XP will unlock levels, badges, and achievements
 
 ### Thread Colors
 - Each thread gets a **unique color** for easy visual identification

@@ -2,6 +2,7 @@ import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { db, Notes, Threads, UserMetadata, eq, and, desc, isNotNull } from "astro:db";
 import { generateNoteId } from "@/utils/ids";
+import { awardNoteCreatedXP } from "@/utils/xp-system";
 
 export const notes = {
   create: defineAction({
@@ -124,6 +125,9 @@ export const notes = {
         await db.update(Threads)
           .set({ updatedAt: new Date() })
           .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
+
+        // Award XP for note creation
+        await awardNoteCreatedXP(userId, newNote.id);
 
         // Add a small delay to ensure the database operation completes
         await new Promise(resolve => setTimeout(resolve, 150));

@@ -1,5 +1,33 @@
 ### Jan 21, 2025
 
+**XP System & Gamification Implementation**
+
+- ✅ **XP System**: Implemented comprehensive Experience Points system to gamify user engagement
+- ✅ **Automatic XP Awarding**: XP is automatically awarded when users create threads (10 XP) and notes (10 XP)
+- ✅ **Daily Bonuses**: First note of each day earns +5 XP bonus
+- ✅ **Smart Daily Caps**: Note opening XP capped at 50 per day to prevent gaming
+- ✅ **Dynamic Profile Display**: Profile page now shows real-time XP instead of hardcoded value
+- ✅ **Backfill System**: Can retroactively calculate XP for existing users and content
+- ✅ **Database Schema**: Added UserXP table to track all XP activities and amounts
+
+**XP Values & Rules:**
+- Creating a new thread: 10 XP
+- Creating a full note: 10 XP
+- Opening notes/threads: 1 XP (50 XP daily cap)
+- First note of the day: +5 XP bonus
+
+**Technical Implementation:**
+- New `UserXP` table in database schema with activity tracking
+- `src/utils/xp-system.ts` utility for XP calculation and awarding
+- Integration into note and thread creation endpoints and actions
+- API endpoints: `/api/user/xp` for XP data, `/api/test/xp` for testing
+- Real-time XP display on profile page with dynamic updates
+
+**Future Expansion Ready:**
+- Designed to support levels, badges, and achievement systems
+- Metadata field in UserXP table for additional data storage
+- Configurable XP values and activity types for easy expansion
+
 **NewThreadPanel Search Functionality & Tab Persistence**
 
 - ✅ **Fixed tab persistence**: NewThreadPanel tabs now maintain their state when navigating between pages

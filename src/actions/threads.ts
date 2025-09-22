@@ -3,6 +3,7 @@ import { z } from "astro:schema";
 import { db, Threads, eq, and } from "astro:db";
 import { THREAD_COLORS, getRandomThreadColor } from "@/utils/colors";
 import { generateThreadId } from "@/utils/ids";
+import { awardThreadCreatedXP } from "@/utils/xp-system";
 
 export const threads = {
   create: defineAction({
@@ -53,6 +54,9 @@ export const threads = {
           .get()
           
         console.log("Thread created successfully:", newThread);
+
+        // Award XP for thread creation
+        await awardThreadCreatedXP(userId, newThread.id);
 
         // Add a small delay to ensure the database operation completes
         await new Promise(resolve => setTimeout(resolve, 150));
