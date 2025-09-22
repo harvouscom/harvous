@@ -18,7 +18,7 @@ When you first open Harvous, you'll see:
 - **Dashboard**: Your main workspace with two tabs
   - **"For You"**: Your inbox with unorganized notes and threads
   - **"Full List"**: All your organized content by spaces
-- **Navigation**: Quick access to your spaces and threads
+- **Navigation**: Quick access to your recently accessed spaces and threads
 - **Create Buttons**: Add new notes, threads, and spaces
 - **Profile**: View your XP (Experience Points) and account settings
 
@@ -46,6 +46,21 @@ Think of **Spaces** as your main organizational folders:
 - Notes are never deleted - they're always preserved
 
 ## How to Use Harvous
+
+### Creating Your First Space
+
+Spaces are your main organizational containers. Here's how to create one:
+
+1. **Click "New Space"** in the navigation column
+2. **Enter a title** for your space (e.g., "Bible Study", "Prayer Journal")
+3. **Click "Create Space"** to save it
+4. **You'll be redirected** to your new space where you can add threads and notes
+
+**Space Features:**
+- Spaces always use a clean paper color theme
+- Once created, spaces appear in your persistent navigation when accessed
+- You can close spaces from the navigation (with confirmation since they can't be recovered)
+- Spaces show the total count of items (threads + notes) they contain
 
 ### Creating Your First Note
 

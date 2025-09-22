@@ -13,6 +13,9 @@ Harvous uses a hierarchical content organization system to help users structure 
   - Can contain individual **Notes** (standalone items)
   - Display a count of total items (threads + notes) in the space
   - **Always use paper color** in CardStack headers and navigation
+  - **Appear in persistent navigation** when accessed (unlike threads which are filtered out when active)
+  - **Require confirmation** when closing from navigation (permanent removal)
+  - **Show active state** with background gradient and shadow when currently viewed
 
 - **Threads**: Collections of related notes within a space
   - Can contain multiple **Notes**
@@ -481,9 +484,12 @@ The navigation history system uses a clean, single-file approach with proper ded
 1. **Tracking**: When users navigate to threads, spaces, or notes, the system automatically tracks the access
 2. **Storage**: Navigation history is stored in localStorage as a JSON array with `firstAccessed` and `lastAccessed` timestamps
 3. **Display**: Recently accessed items appear in the persistent navigation section
-4. **Deduplication**: Items already visible in regular navigation are filtered out
+4. **Space vs Thread Behavior**: 
+   - **Spaces**: Always shown in persistent navigation, even when active (with proper active styling)
+   - **Threads**: Filtered out when active to prevent duplication with static navigation
 5. **Close Functionality**: Users can close items from persistent navigation, removing them from history
-6. **Unorganized Thread Management**: Special handling for the unorganized thread with localStorage-based hiding
+6. **Space Confirmation**: Spaces require confirmation before closing (permanent removal)
+7. **Unorganized Thread Management**: Special handling for the unorganized thread with localStorage-based hiding
 
 ### Critical Implementation Details
 
@@ -507,6 +513,8 @@ The navigation history system uses a clean, single-file approach with proper ded
 - `src/utils/dashboard-data.ts`: Database queries for dashboard content
 - `src/pages/dashboard.astro`: Main dashboard with inbox/organized content
 - `src/pages/[id].astro`: Dynamic routing for threads, spaces, and notes
+- `src/pages/new-space.astro`: Space creation page with form and tab navigation
+- `src/pages/api/spaces/create.ts`: API endpoint for creating new spaces
 - `src/components/CardStack.astro`: Header component with color logic
 - `src/pages/api/threads/delete.ts`: Thread deletion API with note preservation logic
 - `src/actions/threads.ts`: Thread actions including safe deletion
@@ -515,9 +523,9 @@ The navigation history system uses a clean, single-file approach with proper ded
 - `src/utils/menu-options.ts`: Utility for determining available menu options
 - `src/components/SpaceButton.astro`: Button component with close functionality
 - `src/components/NewThreadPanel.astro`: Thread creation panel with search functionality and tab persistence
+- `src/components/PersistentNavigation.astro`: Enhanced navigation component with space support and confirmation dialogs
 - `src/pages/api/search.ts`: Search API endpoint for notes and threads
 - `public/scripts/navigation-history.js`: Simplified navigation history system
-- `src/components/PersistentNavigation.astro`: Simplified persistent navigation component
 - `src/layouts/Layout.astro`: Alpine.js and View Transitions setup
 - `src/utils/xp-system.ts`: XP calculation and awarding system
 - `src/pages/api/user/xp.ts`: User XP API endpoint

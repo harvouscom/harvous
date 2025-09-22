@@ -8,6 +8,7 @@ Discover the powerful features that make Harvous the perfect companion for your 
 - **Spaces** → **Threads** → **Notes**
 - Organize your study materials in a way that makes sense to you
 - Mix individual notes and thread collections within the same space
+- **Easy Space Creation**: Dedicated space creation page with intuitive form
 
 ### Example Organization:
 ```
@@ -33,6 +34,15 @@ Discover the powerful features that make Harvous the perfect companion for your 
 - **Space counts**: Total items (threads + notes) in each space
 - **Thread counts**: Number of notes in each thread
 - **Quick overview** of your study progress
+
+## 🧭 Smart Navigation
+
+### Persistent Navigation
+- **Recently Accessed**: Your most recent spaces and threads appear in the navigation
+- **Active State**: Currently viewed items show with proper styling and shadows
+- **Easy Access**: Quick navigation to your frequently used content
+- **Space Protection**: Confirmation dialog when closing spaces (since they can't be recovered)
+- **Clean Interface**: No duplicate entries - each item appears only once
 
 ### Example Visual Layout:
 ```
