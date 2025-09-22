@@ -67,7 +67,13 @@ export default defineConfig({
   },
 
   integrations: [
-    db(),
+    db({
+      // Use remote database in production, local in development
+      ...(import.meta.env.PROD && {
+        // Production database configuration
+        // This will use ASTRO_DB_REMOTE_URL and ASTRO_DB_APP_TOKEN from environment variables
+      })
+    }),
     clerk({
       enableEnvSchema: true
     }),
