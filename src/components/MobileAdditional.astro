@@ -5,7 +5,7 @@ import NewThreadPanel from "@/components/NewThreadPanel.astro";
 import { shouldShowMoreButton } from "@/utils/menu-options";
 
 export interface Props {
-  contentType?: "thread" | "note" | "space" | "dashboard";
+  contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
   contentId?: string;
   currentThread?: any;
   currentSpace?: any;
@@ -53,7 +53,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
     {showMoreButton && (
       <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
     )}
-    <SquareButton variant="Add" withMenu={true} />
+    {contentType !== 'profile' && (
+      <SquareButton variant="Add" withMenu={true} />
+    )}
   </div>
   
   <!-- New Note Panel -->

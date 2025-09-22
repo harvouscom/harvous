@@ -6,6 +6,9 @@ import SpaceButton from "@/components/SpaceButton.astro";
 import Avatar from "@/components/Avatar.astro";
 import PersistentNavigation from "@/components/PersistentNavigation.astro";
 import Button from "@/components/Button.astro";
+import MobileNavigation from "@/components/MobileNavigation.astro";
+import MobileAdditional from "@/components/MobileAdditional.astro";
+import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -55,6 +58,41 @@ const displayName = `${firstName} ${lastName.charAt(0)}`.trim() || 'User';
 // Debug: Show what we got
 console.log('Final values:', { firstName, lastName, email, initials, displayName });
 
+// Fetch navigation data for mobile components
+let spaces: any[] = [];
+let threads: any[] = [];
+let inboxCount: number = 0;
+
+try {
+  const [spacesData, threadsData, inboxCountData] = await Promise.all([
+    getSpacesWithCounts(userId),
+    getAllThreadsWithCounts(userId),
+    getInboxCount(userId)
+  ]);
+  
+  spaces = spacesData;
+  threads = threadsData;
+  inboxCount = inboxCountData;
+  
+  // Ensure threads have backgroundGradient property for consistency
+  threads = threads.map(thread => ({
+    ...thread,
+    backgroundGradient: thread.backgroundGradient || `linear-gradient(180deg, var(--color-${thread.color || 'blessed-blue'}) 0%, var(--color-${thread.color || 'blessed-blue'}) 100%)`
+  }));
+  
+  // Ensure spaces have backgroundGradient property for consistency
+  spaces = spaces.map(space => ({
+    ...space,
+    backgroundGradient: space.backgroundGradient || `linear-gradient(180deg, var(--color-${space.color || 'blessed-blue'}) 0%, var(--color-${space.color || 'blessed-blue'}) 100%)`
+  }));
+} catch (error) {
+  console.error("Error fetching navigation data:", error);
+  // Fallback to empty data
+  spaces = [];
+  threads = [];
+  inboxCount = 0;
+}
+
 // Mock data for profile - in a real app this would come from a database
 const userProfile = {
   name: displayName,
@@ -83,7 +121,7 @@ const contentId = "profile";
           <a href="/dashboard" class="w-full">
             <SpaceButton 
               text="For You" 
-              count={0} 
+              count={inboxCount} 
               state="WithCount" 
               className="w-full" 
               isActive={false} 
@@ -197,6 +235,23 @@ const contentId = "profile";
         Logout
       </Button>
     </div>
+  </div>
+
+  <!-- Mobile Navigation -->
+  <div slot="mobile-navigation">
+    <MobileNavigation 
+      spaces={spaces}
+      threads={threads}
+      inboxCount={inboxCount}
+      currentSpace={null}
+      currentThread={null}
+      initials={initials}
+    />
+  </div>
+
+  <!-- Mobile Additional -->
+  <div slot="mobile-additional">
+    <MobileAdditional contentType="profile" contentId={contentId} currentThread={null} currentSpace={null} />
   </div>
 </Layout>
 
