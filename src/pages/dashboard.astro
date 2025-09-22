@@ -16,12 +16,38 @@ import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
-// Get user ID from Clerk authentication
-const { userId } = Astro.locals.auth();
+// Get user data from Clerk authentication
+const auth = Astro.locals.auth();
+const { userId } = auth;
 
 if (!userId) {
   return Astro.redirect('/sign-in');
 }
+
+// Try to fetch user data from Clerk API using secret key
+let userData: any = null;
+try {
+  const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
+  if (clerkSecretKey) {
+    const response = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
+      headers: {
+        'Authorization': `Bearer ${clerkSecretKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      userData = await response.json();
+    }
+  }
+} catch (error) {
+  console.log('Error fetching user data:', error);
+}
+
+// Extract user data from API response or use fallbacks
+const firstName = userData?.first_name || userData?.firstName || '';
+const lastName = userData?.last_name || userData?.lastName || '';
+const initials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase() || 'U';
 
 // Fetch real data from database
 // Use robust sample data system for consistent development experience
@@ -162,7 +188,9 @@ try {
             <div class="flex gap-3 items-center justify-start w-full shrink-0">
               <SpaceButton text="New Space" className="flex-1" />
               <SquareButton variant="Search" />
-              <Avatar initials="DJ" />
+          <a href="/profile">
+            <Avatar initials={initials} />
+          </a>
             </div>
           </div>
   </div>
@@ -369,6 +397,7 @@ try {
       inboxCount={inboxItemCount}
       currentSpace={null}
       currentThread={activeThread}
+      initials={initials}
     />
   </div>
 

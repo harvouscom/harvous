@@ -12,7 +12,7 @@ export interface Props {
   variant?: "Add" | "Close" | "More" | "Back" | "Search";
   withMenu?: boolean;
   type?: "button" | "submit" | "reset";
-  contentType?: "thread" | "note" | "space" | "dashboard";
+  contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
   contentId?: string;
 }
 const { variant = "More", withMenu = false, contentType = "dashboard", contentId } = Astro.props;

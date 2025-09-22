@@ -27,6 +27,10 @@ import { SignUp } from "@clerk/astro/components";
               dividerText: "text-[var(--color-stone-grey)] bg-white px-4"
             }
           }}
+          additionalOAuthScopes={{
+            google: ['profile', 'email']
+          }}
+          signInUrl="/sign-in"
           redirectUrl="/dashboard"
         />
       </div>

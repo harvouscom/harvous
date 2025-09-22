@@ -23,6 +23,7 @@ interface Props {
   } | null;
   isNote?: boolean;
   currentId?: string;
+  showProfile?: boolean;
 }
 
 const { 
@@ -31,7 +32,8 @@ const {
   activeThread = null,
   currentSpace = null,
   isNote = false,
-  currentId = null
+  currentId = null,
+  showProfile = false
 } = Astro.props;
 ---
 
@@ -89,11 +91,19 @@ const {
       </div>
     </div>
     
-    <!-- Bottom Section with New Space Button, Search, and Avatar -->
+    <!-- Bottom Section with New Space Button, Search, and Avatar/Back Button -->
     <div class="flex gap-3 items-center justify-start w-full shrink-0">
       <SpaceButton text="New Space" className="flex-1" />
       <SquareButton variant="Search" />
-      <Avatar initials="DJ" />
+      {showProfile ? (
+        <a href="/dashboard">
+          <SquareButton variant="Back" />
+        </a>
+      ) : (
+        <a href="/profile">
+          <Avatar initials="DJ" />
+        </a>
+      )}
     </div>
   </div>
 </div>

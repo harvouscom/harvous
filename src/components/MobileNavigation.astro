@@ -10,6 +10,7 @@ export interface Props {
   inboxCount?: number;
   currentSpace?: any;
   currentThread?: any;
+  initials?: string;
 }
 
 const { 
@@ -17,7 +18,8 @@ const {
   threads = [], 
   inboxCount = 0,
   currentSpace,
-  currentThread
+  currentThread,
+  initials = 'U'
 } = Astro.props;
 ---
 
@@ -104,5 +106,7 @@ const {
   </div>
 
   <!-- Avatar (Column 3: auto) -->
-  <Avatar initials="DJ" />
+  <a href="/profile">
+    <Avatar initials={initials} />
+  </a>
 </div>

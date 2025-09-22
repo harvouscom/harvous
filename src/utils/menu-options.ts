@@ -3,15 +3,16 @@
  * @param contentType The type of content being displayed
  * @returns boolean indicating if the More button should be shown
  */
-export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | "dashboard"): boolean {
+export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | "dashboard" | "profile"): boolean {
   switch (contentType) {
     case "thread":
     case "note":
     case "space":
       return true; // These have menu options
     case "dashboard":
+    case "profile":
     default:
-      return false; // Dashboard has no menu options
+      return false; // Dashboard and profile have no menu options
   }
 }
 
@@ -20,7 +21,7 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
  * @param contentType The type of content being displayed
  * @returns Array of menu options
  */
-export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard") {
+export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile") {
   switch (contentType) {
     case "thread":
       return [
@@ -38,7 +39,8 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
         { action: "eraseSpace", label: "Erase Space" }
       ];
     case "dashboard":
+    case "profile":
     default:
-      return []; // No options for dashboard
+      return []; // No options for dashboard and profile
   }
 }

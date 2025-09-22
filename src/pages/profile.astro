@@ -1,0 +1,226 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import CardStack from "@/components/CardStack.astro";
+import SquareButton from "@/components/SquareButton.astro";
+import SpaceButton from "@/components/SpaceButton.astro";
+import Avatar from "@/components/Avatar.astro";
+import PersistentNavigation from "@/components/PersistentNavigation.astro";
+import Button from "@/components/Button.astro";
+
+// Get user data from Clerk authentication
+const auth = Astro.locals.auth();
+const { userId, getToken } = auth;
+
+if (!userId) {
+  return Astro.redirect('/sign-in');
+}
+
+// Try to fetch user data from Clerk API using secret key
+let userData: any = null;
+try {
+  const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
+  console.log('Clerk secret key available:', clerkSecretKey ? 'Yes' : 'No');
+  
+  if (clerkSecretKey) {
+    const response = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
+      headers: {
+        'Authorization': `Bearer ${clerkSecretKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('API response status:', response.status);
+    
+    if (response.ok) {
+      userData = await response.json();
+      console.log('User data from Clerk API:', userData);
+    } else {
+      const errorText = await response.text();
+      console.log('API error response:', errorText);
+    }
+  }
+} catch (error) {
+  console.log('Error fetching user data:', error);
+}
+
+// Extract user data from API response or use fallbacks
+const firstName = userData?.first_name || userData?.firstName || '';
+const lastName = userData?.last_name || userData?.lastName || '';
+const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
+
+// Generate initials from first and last name
+const initials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase() || 'U';
+const displayName = `${firstName} ${lastName.charAt(0)}`.trim() || 'User';
+
+// Debug: Show what we got
+console.log('Final values:', { firstName, lastName, email, initials, displayName });
+
+// Mock data for profile - in a real app this would come from a database
+const userProfile = {
+  name: displayName,
+  initials: initials,
+  email: email,
+  joinDate: "January 2024",
+  stats: {
+    totalNotes: 42,
+    totalThreads: 8,
+    totalSpaces: 3
+  }
+};
+
+const contentType = "profile";
+const contentId = "profile";
+---
+
+<Layout title="Profile" contentType={contentType} contentId={contentId}>
+  <!-- Navigation Column -->
+  <div slot="navigation" class="h-full">
+    <div class="flex flex-col items-start justify-between relative h-full">
+      <!-- Top Section - Navigation -->
+      <div class="flex flex-col gap-12 items-start justify-start w-full flex-1 min-h-0">
+        <!-- Navigation Buttons -->
+        <div class="flex flex-col items-start justify-start w-full">
+          <a href="/dashboard" class="w-full">
+            <SpaceButton 
+              text="For You" 
+              count={0} 
+              state="WithCount" 
+              className="w-full" 
+              isActive={false} 
+            />
+          </a>
+          
+          {/* Persistent Navigation - shows recently accessed items */}
+          <PersistentNavigation />
+        </div>
+      </div>
+      
+      <!-- Bottom Section with New Space Button, Search, and Back Button -->
+      <div class="flex gap-3 items-center justify-start w-full shrink-0">
+        <SpaceButton text="New Space" className="flex-1" />
+        <SquareButton variant="Search" />
+        <a href="/dashboard">
+          <SquareButton variant="Back" />
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Column -->
+  <div slot="main" class="h-full flex flex-col">
+    <CardStack 
+      title={displayName}
+      headerBgColor="var(--color-pleasant-peach)"
+      centerTitle={true}
+      class="flex-1"
+    >
+      <!-- Profile Content -->
+      <div class="flex flex-col justify-between h-full w-full">
+        <!-- Top Section -->
+        <div class="flex flex-col gap-4">
+          <!-- Top Info Cards -->
+          <div class="grid grid-cols-2 gap-4">
+            <!-- Joined Date Card -->
+            <div class="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3">
+              <svg class="w-5 h-5 fill-current text-[var(--color-deep-grey)]" viewBox="0 0 448 512">
+                <path d="M152 24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64H64C28.7 64 0 92.7 0 128v16 48V448c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V192 144 128c0-35.3-28.7-64-64-64H344V24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64H152V24zM48 192H400V448c0 8.8-7.2 16-16 16H64c-8.8 0-16-7.2-16-16V192z"/>
+              </svg>
+              <div>
+                <div class="text-lg font-bold text-[var(--color-deep-grey)]">Oct 2025</div>
+                <div class="text-sm text-[var(--color-pebble-grey)]">Joined</div>
+              </div>
+            </div>
+            
+            <!-- XP Card -->
+            <div class="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3">
+              <svg class="w-5 h-5 fill-current text-[var(--color-deep-grey)]" viewBox="0 0 320 512">
+                <path d="M0 256L192 96V192H320L128 416V320H0L0 256z"/>
+              </svg>
+              <div>
+                <div class="text-lg font-bold text-[var(--color-deep-grey)]">125</div>
+                <div class="text-sm text-[var(--color-pebble-grey)]">XP</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Settings Options -->
+          <div class="flex flex-col gap-3">
+            <!-- Edit Name & Color -->
+            <SpaceButton 
+              text="Edit Name & Color"
+              state="WithArrow"
+              backgroundGradient="var(--color-gradient-gray)"
+              className="w-full"
+            />
+            
+            <!-- Email & Password -->
+            <SpaceButton 
+              text="Email & Password"
+              state="WithArrow"
+              backgroundGradient="var(--color-gradient-gray)"
+              className="w-full"
+            />
+            
+            <!-- My Church -->
+            <SpaceButton 
+              text="My Church"
+              state="WithArrow"
+              backgroundGradient="var(--color-gradient-gray)"
+              className="w-full"
+            />
+            
+            <!-- My Data -->
+            <SpaceButton 
+              text="My Data"
+              state="WithArrow"
+              backgroundGradient="var(--color-gradient-gray)"
+              className="w-full"
+            />
+          </div>
+        </div>
+
+        <!-- Bottom Section - Get Support -->
+        <div class="mt-auto">
+          <SpaceButton 
+            text="Get Support"
+            state="WithArrow"
+            backgroundGradient="var(--color-gradient-gray)"
+            className="w-full"
+          />
+        </div>
+      </div>
+    </CardStack>
+    
+    <!-- Logout Button at Bottom -->
+    <div class="mt-4">
+      <Button state="Secondary" class="w-full" id="logout-button">
+        Logout
+      </Button>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // Get the logout button and add click handler
+  document.addEventListener('DOMContentLoaded', () => {
+    const logoutButton = document.getElementById('logout-button');
+    
+    if (logoutButton) {
+      logoutButton.addEventListener('click', async () => {
+        try {
+          // Use Clerk's client-side signOut
+          if (window.Clerk) {
+            await window.Clerk.signOut();
+          }
+          
+          // Redirect to sign-in page after logout
+          window.location.href = '/sign-in';
+        } catch (error) {
+          console.error('Logout failed:', error);
+          // Fallback: redirect to sign-in page anyway
+          window.location.href = '/sign-in';
+        }
+      });
+    }
+  });
+</script>

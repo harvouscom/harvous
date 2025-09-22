@@ -1,12 +1,13 @@
 ---
 import FaAngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down.svg";
 import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import FaAngleRightIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-right.svg";
 
 interface Props {
     className?: string;
     text?: string;
     count?: number;
-    state?: "Default" | "Dropdown" | "WithCount" | "DropdownTrigger" | "Close";
+    state?: "Default" | "Dropdown" | "WithCount" | "DropdownTrigger" | "Close" | "WithArrow";
     showCount?: boolean;
     backgroundGradient?: string;
     isActive?: boolean;
@@ -162,6 +163,27 @@ const {
             </div>
             )}
         </div>
+) : state === "WithArrow" ? (
+    <button 
+        class={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        style={isActive ? `background-image: ${backgroundGradient};` : ''}
+        {...props}
+    >
+        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+            <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+                {text}
+            </span>
+            <div class="flex items-center justify-center relative shrink-0">
+                <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                    <div class="flex items-center justify-center relative shrink-0">
+                        <div class="relative size-5">
+                            <FaAngleRightIcon class="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </button>
 ) : (
     <button 
         class={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
