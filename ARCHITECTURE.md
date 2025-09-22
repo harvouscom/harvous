@@ -199,6 +199,74 @@ The application includes a comprehensive XP (Experience Points) system to gamify
 - **Data Persistence**: All notes, threads, and spaces are stored in the remote database
 - **User Isolation**: Each user only sees their own content
 
+## Rich Text Editor System
+
+### Quill.js Integration
+
+The application uses Quill.js as the primary rich text editor, replacing the previous Trix implementation for better Alpine.js compatibility and user experience.
+
+#### Core Components
+
+- **`src/components/QuillEditor.astro`**: Main Quill.js editor component with static loading
+- **`src/components/NewNotePanel.astro`**: Note creation panel with Quill integration
+- **`src/components/CardFullEditable.astro`**: Inline note editing with Quill.js
+
+#### Technical Implementation
+
+**Static Loading Approach:**
+- Uses CDN-based Quill.js loading via `<link>` and `<script>` tags
+- Prevents SSR issues and ensures consistent initialization
+- Includes comprehensive CSS styling for font consistency
+
+**Alpine.js Integration:**
+- Each editor instance manages its own Quill reference via `quillContainer.__quill`
+- Global callback system using `window.noteSaveCallback` for save functionality
+- Robust initialization with multiple fallback mechanisms (immediate, DOM ready, periodic)
+
+**Font Styling:**
+- Applies app's Reddit Sans font family to all Quill editors
+- Uses CSS variables (`--font-sans`) for consistent theming
+- Programmatic font application to override Quill's default styling
+
+#### Content Processing System
+
+**HTML Stripping Function:**
+```typescript
+function stripHtml(html: string): string {
+  // Comprehensive HTML tag removal
+  // HTML entity decoding
+  // Whitespace cleanup
+}
+```
+
+**Implementation Locations:**
+- `src/components/CardNote.astro` - Note preview cards
+- `src/components/CardFeat.astro` - Featured content cards
+- `src/utils/dashboard-data.ts` - Dashboard data processing
+- `src/pages/search.astro` - Search results processing
+- `src/pages/[id].astro` - Thread page content processing
+- `src/components/NewThreadPanel.astro` - Recent notes and search results
+
+**Benefits:**
+- Clean text previews without HTML artifacts
+- Consistent content display across all components
+- Proper truncation with HTML entity handling
+- Better user experience with readable content summaries
+
+#### Editor Features
+
+**Formatting Options:**
+- Bold, italic, underline text formatting
+- Ordered and unordered lists
+- Clean toolbar with essential formatting tools
+- Distraction-free editing interface
+
+**User Experience:**
+- Click-to-edit functionality for existing notes
+- Real-time content updates
+- Seamless form submission integration
+- Consistent styling with app theme
+
 ## Alpine.js Integration
 
 ### Development Rules for Alpine.js
@@ -628,6 +696,15 @@ The navigation history system uses a clean, single-file approach with proper ded
 - `src/pages/api/user/xp.ts`: User XP API endpoint
 - `src/pages/api/test/xp.ts`: XP system testing endpoint
 - `src/pages/profile.astro`: User profile with dynamic XP display
+
+### Rich Text Editor Components
+
+- `src/components/QuillEditor.astro`: Main Quill.js editor component with static loading and Alpine.js integration
+- `src/components/NewNotePanel.astro`: Note creation panel with Quill.js integration
+- `src/components/CardFullEditable.astro`: Inline note editing component with Quill.js
+- `src/components/CardNote.astro`: Note preview component with HTML content processing
+- `src/components/CardFeat.astro`: Featured content component with HTML content processing
+- `src/pages/api/notes/update.ts`: API endpoint for updating note content via inline editing
 
 ## Component Dependencies
 

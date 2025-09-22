@@ -68,11 +68,14 @@ Discover the powerful features that make Harvous the perfect companion for your 
 - **Easy reference**: "Check out my insight in N015"
 - **Persistent**: IDs never change, even when reorganizing
 
-### Rich Text Editor
-- **Bold, italic, underline** formatting
-- **Lists and bullet points** for structured thoughts
-- **Images and media** support
-- **Links and references** to other notes
+### Rich Text Editor (Quill.js)
+- **Bold, italic, underline** formatting for emphasis and structure
+- **Ordered and unordered lists** for organized thoughts and outlines
+- **Clean, distraction-free interface** that matches the app's design
+- **Consistent font styling** using the app's Reddit Sans font family
+- **Real-time content updates** with seamless form integration
+- **Inline editing** - click any note to edit directly without separate edit pages
+- **HTML content processing** - clean text previews without formatting artifacts
 
 ### Note Examples:
 ```

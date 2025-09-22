@@ -16,6 +16,35 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThr
 import { getThreadColorCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
+
+// Helper function to strip HTML tags and decode entities
+function stripHtml(html: string): string {
+  if (!html) return '';
+  
+  // More aggressive HTML stripping
+  let text = html
+    // Remove script and style tags completely (including their content)
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    // Remove all HTML tags (including those with complex attributes)
+    .replace(/<[^>]*>/g, '')
+    // Decode HTML entities
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&#x60;/g, '`')
+    .replace(/&#x3D;/g, '=')
+    // Clean up whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+    
+  return text;
+}
 import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
@@ -507,40 +536,6 @@ if (!content) {
                 noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : undefined}
                 className="h-full"
                 isEditable={true}
-                onSave={async (newTitle, newContent) => {
-                  try {
-                    // Get note ID from the data attribute on the container
-                    const container = document.querySelector('[data-note-id]');
-                    const noteId = container?.getAttribute('data-note-id');
-                    
-                    if (!noteId) {
-                      throw new Error('Note ID not found');
-                    }
-                    
-                    const response = await fetch('/api/notes/update', {
-                      method: 'PUT',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      credentials: 'include',
-                      body: JSON.stringify({
-                        noteId: noteId,
-                        title: newTitle,
-                        content: newContent
-                      })
-                    });
-                    
-                    if (!response.ok) {
-                      throw new Error('Failed to update note');
-                    }
-                    
-                    const result = await response.json();
-                    return result;
-                  } catch (error) {
-                    console.error('Error updating note:', error);
-                    throw error;
-                  }
-                }}
               />
             </div>
           ) : !content ? (
@@ -572,7 +567,10 @@ if (!content) {
                         >
                           <CardNote 
                             title={note.title || "Untitled Note"}
-                            content={note.content.substring(0, 150) + (note.content.length > 150 ? "..." : "")}
+                            content={(() => {
+                              const cleanContent = stripHtml(note.content);
+                              return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
+                            })()}
                           />
                         </a>
                       </div>
@@ -608,7 +606,10 @@ if (!content) {
                         >
                           <CardNote 
                             title={note.title || "Untitled Note"}
-                            content={note.content.substring(0, 150) + (note.content.length > 150 ? "..." : "")}
+                            content={(() => {
+                              const cleanContent = stripHtml(note.content);
+                              return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
+                            })()}
                           />
                         </a>
                       </div>
@@ -646,5 +647,48 @@ if (!content) {
     <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace && content ? content : null} />
   </div>
 </Layout>
+
+<script type="text/javascript">
+  // Set the global save callback for CardFullEditable
+  var noteSaveCallback = async function(newTitle, newContent) {
+    try {
+      // Get note ID from the data attribute on the container
+      const container = document.querySelector('[data-note-id]');
+      const noteId = container?.getAttribute('data-note-id');
+      
+      
+      if (!noteId) {
+        throw new Error('Note ID not found');
+      }
+      
+      const response = await fetch('/api/notes/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          noteId: noteId,
+          title: newTitle,
+          content: newContent
+        })
+      });
+      
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Note page: API error response:', errorText);
+        throw new Error('Failed to update note');
+      }
+      
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Error updating note:', error);
+      throw error;
+    }
+  };
+  
+</script>
 
 

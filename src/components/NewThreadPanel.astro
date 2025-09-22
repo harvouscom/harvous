@@ -11,6 +11,35 @@ import SearchInput from "./SearchInput.astro";
 import { THREAD_COLORS, getThreadColorCSS, getRandomThreadColor } from "@/utils/colors";
 import { getNotesForDashboard } from "@/utils/dashboard-data";
 
+// Helper function to strip HTML tags and decode entities
+function stripHtml(html: string): string {
+  if (!html) return '';
+  
+  // More aggressive HTML stripping
+  let text = html
+    // Remove script and style tags completely (including their content)
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    // Remove all HTML tags (including those with complex attributes)
+    .replace(/<[^>]*>/g, '')
+    // Decode HTML entities
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&#x60;/g, '`')
+    .replace(/&#x3D;/g, '=')
+    // Clean up whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+    
+  return text;
+}
+
 export interface Props {
   onClose?: () => void;
   currentSpace?: any;
@@ -292,16 +321,19 @@ try {
               <!-- Recent notes display -->
               <div x-show="activeTab === 'recent'" class="tab-content">
                 <div class="flex gap-3 items-start justify-start w-full overflow-x-auto">
-                  {recentNotes.length > 0 ? recentNotes.map((note) => (
-                    <div class="shrink-0">
-                      <CardFeat 
-                        variant="Note"
-                        title={note.title || "Untitled Note"}
-                        content={note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "")}
-                        class="shrink-0"
-                      />
-                    </div>
-                  )) : (
+                  {recentNotes.length > 0 ? recentNotes.map((note) => {
+                    const cleanContent = stripHtml(note.content);
+                    return (
+                      <div class="shrink-0">
+                        <CardFeat 
+                          variant="Note"
+                          title={note.title || "Untitled Note"}
+                          content={cleanContent.substring(0, 100) + (cleanContent.length > 100 ? "..." : "")}
+                          class="shrink-0"
+                        />
+                      </div>
+                    );
+                  }) : (
                     <div class="text-center py-4 text-gray-500 w-full">
                       <p>No recent notes found. Create your first note to see it here!</p>
                     </div>
@@ -386,7 +418,7 @@ try {
                                 
                                 <!-- Content -->
                                 <div class="flex flex-col font-normal justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#78766f] text-[12px] w-full">
-                                  <p class="leading-[1.3] overflow-hidden text-ellipsis whitespace-nowrap" x-text="note.content"></p>
+                                  <p class="leading-[1.3] overflow-hidden text-ellipsis whitespace-nowrap" x-text="window.stripHtml(note.content)"></p>
                                 </div>
                               </div>
                             </div>
@@ -428,6 +460,35 @@ try {
 <Toast />
 
 <script>
+  // Global function to strip HTML tags (client-side)
+  (window as any).stripHtml = function(html: string): string {
+    if (!html) return '';
+    
+    // More aggressive HTML stripping
+    let text = html
+      // Remove script and style tags completely (including their content)
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      // Remove all HTML tags (including those with complex attributes)
+      .replace(/<[^>]*>/g, '')
+      // Decode HTML entities
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, '/')
+      .replace(/&#x60;/g, '`')
+      .replace(/&#x3D;/g, '=')
+      // Clean up whitespace
+      .replace(/\s+/g, ' ')
+      .trim();
+      
+    return text;
+  };
+
   // Global search function to avoid Alpine.js scope issues
   (window as any).newThreadPanelSearch = async function(query: string) {
     if (!query || query.trim().length < 2) {

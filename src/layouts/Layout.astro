@@ -605,7 +605,6 @@ function getNavigationHistory() {
     
     // If localStorage is empty but we have a backup, use it
     if (parsed.length === 0 && window.navigationHistoryBackup && window.navigationHistoryBackup.length > 0) {
-      console.log('🔧 Using backup navigation history:', window.navigationHistoryBackup);
       parsed = window.navigationHistoryBackup;
     }
     
@@ -623,22 +622,17 @@ function saveNavigationHistory(history) {
   try {
     const storage = getStorage();
     const jsonString = JSON.stringify(history);
-    console.log('💾 saveNavigationHistory - attempting to save:', jsonString);
     storage.setItem('harvous-navigation-history-v2', jsonString);
     
     // Also update the backup
     window.navigationHistoryBackup = [...history];
-    console.log('💾 saveNavigationHistory - backup updated:', window.navigationHistoryBackup);
     
     // Verify the save worked
     const verification = storage.getItem('harvous-navigation-history-v2');
-    console.log('💾 saveNavigationHistory - verification read:', verification);
-    console.log('💾 saveNavigationHistory - verification matches:', verification === jsonString);
     
     if (verification !== jsonString) {
       console.error('💾 saveNavigationHistory - SAVE FAILED! Data mismatch');
     } else {
-      console.log('💾 saveNavigationHistory - save verified successfully');
     }
   } catch (error) {
     console.error('Error saving navigation history:', error);
@@ -655,7 +649,6 @@ function addToNavigationHistory(item) {
   
   if (existingIndex !== -1) {
     // Item already exists - this shouldn't happen if called correctly
-    console.log('🔍 addToNavigationHistory - Item already exists, skipping:', item.id);
     return;
   } else {
     // Item doesn't exist - add to end first, then sort
@@ -665,14 +658,12 @@ function addToNavigationHistory(item) {
       lastAccessed: Date.now()
     };
     history.push(newItem);
-    console.log('🔍 addToNavigationHistory - Added new item:', item.id);
   }
   
   // Limit to 10 items, keeping the most recently accessed
   let limitedHistory = history;
   if (history.length > 10) {
     limitedHistory = history.slice(0, 10);
-    console.log('🔍 addToNavigationHistory - Limited to 10 items, kept most recent 10');
   }
   
   saveNavigationHistory(limitedHistory);
@@ -720,7 +711,6 @@ function trackNavigationAccess() {
   
   // Extract item data from page
   const itemData = extractItemDataFromPage(currentItemId);
-  console.log('🔍 extractItemDataFromPage returned:', itemData);
   
   if (itemData) {
     // Special handling for unorganized thread
@@ -734,7 +724,6 @@ function trackNavigationAccess() {
     
     if (!existingItem) {
       // Only add new items to history - this preserves the order
-      console.log('🔍 trackNavigationAccess - Adding new item to history:', itemData.id);
       addToNavigationHistory(itemData);
     } else {
       // Update the item data but DON'T change its position
@@ -744,7 +733,6 @@ function trackNavigationAccess() {
         ...itemData,
         lastAccessed: Date.now()
       };
-      console.log('🔍 trackNavigationAccess - Updated existing item:', itemData.id, 'at index:', existingIndex);
       
       saveNavigationHistory(history);
       
@@ -893,22 +881,17 @@ function initTracking() {
 window.debugNavigation = {
   getHistory: () => {
     const history = getNavigationHistory();
-    console.log('🔍 Current navigation history:', history);
     return history;
   },
   clearHistory: () => {
     const storage = getStorage();
     storage.removeItem('harvous-navigation-history-v2');
-    console.log('🗑️ Navigation history cleared');
   },
   inspectStorage: () => {
     const storage = getStorage();
     const stored = storage.getItem('harvous-navigation-history-v2');
-    console.log('🔍 Raw storage data:', stored);
-    console.log('🔍 Storage type:', storage === localStorage ? 'localStorage' : 'sessionStorage');
     try {
       const parsed = JSON.parse(stored || '[]');
-      console.log('🔍 Parsed data:', parsed);
       return parsed;
     } catch (error) {
       console.error('❌ Error parsing storage:', error);
@@ -916,20 +899,14 @@ window.debugNavigation = {
     }
   },
   checkAllLocalStorage: () => {
-    console.log('🔍 All localStorage keys:', Object.keys(localStorage));
-    console.log('🔍 All localStorage data:', {...localStorage});
   },
   testLocalStorage: () => {
-    console.log('🧪 Testing localStorage functionality...');
     const testKey = 'test-navigation-key';
     const testValue = 'test-value-' + Date.now();
     
     try {
       localStorage.setItem(testKey, testValue);
       const retrieved = localStorage.getItem(testKey);
-      console.log('🧪 Test save/retrieve:', testValue === retrieved ? 'SUCCESS' : 'FAILED');
-      console.log('🧪 Expected:', testValue);
-      console.log('🧪 Retrieved:', retrieved);
       localStorage.removeItem(testKey);
     } catch (error) {
       console.error('🧪 localStorage test failed:', error);
@@ -942,31 +919,25 @@ window.debugNavigation = {
     
     localStorage.setItem = function(key, value) {
       if (key === 'harvous-navigation-history-v2') {
-        console.log('🔍 localStorage.setItem called for harvous-navigation-history-v2:', value);
       }
       return originalSetItem.call(this, key, value);
     };
 
     localStorage.removeItem = function(key) {
       if (key === 'harvous-navigation-history-v2') {
-        console.log('🔍 localStorage.removeItem called for harvous-navigation-history-v2');
       }
       return originalRemoveItem.call(this, key);
     };
     
     localStorage.clear = function() {
-      console.log('🔍 localStorage.clear called - ALL DATA CLEARED!');
       return originalClear.call(this);
     };
     
-    console.log('🔍 localStorage monitoring enabled');
   },
   manualTrack: () => {
-    console.log('🔧 Manual navigation tracking triggered');
     initTracking();
   },
   testTrackCurrentPage: () => {
-    console.log('🔧 Testing navigation tracking for current page:', window.location.pathname);
     trackNavigationAccess();
   }
 };
@@ -1058,10 +1029,6 @@ window.testNavigationTracking = function() {
 
 // Test function to verify script is working
 window.testNavigationScript = function() {
-  console.log('🧪 TEST: Navigation script is working!');
-  console.log('🧪 TEST: getNavigationHistory function:', typeof window.getNavigationHistory);
-  console.log('🧪 TEST: trackNavigationAccess function:', typeof window.trackNavigationAccess);
-  console.log('🧪 TEST: Current history:', window.getNavigationHistory());
   return 'Navigation script is working!';
 };
 </script>

@@ -3,7 +3,7 @@ import SquareButton from "./SquareButton.astro";
 import CardFull from "./CardFull.astro";
 import Button from "./Button.astro";
 import SpaceButton from "./SpaceButton.astro";
-import TrixEditorV2 from "./TrixEditorV2.astro";
+import QuillEditor from "./QuillEditor.astro";
 import Toast from "./Toast-v2.astro";
 // Sample data imports removed - using real database data only
 import { getThreadGradientCSS } from "@/utils/colors";
@@ -260,13 +260,11 @@ if (!userId) {
       <!-- Content area with TrixEditor (like CardFull) -->
       <div class="flex-1 flex items-start justify-between px-3 py-0 relative w-full min-h-0">
         <div class="flex flex-col font-sans font-normal w-full h-full">
-          <TrixEditorV2 
+          <QuillEditor 
             content=""
             id="new-note-content"
             name="content"
             placeholder="Start writing your note..."
-            toolbar="new-note-toolbar"
-            alpineRefName="contentInputEl"
           />
         </div>
       </div>
@@ -459,27 +457,22 @@ if (!userId) {
           // Alpine data not available
         }
         
-        // Get content from Trix Editor
+        // Get content from StaticQuill Editor
         let content = '';
-        const trixEditor = document.querySelector('trix-editor') as any;
+        const quillContainer = document.querySelector('#static-quill-container-new-note-content') as any;
         const hiddenInput = document.querySelector('input[name="content"]') as HTMLInputElement;
-        
-        // Force a trix-change event to ensure content is synced
-        if (trixEditor) {
-          trixEditor.dispatchEvent(new Event('trix-change', { bubbles: true }));
-        }
         
         // Try to get content from hidden input first (most reliable)
         if (hiddenInput && hiddenInput.value) {
           content = hiddenInput.value;
         }
         
-        // Fallback to Trix Editor
-        if (!content && trixEditor && trixEditor.editor && trixEditor.editor.getDocument) {
+        // Fallback to Quill Editor
+        if (!content && quillContainer && quillContainer.__quill) {
           try {
-            content = trixEditor.editor.getDocument().toString();
+            content = quillContainer.__quill.root.innerHTML;
           } catch (error) {
-            console.error('Error getting content from Trix Editor:', error);
+            console.error('Error getting content from Quill Editor:', error);
           }
         }
         
@@ -632,20 +625,95 @@ if (!userId) {
     transform: scale(0.98);
   }
 
-  /* Custom TrixEditor styling for NewNotePanel */
-  .new-note-panel trix-editor {
+  /* Custom QuillEditor styling for NewNotePanel - Match note content styling */
+  .new-note-panel .ql-editor {
+    font-family: var(--font-sans) !important;
+    font-weight: normal;
+    font-size: 16px;
+    color: var(--color-deep-grey);
+    line-height: 1.6;
     border: none !important;
     border-radius: 0 !important;
     padding: 0 !important;
-    background: white !important;
+    background: transparent !important;
     box-shadow: none !important;
+    min-height: 200px;
+  }
+  
+  /* Force Reddit Sans on all Quill content in NewNotePanel */
+  .new-note-panel .ql-editor * {
+    font-family: var(--font-sans) !important;
+  }
+  
+  /* Override Quill's default font styles in NewNotePanel */
+  .new-note-panel .ql-editor p,
+  .new-note-panel .ql-editor div,
+  .new-note-panel .ql-editor span,
+  .new-note-panel .ql-editor strong,
+  .new-note-panel .ql-editor em,
+  .new-note-panel .ql-editor u {
+    font-family: var(--font-sans) !important;
+  }
+  
+  /* Custom prose-like styling to match note content */
+  .new-note-panel .ql-editor {
+    max-width: none;
+  }
+  
+  /* Ensure paragraphs have proper spacing like note content */
+  .new-note-panel .ql-editor p {
+    margin-bottom: 0 !important;
+  }
+  
+  .new-note-panel .ql-editor p:not(:last-child) {
+    margin-bottom: 1rem !important;
   }
 
-  .new-note-panel #trix-editor {
+  .new-note-panel .ql-toolbar {
     border: none !important;
-    border-radius: 0 !important;
-    padding: 0 !important;
     background: white !important;
+  }
+
+  .new-note-panel .ql-container {
+    border: none !important;
+    background: white !important;
+  }
+
+  /* Hide duplicate toolbars - more aggressive */
+  .new-note-panel .ql-toolbar:not(:first-child) {
+    display: none !important;
+  }
+  
+  /* Global rule to hide any duplicate Quill toolbars */
+  .ql-toolbar:not(:first-child) {
+    display: none !important;
+  }
+  
+  /* Force Reddit Sans on all Quill editors - more aggressive */
+  .new-note-panel .ql-editor,
+  .new-note-panel .ql-editor *,
+  .new-note-panel .ql-editor p,
+  .new-note-panel .ql-editor div,
+  .new-note-panel .ql-editor span,
+  .new-note-panel .ql-editor strong,
+  .new-note-panel .ql-editor em,
+  .new-note-panel .ql-editor u,
+  .new-note-panel .ql-editor ol,
+  .new-note-panel .ql-editor ul,
+  .new-note-panel .ql-editor li {
+    font-family: var(--font-sans) !important;
+    font-size: 16px !important;
+    line-height: 1.6 !important;
+    color: var(--color-deep-grey) !important;
+  }
+  
+  /* Global rule to force Reddit Sans on all Quill editors */
+  .ql-editor,
+  .ql-editor * {
+    font-family: var(--font-sans) !important;
+    font-size: 16px !important;
+    line-height: 1.6 !important;
+    color: var(--color-deep-grey) !important;
   }
 
   /* HTMX loading states */

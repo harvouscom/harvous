@@ -1,6 +1,5 @@
 ---
-import TrixEditorV2 from "./TrixEditorV2.astro";
-import TrixToolbarV3 from "./TrixToolbarV3.astro";
+import QuillEditor from "./QuillEditor.astro";
 
 export interface Props {
   title?: string;
@@ -27,11 +26,40 @@ const {
 
 <div 
   class={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full ${className}`}
+  data-card-full-editable
+  x-data="{ 
+    isEditing: false,
+    editTitle: '',
+    editContent: '',
+    isSaving: false,
+    hasChanges: false,
+    originalTitle: '',
+    originalContent: '',
+    onSaveCallback: null
+  }"
+  x-init="
+    editTitle = '';
+    editContent = '';
+    originalTitle = '';
+    originalContent = '';
+    onSaveCallback = null; // Will be set by the script
+  "
 >
   <!-- Header with title and bookmark icon -->
   <div class="box-border content-stretch flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
     <div class="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
-      <p class="leading-[normal]">{title}</p>
+      <!-- Display mode -->
+      <p x-show="!isEditing" class="leading-[normal] cursor-pointer hover:bg-gray-50 rounded px-2 py-1 -mx-2 -my-1" @click="isEditing = true; editTitle = originalTitle; editContent = originalContent;">{title}</p>
+      <!-- Edit mode -->
+      <input 
+        x-show="isEditing"
+        x-model="editTitle"
+        type="text"
+        class="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none"
+        placeholder="Note title"
+        @keydown.enter="saveChanges()"
+        @keydown.escape="cancelEdit()"
+      />
     </div>
     <div class="relative shrink-0 size-5">
       <svg class="block max-w-none size-full text-[var(--color-deep-grey)] " fill="currentColor" viewBox="0 0 24 24">
@@ -58,104 +86,178 @@ const {
   <!-- Content -->
   <div class="basis-0 box-border content-stretch flex grow items-start justify-between min-h-px min-w-px px-3 py-0 relative shrink-0 w-full">
     <div class="basis-0 flex flex-col font-sans font-normal grow justify-center leading-[1.6] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[16px]">
-      <div class="min-h-[200px] prose prose-sm max-w-none" set:html={content || ''}></div>
+      <!-- Display mode -->
+      <div x-show="!isEditing" class="min-h-[200px] max-w-none cursor-pointer hover:bg-gray-50 rounded px-2 py-1 -mx-2 -my-1" set:html={content || ''} @click="isEditing = true; editTitle = originalTitle; editContent = originalContent;"></div>
+      
+      <!-- Edit mode -->
+      <div x-show="isEditing" class="min-h-[200px] flex flex-col">
+        <QuillEditor 
+          content={content}
+          id="edit-note-content"
+          name="editContent"
+          placeholder="Start writing your note..."
+        />
+        
+        <!-- Save/Cancel buttons -->
+        <div class="flex gap-2 mt-4 justify-end">
+          <button 
+            @click="cancelEdit()"
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            :disabled="isSaving"
+          >
+            Cancel
+          </button>
+          <button 
+            @click="saveChanges()"
+            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            :disabled="isSaving"
+          >
+            <span x-show="!isSaving">Save</span>
+            <span x-show="isSaving">Saving...</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <style>
-  /* Trix Editor content styling */
-  .prose {
-    color: var(--color-deep-grey);
-    line-height: 1.6;
+  /* CardFullEditable specific styling */
+  [data-card-full-editable] .ql-editor {
+    font-family: var(--font-sans) !important;
+    font-size: 16px !important;
+    line-height: 1.6 !important;
+    color: var(--color-deep-grey) !important;
   }
   
-  .prose h1 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin: 1rem 0 0.5rem 0;
-    color: var(--color-deep-grey);
+  [data-card-full-editable] .ql-editor * {
+    font-family: var(--font-sans) !important;
+    font-size: 16px !important;
+    line-height: 1.6 !important;
+    color: var(--color-deep-grey) !important;
   }
   
-  .prose h2 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin: 0.875rem 0 0.5rem 0;
-    color: var(--color-deep-grey);
-  }
-  
-  .prose h3 {
-    font-size: 1.125rem;
-    font-weight: 600;
-    margin: 0.75rem 0 0.5rem 0;
-    color: var(--color-deep-grey);
-  }
-  
-  .prose p {
-    margin: 0.5rem 0;
-    color: var(--color-deep-grey);
-  }
-  
-  .prose strong {
-    font-weight: 600;
-    color: var(--color-deep-grey);
-  }
-  
-  .prose em {
-    font-style: italic;
-    color: var(--color-deep-grey);
-  }
-  
-  .prose u {
-    text-decoration: underline;
-    color: var(--color-deep-grey);
-  }
-  
-  .prose s {
-    text-decoration: line-through;
-    color: var(--color-deep-grey);
-  }
-  
-  .prose blockquote {
-    border-left: 4px solid var(--color-stone-grey);
-    padding-left: 1rem;
-    margin: 1rem 0;
-    font-style: italic;
-    color: var(--color-stone-grey);
-  }
-  
-  .prose code {
-    background-color: var(--color-fog-white);
-    padding: 0.125rem 0.25rem;
-    border-radius: 0.25rem;
-    font-family: 'Courier New', monospace;
-    font-size: 0.875rem;
-    color: var(--color-deep-grey);
-  }
-  
-  .prose ul {
-    list-style-type: disc;
-    margin: 0.5rem 0;
-    padding-left: 1.5rem;
-  }
-  
-  .prose ol {
-    list-style-type: decimal;
-    margin: 0.5rem 0;
-    padding-left: 1.5rem;
-  }
-  
-  .prose li {
-    margin: 0.25rem 0;
-    color: var(--color-deep-grey);
-  }
-  
-  .prose a {
-    color: var(--color-deep-grey);
-    text-decoration: underline;
-  }
-  
-  .prose a:hover {
-    color: var(--color-stone-grey);
+  /* Hide duplicate toolbars in CardFullEditable */
+  [data-card-full-editable] .ql-toolbar:not(:first-child) {
+    display: none !important;
   }
 </style>
+
+<script define:vars={{ title, content }}>
+  // Define functions immediately to avoid timing issues
+  function setupCardFullEditable() {
+    const cardElement = document.querySelector('[data-card-full-editable]');
+    if (cardElement) {
+      const alpineData = window.Alpine?.$data(cardElement);
+      if (alpineData) {
+        // Get the onSave callback from the global variable
+        const onSave = window.noteSaveCallback || noteSaveCallback;
+        alpineData.onSaveCallback = onSave;
+        
+        // Set the title and content from the component props
+        alpineData.editTitle = title || '';
+        alpineData.editContent = content || '';
+        alpineData.originalTitle = title || '';
+        alpineData.originalContent = content || '';
+        
+        // Define saveChanges function
+        alpineData.saveChanges = async function() {
+          this.isSaving = true;
+          
+          try {
+            // Get content from QuillEditor
+            let content = '';
+            const quillContainer = document.querySelector('#static-quill-container-edit-note-content');
+            const hiddenInput = document.querySelector('#edit-note-content');
+            
+            // Try to get content from hidden input first (most reliable)
+            if (hiddenInput && hiddenInput.value) {
+              content = hiddenInput.value;
+            }
+            
+            // Fallback to Quill Editor
+            if (!content && quillContainer && quillContainer.__quill) {
+              try {
+                content = quillContainer.__quill.root.innerHTML;
+              } catch (error) {
+                console.error('Error getting content from Quill Editor:', error);
+              }
+            }
+            
+            // Fallback to Alpine data
+            if (!content && this.editContent) {
+              content = this.editContent;
+            }
+            
+            if (!content.trim()) {
+              alert('Please add some content to your note');
+              this.isSaving = false;
+              return;
+            }
+            
+            // Call the onSave callback if provided
+            if (this.onSaveCallback && typeof this.onSaveCallback === 'function') {
+              const result = await this.onSaveCallback(this.editTitle, content);
+            } else {
+              console.error('CardFullEditable: onSaveCallback is not a function!', this.onSaveCallback);
+            }
+            
+            // Update original values
+            this.originalTitle = this.editTitle;
+            this.originalContent = content;
+            this.isEditing = false;
+            
+            // Update the display content - be more specific with selectors
+            const titleDisplay = cardElement.querySelector('p[x-show="!isEditing"]');
+            const contentDisplay = cardElement.querySelector('div[x-show="!isEditing"]');
+            
+            if (titleDisplay) {
+              titleDisplay.textContent = this.editTitle;
+            }
+            
+            if (contentDisplay) {
+              contentDisplay.innerHTML = content;
+            }
+            
+            // Show success message
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: 'Note updated successfully!',
+                type: 'success'
+              }
+            }));
+            
+          } catch (error) {
+            console.error('Error saving note:', error);
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: 'Error saving note. Please try again.',
+                type: 'error'
+              }
+            }));
+          } finally {
+            this.isSaving = false;
+          }
+        };
+        
+        // Define cancelEdit function
+        alpineData.cancelEdit = function() {
+          this.editTitle = this.originalTitle;
+          this.editContent = this.originalContent;
+          this.isEditing = false;
+          this.hasChanges = false;
+        };
+      }
+    }
+  }
+  
+  // Try to setup immediately
+  setupCardFullEditable();
+  
+  // Also try on DOM ready
+  document.addEventListener('DOMContentLoaded', setupCardFullEditable);
+  
+  // Try periodically as fallback
+  setTimeout(setupCardFullEditable, 100);
+  setTimeout(setupCardFullEditable, 500);
+</script>

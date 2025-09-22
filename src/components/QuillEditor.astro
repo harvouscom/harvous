@@ -1,0 +1,282 @@
+---
+interface Props {
+  content: string;
+  id?: string;
+  name?: string;
+  placeholder?: string;
+}
+
+const { 
+  content, 
+  id = "content", 
+  name = "content", 
+  placeholder = "Write something..."
+} = Astro.props;
+---
+
+<!-- Load Quill CSS and JS -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+
+<div id="static-quill-editor" class="relative h-full">
+  <input id={id} name={name} value={content} type="hidden" />
+  
+  <!-- Quill Editor Container -->
+  <div 
+    id={`static-quill-container-${id}`}
+    class="quill-content h-full"
+    style="min-height: 200px; border: 1px solid #ccc; background: white;"
+  ></div>
+</div>
+
+<style>
+  #static-quill-editor {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #static-quill-editor .quill-content {
+    resize: none;
+    background: var(--color-fog-white);
+    border-radius: 0.75rem;
+    border: none;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-height: 200px;
+    overflow-y: auto;
+  }
+
+  /* Quill Editor Styling - Match note content styling */
+  #static-quill-editor .ql-editor {
+    font-family: var(--font-sans) !important;
+    font-weight: normal;
+    font-size: 16px;
+    color: var(--color-deep-grey);
+    line-height: 1.6;
+    border: none !important;
+    border-radius: 0;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    min-height: 200px;
+  }
+  
+  /* Force Reddit Sans on all Quill content */
+  #static-quill-editor .ql-editor * {
+    font-family: var(--font-sans) !important;
+  }
+  
+  /* Override Quill's default font styles */
+  #static-quill-editor .ql-editor p,
+  #static-quill-editor .ql-editor div,
+  #static-quill-editor .ql-editor span,
+  #static-quill-editor .ql-editor strong,
+  #static-quill-editor .ql-editor em,
+  #static-quill-editor .ql-editor u {
+    font-family: var(--font-sans) !important;
+  }
+  
+  /* Custom prose-like styling to match note content */
+  #static-quill-editor .ql-editor {
+    max-width: none;
+  }
+  
+  /* Ensure paragraphs have proper spacing like note content */
+  #static-quill-editor .ql-editor p {
+    margin-bottom: 0 !important;
+  }
+  
+  #static-quill-editor .ql-editor p:not(:last-child) {
+    margin-bottom: 1rem !important;
+  }
+
+  #static-quill-editor .ql-editor.ql-blank::before {
+    color: var(--color-pebble-grey);
+    font-style: italic;
+    content: attr(data-placeholder);
+  }
+
+  /* Quill Toolbar Styling */
+  #static-quill-editor .ql-toolbar {
+    border: none;
+    background: transparent;
+    padding: 0.5rem 0.75rem;
+  }
+
+  #static-quill-editor .ql-toolbar .ql-formats {
+    margin-right: 1rem;
+  }
+
+  #static-quill-editor .ql-toolbar button {
+    color: var(--color-deep-grey);
+    transition: color 0.2s;
+  }
+
+  #static-quill-editor .ql-toolbar button:hover {
+    color: var(--color-stone-grey);
+    background: var(--color-fog-white);
+    border-radius: 0.25rem;
+  }
+
+  #static-quill-editor .ql-toolbar button.ql-active {
+    color: var(--color-deep-grey);
+    background: var(--color-fog-white);
+  }
+
+  /* Hide duplicate toolbars - more aggressive */
+  #static-quill-editor .ql-toolbar:not(:first-child) {
+    display: none !important;
+  }
+  
+  /* Global rule to hide any duplicate Quill toolbars */
+  .ql-toolbar:not(:first-child) {
+    display: none !important;
+  }
+  
+  /* Force Reddit Sans on all Quill editors - more aggressive */
+  #static-quill-editor .ql-editor,
+  #static-quill-editor .ql-editor *,
+  #static-quill-editor .ql-editor p,
+  #static-quill-editor .ql-editor div,
+  #static-quill-editor .ql-editor span,
+  #static-quill-editor .ql-editor strong,
+  #static-quill-editor .ql-editor em,
+  #static-quill-editor .ql-editor u,
+  #static-quill-editor .ql-editor ol,
+  #static-quill-editor .ql-editor ul,
+  #static-quill-editor .ql-editor li {
+    font-family: var(--font-sans) !important;
+    font-size: 16px !important;
+    line-height: 1.6 !important;
+    color: var(--color-deep-grey) !important;
+  }
+  
+  /* Global rule to force Reddit Sans on all Quill editors */
+  .ql-editor,
+  .ql-editor * {
+    font-family: var(--font-sans) !important;
+    font-size: 16px !important;
+    line-height: 1.6 !important;
+    color: var(--color-deep-grey) !important;
+  }
+</style>
+
+<script define:vars={{ id, placeholder, content }}>
+  
+  // Use a unique variable name for each editor instance
+  const editorInstanceKey = `quillInstance_${id}`;
+  let quillInstance = null;
+  
+
+  // Simple initialization following Quill quickstart pattern
+  function tryInitialize() {
+    const editorId = id;
+    const quillContainer = document.querySelector(`#static-quill-container-${editorId}`);
+    const hiddenInput = document.querySelector(`#${editorId}`);
+    
+    
+    // Check if already initialized to prevent double toolbars
+    if (quillContainer && quillContainer.__quill) {
+      return;
+    }
+    
+    if (quillContainer && hiddenInput && window.Quill && !quillContainer.__quill) {
+      
+      // Clear container completely to prevent duplicate toolbars
+      quillContainer.innerHTML = '';
+      
+      // Initialize Quill exactly like the quickstart
+      quillInstance = new window.Quill(quillContainer, {
+        theme: 'snow',
+        placeholder: placeholder,
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            ['clean']
+          ]
+        }
+      });
+      
+      // Store reference to prevent re-initialization
+      quillContainer.__quill = quillInstance;
+      
+      // Set initial content if provided
+      if (content && content.trim()) {
+        quillInstance.root.innerHTML = content;
+        hiddenInput.value = content;
+      }
+      
+      // Update hidden input when content changes
+      quillInstance.on('text-change', () => {
+        const htmlContent = quillInstance.root.innerHTML;
+        hiddenInput.value = htmlContent;
+        
+        // Re-apply font after content changes
+        setTimeout(() => applyFontStyling(), 10);
+      });
+      
+      // Apply font styling immediately and after a delay
+      applyFontStyling();
+      setTimeout(applyFontStyling, 100);
+      setTimeout(applyFontStyling, 500);
+      
+    }
+  }
+  
+  // Function to apply font styling
+  function applyFontStyling() {
+    const container = document.querySelector(`#static-quill-container-${id}`);
+    const instance = container ? container.__quill : null;
+    
+    if (instance && instance.root) {
+      const fontFamily = getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim();
+      const targetFont = fontFamily || '"Reddit Sans", system-ui, -apple-system, sans-serif';
+      
+      // Apply to root element
+      instance.root.style.fontFamily = targetFont;
+      instance.root.style.setProperty('font-family', targetFont, 'important');
+      instance.root.style.fontSize = '16px';
+      instance.root.style.setProperty('font-size', '16px', 'important');
+      instance.root.style.lineHeight = '1.6';
+      instance.root.style.setProperty('line-height', '1.6', 'important');
+      instance.root.style.color = 'var(--color-deep-grey)';
+      instance.root.style.setProperty('color', 'var(--color-deep-grey)', 'important');
+      
+      // Apply to all child elements
+      const allElements = instance.root.querySelectorAll('*');
+      allElements.forEach(el => {
+        el.style.fontFamily = targetFont;
+        el.style.setProperty('font-family', targetFont, 'important');
+        el.style.fontSize = '16px';
+        el.style.setProperty('font-size', '16px', 'important');
+        el.style.lineHeight = '1.6';
+        el.style.setProperty('line-height', '1.6', 'important');
+        el.style.color = 'var(--color-deep-grey)';
+        el.style.setProperty('color', 'var(--color-deep-grey)', 'important');
+      });
+      
+    }
+  }
+  
+  // Try immediately
+  tryInitialize();
+  
+  // Try on DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryInitialize);
+  }
+  
+  // Try periodically as fallback
+  const interval = setInterval(() => {
+    const container = document.querySelector(`#static-quill-container-${id}`);
+    if (container && container.__quill) {
+      clearInterval(interval);
+    } else {
+      tryInitialize();
+    }
+  }, 1000);
+</script>

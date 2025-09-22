@@ -1,6 +1,35 @@
 import { db, Threads, Notes, Spaces, NoteThreads, eq, and, desc, count, or, ne, isNull } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 
+// Helper function to strip HTML tags and decode entities
+function stripHtml(html: string): string {
+  if (!html) return '';
+  
+  // More aggressive HTML stripping
+  let text = html
+    // Remove script and style tags completely (including their content)
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    // Remove all HTML tags (including those with complex attributes)
+    .replace(/<[^>]*>/g, '')
+    // Decode HTML entities
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&#x60;/g, '`')
+    .replace(/&#x3D;/g, '=')
+    // Clean up whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+    
+  return text;
+}
+
 // Helper function to format relative time
 function formatRelativeTime(date: Date): string {
   const now = new Date();
@@ -418,29 +447,35 @@ export async function getContentItems(userId: string, limit = 20) {
       accentColor: thread.accentColor,
     }));
 
-    const assignedNoteItems = assignedNotes.map(note => ({
-      id: `note-${note.id}`,
-      type: "note" as const,
-      title: note.title || "Untitled Note",
-      content: note.content.substring(0, 150) + (note.content.length > 150 ? "..." : ""),
-      noteId: note.id, // Full ID including prefix
-      threadId: note.threadId,
-      spaceId: note.spaceId,
-      lastUpdated: note.lastUpdated,
-      updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
-    }));
+    const assignedNoteItems = assignedNotes.map(note => {
+      const cleanContent = stripHtml(note.content);
+      return {
+        id: `note-${note.id}`,
+        type: "note" as const,
+        title: note.title || "Untitled Note",
+        content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        noteId: note.id, // Full ID including prefix
+        threadId: note.threadId,
+        spaceId: note.spaceId,
+        lastUpdated: note.lastUpdated,
+        updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
+      };
+    });
 
-    const unorganizedNoteItems = unorganizedNotes.map(note => ({
-      id: `note-${note.id}`,
-      type: "note" as const,
-      title: note.title || "Untitled Note",
-      content: note.content.substring(0, 150) + (note.content.length > 150 ? "..." : ""),
-      noteId: note.id, // Full ID including prefix
-      threadId: note.threadId,
-      spaceId: note.spaceId,
-      lastUpdated: note.lastUpdated,
-      updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
-    }));
+    const unorganizedNoteItems = unorganizedNotes.map(note => {
+      const cleanContent = stripHtml(note.content);
+      return {
+        id: `note-${note.id}`,
+        type: "note" as const,
+        title: note.title || "Untitled Note",
+        content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        noteId: note.id, // Full ID including prefix
+        threadId: note.threadId,
+        spaceId: note.spaceId,
+        lastUpdated: note.lastUpdated,
+        updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
+      };
+    });
 
     // Combine and sort by actual timestamp (newest first)
     // This ensures notes from unorganized threads are sorted by their actual update time
