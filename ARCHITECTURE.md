@@ -247,6 +247,76 @@ The application includes a comprehensive XP (Experience Points) system to gamify
 3. **When to Use Global Functions**:
    - When Alpine.js scope prevents access to component methods
    - For complex async operations that need to update component state
+
+### Alpine.js Integration with View Transitions
+
+**CRITICAL LESSON**: Alpine.js integration approach depends on whether you're using Astro View Transitions.
+
+#### **View Transitions + Alpine.js Integration**
+
+**The Problem**: Astro's `@astrojs/alpinejs` integration conflicts with View Transitions (`<ClientRouter />`).
+
+**Why It Fails**:
+- View Transitions only execute scripts once per session
+- Alpine.js needs re-initialization after each page transition
+- Astro integration doesn't handle View Transitions lifecycle events properly
+
+**The Solution**: Use CDN approach with proper lifecycle handling.
+
+**Best Practices for View Transitions + Alpine.js**:
+
+1. **Use CDN Script** (not Astro integration):
+   ```html
+   <!-- In Layout.astro -->
+   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+   ```
+
+2. **Add Re-initialization for View Transitions**:
+   ```javascript
+   // Re-initialize Alpine.js after View Transitions
+   document.addEventListener('astro:page-load', () => {
+     if ((window as any).Alpine) {
+       (window as any).Alpine.initTree(document.body);
+     }
+   });
+   ```
+
+3. **Update TypeScript Declarations**:
+   ```typescript
+   // In env.d.ts
+   interface Window {
+     Alpine: import("alpinejs").Alpine;
+     // ... other global functions
+   }
+   ```
+
+#### **When to Use Each Approach**
+
+- **✅ Use CDN + Lifecycle**: When using View Transitions (`<ClientRouter />`)
+- **✅ Use Astro Integration**: For static sites without View Transitions
+- **❌ Don't Mix Both**: Never use both CDN and Astro integration simultaneously
+
+#### **Common Integration Issues**
+
+1. **Duplicate Alpine.js Loading**:
+   - Problem: Both `alpinejs()` in config AND CDN script
+   - Solution: Use only one approach
+
+2. **Missing Re-initialization**:
+   - Problem: Alpine.js stops working after page transitions
+   - Solution: Add `astro:page-load` event listener
+
+3. **TypeScript Errors**:
+   - Problem: `Property 'Alpine' does not exist on type 'Window'`
+   - Solution: Update `env.d.ts` with proper type declarations
+
+#### **Testing Alpine.js Integration**
+
+Always test these scenarios:
+1. **Initial page load**: Alpine.js directives work
+2. **Page transitions**: Alpine.js re-initializes correctly
+3. **Component interactions**: `x-data`, `x-show`, `x-on:click` work
+4. **Global functions**: Can access Alpine.js data from external scripts
    - When working with external libraries that need to modify Alpine.js data
    - For event handlers that need to access component data from outside the component
 
