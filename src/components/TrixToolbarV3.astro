@@ -1,0 +1,199 @@
+---
+import FaBoldIcon from "@fortawesome/fontawesome-free/svgs/solid/bold.svg";
+import FaItalicIcon from "@fortawesome/fontawesome-free/svgs/solid/italic.svg";
+import FaStrikethroughIcon from "@fortawesome/fontawesome-free/svgs/solid/strikethrough.svg";
+import FaHeadingIcon from "@fortawesome/fontawesome-free/svgs/solid/heading.svg";
+import FaQuoteRightIcon from "@fortawesome/fontawesome-free/svgs/solid/quote-right.svg";
+import FaListUlIcon from "@fortawesome/fontawesome-free/svgs/solid/list-ul.svg";
+import FaListOlIcon from "@fortawesome/fontawesome-free/svgs/solid/list-ol.svg";
+import FaOutdentIcon from "@fortawesome/fontawesome-free/svgs/solid/outdent.svg";
+import FaIndentIcon from "@fortawesome/fontawesome-free/svgs/solid/indent.svg";
+import FaLinkIcon from "@fortawesome/fontawesome-free/svgs/solid/link.svg";
+import FaPaperclipIcon from "@fortawesome/fontawesome-free/svgs/solid/paperclip.svg";
+import FaCodeIcon from "@fortawesome/fontawesome-free/svgs/solid/code.svg";
+import FaUndoIcon from "@fortawesome/fontawesome-free/svgs/solid/rotate-left.svg";
+import FaRedoIcon from "@fortawesome/fontawesome-free/svgs/solid/rotate-right.svg";
+import FaSaveIcon from "@fortawesome/fontawesome-free/svgs/solid/floppy-disk.svg";
+import FaCheckIcon from "@fortawesome/fontawesome-free/svgs/solid/check.svg";
+import FaTimesIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+
+interface Props {
+  id: string;
+  input: string;
+  showSaveActions?: boolean;
+  onSave?: () => void;
+  onCancel?: () => void;
+  isSaving?: boolean;
+}
+
+const { 
+  id, 
+  showSaveActions = false, 
+  onSave, 
+  onCancel, 
+  isSaving = false 
+} = Astro.props as Props;
+---
+
+<section id={id} class="bg-[var(--color-fog-white)] rounded-xl p-2 w-full overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+  <div class="flex items-center gap-0 flex-nowrap">
+    <!-- Formatting Tools -->
+    <button class="toolbar-btn" data-trix-attribute="bold" data-trix-key="b" title="Bold (Ctrl+B)">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaBoldIcon />
+    </button>
+
+    <button class="toolbar-btn" data-trix-attribute="italic" data-trix-key="i" title="Italic (Ctrl+I)">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaItalicIcon />
+    </button>
+
+    <button class="toolbar-btn" data-trix-attribute="strike" data-trix-key="s" title="Strikethrough">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaStrikethroughIcon />
+    </button>
+
+    <div class="w-px h-6 bg-[var(--color-pebble-grey)] mx-1 opacity-30"></div>
+
+    <button class="toolbar-btn" data-trix-attribute="heading1" title="Heading">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaHeadingIcon />
+    </button>
+
+    <button class="toolbar-btn" data-trix-attribute="quote" title="Quote">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaQuoteRightIcon />
+    </button>
+
+    <button class="toolbar-btn" data-trix-attribute="code" title="Code">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaCodeIcon />
+    </button>
+
+    <div class="w-px h-6 bg-[var(--color-pebble-grey)] mx-1 opacity-30"></div>
+
+    <button class="toolbar-btn" data-trix-attribute="bullet" title="Bullet List">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaListUlIcon />
+    </button>
+
+    <button class="toolbar-btn" data-trix-attribute="number" title="Numbered List">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaListOlIcon />
+    </button>
+
+    <button class="toolbar-btn" data-trix-action="decreaseNestingLevel" title="Decrease Indent">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaOutdentIcon />
+    </button>
+
+    <button class="toolbar-btn" data-trix-action="increaseNestingLevel" title="Increase Indent">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaIndentIcon />
+    </button>
+
+    <div class="w-px h-6 bg-[var(--color-pebble-grey)] mx-1 opacity-30"></div>
+
+    <button class="toolbar-btn" data-trix-action="attachFiles" title="Attach Files">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaPaperclipIcon />
+    </button>
+
+    <div class="w-px h-6 bg-[var(--color-pebble-grey)] mx-1 opacity-30"></div>
+
+    <button class="toolbar-btn" data-trix-action="undo" title="Undo (Ctrl+Z)">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaUndoIcon />
+    </button>
+
+    <button class="toolbar-btn" data-trix-action="redo" title="Redo (Ctrl+Y)">
+      {/* @ts-ignore - Icon import in Astro is borked, but works. */}
+      <FaRedoIcon />
+    </button>
+
+    <!-- Save Actions (when editing existing notes) -->
+    {showSaveActions && (
+      <>
+        <div class="w-px h-6 bg-[var(--color-pebble-grey)] mx-1 opacity-30"></div>
+        
+        <button 
+          class="toolbar-btn save-btn" 
+          title="Save Changes"
+          x-bind:disabled="isSaving"
+          x-on:click={onSave}
+        >
+          <FaSaveIcon />
+        </button>
+
+        <button 
+          class="toolbar-btn cancel-btn" 
+          title="Cancel Editing"
+          x-on:click={onCancel}
+        >
+          <FaTimesIcon />
+        </button>
+      </>
+    )}
+  </div>
+</section>
+
+<style>
+    /* This is needed to use Tailwind's @apply in v5 */
+    @reference "@/styles/global.css";
+
+    .toolbar-btn {
+      @apply flex items-center justify-center w-8 h-8 rounded-full hover:bg-[var(--color-paper)] [&:hover>svg]:!fill-[var(--color-deep-grey)] flex-shrink-0 transition-all duration-150;
+
+      &[data-trix-active] {
+        @apply relative bg-[var(--color-paper)];
+
+        &::after {
+          @apply content-[''] absolute -bottom-[2px] left-1/2 -translate-x-1/2 w-1 h-1 bg-[var(--color-deep-grey)] rounded-full;
+        }
+
+        & svg {
+          @apply fill-[var(--color-deep-grey)];
+        } 
+      }
+
+      & svg {
+        @apply w-5 h-5 fill-[var(--color-pebble-grey)] transition-colors duration-150;
+      }
+
+      &:disabled {
+        @apply opacity-50 cursor-not-allowed;
+      }
+    }
+
+    .save-btn {
+      @apply hover:bg-green-100 [&:hover>svg]:!fill-green-600;
+      
+      &[data-trix-active] {
+        @apply bg-green-100;
+        
+        &::after {
+          @apply bg-green-600;
+        }
+        
+        & svg {
+          @apply fill-green-600;
+        }
+      }
+    }
+
+    .cancel-btn {
+      @apply hover:bg-red-100 [&:hover>svg]:!fill-red-600;
+      
+      &[data-trix-active] {
+        @apply bg-red-100;
+        
+        &::after {
+          @apply bg-red-600;
+        }
+        
+        & svg {
+          @apply fill-red-600;
+        }
+      }
+    }
+</style>

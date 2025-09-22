@@ -2,6 +2,7 @@
 import Layout from "@/layouts/Layout.astro";
 import CardStack from "@/components/CardStack.astro";
 import CardFull from "@/components/CardFull.astro";
+import CardFullEditable from "@/components/CardFullEditable.astro";
 import SearchInput from "@/components/SearchInput.astro";
 import SpaceButton from "@/components/SpaceButton.astro";
 import SquareButton from "@/components/SquareButton.astro";
@@ -499,12 +500,47 @@ if (!content) {
               data-parent-thread-color={currentThread?.color || 'blue'}
               class="h-full"
             >
-              <CardFull 
+              <CardFullEditable 
                 title={content.title || "Untitled Note"}
                 content={content.content}
                 date={content.createdAt ? content.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Feb 7, 2025"}
                 noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : undefined}
                 className="h-full"
+                isEditable={true}
+                onSave={async (newTitle, newContent) => {
+                  try {
+                    // Get note ID from the data attribute on the container
+                    const container = document.querySelector('[data-note-id]');
+                    const noteId = container?.getAttribute('data-note-id');
+                    
+                    if (!noteId) {
+                      throw new Error('Note ID not found');
+                    }
+                    
+                    const response = await fetch('/api/notes/update', {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        noteId: noteId,
+                        title: newTitle,
+                        content: newContent
+                      })
+                    });
+                    
+                    if (!response.ok) {
+                      throw new Error('Failed to update note');
+                    }
+                    
+                    const result = await response.json();
+                    return result;
+                  } catch (error) {
+                    console.error('Error updating note:', error);
+                    throw error;
+                  }
+                }}
               />
             </div>
           ) : !content ? (

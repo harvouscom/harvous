@@ -1,0 +1,161 @@
+---
+import TrixEditorV2 from "./TrixEditorV2.astro";
+import TrixToolbarV3 from "./TrixToolbarV3.astro";
+
+export interface Props {
+  title?: string;
+  date?: string;
+  noteId?: string;
+  content?: string;
+  className?: string;
+  isEditable?: boolean;
+  onSave?: (title: string, content: string) => void;
+  onCancel?: () => void;
+}
+
+const {
+  title = "Note from our founder, Derek",
+  date = "Feb 7, 2025",
+  noteId = undefined,
+  content = "Thank you so much for trying out this notes app designed for Bible study. It's been a project I've been working on for a good amount of time. The goal of Harvous is to be the digital tool and space for you and others to use for your Bible study.\n\nHow it began... I was frustrated with there not being a good notes app just for my Bible study. I used Apple Notes and made a ton of highlights in the YouVersion Bible app. I needed a better app, so I sought out to design one. And with the help of my friend, Cam, we built this Bible study notes app.\n\nPlease if you come across anything that isn't working as it prolly should or if you have any feedback for us send it here.",
+  className = "",
+  isEditable = false,
+  onSave,
+  onCancel
+} = Astro.props;
+---
+
+<div 
+  class={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full ${className}`}
+>
+  <!-- Header with title and bookmark icon -->
+  <div class="box-border content-stretch flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
+    <div class="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
+      <p class="leading-[normal]">{title}</p>
+    </div>
+    <div class="relative shrink-0 size-5">
+      <svg class="block max-w-none size-full text-[var(--color-deep-grey)] " fill="currentColor" viewBox="0 0 24 24">
+        <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+      </svg>
+    </div>
+  </div>
+  
+  <!-- Date and Note ID -->
+  <div class="box-border content-stretch flex font-sans font-normal items-center leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" class:list={[
+    "justify-between",
+    noteId ? "justify-between" : "justify-start"
+  ]}>
+    <div class="relative shrink-0">
+      <p class="leading-[normal] text-nowrap whitespace-pre">{date}</p>
+    </div>
+    {noteId && (
+      <div class="relative shrink-0">
+        <p class="leading-[normal] text-nowrap whitespace-pre">#{noteId}</p>
+      </div>
+    )}
+  </div>
+  
+  <!-- Content -->
+  <div class="basis-0 box-border content-stretch flex grow items-start justify-between min-h-px min-w-px px-3 py-0 relative shrink-0 w-full">
+    <div class="basis-0 flex flex-col font-sans font-normal grow justify-center leading-[1.6] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[16px]">
+      <div class="min-h-[200px] prose prose-sm max-w-none" set:html={content || ''}></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Trix Editor content styling */
+  .prose {
+    color: var(--color-deep-grey);
+    line-height: 1.6;
+  }
+  
+  .prose h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem 0;
+    color: var(--color-deep-grey);
+  }
+  
+  .prose h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0.875rem 0 0.5rem 0;
+    color: var(--color-deep-grey);
+  }
+  
+  .prose h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0.75rem 0 0.5rem 0;
+    color: var(--color-deep-grey);
+  }
+  
+  .prose p {
+    margin: 0.5rem 0;
+    color: var(--color-deep-grey);
+  }
+  
+  .prose strong {
+    font-weight: 600;
+    color: var(--color-deep-grey);
+  }
+  
+  .prose em {
+    font-style: italic;
+    color: var(--color-deep-grey);
+  }
+  
+  .prose u {
+    text-decoration: underline;
+    color: var(--color-deep-grey);
+  }
+  
+  .prose s {
+    text-decoration: line-through;
+    color: var(--color-deep-grey);
+  }
+  
+  .prose blockquote {
+    border-left: 4px solid var(--color-stone-grey);
+    padding-left: 1rem;
+    margin: 1rem 0;
+    font-style: italic;
+    color: var(--color-stone-grey);
+  }
+  
+  .prose code {
+    background-color: var(--color-fog-white);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    color: var(--color-deep-grey);
+  }
+  
+  .prose ul {
+    list-style-type: disc;
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+  }
+  
+  .prose ol {
+    list-style-type: decimal;
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+  }
+  
+  .prose li {
+    margin: 0.25rem 0;
+    color: var(--color-deep-grey);
+  }
+  
+  .prose a {
+    color: var(--color-deep-grey);
+    text-decoration: underline;
+  }
+  
+  .prose a:hover {
+    color: var(--color-stone-grey);
+  }
+</style>

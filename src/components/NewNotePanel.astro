@@ -3,7 +3,7 @@ import SquareButton from "./SquareButton.astro";
 import CardFull from "./CardFull.astro";
 import Button from "./Button.astro";
 import SpaceButton from "./SpaceButton.astro";
-import TrixEditor from "./TrixEditor.astro";
+import TrixEditorV2 from "./TrixEditorV2.astro";
 import Toast from "./Toast-v2.astro";
 // Sample data imports removed - using real database data only
 import { getThreadGradientCSS } from "@/utils/colors";
@@ -172,7 +172,6 @@ if (!userId) {
   <!-- Hidden form fields -->
 
   <input type="hidden" name="threadId" x-bind:value="getSelectedThread().id" />
-  <input type="hidden" name="content" x-model="content" />
   <input type="hidden" name="title" x-model="title" />
 
   <!-- Content area that expands to fill available space -->
@@ -261,12 +260,14 @@ if (!userId) {
       <!-- Content area with TrixEditor (like CardFull) -->
       <div class="flex-1 flex items-start justify-between px-3 py-0 relative w-full min-h-0">
         <div class="flex flex-col font-sans font-normal w-full h-full">
-          <textarea 
-            x-model="content"
+          <TrixEditorV2 
+            content=""
+            id="new-note-content"
+            name="content"
             placeholder="Start writing your note..."
-            class="w-full h-full min-h-[200px] p-3 border-none bg-transparent resize-none focus:outline-none text-[var(--color-deep-grey)] font-sans font-normal"
-            style="font-family: inherit;"
-          ></textarea>
+            toolbar="new-note-toolbar"
+            alpineRefName="contentInputEl"
+          />
         </div>
       </div>
 
@@ -458,11 +459,43 @@ if (!userId) {
           // Alpine data not available
         }
         
-        // Get content from Alpine.js data (textarea with x-model)
+        // Get content from Trix Editor
         let content = '';
-        if (alpineData?.content) {
+        const trixEditor = document.querySelector('trix-editor') as any;
+        const hiddenInput = document.querySelector('input[name="content"]') as HTMLInputElement;
+        
+        // Force a trix-change event to ensure content is synced
+        if (trixEditor) {
+          trixEditor.dispatchEvent(new Event('trix-change', { bubbles: true }));
+        }
+        
+        // Try to get content from hidden input first (most reliable)
+        if (hiddenInput && hiddenInput.value) {
+          content = hiddenInput.value;
+        }
+        
+        // Fallback to Trix Editor
+        if (!content && trixEditor && trixEditor.editor && trixEditor.editor.getDocument) {
+          try {
+            content = trixEditor.editor.getDocument().toString();
+          } catch (error) {
+            console.error('Error getting content from Trix Editor:', error);
+          }
+        }
+        
+        // Fallback to Alpine data
+        if (!content && alpineData?.content) {
           content = alpineData.content;
         }
+        
+        // Get threadId from Alpine data to ensure it's correct
+        let threadId = '';
+        if (alpineData && alpineData.getSelectedThread) {
+          const selectedThread = alpineData.getSelectedThread();
+          threadId = selectedThread.id;
+        }
+        
+        // Content and threadId captured
         
         if (!content.trim()) {
           alert('Please add some content to your note');
@@ -476,6 +509,14 @@ if (!userId) {
         
         try {
           const formData = new FormData(form);
+          
+          // Ensure content and threadId are properly set in form data
+          formData.set('content', content);
+          if (threadId) {
+            formData.set('threadId', threadId);
+          }
+          
+          // Form data prepared
           
           const response = await fetch(form.action, {
             method: 'POST',

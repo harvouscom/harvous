@@ -42,7 +42,7 @@ const {
             <!-- Content -->
             <div class="flex flex-col font-normal justify-center overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
               <p class="leading-[1.3] line-clamp-2">
-                {content || "Play a video walkthrough going through the app. Think of this as a live demo and feel free to leave a comment with questions."}
+                {content ? content.replace(/<[^>]*>/g, '') : "Play a video walkthrough going through the app. Think of this as a live demo and feel free to leave a comment with questions."}
               </p>
             </div>
           </div>
@@ -72,7 +72,7 @@ const {
             <!-- Content -->
             <div class="flex flex-col font-normal justify-center overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
               <p class="leading-[1.3] line-clamp-2">
-                {content || "Note content with an image background. The image adds visual context to the note."}
+                {content ? content.replace(/<[^>]*>/g, '') : "Note content with an image background. The image adds visual context to the note."}
               </p>
             </div>
           </div>

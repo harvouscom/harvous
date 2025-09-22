@@ -1,0 +1,95 @@
+import type { APIRoute } from 'astro';
+import { db, Notes, Threads, eq, and } from 'astro:db';
+
+export const PUT: APIRoute = async ({ request, locals }) => {
+  try {
+    // Get userId from authenticated context
+    const { userId } = locals.auth();
+    
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Parse request body
+    const body = await request.json();
+    const { noteId, title, content } = body;
+
+    if (!noteId) {
+      return new Response(JSON.stringify({ error: 'Note ID is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!content || !content.trim()) {
+      return new Response(JSON.stringify({ error: 'Content is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log("Updating note with ID:", noteId, "for user:", userId);
+
+    // Verify the note belongs to the user before updating
+    const existingNote = await db.select()
+      .from(Notes)
+      .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
+      .get();
+
+    if (!existingNote) {
+      return new Response(JSON.stringify({ error: 'Note not found or access denied' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Capitalize content and title
+    const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
+    const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
+
+    // Update the note
+    const updatedNote = await db.update(Notes)
+      .set({ 
+        title: capitalizedTitle,
+        content: capitalizedContent,
+        updatedAt: new Date()
+      })
+      .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
+      .returning()
+      .get();
+
+    if (!updatedNote) {
+      return new Response(JSON.stringify({ error: 'Failed to update note' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Update the thread's updatedAt timestamp
+    await db.update(Threads)
+      .set({ updatedAt: new Date() })
+      .where(and(eq(Threads.id, updatedNote.threadId), eq(Threads.userId, userId)));
+
+    console.log("Note updated successfully:", updatedNote);
+
+    return new Response(JSON.stringify({ 
+      success: "Note updated successfully!",
+      note: updatedNote
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error: any) {
+    console.error('Error updating note:', error);
+    return new Response(JSON.stringify({ 
+      error: error.message || 'Failed to update note' 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+};
