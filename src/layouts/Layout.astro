@@ -1026,19 +1026,25 @@ window.addEventListener('hashchange', () => {
 });
 
 // Aggressive fallback: track on any DOM change that might indicate navigation
-let lastUrl = window.location.href;
-const urlObserver = new MutationObserver(() => {
-  if (window.location.href !== lastUrl) {
-    lastUrl = window.location.href;
-    setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
-  }
-});
+if (typeof window.lastUrl === 'undefined') {
+  window.lastUrl = window.location.href;
+}
 
-// Start observing
-urlObserver.observe(document.body, {
-  childList: true,
-  subtree: true
-});
+// Only create observer if it doesn't exist
+if (!window.urlObserver) {
+  window.urlObserver = new MutationObserver(() => {
+    if (window.location.href !== window.lastUrl) {
+      window.lastUrl = window.location.href;
+      setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
+    }
+  });
+
+  // Start observing
+  window.urlObserver.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+}
 
 // Test function to manually trigger navigation tracking
 window.testNavigationTracking = function() {

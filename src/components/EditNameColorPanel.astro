@@ -2,7 +2,6 @@
 import CardStack from "./CardStack.astro";
 import SquareButton from "./SquareButton.astro";
 import Button from "./Button.astro";
-import FaCheckIcon from "@fortawesome/fontawesome-free/svgs/solid/check.svg";
 
 interface Props {
   firstName?: string;
@@ -16,51 +15,45 @@ const {
   selectedColor = "paper" 
 } = Astro.props;
 
-// Define available colors with CSS variables - same order as NewThreadPanel
-const colors = [
-  { id: "paper", name: "Paper", bg: "bg-[#ebe7db]", cssVar: "var(--color-paper)", selected: selectedColor === "paper" },
-  { id: "blessed-blue", name: "Blessed Blue", bg: "bg-[#c3e4ff]", cssVar: "var(--color-blessed-blue)", selected: selectedColor === "blessed-blue" },
-  { id: "mindful-mint", name: "Mindful Mint", bg: "bg-[#c7ecbb]", cssVar: "var(--color-mindful-mint)", selected: selectedColor === "mindful-mint" },
-  { id: "graceful-gold", name: "Graceful Gold", bg: "bg-[#f9de78]", cssVar: "var(--color-graceful-gold)", selected: selectedColor === "graceful-gold" },
-  { id: "pleasant-peach", name: "Pleasant Peach", bg: "bg-[#fcd8a0]", cssVar: "var(--color-pleasant-peach)", selected: selectedColor === "pleasant-peach" },
-  { id: "caring-coral", name: "Caring Coral", bg: "bg-[#ff8a80]", cssVar: "var(--color-caring-coral)", selected: selectedColor === "caring-coral" },
-  { id: "peaceful-pink", name: "Peaceful Pink", bg: "bg-[#f7ceee]", cssVar: "var(--color-peaceful-pink)", selected: selectedColor === "peaceful-pink" },
-  { id: "lovely-lavender", name: "Lovely Lavender", bg: "bg-[#e1cef7]", cssVar: "var(--color-lovely-lavender)", selected: selectedColor === "lovely-lavender" }
-];
-
-// Get the selected color's CSS variable
-const selectedColorData = colors.find(color => color.selected) || colors.find(color => color.id === selectedColor) || colors[0];
-
 // Create a unique ID for this component instance
 const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
 ---
 
 <script>
   // Set initial values in a global object before Alpine.js initializes
-  (window as any).editPanelData = (window as any).editPanelData || {};
-  (window as any).editPanelData['{componentId}'] = {
-    firstName: '{firstName || ""}',
-    lastName: '{lastName || ""}',
-    selectedColor: '{selectedColor || "paper"}'
+  (window as any).editPanelProps = {
+    firstName: '{firstName}',
+    lastName: '{lastName}',
+    selectedColor: '{selectedColor}'
   };
-  console.log('Set initial data for component:', '{componentId}', (window as any).editPanelData['{componentId}']);
+  console.log('Set editPanelProps:', (window as any).editPanelProps);
   
-  // Also set it directly on window for easier access
-  (window as any).editPanelInitialData = {
-    firstName: '{firstName || ""}',
-    lastName: '{lastName || ""}',
-    selectedColor: '{selectedColor || "paper"}'
+  // Also set the actual values directly from the component props
+  (window as any).editPanelActualProps = {
+    firstName: '{firstName}',
+    lastName: '{lastName}',
+    selectedColor: '{selectedColor}'
   };
+  console.log('Set editPanelActualProps:', (window as any).editPanelActualProps);
 </script>
 
 <div 
   class="edit-name-color-panel flex flex-col"
   data-component-id="{componentId}"
+  data-first-name="{firstName}"
+  data-last-name="{lastName}"
+  data-selected-color="{selectedColor}"
   x-data="{ 
-    firstName: window.editPanelInitialData?.firstName || '',
-    lastName: window.editPanelInitialData?.lastName || '',
-    selectedColor: window.editPanelInitialData?.selectedColor || 'paper',
+    firstName: '',
+    lastName: '',
+    selectedColor: 'paper',
     THREAD_COLORS: ['paper', 'blessed-blue', 'mindful-mint', 'graceful-gold', 'pleasant-peach', 'caring-coral', 'peaceful-pink', 'lovely-lavender'],
+    get firstNamePlaceholder() {
+      return this.firstName ? '' : 'First Name';
+    },
+    get lastNamePlaceholder() {
+      return this.lastName ? '' : 'Last Name';
+    },
     getThreadColorCSS(color) {
       if (!color) return 'var(--color-paper)';
       const colorMap = {
@@ -83,7 +76,18 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
           selectedColor: this.selectedColor
         });
         
-        // Dispatch event to update profile header and avatar
+        // Validate that we have required data
+        if (!this.firstName || !this.lastName) {
+          console.error('Cannot update profile: firstName or lastName is empty');
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Please enter both first and last name',
+              type: 'error'
+            }
+          }));
+          return;
+        }
+        
         const event = new CustomEvent('updateProfile', {
           detail: {
             firstName: this.firstName,
@@ -92,37 +96,17 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
           }
         });
         
-        console.log('Dispatching updateProfile event:', event);
         window.dispatchEvent(event);
-        console.log('Event dispatched successfully');
         
-        // Close the panel after a short delay
         setTimeout(() => {
-          console.log('Attempting to close panel...');
           if (window.closeProfilePanel) {
             window.closeProfilePanel();
-            console.log('Panel closed');
           } else {
-            console.log('closeProfilePanel function not found, trying alternative...');
-            // Try to dispatch the close event directly
             window.dispatchEvent(new CustomEvent('closeProfilePanel'));
-            console.log('Dispatched closeProfilePanel event directly');
           }
         }, 500);
       } catch (error) {
         console.error('Error in updateProfile:', error);
-      }
-    },
-    async refreshFromDatabase() {
-      try {
-        const response = await fetch('/api/user/get-profile');
-        if (response.ok) {
-          const data = await response.json();
-          this.selectedColor = data.userColor || 'paper';
-          console.log('Refreshed color from database:', this.selectedColor);
-        }
-      } catch (error) {
-        console.error('Error fetching profile data:', error);
       }
     }
   }"
@@ -132,41 +116,79 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
   x-transition:leave="transition ease-in duration-150"
   x-transition:leave-start="opacity-100 transform scale-100"
   x-transition:leave-end="opacity-0 transform scale-95"
-  x-init="refreshFromDatabase()"
+  x-init="
+    // Read initial data from data attributes (which Astro properly interpolates)
+    const firstNameFromAttr = $el.getAttribute('data-first-name') || '';
+    const lastNameFromAttr = $el.getAttribute('data-last-name') || '';
+    const selectedColorFromAttr = $el.getAttribute('data-selected-color') || 'paper';
+    
+    // Initialize with data from attributes
+    this.firstName = firstNameFromAttr;
+    this.lastName = lastNameFromAttr;
+    this.selectedColor = selectedColorFromAttr;
+    
+    console.log('EditNameColorPanel initialized with data from attributes:');
+    console.log('  firstName:', this.firstName);
+    console.log('  lastName:', this.lastName);
+    console.log('  selectedColor:', this.selectedColor);
+    console.log('  firstNamePlaceholder:', this.firstNamePlaceholder);
+    console.log('  lastNamePlaceholder:', this.lastNamePlaceholder);
+    
+    // Request fresh data from parent to ensure we have the latest values
+    window.dispatchEvent(new CustomEvent('requestProfileData'));
+    
+    // Listen for profile updates from parent
+    window.addEventListener('updateProfile', (event) => {
+      console.log('updateProfile event received in EditNameColorPanel.astro');
+      const detail = event.detail;
+      console.log('Event detail:', detail);
+      
+      if (detail) {
+        console.log('Updating EditNameColorPanel with new data:', detail);
+        this.firstName = detail.firstName || this.firstName;
+        this.lastName = detail.lastName || this.lastName;
+        this.selectedColor = detail.selectedColor || detail.userColor || this.selectedColor;
+        
+        console.log('EditNameColorPanel data after update - firstName:', this.firstName, 'lastName:', this.lastName, 'selectedColor:', this.selectedColor);
+        console.log('firstNamePlaceholder:', this.firstNamePlaceholder);
+        console.log('lastNamePlaceholder:', this.lastNamePlaceholder);
+      }
+    });
+  "
 >
-  <!-- Compact CardStack structure - CardStack styling but compact height -->
+  <!-- Compact CardStack structure -->
   <div class="bg-white rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full">
-    <!-- Header section with dynamic background - CardStack styling -->
+    <!-- Header section with dynamic background -->
     <div class="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full rounded-t-3xl" x-bind:style="`background-color: ${getThreadColorCSS(selectedColor)}`">
       <div class="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
         <p class="leading-[normal]">Edit Name & Color</p>
       </div>
     </div>
     
-    <!-- Content area - CardStack styling but compact -->
+    <!-- Content area -->
     <div class="bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start p-[12px] relative rounded-b-3xl rounded-tl-[24px] rounded-tr-[24px] w-full">
       
-      <!-- First Name Input - SearchInput style -->
+      <!-- First Name Input -->
       <div class="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
         <input 
           type="text"
           x-model="firstName"
           class="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-          :placeholder="firstName ? '' : 'First Name'"
+          :placeholder="firstNamePlaceholder"
         />
       </div>
       
-      <!-- Last Name Input - SearchInput style -->
+      <!-- Last Name Input -->
       <div class="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
         <input 
           type="text"
           x-model="lastName"
           class="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-          :placeholder="lastName ? '' : 'Last Name'"
+          :placeholder="lastNamePlaceholder"
         />
       </div>
       
-      <!-- Color selection - exact same as NewThreadPanel -->
+      <!-- Color selection -->
       <div class="color-selection flex gap-2 items-center justify-start w-full">
         <template x-for="color in THREAD_COLORS" :key="color">
           <button 
@@ -199,8 +221,8 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
     </div>
   </div>
   
-  <!-- Close Button directly below -->
-  <div class="mt-4" @click="console.log('Close button clicked'); if (window.closeProfilePanel) { window.closeProfilePanel(); } else { console.error('closeProfilePanel function not found'); }">
+  <!-- Close Button -->
+  <div class="mt-4" @click="if (window.closeProfilePanel) { window.closeProfilePanel(); } else { window.dispatchEvent(new CustomEvent('closeProfilePanel')); }">
     <SquareButton variant="Back" />
   </div>
 </div>
@@ -211,7 +233,6 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
     box-shadow: var(--shadow-small);
   }
 
-  /* Color selection button styling - same as NewThreadPanel */
   .color-selection button[style*="background-color"] {
     box-shadow: 0px -4px 0px 0px rgba(0, 0, 0, 0.1) inset;
   }
@@ -224,5 +245,3 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
     transform: scale(0.95);
   }
 </style>
-
-

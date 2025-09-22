@@ -12,7 +12,6 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/u
 import { calculateTotalXP } from "@/utils/xp-system";
 import FaBoltIcon from "@fortawesome/fontawesome-free/svgs/solid/bolt.svg";
 import EditNameColorPanel from "@/components/EditNameColorPanel.astro";
-import Toast from "@/components/Toast-v2.astro";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -286,7 +285,7 @@ const contentId = "profile";
   </div>
 
   <!-- Additional Column for Panels -->
-  <div slot="additional" class="h-full" x-data="{ 
+  <div slot="additional" class="h-full additional-slot" x-data="{ 
     showNewNotePanel: false, 
     showNewThreadPanel: false,
     showEditNameColorPanel: false,
@@ -316,25 +315,6 @@ const contentId = "profile";
     }
   }" x-init="
     console.log('Additional slot initialized');
-    // Listen for profile panel events using Alpine.js context
-    window.addEventListener('openProfilePanel', (event) => {
-      console.log('openProfilePanel event received:', event.detail);
-      // Access the Alpine.js component data directly
-      const alpineData = $el._x_dataStack && $el._x_dataStack[0];
-      console.log('Alpine data:', alpineData);
-      if (alpineData && alpineData.openProfilePanel) {
-        alpineData.openProfilePanel(event.detail.panelName);
-      } else {
-        console.error('openProfilePanel method not found on Alpine data');
-      }
-    });
-    window.addEventListener('closeProfilePanel', () => {
-      console.log('closeProfilePanel event received');
-      const alpineData = $el._x_dataStack && $el._x_dataStack[0];
-      if (alpineData && alpineData.closeProfilePanel) {
-        alpineData.closeProfilePanel();
-      }
-    });
   ">
     <!-- Default state: SquareButtons -->
     <div x-show="!showNewNotePanel && !showNewThreadPanel && !showEditNameColorPanel && !showEmailPasswordPanel && !showMyChurchPanel && !showMyDataPanel" class="flex flex-col items-left h-full justify-end">
@@ -372,8 +352,6 @@ const contentId = "profile";
   </div>
 </Layout>
 
-<!-- Toast component for notifications -->
-<Toast />
 
 <script>
   // Get the logout button and add click handler
@@ -533,8 +511,162 @@ const contentId = "profile";
     // Make sure the functions are available globally
     (window as any).closeProfilePanel = (window as any).closeProfilePanel;
     
+    // Set up event listeners for profile panels
+    function setupProfilePanelListeners() {
+      // Remove existing listeners to prevent duplicates
+      window.removeEventListener('openProfilePanel', handleOpenProfilePanel);
+      window.removeEventListener('closeProfilePanel', handleCloseProfilePanel);
+      
+      // Add new listeners
+      window.addEventListener('openProfilePanel', handleOpenProfilePanel);
+      window.addEventListener('closeProfilePanel', handleCloseProfilePanel);
+    }
+    
+    function handleOpenProfilePanel(event) {
+      console.log('openProfilePanel event received:', event.detail);
+      const panelName = event.detail.panelName;
+      
+      // Try multiple selectors to find the Alpine component
+      const selectors = [
+        '[slot="additional"]',
+        '.additional-slot',
+        'div[slot="additional"]',
+        'div[data-slot="additional"]'
+      ];
+      
+      let additionalSlot = null;
+      for (const selector of selectors) {
+        additionalSlot = document.querySelector(selector);
+        if (additionalSlot) {
+          console.log('Found additional slot with selector:', selector);
+          break;
+        }
+      }
+      
+      if (!additionalSlot) {
+        console.error('Additional slot not found with any selector');
+        console.log('Available elements with slot attribute:', document.querySelectorAll('[slot]'));
+        return;
+      }
+      
+      console.log('Additional slot element:', additionalSlot);
+      console.log('Alpine data stack:', additionalSlot._x_dataStack);
+      
+      if (additionalSlot._x_dataStack && additionalSlot._x_dataStack[0]) {
+        const alpineData = additionalSlot._x_dataStack[0];
+        console.log('Alpine data:', alpineData);
+        if (alpineData.openProfilePanel) {
+          alpineData.openProfilePanel(panelName);
+        } else {
+          console.error('openProfilePanel method not found on Alpine data');
+          console.log('Available methods:', Object.keys(alpineData));
+        }
+      } else {
+        console.error('Alpine component not found in additional slot');
+        console.log('Element has Alpine data:', !!additionalSlot._x_dataStack);
+        
+        // Fallback: Try to directly show the EditNameColorPanel
+        if (panelName === 'editNameColor') {
+          console.log('Attempting fallback: directly showing EditNameColorPanel');
+          const editPanel = additionalSlot.querySelector('[x-show="showEditNameColorPanel"]');
+          if (editPanel) {
+            editPanel.style.display = 'block';
+            console.log('Fallback: EditNameColorPanel shown directly');
+          } else {
+            console.error('Fallback: EditNameColorPanel element not found');
+          }
+        }
+      }
+    }
+    
+    function handleCloseProfilePanel() {
+      console.log('closeProfilePanel event received');
+      
+      // Try multiple selectors to find the Alpine component
+      const selectors = [
+        '[slot="additional"]',
+        '.additional-slot',
+        'div[slot="additional"]',
+        'div[data-slot="additional"]'
+      ];
+      
+      let additionalSlot = null;
+      for (const selector of selectors) {
+        additionalSlot = document.querySelector(selector);
+        if (additionalSlot) {
+          console.log('Found additional slot with selector:', selector);
+          break;
+        }
+      }
+      
+      if (!additionalSlot) {
+        console.error('Additional slot not found with any selector');
+        return;
+      }
+      
+      console.log('Additional slot element:', additionalSlot);
+      console.log('Alpine data stack:', additionalSlot._x_dataStack);
+      
+      if (additionalSlot._x_dataStack && additionalSlot._x_dataStack[0]) {
+        const alpineData = additionalSlot._x_dataStack[0];
+        console.log('Alpine data:', alpineData);
+        if (alpineData.closeProfilePanel) {
+          alpineData.closeProfilePanel();
+        } else {
+          console.error('closeProfilePanel method not found on Alpine data');
+          console.log('Available methods:', Object.keys(alpineData));
+        }
+      } else {
+        console.error('Alpine component not found in additional slot');
+        console.log('Element has Alpine data:', !!additionalSlot._x_dataStack);
+        
+        // Fallback: Try to directly hide all panels
+        console.log('Attempting fallback: directly hiding all panels');
+        const panels = additionalSlot.querySelectorAll('[x-show*="Panel"]');
+        panels.forEach(panel => {
+          panel.style.display = 'none';
+        });
+        console.log('Fallback: All panels hidden directly');
+      }
+    }
+    
+    // Set up listeners when DOM is ready
+    setupProfilePanelListeners();
+    
+    // Listen for profile data requests from EditNameColorPanel
+    window.addEventListener('requestProfileData', async () => {
+      console.log('requestProfileData event received');
+      try {
+        // Fetch current user profile data
+        const response = await fetch('/api/user/get-profile');
+        if (response.ok) {
+          const userData = await response.json();
+          console.log('User profile data:', userData);
+          
+          // Only dispatch updateProfile if we have valid data
+          if (userData.firstName && userData.lastName) {
+            window.dispatchEvent(new CustomEvent('updateProfile', {
+              detail: {
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+                userColor: userData.userColor
+              }
+            }));
+          } else {
+            console.warn('Invalid user data received:', userData);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+      }
+    });
+    
     // Listen for profile updates and update the CardStack header
-    window.addEventListener('updateProfile', async (event) => {
+    // Remove any existing listeners to prevent duplicates
+    window.removeEventListener('updateProfile', handleProfileUpdate);
+    window.addEventListener('updateProfile', handleProfileUpdate);
+    
+    async function handleProfileUpdate(event) {
       console.log('updateProfile event received:', event);
       const detail = (event as any).detail;
       console.log('Event detail:', detail);
@@ -593,10 +725,13 @@ const contentId = "profile";
             console.log('Dispatched colorChanged event with color:', detail.selectedColor);
           
           } else {
-            // Show error toast
+            // Show error toast with more specific message
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.error || 'Failed to update profile. Please try again.';
+            
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
-                message: 'Failed to update profile. Please try again.',
+                message: errorMessage,
                 type: 'error'
               }
             }));
@@ -612,6 +747,6 @@ const contentId = "profile";
           }));
         }
       }
-    });
+    }
   });
 </script>
