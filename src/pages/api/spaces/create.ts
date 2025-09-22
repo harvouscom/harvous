@@ -17,8 +17,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Parse form data
     const formData = await request.formData();
     const title = formData.get('title') as string;
+    const color = formData.get('color') as string || 'paper';
+    const isPublic = formData.get('isPublic') === 'true';
 
-    console.log("Creating space with userId:", userId, "title:", title);
+    console.log("Creating space with userId:", userId, "title:", title, "color:", color, "isPublic:", isPublic);
 
     if (!title || !title.trim()) {
       return new Response(JSON.stringify({ error: 'Title is required' }), {
@@ -29,15 +31,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
     
+    // Generate background gradient based on color
+    const backgroundGradient = `linear-gradient(180deg, var(--color-${color}) 0%, var(--color-${color}) 100%)`;
+    
     const newSpace = await db.insert(Spaces)
       .values({
         id: generateSpaceId(),
         title: capitalizedTitle,
         description: null,
-        color: 'paper', // Always use paper color for spaces
-        backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+        color: color,
+        backgroundGradient: backgroundGradient,
         userId,
-        isPublic: false,
+        isPublic: isPublic,
         isActive: true,
         order: 0,
         createdAt: new Date()

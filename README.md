@@ -34,8 +34,10 @@ Aka our approach to a Bible notes app.
 
 Harvous uses a hierarchical system with **Spaces** → **Threads** → **Notes**:
 
-- **Spaces**: Top-level containers (e.g., "Bible Study", "Prayer Journal")
-- **Threads**: Collections of related notes (e.g., "Gospel of John", "Psalm 23 Study")  
+- **Spaces**: Top-level containers with customizable colors and private/shared types
+  - **Private Spaces**: Personal study spaces (e.g., "Bible Study", "Prayer Journal")
+  - **Shared Spaces**: Collaborative environments for groups (e.g., "Church Small Group", "Bible Study Club")
+- **Threads**: Collections of related notes with unique colors (e.g., "Gospel of John", "Psalm 23 Study")  
 - **Notes**: Individual content items with rich text support
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed content organization, database schema, and implementation details.

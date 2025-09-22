@@ -8,16 +8,22 @@ Discover the powerful features that make Harvous the perfect companion for your 
 - **Spaces** → **Threads** → **Notes**
 - Organize your study materials in a way that makes sense to you
 - Mix individual notes and thread collections within the same space
-- **Easy Space Creation**: Dedicated space creation page with intuitive form
+- **Easy Space Creation**: Dedicated space creation page with color selection and private/shared types
+- **Customizable Spaces**: Choose from 8 beautiful colors and set privacy levels
 
 ### Example Organization:
 ```
-📁 Bible Study Space
+📁 Bible Study Space (Private, Blue)
 ├── 📚 Gospel of John Thread (5 notes)
 ├── 📖 Romans Study Thread (12 notes)
 └── 📝 Individual Reflection Note
 
-📁 Prayer Journal Space
+📁 Church Group Study (Shared, Gold)
+├── 🙏 Romans Discussion Thread (8 notes)
+├── ❤️ Prayer Requests Thread (12 notes)
+└── 📋 Group Notes
+
+📁 Prayer Journal Space (Private, Mint)
 ├── 🙏 Daily Prayers Thread (30 notes)
 ├── ❤️ Intercession List Thread (8 notes)
 └── 📋 Prayer Request Note
@@ -25,9 +31,10 @@ Discover the powerful features that make Harvous the perfect companion for your 
 
 ## 🎨 Visual Organization
 
-### Color-Coded Threads
-- Each thread gets a **unique color** for instant recognition
-- Colors appear in navigation and thread headers
+### Color-Coded Content
+- **Spaces and threads** get **unique colors** for instant recognition
+- **8 beautiful colors** to choose from: Paper, Blessed Blue, Mindful Mint, Graceful Gold, Pleasant Peach, Caring Coral, Peaceful Pink, Lovely Lavender
+- Colors appear in navigation and headers
 - Easy to spot your favorite study topics at a glance
 
 ### Visual Counts
@@ -46,9 +53,11 @@ Discover the powerful features that make Harvous the perfect companion for your 
 
 ### Example Visual Layout:
 ```
-🔵 Gospel of John (5)     ← Blue thread with 5 notes
-🟢 Romans Study (12)      ← Green thread with 12 notes
-🟡 Prayer Journal (23)    ← Yellow thread with 23 notes
+🔵 Bible Study Space (8)     ← Blue space with 8 total items
+  └── 🟣 Gospel of John (5)  ← Purple thread with 5 notes
+🟡 Church Group Study (15)   ← Gold shared space with 15 items
+  └── 🟠 Romans Discussion (8) ← Orange thread with 8 notes
+🟢 Prayer Journal (23)       ← Green space with 23 items
 ```
 
 ## 📝 Rich Note Creation
@@ -71,6 +80,38 @@ N001: John 3:16 - God's Love
 N002: Romans 8:28 - All Things Work Together
 N003: Psalm 23 - The Lord is My Shepherd
 N004: Prayer Request - Healing for Sarah
+```
+
+## 🏠 Space Types & Collaboration
+
+### Private Spaces
+- **Personal study spaces** for focused individual work
+- Keep your thoughts organized by major themes or study projects
+- Perfect for personal Bible reading, prayer journaling, and individual reflection
+- Only visible to you - your private spiritual journey
+
+### Shared Spaces
+- **Collaborative environments** where multiple people can contribute
+- Perfect for church small groups, Bible study groups, book clubs, and family devotions
+- All members can create threads and notes within the shared space
+- Future features: Permission levels (view, contribute, moderate) and member management
+
+### Example Use Cases:
+```
+📁 Personal Study (Private, Blue)
+├── Daily Bible Reading
+├── Prayer Journal
+└── Personal Reflections
+
+📁 Church Small Group (Shared, Gold)
+├── Romans Study Discussion
+├── Group Prayer Requests
+└── Meeting Notes
+
+📁 Family Devotions (Shared, Mint)
+├── Weekly Family Study
+├── Children's Questions
+└── Family Prayer List
 ```
 
 ## 🏠 Smart Inbox System
@@ -220,8 +261,9 @@ N004: Prayer Request - Healing for Sarah
 Ready to transform your Bible study? Here's how to begin:
 
 1. **Sign in** to your Harvous account
-2. **Create your first space** (e.g., "Daily Study")
-3. **Add a thread** (e.g., "Current Book Study")
+2. **Create your first space** with a custom color and privacy setting (e.g., "Daily Study" - Private, Blue)
+3. **Add a thread** with its own color (e.g., "Current Book Study" - Purple)
 4. **Start taking notes** and watch your spiritual insights grow!
+5. **Create shared spaces** for group study and collaboration
 
 Your journey of organized, meaningful Bible study starts now. 📖✨

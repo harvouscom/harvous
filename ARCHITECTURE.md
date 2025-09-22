@@ -6,13 +6,35 @@ This document describes the core functionality, data structures, and implementat
 
 Harvous uses a hierarchical content organization system to help users structure their Bible study notes effectively:
 
+### Space Types & Hierarchy
+
+**Private Spaces:**
+- Personal study spaces for focused work across multiple related threads
+- Keep your thoughts organized by major themes or study projects
+- Example: A "2024 Prayer Study" space containing threads on different prayer aspects
+- Only visible to the space owner
+
+**Shared Spaces:**
+- Shared environments where multiple people collaborate
+- Church small groups, Bible study groups, book clubs, etc.
+- Members can contribute threads and notes within the shared space
+- Different permission levels (view, contribute, moderate) - future feature
+- Visible to all members of the space
+
+**Space Creation:**
+- Full customization with color selection (same palette as threads)
+- Private/Shared type selection during creation
+- Persistent form state with localStorage
+- Real-time preview of selected color in header
+
 ### Data Structure
 
 - **Spaces**: Top-level containers that can hold both threads and individual notes
   - Can contain multiple **Threads** (collections of related notes)
   - Can contain individual **Notes** (standalone items)
   - Display a count of total items (threads + notes) in the space
-  - **Always use paper color** in CardStack headers and navigation
+  - **Use customizable colors** in CardStack headers and navigation (same color palette as threads)
+  - **Support Private/Shared types**: Private for personal study, Shared for group collaboration
   - **Appear in persistent navigation** when accessed (unlike threads which are filtered out when active)
   - **Require confirmation** when closing from navigation (permanent removal)
   - **Show active state** with background gradient and shadow when currently viewed
@@ -52,15 +74,19 @@ When a thread is deleted, the system preserves all notes by moving them to the "
 ### Example Structure
 
 ```
-Space: "Bible Study" (count: 1) - Paper color
+Space: "Bible Study" (count: 1) - Blessed-blue color (Private)
 └── Thread: "Gospel of John" (count: 2) - Lovely-lavender color
 
-Space: "For You" (count: 2) - Paper color
+Space: "Church Group Study" (count: 3) - Graceful-gold color (Shared)
+├── Thread: "Romans Study" (count: 5) - Caring-coral color
+└── Note: "Group Prayer List" (unorganized)
+
+Space: "For You" (count: 2) - Paper color (Private)
 ├── Note: "Prayer Request" (unorganized)
 └── Note: "John 3:16 Reflection" (unorganized)
 
 Organized Content:
-├── Thread: "Psalm 23 Study" (unorganized) - Green color
+├── Thread: "Psalm 23 Study" (unorganized) - Mindful-mint color
 └── Thread: "Gospel of John" (in Bible Study space) - Lovely-lavender color
 ```
 
@@ -148,20 +174,21 @@ The application includes a comprehensive XP (Experience Points) system to gamify
 ## Color System
 
 - **Threads**: Use their unique `color` property in CardStack headers and navigation
-- **Spaces**: Always use `var(--color-paper)` in CardStack headers and navigation
-- **Navigation**: Active items reflect their respective colors (thread color or paper color)
+- **Spaces**: Use their customizable `color` property in CardStack headers and navigation (same color palette as threads)
+- **Navigation**: Active items reflect their respective colors (thread color or space color)
+- **Color Palette**: Both spaces and threads use the same 8-color palette: `paper`, `blessed-blue`, `mindful-mint`, `graceful-gold`, `pleasant-peach`, `caring-coral`, `peaceful-pink`, `lovely-lavender`
 
 ## Navigation Logic
 
 - **"For You"**: Shows inbox count (currently 0, reserved for external content only)
-- **Spaces**: Show total item count, use paper color, highlight when active
+- **Spaces**: Show total item count, use space color, highlight when active
 - **Pinned Threads**: Show note count, use thread color, highlight when active
 - **Persistent Navigation**: Simple localStorage-based system that tracks recently accessed items
 
 ## Page Routing (`src/pages/[id].astro`)
 
 - **Thread Routes** (`/thread_*`): Display thread with notes, use thread color in header
-- **Space Routes** (`/space_*`): Display space with threads, use paper color in header  
+- **Space Routes** (`/space_*`): Display space with threads, use space color in header  
 - **Note Routes** (`/note_*`): Display individual note, use paper color in header
 
 ## Real Database System
