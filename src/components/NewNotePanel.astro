@@ -152,6 +152,14 @@ if (!userId) {
         if (typeof window.updateThreadSelection === 'function') {
           window.updateThreadSelection();
         }
+        
+        // Focus the content area after everything is loaded
+        setTimeout(() => {
+          const quillContainer = document.querySelector('#static-quill-container-new-note-content');
+          if (quillContainer && quillContainer.__quill) {
+            quillContainer.__quill.focus();
+          }
+        }, 200);
       }, 100);
     });
     
@@ -182,6 +190,7 @@ if (!userId) {
         <div 
           @click.prevent.stop="isOpen = !isOpen"
           class="w-full cursor-pointer"
+          tabindex="1"
         >
           <SpaceButton 
             text=""
@@ -247,6 +256,7 @@ if (!userId) {
             type="text"
             x-model="title"
             placeholder="Note title"
+            tabindex="2"
             class="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
           />
         </div>
@@ -265,6 +275,7 @@ if (!userId) {
             id="new-note-content"
             name="content"
             placeholder="Start writing your note..."
+            tabindex={3}
           />
         </div>
       </div>
@@ -285,7 +296,7 @@ if (!userId) {
 
   <!-- Bottom buttons -->
   <div class="flex items-center justify-between gap-3">
-    <div id="close-new-note-btn" @click.prevent="closePanel()">
+    <div id="close-new-note-btn" @click.prevent="closePanel()" tabindex="5">
       <SquareButton variant="Close" type="button" />
     </div>
     <Button 
@@ -293,6 +304,7 @@ if (!userId) {
       type="button"
       id="create-note-btn"
       class="flex-1"
+      tabindex="4"
       x-bind:disabled="isSubmitting"
     >
       <span x-show="!isSubmitting">Create Note</span>

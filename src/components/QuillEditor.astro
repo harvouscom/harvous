@@ -12,6 +12,7 @@ interface Props {
   name?: string;
   placeholder?: string;
   minimalToolbar?: boolean;
+  tabindex?: number;
 }
 
 const { 
@@ -19,7 +20,8 @@ const {
   id = "content", 
   name = "content", 
   placeholder = "Write something...",
-  minimalToolbar = false
+  minimalToolbar = false,
+  tabindex
 } = Astro.props;
 ---
 
@@ -373,6 +375,7 @@ const {
     id={`static-quill-container-${id}`}
     class="quill-content h-full"
     style="min-height: 200px; border: none; background: transparent;"
+    tabindex={tabindex}
   ></div>
 </div>
 
@@ -707,7 +710,7 @@ const {
   
 </style>
 
-<script define:vars={{ id, placeholder, content, minimalToolbar }}>
+<script define:vars={{ id, placeholder, content, minimalToolbar, tabindex }}>
   // Simplified and more reliable QuillEditor initialization
   function initializeQuillEditor() {
     const quillContainer = document.querySelector(`#static-quill-container-${id}`);
@@ -875,6 +878,20 @@ const {
     
     // Store reference to prevent re-initialization
     quillContainer.__quill = quillInstance;
+    
+    // Set tabindex on the editor if provided
+    if (tabindex !== undefined) {
+      const editor = quillContainer.querySelector('.ql-editor');
+      if (editor) {
+        editor.setAttribute('tabindex', tabindex);
+      }
+      
+      // Set tabindex on toolbar buttons to come after the editor
+      const toolbarButtons = quillContainer.querySelectorAll('.ql-toolbar button');
+      toolbarButtons.forEach((button, index) => {
+        button.setAttribute('tabindex', tabindex + 1 + index);
+      });
+    }
     
     // Inject aggressive CSS directly into document head
     const styleId = `quill-spacebutton-styles-${id}`;
