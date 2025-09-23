@@ -192,6 +192,22 @@ const {
   .ql-editor.ql-blank::before {
     color: var(--color-pebble-grey) !important;
     font-style: normal !important;
+    text-indent: 0 !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+    left: 0 !important;
+    transform: translateX(0) !important;
+    position: relative !important;
+  }
+  
+  /* Specific fix for snow theme placeholder indentation */
+  .ql-snow .ql-editor.ql-blank::before {
+    text-indent: 0 !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+    left: 0 !important;
+    transform: translateX(0) !important;
+    position: relative !important;
   }
   
   /* Global SpaceButton styling for ALL Quill toolbars - MAXIMUM SPECIFICITY */
@@ -199,9 +215,9 @@ const {
   .ql-toolbar.ql-snow,
   div.ql-toolbar,
   div.ql-toolbar.ql-snow {
-    border: none !important;
+    border: 1px solid var(--color-fog-white) !important;
     border-radius: 12px !important;
-    background: var(--color-fog-white) !important;
+    background: var(--color-snow-white) !important;
     display: flex !important;
     gap: 0.25rem !important;
     align-items: center !important;
@@ -465,13 +481,15 @@ const {
     color: var(--color-pebble-grey);
     font-style: normal;
     content: attr(data-placeholder);
+    text-indent: 0 !important;
+    padding-left: 0 !important;
   }
 
   /* Quill Toolbar Styling - SpaceButton inspired */
   #static-quill-editor .ql-toolbar {
-    border: none;
+    border: 1px solid var(--color-fog-white);
     border-radius: 12px;
-    background: var(--color-fog-white);
+    background: var(--color-snow-white);
     padding: 0.5rem;
     order: 2; /* Ensure toolbar comes after editor */
     display: flex;
@@ -534,11 +552,11 @@ const {
     display: none !important;
   }
   
-  /* Global rule to apply SpaceButton styling with fog-white background and no border */
+  /* Global rule to apply SpaceButton styling with snow-white background and fog-white border */
   .ql-toolbar {
-    border: none !important;
+    border: 1px solid var(--color-fog-white) !important;
     border-radius: 12px !important;
-    background: var(--color-fog-white) !important;
+    background: var(--color-snow-white) !important;
     padding: 0.5rem !important;
     display: flex !important;
     gap: 0.5rem !important;
@@ -640,6 +658,22 @@ const {
     color: var(--color-deep-grey) !important;
   }
   
+  /* NUCLEAR OPTION: Force remove all indentation from placeholder text with maximum specificity */
+  .ql-editor.ql-blank::before,
+  .ql-editor.ql-snow.ql-blank::before,
+  div.ql-editor.ql-blank::before,
+  div.ql-editor.ql-snow.ql-blank::before,
+  #static-quill-editor .ql-editor.ql-blank::before,
+  #static-quill-editor .ql-editor.ql-snow.ql-blank::before {
+    text-indent: 0 !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+    left: 0 !important;
+    transform: translateX(0) !important;
+    font-style: normal !important;
+    position: relative !important;
+  }
+  
   /* Global rule to remove default padding and fix placeholder - MAXIMUM SPECIFICITY */
   .ql-editor,
   .ql-editor.ql-snow,
@@ -658,7 +692,8 @@ const {
   #static-quill-editor .ql-editor.ql-blank::before,
   #static-quill-editor .ql-editor.ql-snow.ql-blank::before {
     font-style: normal !important;
-    font-style: normal !important;
+    text-indent: 0 !important;
+    padding-left: 0 !important;
   }
   
   /* Global rules to remove gray backgrounds on hover/focus */
@@ -720,12 +755,28 @@ const {
     });
     
     const quillInstance = new window.Quill(quillContainer, {
-      theme: 'snow', // Use snow theme but override styling
+      theme: 'snow', // Use snow theme for toolbar but fix placeholder indentation
       placeholder: placeholder,
       modules: {
         toolbar: toolbarConfig
       }
     });
+    
+    // DEBUG: Log the computed styles of the placeholder to see what's causing indentation
+    setTimeout(() => {
+      const editor = quillContainer.querySelector('.ql-editor');
+      if (editor) {
+        const computedStyle = window.getComputedStyle(editor, '::before');
+        console.log('Placeholder computed styles:', {
+          textIndent: computedStyle.textIndent,
+          paddingLeft: computedStyle.paddingLeft,
+          marginLeft: computedStyle.marginLeft,
+          left: computedStyle.left,
+          transform: computedStyle.transform,
+          position: computedStyle.position
+        });
+      }
+    }, 100);
     
     
     console.log(`QuillEditor ${id} after creation:`, {
@@ -832,9 +883,9 @@ const {
       style.id = styleId;
       style.textContent = `
         .ql-toolbar, .ql-toolbar.ql-snow, div.ql-toolbar, div.ql-toolbar.ql-snow {
-          border: none !important;
+          border: 1px solid var(--color-fog-white) !important;
           border-radius: 12px !important;
-          background: var(--color-fog-white) !important;
+          background: var(--color-snow-white) !important;
           display: flex !important;
           gap: 0.25rem !important;
           align-items: center !important;
@@ -923,6 +974,8 @@ const {
         }
         .ql-editor.ql-blank::before, .ql-editor.ql-snow.ql-blank::before, div.ql-editor.ql-blank::before, div.ql-editor.ql-snow.ql-blank::before {
           font-style: normal !important;
+          text-indent: 0 !important;
+          padding-left: 0 !important;
         }
       `;
       document.head.appendChild(style);
@@ -972,14 +1025,54 @@ const {
       const placeholder = quillInstance.root.querySelector('.ql-editor.ql-blank::before');
       if (placeholder) {
         placeholder.style.fontStyle = 'normal';
+        placeholder.style.textIndent = '0';
+        placeholder.style.paddingLeft = '0';
+        placeholder.style.marginLeft = '0';
+        placeholder.style.left = '0';
+        placeholder.style.transform = 'translateX(0)';
       }
       // Also try to fix via CSS custom property
       quillInstance.root.style.setProperty('--ql-blank-font-style', 'normal');
+      quillInstance.root.style.setProperty('--ql-blank-text-indent', '0');
+      quillInstance.root.style.setProperty('--ql-blank-padding-left', '0');
+      quillInstance.root.style.setProperty('--ql-blank-margin-left', '0');
+      
+      // Force apply CSS directly to the editor
+      quillInstance.root.style.textIndent = '0';
+      quillInstance.root.style.paddingLeft = '0';
+      quillInstance.root.style.marginLeft = '0';
     };
     
     // Apply placeholder fix immediately and on text changes
     fixPlaceholder();
     quillInstance.on('text-change', fixPlaceholder);
+    
+    // Inject ultra-aggressive CSS after Quill is fully loaded
+    setTimeout(() => {
+      const styleId = `quill-placeholder-fix-${id}`;
+      if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+          /* ULTRA AGGRESSIVE: Force remove placeholder indentation for ${id} */
+          #static-quill-container-${id} .ql-editor.ql-blank::before,
+          #static-quill-container-${id} .ql-editor.ql-snow.ql-blank::before,
+          #static-quill-container-${id} div.ql-editor.ql-blank::before,
+          #static-quill-container-${id} div.ql-editor.ql-snow.ql-blank::before,
+          #static-quill-container-${id} .ql-snow .ql-editor.ql-blank::before {
+            text-indent: 0 !important;
+            padding-left: 0 !important;
+            margin-left: 0 !important;
+            left: 0 !important;
+            transform: translateX(0) !important;
+            font-style: normal !important;
+            position: relative !important;
+          }
+        `;
+        document.head.appendChild(style);
+        console.log(`Injected ultra-aggressive placeholder fix CSS for ${id}`);
+      }
+    }, 1000);
     
     // Force remove all borders from Quill elements
     const container = quillContainer.querySelector('.ql-container');
@@ -1026,9 +1119,9 @@ const {
       
       // Style toolbar container
       toolbar.style.cssText = `
-        border: none !important;
+        border: 1px solid var(--color-fog-white) !important;
         border-radius: 12px !important;
-        background: var(--color-fog-white) !important;
+        background: var(--color-snow-white) !important;
         display: flex !important;
         gap: 0.5rem !important;
         align-items: center !important;
