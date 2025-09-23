@@ -252,11 +252,9 @@ const {
         toolbar.remove();
         // Insert toolbar after the editor container
         editor.parentNode.insertBefore(toolbar, editor.nextSibling);
-        console.log(`QuillEditor ${id} - toolbar moved to bottom`);
       }
     }, 100);
     
-    console.log(`QuillEditor ${id} initialized successfully`);
     
     // Store reference to prevent re-initialization
     quillContainer.__quill = quillInstance;
@@ -283,7 +281,6 @@ const {
     quillInstance.root.style.lineHeight = '1.6';
     quillInstance.root.style.color = 'var(--color-deep-grey)';
     
-    console.log(`QuillEditor ${id} initialized successfully`);
   }
   
   // Multiple initialization attempts for reliability
@@ -316,15 +313,13 @@ const {
   }
   
   // Listen for Astro View Transitions events
-  document.addEventListener('astro:after-swap', () => {
-    console.log(`QuillEditor ${id} - astro:after-swap event, attempting initialization`);
-    setTimeout(tryInitialize, 50);
-    setTimeout(tryInitialize, 200);
-    setTimeout(tryInitialize, 500);
-  });
+          document.addEventListener('astro:after-swap', () => {
+            setTimeout(tryInitialize, 50);
+            setTimeout(tryInitialize, 200);
+            setTimeout(tryInitialize, 500);
+          });
   
   document.addEventListener('astro:page-load', () => {
-    console.log(`QuillEditor ${id} - astro:page-load event, attempting initialization`);
     setTimeout(tryInitialize, 50);
     setTimeout(tryInitialize, 200);
   });

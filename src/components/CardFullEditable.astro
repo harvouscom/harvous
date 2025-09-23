@@ -227,7 +227,6 @@ const fixedContent = fixQuillV2Lists(content);
       // Handle regular ul tags
       .replace(/<ul[^>]*>/gi, '<ul style="list-style-type: disc !important; padding-left: 0.5em !important; margin-left: 0.5em !important;">');
     
-    console.log('Fixed Quill v2 content (client-side):', fixedContent);
     return fixedContent;
   }
   
@@ -261,26 +260,12 @@ const fixedContent = fixQuillV2Lists(content);
         if (contentDisplay && content && !contentDisplay.innerHTML.trim()) {
           const fixedContent = fixQuillV2Lists(content);
           contentDisplay.innerHTML = fixedContent;
-          console.log('Applied fallback content to display element');
         }
         
-        // Debug: Log the actual content to see what HTML we're working with
-        console.log('CardFullEditable content:', content);
+        // Apply list styling with JavaScript
         if (contentDisplay) {
-          console.log('Content display innerHTML:', contentDisplay.innerHTML);
-          
-          // Debug list elements specifically
           const lists = contentDisplay.querySelectorAll('ul, ol');
-          console.log('Found lists:', lists.length);
-          lists.forEach((list, index) => {
-            console.log(`List ${index}:`, {
-              tagName: list.tagName,
-              className: list.className,
-              style: list.style.cssText,
-              computedStyle: window.getComputedStyle(list).listStyleType
-            });
-            
-            // Force list styling with JavaScript
+          lists.forEach((list) => {
             if (list.tagName === 'UL') {
               list.style.setProperty('list-style-type', 'disc', 'important');
               list.style.setProperty('padding-left', '1.5em', 'important');
@@ -288,36 +273,18 @@ const fixedContent = fixQuillV2Lists(content);
               list.style.setProperty('list-style-type', 'decimal', 'important');
               list.style.setProperty('padding-left', '1.5em', 'important');
             }
-            console.log(`Applied JS styling to ${list.tagName}`);
           });
           
           const listItems = contentDisplay.querySelectorAll('li');
-          console.log('Found list items:', listItems.length);
-          listItems.forEach((item, index) => {
-            console.log(`List item ${index}:`, {
-              tagName: item.tagName,
-              className: item.className,
-              style: item.style.cssText,
-              computedStyle: window.getComputedStyle(item).listStyleType
-            });
-            
-            // Force list item styling with JavaScript
+          listItems.forEach((item) => {
             item.style.setProperty('display', 'list-item', 'important');
             item.style.setProperty('list-style-position', 'outside', 'important');
             item.style.setProperty('list-style-type', 'inherit', 'important');
-            console.log(`Applied JS styling to LI ${index}`);
-            
-            // Check computed style after applying
-            setTimeout(() => {
-              const newComputedStyle = window.getComputedStyle(item).listStyleType;
-              console.log(`LI ${index} computedStyle after JS:`, newComputedStyle);
-            }, 10);
           });
         }
         
         // Define saveChanges function and attach it to Alpine data
         alpineData.saveChanges = async function() {
-          console.log('saveChanges function called');
           this.isSaving = true;
           
           try {
@@ -399,7 +366,6 @@ const fixedContent = fixQuillV2Lists(content);
                   item.style.setProperty('padding-left', '0.2em', 'important');
                 });
                 
-                console.log('Re-applied styling after save');
               }, 10);
             }
             
@@ -432,12 +398,6 @@ const fixedContent = fixQuillV2Lists(content);
           this.hasChanges = false;
         };
         
-        // Debug: Log that functions are attached
-        console.log('Alpine data functions attached:', {
-          saveChanges: typeof alpineData.saveChanges,
-          cancelEdit: typeof alpineData.cancelEdit,
-          alpineData: !!alpineData
-        });
       }
     }
   }
