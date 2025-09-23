@@ -31,7 +31,7 @@ if (!userId) {
 <form 
   action="/api/notes/create"
   method="POST"
-  class="new-note-panel h-full flex flex-col justify-between"
+  class="new-note-panel h-full flex flex-col"
   data-current-thread-title={currentThread?.title || ''}
   data-current-thread-id={currentThread?.id || ''}
   x-data="{ 
@@ -182,120 +182,117 @@ if (!userId) {
   <input type="hidden" name="threadId" x-bind:value="getSelectedThread().id" />
   <input type="hidden" name="title" x-model="title" />
 
-  <!-- Content area that expands to fill available space -->
-  <div class="flex-1 flex flex-col min-h-0">
-    <!-- Thread Selection using SpaceButton dropdown variant -->
-    <div class="mb-3.5">
-      <div class="relative">
-        <div 
-          @click.prevent.stop="isOpen = !isOpen"
-          class="w-full cursor-pointer"
-          tabindex="1"
+  <!-- Thread Selection using SpaceButton dropdown variant -->
+  <div class="mb-3.5 shrink-0">
+    <div class="relative">
+      <div 
+        @click.prevent.stop="isOpen = !isOpen"
+        class="w-full cursor-pointer"
+        tabindex="1"
+      >
+        <SpaceButton 
+          text=""
+          state="DropdownTrigger"
+          count={0}
+          className="w-full"
+          backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
+          isActive={false}
+          x-bind:style="`background-image: ${getSelectedThread().backgroundGradient};`"
         >
-          <SpaceButton 
-            text=""
-            state="DropdownTrigger"
-            count={0}
-            className="w-full"
-            backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
-            isActive={false}
-            x-bind:style="`background-image: ${getSelectedThread().backgroundGradient};`"
-          >
-            <span slot="text" x-text="selectedThread" class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Unorganized</span>
-            <span slot="count" x-text="getSelectedThread().noteCount" class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">0</span>
-          </SpaceButton>
-        </div>
-        
-        <!-- Dropdown content -->
-        <div 
-          x-show="isOpen"
-          x-transition:enter="transition ease-out duration-200"
-          x-transition:enter-start="opacity-0 transform scale-95"
-          x-transition:enter-end="opacity-100 transform scale-100"
-          x-transition:leave="transition ease-in duration-150"
-          x-transition:leave-start="opacity-100 transform scale-100"
-          x-transition:leave-end="opacity-0 transform scale-95"
-          class="absolute top-full left-0 right-0 mt-2 z-10"
-          style="min-width: 223px;"
-          @click.outside="isOpen = false"
-        >
-          <!-- Thread options using SpaceButton styling -->
-          <div>
-            <template x-for="thread in threadOptions" :key="thread.id">
-              <button 
-                type="button"
-                @click="selectedThread = thread.title; isOpen = false"
-                class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                x-bind:style="`background-image: ${thread.backgroundGradient};`"
-              >
-                <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                  <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap" x-text="thread.title"></span>
-                  <div class="p-[20px]">
-                    <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                      <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]" x-text="thread.noteCount">
-                      </span>
-                    </div>
+          <span slot="text" x-text="selectedThread" class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Unorganized</span>
+          <span slot="count" x-text="getSelectedThread().noteCount" class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">0</span>
+        </SpaceButton>
+      </div>
+      
+      <!-- Dropdown content -->
+      <div 
+        x-show="isOpen"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 transform scale-95"
+        x-transition:enter-end="opacity-100 transform scale-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100 transform scale-100"
+        x-transition:leave-end="opacity-0 transform scale-95"
+        class="absolute top-full left-0 right-0 mt-2 z-10"
+        style="min-width: 223px;"
+        @click.outside="isOpen = false"
+      >
+        <!-- Thread options using SpaceButton styling -->
+        <div>
+          <template x-for="thread in threadOptions" :key="thread.id">
+            <button 
+              type="button"
+              @click="selectedThread = thread.title; isOpen = false"
+              class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+              x-bind:style="`background-image: ${thread.backgroundGradient};`"
+            >
+              <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap" x-text="thread.title"></span>
+                <div class="p-[20px]">
+                  <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]" x-text="thread.noteCount">
+                    </span>
                   </div>
                 </div>
-              </button>
-            </template>
-            
+              </div>
+            </button>
+          </template>
+          
 
-          </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Note Content using CardFull-style form -->
-    <div class="flex-1 flex flex-col min-h-0 mb-3.5">
-      <div class="bg-white box-border flex flex-col min-h-0 flex-1 items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
-      <!-- Header with title input and bookmark icon (like CardFull) -->
-      <div class="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
-        <div class="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
-          <input 
-            type="text"
-            x-model="title"
-            placeholder="Note title"
-            tabindex="2"
-            class="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
-          />
-        </div>
-        <div class="relative shrink-0 size-5">
-          <svg class="block max-w-none size-full text-[var(--color-deep-grey)] " fill="currentColor" viewBox="0 0 24 24">
-            <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-          </svg>
-        </div>
+  <!-- Note Content using CardFull-style form -->
+  <div class="flex-1 flex flex-col min-h-0 mb-3.5">
+    <div class="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+    <!-- Header with title input and bookmark icon (like CardFull) -->
+    <div class="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
+      <div class="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
+        <input 
+          type="text"
+          x-model="title"
+          placeholder="Note title"
+          tabindex="2"
+          class="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
+        />
       </div>
-      
-      <!-- Content area with TrixEditor (like CardFull) -->
-      <div class="flex-1 flex items-start justify-between px-3 py-0 relative w-full min-h-0" style="margin-bottom: 12px; margin-top: 20px;">
-        <div class="flex flex-col font-sans font-normal w-full h-full">
-          <QuillEditor 
-            content=""
-            id="new-note-content"
-            name="content"
-            placeholder="Start writing your note..."
-            tabindex={3}
-          />
-        </div>
+      <div class="relative shrink-0 size-5">
+        <svg class="block max-w-none size-full text-[var(--color-deep-grey)] " fill="currentColor" viewBox="0 0 24 24">
+          <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+        </svg>
       </div>
-
-      <!-- Date and Note ID (like CardFull) -->
-      <div class="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full">
-        <div class="relative shrink-0">
-          <p class="leading-[normal] text-nowrap whitespace-pre">Today</p>
-        </div>
-        <div class="relative shrink-0">
-          <p class="leading-[normal] text-nowrap whitespace-pre" id="new-note-id" x-text="nextNoteId">#New</p>
-        </div>
-      </div>
-      
     </div>
+    
+    <!-- Content area with QuillEditor -->
+    <div class="flex-1 px-3 py-0 relative w-full" style="margin-bottom: 12px; margin-top: 20px;">
+      <div class="quill-constrained-container flex-1 flex flex-col" style="height: 100%; max-height: 100%; overflow: hidden; display: flex; flex-direction: column;">
+        <QuillEditor 
+          content=""
+          id="new-note-content"
+          name="content"
+          placeholder="Start writing your note..."
+          tabindex={3}
+        />
+      </div>
+    </div>
+
+    <!-- Date and Note ID (like CardFull) -->
+    <div class="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full">
+      <div class="relative shrink-0">
+        <p class="leading-[normal] text-nowrap whitespace-pre">Today</p>
+      </div>
+      <div class="relative shrink-0">
+        <p class="leading-[normal] text-nowrap whitespace-pre" id="new-note-id" x-text="nextNoteId">#New</p>
+      </div>
+    </div>
+    
   </div>
   </div>
 
   <!-- Bottom buttons -->
-  <div class="flex items-center justify-between gap-3">
+  <div class="flex items-center justify-between gap-3 shrink-0">
     <div id="close-new-note-btn" @click.prevent="closePanel()" tabindex="5">
       <SquareButton variant="Close" type="button" />
     </div>
@@ -639,6 +636,13 @@ if (!userId) {
     transform: scale(0.98);
   }
 
+  /* NewNotePanel height constraints */
+  .new-note-panel {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
   /* Custom QuillEditor styling for NewNotePanel - Match note content styling */
   .new-note-panel .ql-editor {
     font-family: var(--font-sans) !important;
@@ -651,7 +655,10 @@ if (!userId) {
     padding: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
-    min-height: 200px;
+    flex: 1 !important;
+    overflow: auto !important;
+    min-height: 0 !important;
+    height: 0 !important;
   }
   
   /* Simple placeholder fix for NewNotePanel */
@@ -729,6 +736,71 @@ if (!userId) {
   .new-note-panel .ql-container {
     border: none !important;
     background: white !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+  }
+
+  /* QuillEditor root container */
+  .new-note-panel #static-quill-editor {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    min-height: 0 !important;
+  }
+
+  /* QuillEditor content container */
+  .new-note-panel .quill-content {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+  }
+
+  /* Ensure the white card container respects height constraints */
+  .new-note-panel .bg-white {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Quill constrained container for NewNotePanel */
+  .new-note-panel .quill-constrained-container {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+  }
+
+  /* Force QuillEditor to respect container bounds in NewNotePanel */
+  .new-note-panel .quill-constrained-container .ql-container {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+  }
+
+  .new-note-panel .quill-constrained-container .ql-editor {
+    flex: 1 !important;
+    overflow: auto !important;
+    min-height: 0 !important;
+    height: 0 !important;
   }
 
   /* Hide duplicate toolbars - more aggressive */

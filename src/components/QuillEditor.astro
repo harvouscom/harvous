@@ -173,7 +173,9 @@ const {
     padding: 0 !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
-    min-height: 200px !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: auto !important;
     outline: none !important;
     box-sizing: border-box !important;
   }
@@ -182,8 +184,11 @@ const {
   .ql-container {
     border: none !important;
     background: transparent !important;
-    min-height: 200px !important;
-    display: block !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
   
   /* Make sure the editor is visible and clickable */
@@ -374,7 +379,7 @@ const {
   <div 
     id={`static-quill-container-${id}`}
     class="quill-content h-full"
-    style="min-height: 200px; border: none; background: transparent;"
+    style="height: 100%; border: none; background: transparent;"
     tabindex={tabindex}
   ></div>
 </div>
@@ -395,8 +400,9 @@ const {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    min-height: 200px;
-    overflow-y: auto;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
   }
   
   /* Force toolbar to bottom using CSS Grid */
@@ -411,6 +417,11 @@ const {
     order: 1 !important;
     border: none !important;
     border-color: transparent !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
   
   #static-quill-editor .ql-toolbar {
@@ -435,7 +446,9 @@ const {
     padding-right: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
-    min-height: 200px;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: auto !important;
   }
   
   /* Remove gray background on hover/focus */
@@ -975,6 +988,9 @@ const {
     quillInstance.root.style.fontSize = '16px';
     quillInstance.root.style.lineHeight = '1.6';
     quillInstance.root.style.color = 'var(--color-deep-grey)';
+    quillInstance.root.style.height = '100%';
+    quillInstance.root.style.maxHeight = '100%';
+    quillInstance.root.style.overflow = 'auto';
     
     // Force remove padding and fix placeholder
     quillInstance.root.style.padding = '0';
@@ -1021,6 +1037,11 @@ const {
       container.style.borderBottom = 'none';
       container.style.borderLeft = 'none';
       container.style.borderRight = 'none';
+      container.style.height = '100%';
+      container.style.maxHeight = '100%';
+      container.style.overflow = 'hidden';
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
     }
     
     if (toolbar) {
