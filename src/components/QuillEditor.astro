@@ -1,22 +1,327 @@
 ---
+import FaBoldIcon from "@fortawesome/fontawesome-free/svgs/solid/bold.svg";
+import FaItalicIcon from "@fortawesome/fontawesome-free/svgs/solid/italic.svg";
+import FaUnderlineIcon from "@fortawesome/fontawesome-free/svgs/solid/underline.svg";
+import FaListIcon from "@fortawesome/fontawesome-free/svgs/solid/list.svg";
+import FaListOlIcon from "@fortawesome/fontawesome-free/svgs/solid/list-ol.svg";
+import FaEraserIcon from "@fortawesome/fontawesome-free/svgs/solid/eraser.svg";
+
 interface Props {
   content: string;
   id?: string;
   name?: string;
   placeholder?: string;
+  minimalToolbar?: boolean;
 }
 
 const { 
   content, 
   id = "content", 
   name = "content", 
-  placeholder = "Write something..."
+  placeholder = "Write something...",
+  minimalToolbar = false
 } = Astro.props;
 ---
 
-<!-- Load Quill CSS and JS -->
+<!-- Load Quill CSS and JS - Using snow theme with aggressive overrides -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<!-- Load Font Awesome for custom icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+
+<!-- Force Font Awesome icon colors with maximum specificity -->
+<style>
+  .ql-toolbar .fa-solid,
+  .ql-toolbar.ql-snow .fa-solid,
+  div.ql-toolbar .fa-solid,
+  div.ql-toolbar.ql-snow .fa-solid,
+  .ql-toolbar i,
+  .ql-toolbar.ql-snow i,
+  div.ql-toolbar i,
+  div.ql-toolbar.ql-snow i,
+  .ql-toolbar button i,
+  .ql-toolbar.ql-snow button i,
+  div.ql-toolbar button i,
+  div.ql-toolbar.ql-snow button i {
+    color: #8B8B8B !important;
+  }
+  .ql-toolbar button:hover .fa-solid,
+  .ql-toolbar.ql-snow button:hover .fa-solid,
+  div.ql-toolbar button:hover .fa-solid,
+  div.ql-toolbar.ql-snow button:hover .fa-solid,
+  .ql-toolbar button:hover i,
+  .ql-toolbar.ql-snow button:hover i,
+  div.ql-toolbar button:hover i,
+  div.ql-toolbar.ql-snow button:hover i {
+    color: #4A4A4A !important;
+  }
+  .ql-toolbar button.ql-active .fa-solid,
+  .ql-toolbar.ql-snow button.ql-active .fa-solid,
+  div.ql-toolbar button.ql-active .fa-solid,
+  div.ql-toolbar.ql-snow button.ql-active .fa-solid,
+  .ql-toolbar button.ql-active i,
+  .ql-toolbar.ql-snow button.ql-active i,
+  div.ql-toolbar button.ql-active i,
+  div.ql-toolbar.ql-snow button.ql-active i {
+    color: #4A4A4A !important;
+  }
+  
+  /* Nuclear option - target everything in toolbar */
+  .ql-toolbar * {
+    color: #8B8B8B !important;
+  }
+  .ql-toolbar button:hover * {
+    color: #4A4A4A !important;
+  }
+  .ql-toolbar button.ql-active * {
+    color: #4A4A4A !important;
+  }
+</style>
+
+<!-- Custom SpaceButton-styled toolbar for Quill snow theme -->
+<style>
+  /* Quill Snow Theme - SpaceButton Styling Override */
+  .ql-toolbar,
+  .ql-toolbar.ql-snow,
+  #static-quill-editor .ql-toolbar,
+  #static-quill-editor .ql-toolbar.ql-snow {
+    border: none !important;
+    border-color: transparent !important;
+    background: transparent !important;
+    display: flex !important;
+    gap: 0.5rem !important;
+    align-items: center !important;
+    padding: 0.5rem 0 !important;
+    margin: 0 !important;
+  }
+  
+  .ql-toolbar .ql-formats {
+    display: flex !important;
+    gap: 0.5rem !important;
+    margin-right: 0 !important;
+  }
+  
+  .ql-toolbar button,
+  #static-quill-editor .ql-toolbar button {
+    color: var(--color-deep-grey) !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0.75rem !important;
+    padding: 0.5rem 0.75rem !important;
+    margin: 0 !important;
+    font-family: var(--font-sans) !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.125s ease-in-out !important;
+    will-change: transform !important;
+    min-height: 2rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: none !important;
+  }
+  
+  .ql-toolbar button:hover,
+  #static-quill-editor .ql-toolbar button:hover {
+    background: var(--color-fog-white) !important;
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+  }
+  
+  .ql-toolbar button.ql-active,
+  #static-quill-editor .ql-toolbar button.ql-active {
+    background: var(--color-fog-white) !important;
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+  }
+  
+  .ql-toolbar button:active,
+  #static-quill-editor .ql-toolbar button:active {
+    filter: brightness(0.97) !important;
+    box-shadow: 
+      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+    transform: scale(0.98) !important;
+  }
+  
+  /* Quill Editor Core Styling */
+  .ql-editor {
+    border: none !important;
+    background: transparent !important;
+    font-family: var(--font-sans) !important;
+    font-size: 16px !important;
+    line-height: 1.6 !important;
+    color: var(--color-deep-grey) !important;
+    padding: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    min-height: 200px !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* Ensure the editor container is visible */
+  .ql-container {
+    border: none !important;
+    background: transparent !important;
+    min-height: 200px !important;
+    display: block !important;
+  }
+  
+  /* Make sure the editor is visible and clickable */
+  .ql-editor:focus {
+    outline: none !important;
+  }
+  
+  .ql-editor.ql-blank::before {
+    color: var(--color-pebble-grey) !important;
+    font-style: normal !important;
+  }
+  
+  /* Global SpaceButton styling for ALL Quill toolbars - MAXIMUM SPECIFICITY */
+  .ql-toolbar,
+  .ql-toolbar.ql-snow,
+  div.ql-toolbar,
+  div.ql-toolbar.ql-snow {
+    border: 1px solid var(--color-fog-white) !important;
+    border-radius: 12px !important;
+    background: transparent !important;
+    display: flex !important;
+    gap: 0.25rem !important;
+    align-items: center !important;
+    padding: 0.25rem !important;
+    margin: 0 !important;
+  }
+  
+  .ql-toolbar button,
+  .ql-toolbar.ql-snow button,
+  div.ql-toolbar button,
+  div.ql-toolbar.ql-snow button,
+  button.ql-bold,
+  button.ql-italic,
+  button.ql-underline,
+  button.ql-list,
+  button.ql-clean {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0.5rem !important;
+    padding: 0.5rem 0.75rem !important;
+    margin: 0 !important;
+    color: var(--color-stone-grey) !important;
+    font-family: var(--font-sans) !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease-in-out !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+    min-width: 2.5rem !important;
+    min-height: 2.5rem !important;
+  }
+  
+  .ql-toolbar button:hover,
+  .ql-toolbar.ql-snow button:hover,
+  div.ql-toolbar button:hover,
+  div.ql-toolbar.ql-snow button:hover,
+  button.ql-bold:hover,
+  button.ql-italic:hover,
+  button.ql-underline:hover,
+  button.ql-list:hover,
+  button.ql-clean:hover {
+    background: transparent !important;
+    color: var(--color-deep-grey) !important;
+  }
+  
+  .ql-toolbar button.ql-active,
+  .ql-toolbar.ql-snow button.ql-active,
+  div.ql-toolbar button.ql-active,
+  div.ql-toolbar.ql-snow button.ql-active {
+    background: transparent !important;
+    color: var(--color-deep-grey) !important;
+    position: relative !important;
+  }
+  
+  .ql-toolbar button.ql-active::before,
+  .ql-toolbar.ql-snow button.ql-active::before,
+  div.ql-toolbar button.ql-active::before,
+  div.ql-toolbar.ql-snow button.ql-active::before {
+    content: '' !important;
+    position: absolute !important;
+    bottom: 0px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 4px !important;
+    height: 4px !important;
+    background: var(--color-deep-grey) !important;
+    border-radius: 50% !important;
+    z-index: 1 !important;
+  }
+  
+  .ql-toolbar button.ql-active:hover,
+  .ql-toolbar.ql-snow button.ql-active:hover,
+  div.ql-toolbar button.ql-active:hover,
+  div.ql-toolbar.ql-snow button.ql-active:hover {
+    background: transparent !important;
+    color: var(--color-deep-grey) !important;
+  }
+  
+  .ql-toolbar button i,
+  .ql-toolbar.ql-snow button i,
+  div.ql-toolbar button i,
+  div.ql-toolbar.ql-snow button i,
+  .ql-toolbar .fa-solid,
+  .ql-toolbar.ql-snow .fa-solid,
+  div.ql-toolbar .fa-solid,
+  div.ql-toolbar.ql-snow .fa-solid,
+  .ql-toolbar button .fa-bold,
+  .ql-toolbar button .fa-italic,
+  .ql-toolbar button .fa-underline,
+  .ql-toolbar button .fa-list,
+  .ql-toolbar button .fa-list-ol,
+  .ql-toolbar button .fa-eraser,
+  .ql-toolbar i,
+  .ql-toolbar.ql-snow i,
+  div.ql-toolbar i,
+  div.ql-toolbar.ql-snow i {
+    color: #8B8B8B !important;
+    transition: color 0.2s ease-in-out !important;
+  }
+  
+  .ql-toolbar button:hover i,
+  .ql-toolbar.ql-snow button:hover i,
+  div.ql-toolbar button:hover i,
+  div.ql-toolbar.ql-snow button:hover i,
+  .ql-toolbar button:hover .fa-solid,
+  .ql-toolbar.ql-snow button:hover .fa-solid,
+  div.ql-toolbar button:hover .fa-solid,
+  div.ql-toolbar.ql-snow button:hover .fa-solid,
+  .ql-toolbar button:hover .fa-bold,
+  .ql-toolbar button:hover .fa-italic,
+  .ql-toolbar button:hover .fa-underline,
+  .ql-toolbar button:hover .fa-list,
+  .ql-toolbar button:hover .fa-list-ol,
+  .ql-toolbar button:hover .fa-eraser {
+    color: #4A4A4A !important;
+  }
+  
+  .ql-toolbar button.ql-active i,
+  .ql-toolbar.ql-snow button.ql-active i,
+  div.ql-toolbar button.ql-active i,
+  div.ql-toolbar.ql-snow button.ql-active i,
+  .ql-toolbar button.ql-active .fa-solid,
+  .ql-toolbar.ql-snow button.ql-active .fa-solid,
+  div.ql-toolbar button.ql-active .fa-solid,
+  div.ql-toolbar.ql-snow button.ql-active .fa-solid,
+  .ql-toolbar button.ql-active .fa-bold,
+  .ql-toolbar button.ql-active .fa-italic,
+  .ql-toolbar button.ql-active .fa-underline,
+  .ql-toolbar button.ql-active .fa-list,
+  .ql-toolbar button.ql-active .fa-list-ol,
+  .ql-toolbar button.ql-active .fa-eraser {
+    color: #4A4A4A !important;
+  }
+</style>
 
 <div id="static-quill-editor" class="relative h-full">
   <input id={id} name={name} value={content} type="hidden" />
@@ -25,7 +330,7 @@ const {
   <div 
     id={`static-quill-container-${id}`}
     class="quill-content h-full"
-    style="min-height: 200px; border: 1px solid #ccc; background: white;"
+    style="min-height: 200px; border: none; background: transparent;"
   ></div>
 </div>
 
@@ -38,8 +343,8 @@ const {
 
   #static-quill-editor .quill-content {
     resize: none;
-    background: var(--color-fog-white);
-    border-radius: 0.75rem;
+    background: transparent;
+    border-radius: 0;
     border: none;
     flex: 1;
     display: flex;
@@ -59,13 +364,15 @@ const {
   #static-quill-editor .ql-container {
     grid-area: editor !important;
     order: 1 !important;
+    border: none !important;
+    border-color: transparent !important;
   }
   
   #static-quill-editor .ql-toolbar {
     grid-area: toolbar !important;
     order: 2 !important;
-    border-top: 1px solid #ccc !important;
-    border-bottom: none !important;
+    border: none !important;
+    border-color: transparent !important;
     margin-top: 0.5rem !important;
   }
 
@@ -79,6 +386,8 @@ const {
     border: none !important;
     border-radius: 0;
     padding: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
     min-height: 200px;
@@ -128,37 +437,65 @@ const {
 
   #static-quill-editor .ql-editor.ql-blank::before {
     color: var(--color-pebble-grey);
-    font-style: italic;
+    font-style: normal;
     content: attr(data-placeholder);
   }
 
-  /* Quill Toolbar Styling */
+  /* Quill Toolbar Styling - SpaceButton inspired */
   #static-quill-editor .ql-toolbar {
     border: none;
+    border-color: transparent;
     background: transparent;
-    padding: 0.5rem 0.75rem;
+    padding: 0.5rem 0;
     order: 2; /* Ensure toolbar comes after editor */
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
   }
   
 
   #static-quill-editor .ql-toolbar .ql-formats {
-    margin-right: 1rem;
+    margin-right: 0;
+    display: flex;
+    gap: 0.5rem;
   }
 
   #static-quill-editor .ql-toolbar button {
     color: var(--color-deep-grey);
-    transition: color 0.2s;
+    background: transparent;
+    border: none;
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.125s ease-in-out;
+    will-change: transform;
+    min-height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   #static-quill-editor .ql-toolbar button:hover {
-    color: var(--color-stone-grey);
+    color: var(--color-deep-grey);
     background: var(--color-fog-white);
-    border-radius: 0.25rem;
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
   }
 
   #static-quill-editor .ql-toolbar button.ql-active {
     color: var(--color-deep-grey);
     background: var(--color-fog-white);
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  #static-quill-editor .ql-toolbar button:active {
+    filter: brightness(0.97);
+    box-shadow: 
+      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+    transform: scale(0.98);
   }
 
   /* Hide duplicate toolbars - more aggressive */
@@ -169,6 +506,89 @@ const {
   /* Global rule to hide any duplicate Quill toolbars */
   .ql-toolbar:not(:first-child) {
     display: none !important;
+  }
+  
+  /* Global rule to remove toolbar borders and apply SpaceButton styling */
+  .ql-toolbar {
+    border: none !important;
+    border-color: transparent !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    background: transparent !important;
+    padding: 0.5rem 0 !important;
+    display: flex !important;
+    gap: 0.5rem !important;
+    align-items: center !important;
+  }
+  
+  .ql-toolbar .ql-formats {
+    margin-right: 0 !important;
+    display: flex !important;
+    gap: 0.5rem !important;
+  }
+  
+  .ql-toolbar button {
+    color: var(--color-deep-grey) !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0.75rem !important;
+    padding: 0.5rem 0.75rem !important;
+    font-family: var(--font-sans) !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.125s ease-in-out !important;
+    will-change: transform !important;
+    min-height: 2rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  .ql-toolbar button:hover {
+    color: var(--color-deep-grey) !important;
+    background: var(--color-fog-white) !important;
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+  }
+  
+  .ql-toolbar button.ql-active {
+    color: var(--color-deep-grey) !important;
+    background: var(--color-fog-white) !important;
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+  }
+  
+  .ql-toolbar button:active {
+    filter: brightness(0.97) !important;
+    box-shadow: 
+      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+    transform: scale(0.98) !important;
+  }
+  
+  /* Override Quill's specific toolbar border */
+  .ql-toolbar.ql-snow {
+    border: none !important;
+    border-color: transparent !important;
+  }
+  
+  /* Remove all Quill container borders */
+  .ql-container {
+    border: none !important;
+    border-color: transparent !important;
+  }
+  
+  /* Override Quill's specific container border */
+  .ql-container.ql-snow {
+    border: none !important;
+    border-color: transparent !important;
+  }
+  
+  /* Remove borders from Quill editor */
+  .ql-editor {
+    border: none !important;
+    border-color: transparent !important;
   }
   
   /* Force Reddit Sans on all Quill editors - more aggressive */
@@ -198,6 +618,37 @@ const {
     color: var(--color-deep-grey) !important;
   }
   
+  /* Global rule to remove default padding and fix placeholder - MAXIMUM SPECIFICITY */
+  .ql-editor,
+  .ql-editor.ql-snow,
+  div.ql-editor,
+  div.ql-editor.ql-snow,
+  #static-quill-editor .ql-editor,
+  #static-quill-editor .ql-editor.ql-snow {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Counteract parent padding to align with note title */
+  #static-quill-editor,
+  #static-quill-container-new-note-content {
+    margin-left: -12px !important;
+    margin-right: -12px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+  
+  .ql-editor.ql-blank::before,
+  .ql-editor.ql-snow.ql-blank::before,
+  div.ql-editor.ql-blank::before,
+  div.ql-editor.ql-snow.ql-blank::before,
+  #static-quill-editor .ql-editor.ql-blank::before,
+  #static-quill-editor .ql-editor.ql-snow.ql-blank::before {
+    font-style: normal !important;
+    font-style: normal !important;
+  }
+  
   /* Global rules to remove gray backgrounds on hover/focus */
   .ql-editor:hover,
   .ql-editor:focus,
@@ -209,7 +660,7 @@ const {
   
 </style>
 
-<script define:vars={{ id, placeholder, content }}>
+<script define:vars={{ id, placeholder, content, minimalToolbar }}>
   // Simplified and more reliable QuillEditor initialization
   function initializeQuillEditor() {
     const quillContainer = document.querySelector(`#static-quill-container-${id}`);
@@ -219,7 +670,8 @@ const {
       quillContainer: !!quillContainer,
       hiddenInput: !!hiddenInput,
       windowQuill: !!window.Quill,
-      alreadyInitialized: !!(quillContainer && quillContainer.__quill)
+      alreadyInitialized: !!(quillContainer && quillContainer.__quill),
+      containerHTML: quillContainer?.innerHTML
     });
     
     // Check if already initialized
@@ -227,21 +679,112 @@ const {
       return;
     }
     
-    // Clear container to prevent duplicate toolbars
-    quillContainer.innerHTML = '';
+    // Don't clear container - let Quill handle it
+    // quillContainer.innerHTML = '';
     
-    // Initialize Quill with standard configuration
+    // Initialize Quill with configuration based on minimalToolbar prop
+    const toolbarConfig = minimalToolbar ? false : [
+      ['bold', 'italic', 'underline'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['clean']
+    ];
+    
+    // Override Quill's default icons with Font Awesome icons using the proper Quill API
+    if (!minimalToolbar && window.Quill) {
+      const icons = window.Quill.import('ui/icons');
+      icons['bold'] = '<i class="fa-solid fa-bold"></i>';
+      icons['italic'] = '<i class="fa-solid fa-italic"></i>';
+      icons['underline'] = '<i class="fa-solid fa-underline"></i>';
+      icons['list'] = '<i class="fa-solid fa-list"></i>';
+      icons['ordered'] = '<i class="fa-solid fa-list-ol"></i>';
+      icons['bullet'] = '<i class="fa-solid fa-list"></i>';
+      icons['clean'] = '<i class="fa-solid fa-eraser"></i>';
+      console.log('Quill icons overridden with Font Awesome icons');
+    }
+    
+    console.log(`QuillEditor ${id} toolbar config:`, {
+      minimalToolbar: minimalToolbar,
+      toolbarConfig: toolbarConfig
+    });
+    
     const quillInstance = new window.Quill(quillContainer, {
-      theme: 'snow',
+      theme: 'snow', // Use snow theme but override styling
       placeholder: placeholder,
       modules: {
-        toolbar: [
-          ['bold', 'italic', 'underline'],
-          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-          ['clean']
-        ]
+        toolbar: toolbarConfig
       }
     });
+    
+    
+    console.log(`QuillEditor ${id} after creation:`, {
+      quillInstance: !!quillInstance,
+      containerHTML: quillContainer.innerHTML,
+      toolbarExists: !!quillContainer.querySelector('.ql-toolbar')
+    });
+    
+    // If no toolbar was created but we want one, create it manually
+    if (!minimalToolbar && !quillContainer.querySelector('.ql-toolbar')) {
+      console.log(`Creating manual toolbar for ${id}`);
+      const toolbar = document.createElement('div');
+      toolbar.className = 'ql-toolbar ql-snow';
+      toolbar.innerHTML = `
+        <span class="ql-formats">
+          <button class="ql-bold" type="button"></button>
+          <button class="ql-italic" type="button"></button>
+          <button class="ql-underline" type="button"></button>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-list" value="ordered" type="button"></button>
+          <button class="ql-list" value="bullet" type="button"></button>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-clean" type="button"></button>
+        </span>
+      `;
+      
+      // Insert toolbar before the editor
+      const editor = quillContainer.querySelector('.ql-editor');
+      if (editor) {
+        quillContainer.insertBefore(toolbar, editor);
+        console.log(`Manual toolbar created for ${id}`);
+      }
+    }
+    
+    // Immediately try to style the toolbar after Quill creation
+    setTimeout(() => {
+      const toolbar = quillContainer.querySelector('.ql-toolbar');
+      if (toolbar) {
+        console.log('Found toolbar immediately after Quill creation:', toolbar);
+        applySpaceButtonStyling(toolbar);
+        
+        // Also apply styling to buttons specifically
+        const buttons = toolbar.querySelectorAll('button');
+        console.log(`Found ${buttons.length} buttons to style`);
+        buttons.forEach((button, index) => {
+          console.log(`Styling button ${index}:`, button);
+          button.style.cssText = `
+            color: var(--color-deep-grey) !important;
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0.75rem !important;
+            padding: 0.5rem 0.75rem !important;
+            margin: 0 !important;
+            font-family: var(--font-sans) !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            transition: all 0.125s ease-in-out !important;
+            min-height: 2rem !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            box-shadow: none !important;
+          `;
+        });
+      } else {
+        console.log('No toolbar found immediately after Quill creation');
+      }
+    }, 0);
     
     // Move toolbar to bottom after Quill is fully initialized
     setTimeout(() => {
@@ -252,12 +795,129 @@ const {
         toolbar.remove();
         // Insert toolbar after the editor container
         editor.parentNode.insertBefore(toolbar, editor.nextSibling);
+        
+        // Apply SpaceButton styling immediately
+        applySpaceButtonStyling(toolbar);
       }
     }, 100);
+    
+    // Also apply styling after a longer delay to ensure toolbar is fully rendered
+    setTimeout(() => {
+      const toolbar = quillContainer.querySelector('.ql-toolbar');
+      if (toolbar) {
+        applySpaceButtonStyling(toolbar);
+      }
+    }, 500);
     
     
     // Store reference to prevent re-initialization
     quillContainer.__quill = quillInstance;
+    
+    // Inject aggressive CSS directly into document head
+    const styleId = `quill-spacebutton-styles-${id}`;
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        .ql-toolbar, .ql-toolbar.ql-snow, div.ql-toolbar, div.ql-toolbar.ql-snow {
+          border: 1px solid var(--color-fog-white) !important;
+          border-radius: 12px !important;
+          background: transparent !important;
+          display: flex !important;
+          gap: 0.25rem !important;
+          align-items: center !important;
+          padding: 0.25rem !important;
+          margin: 0 !important;
+        }
+        .ql-toolbar button, .ql-toolbar.ql-snow button, div.ql-toolbar button, div.ql-toolbar.ql-snow button,
+        button.ql-bold, button.ql-italic, button.ql-underline, button.ql-list, button.ql-clean {
+          background: transparent !important;
+          border: none !important;
+          border-radius: 0.5rem !important;
+          padding: 0.5rem 0.75rem !important;
+          margin: 0 !important;
+          color: var(--color-stone-grey) !important;
+          font-family: var(--font-sans) !important;
+          font-size: 14px !important;
+          font-weight: 500 !important;
+          transition: all 0.2s ease-in-out !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          cursor: pointer !important;
+          box-shadow: none !important;
+          min-width: 2.5rem !important;
+          min-height: 2.5rem !important;
+        }
+        .ql-toolbar button:hover, .ql-toolbar.ql-snow button:hover, div.ql-toolbar button:hover, div.ql-toolbar.ql-snow button:hover,
+        button.ql-bold:hover, button.ql-italic:hover, button.ql-underline:hover, button.ql-list:hover, button.ql-clean:hover {
+          background: transparent !important;
+          color: var(--color-deep-grey) !important;
+        }
+        .ql-toolbar button.ql-active, .ql-toolbar.ql-snow button.ql-active, div.ql-toolbar button.ql-active, div.ql-toolbar.ql-snow button.ql-active {
+          background: transparent !important;
+          color: var(--color-deep-grey) !important;
+          position: relative !important;
+        }
+        .ql-toolbar button.ql-active::before, .ql-toolbar.ql-snow button.ql-active::before, div.ql-toolbar button.ql-active::before, div.ql-toolbar.ql-snow button.ql-active::before {
+          content: '' !important;
+          position: absolute !important;
+          bottom: 0px !important;
+          left: 50% !important;
+          transform: translateX(-50%) !important;
+          width: 4px !important;
+          height: 4px !important;
+          background: var(--color-deep-grey) !important;
+          border-radius: 50% !important;
+          z-index: 1 !important;
+        }
+        .ql-toolbar button.ql-active:hover, .ql-toolbar.ql-snow button.ql-active:hover, div.ql-toolbar button.ql-active:hover, div.ql-toolbar.ql-snow button.ql-active:hover {
+          background: transparent !important;
+          color: var(--color-deep-grey) !important;
+        }
+        .ql-toolbar button i, .ql-toolbar.ql-snow button i, div.ql-toolbar button i, div.ql-toolbar.ql-snow button i,
+        .ql-toolbar .fa-solid, .ql-toolbar.ql-snow .fa-solid, div.ql-toolbar .fa-solid, div.ql-toolbar.ql-snow .fa-solid,
+        .ql-toolbar button .fa-bold, .ql-toolbar button .fa-italic, .ql-toolbar button .fa-underline,
+        .ql-toolbar button .fa-list, .ql-toolbar button .fa-list-ol, .ql-toolbar button .fa-eraser {
+          color: #8B8B8B !important;
+          transition: color 0.2s ease-in-out !important;
+        }
+        .ql-toolbar button:hover i, .ql-toolbar.ql-snow button:hover i, div.ql-toolbar button:hover i, div.ql-toolbar.ql-snow button:hover i,
+        .ql-toolbar button:hover .fa-solid, .ql-toolbar.ql-snow button:hover .fa-solid, div.ql-toolbar button:hover .fa-solid, div.ql-toolbar.ql-snow button:hover .fa-solid,
+        .ql-toolbar button:hover .fa-bold, .ql-toolbar button:hover .fa-italic, .ql-toolbar button:hover .fa-underline,
+        .ql-toolbar button:hover .fa-list, .ql-toolbar button:hover .fa-list-ol, .ql-toolbar button:hover .fa-eraser {
+          color: #4A4A4A !important;
+        }
+        .ql-toolbar button.ql-active i, .ql-toolbar.ql-snow button.ql-active i, div.ql-toolbar button.ql-active i, div.ql-toolbar.ql-snow button.ql-active i,
+        .ql-toolbar button.ql-active .fa-solid, .ql-toolbar.ql-snow button.ql-active .fa-solid, div.ql-toolbar button.ql-active .fa-solid, div.ql-toolbar.ql-snow button.ql-active .fa-solid,
+        .ql-toolbar button.ql-active .fa-bold, .ql-toolbar button.ql-active .fa-italic, .ql-toolbar button.ql-active .fa-underline,
+        .ql-toolbar button.ql-active .fa-list, .ql-toolbar button.ql-active .fa-list-ol, .ql-toolbar button.ql-active .fa-eraser {
+          color: #4A4A4A !important;
+        }
+        /* Force remove padding and fix placeholder */
+        .ql-editor, .ql-editor.ql-snow, div.ql-editor, div.ql-editor.ql-snow {
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+          padding: 0 !important;
+        }
+        .ql-editor.ql-blank::before, .ql-editor.ql-snow.ql-blank::before, div.ql-editor.ql-blank::before, div.ql-editor.ql-snow.ql-blank::before {
+          font-style: normal !important;
+        }
+      `;
+      document.head.appendChild(style);
+      console.log(`Injected aggressive CSS for ${id}`);
+    }
+    
+    console.log(`QuillEditor ${id} initialized successfully:`, {
+      quillInstance: !!quillInstance,
+      editor: !!quillInstance.root,
+      toolbar: !!quillContainer.querySelector('.ql-toolbar'),
+      containerHTML: quillContainer.innerHTML,
+      toolbarElement: quillContainer.querySelector('.ql-toolbar')
+    });
+    
+    // Debug: Log all elements in the container
+    console.log('All elements in container:', quillContainer.querySelectorAll('*'));
     
     // Set initial content if provided
     if (content && content.trim()) {
@@ -280,6 +940,272 @@ const {
     quillInstance.root.style.fontSize = '16px';
     quillInstance.root.style.lineHeight = '1.6';
     quillInstance.root.style.color = 'var(--color-deep-grey)';
+    
+    // Force remove padding and fix placeholder
+    quillInstance.root.style.padding = '0';
+    quillInstance.root.style.paddingLeft = '0';
+    quillInstance.root.style.paddingRight = '0';
+    
+    // Fix placeholder styling
+    const fixPlaceholder = () => {
+      const placeholder = quillInstance.root.querySelector('.ql-editor.ql-blank::before');
+      if (placeholder) {
+        placeholder.style.fontStyle = 'normal';
+      }
+      // Also try to fix via CSS custom property
+      quillInstance.root.style.setProperty('--ql-blank-font-style', 'normal');
+    };
+    
+    // Apply placeholder fix immediately and on text changes
+    fixPlaceholder();
+    quillInstance.on('text-change', fixPlaceholder);
+    
+    // Force remove all borders from Quill elements
+    const container = quillContainer.querySelector('.ql-container');
+    const toolbar = quillContainer.querySelector('.ql-toolbar');
+    const editor = quillContainer.querySelector('.ql-editor');
+    
+    if (container) {
+      container.style.border = 'none';
+      container.style.borderColor = 'transparent';
+      container.style.borderTop = 'none';
+      container.style.borderBottom = 'none';
+      container.style.borderLeft = 'none';
+      container.style.borderRight = 'none';
+    }
+    
+    if (toolbar) {
+      toolbar.style.border = 'none';
+      toolbar.style.borderColor = 'transparent';
+      toolbar.style.borderTop = 'none';
+      toolbar.style.borderBottom = 'none';
+      toolbar.style.borderLeft = 'none';
+      toolbar.style.borderRight = 'none';
+    }
+    
+    if (editor) {
+      editor.style.border = 'none';
+      editor.style.borderColor = 'transparent';
+    }
+    
+    // Also target the .ql-snow classes specifically
+    const snowContainers = quillContainer.querySelectorAll('.ql-snow');
+    snowContainers.forEach(element => {
+      element.style.border = 'none';
+      element.style.borderColor = 'transparent';
+      element.style.borderTop = 'none';
+      element.style.borderBottom = 'none';
+      element.style.borderLeft = 'none';
+      element.style.borderRight = 'none';
+    });
+    
+    // Function to apply SpaceButton styling to a specific toolbar
+    const applySpaceButtonStyling = (toolbar) => {
+      if (!toolbar) return;
+      
+      // Style toolbar container
+      toolbar.style.cssText = `
+        border: none !important;
+        border-color: transparent !important;
+        background: transparent !important;
+        display: flex !important;
+        gap: 0.5rem !important;
+        align-items: center !important;
+        padding: 0.5rem 0 !important;
+        margin: 0 !important;
+      `;
+      
+      // Style format groups
+      const formats = toolbar.querySelectorAll('.ql-formats');
+      formats.forEach(format => {
+        format.style.cssText = `
+          display: flex !important;
+          gap: 0.5rem !important;
+          margin-right: 0 !important;
+        `;
+      });
+      
+      // Style all buttons
+      const buttons = toolbar.querySelectorAll('button');
+      console.log(`applySpaceButtonStyling: Found ${buttons.length} buttons to style`);
+      buttons.forEach((button, index) => {
+        console.log(`applySpaceButtonStyling: Styling button ${index}:`, button);
+        button.style.cssText = `
+          color: var(--color-deep-grey) !important;
+          background: transparent !important;
+          border: none !important;
+          border-color: transparent !important;
+          border-radius: 0.75rem !important;
+          padding: 0.5rem 0.75rem !important;
+          margin: 0 !important;
+          font-family: var(--font-sans) !important;
+          font-size: 14px !important;
+          font-weight: 600 !important;
+          cursor: pointer !important;
+          transition: all 0.125s ease-in-out !important;
+          will-change: transform !important;
+          min-height: 2rem !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          box-shadow: none !important;
+        `;
+        
+        // Add event listeners for hover effects
+        button.addEventListener('mouseenter', () => {
+          button.style.background = 'var(--color-fog-white)';
+          button.style.boxShadow = '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset';
+        });
+        
+        button.addEventListener('mouseleave', () => {
+          if (!button.classList.contains('ql-active')) {
+            button.style.background = 'transparent';
+            button.style.boxShadow = 'none';
+          }
+        });
+        
+        button.addEventListener('mousedown', () => {
+          button.style.filter = 'brightness(0.97)';
+          button.style.boxShadow = '0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset, 0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset';
+          button.style.transform = 'scale(0.98)';
+        });
+        
+        button.addEventListener('mouseup', () => {
+          button.style.filter = '';
+          button.style.transform = '';
+          if (button.classList.contains('ql-active')) {
+            button.style.background = 'var(--color-fog-white)';
+            button.style.boxShadow = '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset';
+          }
+        });
+      });
+    };
+    
+    // Apply SpaceButton styling to toolbar buttons with maximum force
+    const applyToolbarStyling = () => {
+      const toolbarButtons = quillContainer.querySelectorAll('.ql-toolbar button');
+      const toolbar = quillContainer.querySelector('.ql-toolbar');
+      const formats = quillContainer.querySelectorAll('.ql-formats');
+      
+      // Style toolbar container
+      if (toolbar) {
+        toolbar.style.cssText = `
+          border: none !important;
+          border-color: transparent !important;
+          background: transparent !important;
+          display: flex !important;
+          gap: 0.5rem !important;
+          align-items: center !important;
+          padding: 0.5rem 0 !important;
+        `;
+      }
+      
+      // Style format groups
+      formats.forEach(format => {
+        format.style.cssText = `
+          display: flex !important;
+          gap: 0.5rem !important;
+          margin-right: 0 !important;
+        `;
+      });
+      
+      // Style all buttons
+      toolbarButtons.forEach(button => {
+        button.style.cssText = `
+          color: var(--color-deep-grey) !important;
+          background: transparent !important;
+          border: none !important;
+          border-color: transparent !important;
+          border-radius: 0.75rem !important;
+          padding: 0.5rem 0.75rem !important;
+          margin: 0 !important;
+          font-family: var(--font-sans) !important;
+          font-size: 14px !important;
+          font-weight: 600 !important;
+          cursor: pointer !important;
+          transition: all 0.125s ease-in-out !important;
+          will-change: transform !important;
+          min-height: 2rem !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          box-shadow: none !important;
+        `;
+        
+        // Add event listeners for hover effects
+        button.addEventListener('mouseenter', () => {
+          button.style.background = 'var(--color-fog-white)';
+          button.style.boxShadow = '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset';
+        });
+        
+        button.addEventListener('mouseleave', () => {
+          if (!button.classList.contains('ql-active')) {
+            button.style.background = 'transparent';
+            button.style.boxShadow = 'none';
+          }
+        });
+        
+        button.addEventListener('mousedown', () => {
+          button.style.filter = 'brightness(0.97)';
+          button.style.boxShadow = '0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset, 0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset';
+          button.style.transform = 'scale(0.98)';
+        });
+        
+        button.addEventListener('mouseup', () => {
+          button.style.filter = '';
+          button.style.transform = '';
+          if (button.classList.contains('ql-active')) {
+            button.style.background = 'var(--color-fog-white)';
+            button.style.boxShadow = '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset';
+          }
+        });
+      });
+    };
+    
+    // Apply styling immediately
+    applyToolbarStyling();
+    
+    // Also apply after a delay to catch any late-rendered elements
+    setTimeout(applyToolbarStyling, 100);
+    setTimeout(applyToolbarStyling, 500);
+    
+    // Apply SpaceButton styling to any existing toolbar
+    const existingToolbar = quillContainer.querySelector('.ql-toolbar');
+    if (existingToolbar) {
+      console.log('Found existing toolbar, applying styling:', existingToolbar);
+      applySpaceButtonStyling(existingToolbar);
+    }
+    
+    // Use MutationObserver to watch for toolbar creation
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === 1) { // Element node
+            if (node.classList && node.classList.contains('ql-toolbar')) {
+              console.log('Toolbar detected via MutationObserver:', node);
+              applySpaceButtonStyling(node);
+            }
+            // Also check for toolbar in child elements
+            const toolbar = node.querySelector && node.querySelector('.ql-toolbar');
+            if (toolbar) {
+              console.log('Toolbar found in child element:', toolbar);
+              applySpaceButtonStyling(toolbar);
+            }
+          }
+        });
+      });
+    });
+    
+    // Start observing
+    observer.observe(quillContainer, {
+      childList: true,
+      subtree: true
+    });
+    
+    // Stop observing after 5 seconds
+    setTimeout(() => {
+      observer.disconnect();
+    }, 5000);
     
   }
   

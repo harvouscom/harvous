@@ -258,7 +258,7 @@ if (!userId) {
       </div>
       
       <!-- Content area with TrixEditor (like CardFull) -->
-      <div class="flex-1 flex items-start justify-between px-3 py-0 relative w-full min-h-0">
+      <div class="flex-1 flex items-start justify-between px-3 py-0 relative w-full min-h-0" style="margin-bottom: 12px; margin-top: 20px;">
         <div class="flex flex-col font-sans font-normal w-full h-full">
           <QuillEditor 
             content=""
@@ -671,7 +671,38 @@ if (!userId) {
 
   .new-note-panel .ql-toolbar {
     border: none !important;
-    background: white !important;
+    background: transparent !important;
+    display: flex !important;
+    gap: 0.5rem !important;
+    align-items: center !important;
+    padding: 0.5rem 0 !important;
+  }
+  
+  .new-note-panel .ql-toolbar button {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0.75rem !important;
+    padding: 0.5rem 0.75rem !important;
+    margin: 0 !important;
+    color: var(--color-deep-grey) !important;
+    font-family: var(--font-sans) !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    transition: all 0.125s ease-in-out !important;
+    min-height: 2rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  .new-note-panel .ql-toolbar button:hover {
+    background: var(--color-fog-white) !important;
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+  }
+  
+  .new-note-panel .ql-toolbar button.ql-active {
+    background: var(--color-fog-white) !important;
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
   }
 
   .new-note-panel .ql-container {
