@@ -1,5 +1,6 @@
 ---
 import QuillEditor from "./QuillEditor.astro";
+import ButtonSmall from "./ButtonSmall.astro";
 
 export interface Props {
   title?: string;
@@ -133,22 +134,22 @@ const fixedContent = fixQuillV2Lists(content);
         />
         
         <!-- Save/Cancel buttons -->
-        <div class="flex gap-2 mt-4 justify-end">
-          <button 
+        <div class="flex gap-3 mt-4 justify-end">
+          <ButtonSmall 
+            state="Secondary"
             @click="cancelEdit()"
-            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             :disabled="isSaving"
           >
             Cancel
-          </button>
-          <button 
+          </ButtonSmall>
+          <ButtonSmall 
+            state="Default"
             @click="saveChanges()"
-            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             :disabled="isSaving"
           >
             <span x-show="!isSaving">Save</span>
             <span x-show="isSaving">Saving...</span>
-          </button>
+          </ButtonSmall>
         </div>
       </div>
     </div>
