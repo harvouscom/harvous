@@ -120,7 +120,7 @@ const fixedContent = fixQuillV2Lists(content);
   <div class="basis-0 box-border content-stretch flex grow items-start justify-between min-h-px min-w-px px-3 py-0 relative shrink-0 w-full">
     <div class="basis-0 flex flex-col font-sans font-normal grow justify-center leading-[1.6] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[16px]">
       <!-- Display mode -->
-      <div x-show="!isEditing" class="ql-editor min-h-[200px] max-w-none cursor-pointer rounded px-2 py-1 -mx-2 -my-1" @click="isEditing = true; editTitle = originalTitle; editContent = originalContent;" data-fallback-content={fixedContent} set:html={fixedContent || ''}></div>
+      <div x-show="!isEditing" class="ql-editor min-h-[200px] max-w-none cursor-pointer rounded px-2 py-1" @click="isEditing = true; editTitle = originalTitle; editContent = originalContent;" data-fallback-content={fixedContent} set:html={fixedContent || ''}></div>
       
       <!-- Edit mode -->
       <div x-show="isEditing" class="min-h-[200px] flex flex-col">
