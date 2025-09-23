@@ -24,16 +24,26 @@ const {
   isPrivate = true
 } = Astro.props;
 
-// Helper function to strip HTML tags and decode entities
+// Helper function to convert HTML to readable text
 function stripHtml(html: string): string {
   if (!html) return '';
   
-  // More aggressive HTML stripping
   let text = html
     // Remove script and style tags completely (including their content)
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    // Remove all HTML tags (including those with complex attributes)
+    // Convert ordered lists to numbered format
+    .replace(/<ol[^>]*>/gi, '')
+    .replace(/<\/ol>/gi, '')
+    .replace(/<li[^>]*>/gi, '• ')
+    // Convert unordered lists to bullet format
+    .replace(/<ul[^>]*>/gi, '')
+    .replace(/<\/ul>/gi, '')
+    // Handle line breaks and paragraphs
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/p>/gi, ' ')
+    .replace(/<p[^>]*>/gi, '')
+    // Remove other HTML tags
     .replace(/<[^>]*>/g, '')
     // Decode HTML entities
     .replace(/&nbsp;/g, ' ')

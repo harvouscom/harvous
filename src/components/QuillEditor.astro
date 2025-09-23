@@ -48,6 +48,26 @@ const {
     min-height: 200px;
     overflow-y: auto;
   }
+  
+  /* Force toolbar to bottom using CSS Grid */
+  #static-quill-editor {
+    display: grid !important;
+    grid-template-rows: 1fr auto !important;
+    grid-template-areas: "editor" "toolbar" !important;
+  }
+  
+  #static-quill-editor .ql-container {
+    grid-area: editor !important;
+    order: 1 !important;
+  }
+  
+  #static-quill-editor .ql-toolbar {
+    grid-area: toolbar !important;
+    order: 2 !important;
+    border-top: 1px solid #ccc !important;
+    border-bottom: none !important;
+    margin-top: 0.5rem !important;
+  }
 
   /* Quill Editor Styling - Match note content styling */
   #static-quill-editor .ql-editor {
@@ -62,6 +82,19 @@ const {
     background: transparent !important;
     box-shadow: none !important;
     min-height: 200px;
+  }
+  
+  /* Remove gray background on hover/focus */
+  #static-quill-editor .ql-editor:hover,
+  #static-quill-editor .ql-editor:focus,
+  #static-quill-editor .ql-editor:focus-within {
+    background: transparent !important;
+    outline: none !important;
+  }
+  
+  /* Remove any Quill default hover effects */
+  #static-quill-editor .ql-container:hover .ql-editor {
+    background: transparent !important;
   }
   
   /* Force Reddit Sans on all Quill content */
@@ -104,7 +137,9 @@ const {
     border: none;
     background: transparent;
     padding: 0.5rem 0.75rem;
+    order: 2; /* Ensure toolbar comes after editor */
   }
+  
 
   #static-quill-editor .ql-toolbar .ql-formats {
     margin-right: 1rem;
@@ -162,6 +197,16 @@ const {
     line-height: 1.6 !important;
     color: var(--color-deep-grey) !important;
   }
+  
+  /* Global rules to remove gray backgrounds on hover/focus */
+  .ql-editor:hover,
+  .ql-editor:focus,
+  .ql-editor:focus-within,
+  .ql-container:hover .ql-editor {
+    background: transparent !important;
+    outline: none !important;
+  }
+  
 </style>
 
 <script define:vars={{ id, placeholder, content }}>
@@ -169,6 +214,13 @@ const {
   function initializeQuillEditor() {
     const quillContainer = document.querySelector(`#static-quill-container-${id}`);
     const hiddenInput = document.querySelector(`#${id}`);
+    
+    console.log(`QuillEditor ${id} initialization attempt:`, {
+      quillContainer: !!quillContainer,
+      hiddenInput: !!hiddenInput,
+      windowQuill: !!window.Quill,
+      alreadyInitialized: !!(quillContainer && quillContainer.__quill)
+    });
     
     // Check if already initialized
     if (!quillContainer || !hiddenInput || !window.Quill || quillContainer.__quill) {
@@ -178,7 +230,7 @@ const {
     // Clear container to prevent duplicate toolbars
     quillContainer.innerHTML = '';
     
-    // Initialize Quill with simplified configuration
+    // Initialize Quill with standard configuration
     const quillInstance = new window.Quill(quillContainer, {
       theme: 'snow',
       placeholder: placeholder,
@@ -190,6 +242,21 @@ const {
         ]
       }
     });
+    
+    // Move toolbar to bottom after Quill is fully initialized
+    setTimeout(() => {
+      const toolbar = quillContainer.querySelector('.ql-toolbar');
+      const editor = quillContainer.querySelector('.ql-editor');
+      if (toolbar && editor) {
+        // Remove toolbar from its current position
+        toolbar.remove();
+        // Insert toolbar after the editor container
+        editor.parentNode.insertBefore(toolbar, editor.nextSibling);
+        console.log(`QuillEditor ${id} - toolbar moved to bottom`);
+      }
+    }, 100);
+    
+    console.log(`QuillEditor ${id} initialized successfully`);
     
     // Store reference to prevent re-initialization
     quillContainer.__quill = quillInstance;
@@ -215,13 +282,50 @@ const {
     quillInstance.root.style.fontSize = '16px';
     quillInstance.root.style.lineHeight = '1.6';
     quillInstance.root.style.color = 'var(--color-deep-grey)';
+    
+    console.log(`QuillEditor ${id} initialized successfully`);
   }
   
-  // Initialize when DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeQuillEditor);
-  } else {
-    // DOM is already ready
-    initializeQuillEditor();
+  // Multiple initialization attempts for reliability
+  function tryInitialize() {
+    const quillContainer = document.querySelector(`#static-quill-container-${id}`);
+    const hiddenInput = document.querySelector(`#${id}`);
+    
+    if (quillContainer && hiddenInput && window.Quill && !quillContainer.__quill) {
+      initializeQuillEditor();
+      return true;
+    }
+    return false;
   }
+  
+  // Try immediately
+  if (!tryInitialize()) {
+    // Try on DOM ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', tryInitialize);
+    }
+    
+    // Try with delays
+    setTimeout(tryInitialize, 100);
+    setTimeout(tryInitialize, 300);
+    setTimeout(tryInitialize, 500);
+    setTimeout(tryInitialize, 1000);
+    
+    // Final fallback on window load
+    window.addEventListener('load', tryInitialize);
+  }
+  
+  // Listen for Astro View Transitions events
+  document.addEventListener('astro:after-swap', () => {
+    console.log(`QuillEditor ${id} - astro:after-swap event, attempting initialization`);
+    setTimeout(tryInitialize, 50);
+    setTimeout(tryInitialize, 200);
+    setTimeout(tryInitialize, 500);
+  });
+  
+  document.addEventListener('astro:page-load', () => {
+    console.log(`QuillEditor ${id} - astro:page-load event, attempting initialization`);
+    setTimeout(tryInitialize, 50);
+    setTimeout(tryInitialize, 200);
+  });
 </script>

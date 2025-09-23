@@ -22,6 +22,35 @@ const {
   onSave,
   onCancel
 } = Astro.props;
+
+// Helper function to fix Quill v2 list rendering issues
+function fixQuillV2Lists(htmlContent: string): string {
+  if (!htmlContent) return '';
+  
+  // Quill v2 adds problematic spans inside list items
+  // Remove these spans that interfere with list display
+  let fixedContent = htmlContent
+    // Remove Quill v2's ql-ui spans that break list rendering
+    .replace(/<span class="ql-ui" contenteditable="false">[\s\S]*?<\/span>/gi, '')
+    // Fix Quill v2's mixed list structure - convert ol with bullet items to ul
+    .replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (match, content) => {
+      // Check if any li has data-list="bullet"
+      if (content.includes('data-list="bullet"')) {
+        return `<ul style="list-style-type: disc !important; padding-left: 0.5em !important; margin-left: 0.5em !important;">${content}</ul>`;
+      } else {
+        return `<ol style="list-style-type: decimal !important; padding-left: 0.5em !important; margin-left: 0.5em !important;">${content}</ol>`;
+      }
+    })
+    // Clean up li attributes and add styling
+    .replace(/<li[^>]*>/gi, '<li style="display: list-item !important; list-style-position: outside !important; margin-left: 0 !important; padding-left: 0.2em !important;">')
+    // Handle regular ul tags
+    .replace(/<ul[^>]*>/gi, '<ul style="list-style-type: disc !important; padding-left: 0.5em !important; margin-left: 0.5em !important;">');
+  
+  return fixedContent;
+}
+
+// Process the content to fix Quill v2 list issues
+const fixedContent = fixQuillV2Lists(content);
 ---
 
 <div 
@@ -35,6 +64,8 @@ const {
     hasChanges: false,
     originalTitle: '',
     originalContent: '',
+    displayTitle: '',
+    displayContent: '',
     onSaveCallback: null
   }"
   x-init="
@@ -42,6 +73,8 @@ const {
     editContent = '';
     originalTitle = '';
     originalContent = '';
+    displayTitle = '';
+    displayContent = '';
     onSaveCallback = null; // Will be set by the script
   "
 >
@@ -49,13 +82,13 @@ const {
   <div class="box-border content-stretch flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
     <div class="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
       <!-- Display mode -->
-      <p x-show="!isEditing" class="leading-[normal] cursor-pointer hover:bg-gray-50 rounded px-2 py-1 -mx-2 -my-1" @click="isEditing = true; editTitle = originalTitle; editContent = originalContent;">{title}</p>
+      <p x-show="!isEditing" class="leading-[normal] cursor-pointer rounded px-2 py-1 -mx-2 -my-1" @click="isEditing = true; editTitle = originalTitle; editContent = originalContent;">{title}</p>
       <!-- Edit mode -->
       <input 
         x-show="isEditing"
         x-model="editTitle"
         type="text"
-        class="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none"
+        class="w-full bg-transparent border border-gray-200 rounded px-2 py-1 text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none focus:border-gray-300"
         placeholder="Note title"
         @keydown.enter="saveChanges()"
         @keydown.escape="cancelEdit()"
@@ -87,7 +120,7 @@ const {
   <div class="basis-0 box-border content-stretch flex grow items-start justify-between min-h-px min-w-px px-3 py-0 relative shrink-0 w-full">
     <div class="basis-0 flex flex-col font-sans font-normal grow justify-center leading-[1.6] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[16px]">
       <!-- Display mode -->
-      <div x-show="!isEditing" class="min-h-[200px] max-w-none cursor-pointer hover:bg-gray-50 rounded px-2 py-1 -mx-2 -my-1" set:html={content || ''} @click="isEditing = true; editTitle = originalTitle; editContent = originalContent;"></div>
+      <div x-show="!isEditing" class="ql-editor min-h-[200px] max-w-none cursor-pointer rounded px-2 py-1 -mx-2 -my-1" @click="isEditing = true; editTitle = originalTitle; editContent = originalContent;" data-fallback-content={fixedContent} set:html={fixedContent || ''}></div>
       
       <!-- Edit mode -->
       <div x-show="isEditing" class="min-h-[200px] flex flex-col">
@@ -122,15 +155,42 @@ const {
 </div>
 
 <style>
-  /* CardFullEditable specific styling */
-  [data-card-full-editable] .ql-editor {
-    font-family: var(--font-sans) !important;
-    font-size: 16px !important;
-    line-height: 1.6 !important;
+  /* Maximum specificity to override computedStyle: none */
+  [data-card-full-editable] div[x-show="!isEditing"].ql-editor ul {
+    list-style-type: disc !important;
+    padding-left: 1.5em !important;
+    margin-left: 0 !important;
+  }
+
+  [data-card-full-editable] div[x-show="!isEditing"].ql-editor ol {
+    list-style-type: decimal !important;
+    padding-left: 1.5em !important;
+    margin-left: 0 !important;
+  }
+
+  [data-card-full-editable] div[x-show="!isEditing"].ql-editor li {
+    margin-bottom: 0.5em !important;
     color: var(--color-deep-grey) !important;
+    display: list-item !important;
+    list-style-position: outside !important;
+    list-style-type: inherit !important;
   }
   
-  [data-card-full-editable] .ql-editor * {
+  /* Even more specific targeting */
+  div[data-card-full-editable] div[x-show="!isEditing"].ql-editor ul {
+    list-style-type: disc !important;
+  }
+  
+  div[data-card-full-editable] div[x-show="!isEditing"].ql-editor ol {
+    list-style-type: decimal !important;
+  }
+  
+  div[data-card-full-editable] div[x-show="!isEditing"].ql-editor li {
+    list-style-type: inherit !important;
+  }
+  
+  /* CardFullEditable specific styling */
+  [data-card-full-editable] .ql-editor {
     font-family: var(--font-sans) !important;
     font-size: 16px !important;
     line-height: 1.6 !important;
@@ -144,6 +204,33 @@ const {
 </style>
 
 <script define:vars={{ title, content }}>
+  // Function to fix Quill v2 list rendering issues (client-side version)
+  function fixQuillV2Lists(htmlContent) {
+    if (!htmlContent) return '';
+    
+    // Quill v2 adds problematic spans inside list items
+    // Remove these spans that interfere with list display
+    let fixedContent = htmlContent
+      // Remove Quill v2's ql-ui spans that break list rendering
+      .replace(/<span class="ql-ui" contenteditable="false">[\s\S]*?<\/span>/gi, '')
+      // Fix Quill v2's mixed list structure - convert ol with bullet items to ul
+      .replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (match, content) => {
+        // Check if any li has data-list="bullet"
+        if (content.includes('data-list="bullet"')) {
+          return `<ul style="list-style-type: disc !important; padding-left: 0.5em !important; margin-left: 0.5em !important;">${content}</ul>`;
+        } else {
+          return `<ol style="list-style-type: decimal !important; padding-left: 0.5em !important; margin-left: 0.5em !important;">${content}</ol>`;
+        }
+      })
+      // Clean up li attributes and add styling
+      .replace(/<li[^>]*>/gi, '<li style="display: list-item !important; list-style-position: outside !important; margin-left: 0 !important; padding-left: 0.2em !important;">')
+      // Handle regular ul tags
+      .replace(/<ul[^>]*>/gi, '<ul style="list-style-type: disc !important; padding-left: 0.5em !important; margin-left: 0.5em !important;">');
+    
+    console.log('Fixed Quill v2 content (client-side):', fixedContent);
+    return fixedContent;
+  }
+  
   // Define functions immediately to avoid timing issues
   function setupCardFullEditable() {
     const cardElement = document.querySelector('[data-card-full-editable]');
@@ -159,9 +246,78 @@ const {
         alpineData.editContent = content || '';
         alpineData.originalTitle = title || '';
         alpineData.originalContent = content || '';
+        alpineData.displayTitle = title || '';
+        alpineData.displayContent = content || '';
         
-        // Define saveChanges function
+        console.log('CardFullEditable initialized with:', {
+          title: title,
+          content: content,
+          displayTitle: alpineData.displayTitle,
+          displayContent: alpineData.displayContent
+        });
+        
+        // Fallback: ensure content is displayed even if Alpine.js data isn't working
+        const contentDisplay = cardElement.querySelector('div[x-show="!isEditing"]');
+        if (contentDisplay && content && !contentDisplay.innerHTML.trim()) {
+          const fixedContent = fixQuillV2Lists(content);
+          contentDisplay.innerHTML = fixedContent;
+          console.log('Applied fallback content to display element');
+        }
+        
+        // Debug: Log the actual content to see what HTML we're working with
+        console.log('CardFullEditable content:', content);
+        if (contentDisplay) {
+          console.log('Content display innerHTML:', contentDisplay.innerHTML);
+          
+          // Debug list elements specifically
+          const lists = contentDisplay.querySelectorAll('ul, ol');
+          console.log('Found lists:', lists.length);
+          lists.forEach((list, index) => {
+            console.log(`List ${index}:`, {
+              tagName: list.tagName,
+              className: list.className,
+              style: list.style.cssText,
+              computedStyle: window.getComputedStyle(list).listStyleType
+            });
+            
+            // Force list styling with JavaScript
+            if (list.tagName === 'UL') {
+              list.style.setProperty('list-style-type', 'disc', 'important');
+              list.style.setProperty('padding-left', '1.5em', 'important');
+            } else if (list.tagName === 'OL') {
+              list.style.setProperty('list-style-type', 'decimal', 'important');
+              list.style.setProperty('padding-left', '1.5em', 'important');
+            }
+            console.log(`Applied JS styling to ${list.tagName}`);
+          });
+          
+          const listItems = contentDisplay.querySelectorAll('li');
+          console.log('Found list items:', listItems.length);
+          listItems.forEach((item, index) => {
+            console.log(`List item ${index}:`, {
+              tagName: item.tagName,
+              className: item.className,
+              style: item.style.cssText,
+              computedStyle: window.getComputedStyle(item).listStyleType
+            });
+            
+            // Force list item styling with JavaScript
+            item.style.setProperty('display', 'list-item', 'important');
+            item.style.setProperty('list-style-position', 'outside', 'important');
+            item.style.setProperty('list-style-type', 'inherit', 'important');
+            console.log(`Applied JS styling to LI ${index}`);
+            
+            // Check computed style after applying
+            setTimeout(() => {
+              const newComputedStyle = window.getComputedStyle(item).listStyleType;
+              console.log(`LI ${index} computedStyle after JS:`, newComputedStyle);
+            }, 10);
+          });
+        }
+        
+        // Define saveChanges function and attach it to Alpine data
         alpineData.saveChanges = async function() {
+          console.log('saveChanges function called');
           this.isSaving = true;
           
           try {
@@ -207,7 +363,7 @@ const {
             this.originalContent = content;
             this.isEditing = false;
             
-            // Update the display content - be more specific with selectors
+            // Update display content directly in DOM
             const titleDisplay = cardElement.querySelector('p[x-show="!isEditing"]');
             const contentDisplay = cardElement.querySelector('div[x-show="!isEditing"]');
             
@@ -216,7 +372,35 @@ const {
             }
             
             if (contentDisplay) {
-              contentDisplay.innerHTML = content;
+              const fixedContent = fixQuillV2Lists(content);
+              contentDisplay.innerHTML = fixedContent;
+              
+              // Re-apply JavaScript styling to the updated content
+              setTimeout(() => {
+                const lists = contentDisplay.querySelectorAll('ul, ol');
+                lists.forEach((list) => {
+                  if (list.tagName === 'UL') {
+                    list.style.setProperty('list-style-type', 'disc', 'important');
+                    list.style.setProperty('padding-left', '0.5em', 'important');
+                    list.style.setProperty('margin-left', '0.5em', 'important');
+                  } else if (list.tagName === 'OL') {
+                    list.style.setProperty('list-style-type', 'decimal', 'important');
+                    list.style.setProperty('padding-left', '0.5em', 'important');
+                    list.style.setProperty('margin-left', '0.5em', 'important');
+                  }
+                });
+                
+                const listItems = contentDisplay.querySelectorAll('li');
+                listItems.forEach((item) => {
+                  item.style.setProperty('display', 'list-item', 'important');
+                  item.style.setProperty('list-style-position', 'outside', 'important');
+                  item.style.setProperty('list-style-type', 'inherit', 'important');
+                  item.style.setProperty('margin-left', '0', 'important');
+                  item.style.setProperty('padding-left', '0.2em', 'important');
+                });
+                
+                console.log('Re-applied styling after save');
+              }, 10);
             }
             
             // Show success message
@@ -247,6 +431,13 @@ const {
           this.isEditing = false;
           this.hasChanges = false;
         };
+        
+        // Debug: Log that functions are attached
+        console.log('Alpine data functions attached:', {
+          saveChanges: typeof alpineData.saveChanges,
+          cancelEdit: typeof alpineData.cancelEdit,
+          alpineData: !!alpineData
+        });
       }
     }
   }
@@ -257,7 +448,7 @@ const {
   // Also try on DOM ready
   document.addEventListener('DOMContentLoaded', setupCardFullEditable);
   
-  // Try periodically as fallback
+  // Try after delays to ensure Alpine.js is ready
   setTimeout(setupCardFullEditable, 100);
   setTimeout(setupCardFullEditable, 500);
 </script>
