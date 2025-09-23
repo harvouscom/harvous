@@ -405,52 +405,6 @@ if (!userId) {
   // Make the function available globally
   (window as any).updateThreadSelection = updateThreadSelection;
   
-  // Function to inject aggressive placeholder fix CSS after Quill loads
-  function injectPlaceholderFixCSS() {
-    const styleId = 'quill-placeholder-fix';
-    if (document.getElementById(styleId)) {
-      return; // Already injected
-    }
-    
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      /* ULTRA AGGRESSIVE: Force remove placeholder indentation with maximum specificity */
-      .ql-editor.ql-blank::before,
-      .ql-editor.ql-snow.ql-blank::before,
-      div.ql-editor.ql-blank::before,
-      div.ql-editor.ql-snow.ql-blank::before,
-      .new-note-panel .ql-editor.ql-blank::before,
-      .new-note-panel .ql-editor.ql-snow.ql-blank::before,
-      .new-note-panel div.ql-editor.ql-blank::before,
-      .new-note-panel div.ql-editor.ql-snow.ql-blank::before,
-      .new-note-panel #static-quill-container-new-note-content .ql-editor.ql-blank::before,
-      .new-note-panel #static-quill-container-new-note-content .ql-editor.ql-snow.ql-blank::before,
-      .new-note-panel .quill-content .ql-editor.ql-blank::before,
-      .new-note-panel .quill-content .ql-editor.ql-snow.ql-blank::before,
-      .new-note-panel .ql-snow .ql-editor.ql-blank::before {
-        text-indent: 0 !important;
-        padding-left: 0 !important;
-        margin-left: 0 !important;
-        left: 0 !important;
-        transform: translateX(0) !important;
-        font-style: normal !important;
-        position: relative !important;
-      }
-    `;
-    document.head.appendChild(style);
-    console.log('Injected ultra-aggressive placeholder fix CSS');
-  }
-  
-  // Inject CSS immediately and on various events
-  injectPlaceholderFixCSS();
-  document.addEventListener('DOMContentLoaded', injectPlaceholderFixCSS);
-  document.addEventListener('astro:after-swap', () => {
-    setTimeout(injectPlaceholderFixCSS, 100);
-  });
-  document.addEventListener('astro:page-load', () => {
-    setTimeout(injectPlaceholderFixCSS, 100);
-  });
   
   // MutationObserver for dynamic attribute changes (following Alpine.js best practices)
   let observer: MutationObserver | null = null;
@@ -521,29 +475,6 @@ if (!userId) {
         const quillContainer = document.querySelector('#static-quill-container-new-note-content') as any;
         const hiddenInput = document.querySelector('input[name="content"]') as HTMLInputElement;
         
-        // Force fix placeholder positioning
-        if (quillContainer && quillContainer.__quill) {
-          const editor = quillContainer.querySelector('.ql-editor');
-          if (editor) {
-            // Force remove any indentation from placeholder
-            editor.style.setProperty('--ql-blank-text-indent', '0');
-            editor.style.setProperty('--ql-blank-padding-left', '0');
-            editor.style.setProperty('--ql-blank-margin-left', '0');
-            
-            // Also try to fix via CSS custom properties
-            const style = document.createElement('style');
-            style.textContent = `
-              .ql-editor.ql-blank::before {
-                text-indent: 0 !important;
-                padding-left: 0 !important;
-                margin-left: 0 !important;
-                left: 0 !important;
-                transform: translateX(0) !important;
-              }
-            `;
-            document.head.appendChild(style);
-          }
-        }
         
         // Try to get content from hidden input first (most reliable)
         if (hiddenInput && hiddenInput.value) {
@@ -723,17 +654,11 @@ if (!userId) {
     min-height: 200px;
   }
   
-  /* Fix placeholder text indentation in NewNotePanel - MAXIMUM SPECIFICITY */
-  .new-note-panel .ql-editor.ql-blank::before,
-  .new-note-panel .ql-editor.ql-snow.ql-blank::before,
-  .new-note-panel div.ql-editor.ql-blank::before,
-  .new-note-panel div.ql-editor.ql-snow.ql-blank::before {
+  /* Simple placeholder fix for NewNotePanel */
+  .new-note-panel .ql-editor.ql-blank::before {
     text-indent: 0 !important;
     padding-left: 0 !important;
-    margin-left: 0 !important;
-    left: 0 !important;
     font-style: normal !important;
-    position: relative !important;
   }
   
   /* Force Reddit Sans on all Quill content in NewNotePanel */
@@ -843,37 +768,13 @@ if (!userId) {
     color: var(--color-deep-grey) !important;
   }
   
-  /* NUCLEAR OPTION: Force remove all indentation from placeholder text globally */
-  .ql-editor.ql-blank::before,
-  .ql-editor.ql-snow.ql-blank::before,
-  div.ql-editor.ql-blank::before,
-  div.ql-editor.ql-snow.ql-blank::before {
+  /* Simple global placeholder fix */
+  .ql-editor.ql-blank::before {
     text-indent: 0 !important;
     padding-left: 0 !important;
-    margin-left: 0 !important;
-    left: 0 !important;
-    transform: translateX(0) !important;
     font-style: normal !important;
   }
   
-  /* ULTRA NUCLEAR: Target every possible Quill placeholder selector with maximum specificity */
-  .new-note-panel .ql-editor.ql-blank::before,
-  .new-note-panel .ql-editor.ql-snow.ql-blank::before,
-  .new-note-panel div.ql-editor.ql-blank::before,
-  .new-note-panel div.ql-editor.ql-snow.ql-blank::before,
-  .new-note-panel #static-quill-container-new-note-content .ql-editor.ql-blank::before,
-  .new-note-panel #static-quill-container-new-note-content .ql-editor.ql-snow.ql-blank::before,
-  .new-note-panel .quill-content .ql-editor.ql-blank::before,
-  .new-note-panel .quill-content .ql-editor.ql-snow.ql-blank::before,
-  .new-note-panel .ql-snow .ql-editor.ql-blank::before {
-    text-indent: 0 !important;
-    padding-left: 0 !important;
-    margin-left: 0 !important;
-    left: 0 !important;
-    transform: translateX(0) !important;
-    font-style: normal !important;
-    position: relative !important;
-  }
 
   /* HTMX loading states */
   .htmx-request #create-note-btn {

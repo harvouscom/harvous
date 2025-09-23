@@ -484,8 +484,6 @@ const {
     color: var(--color-pebble-grey);
     font-style: normal;
     content: attr(data-placeholder);
-    text-indent: 0 !important;
-    padding-left: 0 !important;
   }
 
   /* Quill Toolbar Styling - SpaceButton inspired */
@@ -661,7 +659,7 @@ const {
     color: var(--color-deep-grey) !important;
   }
   
-  /* NUCLEAR OPTION: Force remove all indentation from placeholder text with maximum specificity */
+  /* Simple placeholder fix - just remove indentation */
   .ql-editor.ql-blank::before,
   .ql-editor.ql-snow.ql-blank::before,
   div.ql-editor.ql-blank::before,
@@ -670,11 +668,7 @@ const {
   #static-quill-editor .ql-editor.ql-snow.ql-blank::before {
     text-indent: 0 !important;
     padding-left: 0 !important;
-    margin-left: 0 !important;
-    left: 0 !important;
-    transform: translateX(0) !important;
     font-style: normal !important;
-    position: relative !important;
   }
   
   /* Global rule to remove default padding and fix placeholder - MAXIMUM SPECIFICITY */
@@ -716,13 +710,6 @@ const {
     const quillContainer = document.querySelector(`#static-quill-container-${id}`);
     const hiddenInput = document.querySelector(`#${id}`);
     
-    console.log(`QuillEditor ${id} initialization attempt:`, {
-      quillContainer: !!quillContainer,
-      hiddenInput: !!hiddenInput,
-      windowQuill: !!window.Quill,
-      alreadyInitialized: !!(quillContainer && quillContainer.__quill),
-      containerHTML: quillContainer?.innerHTML
-    });
     
     // Check if already initialized
     if (!quillContainer || !hiddenInput || !window.Quill || quillContainer.__quill) {
@@ -749,13 +736,8 @@ const {
       icons['ordered'] = '<i class="fa-solid fa-list-ol"></i>';
       icons['bullet'] = '<i class="fa-solid fa-list"></i>';
       icons['clean'] = '<i class="fa-solid fa-eraser"></i>';
-      console.log('Quill icons overridden with Font Awesome icons');
     }
     
-    console.log(`QuillEditor ${id} toolbar config:`, {
-      minimalToolbar: minimalToolbar,
-      toolbarConfig: toolbarConfig
-    });
     
     const quillInstance = new window.Quill(quillContainer, {
       theme: 'snow', // Use snow theme for toolbar but fix placeholder indentation
@@ -765,32 +747,11 @@ const {
       }
     });
     
-    // DEBUG: Log the computed styles of the placeholder to see what's causing indentation
-    setTimeout(() => {
-      const editor = quillContainer.querySelector('.ql-editor');
-      if (editor) {
-        const computedStyle = window.getComputedStyle(editor, '::before');
-        console.log('Placeholder computed styles:', {
-          textIndent: computedStyle.textIndent,
-          paddingLeft: computedStyle.paddingLeft,
-          marginLeft: computedStyle.marginLeft,
-          left: computedStyle.left,
-          transform: computedStyle.transform,
-          position: computedStyle.position
-        });
-      }
-    }, 100);
     
     
-    console.log(`QuillEditor ${id} after creation:`, {
-      quillInstance: !!quillInstance,
-      containerHTML: quillContainer.innerHTML,
-      toolbarExists: !!quillContainer.querySelector('.ql-toolbar')
-    });
     
     // If no toolbar was created but we want one, create it manually
     if (!minimalToolbar && !quillContainer.querySelector('.ql-toolbar')) {
-      console.log(`Creating manual toolbar for ${id}`);
       const toolbar = document.createElement('div');
       toolbar.className = 'ql-toolbar ql-snow';
       toolbar.innerHTML = `
@@ -812,7 +773,6 @@ const {
       const editor = quillContainer.querySelector('.ql-editor');
       if (editor) {
         quillContainer.insertBefore(toolbar, editor);
-        console.log(`Manual toolbar created for ${id}`);
       }
     }
     
@@ -820,14 +780,11 @@ const {
     setTimeout(() => {
       const toolbar = quillContainer.querySelector('.ql-toolbar');
       if (toolbar) {
-        console.log('Found toolbar immediately after Quill creation:', toolbar);
         applySpaceButtonStyling(toolbar);
         
         // Also apply styling to buttons specifically
         const buttons = toolbar.querySelectorAll('button');
-        console.log(`Found ${buttons.length} buttons to style`);
         buttons.forEach((button, index) => {
-          console.log(`Styling button ${index}:`, button);
           button.style.cssText = `
             color: var(--color-deep-grey) !important;
             background: transparent !important;
@@ -847,8 +804,6 @@ const {
             box-shadow: none !important;
           `;
         });
-      } else {
-        console.log('No toolbar found immediately after Quill creation');
       }
     }, 0);
     
@@ -996,19 +951,8 @@ const {
         }
       `;
       document.head.appendChild(style);
-      console.log(`Injected aggressive CSS for ${id}`);
     }
     
-    console.log(`QuillEditor ${id} initialized successfully:`, {
-      quillInstance: !!quillInstance,
-      editor: !!quillInstance.root,
-      toolbar: !!quillContainer.querySelector('.ql-toolbar'),
-      containerHTML: quillContainer.innerHTML,
-      toolbarElement: quillContainer.querySelector('.ql-toolbar')
-    });
-    
-    // Debug: Log all elements in the container
-    console.log('All elements in container:', quillContainer.querySelectorAll('*'));
     
     // Set initial content if provided
     if (content && content.trim()) {
@@ -1037,57 +981,31 @@ const {
     quillInstance.root.style.paddingLeft = '0';
     quillInstance.root.style.paddingRight = '0';
     
-    // Fix placeholder styling
+    // Fix placeholder styling - simple approach
     const fixPlaceholder = () => {
-      const placeholder = quillInstance.root.querySelector('.ql-editor.ql-blank::before');
-      if (placeholder) {
-        placeholder.style.fontStyle = 'normal';
-        placeholder.style.textIndent = '0';
-        placeholder.style.paddingLeft = '0';
-        placeholder.style.marginLeft = '0';
-        placeholder.style.left = '0';
-        placeholder.style.transform = 'translateX(0)';
-      }
-      // Also try to fix via CSS custom property
-      quillInstance.root.style.setProperty('--ql-blank-font-style', 'normal');
-      quillInstance.root.style.setProperty('--ql-blank-text-indent', '0');
-      quillInstance.root.style.setProperty('--ql-blank-padding-left', '0');
-      quillInstance.root.style.setProperty('--ql-blank-margin-left', '0');
-      
-      // Force apply CSS directly to the editor
+      // Only fix the text-indent which is the main issue
       quillInstance.root.style.textIndent = '0';
-      quillInstance.root.style.paddingLeft = '0';
-      quillInstance.root.style.marginLeft = '0';
     };
     
     // Apply placeholder fix immediately and on text changes
     fixPlaceholder();
     quillInstance.on('text-change', fixPlaceholder);
     
-    // Inject ultra-aggressive CSS after Quill is fully loaded
+    // Simple CSS injection for placeholder fix
     setTimeout(() => {
       const styleId = `quill-placeholder-fix-${id}`;
       if (!document.getElementById(styleId)) {
         const style = document.createElement('style');
         style.id = styleId;
         style.textContent = `
-          /* ULTRA AGGRESSIVE: Force remove placeholder indentation for ${id} */
-          #static-quill-container-${id} .ql-editor.ql-blank::before,
-          #static-quill-container-${id} .ql-editor.ql-snow.ql-blank::before,
-          #static-quill-container-${id} div.ql-editor.ql-blank::before,
-          #static-quill-container-${id} div.ql-editor.ql-snow.ql-blank::before,
-          #static-quill-container-${id} .ql-snow .ql-editor.ql-blank::before {
+          /* Simple placeholder fix for ${id} */
+          #static-quill-container-${id} .ql-editor.ql-blank::before {
             text-indent: 0 !important;
             padding-left: 0 !important;
-            margin-left: 0 !important;
-            left: 0 !important;
-            transform: translateX(0) !important;
             font-style: normal !important;
-            position: relative !important;
           }
         `;
         document.head.appendChild(style);
-        console.log(`Injected ultra-aggressive placeholder fix CSS for ${id}`);
       }
     }, 1000);
     
@@ -1158,9 +1076,7 @@ const {
       
       // Style all buttons
       const buttons = toolbar.querySelectorAll('button');
-      console.log(`applySpaceButtonStyling: Found ${buttons.length} buttons to style`);
       buttons.forEach((button, index) => {
-        console.log(`applySpaceButtonStyling: Styling button ${index}:`, button);
         button.style.cssText = `
           color: var(--color-deep-grey) !important;
           background: transparent !important;
@@ -1303,7 +1219,6 @@ const {
     // Apply SpaceButton styling to any existing toolbar
     const existingToolbar = quillContainer.querySelector('.ql-toolbar');
     if (existingToolbar) {
-      console.log('Found existing toolbar, applying styling:', existingToolbar);
       applySpaceButtonStyling(existingToolbar);
     }
     
@@ -1313,13 +1228,11 @@ const {
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === 1) { // Element node
             if (node.classList && node.classList.contains('ql-toolbar')) {
-              console.log('Toolbar detected via MutationObserver:', node);
               applySpaceButtonStyling(node);
             }
             // Also check for toolbar in child elements
             const toolbar = node.querySelector && node.querySelector('.ql-toolbar');
             if (toolbar) {
-              console.log('Toolbar found in child element:', toolbar);
               applySpaceButtonStyling(toolbar);
             }
           }
