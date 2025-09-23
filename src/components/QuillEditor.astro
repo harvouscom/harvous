@@ -44,6 +44,9 @@ const {
   div.ql-toolbar button i,
   div.ql-toolbar.ql-snow button i {
     color: #8B8B8B !important;
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 20px !important;
   }
   .ql-toolbar button:hover .fa-solid,
   .ql-toolbar.ql-snow button:hover .fa-solid,
@@ -54,6 +57,9 @@ const {
   div.ql-toolbar button:hover i,
   div.ql-toolbar.ql-snow button:hover i {
     color: #4A4A4A !important;
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 20px !important;
   }
   .ql-toolbar button.ql-active .fa-solid,
   .ql-toolbar.ql-snow button.ql-active .fa-solid,
@@ -64,6 +70,9 @@ const {
   div.ql-toolbar button.ql-active i,
   div.ql-toolbar.ql-snow button.ql-active i {
     color: #4A4A4A !important;
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 20px !important;
   }
   
   /* Nuclear option - target everything in toolbar */
@@ -75,6 +84,14 @@ const {
   }
   .ql-toolbar button.ql-active * {
     color: #4A4A4A !important;
+  }
+  
+  /* Nuclear option for icon sizing */
+  .ql-toolbar i,
+  .ql-toolbar .fa-solid {
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 20px !important;
   }
 </style>
 
@@ -182,9 +199,9 @@ const {
   .ql-toolbar.ql-snow,
   div.ql-toolbar,
   div.ql-toolbar.ql-snow {
-    border: 1px solid var(--color-fog-white) !important;
+    border: none !important;
     border-radius: 12px !important;
-    background: transparent !important;
+    background: var(--color-fog-white) !important;
     display: flex !important;
     gap: 0.25rem !important;
     align-items: center !important;
@@ -286,6 +303,9 @@ const {
   div.ql-toolbar.ql-snow i {
     color: #8B8B8B !important;
     transition: color 0.2s ease-in-out !important;
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 20px !important;
   }
   
   .ql-toolbar button:hover i,
@@ -303,6 +323,9 @@ const {
   .ql-toolbar button:hover .fa-list-ol,
   .ql-toolbar button:hover .fa-eraser {
     color: #4A4A4A !important;
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 20px !important;
   }
   
   .ql-toolbar button.ql-active i,
@@ -320,6 +343,9 @@ const {
   .ql-toolbar button.ql-active .fa-list-ol,
   .ql-toolbar button.ql-active .fa-eraser {
     color: #4A4A4A !important;
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 20px !important;
   }
 </style>
 
@@ -444,9 +470,9 @@ const {
   /* Quill Toolbar Styling - SpaceButton inspired */
   #static-quill-editor .ql-toolbar {
     border: none;
-    border-color: transparent;
-    background: transparent;
-    padding: 0.5rem 0;
+    border-radius: 12px;
+    background: var(--color-fog-white);
+    padding: 0.5rem;
     order: 2; /* Ensure toolbar comes after editor */
     display: flex;
     gap: 0.5rem;
@@ -508,16 +534,12 @@ const {
     display: none !important;
   }
   
-  /* Global rule to remove toolbar borders and apply SpaceButton styling */
+  /* Global rule to apply SpaceButton styling with fog-white background and no border */
   .ql-toolbar {
     border: none !important;
-    border-color: transparent !important;
-    border-top: none !important;
-    border-bottom: none !important;
-    border-left: none !important;
-    border-right: none !important;
-    background: transparent !important;
-    padding: 0.5rem 0 !important;
+    border-radius: 12px !important;
+    background: var(--color-fog-white) !important;
+    padding: 0.5rem !important;
     display: flex !important;
     gap: 0.5rem !important;
     align-items: center !important;
@@ -810,9 +832,9 @@ const {
       style.id = styleId;
       style.textContent = `
         .ql-toolbar, .ql-toolbar.ql-snow, div.ql-toolbar, div.ql-toolbar.ql-snow {
-          border: 1px solid var(--color-fog-white) !important;
+          border: none !important;
           border-radius: 12px !important;
-          background: transparent !important;
+          background: var(--color-fog-white) !important;
           display: flex !important;
           gap: 0.25rem !important;
           align-items: center !important;
@@ -871,18 +893,27 @@ const {
         .ql-toolbar button .fa-list, .ql-toolbar button .fa-list-ol, .ql-toolbar button .fa-eraser {
           color: #8B8B8B !important;
           transition: color 0.2s ease-in-out !important;
+          width: 20px !important;
+          height: 20px !important;
+          font-size: 20px !important;
         }
         .ql-toolbar button:hover i, .ql-toolbar.ql-snow button:hover i, div.ql-toolbar button:hover i, div.ql-toolbar.ql-snow button:hover i,
         .ql-toolbar button:hover .fa-solid, .ql-toolbar.ql-snow button:hover .fa-solid, div.ql-toolbar button:hover .fa-solid, div.ql-toolbar.ql-snow button:hover .fa-solid,
         .ql-toolbar button:hover .fa-bold, .ql-toolbar button:hover .fa-italic, .ql-toolbar button:hover .fa-underline,
         .ql-toolbar button:hover .fa-list, .ql-toolbar button:hover .fa-list-ol, .ql-toolbar button:hover .fa-eraser {
           color: #4A4A4A !important;
+          width: 20px !important;
+          height: 20px !important;
+          font-size: 20px !important;
         }
         .ql-toolbar button.ql-active i, .ql-toolbar.ql-snow button.ql-active i, div.ql-toolbar button.ql-active i, div.ql-toolbar.ql-snow button.ql-active i,
         .ql-toolbar button.ql-active .fa-solid, .ql-toolbar.ql-snow button.ql-active .fa-solid, div.ql-toolbar button.ql-active .fa-solid, div.ql-toolbar.ql-snow button.ql-active .fa-solid,
         .ql-toolbar button.ql-active .fa-bold, .ql-toolbar button.ql-active .fa-italic, .ql-toolbar button.ql-active .fa-underline,
         .ql-toolbar button.ql-active .fa-list, .ql-toolbar button.ql-active .fa-list-ol, .ql-toolbar button.ql-active .fa-eraser {
           color: #4A4A4A !important;
+          width: 20px !important;
+          height: 20px !important;
+          font-size: 20px !important;
         }
         /* Force remove padding and fix placeholder */
         .ql-editor, .ql-editor.ql-snow, div.ql-editor, div.ql-editor.ql-snow {
@@ -996,12 +1027,12 @@ const {
       // Style toolbar container
       toolbar.style.cssText = `
         border: none !important;
-        border-color: transparent !important;
-        background: transparent !important;
+        border-radius: 12px !important;
+        background: var(--color-fog-white) !important;
         display: flex !important;
         gap: 0.5rem !important;
         align-items: center !important;
-        padding: 0.5rem 0 !important;
+        padding: 0.5rem !important;
         margin: 0 !important;
       `;
       
