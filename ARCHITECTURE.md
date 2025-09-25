@@ -673,6 +673,146 @@ The navigation history system uses a clean, single-file approach with proper ded
 - **Alpine.js Integration**: Properly integrates with Alpine.js for interactive elements
 - **Robust Fallbacks**: Multiple fallback mechanisms ensure functionality even if main script fails
 
+## Sharing System Architecture
+
+### **Type 1: Instance Sharing (Copy-Based Sharing)**
+
+This is the **word-of-mouth growth hack** - perfect for viral content sharing.
+
+#### **Two Sub-Types:**
+
+**1A. Public Sharing (Anyone with link)**
+```
+https://harvous.com/shared/note_abc123
+https://harvous.com/shared/thread_xyz789
+```
+- **Use case**: "Check out this amazing insight I found in John 3:16"
+- **Growth potential**: High - easy to share on social media, forums, etc.
+- **Content**: Read-only preview + "Sign up to add to your Harvous"
+
+**1B. Email-Specific Sharing (Invite-only)**
+```
+https://harvous.com/shared/note_abc123?email=friend@example.com
+```
+- **Use case**: "I thought you'd find this interesting" - personal sharing
+- **Growth potential**: Medium - more personal, less viral
+- **Content**: Same preview + "Sign up to add to your Harvous"
+
+#### **User Experience Flow:**
+
+**For the Sharer:**
+1. Click "Share" on note/thread
+2. Choose sharing type:
+   - 🌍 **Public** (anyone can view)
+   - 📧 **Email-specific** (only that person can view)
+3. Get shareable link
+4. Option to customize message: "Check out this insight about..."
+
+**For the Recipient:**
+1. Click shared link
+2. See beautiful preview of the content
+3. If not signed in: "Sign up to add this to your Harvous"
+4. If signed in: "Add to your Harvous" button
+5. Content appears in their "For You" inbox
+6. They can organize it into their spaces/threads
+
+### **Database Schema for Sharing**
+
+```sql
+-- SharedContent (Type 1: Instance Sharing)
+CREATE TABLE SharedContent (
+  id TEXT PRIMARY KEY,
+  originalContentId TEXT NOT NULL,
+  contentType TEXT NOT NULL, -- 'note' or 'thread'
+  sharedBy TEXT NOT NULL,
+  sharedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  sharingType TEXT NOT NULL, -- 'public' or 'email_specific'
+  emailRestriction TEXT, -- for email_specific sharing
+  isActive BOOLEAN DEFAULT TRUE,
+  viewCount INTEGER DEFAULT 0,
+  addCount INTEGER DEFAULT 0 -- how many people added it
+);
+
+-- UserSharedContent (tracks what users added)
+CREATE TABLE UserSharedContent (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  sharedContentId TEXT NOT NULL,
+  addedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  addedToSpaceId TEXT,
+  addedToThreadId TEXT
+);
+```
+
+### **Note-to-Thread Management System**
+
+#### **Current State Analysis**
+
+**✅ What You Have:**
+- **Database Schema**: `NoteThreads` junction table for many-to-many relationships
+- **API Functions**: `addNoteToThread()` and `removeNoteFromThread()` in `src/actions/noteThreads.ts`
+- **Primary Thread**: Each note has a required `threadId` (primary thread)
+- **Many-to-Many Support**: Notes can belong to multiple threads via `NoteThreads` table
+
+**❌ What's Missing:**
+- **UI for managing thread relationships** after note creation
+- **"Add to Thread" functionality** in note interfaces
+- **Thread management interface** for existing notes
+- **Visual indicators** showing which threads a note belongs to
+
+#### **Proposed Solution: Note-to-Thread Management System**
+
+**1. Note Management Interface**
+Add a **"Manage Threads"** section to note pages and cards:
+
+```astro
+<!-- In CardNote.astro or note pages -->
+<div class="note-thread-management">
+  <div class="current-threads">
+    <h4>In Threads:</h4>
+    <div class="thread-tags">
+      <span class="thread-tag">Gospel of John</span>
+      <span class="thread-tag">Personal Study</span>
+    </div>
+  </div>
+  
+  <div class="add-to-thread">
+    <button @click="showThreadSelector = true">
+      + Add to Thread
+    </button>
+  </div>
+</div>
+```
+
+**2. Thread Selector Modal**
+```astro
+<!-- Thread Selector Modal -->
+<div x-show="showThreadSelector" class="thread-selector-modal">
+  <div class="modal-content">
+    <h3>Add Note to Thread</h3>
+    
+    <!-- Search threads -->
+    <input 
+      type="text" 
+      placeholder="Search threads..."
+      x-model="threadSearch"
+    />
+    
+    <!-- Available threads -->
+    <div class="thread-list">
+      <div 
+        v-for="thread in filteredThreads"
+        @click="addNoteToThread(thread.id)"
+        class="thread-option"
+      >
+        <span class="thread-title">{{ thread.title }}</span>
+        <span class="thread-count">{{ thread.noteCount }} notes</span>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
 ## Key Files
 
 - `src/utils/dashboard-data.ts`: Database queries for dashboard content
