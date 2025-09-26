@@ -1,3 +1,4 @@
+
 ---
 import SpaceButton from "./SpaceButton.astro";
 ---
@@ -12,28 +13,542 @@ import SpaceButton from "./SpaceButton.astro";
   declare global {
     interface Window {
       getNavigationHistory: () => any[];
+      getTabOrder: () => string[];
       removeFromNavigationHistory: (itemId: string) => void;
       renderPersistentNavigation: () => void;
       handlePersistentCloseClick: (event: Event, element: HTMLElement) => void;
+      debugNavigation: any;
+      testNavigationTracking: () => void;
+      testNavigationScript: () => string;
+      navigationHistoryBackup?: any[];
+      tabOrderBackup?: string[];
+      lastTrackTime?: number;
     }
   }
 
-function renderPersistentNavigation() {
-  const container = document.getElementById('persistent-navigation');
-  if (!container) {
-    return;
+  // Storage utility with localStorage fallback to sessionStorage
+  function getStorage() {
+    try {
+      // Test localStorage first
+      const testKey = 'test-storage-' + Date.now();
+      localStorage.setItem(testKey, 'test');
+      const retrieved = localStorage.getItem(testKey);
+      localStorage.removeItem(testKey);
+      
+      if (retrieved === 'test') {
+        return localStorage;
+      } else {
+        throw new Error('localStorage test failed');
+      }
+    } catch (error) {
+      return sessionStorage;
+    }
   }
 
-  if (typeof window.getNavigationHistory !== 'function') {
-    return;
+  // Alternative storage approach using a global variable as backup
+  // tabOrder: Maintains FIFO opening sequence of tab IDs (up to 10); clicks don't change order, only data updates
+  // history: Stores full item data; deduped to prevent duplicates
+  window.navigationHistoryBackup = (window.navigationHistoryBackup as any[]) || [];
+  window.tabOrderBackup = (window.tabOrderBackup as string[]) || [];
+
+  // Get navigation history from storage (localStorage or sessionStorage)
+  function getNavigationHistory(): any[] {
+    try {
+      const storage = getStorage();
+      const stored = storage.getItem('harvous-navigation-history-v2');
+      
+      let parsed: any[] = stored ? JSON.parse(stored) : [];
+      
+      // If localStorage is empty but we have a backup, use it
+      if (parsed.length === 0 && window.navigationHistoryBackup && (window.navigationHistoryBackup as any[]).length > 0) {
+        parsed = [...(window.navigationHistoryBackup as any[])];
+      }
+      
+      // Deduplicate by id, keeping the last occurrence (most recent)
+      const seen = new Map<string, boolean>();
+      const deduped = parsed.filter((item: any) => {
+        if (seen.has(item.id)) {
+          return false;
+        }
+        seen.set(item.id, true);
+        return true;
+      }).reverse(); // Reverse to keep original order after filter
+      
+      return deduped;
+    } catch (error) {
+      const err = error as Error;
+      console.error('Error getting navigation history:', err);
+      console.error('Error details:', err.message, err.name);
+      return (window.navigationHistoryBackup as any[]) || [];
+    }
   }
 
-  const history = window.getNavigationHistory();
+  // Get tabOrder from storage (array of IDs in FIFO opening sequence; up to 10 items)
+  // Purpose: Maintains stable display order based on first-open time; clicks don't reorder
+  // Validation: Removes invalid/missing IDs on load to prevent stale entries
+  function getTabOrder(): string[] {
+    try {
+      const storage = getStorage();
+      const stored = storage.getItem('harvous-tab-order');
+      
+      let parsed: string[] = stored ? JSON.parse(stored) : [];
+      
+      // If localStorage is empty but we have a backup, use it
+      if (parsed.length === 0 && window.tabOrderBackup && (window.tabOrderBackup as string[]).length > 0) {
+        parsed = [...(window.tabOrderBackup as string[])];
+      }
+      
+      console.log('🔍 getTabOrder - Raw parsed:', parsed); // Debug: Log raw tabOrder
+      
+      // Validate: Remove IDs not in history
+      const history = getNavigationHistory();
+      const validIds = new Set(history.map((item: any) => item.id));
+      console.log('🔍 getTabOrder - History IDs:', Array.from(validIds)); // Debug: Log valid IDs
+      parsed = parsed.filter((id: string) => validIds.has(id));
+      
+      // Remove any duplicates while preserving order (defensive against timing issues)
+      parsed = parsed.filter((id: string, index: number, self: string[]) => self.indexOf(id) === index);
+      
+      // Update backup
+      window.tabOrderBackup = [...parsed];
+      
+      console.log('🔍 getTabOrder - Final validated:', parsed); // Debug: Log final tabOrder
+      return parsed;
+    } catch (error) {
+      const err = error as Error;
+      console.error('Error getting tabOrder:', err);
+      return (window.tabOrderBackup as string[]) || [];
+    }
+  }
+
+  // Save tabOrder to storage (FIFO sequence of up to 10 tab IDs)
+  function saveTabOrder(order: string[]) {
+    try {
+      const storage = getStorage();
+      const jsonString = JSON.stringify(order);
+      storage.setItem('harvous-tab-order', jsonString);
+      
+      // Update backup
+      window.tabOrderBackup = [...order];
+    } catch (error) {
+      const err = error as Error;
+      console.error('Error saving tabOrder:', err);
+    }
+  }
+
+  // Save navigation history to storage (localStorage or sessionStorage)
+  function saveNavigationHistory(history: any[]) {
+    try {
+      const storage = getStorage();
+      const jsonString = JSON.stringify(history);
+      storage.setItem('harvous-navigation-history-v2', jsonString);
+      
+      // Also update the backup
+      window.navigationHistoryBackup = [...history];
+      
+      // Verify the save worked
+      const verification = storage.getItem('harvous-navigation-history-v2');
+      
+      if (verification !== jsonString) {
+        console.error('💾 saveNavigationHistory - SAVE FAILED! Data mismatch');
+      } else {
+      }
+    } catch (error) {
+      const err = error as Error;
+      console.error('Error saving navigation history:', err);
+      console.error('Error details:', err.message, err.name);
+    }
+  }
+
+  // Add item to navigation history (updates data; adds to tabOrder end only if new/first open)
+  // FIFO: New opens push to tabOrder end; limit drops oldest; existing clicks handled in trackNavigationAccess
+  function addToNavigationHistory(item: any) {
+    const history = getNavigationHistory();
     
-    if (history.length === 0) {
+    // Check if item already exists
+    const existingIndex = history.findIndex((h: any) => h.id === item.id);
+    
+    if (existingIndex !== -1) {
+      // Update existing item data (no order change)
+      history[existingIndex] = {
+        ...history[existingIndex],
+        ...item,
+        lastAccessed: Date.now()
+      };
+    } else {
+      // New item - add to history and tabOrder
+      const newItem = {
+        ...item,
+        firstAccessed: Date.now(),
+        lastAccessed: Date.now()
+      };
+      history.push(newItem);
+      
+      // Add to tabOrder (opening sequence)
+      const tabOrder = getTabOrder();
+      tabOrder.push(item.id);
+      
+      // Limit tabOrder to 10, drop oldest
+      if (tabOrder.length > 10) {
+        tabOrder.shift();
+      }
+      saveTabOrder(tabOrder);
+    }
+    
+    // Limit history to 10
+    if (history.length > 10) {
+      history.splice(0, history.length - 10);
+    }
+    
+    saveNavigationHistory(history);
+    
+    // Re-render persistent navigation
+    if (window.renderPersistentNavigation) {
+      window.renderPersistentNavigation();
+    }
+  }
+
+  // Remove item from navigation history and tabOrder (splice preserves order of remaining items)
+  function removeFromNavigationHistory(itemId: string) {
+    const history = getNavigationHistory();
+    const filteredHistory = history.filter((item: any) => item.id !== itemId);
+    
+    // Remove from tabOrder
+    const tabOrder = getTabOrder();
+    const orderIndex = tabOrder.indexOf(itemId);
+    if (orderIndex > -1) {
+      tabOrder.splice(orderIndex, 1);
+    }
+    saveTabOrder(tabOrder);
+    
+    // Special handling for unorganized thread
+    if (itemId === 'thread_unorganized') {
+      localStorage.setItem('unorganized-thread-closed', 'true');
+    }
+    
+    saveNavigationHistory(filteredHistory);
+    
+    // Re-render persistent navigation
+    if (window.renderPersistentNavigation) {
+      window.renderPersistentNavigation();
+    }
+  }
+
+  // Track navigation access (on page load/click: update data; add/re-add to tabOrder end only if new/missing)
+  // Key: Clicks don't shift order (only data updates); re-opens (in history but not tabOrder) treat as new at end
+  function trackNavigationAccess() {
+    // Debounce: Skip if called recently (prevents race conditions from multiple navigation events)
+    if (window.lastTrackTime && Date.now() - (window.lastTrackTime as number) < 200) {
+      return;
+    }
+    window.lastTrackTime = Date.now();
+
+    const currentPath = window.location.pathname;
+    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+
+    
+    // Skip dashboard and empty paths
+    if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
+      // Skipping navigation tracking for dashboard
+      return;
+    }
+    
+    // Debug: Processing navigation for currentItemId
+    
+    // Track spaces too (they should be persistent and closable)
+    // Spaces are now tracked in navigation history
+    
+    // Extract item data from page
+    const itemData = extractItemDataFromPage(currentItemId);
+    
+    if (itemData) {
+      // Special handling for unorganized thread
+      if (currentItemId === 'thread_unorganized' || itemData.id === 'thread_unorganized') {
+        localStorage.removeItem('unorganized-thread-closed');
+      }
+      
+      // Check if this is a new item (not in history yet)
+      const history = getNavigationHistory();
+      const tabOrder = getTabOrder();
+      
+      // Defensive dedup before processing (preserves order, prevents runtime duplicates)
+      const dedupedTabOrder = tabOrder.filter((id: string, index: number, self: string[]) => self.indexOf(id) === index);
+      
+      const existingItem = history.find((h: any) => h.id === itemData.id);
+      
+      if (!existingItem) {
+        // New item - add to history and tabOrder
+        addToNavigationHistory(itemData);
+      } else {
+        // Existing item - update data only (no order change on click)
+        // But if missing from tabOrder (e.g., re-open after refresh/close), add to end
+        const existingIndex = history.findIndex((h: any) => h.id === itemData.id);
+        history[existingIndex] = {
+          ...history[existingIndex],
+          ...itemData,
+          lastAccessed: Date.now()
+        };
+        
+        const orderIndex = dedupedTabOrder.indexOf(itemData.id);
+        if (orderIndex === -1) {
+          // Re-open: add to end of tabOrder
+          const newTabOrder = [...dedupedTabOrder, itemData.id];
+          if (newTabOrder.length > 10) {
+            newTabOrder.shift();
+          }
+          
+          // Dedup after modification (preserves order)
+          const finalTabOrder = newTabOrder.filter((id: string, index: number, self: string[]) => self.indexOf(id) === index);
+          saveTabOrder(finalTabOrder);
+        }
+        
+        saveNavigationHistory(history);
+        
+        // Re-render persistent navigation
+        if (window.renderPersistentNavigation) {
+          window.renderPersistentNavigation();
+        }
+      }
+    }
+  }
+
+  // Extract item data from page
+  function extractItemDataFromPage(currentItemId: string): any | null {
+    try {
+      // Try to get data from navigation element first
+      const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement | null;
+      
+      if (navigationElement) {
+        const threadId = navigationElement.dataset.threadId || '';
+        const spaceId = navigationElement.dataset.spaceId || '';
+        const noteId = navigationElement.dataset.noteId || '';
+        
+        if (threadId) {
+          return {
+            id: threadId,
+            title: navigationElement.dataset.threadTitle || 'Thread',
+            type: 'thread',
+            count: parseInt(navigationElement.dataset.threadNoteCount || '0') || 0,
+            backgroundGradient: navigationElement.dataset.threadBackgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+            color: navigationElement.dataset.threadColor || 'blue'
+          };
+        }
+        
+        if (spaceId) {
+          return {
+            id: spaceId,
+            title: navigationElement.dataset.spaceTitle || 'Space',
+            type: 'space',
+            count: parseInt(navigationElement.dataset.spaceItemCount || '0') || 0,
+            backgroundGradient: navigationElement.dataset.spaceBackgroundGradient || 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+            color: navigationElement.dataset.spaceColor || 'paper'
+          };
+        }
+        
+        if (noteId) {
+          // For notes, track the parent thread
+          const parentThreadId = navigationElement.dataset.parentThreadId || '';
+          const parentThreadTitle = navigationElement.dataset.parentThreadTitle || '';
+          const parentThreadCount = navigationElement.dataset.parentThreadCount || '0';
+          
+          if (parentThreadId) {
+            return {
+              id: parentThreadId,
+              title: parentThreadTitle || 'Thread',
+              type: 'thread',
+              count: parseInt(parentThreadCount) || 0,
+              backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+              color: navigationElement.dataset.parentThreadColor || 'blue'
+            };
+          }
+        }
+      }
+      
+      // For note pages, try to get parent thread data from the main content area
+      if (currentItemId.startsWith('note_')) {
+        const noteElement = document.querySelector('[data-note-id]') as HTMLElement | null;
+        
+        if (noteElement) {
+          const parentThreadId = noteElement.dataset.parentThreadId || 'thread_unorganized';
+          const parentThreadTitle = noteElement.dataset.parentThreadTitle || 'Unorganized';
+          const parentThreadCount = noteElement.dataset.parentThreadCount || '0';
+          const parentThreadBackgroundGradient = noteElement.dataset.parentThreadBackgroundGradient || '';
+          const parentThreadColor = noteElement.dataset.parentThreadColor || '';
+          
+          // Special handling for unorganized thread
+          if (parentThreadId === 'thread_unorganized') {
+            return {
+              id: 'thread_unorganized',
+              title: 'Unorganized',
+              type: 'thread',
+              count: parseInt(parentThreadCount) || 0,
+              backgroundGradient: parentThreadBackgroundGradient || 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+              color: parentThreadColor || 'paper'
+            };
+          } else {
+            return {
+              id: parentThreadId,
+              title: parentThreadTitle,
+              type: 'thread',
+              count: parseInt(parentThreadCount) || 0,
+              backgroundGradient: parentThreadBackgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+              color: parentThreadColor || 'blue'
+            };
+          }
+        }
+      }
+      
+      // Fallback: create basic data from current path
+      let itemData: any = null;
+      
+      if (currentItemId.startsWith('thread_')) {
+        itemData = {
+          id: currentItemId,
+          title: currentItemId === 'thread_unorganized' ? 'Unorganized' : 'Thread',
+          type: 'thread',
+          count: 0,
+          backgroundGradient: currentItemId === 'thread_unorganized'
+            ? 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+            : 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)',
+          color: currentItemId === 'thread_unorganized' ? 'paper' : 'blue'
+        };
+      } else if (currentItemId.startsWith('space_')) {
+        itemData = {
+          id: currentItemId,
+          title: 'Space',
+          type: 'space',
+          count: 0,
+          backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+          color: 'paper'
+        };
+      } else if (currentItemId.startsWith('note_')) {
+        // Final fallback for notes: default to unorganized
+        itemData = {
+          id: 'thread_unorganized',
+          title: 'Unorganized',
+          type: 'thread',
+          count: 0,
+          backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+          color: 'paper'
+        };
+      }
+      
+      return itemData;
+    } catch (error) {
+      const err = error as Error;
+      console.error('Error extracting item data:', err);
+      return null;
+    }
+  }
+
+  // Initialize tracking
+  function initTracking() {
+    trackNavigationAccess();
+  }
+
+  // Debug function to inspect localStorage
+  window.debugNavigation = {
+    getHistory: () => {
+      const history = getNavigationHistory();
+      return history;
+    },
+    clearHistory: () => {
+      const storage = getStorage();
+      storage.removeItem('harvous-navigation-history-v2');
+      storage.removeItem('harvous-tab-order');
+    },
+    inspectStorage: () => {
+      const storage = getStorage();
+      const stored = storage.getItem('harvous-navigation-history-v2');
+      try {
+        const parsed = JSON.parse(stored || '[]');
+        return parsed;
+      } catch (error) {
+        console.error('❌ Error parsing storage:', error);
+        return null;
+      }
+    },
+    checkAllLocalStorage: () => {
+    },
+    testLocalStorage: () => {
+      const testKey = 'test-navigation-key';
+      const testValue = 'test-value-' + Date.now();
+      
+      try {
+        localStorage.setItem(testKey, testValue);
+        const retrieved = localStorage.getItem(testKey);
+        localStorage.removeItem(testKey);
+      } catch (error) {
+        console.error('🧪 localStorage test failed:', error);
+      }
+    },
+    monitorLocalStorage: () => {
+      const originalSetItem = localStorage.setItem;
+      const originalRemoveItem = localStorage.removeItem;
+      const originalClear = localStorage.clear;
+      
+      localStorage.setItem = function(key, value) {
+        if (key === 'harvous-navigation-history-v2' || key === 'harvous-tab-order') {
+        }
+        return originalSetItem.call(this, key, value);
+      };
+
+      localStorage.removeItem = function(key) {
+        if (key === 'harvous-navigation-history-v2' || key === 'harvous-tab-order') {
+        }
+        return originalRemoveItem.call(this, key);
+      };
+      
+      localStorage.clear = function() {
+        return originalClear.call(this);
+      };
+      
+    },
+    manualTrack: () => {
+      initTracking();
+    },
+    testTrackCurrentPage: () => {
+      trackNavigationAccess();
+    }
+  };
+
+  // Make functions globally available
+  window.getNavigationHistory = getNavigationHistory;
+  window.addToNavigationHistory = addToNavigationHistory;
+  window.removeFromNavigationHistory = removeFromNavigationHistory;
+  window.trackNavigationAccess = trackNavigationAccess;
+  window.initTracking = initTracking;
+
+  function renderPersistentNavigation() {
+    const container = document.getElementById('persistent-navigation');
+    if (!container) {
+      return;
+    }
+
+    if (typeof window.getNavigationHistory !== 'function' || typeof window.getTabOrder !== 'function') {
+      return;
+    }
+
+    const history = window.getNavigationHistory();
+    const tabOrder = window.getTabOrder();
+      
+    if (tabOrder.length === 0) {
       container.innerHTML = '';
       return;
     }
+    
+    // Map tabOrder IDs to full history items (preserves opening sequence)
+    let persistentItems = tabOrder.map((id: string) => history.find(item => item.id === id)).filter(Boolean);
+    
+    // Deduplicate persistentItems by ID (keep first occurrence, defensive against tabOrder duplicates)
+    const seenIds = new Set();
+    persistentItems = persistentItems.filter(item => {
+      if (seenIds.has(item.id)) {
+        return false;
+      }
+      seenIds.add(item.id);
+      return true;
+    });
     
     // Get currently active item (the one being viewed)
     const currentPath = window.location.pathname;
@@ -63,13 +578,7 @@ function renderPersistentNavigation() {
     }
     
     // Filter out items that shouldn't be shown in persistent navigation
-    let persistentItems = history.filter((item: any) => {
-      // Don't show the currently active item (use the resolved active item ID)
-      // EXCEPT for spaces - spaces should always be shown even when active
-      if (item.id === currentActiveItemId && !item.id.startsWith('space_')) {
-        return false;
-      }
-      
+    persistentItems = persistentItems.filter((item: any) => {
       // Don't show dashboard
       if (item.id === 'dashboard') {
         return false;
@@ -99,92 +608,93 @@ function renderPersistentNavigation() {
       container.innerHTML = '';
       return;
     }
-    
-    
-    // Create navigation items HTML
-    const itemsHTML = persistentItems.map((item: any) => {
-      // Check if this item is currently active (either directly or as parent of a note)
-      const isActive = item.id === currentActiveItemId;
       
-      return `
-        <div data-navigation-item="${item.id}" class="w-full nav-item-container ${isActive ? 'active' : ''}">
-          <a href="/${item.id}" class="w-full relative block">
-            <button
-              class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full"
-              style="${isActive ? `background-image: ${item.backgroundGradient || 'var(--color-gradient-gray)'};` : ''}"
-            >
-              <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-                  ${item.title}
-                </span>
-                <div class="flex items-center justify-center p-[20px]">
-                  <div class="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
-                      ${item.count || 0}
-                    </span>
+    
+      
+      // Create navigation items HTML
+      const itemsHTML = persistentItems.map((item: any) => {
+        // Check if this item is currently active (either directly or as parent of a note)
+        const isActive = item.id === currentActiveItemId;
+        
+        return `
+          <div data-navigation-item="${item.id}" class="w-full nav-item-container ${isActive ? 'active' : ''}">
+            <a href="/${item.id}" class="w-full relative block">
+              <button
+                class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full"
+                style="${isActive ? `background-image: ${item.backgroundGradient || 'var(--color-gradient-gray)'};` : ''}"
+              >
+                <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                  <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+                    ${item.title}
+                  </span>
+                  <div class="flex items-center justify-center p-[20px]">
+                    <div class="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                      <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                        ${item.count || 0}
+                      </span>
+                    </div>
                   </div>
                 </div>
+              </button>
+              ${!isActive ? `
+              <div 
+                class="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
+                onclick="handlePersistentCloseClick(event, this)"
+                data-item-id="${item.id}"
+              >
+                <svg class="w-4 h-4 fill-current" style="color: var(--color-deep-grey);" viewBox="0 0 384 512">
+                  <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+                </svg>
               </div>
-            </button>
-            ${!isActive ? `
-            <div 
-              class="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
-              onclick="handlePersistentCloseClick(event, this)"
-              data-item-id="${item.id}"
-            >
-              <svg class="w-4 h-4 fill-current" style="color: var(--color-deep-grey);" viewBox="0 0 384 512">
-                <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
-              </svg>
-            </div>
-            ` : ''}
-          </a>
-        </div>
+              ` : ''}
+            </a>
+          </div>
+        `;
+      }).join('');
+      
+      container.innerHTML = itemsHTML;
+      
+      // Add CSS for hover states and active shadow
+      const style = document.createElement('style');
+      style.textContent = `
+        .nav-item-container:not(.active):hover .badge-count {
+          display: none !important;
+        }
+        .nav-item-container:not(.active):hover .close-icon {
+          display: flex !important;
+        }
+        .close-icon {
+          display: none;
+        }
+        .space-button[style*="background-image"] {
+          box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+        }
       `;
-    }).join('');
-    
-    container.innerHTML = itemsHTML;
-    
-    // Add CSS for hover states and active shadow
-    const style = document.createElement('style');
-    style.textContent = `
-      .nav-item-container:not(.active):hover .badge-count {
-        display: none !important;
-      }
-      .nav-item-container:not(.active):hover .close-icon {
-        display: flex !important;
-      }
-      .close-icon {
-        display: none;
-      }
-      .space-button[style*="background-image"] {
-        box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
-      }
-    `;
-    document.head.appendChild(style);
+      document.head.appendChild(style);
   }
-  
+
   // Initialize persistent navigation
   function initializePersistentNavigation() {
-    // Ensure container exists
-    let container = document.getElementById('persistent-navigation');
-    
-    if (typeof window.getNavigationHistory === 'function') {
-      renderPersistentNavigation();
-    } else {
-      setTimeout(initializePersistentNavigation, 100);
-    }
+    // Ensure container exists and DOM ready for data extraction
+    setTimeout(() => {
+      const container = document.getElementById('persistent-navigation');
+      if (!container) {
+        console.warn('⚠️ initialize - Container not found after timeout'); // Debug
+        return;
+      }
+      
+      // Run track first to populate if needed
+      initTracking();
+      
+      if (typeof window.getNavigationHistory === 'function') {
+        renderPersistentNavigation();
+      } else {
+        console.warn('⚠️ initialize - Functions not ready after track'); // Debug
+        setTimeout(initializePersistentNavigation, 100);
+      }
+    }, 0); // Microtask for DOM readiness
   }
-  
-  // Initialize on DOM ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializePersistentNavigation);
-  } else {
-    initializePersistentNavigation();
-  }
-  
-  // Re-initialize after View Transitions
-  document.addEventListener('astro:page-load', initializePersistentNavigation);
-  
+
   // Close handler with confirmation for spaces
   function handlePersistentCloseClick(event: Event, element: HTMLElement) {
     event.stopPropagation();
@@ -213,35 +723,115 @@ function renderPersistentNavigation() {
     
     renderPersistentNavigation();
   }
-  
+
   // Export for global access
   window.renderPersistentNavigation = renderPersistentNavigation;
   window.handlePersistentCloseClick = handlePersistentCloseClick;
+
+  // Test function to manually trigger navigation tracking
+  window.testNavigationTracking = function() {
+    if (typeof trackNavigationAccess === 'function') {
+      trackNavigationAccess();
+    } else {
+      console.error('trackNavigationAccess function not found');
+    }
+  };
+
+  // Test function to verify script is working
+  window.testNavigationScript = function() {
+    return 'Navigation script is working!';
+  };
+
+  // Cleaned: Removed legacy test functions using old 'navigation-history' key to avoid confusion
+  // Use window.debugNavigation.clearHistory() or manual localStorage ops for testing
+
+  // Event listeners for initialization and re-rendering on navigation
+  // Ensures persistent items are always displayed, regardless of current page
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => { // Ensure data-attributes set
+        initTracking();
+        initializePersistentNavigation();
+      }, 0);
+    });
+  } else {
+    setTimeout(() => {
+      initTracking();
+      initializePersistentNavigation();
+    }, 0);
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    setTimeout(() => {
+      initTracking();
+      renderPersistentNavigation();
+    }, 50); // Slight delay for View Transition DOM
+  });
+
+  // Astro View Transitions: Re-render after content swap
+  if ('astro' in window) {
+    document.addEventListener('after-swap', () => {
+      setTimeout(() => {
+        renderPersistentNavigation();
+      }, 50);
+    });
+  }
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      initTracking();
+      renderPersistentNavigation();
+    }, 100);
+  });
+
+  window.addEventListener('popstate', () => {
+    setTimeout(() => {
+      initTracking();
+      renderPersistentNavigation();
+    }, 100);
+  });
+
+  window.addEventListener('hashchange', () => {
+    setTimeout(() => {
+      initTracking();
+      renderPersistentNavigation();
+    }, 100);
+  });
+
+  // Listen for custom events (e.g., note created)
+  document.addEventListener('noteCreated', () => {
+    setTimeout(() => {
+      renderPersistentNavigation();
+    }, 0);
+  });
+
+  // MutationObserver for dynamic DOM changes (e.g., note count updates)
+  const observer = new MutationObserver((mutations: MutationRecord[]) => {
+    let shouldRerender = false;
+    mutations.forEach((mutation: MutationRecord) => {
+      if (mutation.type === 'childList' || mutation.type === 'attributes') {
+        // Check if navigation data changed (e.g., thread note count)
+        const target = mutation.target as HTMLElement;
+        if (target.matches('[data-thread-note-count], [data-space-item-count]') ||
+            target.closest('[slot="navigation"]')) {
+          shouldRerender = true;
+        }
+      }
+    });
+    if (shouldRerender) {
+      renderPersistentNavigation();
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-thread-note-count', 'data-space-item-count']
+  });
+
+  // Initial render if already loaded
+  if (document.readyState !== 'loading') {
+    initializePersistentNavigation();
+  }
 </script>
-
-<style>
-  .space-button {
-    will-change: transform;
-    transition: box-shadow 0.125s ease-in-out;
-  }
-
-  .space-button[style*="background-image"] {
-    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
-  }
-
-  .space-button:not([data-outer-shadow]):active {
-    filter: brightness(0.97);
-    box-shadow: 
-      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
-      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
-  }
-
-  .space-button:active > div {
-    translate: 0 0;
-    transform: scale(0.98);
-  }
-
-  .space-button:active svg {
-    transform: scale(0.95);
-  }
-</style>
