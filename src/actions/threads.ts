@@ -172,11 +172,11 @@ export const threads = {
         }
 
         return {
-          success: "Thread deleted successfully! Notes have been moved to the Unorganized thread.",
+          success: "Thread erased successfully! Notes have been moved to the Unorganized thread.",
           thread: deletedThread
         };
       } catch (error: any) {
-        throw new Error(`Failed to delete thread: ${error instanceof Error ? error.message : "Unknown error"}`);
+        throw new Error(`Failed to erase thread: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     }
   }),

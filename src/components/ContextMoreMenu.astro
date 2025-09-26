@@ -1,6 +1,7 @@
 ---
 import EditIcon from "@fortawesome/fontawesome-free/svgs/solid/pen-to-square.svg";
-import TrashIcon from "@fortawesome/fontawesome-free/svgs/solid/trash.svg";
+import EraseIcon from "@fortawesome/fontawesome-free/svgs/solid/eraser.svg";
+import CircleInfoIcon from "@fortawesome/fontawesome-free/svgs/solid/circle-info.svg";
 import { getMenuOptions } from "@/utils/menu-options";
 
 export interface Props {
@@ -24,7 +25,10 @@ const menuOptions = menuOptionsData.map(option => {
     case "eraseThread":
     case "eraseNote":
     case "eraseSpace":
-      icon = TrashIcon;
+      icon = EraseIcon;
+      break;
+    case "seeDetails":
+      icon = CircleInfoIcon;
       break;
     default:
       icon = EditIcon;
@@ -62,17 +66,17 @@ const menuOptions = menuOptionsData.map(option => {
             case 'thread':
               apiUrl = '/api/threads/delete';
               paramName = 'threadId';
-              successMessage = 'Thread deleted successfully!';
+              successMessage = 'Thread erased successfully!';
               break;
             case 'note':
               apiUrl = '/api/notes/delete';
               paramName = 'noteId';
-              successMessage = 'Note deleted successfully!';
+              successMessage = 'Note erased successfully!';
               break;
             case 'space':
               apiUrl = '/api/spaces/delete';
               paramName = 'spaceId';
-              successMessage = 'Space deleted successfully!';
+              successMessage = 'Space erased successfully!';
               break;
             default:
               console.error('Unknown content type for delete:', this.contentType);
@@ -103,14 +107,23 @@ const menuOptions = menuOptionsData.map(option => {
             } else {
               // Show error toast
               window.dispatchEvent(new CustomEvent('toast', {
-                detail: { message: data.error || 'Failed to delete item', type: 'error' }
+                detail: { message: data.error || 'Failed to erase item', type: 'error' }
               }));
             }
           } catch (error) {
             console.error('Error deleting item:', error);
             window.dispatchEvent(new CustomEvent('toast', {
-              detail: { message: 'Failed to delete item', type: 'error' }
+              detail: { message: 'Failed to erase item', type: 'error' }
             }));
+          }
+        } else if (action === 'seeDetails') {
+          // Handle See Details action for notes
+          try {
+            window.dispatchEvent(new CustomEvent('openNoteDetailsPanel', {
+              detail: { contentId: this.contentId, contentType: this.contentType }
+            }));
+          } catch (error) {
+            console.error('Error opening note details panel:', error);
           }
         } else {
           // Handle other actions (like edit)

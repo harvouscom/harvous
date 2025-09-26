@@ -43,10 +43,10 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     await db.delete(Notes)
       .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
 
-    console.log("DELETE API - Note deleted successfully:", noteId);
+    console.log("DELETE API - Note erased successfully:", noteId);
 
     return new Response(JSON.stringify({ 
-      success: "Note deleted successfully!",
+      success: "Note erased successfully!",
       noteId: noteId
     }), {
       status: 200,
@@ -56,7 +56,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
   } catch (error: any) {
     console.error('Error deleting note:', error);
     return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to delete note' 
+      error: error.message || 'Failed to erase note' 
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

@@ -1,0 +1,338 @@
+---
+import CardStack from "./CardStack.astro";
+import TabNav from "./TabNav.astro";
+import SpaceButton from "./SpaceButton.astro";
+import SquareButton from "./SquareButton.astro";
+import FaAngleLeftIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-left.svg";
+import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import FaPlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
+
+export interface Props {
+  noteId?: string;
+  noteTitle?: string;
+  onClose?: () => void;
+}
+
+const { noteId, noteTitle = "Note Details", onClose } = Astro.props;
+
+// Get user ID from Clerk authentication
+const { userId } = Astro.locals.auth();
+
+if (!userId) {
+  return Astro.redirect('/sign-in');
+}
+
+// Sample data - in real implementation, this would come from database
+const sampleThreads = [
+  { id: "thread_1", title: "From Harvous", count: 1 },
+  { id: "thread_2", title: "Letter", count: 0 }
+];
+
+const sampleComments = [
+  { id: "comment_1", content: "This is a sample comment", author: "User", date: "2024-01-15" }
+];
+
+const sampleTags = [
+  { id: "tag_1", name: "Important", color: "#006eff" },
+  { id: "tag_2", name: "Work", color: "#ff6b6b" }
+];
+
+---
+
+<div 
+  class="note-details-panel h-full flex flex-col justify-between"
+  x-data="{ 
+    activeTab: 'threads',
+    threads: [],
+    comments: [],
+    tags: [],
+    isSubmitting: false,
+    
+    switchTab(tabId) {
+      this.activeTab = tabId;
+    },
+    
+    closePanel() {
+      // Dispatch close event to update dashboard state
+      window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
+    },
+    
+    async loadData() {
+      // In real implementation, this would fetch data from API
+      this.threads = [
+        { id: 'thread_1', title: 'From Harvous', count: 1 },
+        { id: 'thread_2', title: 'Letter', count: 0 }
+      ];
+      this.comments = [
+        { id: 'comment_1', content: 'This is a sample comment', author: 'User', date: '2024-01-15' }
+      ];
+      this.tags = [
+        { id: 'tag_1', name: 'Important', color: '#006eff' },
+        { id: 'tag_2', name: 'Work', color: '#ff6b6b' }
+      ];
+    }
+  }"
+  x-init="
+    // Load data when panel opens
+    loadData();
+    
+    // Listen for panel opening
+    window.addEventListener('openNoteDetailsPanel', () => {
+      loadData();
+    });
+  "
+>
+  <!-- Content area that expands to fill available space -->
+  <div class="flex-1 flex flex-col min-h-0 mb-3.5">
+    <!-- Single unified panel using CardStack structure -->
+    <CardStack 
+      title="Details"
+      headerBgColor="var(--color-paper)"
+      centerTitle={true}
+      class="h-full"
+    >
+      <!-- Tab navigation -->
+      <div class="w-full">
+        <div class="flex flex-col gap-3">
+          <div class="tab-nav-container">
+            <!-- Tab Navigation -->
+            <div class="flex items-center justify-start gap-0 pb-0 pt-1 px-1 relative w-full">
+              <button
+                type="button"
+                class="flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200"
+                :class="activeTab === 'threads' ? 'opacity-100' : 'opacity-50 hover:opacity-75'"
+                @click="switchTab('threads')"
+                data-tab-id="threads"
+                :data-active="activeTab === 'threads' ? 'true' : 'false'"
+              >
+                <span class="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
+                  Threads
+                </span>
+                <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-5 h-5">
+                  <span class="text-[12px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]" x-text="threads.length"></span>
+                </div>
+                <div 
+                  class="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1" 
+                  x-show="activeTab === 'threads'"
+                >
+                  <div class="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                </div>
+              </button>
+              
+              <button
+                type="button"
+                class="flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200"
+                :class="activeTab === 'comments' ? 'opacity-100' : 'opacity-50 hover:opacity-75'"
+                @click="switchTab('comments')"
+                data-tab-id="comments"
+                :data-active="activeTab === 'comments' ? 'true' : 'false'"
+              >
+                <span class="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
+                  Comments
+                </span>
+                <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-5 h-5">
+                  <span class="text-[12px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]" x-text="comments.length"></span>
+                </div>
+                <div 
+                  class="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1" 
+                  x-show="activeTab === 'comments'"
+                >
+                  <div class="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                </div>
+              </button>
+              
+              <button
+                type="button"
+                class="flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200"
+                :class="activeTab === 'tags' ? 'opacity-100' : 'opacity-50 hover:opacity-75'"
+                @click="switchTab('tags')"
+                data-tab-id="tags"
+                :data-active="activeTab === 'tags' ? 'true' : 'false'"
+              >
+                <span class="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
+                  Tags
+                </span>
+                <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-5 h-5">
+                  <span class="text-[12px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]" x-text="tags.length"></span>
+                </div>
+                <div 
+                  class="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1" 
+                  x-show="activeTab === 'tags'"
+                >
+                  <div class="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                </div>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Tab content -->
+          <div class="w-full">
+            <!-- Threads content -->
+            <div x-show="activeTab === 'threads'" class="tab-content">
+              <div class="flex flex-col gap-3">
+                <div x-show="threads.length === 0" class="text-center py-4 text-gray-500">
+                  <p>No threads found for this note.</p>
+                </div>
+                <div x-show="threads.length > 0" class="flex flex-wrap gap-3">
+                  <template x-for="thread in threads" :key="thread.id">
+                    <div class="relative">
+                      <div class="box-border content-stretch flex gap-3 h-[60px] items-center pb-[20px] pl-6 pr-4 pt-[18px] relative rounded-xl shrink-0" style="background-image: var(--color-gradient-gray);">
+                        <div class="font-sans font-semibold leading-[0] relative shrink-0 text-[#4a473d] text-[18px] text-nowrap">
+                          <span x-text="thread.title"></span>
+                        </div>
+                        <div class="relative shrink-0 size-5 cursor-pointer" @click="removeThread(thread.id)">
+                          <FaXmarkIcon class="fill-[var(--color-deep-grey)] block max-w-none w-full h-full" />
+                        </div>
+                        <div class="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(176,176,176,0.25)_inset]"></div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Comments content -->
+            <div x-show="activeTab === 'comments'" class="tab-content">
+              <div class="flex flex-col gap-3">
+                <div x-show="comments.length === 0" class="text-center py-4 text-gray-500">
+                  <p>No comments found for this note.</p>
+                </div>
+                <div x-show="comments.length > 0" class="flex flex-col gap-3">
+                  <template x-for="comment in comments" :key="comment.id">
+                    <div class="bg-white p-4 rounded-xl border border-gray-200">
+                      <div class="flex justify-between items-start mb-2">
+                        <span class="font-semibold text-sm text-gray-600" x-text="comment.author"></span>
+                        <span class="text-xs text-gray-500" x-text="comment.date"></span>
+                      </div>
+                      <p class="text-gray-800" x-text="comment.content"></p>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Tags content -->
+            <div x-show="activeTab === 'tags'" class="tab-content">
+              <div class="flex flex-col gap-3">
+                <div x-show="tags.length === 0" class="text-center py-4 text-gray-500">
+                  <p>No tags found for this note.</p>
+                </div>
+                <div x-show="tags.length > 0" class="flex flex-wrap gap-3">
+                  <template x-for="tag in tags" :key="tag.id">
+                    <div class="relative">
+                      <div class="box-border content-stretch flex gap-3 h-[60px] items-center pb-[20px] pl-6 pr-4 pt-[18px] relative rounded-xl shrink-0" :style="`background-color: ${tag.color}20; border: 1px solid ${tag.color}`">
+                        <div class="font-sans font-semibold leading-[0] relative shrink-0 text-[#4a473d] text-[18px] text-nowrap">
+                          <span x-text="tag.name"></span>
+                        </div>
+                        <div class="relative shrink-0 size-5 cursor-pointer" @click="removeTag(tag.id)">
+                          <FaXmarkIcon class="fill-[var(--color-deep-grey)] block max-w-none w-full h-full" />
+                        </div>
+                        <div class="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(176,176,176,0.25)_inset]"></div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                
+                <!-- New Tag button -->
+                <div class="w-full">
+                  <button 
+                    type="button"
+                    class="bg-[#006eff] box-border content-stretch flex h-[60px] items-center justify-center overflow-clip pb-[28px] pt-6 px-6 relative rounded-3xl shrink-0 w-full"
+                    @click="addNewTag()"
+                  >
+                    <div class="font-sans font-semibold leading-[0] relative shrink-0 text-[#f7f7f6] text-[18px] text-nowrap">
+                      New Tag
+                    </div>
+                    <div class="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.1)_inset]"></div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </CardStack>
+  </div>
+
+  <!-- Bottom back button -->
+  <div class="flex items-center justify-start gap-3">
+    <div @click.prevent="closePanel()">
+      <SquareButton variant="Back" type="button" />
+    </div>
+  </div>
+</div>
+
+<script>
+  // Global functions for tag management
+  (window as any).addNewTag = function() {
+    const tagName = prompt('Enter tag name:');
+    if (tagName && tagName.trim()) {
+      // In real implementation, this would make an API call
+      console.log('Adding new tag:', tagName);
+      
+      // Find the Alpine.js component and add the tag
+      const panel = document.querySelector('.note-details-panel');
+      if (panel && (window as any).Alpine) {
+        const alpineData = (window as any).Alpine.$data(panel);
+        if (alpineData) {
+          const newTag = {
+            id: 'tag_' + Date.now(),
+            name: tagName.trim(),
+            color: '#006eff'
+          };
+          alpineData.tags.push(newTag);
+        }
+      }
+    }
+  };
+  
+  (window as any).removeThread = function(threadId: string) {
+    if (confirm('Are you sure you want to remove this thread?')) {
+      const panel = document.querySelector('.note-details-panel');
+      if (panel && (window as any).Alpine) {
+        const alpineData = (window as any).Alpine.$data(panel);
+        if (alpineData) {
+          alpineData.threads = alpineData.threads.filter((t: any) => t.id !== threadId);
+        }
+      }
+    }
+  };
+  
+  (window as any).removeTag = function(tagId: string) {
+    if (confirm('Are you sure you want to remove this tag?')) {
+      const panel = document.querySelector('.note-details-panel');
+      if (panel && (window as any).Alpine) {
+        const alpineData = (window as any).Alpine.$data(panel);
+        if (alpineData) {
+          alpineData.tags = alpineData.tags.filter((t: any) => t.id !== tagId);
+        }
+      }
+    }
+  };
+</script>
+
+<style>
+  /* Tab content styling */
+  .tab-content {
+    min-height: 200px;
+  }
+  
+  /* Thread and tag button styling */
+  .note-details-panel .box-border[style*="background-image"] {
+    box-shadow: 0px -3px 0px 0px rgba(176, 176, 176, 0.25) inset;
+  }
+  
+  .note-details-panel .box-border[style*="background-color"] {
+    box-shadow: 0px -3px 0px 0px rgba(176, 176, 176, 0.25) inset;
+  }
+  
+  /* New tag button styling */
+  .note-details-panel button[style*="background-color: #006eff"] {
+    box-shadow: 0px -4px 0px 0px rgba(0, 0, 0, 0.1) inset;
+  }
+  
+  .note-details-panel button[style*="background-color: #006eff"]:active {
+    transform: scale(0.98);
+    box-shadow: 0px -2px 0px 0px rgba(0, 0, 0, 0.1) inset;
+  }
+</style>

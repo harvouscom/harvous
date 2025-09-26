@@ -253,11 +253,11 @@ export const notes = {
         }
 
         return {
-          success: "Note deleted successfully!",
+          success: "Note erased successfully!",
           note: deletedNote
         };
       } catch (error: any) {
-        throw new Error(`Failed to delete note: ${error instanceof Error ? error.message : "Unknown error"}`);
+        throw new Error(`Failed to erase note: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     }
   })

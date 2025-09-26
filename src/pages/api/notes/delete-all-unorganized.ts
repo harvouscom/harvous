@@ -35,7 +35,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
   } catch (error) {
     console.error('Error deleting unorganized thread notes:', error);
     return new Response(JSON.stringify({ 
-      error: 'Failed to delete notes from unorganized thread' 
+      error: 'Failed to erase notes from unorganized thread' 
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

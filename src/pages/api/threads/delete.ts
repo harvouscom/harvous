@@ -71,7 +71,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     console.log("Thread deleted and notes moved to unorganized thread:", threadId);
 
     return new Response(JSON.stringify({ 
-      success: "Thread deleted successfully! Notes have been moved to the Unorganized thread.",
+      success: "Thread erased successfully! Notes have been moved to the Unorganized thread.",
       threadId: threadId
     }), {
       status: 200,
@@ -81,7 +81,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
   } catch (error: any) {
     console.error('Error deleting thread:', error);
     return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to delete thread' 
+      error: error.message || 'Failed to erase thread' 
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

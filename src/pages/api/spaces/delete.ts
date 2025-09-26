@@ -62,10 +62,10 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     await db.delete(Spaces)
       .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)));
 
-    console.log("Space and all associated content deleted successfully:", spaceId);
+    console.log("Space and all associated content erased successfully:", spaceId);
 
     return new Response(JSON.stringify({ 
-      success: "Space deleted successfully!",
+      success: "Space erased successfully!",
       spaceId: spaceId
     }), {
       status: 200,
@@ -75,7 +75,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
   } catch (error: any) {
     console.error('Error deleting space:', error);
     return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to delete space' 
+      error: error.message || 'Failed to erase space' 
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

@@ -30,6 +30,7 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
       ];
     case "note":
       return [
+        { action: "seeDetails", label: "See Details" },
         { action: "eraseNote", label: "Erase Note" }
       ];
     case "space":

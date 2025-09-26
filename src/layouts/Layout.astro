@@ -10,6 +10,7 @@ import Toast from "@/components/Toast-v2.astro";
 import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanel from "@/components/NewNotePanel.astro";
 import NewThreadPanel from "@/components/NewThreadPanel.astro";
+import NoteDetailsPanel from "@/components/NoteDetailsPanel.astro";
 import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 
@@ -350,15 +351,17 @@ const showMoreButton = shouldShowMoreButton(contentType);
           <slot name="additional">
             <div 
               class="flex flex-col items-left justify-between h-full"
-              x-data="{ showNewNotePanel: false, showNewThreadPanel: false }"
+              x-data="{ showNewNotePanel: false, showNewThreadPanel: false, showNoteDetailsPanel: false }"
               x-init="
                 // Initialize panels as closed by default
                 showNewNotePanel = false;
                 showNewThreadPanel = false;
+                showNoteDetailsPanel = false;
                 
                 // Check localStorage for panel state
                 const savedNotePanel = localStorage.getItem('showNewNotePanel');
                 const savedThreadPanel = localStorage.getItem('showNewThreadPanel');
+                const savedNoteDetailsPanel = localStorage.getItem('showNoteDetailsPanel');
                 
                 if (savedNotePanel === 'true') {
                   showNewNotePanel = true;
@@ -366,13 +369,18 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 if (savedThreadPanel === 'true') {
                   showNewThreadPanel = true;
                 }
+                if (savedNoteDetailsPanel === 'true') {
+                  showNoteDetailsPanel = true;
+                }
                 
                 // Listen for NewNotePanel events
                 window.addEventListener('openNewNotePanel', () => {
                   showNewNotePanel = true;
                   showNewThreadPanel = false;
+                  showNoteDetailsPanel = false;
                   localStorage.setItem('showNewNotePanel', 'true');
                   localStorage.setItem('showNewThreadPanel', 'false');
+                  localStorage.setItem('showNoteDetailsPanel', 'false');
                 });
                 window.addEventListener('closeNewNotePanel', () => {
                   showNewNotePanel = false;
@@ -383,17 +391,33 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 window.addEventListener('openNewThreadPanel', () => {
                   showNewThreadPanel = true;
                   showNewNotePanel = false;
+                  showNoteDetailsPanel = false;
                   localStorage.setItem('showNewThreadPanel', 'true');
                   localStorage.setItem('showNewNotePanel', 'false');
+                  localStorage.setItem('showNoteDetailsPanel', 'false');
                 });
                 window.addEventListener('closeNewThreadPanel', () => {
                   showNewThreadPanel = false;
                   localStorage.setItem('showNewThreadPanel', 'false');
                 });
+                
+                // Listen for NoteDetailsPanel events
+                window.addEventListener('openNoteDetailsPanel', () => {
+                  showNoteDetailsPanel = true;
+                  showNewNotePanel = false;
+                  showNewThreadPanel = false;
+                  localStorage.setItem('showNoteDetailsPanel', 'true');
+                  localStorage.setItem('showNewNotePanel', 'false');
+                  localStorage.setItem('showNewThreadPanel', 'false');
+                });
+                window.addEventListener('closeNoteDetailsPanel', () => {
+                  showNoteDetailsPanel = false;
+                  localStorage.setItem('showNoteDetailsPanel', 'false');
+                });
               "
             >
               <!-- Default state: SquareButtons -->
-              <div x-show="!showNewNotePanel && !showNewThreadPanel" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
+              <div x-show="!showNewNotePanel && !showNewThreadPanel && !showNoteDetailsPanel" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
                 {showMoreButton && (
                   <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
                 )}
@@ -410,6 +434,11 @@ const showMoreButton = shouldShowMoreButton(contentType);
               <!-- New Thread Panel -->
               <div x-show="showNewThreadPanel" class="h-full">
                 <NewThreadPanel currentSpace={currentSpace} />
+              </div>
+              
+              <!-- Note Details Panel -->
+              <div x-show="showNoteDetailsPanel" class="h-full">
+                <NoteDetailsPanel noteId={contentId} noteTitle="Note Details" />
               </div>
             </div>
           </slot>
