@@ -15,7 +15,7 @@ export interface Props {
   currentThread?: any;
 }
 
-const { onClose, currentThread } = Astro.props;
+const { onClose, currentThread = null } = Astro.props;
 
 // Get user ID from Clerk authentication
 const { userId } = Astro.locals.auth();
@@ -34,6 +34,7 @@ if (!userId) {
   class="new-note-panel h-full flex flex-col"
   data-current-thread-title={currentThread?.title || ''}
   data-current-thread-id={currentThread?.id || ''}
+  x-bind:action="'/api/notes/create'"
   x-data="{ 
     title: localStorage.getItem('newNoteTitle') || '',
     content: localStorage.getItem('newNoteContent') || '',
@@ -310,8 +311,7 @@ if (!userId) {
   </div>
 </form>
 
-<!-- Toast component -->
-<Toast />
+<!-- Toast component is included in Layout.astro -->
 
 <script>
   // Following Astro MCP best practices for View Transitions lifecycle events
@@ -343,6 +343,11 @@ if (!userId) {
         setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
       }
       return;
+    }
+    
+    // Debug logging for search page issues
+    if (currentPath === '/search') {
+      console.log('NewNotePanel: On search page, defaulting to Unorganized thread');
     }
     
     // Get Alpine.js data using proper Alpine.js API
@@ -384,8 +389,8 @@ if (!userId) {
         selectedThread = currentThreadTitle;
         updated = true;
       }
-    } else if (currentPath === '/dashboard' || currentPath === '/') {
-      // If on dashboard, default to Unorganized
+    } else if (currentPath === '/dashboard' || currentPath === '/' || currentPath === '/search') {
+      // If on dashboard or search page, default to Unorganized
       selectedThread = 'Unorganized';
       updated = true;
     }
@@ -395,7 +400,13 @@ if (!userId) {
       alpineData.selectedThread = selectedThread;
       localStorage.setItem('newNoteThread', selectedThread);
     } else if (!updated && attempt < 5) {
-      setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
+      // If we still haven't found a thread, default to Unorganized
+      if (attempt === 4) {
+        alpineData.selectedThread = 'Unorganized';
+        localStorage.setItem('newNoteThread', 'Unorganized');
+      } else {
+        setTimeout(() => updateThreadSelection(attempt + 1), 200 * attempt);
+      }
     }
   }
   
@@ -500,8 +511,15 @@ if (!userId) {
         }
         
         // Content and threadId captured
+        console.log('Content validation:', {
+          content: content,
+          contentLength: content.length,
+          contentTrimmed: content.trim(),
+          contentTrimmedLength: content.trim().length
+        });
         
         if (!content.trim()) {
+          console.log('Content is empty, showing alert');
           alert('Please add some content to your note');
           return;
         }
@@ -520,16 +538,33 @@ if (!userId) {
             formData.set('threadId', threadId);
           }
           
-          // Form data prepared
+          // Ensure we're using the correct API endpoint
+          const apiEndpoint = '/api/notes/create';
+          form.action = apiEndpoint;
           
-          const response = await fetch(form.action, {
+          console.log('Form data prepared:', {
+            content: content.substring(0, 50) + '...',
+            threadId: threadId,
+            title: formData.get('title'),
+            action: form.action,
+            apiEndpoint: apiEndpoint
+          });
+          
+          const response = await fetch(apiEndpoint, {
             method: 'POST',
             body: formData,
             credentials: 'include'
           });
           
+          console.log('API response status:', response.status);
+          
           if (response.ok) {
             const result = await response.json();
+            
+            console.log('Note creation successful, dispatching toast event:', {
+              message: result.success || 'Note created successfully!',
+              type: 'success'
+            });
             
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
@@ -588,10 +623,12 @@ if (!userId) {
               alpineData.isSubmitting = false;
             }
           }
-        } catch (error) {
+        } catch (error: any) {
+          console.error('Error in note creation process:', error);
+          
           window.dispatchEvent(new CustomEvent('toast', {
             detail: {
-              message: 'Error creating note. Please try again.',
+              message: `Error creating note: ${(error as Error)?.message || 'Please try again.'}`,
               type: 'error'
             }
           }));
@@ -604,6 +641,13 @@ if (!userId) {
     }
   }
   
+  // Define global noteSaveCallback function for QuillEditor compatibility
+  (window as any).noteSaveCallback = async function(title: string, content: string) {
+    console.log('noteSaveCallback called with:', { title, content });
+    // This is a placeholder - the actual save logic is handled by the form submission
+    return { success: true };
+  };
+
   // Setup create note button on DOM ready and page load
   document.addEventListener('DOMContentLoaded', setupCreateNoteButton);
   document.addEventListener('astro:after-swap', () => {

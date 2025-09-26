@@ -119,8 +119,16 @@ let threadsResults: any[] = [];
 if (query.trim()) {
   try {
     const searchTerm = `%${query.trim()}%`;
+    const searchTermLower = `%${query.trim().toLowerCase()}%`;
     
-    // Search notes (title and content)
+    // Enhanced search with multiple patterns for better matching
+    const searchPatterns = [
+      searchTerm,           // exact case match
+      searchTermLower,     // lowercase match
+      `%${query.trim().split(' ').join('%')}%`, // word boundary match
+    ];
+    
+    // Search notes with enhanced matching
     const notes = await db
       .select()
       .from(Notes)
@@ -128,39 +136,88 @@ if (query.trim()) {
         and(
           eq(Notes.userId, userId),
           or(
-            like(Notes.title, searchTerm),
-            like(Notes.content, searchTerm)
+            like(Notes.title, searchPatterns[0]),
+            like(Notes.content, searchPatterns[0]),
+            like(Notes.title, searchPatterns[1]),
+            like(Notes.content, searchPatterns[1]),
+            like(Notes.title, searchPatterns[2]),
+            like(Notes.content, searchPatterns[2])
           )
         )
       )
       .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt));
 
-    // Search threads (title only)
+    // Search threads with enhanced matching
     const threads = await db
       .select()
       .from(Threads)
       .where(
         and(
           eq(Threads.userId, userId),
-          like(Threads.title, searchTerm)
+          or(
+            like(Threads.title, searchPatterns[0]),
+            like(Threads.title, searchPatterns[1]),
+            like(Threads.title, searchPatterns[2])
+          )
         )
       )
       .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt));
 
-    // Format notes results
+    // Helper function to calculate relevance score
+    function calculateRelevanceScore(item: any, query: string): number {
+      const queryLower = query.toLowerCase();
+      const titleLower = (item.title || '').toLowerCase();
+      const contentLower = (item.content || '').toLowerCase();
+      
+      let score = 0;
+      
+      // Title matches get highest score
+      if (titleLower.includes(queryLower)) {
+        score += 100;
+        // Exact title match gets bonus
+        if (titleLower === queryLower) score += 50;
+        // Title starts with query gets bonus
+        if (titleLower.startsWith(queryLower)) score += 25;
+      }
+      
+      // Content matches get medium score
+      if (contentLower.includes(queryLower)) {
+        score += 50;
+        // Multiple occurrences in content get bonus
+        const occurrences = (contentLower.match(new RegExp(queryLower, 'g')) || []).length;
+        score += occurrences * 10;
+      }
+      
+      // Recent content gets slight boost
+      const daysSinceUpdate = Math.floor((Date.now() - new Date(item.updatedAt || item.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceUpdate < 7) score += 10;
+      if (daysSinceUpdate < 30) score += 5;
+      
+      return score;
+    }
+
+    // Format notes results with relevance scoring
     notesResults = notes.map(note => {
       const cleanContent = stripHtml(note.content);
-      return {
+      const noteData: any = {
         id: `note-${note.id}`,
         type: "note" as const,
         title: note.title || "Untitled Note",
-        content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        content: cleanContent,
         noteId: note.id,
         threadId: note.threadId,
         spaceId: note.spaceId,
         lastUpdated: note.updatedAt || note.createdAt,
         updatedAt: note.updatedAt || note.createdAt,
       };
+      
+      // Calculate relevance score
+      noteData.relevanceScore = calculateRelevanceScore(noteData, query.trim());
+      
+      // Truncate content for display
+      noteData.content = cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
+      
+      return noteData;
     });
 
     // Get note counts for threads
@@ -174,11 +231,11 @@ if (query.trim()) {
       })
     );
 
-    // Format threads results
+    // Format threads results with relevance scoring
     threadsResults = threads.map(thread => {
       const noteCountData = threadNoteCounts.find(tc => tc.threadId === thread.id);
       const noteCount = noteCountData?.count || 0;
-      return {
+      const threadData: any = {
         id: `thread-${thread.id}`,
         type: "thread" as const,
         title: thread.title,
@@ -190,12 +247,22 @@ if (query.trim()) {
         updatedAt: thread.updatedAt || thread.createdAt,
         accentColor: getThreadColorCSS(thread.color),
       };
+      
+      // Calculate relevance score for threads
+      threadData.relevanceScore = calculateRelevanceScore(threadData, query.trim());
+      
+      return threadData;
     });
 
-    // Combine all results
-    searchResults = [...notesResults, ...threadsResults].sort((a, b) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
+    // Combine all results and sort by relevance score first, then by date
+    searchResults = [...notesResults, ...threadsResults].sort((a, b) => {
+      // First sort by relevance score (higher is better)
+      if (a.relevanceScore !== b.relevanceScore) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+      // Then by date (newer is better)
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
 
   } catch (error) {
     console.error("Error performing search:", error);
@@ -244,18 +311,39 @@ if (query.trim()) {
       <CardStack title="Search" headerBgColor="var(--color-paper)">
         <div class="flex flex-col gap-6">
           <!-- Search Input -->
-          <div class="w-full" x-data="{ searchQuery: '' }" x-init="
+          <div class="w-full" x-data="{ 
+              searchQuery: '', 
+              suggestions: [], 
+              showSuggestions: false,
+              selectedSuggestion: -1
+            }" x-init="
               const updateSearchQuery = () => {
                 const urlParams = new URLSearchParams(window.location.search);
                 searchQuery = urlParams.get('q') || '';
+                suggestions = [];
+                showSuggestions = false;
               };
               updateSearchQuery();
               
               // Listen for URL changes (for View Transitions)
               window.addEventListener('popstate', updateSearchQuery);
               document.addEventListener('astro:page-load', updateSearchQuery);
+              
+              // Global function for search suggestions
+              window.fetchSearchSuggestions = async (query) => {
+                if (query.length < 2) return;
+                try {
+                  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&type=all&limit=5`);
+                  const data = await response.json();
+                  suggestions = data.results || [];
+                  showSuggestions = true;
+                } catch (error) {
+                  console.error('Search suggestions error:', error);
+                  suggestions = [];
+                }
+              };
             ">
-            <form method="GET" action="/search" class="w-full" x-on:submit="
+            <form method="GET" action="/search" class="w-full relative" x-on:submit="
               if (!searchQuery.trim()) { 
                 $event.preventDefault(); 
               } else {
@@ -280,6 +368,14 @@ if (query.trim()) {
                   aria-label="Search"
                   class="outline-none bg-transparent text-subtitle text-[var(--color-deep-grey)] placeholder:text-[var(--color-pebble-grey)]" 
                   placeholder="Search notes and threads..."
+                  x-on:input="
+                    if (searchQuery.length >= 2) {
+                      // Show search suggestions
+                      fetchSearchSuggestions(searchQuery);
+                    } else {
+                      suggestions = [];
+                    }
+                  "
                 />
                 <svg 
                   x-show="Boolean(searchQuery)" 
@@ -294,6 +390,34 @@ if (query.trim()) {
                 >
                   <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
                 </svg>
+              </div>
+              
+              <!-- Search Suggestions Dropdown -->
+              <div 
+                x-show="showSuggestions && suggestions.length > 0" 
+                x-cloak
+                class="absolute top-full left-0 right-0 mt-2 bg-white border border-[var(--color-pebble-grey)] rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto"
+              >
+                <template x-for="(suggestion, index) in suggestions" :key="suggestion.id">
+                  <div 
+                    class="px-4 py-3 hover:bg-[var(--color-paper)] cursor-pointer border-b border-[var(--color-pebble-grey)] last:border-b-0"
+                    :class="{ 'bg-[var(--color-paper)]': selectedSuggestion === index }"
+                    x-on:click="
+                      searchQuery = suggestion.title;
+                      showSuggestions = false;
+                      window.location.href = '/search?q=' + encodeURIComponent(suggestion.title);
+                    "
+                    x-on:mouseenter="selectedSuggestion = index"
+                  >
+                    <div class="flex items-center gap-3">
+                      <div class="w-2 h-2 rounded-full" :class="suggestion.type === 'note' ? 'bg-blue-500' : 'bg-green-500'"></div>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium text-[var(--color-deep-grey)] truncate" x-text="suggestion.title"></div>
+                        <div class="text-sm text-[var(--color-pebble-grey)] truncate" x-text="suggestion.content || suggestion.subtitle"></div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
               </div>
             </form>
           </div>
