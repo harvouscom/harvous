@@ -93,13 +93,8 @@ const { variant = "More", withMenu = false, contentType = "dashboard", contentId
           const screenWidth = window.innerWidth;
           const menuWidth = 223; // Width of MoreMenu
           
-          // Check if there's enough space on the right for the menu
-          const spaceOnRight = screenWidth - rect.right;
-          const spaceOnLeft = rect.left;
-          
-          // If there's enough space on the right OR button is closer to right edge, align menu to right
-          // Otherwise, align to left
-          this.menuPosition = (spaceOnRight >= menuWidth) || (spaceOnRight > spaceOnLeft) ? 'right' : 'left';
+          // Always use right alignment - CSS media queries handle desktop vs mobile positioning
+          this.menuPosition = 'right';
         });
       }
     },
@@ -273,6 +268,14 @@ const { variant = "More", withMenu = false, contentType = "dashboard", contentId
     z-index: 20;
   }
 
+  /* Mobile layout - force right alignment for Add button menu */
+  @media (max-width: 1079px) {
+    .more-menu-container {
+      right: 0;
+      left: auto;
+    }
+  }
+
   .more-menu-container.right-positioned {
     position: absolute;
     left: 76px; /* 64px button width + 12px gap */
@@ -281,15 +284,16 @@ const { variant = "More", withMenu = false, contentType = "dashboard", contentId
     z-index: 20;
   }
 
-  /* Mobile layout - use original top positioning */
+  /* Mobile layout - align menu to the right since buttons are on the right */
   @media (max-width: 1079px) {
     .more-menu-container.right-positioned {
       position: absolute;
-      left: 0;
-      right: auto;
+      right: 0;
+      left: auto;
       bottom: calc(100% + 12px);
       top: auto;
       z-index: 20;
+      transform: translateX(calc(100% - 64px)); /* Align menu right edge with button right edge */
     }
   }
 
