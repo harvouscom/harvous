@@ -11,6 +11,7 @@ import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanel from "@/components/NewNotePanel.astro";
 import NewThreadPanel from "@/components/NewThreadPanel.astro";
 import NoteDetailsPanel from "@/components/NoteDetailsPanel.astro";
+import MobileDrawer from "@/components/MobileDrawer.astro";
 import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 
@@ -348,7 +349,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
         </section>
 
         <!-- Additional Column -->
-        <section class="h-full">
+        <section class="h-full desktop-additional-column">
           <slot name="additional">
               <div 
                 class="flex flex-col items-left justify-between h-full"
@@ -458,6 +459,16 @@ const showMoreButton = shouldShowMoreButton(contentType);
           <slot name="mobile-additional" />
         </div>
       </div>
+    </div>
+
+    <!-- Mobile Drawer System -->
+    <div class="min-[1160px]:hidden">
+      <MobileDrawer 
+        currentThread={currentThread}
+        currentSpace={currentSpace}
+        currentNote={currentNote}
+        contentType={contentType}
+      />
     </div>
   </body>
 </html>
@@ -1256,5 +1267,82 @@ window.testNavigationScript = function() {
     height: 100%;
     background-color: var(--color-light-paper);
     -webkit-background-color: var(--color-light-paper);
+  }
+
+  /* Mobile Drawer Responsive Styles */
+  
+  /* Hide desktop additional column on mobile */
+  @media (max-width: 1159px) {
+    .desktop-additional-column {
+      display: none !important;
+    }
+    
+    /* Ensure mobile drawer is visible */
+    .mobile-drawer {
+      display: block !important;
+    }
+  }
+  
+  /* Show desktop additional column on desktop */
+  @media (min-width: 1160px) {
+    .desktop-additional-column {
+      display: block !important;
+    }
+    
+    /* Hide mobile drawer on desktop */
+    .mobile-drawer {
+      display: none !important;
+    }
+  }
+  
+  /* Mobile drawer specific styles */
+  .mobile-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+  }
+  
+  /* Prevent body scroll when drawer is open */
+  body.drawer-open {
+    overflow: hidden;
+  }
+  
+  /* Mobile drawer panel styles - bottom sheet */
+  .mobile-drawer .drawer-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: calc(100vh - 128px);
+    top: 128px;
+    background: white;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+    transform: translateY(100%);
+    transition: transform 0.3s ease-out;
+  }
+  
+  .mobile-drawer .drawer-panel.open {
+    transform: translateY(0);
+  }
+  
+  /* Backdrop styles */
+  .mobile-drawer .backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.3s ease-out;
+  }
+  
+  .mobile-drawer .backdrop.open {
+    opacity: 1;
   }
 </style>

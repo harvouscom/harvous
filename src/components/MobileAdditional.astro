@@ -1,7 +1,5 @@
 ---
 import SquareButton from "@/components/SquareButton.astro";
-import NewNotePanel from "@/components/NewNotePanel.astro";
-import NewThreadPanel from "@/components/NewThreadPanel.astro";
 import { shouldShowMoreButton } from "@/utils/menu-options";
 
 export interface Props {
@@ -17,54 +15,38 @@ const showMoreButton = shouldShowMoreButton(contentType);
 
 <div 
   class="flex items-center justify-center gap-4"
-  x-data="{ showNewNotePanel: false, showNewThreadPanel: false }"
+  x-data="{}"
   x-init="
-    // Initialize panels as closed by default
-    showNewNotePanel = false;
-    showNewThreadPanel = false;
-    
-    // Listen for NewNotePanel events
+    // Listen for panel events and trigger mobile drawer
     window.addEventListener('openNewNotePanel', () => {
-      showNewNotePanel = true;
-      showNewThreadPanel = false;
-      localStorage.setItem('showNewNotePanel', 'true');
-      localStorage.setItem('showNewThreadPanel', 'false');
-    });
-    window.addEventListener('closeNewNotePanel', () => {
-      showNewNotePanel = false;
-      localStorage.setItem('showNewNotePanel', 'false');
+      // Dispatch event to open mobile drawer
+      window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
+        detail: { type: 'note' } 
+      }));
     });
     
-    // Listen for NewThreadPanel events
     window.addEventListener('openNewThreadPanel', () => {
-      showNewThreadPanel = true;
-      showNewNotePanel = false;
-      localStorage.setItem('showNewThreadPanel', 'true');
-      localStorage.setItem('showNewNotePanel', 'false');
+      // Dispatch event to open mobile drawer
+      window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
+        detail: { type: 'thread' } 
+      }));
     });
-    window.addEventListener('closeNewThreadPanel', () => {
-      showNewThreadPanel = false;
-      localStorage.setItem('showNewThreadPanel', 'false');
+    
+    window.addEventListener('openNoteDetailsPanel', () => {
+      // Dispatch event to open mobile drawer
+      window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
+        detail: { type: 'noteDetails' } 
+      }));
     });
   "
 >
   <!-- Default state: SquareButtons in horizontal layout -->
-  <div x-show="!showNewNotePanel && !showNewThreadPanel" class={`w-full flex ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
+  <div class={`w-full flex ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
     {showMoreButton && (
       <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
     )}
     {contentType !== 'profile' && (
       <SquareButton variant="Add" withMenu={true} />
     )}
-  </div>
-  
-  <!-- New Note Panel -->
-  <div x-show="showNewNotePanel" class="w-full">
-    <NewNotePanel currentThread={currentThread} />
-  </div>
-  
-  <!-- New Thread Panel -->
-  <div x-show="showNewThreadPanel" class="w-full">
-    <NewThreadPanel currentSpace={currentSpace} />
   </div>
 </div>

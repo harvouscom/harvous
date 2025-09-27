@@ -439,20 +439,22 @@ try {
   </div>
 
   <!-- Bottom buttons -->
-  <div class="flex items-center justify-between gap-3">
-    <div id="close-new-thread-btn" @click.prevent="closePanel()">
-      <SquareButton variant="Close" type="button" />
+  <div class="bottom-buttons-container">
+    <div class="flex items-center justify-between gap-3">
+      <div id="close-new-thread-btn" @click.prevent="closePanel()">
+        <SquareButton variant="Close" type="button" />
+      </div>
+      <Button 
+        state="Default"
+        type="button"
+        id="create-thread-btn"
+        class="flex-1"
+        x-bind:disabled="isSubmitting"
+      >
+        <span x-show="!isSubmitting">Create Thread</span>
+        <span x-show="isSubmitting">Creating...</span>
+      </Button>
     </div>
-    <Button 
-      state="Default"
-      type="button"
-      id="create-thread-btn"
-      class="flex-1"
-      x-bind:disabled="isSubmitting"
-    >
-      <span x-show="!isSubmitting">Create Thread</span>
-      <span x-show="isSubmitting">Creating...</span>
-    </Button>
   </div>
 </form>
 
@@ -749,6 +751,13 @@ try {
   .search-input {
     background: var(--color-gradient-gray);
     box-shadow: var(--shadow-small);
+  }
+
+  /* Mobile-only padding for bottom buttons */
+  @media (max-width: 1159px) {
+    .bottom-buttons-container {
+      padding: 12px;
+    }
   }
 
 </style>

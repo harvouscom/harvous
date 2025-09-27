@@ -1,0 +1,216 @@
+---
+import SquareButton from "./SquareButton.astro";
+import NewNotePanel from "./NewNotePanel.astro";
+import NewThreadPanel from "./NewThreadPanel.astro";
+import NoteDetailsPanel from "./NoteDetailsPanel.astro";
+
+export interface Props {
+  isOpen?: boolean;
+  onClose?: () => void;
+  title?: string;
+  showCloseButton?: boolean;
+  currentThread?: any;
+  currentSpace?: any;
+  currentNote?: any;
+  contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
+}
+
+const { 
+  isOpen = false, 
+  onClose, 
+  title = "Panel", 
+  showCloseButton = true,
+  currentThread,
+  currentSpace,
+  currentNote,
+  contentType = "dashboard"
+} = Astro.props;
+---
+
+<div 
+  class="mobile-drawer fixed inset-0 z-50"
+  x-data="{ 
+    isOpen: false,
+    drawerType: 'note',
+    closeDrawer() {
+      this.isOpen = false;
+      document.body.style.overflow = '';
+      document.body.classList.remove('drawer-open');
+      if (onClose) onClose();
+    },
+    openDrawer(type = 'note') {
+      this.drawerType = type;
+      this.isOpen = true;
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('drawer-open');
+    }
+  }"
+  x-init="
+    // Listen for drawer events
+    window.addEventListener('openMobileDrawer', (event) => {
+      const type = event.detail?.type || 'note';
+      openDrawer(type);
+    });
+    window.addEventListener('closeMobileDrawer', () => {
+      closeDrawer();
+    });
+    
+    // Listen for panel close events and close drawer
+    window.addEventListener('closeNewNotePanel', () => {
+      closeDrawer();
+    });
+    window.addEventListener('closeNewThreadPanel', () => {
+      closeDrawer();
+    });
+    window.addEventListener('closeNoteDetailsPanel', () => {
+      closeDrawer();
+    });
+    
+    // Handle escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        closeDrawer();
+      }
+    });
+  "
+  x-show="isOpen"
+  x-transition:enter="transition ease-out duration-300"
+  x-transition:enter-start="opacity-0"
+  x-transition:enter-end="opacity-100"
+  x-transition:leave="transition ease-in duration-200"
+  x-transition:leave-start="opacity-100"
+  x-transition:leave-end="opacity-0"
+>
+  <!-- Backdrop -->
+  <div 
+    class="fixed inset-0 bg-black bg-opacity-50"
+    @click="closeDrawer()"
+    x-transition:enter="transition ease-out duration-300"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-200"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+  ></div>
+  
+  <!-- Drawer Panel -->
+  <div 
+    class="fixed bottom-0 left-0 right-0 w-full bg-white shadow-xl rounded-t-3xl"
+    style="height: calc(100vh - 128px); top: 128px;"
+    x-transition:enter="transition ease-out duration-300"
+    x-transition:enter-start="translate-y-full"
+    x-transition:enter-end="translate-y-0"
+    x-transition:leave="transition ease-in duration-200"
+    x-transition:leave-start="translate-y-0"
+    x-transition:leave-end="translate-y-full"
+    @click.stop
+  >
+    <!-- Drawer Content - Full Height -->
+    <div class="drawer-content h-full flex flex-col">
+      <!-- New Note Panel -->
+      <div x-show="drawerType === 'note'" class="panel-container flex-1 flex flex-col min-h-0 p-3">
+        <NewNotePanel currentThread={currentThread} />
+      </div>
+      
+          <!-- New Thread Panel -->
+          <div x-show="drawerType === 'thread'" class="panel-container flex-1 flex flex-col min-h-0">
+            <NewThreadPanel currentSpace={currentSpace} />
+          </div>
+      
+      <!-- Note Details Panel -->
+      <div x-show="drawerType === 'noteDetails'" class="panel-container flex-1 flex flex-col min-h-0">
+        {contentType === 'note' && currentNote && (
+          <NoteDetailsPanel noteId={currentNote.id} noteTitle={currentNote.title || "Note Details"} />
+        )}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .mobile-drawer {
+    /* Ensure drawer is above other content */
+    z-index: 50;
+  }
+  
+  /* Prevent body scroll when drawer is open */
+  body.drawer-open {
+    overflow: hidden;
+  }
+  
+  /* Mobile-specific styles */
+  @media (max-width: 1159px) {
+    .mobile-drawer {
+      display: block;
+    }
+  }
+  
+  /* Hide on desktop */
+  @media (min-width: 1160px) {
+    .mobile-drawer {
+      display: none;
+    }
+  }
+  
+  /* Drawer content container */
+  .mobile-drawer .drawer-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  /* Ensure panels fit within drawer */
+  .mobile-drawer .panel-container {
+    height: auto;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
+  
+  /* Override NewNotePanel height constraints in mobile drawer */
+  .mobile-drawer .new-note-panel {
+    height: auto !important;
+    min-height: 100%;
+    max-height: none !important;
+  }
+  
+  /* Specifically override the h-full class for NewNotePanel in mobile drawer */
+  .mobile-drawer .new-note-panel.h-full {
+    height: auto !important;
+  }
+  
+  /* Override NewNotePanel form height constraints */
+  .mobile-drawer .new-note-panel form {
+    height: auto !important;
+    min-height: 100%;
+    max-height: none !important;
+  }
+  
+  /* Ensure proper spacing for NewNotePanel in mobile drawer */
+  .mobile-drawer .new-note-panel .bg-white {
+    margin-bottom: 0 !important;
+  }
+  
+  /* Override flex-1 constraints for NewNotePanel */
+  .mobile-drawer .new-note-panel .flex-1 {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  
+  /* Ensure bottom buttons are visible in NewNotePanel mobile drawer */
+  .mobile-drawer .new-note-panel .shrink-0 {
+    flex-shrink: 0 !important;
+  }
+  
+  
+  /* Override height constraints on NewNotePanel form */
+  .mobile-drawer .new-note-panel form {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 100% !important;
+    max-height: none !important;
+  }
+  
+</style>
