@@ -52,12 +52,19 @@ export async function generateAutoTags(
       if (confidence >= 0.6) {
         const isExisting = existingTagNames.has(keyword.name.toLowerCase());
         
+        // Find the most recent tag with this name (to avoid duplicates)
+        const existingTag = isExisting ? 
+          existingTags
+            .filter(t => t.name.toLowerCase() === keyword.name.toLowerCase())
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] 
+          : undefined;
+        
         suggestions.push({
           keyword: keyword.name,
           category: keyword.category,
           confidence: confidence,
           isExisting: isExisting,
-          tagId: isExisting ? existingTags.find(t => t.name.toLowerCase() === keyword.name.toLowerCase())?.id : undefined
+          tagId: existingTag?.id
         });
 
         if (confidence >= 0.8) {
@@ -102,19 +109,60 @@ export async function applyAutoTags(
 
       // Create tag if it doesn't exist
       if (!tagId) {
-        const newTagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Check if a tag with this name already exists (case-insensitive)
+        const existingTagWithName = await db
+          .select()
+          .from(Tags)
+          .where(and(
+            eq(Tags.userId, userId),
+            // Note: We need to use a case-insensitive comparison
+            // Since Astro DB doesn't support ILIKE, we'll check all tags and filter
+          ))
+          .get();
         
-        await db.insert(Tags).values({
-          id: newTagId,
-          name: suggestion.keyword,
-          color: getColorForCategory(suggestion.category),
-          category: suggestion.category,
-          userId: userId,
-          isSystem: true, // Auto-generated tags are system tags
-          createdAt: new Date(),
-        });
+        // Get all tags for the user and filter by name (case-insensitive)
+        const allUserTags = await db
+          .select()
+          .from(Tags)
+          .where(eq(Tags.userId, userId));
+        
+        const existingTag = allUserTags.find(t => 
+          t.name.toLowerCase() === suggestion.keyword.toLowerCase()
+        );
+        
+        if (existingTag) {
+          // Use the existing tag instead of creating a new one
+          tagId = existingTag.id;
+          console.log(`Using existing tag "${suggestion.keyword}" (ID: ${tagId}) instead of creating duplicate`);
+        } else {
+          // Create new tag only if no tag with this name exists
+          const newTagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          await db.insert(Tags).values({
+            id: newTagId,
+            name: suggestion.keyword,
+            color: getColorForCategory(suggestion.category),
+            category: suggestion.category,
+            userId: userId,
+            isSystem: true, // Auto-generated tags are system tags
+            createdAt: new Date(),
+          });
 
-        tagId = newTagId;
+          tagId = newTagId;
+        }
+      }
+
+      // Check if note-tag relationship already exists
+      const existingRelation = await db
+        .select()
+        .from(NoteTags)
+        .where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.tagId, tagId)))
+        .get();
+
+      if (existingRelation) {
+        // Skip this tag as it's already assigned to the note
+        console.log(`Tag ${suggestion.keyword} already assigned to note ${noteId}, skipping`);
+        continue;
       }
 
       // Create note-tag relationship
