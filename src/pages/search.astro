@@ -129,7 +129,8 @@ if (query.trim()) {
     ];
     
     // Search notes with enhanced matching (including tags)
-    const notes = await db
+    // First, get notes that match title/content
+    const notesByContent = await db
       .select({
         id: Notes.id,
         title: Notes.title,
@@ -145,8 +146,6 @@ if (query.trim()) {
         order: Notes.order
       })
       .from(Notes)
-      .leftJoin(NoteTags, eq(Notes.id, NoteTags.noteId))
-      .leftJoin(Tags, eq(NoteTags.tagId, Tags.id))
       .where(
         and(
           eq(Notes.userId, userId),
@@ -156,7 +155,35 @@ if (query.trim()) {
             like(Notes.title, searchPatterns[1]),
             like(Notes.content, searchPatterns[1]),
             like(Notes.title, searchPatterns[2]),
-            like(Notes.content, searchPatterns[2]),
+            like(Notes.content, searchPatterns[2])
+          )
+        )
+      )
+      .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt));
+
+    // Then, get notes that match tags (without duplicates)
+    const notesByTags = await db
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        threadId: Notes.threadId,
+        spaceId: Notes.spaceId,
+        simpleNoteId: Notes.simpleNoteId,
+        createdAt: Notes.createdAt,
+        updatedAt: Notes.updatedAt,
+        userId: Notes.userId,
+        isPublic: Notes.isPublic,
+        isFeatured: Notes.isFeatured,
+        order: Notes.order
+      })
+      .from(Notes)
+      .innerJoin(NoteTags, eq(Notes.id, NoteTags.noteId))
+      .innerJoin(Tags, eq(NoteTags.tagId, Tags.id))
+      .where(
+        and(
+          eq(Notes.userId, userId),
+          or(
             like(Tags.name, searchPatterns[0]),
             like(Tags.name, searchPatterns[1]),
             like(Tags.name, searchPatterns[2])
@@ -164,6 +191,17 @@ if (query.trim()) {
         )
       )
       .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt));
+
+    // Combine and deduplicate results
+    const allNotes = [...notesByContent, ...notesByTags];
+    const uniqueNotes = allNotes.filter((note, index, self) => 
+      index === self.findIndex(n => n.id === note.id)
+    );
+    
+    // Sort by date
+    const notes = uniqueNotes.sort((a, b) => 
+      new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
+    );
 
     // Search threads with enhanced matching
     const threads = await db
