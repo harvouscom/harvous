@@ -48,6 +48,9 @@ function stripHtml(html: string): string {
 import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
+import NoteDetailsPanel from "@/components/NoteDetailsPanel.astro";
+import NewNotePanel from "@/components/NewNotePanel.astro";
+import NewThreadPanel from "@/components/NewThreadPanel.astro";
 
 // Dynamic routing - no static paths needed
 
@@ -466,7 +469,7 @@ if (!content) {
 }
 ---
 
-<Layout title={pageTitle} contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={currentSpace}>
+<Layout title={pageTitle} contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={currentSpace} currentNote={isNote ? content : null}>
   <!-- Navigation Column -->
   <div slot="navigation" class="h-full">
           <div class="flex flex-col items-start justify-between relative h-full">
@@ -646,6 +649,7 @@ if (!content) {
   <div slot="mobile-additional">
     <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace && content ? content : null} />
   </div>
+
 </Layout>
 
 <script type="text/javascript">

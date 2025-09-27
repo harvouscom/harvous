@@ -21,9 +21,10 @@ interface Props {
   contentId?: string;
   currentThread?: any;
   currentSpace?: any;
+  currentNote?: any;
 }
 
-const { classNames = '', title = 'Harvous', contentType = 'dashboard', contentId, currentThread, currentSpace }: Props = Astro.props;
+const { classNames = '', title = 'Harvous', contentType = 'dashboard', contentId, currentThread, currentSpace, currentNote }: Props = Astro.props;
 
 // Determine if More button should be shown
 const showMoreButton = shouldShowMoreButton(contentType);
@@ -349,9 +350,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
         <!-- Additional Column -->
         <section class="h-full">
           <slot name="additional">
-            <div 
-              class="flex flex-col items-left justify-between h-full"
-              x-data="{ showNewNotePanel: false, showNewThreadPanel: false, showNoteDetailsPanel: false }"
+              <div 
+                class="flex flex-col items-left justify-between h-full"
+                x-data="{ showNewNotePanel: false, showNewThreadPanel: false, showNoteDetailsPanel: false }"
               x-init="
                 // Initialize panels as closed by default
                 showNewNotePanel = false;
@@ -361,7 +362,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 // Check localStorage for panel state
                 const savedNotePanel = localStorage.getItem('showNewNotePanel');
                 const savedThreadPanel = localStorage.getItem('showNewThreadPanel');
-                const savedNoteDetailsPanel = localStorage.getItem('showNoteDetailsPanel');
                 
                 if (savedNotePanel === 'true') {
                   showNewNotePanel = true;
@@ -369,18 +369,26 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 if (savedThreadPanel === 'true') {
                   showNewThreadPanel = true;
                 }
-                if (savedNoteDetailsPanel === 'true') {
+                
+                // Listen for NoteDetailsPanel events (notes only)
+                window.addEventListener('openNoteDetailsPanel', () => {
                   showNoteDetailsPanel = true;
-                }
+                  showNewNotePanel = false;
+                  showNewThreadPanel = false;
+                });
+                window.addEventListener('closeNoteDetailsPanel', () => {
+                  console.log('Layout: closeNoteDetailsPanel event received');
+                  showNoteDetailsPanel = false;
+                  console.log('Layout: showNoteDetailsPanel set to:', showNoteDetailsPanel);
+                });
                 
                 // Listen for NewNotePanel events
                 window.addEventListener('openNewNotePanel', () => {
                   showNewNotePanel = true;
-                  showNewThreadPanel = false;
                   showNoteDetailsPanel = false;
+                  showNewThreadPanel = false;
                   localStorage.setItem('showNewNotePanel', 'true');
                   localStorage.setItem('showNewThreadPanel', 'false');
-                  localStorage.setItem('showNoteDetailsPanel', 'false');
                 });
                 window.addEventListener('closeNewNotePanel', () => {
                   showNewNotePanel = false;
@@ -390,34 +398,19 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 // Listen for NewThreadPanel events
                 window.addEventListener('openNewThreadPanel', () => {
                   showNewThreadPanel = true;
-                  showNewNotePanel = false;
                   showNoteDetailsPanel = false;
+                  showNewNotePanel = false;
                   localStorage.setItem('showNewThreadPanel', 'true');
                   localStorage.setItem('showNewNotePanel', 'false');
-                  localStorage.setItem('showNoteDetailsPanel', 'false');
                 });
                 window.addEventListener('closeNewThreadPanel', () => {
                   showNewThreadPanel = false;
                   localStorage.setItem('showNewThreadPanel', 'false');
                 });
-                
-                // Listen for NoteDetailsPanel events
-                window.addEventListener('openNoteDetailsPanel', () => {
-                  showNoteDetailsPanel = true;
-                  showNewNotePanel = false;
-                  showNewThreadPanel = false;
-                  localStorage.setItem('showNoteDetailsPanel', 'true');
-                  localStorage.setItem('showNewNotePanel', 'false');
-                  localStorage.setItem('showNewThreadPanel', 'false');
-                });
-                window.addEventListener('closeNoteDetailsPanel', () => {
-                  showNoteDetailsPanel = false;
-                  localStorage.setItem('showNoteDetailsPanel', 'false');
-                });
               "
             >
               <!-- Default state: SquareButtons -->
-              <div x-show="!showNewNotePanel && !showNewThreadPanel && !showNoteDetailsPanel" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
+              <div x-show="!showNoteDetailsPanel && !showNewNotePanel && !showNewThreadPanel" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
                 {showMoreButton && (
                   <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
                 )}
@@ -436,10 +429,13 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 <NewThreadPanel currentSpace={currentSpace} />
               </div>
               
-              <!-- Note Details Panel -->
-              <div x-show="showNoteDetailsPanel" class="h-full">
-                <NoteDetailsPanel noteId={contentId} noteTitle="Note Details" />
-              </div>
+              <!-- Note Details Panel (notes only) -->
+              {contentType === 'note' && currentNote && (
+                <div x-show="showNoteDetailsPanel" class="h-full">
+                  <NoteDetailsPanel noteId={currentNote.id} noteTitle={currentNote.title || "Note Details"} />
+                </div>
+              )}
+              
             </div>
           </slot>
         </section>

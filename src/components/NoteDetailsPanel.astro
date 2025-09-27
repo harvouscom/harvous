@@ -50,28 +50,41 @@ let noteTags: any[] = [];
 // Fetch threads that contain this note
 if (noteId) {
   try {
-    const { db, Notes, Threads, eq, and, count } = await import('astro:db');
+    const { db, Notes, Threads, eq, and, count, ne } = await import('astro:db');
     
-    // Get threads that contain this note
-    const threadsWithNote = await db
-      .select({
-        thread: Threads,
-        noteCount: count()
-      })
-      .from(Threads)
-      .innerJoin(Notes, eq(Notes.threadId, Threads.id))
-      .where(and(eq(Threads.userId, userId), eq(Notes.id, noteId)));
+    // First check if the note is in thread_unorganized
+    const note = await db.select().from(Notes).where(eq(Notes.id, noteId)).get();
     
-    // Format threads data
-    noteThreads = threadsWithNote.map(item => ({
-      id: item.thread.id,
-      title: item.thread.title,
-      count: item.noteCount,
-      subtitle: `${item.noteCount} notes`,
-      accentColor: `var(--color-${item.thread.color || 'blessed-blue'})`,
-      lastUpdated: formatRelativeTime(new Date(item.thread.updatedAt || item.thread.createdAt)),
-      isPrivate: !item.thread.isPublic
-    }));
+    // Only fetch threads if the note is NOT in thread_unorganized
+    if (note && note.threadId !== 'thread_unorganized') {
+      // Get threads that contain this note (excluding thread_unorganized)
+      const threadsWithNote = await db
+        .select({
+          thread: Threads,
+          noteCount: count()
+        })
+        .from(Threads)
+        .innerJoin(Notes, eq(Notes.threadId, Threads.id))
+        .where(and(
+          eq(Threads.userId, userId), 
+          eq(Notes.id, noteId),
+          ne(Threads.id, 'thread_unorganized') // Exclude unorganized thread
+        ));
+      
+      // Format threads data
+      noteThreads = threadsWithNote.map(item => ({
+        id: item.thread.id,
+        title: item.thread.title,
+        count: item.noteCount,
+        subtitle: `${item.noteCount} notes`,
+        accentColor: `var(--color-${item.thread.color || 'blessed-blue'})`,
+        lastUpdated: formatRelativeTime(new Date(item.thread.updatedAt || item.thread.createdAt)),
+        isPrivate: !item.thread.isPublic
+      }));
+    } else {
+      // Note is in thread_unorganized, so no threads to show
+      noteThreads = [];
+    }
   } catch (error) {
     console.error("Error fetching note threads:", error);
     noteThreads = [];
@@ -82,6 +95,9 @@ if (noteId) {
 
 <div 
   class="note-details-panel h-full flex flex-col justify-between"
+  data-threads={JSON.stringify(noteThreads)}
+  data-comments={JSON.stringify(noteComments)}
+  data-tags={JSON.stringify(noteTags)}
   x-data="{ 
     activeTab: 'threads',
     threads: [],
@@ -94,15 +110,16 @@ if (noteId) {
     },
     
     closePanel() {
-      // Dispatch close event to update dashboard state
+      // Dispatch close event to hide the panel
       window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
+      console.log('closePanel called - dispatching closeNoteDetailsPanel event');
     },
     
     async loadData() {
-      // Use the real data fetched from the database
-      this.threads = window.noteThreads || [];
-      this.comments = window.noteComments || [];
-      this.tags = window.noteTags || [];
+      // Use the real data from data attributes
+      this.threads = JSON.parse(this.$el.getAttribute('data-threads') || '[]');
+      this.comments = JSON.parse(this.$el.getAttribute('data-comments') || '[]');
+      this.tags = JSON.parse(this.$el.getAttribute('data-tags') || '[]');
       
       // Update the display based on data availability
       if (this.threads.length === 0) {
@@ -111,11 +128,6 @@ if (noteId) {
     }
   }"
   x-init="
-    // Make server data available to client
-    window.noteThreads = JSON.parse('${JSON.stringify(noteThreads)}');
-    window.noteComments = JSON.parse('${JSON.stringify(noteComments)}');
-    window.noteTags = JSON.parse('${JSON.stringify(noteTags)}');
-    
     // Load data when panel opens
     loadData();
     
@@ -139,7 +151,7 @@ if (noteId) {
         <div class="flex flex-col gap-3">
           <div class="tab-nav-container">
             <!-- Tab Navigation -->
-            <div class="flex items-center justify-start gap-0 pb-0 pt-1 px-1 relative w-full">
+            <div class="flex items-center justify-start gap-0 pb-0 pt-1 px-1 relative w-full overflow-x-auto">
               <button
                 type="button"
                 class="flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200"
@@ -329,6 +341,7 @@ if (noteId) {
     </div>
   </div>
 </div>
+
 <script>
   // Global functions for tag management
   (window as any).addNewTag = function() {
@@ -382,6 +395,16 @@ if (noteId) {
   /* Tab content styling */
   .tab-content {
     min-height: 200px;
+  }
+  
+  /* Tab navigation styling */
+  .tab-nav-container {
+    width: 100%;
+  }
+  
+  .tab-nav-container button {
+    min-width: 120px;
+    white-space: nowrap;
   }
   
   
