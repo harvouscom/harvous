@@ -11,7 +11,7 @@ import SquareButton from "@/components/SquareButton.astro";
 import Avatar from "@/components/Avatar.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
-import { db, Notes, Threads, eq, and, or, like, desc, count } from "astro:db";
+import { db, Notes, Threads, Tags, NoteTags, eq, and, or, like, desc, count } from "astro:db";
 import { getThreadColorCSS } from "@/utils/colors";
 
 // Helper function to strip HTML tags and decode entities
@@ -128,10 +128,25 @@ if (query.trim()) {
       `%${query.trim().split(' ').join('%')}%`, // word boundary match
     ];
     
-    // Search notes with enhanced matching
+    // Search notes with enhanced matching (including tags)
     const notes = await db
-      .select()
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        threadId: Notes.threadId,
+        spaceId: Notes.spaceId,
+        simpleNoteId: Notes.simpleNoteId,
+        createdAt: Notes.createdAt,
+        updatedAt: Notes.updatedAt,
+        userId: Notes.userId,
+        isPublic: Notes.isPublic,
+        isFeatured: Notes.isFeatured,
+        order: Notes.order
+      })
       .from(Notes)
+      .leftJoin(NoteTags, eq(Notes.id, NoteTags.noteId))
+      .leftJoin(Tags, eq(NoteTags.tagId, Tags.id))
       .where(
         and(
           eq(Notes.userId, userId),
@@ -141,7 +156,10 @@ if (query.trim()) {
             like(Notes.title, searchPatterns[1]),
             like(Notes.content, searchPatterns[1]),
             like(Notes.title, searchPatterns[2]),
-            like(Notes.content, searchPatterns[2])
+            like(Notes.content, searchPatterns[2]),
+            like(Tags.name, searchPatterns[0]),
+            like(Tags.name, searchPatterns[1]),
+            like(Tags.name, searchPatterns[2])
           )
         )
       )
@@ -168,6 +186,7 @@ if (query.trim()) {
       const queryLower = query.toLowerCase();
       const titleLower = (item.title || '').toLowerCase();
       const contentLower = (item.content || '').toLowerCase();
+      const tagsLower = (item.tags || []).map((tag: any) => tag.name.toLowerCase()).join(' ');
       
       let score = 0;
       
@@ -188,6 +207,14 @@ if (query.trim()) {
         score += occurrences * 10;
       }
       
+      // Tag matches get high score (between title and content)
+      if (tagsLower.includes(queryLower)) {
+        score += 75;
+        // Multiple tag matches get bonus
+        const tagOccurrences = (tagsLower.match(new RegExp(queryLower, 'g')) || []).length;
+        score += tagOccurrences * 15;
+      }
+      
       // Recent content gets slight boost
       const daysSinceUpdate = Math.floor((Date.now() - new Date(item.updatedAt || item.createdAt).getTime()) / (1000 * 60 * 60 * 24));
       if (daysSinceUpdate < 7) score += 10;
@@ -196,8 +223,31 @@ if (query.trim()) {
       return score;
     }
 
+    // Get tags for each note
+    const notesWithTags = await Promise.all(
+      notes.map(async (note) => {
+        try {
+          const noteTags = await db
+            .select({
+              id: Tags.id,
+              name: Tags.name,
+              color: Tags.color,
+              category: Tags.category
+            })
+            .from(NoteTags)
+            .innerJoin(Tags, eq(NoteTags.tagId, Tags.id))
+            .where(and(eq(NoteTags.noteId, note.id), eq(Tags.userId, userId)));
+
+          return { ...note, tags: noteTags };
+        } catch (error) {
+          console.log('Error fetching tags for note:', error);
+          return { ...note, tags: [] };
+        }
+      })
+    );
+
     // Format notes results with relevance scoring
-    notesResults = notes.map(note => {
+    notesResults = notesWithTags.map(note => {
       const cleanContent = stripHtml(note.content);
       const noteData: any = {
         id: `note-${note.id}`,
@@ -209,6 +259,7 @@ if (query.trim()) {
         spaceId: note.spaceId,
         lastUpdated: note.updatedAt || note.createdAt,
         updatedAt: note.updatedAt || note.createdAt,
+        tags: note.tags
       };
       
       // Calculate relevance score

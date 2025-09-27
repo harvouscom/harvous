@@ -68,12 +68,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
         id: `user_metadata_${userId}`,
         userId: userId,
         highestSimpleNoteId: highestExistingId,
+        userColor: 'paper', // Default color
         createdAt: new Date()
       });
       userMetadata = { 
         id: `user_metadata_${userId}`,
         userId: userId,
         highestSimpleNoteId: highestExistingId,
+        userColor: 'paper',
         createdAt: new Date(),
         updatedAt: null
       };
@@ -115,6 +117,32 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Award XP for note creation
     await awardNoteCreatedXP(userId, newNote.id);
+
+    // Auto-generate and apply tags based on note content
+    try {
+      const { generateAutoTags, applyAutoTags } = await import('@/utils/auto-tag-generator');
+      
+      // Generate auto-tag suggestions based on note content
+      const autoTagResult = await generateAutoTags(
+        capitalizedTitle || '',
+        capitalizedContent,
+        userId
+      );
+      
+      // Apply the auto-generated tags if any were found
+      if (autoTagResult.suggestions.length > 0) {
+        const applyResult = await applyAutoTags(
+          newNote.id,
+          autoTagResult.suggestions,
+          userId
+        );
+        
+        console.log(`Auto-generated ${applyResult.applied} tags for note ${newNote.id}`);
+      }
+    } catch (error) {
+      // Don't fail note creation if auto-tagging fails
+      console.log('Auto-tagging failed (non-critical):', error);
+    }
 
     return new Response(JSON.stringify({ 
       success: "Note created successfully!",

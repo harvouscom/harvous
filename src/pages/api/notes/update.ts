@@ -73,6 +73,35 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       .set({ updatedAt: new Date() })
       .where(and(eq(Threads.id, updatedNote.threadId), eq(Threads.userId, userId)));
 
+    // Regenerate auto-tags based on updated content
+    try {
+      const { removeAutoTags, generateAutoTags, applyAutoTags } = await import('@/utils/auto-tag-generator');
+      
+      // Remove existing auto-generated tags
+      await removeAutoTags(noteId);
+      
+      // Generate new auto-tag suggestions based on updated content
+      const autoTagResult = await generateAutoTags(
+        capitalizedTitle || '',
+        capitalizedContent,
+        userId
+      );
+      
+      // Apply the new auto-generated tags if any were found
+      if (autoTagResult.suggestions.length > 0) {
+        const applyResult = await applyAutoTags(
+          noteId,
+          autoTagResult.suggestions,
+          userId
+        );
+        
+        console.log(`Regenerated ${applyResult.applied} auto-tags for updated note ${noteId}`);
+      }
+    } catch (error) {
+      // Don't fail note update if auto-tagging fails
+      console.log('Auto-tag regeneration failed (non-critical):', error);
+    }
+
     console.log("Note updated successfully:", updatedNote);
 
     return new Response(JSON.stringify({ 
