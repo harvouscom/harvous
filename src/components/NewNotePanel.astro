@@ -164,6 +164,33 @@ if (!userId) {
       }, 100);
     });
     
+    // Also handle mobile drawer opening
+    window.addEventListener('openMobileDrawer', (event) => {
+      if (event.detail && event.detail.type === 'note') {
+        // Small delay to ensure Alpine.js is fully initialized
+        setTimeout(() => {
+          // Refresh the next note ID when mobile drawer opens
+          loadNextNoteId();
+          
+          // Trigger pre-selection logic when mobile drawer opens
+          setTimeout(() => {
+            // Call the global updateThreadSelection function directly
+            if (typeof window.updateThreadSelection === 'function') {
+              window.updateThreadSelection();
+            }
+            
+            // Focus the content area after everything is loaded
+            setTimeout(() => {
+              const quillContainer = document.querySelector('#static-quill-container-new-note-content');
+              if (quillContainer && quillContainer.__quill) {
+                quillContainer.__quill.focus();
+              }
+            }, 200);
+          }, 100);
+        }, 50);
+      }
+    });
+    
     // Listen for new thread creation to refresh the dropdown
     window.addEventListener('threadCreated', (event) => {
       refreshThreads().then(() => {
@@ -653,6 +680,16 @@ if (!userId) {
   document.addEventListener('astro:after-swap', () => {
     setTimeout(setupCreateNoteButton, 50);
   });
+  
+  // Also setup when mobile drawer opens (for mobile usage)
+  document.addEventListener('openMobileDrawer', (event) => {
+    if ((event as CustomEvent).detail?.type === 'note') {
+      setTimeout(setupCreateNoteButton, 100);
+    }
+  });
+  
+  // Make setupCreateNoteButton globally available
+  (window as any).setupCreateNoteButton = setupCreateNoteButton;
 </script>
 
 

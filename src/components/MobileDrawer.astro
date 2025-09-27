@@ -48,8 +48,29 @@ const {
   x-init="
     // Listen for drawer events
     window.addEventListener('openMobileDrawer', (event) => {
-      const type = event.detail?.type || 'note';
+      console.log('MobileDrawer: openMobileDrawer received:', event.detail);
+      const type = (event.detail && event.detail.type) || 'note';
+      console.log('MobileDrawer: Opening drawer with type:', type);
       openDrawer(type);
+      
+      // Initialize form handlers for the specific panel type
+      if (type === 'thread') {
+        console.log('MobileDrawer: Initializing thread creation handlers');
+        setTimeout(() => {
+          // Call the global initThreadCreation function
+          if (typeof window.initThreadCreation === 'function') {
+            window.initThreadCreation();
+          }
+        }, 100);
+      } else if (type === 'note') {
+        console.log('MobileDrawer: Initializing note creation handlers');
+        setTimeout(() => {
+          // Call the global setupCreateNoteButton function
+          if (typeof window.setupCreateNoteButton === 'function') {
+            window.setupCreateNoteButton();
+          }
+        }, 100);
+      }
     });
     window.addEventListener('closeMobileDrawer', () => {
       closeDrawer();

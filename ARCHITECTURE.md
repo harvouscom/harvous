@@ -390,6 +390,35 @@ Always test these scenarios:
 
 **Key Principle**: Sometimes the "cleaner" approach isn't the right approach. Global functions are a valid solution for working around Alpine.js scope limitations when client-server separation is important.
 
+### Mobile Drawer Form Submission Pattern
+
+**Critical Implementation Details:**
+
+Mobile drawer forms require special handling due to authentication context and event delegation issues:
+
+```html
+<!-- Proper form structure for mobile drawer -->
+<form @submit.prevent="submitForm" x-data="{ ... }">
+  <button type="submit" x-bind:disabled="isSubmitting">
+    Submit
+  </button>
+</form>
+```
+
+**Key Requirements:**
+1. **Button Type**: Must be `type="submit"` (not `type="button"`)
+2. **Form Handler**: Use `@submit.prevent="submitForm"` on form element
+3. **Authentication**: Include `credentials: 'include'` in fetch requests
+4. **Event Handling**: Use Alpine.js native form submission (not event delegation)
+
+**Common Pitfalls:**
+- Button with `type="button"` won't trigger form submission
+- Event delegation doesn't work reliably in mobile drawer context
+- Mobile drawer context loses authentication without `credentials: 'include'`
+- Complex event handling is less reliable than native Alpine.js form submission
+
+See `ALPINE_JS_LESSONS.md` for detailed debugging and implementation guidance.
+
 ### NewThreadPanel Search Implementation
 
 The NewThreadPanel component includes a sophisticated search functionality that demonstrates proper Alpine.js integration patterns:

@@ -69,6 +69,7 @@ try {
   action="/api/threads/create"
   method="POST"
   class="new-thread-panel h-full flex flex-col justify-between"
+  @submit.prevent="submitForm"
   x-data="{ 
     title: localStorage.getItem('newThreadTitle') || '',
     selectedColor: localStorage.getItem('newThreadColor') || 'paper',
@@ -94,8 +95,82 @@ try {
       };
       return colorMap[color] || 'var(--color-paper)';
     },
-    submitForm() {
+    async submitForm() {
+      if (this.isSubmitting) return;
+      
       this.isSubmitting = true;
+      
+      try {
+        
+        const formData = new FormData();
+        formData.append('title', this.title);
+        formData.append('color', this.selectedColor);
+        formData.append('type', this.selectedType);
+        
+        const response = await fetch('/api/threads/create', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          
+          // Show success toast
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: result.success || 'Thread created successfully!',
+              type: 'success'
+            }
+          }));
+          
+          // Dispatch event to notify other components
+          window.dispatchEvent(new CustomEvent('threadCreated', {
+            detail: { thread: result.thread }
+          }));
+          
+          // Navigate to the new thread
+          if (result.thread && result.thread.id) {
+            setTimeout(() => {
+              window.location.href = `/${result.thread.id}`;
+            }, 1000);
+          }
+          
+          // Reset form
+          this.title = '';
+          this.selectedColor = 'paper';
+          this.selectedType = 'Private';
+          this.isSubmitting = false;
+          this.closePanel();
+          
+          // Clear localStorage
+          localStorage.removeItem('newThreadTitle');
+          localStorage.removeItem('newThreadColor');
+          localStorage.removeItem('newThreadType');
+          localStorage.removeItem('newThreadActiveTab');
+          
+        } else {
+          const error = await response.json();
+          
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: error.error || 'Error creating thread',
+              type: 'error'
+            }
+          }));
+          
+          this.isSubmitting = false;
+        }
+      } catch (error) {
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Error creating thread. Please try again.',
+            type: 'error'
+          }
+        }));
+        
+        this.isSubmitting = false;
+      }
     },
     closePanel() {
       // Clear localStorage
@@ -147,6 +222,27 @@ try {
         localStorage.removeItem('newThreadColor');
         localStorage.removeItem('newThreadType');
         localStorage.removeItem('newThreadActiveTab');
+      }
+    });
+    
+    // Also handle mobile drawer opening
+    window.addEventListener('openMobileDrawer', (event) => {
+      if (event.detail && event.detail.type === 'thread') {
+        // Small delay to ensure Alpine.js is fully initialized
+        setTimeout(() => {
+          // Clear form when mobile drawer opens for thread creation
+          if (!localStorage.getItem('newThreadTitle') && !localStorage.getItem('newThreadActiveTab')) {
+            title = '';
+            selectedColor = 'paper';
+            selectedType = 'Private';
+            activeTab = 'recent';
+            isSubmitting = false;
+            localStorage.removeItem('newThreadTitle');
+            localStorage.removeItem('newThreadColor');
+            localStorage.removeItem('newThreadType');
+            localStorage.removeItem('newThreadActiveTab');
+          }
+        }, 50);
       }
     });
   "
@@ -446,7 +542,7 @@ try {
       </div>
       <Button 
         state="Default"
-        type="button"
+        type="submit"
         id="create-thread-btn"
         class="flex-1"
         x-bind:disabled="isSubmitting"
@@ -543,18 +639,34 @@ try {
   };
 
   function initThreadCreation() {
+    console.log('initThreadCreation called');
     
-    // Remove existing listeners to prevent duplicates
-    const existingBtn = document.getElementById('create-thread-btn');
-    if (existingBtn) {
-      const newBtn = existingBtn.cloneNode(true);
-      existingBtn.parentNode?.replaceChild(newBtn, existingBtn);
+    // Remove any existing listeners to prevent duplicates
+    if ((window as any).threadCreationListenerAdded) {
+      console.log('Thread creation listener already added, skipping');
+      return;
     }
     
-    // Handle create thread button click
-    const createBtn = document.getElementById('create-thread-btn');
-    if (createBtn) {
-      createBtn.addEventListener('click', async () => {
+    // Use event delegation to handle button clicks
+    // This ensures clicks are captured even if the button is re-rendered
+    document.addEventListener('click', async (e) => {
+      const target = e.target as HTMLElement;
+      
+      // Check if the clicked element or any of its parents has the create-thread-btn ID
+      let buttonElement = target;
+      let foundButton = false;
+      
+      while (buttonElement && buttonElement !== document.body) {
+        if (buttonElement.id === 'create-thread-btn') {
+          foundButton = true;
+          break;
+        }
+        buttonElement = buttonElement.parentElement as HTMLElement;
+      }
+      
+      if (foundButton) {
+        e.preventDefault();
+        
         const form = document.querySelector('.new-thread-panel') as HTMLFormElement;
         if (!form) return;
         
@@ -587,7 +699,6 @@ try {
           }
         }
         
-        
         if (!title) {
           alert('Please enter a thread title');
           return;
@@ -605,18 +716,18 @@ try {
         
         const formData = new FormData(form);
         
-        
         try {
+          
           const response = await fetch(form.action, {
             method: 'POST',
             body: formData,
             credentials: 'include'
           });
           
-          
           if (response.ok) {
             const result = await response.json();
             
+            // Show success toast
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
                 message: result.success || 'Thread created successfully!',
@@ -656,7 +767,6 @@ try {
             
           } else {
             const error = await response.json();
-            console.error('Error response:', error);
             
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
@@ -670,7 +780,6 @@ try {
             }
           }
         } catch (error) {
-          console.error('Fetch error:', error);
           window.dispatchEvent(new CustomEvent('toast', {
             detail: {
               message: 'Error creating thread. Please try again.',
@@ -682,8 +791,11 @@ try {
             alpineData.isSubmitting = false;
           }
         }
-      });
-    }
+      }
+    });
+    
+    // Mark that listener has been added
+    (window as any).threadCreationListenerAdded = true;
   }
 
   // Initialize on initial load
@@ -695,6 +807,19 @@ try {
 
   // Re-initialize after View Transitions
   document.addEventListener('astro:page-load', initThreadCreation);
+  
+  // Also setup when mobile drawer opens (for mobile usage)
+  document.addEventListener('openMobileDrawer', (event) => {
+    const customEvent = event as CustomEvent;
+    console.log('MobileDrawer opened:', customEvent.detail);
+    if (customEvent.detail?.type === 'thread') {
+      console.log('Initializing thread creation for mobile drawer');
+      setTimeout(initThreadCreation, 100);
+    }
+  });
+  
+// Make initThreadCreation globally available (for backward compatibility)
+(window as any).initThreadCreation = initThreadCreation;
 </script>
 
 <style>

@@ -19,6 +19,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
   x-init="
     // Listen for panel events and trigger mobile drawer
     window.addEventListener('openNewNotePanel', () => {
+      console.log('MobileAdditional: openNewNotePanel received');
       // Dispatch event to open mobile drawer
       window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
         detail: { type: 'note' } 
@@ -26,6 +27,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
     });
     
     window.addEventListener('openNewThreadPanel', () => {
+      console.log('MobileAdditional: openNewThreadPanel received');
       // Dispatch event to open mobile drawer
       window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
         detail: { type: 'thread' } 
