@@ -3,6 +3,7 @@ import CardStack from "./CardStack.astro";
 import TabNav from "./TabNav.astro";
 import SpaceButton from "./SpaceButton.astro";
 import SquareButton from "./SquareButton.astro";
+import CardThread from "./CardThread.astro";
 import FaAngleLeftIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-left.svg";
 import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 import FaPlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
@@ -22,20 +23,60 @@ if (!userId) {
   return Astro.redirect('/sign-in');
 }
 
-// Sample data - in real implementation, this would come from database
-const sampleThreads = [
-  { id: "thread_1", title: "From Harvous", count: 1 },
-  { id: "thread_2", title: "Letter", count: 0 }
-];
+// Helper function to format relative time (same as dashboard)
+function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const diffInMs = now.getTime() - date.getTime();
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
 
-const sampleComments = [
-  { id: "comment_1", content: "This is a sample comment", author: "User", date: "2024-01-15" }
-];
+  if (diffInDays > 0) {
+    return diffInDays === 1 ? "1 day ago" : `${diffInDays} days ago`;
+  } else if (diffInHours > 0) {
+    return diffInHours === 1 ? "1 hour ago" : `${diffInHours} hours ago`;
+  } else if (diffInMinutes > 0) {
+    return diffInMinutes === 1 ? "1 minute ago" : `${diffInMinutes} minutes ago`;
+  } else {
+    return "Just now";
+  }
+}
 
-const sampleTags = [
-  { id: "tag_1", name: "Important", color: "#006eff" },
-  { id: "tag_2", name: "Work", color: "#ff6b6b" }
-];
+// Fetch real data from database for this specific note
+let noteThreads: any[] = [];
+let noteComments: any[] = [];
+let noteTags: any[] = [];
+
+// Fetch threads that contain this note
+if (noteId) {
+  try {
+    const { db, Notes, Threads, eq, and, count } = await import('astro:db');
+    
+    // Get threads that contain this note
+    const threadsWithNote = await db
+      .select({
+        thread: Threads,
+        noteCount: count()
+      })
+      .from(Threads)
+      .innerJoin(Notes, eq(Notes.threadId, Threads.id))
+      .where(and(eq(Threads.userId, userId), eq(Notes.id, noteId)));
+    
+    // Format threads data
+    noteThreads = threadsWithNote.map(item => ({
+      id: item.thread.id,
+      title: item.thread.title,
+      count: item.noteCount,
+      subtitle: `${item.noteCount} notes`,
+      accentColor: `var(--color-${item.thread.color || 'blessed-blue'})`,
+      lastUpdated: formatRelativeTime(new Date(item.thread.updatedAt || item.thread.createdAt)),
+      isPrivate: !item.thread.isPublic
+    }));
+  } catch (error) {
+    console.error("Error fetching note threads:", error);
+    noteThreads = [];
+  }
+}
 
 ---
 
@@ -58,21 +99,23 @@ const sampleTags = [
     },
     
     async loadData() {
-      // In real implementation, this would fetch data from API
-      this.threads = [
-        { id: 'thread_1', title: 'From Harvous', count: 1 },
-        { id: 'thread_2', title: 'Letter', count: 0 }
-      ];
-      this.comments = [
-        { id: 'comment_1', content: 'This is a sample comment', author: 'User', date: '2024-01-15' }
-      ];
-      this.tags = [
-        { id: 'tag_1', name: 'Important', color: '#006eff' },
-        { id: 'tag_2', name: 'Work', color: '#ff6b6b' }
-      ];
+      // Use the real data fetched from the database
+      this.threads = window.noteThreads || [];
+      this.comments = window.noteComments || [];
+      this.tags = window.noteTags || [];
+      
+      // Update the display based on data availability
+      if (this.threads.length === 0) {
+        this.activeTab = 'comments'; // Switch to comments if no threads
+      }
     }
   }"
   x-init="
+    // Make server data available to client
+    window.noteThreads = JSON.parse('${JSON.stringify(noteThreads)}');
+    window.noteComments = JSON.parse('${JSON.stringify(noteComments)}');
+    window.noteTags = JSON.parse('${JSON.stringify(noteTags)}');
+    
     // Load data when panel opens
     loadData();
     
@@ -167,27 +210,34 @@ const sampleTags = [
           
           <!-- Tab content -->
           <div class="w-full">
-            <!-- Threads content -->
+            <!-- Threads content - shows threads that contain this note (one-to-many relationship) -->
             <div x-show="activeTab === 'threads'" class="tab-content">
               <div class="flex flex-col gap-3">
-                <div x-show="threads.length === 0" class="text-center py-4 text-gray-500">
-                  <p>No threads found for this note.</p>
-                </div>
-                <div x-show="threads.length > 0" class="flex flex-wrap gap-3">
-                  <template x-for="thread in threads" :key="thread.id">
-                    <div class="relative">
-                      <div class="box-border content-stretch flex gap-3 h-[60px] items-center pb-[20px] pl-6 pr-4 pt-[18px] relative rounded-xl shrink-0" style="background-image: var(--color-gradient-gray);">
-                        <div class="font-sans font-semibold leading-[0] relative shrink-0 text-[#4a473d] text-[18px] text-nowrap">
-                          <span x-text="thread.title"></span>
-                        </div>
-                        <div class="relative shrink-0 size-5 cursor-pointer" @click="removeThread(thread.id)">
-                          <FaXmarkIcon class="fill-[var(--color-deep-grey)] block max-w-none w-full h-full" />
-                        </div>
-                        <div class="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(176,176,176,0.25)_inset]"></div>
-                      </div>
+                {noteThreads.length === 0 ? (
+                  <div class="text-center py-4 text-gray-500">
+                    <p>This note is not in any threads.</p>
+                  </div>
+                ) : (
+                  <div class="flex flex-col gap-3">
+                  {noteThreads.map(thread => (
+                    <div class="content-item thread-item">
+                      <a 
+                        href={`/${thread.id}`}
+                        class="block transition-transform duration-200 hover:scale-[1.002]"
+                      >
+                        <CardThread 
+                          title={thread.title}
+                          subtitle={thread.subtitle}
+                          count={thread.count}
+                          accentColor={thread.accentColor}
+                          lastUpdated={thread.lastUpdated}
+                          isPrivate={thread.isPrivate}
+                        />
+                      </a>
                     </div>
-                  </template>
-                </div>
+                  ))}
+                  </div>
+                )}
               </div>
             </div>
             
@@ -217,17 +267,35 @@ const sampleTags = [
                 <div x-show="tags.length === 0" class="text-center py-4 text-gray-500">
                   <p>No tags found for this note.</p>
                 </div>
-                <div x-show="tags.length > 0" class="flex flex-wrap gap-3">
+                <div x-show="tags.length > 0" class="flex flex-col gap-3">
                   <template x-for="tag in tags" :key="tag.id">
-                    <div class="relative">
-                      <div class="box-border content-stretch flex gap-3 h-[60px] items-center pb-[20px] pl-6 pr-4 pt-[18px] relative rounded-xl shrink-0" :style="`background-color: ${tag.color}20; border: 1px solid ${tag.color}`">
-                        <div class="font-sans font-semibold leading-[0] relative shrink-0 text-[#4a473d] text-[18px] text-nowrap">
-                          <span x-text="tag.name"></span>
+                    <div class="content-item tag-item">
+                      <div class="relative nav-item-container">
+                        <button
+                          class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full"
+                          :style="`background-image: linear-gradient(180deg, ${tag.color}20 0%, ${tag.color}20 100%);`"
+                        >
+                          <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                            <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap" x-text="tag.name"></span>
+                            <!-- Right box - simple flex container for badge -->
+                            <div class="flex items-center justify-center p-[20px]">
+                              <!-- Badge count - show when not hovering -->
+                              <div class="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                                <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">0</span>
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                        <!-- Close icon - only show for inactive items -->
+                        <div
+                          onclick="handleCloseClick(event, this)"
+                          class="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
+                          :data-item-id="tag.id"
+                        >
+                          <svg class="w-4 h-4 fill-current" style="color: var(--color-deep-grey);" viewBox="0 0 384 512">
+                            <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+                          </svg>
                         </div>
-                        <div class="relative shrink-0 size-5 cursor-pointer" @click="removeTag(tag.id)">
-                          <FaXmarkIcon class="fill-[var(--color-deep-grey)] block max-w-none w-full h-full" />
-                        </div>
-                        <div class="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(176,176,176,0.25)_inset]"></div>
                       </div>
                     </div>
                   </template>
@@ -261,7 +329,6 @@ const sampleTags = [
     </div>
   </div>
 </div>
-
 <script>
   // Global functions for tag management
   (window as any).addNewTag = function() {
@@ -287,7 +354,7 @@ const sampleTags = [
   };
   
   (window as any).removeThread = function(threadId: string) {
-    if (confirm('Are you sure you want to remove this thread?')) {
+    if (confirm('Are you sure you want to remove this note from this thread?')) {
       const panel = document.querySelector('.note-details-panel');
       if (panel && (window as any).Alpine) {
         const alpineData = (window as any).Alpine.$data(panel);
@@ -317,6 +384,7 @@ const sampleTags = [
     min-height: 200px;
   }
   
+  
   /* Thread and tag button styling */
   .note-details-panel .box-border[style*="background-image"] {
     box-shadow: 0px -3px 0px 0px rgba(176, 176, 176, 0.25) inset;
@@ -324,6 +392,39 @@ const sampleTags = [
   
   .note-details-panel .box-border[style*="background-color"] {
     box-shadow: 0px -3px 0px 0px rgba(176, 176, 176, 0.25) inset;
+  }
+  
+  /* Space button styling for tags */
+  .note-details-panel .space-button {
+    will-change: transform;
+    transition: box-shadow 0.125s ease-in-out;
+  }
+
+  .note-details-panel .space-button[style*="background-image"] {
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  .note-details-panel .space-button:not([data-outer-shadow]):active {
+    filter: brightness(0.97);
+    box-shadow: 
+      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  .note-details-panel .space-button:active > div {
+    translate: 0 0;
+    transform: scale(0.98);
+  }
+
+  /* Close icon hover states for tags */
+  .note-details-panel .nav-item-container:hover .badge-count {
+    display: none !important;
+  }
+  .note-details-panel .nav-item-container:hover .close-icon {
+    display: flex !important;
+  }
+  .note-details-panel .close-icon {
+    display: none;
   }
   
   /* New tag button styling */
@@ -336,3 +437,4 @@ const sampleTags = [
     box-shadow: 0px -2px 0px 0px rgba(0, 0, 0, 0.1) inset;
   }
 </style>
+
