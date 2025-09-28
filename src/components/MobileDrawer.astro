@@ -102,22 +102,10 @@ const {
   x-transition:leave-start="opacity-100"
   x-transition:leave-end="opacity-0"
 >
-  <!-- Backdrop -->
-  <div 
-    class="fixed inset-0 bg-black bg-opacity-50"
-    @click="closeDrawer()"
-    x-transition:enter="transition ease-out duration-300"
-    x-transition:enter-start="opacity-0"
-    x-transition:enter-end="opacity-100"
-    x-transition:leave="transition ease-in duration-200"
-    x-transition:leave-start="opacity-100"
-    x-transition:leave-end="opacity-0"
-  ></div>
-  
   <!-- Drawer Panel -->
   <div 
     class="fixed bottom-0 left-0 right-0 w-full bg-white shadow-xl rounded-t-3xl"
-    style="height: calc(100vh - 128px); top: 128px;"
+    style="height: 100vh; top: 0;"
     x-transition:enter="transition ease-out duration-300"
     x-transition:enter-start="translate-y-full"
     x-transition:enter-end="translate-y-0"
@@ -227,6 +215,50 @@ const {
   
   /* Override height constraints on NewNotePanel form */
   .mobile-drawer .new-note-panel form {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 100% !important;
+    max-height: none !important;
+  }
+  
+  /* Override NewThreadPanel height constraints in mobile drawer */
+  .mobile-drawer .new-thread-panel {
+    height: auto !important;
+    min-height: 100%;
+    max-height: none !important;
+  }
+  
+  /* Specifically override the h-full class for NewThreadPanel in mobile drawer */
+  .mobile-drawer .new-thread-panel.h-full {
+    height: auto !important;
+  }
+  
+  /* Override NewThreadPanel form height constraints */
+  .mobile-drawer .new-thread-panel form {
+    height: auto !important;
+    min-height: 100%;
+    max-height: none !important;
+  }
+  
+  /* Ensure proper spacing for NewThreadPanel in mobile drawer */
+  .mobile-drawer .new-thread-panel .bg-white {
+    margin-bottom: 0 !important;
+  }
+  
+  /* Override flex-1 constraints for NewThreadPanel */
+  .mobile-drawer .new-thread-panel .flex-1 {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  
+  /* Ensure bottom buttons are visible in NewThreadPanel mobile drawer */
+  .mobile-drawer .new-thread-panel .shrink-0 {
+    flex-shrink: 0 !important;
+  }
+  
+  /* Override height constraints on NewThreadPanel form */
+  .mobile-drawer .new-thread-panel form {
     display: flex !important;
     flex-direction: column !important;
     height: auto !important;
