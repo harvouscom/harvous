@@ -141,7 +141,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
         }
     } catch (error) {
       // Don't fail note creation if auto-tagging fails
-      // Auto-tagging failed (non-critical)
+      console.error('Auto-tagging failed (non-critical):', error);
+      // In production, we should log this for debugging
+      if (process.env.NODE_ENV === 'production') {
+        console.error('Production auto-tag error:', {
+          error: error.message,
+          stack: error.stack,
+          noteId: newNote.id,
+          userId: userId
+        });
+      }
     }
 
     return new Response(JSON.stringify({ 

@@ -80,13 +80,41 @@ export async function generateAutoTags(
     }
 
     // Find keywords in the text
-    const foundKeywords = findKeywordsInText(fullText);
+    let foundKeywords;
+    try {
+      foundKeywords = findKeywordsInText(fullText);
+    } catch (keywordError) {
+      console.error('Keyword detection error:', keywordError);
+      if (process.env.NODE_ENV === 'production') {
+        console.error('Production keyword detection error:', {
+          error: keywordError.message,
+          fullText: fullText?.substring(0, 100),
+          userId: userId
+        });
+      }
+      // Continue with empty keywords if detection fails
+      foundKeywords = [];
+    }
     
     // Get existing tags for the user to avoid duplicates
-    const existingTags = await db
-      .select()
-      .from(Tags)
-      .where(eq(Tags.userId, userId));
+    let existingTags;
+    try {
+      existingTags = await db
+        .select()
+        .from(Tags)
+        .where(eq(Tags.userId, userId));
+    } catch (dbError) {
+      console.error('Database error fetching existing tags:', dbError);
+      if (process.env.NODE_ENV === 'production') {
+        console.error('Production database error:', {
+          error: dbError.message,
+          userId: userId,
+          operation: 'fetch_existing_tags'
+        });
+      }
+      // Continue with empty tags array if database fails
+      existingTags = [];
+    }
 
     // Process existing tags
     const existingTagNames = new Set(existingTags.map(tag => tag.name.toLowerCase()));
@@ -154,6 +182,17 @@ export async function generateAutoTags(
 
   } catch (error) {
     console.error('Error generating auto tags:', error);
+    // Enhanced error logging for production debugging
+    if (process.env.NODE_ENV === 'production') {
+      console.error('Production auto-tag generation error:', {
+        error: error.message,
+        stack: error.stack,
+        noteTitle: noteTitle?.substring(0, 50),
+        noteContentLength: noteContent?.length || 0,
+        userId: userId,
+        confidenceThreshold: confidenceThreshold
+      });
+    }
     return { suggestions: [], totalFound: 0, highConfidence: 0 };
   }
 }
