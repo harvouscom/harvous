@@ -121,6 +121,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Auto-generate and apply tags based on note content
     try {
         // Starting auto-tag generation
+        console.log('Environment check:', {
+          NODE_ENV: process.env.NODE_ENV,
+          isProduction: process.env.NODE_ENV === 'production',
+          hasClerkKey: !!process.env.CLERK_SECRET_KEY,
+          clerkKeyType: process.env.CLERK_SECRET_KEY?.startsWith('sk_live_') ? 'production' : 'test'
+        });
+        
       const { generateAutoTags, applyAutoTags } = await import('@/utils/auto-tag-generator');
       
       // Generate auto-tag suggestions based on note content (80% confidence threshold)

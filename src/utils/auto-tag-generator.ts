@@ -68,6 +68,13 @@ export async function generateAutoTags(
 ): Promise<AutoTagResult> {
   try {
     // Auto-tag generation started
+    console.log('Auto-tag generation environment:', {
+      NODE_ENV: process.env.NODE_ENV,
+      hasDb: !!db,
+      userId: userId?.substring(0, 10) + '...',
+      noteTitle: noteTitle?.substring(0, 20),
+      confidenceThreshold
+    });
 
     // Strip HTML tags from content for better keyword detection
     const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
