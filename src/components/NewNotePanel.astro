@@ -491,6 +491,12 @@ if (!userId) {
   
   // Setup create note button handler
   function setupCreateNoteButton() {
+    // Check if listener already added to prevent duplicates
+    if ((window as any).noteCreationListenerAdded) {
+      console.log('Note creation listener already added, skipping');
+      return;
+    }
+    
     const createBtn = document.getElementById('create-note-btn');
     if (createBtn) {
       createBtn.addEventListener('click', async (e) => {
@@ -665,6 +671,9 @@ if (!userId) {
           }
         }
       });
+      
+      // Mark that listener has been added
+      (window as any).noteCreationListenerAdded = true;
     }
   }
   
@@ -678,6 +687,8 @@ if (!userId) {
   // Setup create note button on DOM ready and page load
   document.addEventListener('DOMContentLoaded', setupCreateNoteButton);
   document.addEventListener('astro:after-swap', () => {
+    // Reset the listener flag on page transitions to allow re-setup
+    (window as any).noteCreationListenerAdded = false;
     setTimeout(setupCreateNoteButton, 50);
   });
   

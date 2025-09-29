@@ -806,7 +806,11 @@ try {
   }
 
   // Re-initialize after View Transitions
-  document.addEventListener('astro:page-load', initThreadCreation);
+  document.addEventListener('astro:page-load', () => {
+    // Reset the listener flag on page transitions to allow re-setup
+    (window as any).threadCreationListenerAdded = false;
+    initThreadCreation();
+  });
   
   // Also setup when mobile drawer opens (for mobile usage)
   document.addEventListener('openMobileDrawer', (event) => {
