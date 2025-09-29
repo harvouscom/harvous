@@ -647,9 +647,8 @@ try {
       return;
     }
     
-    // Use event delegation to handle button clicks
-    // This ensures clicks are captured even if the button is re-rendered
-    document.addEventListener('click', async (e) => {
+    // Store the handler function so we can remove it later
+    const threadCreationHandler = async (e: Event) => {
       const target = e.target as HTMLElement;
       
       // Check if the clicked element or any of its parents has the create-thread-btn ID
@@ -792,7 +791,13 @@ try {
           }
         }
       }
-    });
+    };
+    
+    // Add the event listener
+    document.addEventListener('click', threadCreationHandler);
+    
+    // Store the handler for potential removal later
+    (window as any).threadCreationHandler = threadCreationHandler;
     
     // Mark that listener has been added
     (window as any).threadCreationListenerAdded = true;
@@ -805,10 +810,20 @@ try {
     initThreadCreation();
   }
 
+  // Cleanup function to remove existing listeners
+  function cleanupThreadCreation() {
+    if ((window as any).threadCreationHandler) {
+      document.removeEventListener('click', (window as any).threadCreationHandler);
+      (window as any).threadCreationHandler = null;
+    }
+    (window as any).threadCreationListenerAdded = false;
+  }
+
   // Re-initialize after View Transitions
   document.addEventListener('astro:page-load', () => {
-    // Reset the listener flag on page transitions to allow re-setup
-    (window as any).threadCreationListenerAdded = false;
+    // Clean up existing listeners first
+    cleanupThreadCreation();
+    // Then re-initialize
     initThreadCreation();
   });
   

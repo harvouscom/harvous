@@ -80,11 +80,12 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       // Remove existing auto-generated tags
       await removeAutoTags(noteId);
       
-      // Generate new auto-tag suggestions based on updated content
+      // Generate new auto-tag suggestions based on updated content (80% confidence threshold)
       const autoTagResult = await generateAutoTags(
         capitalizedTitle || '',
         capitalizedContent,
-        userId
+        userId,
+        0.8 // Generate high-confidence tags including spiritual themes
       );
       
       // Apply the new auto-generated tags if any were found

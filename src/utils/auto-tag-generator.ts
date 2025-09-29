@@ -1,6 +1,48 @@
 import { findKeywordsInText, BIBLE_STUDY_KEYWORDS } from './bible-study-keywords';
 import { db, Tags, NoteTags, eq, and } from 'astro:db';
 
+// Helper function to detect overlapping/similar tags
+function isTagOverlapping(newTag: string, existingTag: string): boolean {
+  const newLower = newTag.toLowerCase();
+  const existingLower = existingTag.toLowerCase();
+  
+  // Exact match
+  if (newLower === existingLower) return true;
+  
+  // One tag contains the other (e.g., "Holy Spirit" vs "Spirit")
+  if (newLower.includes(existingLower) || existingLower.includes(newLower)) return true;
+  
+  // Similar spiritual concepts that overlap
+  const overlappingPairs = [
+    ['goodness', 'righteousness'],
+    ['redemption', 'salvation'],
+    ['redemption', 'forgiveness'],
+    ['salvation', 'forgiveness'],
+    ['grace', 'mercy'],
+    ['love', 'mercy'],
+    ['faith', 'belief'],
+    ['hope', 'faith'],
+    ['peace', 'joy'],
+    ['kingdom of god', 'heaven'],
+    ['resurrection', 'eternal life'],
+    ['eternal life', 'everlasting life'],
+    ['holy spirit', 'spirit'],
+    ['jesus', 'christ'],
+    ['jesus', 'lord'],
+    ['god', 'father'],
+    ['god', 'lord']
+  ];
+  
+  for (const [tag1, tag2] of overlappingPairs) {
+    if ((newLower === tag1 && existingLower === tag2) || 
+        (newLower === tag2 && existingLower === tag1)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 export interface AutoTagSuggestion {
   keyword: string;
   category: string;
@@ -21,12 +63,17 @@ export interface AutoTagResult {
 export async function generateAutoTags(
   noteTitle: string, 
   noteContent: string, 
-  userId: string
+  userId: string,
+  confidenceThreshold: number = 0.95 // Only generate high-confidence tags
 ): Promise<AutoTagResult> {
   try {
+    // Auto-tag generation started
 
+    // Strip HTML tags from content for better keyword detection
+    const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    
     // Combine title and content for analysis
-    const fullText = `${noteTitle || ''} ${noteContent || ''}`.trim();
+    const fullText = `${noteTitle || ''} ${stripHtml(noteContent || '')}`.trim();
     
     if (!fullText) {
       return { suggestions: [], totalFound: 0, highConfidence: 0 };
@@ -41,15 +88,35 @@ export async function generateAutoTags(
       .from(Tags)
       .where(eq(Tags.userId, userId));
 
+    // Process existing tags
     const existingTagNames = new Set(existingTags.map(tag => tag.name.toLowerCase()));
 
-    // Process suggestions
+    // Process suggestions and filter out overlapping/similar tags
     const suggestions: AutoTagSuggestion[] = [];
     let highConfidence = 0;
 
     for (const { keyword, confidence } of foundKeywords) {
+      // Skip "God" as it's implied in all biblical content
+      if (keyword.name.toLowerCase() === 'god') {
+        continue;
+      }
+      
+      // Only suggest single-word tags (no spaces)
+      if (keyword.name.includes(' ')) {
+        continue;
+      }
+      
       // Only suggest if confidence is above threshold
-      if (confidence >= 0.6) {
+      if (confidence >= confidenceThreshold) {
+        // Check for overlapping/similar tags already in suggestions
+        const isOverlapping = suggestions.some(existing => 
+          isTagOverlapping(keyword.name, existing.keyword)
+        );
+        
+        if (isOverlapping) {
+          continue;
+        }
+        
         const isExisting = existingTagNames.has(keyword.name.toLowerCase());
         
         // Find the most recent tag with this name (to avoid duplicates)
@@ -76,8 +143,8 @@ export async function generateAutoTags(
     // Sort by confidence (highest first)
     suggestions.sort((a, b) => b.confidence - a.confidence);
 
-    // Limit to top 10 suggestions
-    const topSuggestions = suggestions.slice(0, 10);
+    // Limit to top 8 suggestions (most relevant tags, but allow 1-8 based on content)
+    const topSuggestions = suggestions.slice(0, 8);
 
     return {
       suggestions: topSuggestions,
@@ -133,7 +200,7 @@ export async function applyAutoTags(
         if (existingTag) {
           // Use the existing tag instead of creating a new one
           tagId = existingTag.id;
-          console.log(`Using existing tag "${suggestion.keyword}" (ID: ${tagId}) instead of creating duplicate`);
+          // Using existing tag to avoid duplicates
         } else {
           // Create new tag only if no tag with this name exists
           const newTagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -161,7 +228,7 @@ export async function applyAutoTags(
 
       if (existingRelation) {
         // Skip this tag as it's already assigned to the note
-        console.log(`Tag ${suggestion.keyword} already assigned to note ${noteId}, skipping`);
+        // Tag already assigned, skipping
         continue;
       }
 

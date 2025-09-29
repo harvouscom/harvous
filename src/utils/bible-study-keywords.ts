@@ -212,17 +212,40 @@ export function findKeywordsInText(text: string): Array<{ keyword: BibleStudyKey
     let found = false;
     let confidence = keyword.confidence;
     
-    // Check main name
-    if (textLower.includes(keyword.name.toLowerCase())) {
-      found = true;
-      confidence = keyword.confidence;
+    // Check main name with word boundaries for book names and character names to prevent false positives
+    const keywordLower = keyword.name.toLowerCase();
+    if (keyword.category === 'book' || keyword.category === 'character') {
+      // For book names and character names, use word boundaries to prevent partial matches
+      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+      if (regex.test(textLower)) {
+        found = true;
+        confidence = keyword.confidence;
+        // Keyword found with word boundaries
+      }
+    } else {
+      // For other keywords (spiritual themes), use simple includes
+      if (textLower.includes(keywordLower)) {
+        found = true;
+        confidence = keyword.confidence;
+      }
     }
     
-    // Check synonyms
+    // Check synonyms with word boundaries for book names and character names
     for (const synonym of keyword.synonyms) {
-      if (textLower.includes(synonym.toLowerCase())) {
-        found = true;
-        confidence = Math.max(confidence, keyword.confidence * 0.8); // Slightly lower confidence for synonyms
+      if (keyword.category === 'book' || keyword.category === 'character') {
+        // For book and character synonyms, use word boundaries to prevent false positives
+        const synonymRegex = new RegExp(`\\b${synonym.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+        if (synonymRegex.test(textLower)) {
+          found = true;
+          confidence = Math.max(confidence, keyword.confidence * 0.8);
+          // Keyword found via synonym
+        }
+      } else {
+        // For other keywords, use simple includes
+        if (textLower.includes(synonym.toLowerCase())) {
+          found = true;
+          confidence = Math.max(confidence, keyword.confidence * 0.8);
+        }
       }
     }
     

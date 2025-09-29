@@ -120,28 +120,28 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Auto-generate and apply tags based on note content
     try {
+        // Starting auto-tag generation
       const { generateAutoTags, applyAutoTags } = await import('@/utils/auto-tag-generator');
       
-      // Generate auto-tag suggestions based on note content
+      // Generate auto-tag suggestions based on note content (80% confidence threshold)
       const autoTagResult = await generateAutoTags(
         capitalizedTitle || '',
         capitalizedContent,
-        userId
+        userId,
+        0.8 // Generate high-confidence tags including spiritual themes
       );
       
-      // Apply the auto-generated tags if any were found
-      if (autoTagResult.suggestions.length > 0) {
-        const applyResult = await applyAutoTags(
-          newNote.id,
-          autoTagResult.suggestions,
-          userId
-        );
-        
-        console.log(`Auto-generated ${applyResult.applied} tags for note ${newNote.id}`);
-      }
+        // Apply the auto-generated tags if any were found
+        if (autoTagResult.suggestions.length > 0) {
+          const applyResult = await applyAutoTags(
+            newNote.id,
+            autoTagResult.suggestions,
+            userId
+          );
+        }
     } catch (error) {
       // Don't fail note creation if auto-tagging fails
-      console.log('Auto-tagging failed (non-critical):', error);
+      // Auto-tagging failed (non-critical)
     }
 
     return new Response(JSON.stringify({ 
