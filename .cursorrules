@@ -46,6 +46,18 @@
 - Follow existing code patterns and architecture
 - **Update documentation** when making architectural changes
 
+## Debugging and Problem-Solving Methodology
+- **ALWAYS be thorough and systematic** when debugging issues
+- **Start with the error message** - read console errors carefully and address them first
+- **Add debugging/logging** before making code changes to understand what's happening
+- **Test incrementally** - make one change at a time and verify it works
+- **Check for linting errors** after every change using `read_lints`
+- **Verify the fix works** by testing the actual functionality, not just checking for errors
+- **Document the root cause** and solution for future reference
+- **When fixing Alpine.js/TypeScript issues**: Simplify complex expressions, move logic to script tags if needed
+- **When fixing mobile/desktop differences**: Test both contexts, add viewport-specific debugging
+- **When fixing component integration**: Check all import paths, verify prop passing, test in isolation first
+
 ## Critical Development Rules
 - **NEVER undo or revert working functionality without fully understanding the issue**
 - **ALWAYS ask for clarification if the user's problem description is unclear**
