@@ -36,7 +36,9 @@ const {
       this.isOpen = false;
       document.body.style.overflow = '';
       document.body.classList.remove('drawer-open');
-      if (onClose) onClose();
+      if (onClose && typeof onClose === 'function') {
+        onClose();
+      }
     },
     openDrawer(type = 'note') {
       this.drawerType = type;

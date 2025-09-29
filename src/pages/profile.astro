@@ -369,24 +369,45 @@ const contentId = "profile";
 <script>
   // Get the logout button and add click handler
   document.addEventListener('DOMContentLoaded', () => {
+    console.log('Profile page DOM loaded, setting up logout button');
+    
     const logoutButton = document.getElementById('logout-button');
+    console.log('Logout button found:', !!logoutButton);
     
     if (logoutButton) {
-      logoutButton.addEventListener('click', async () => {
-        try {
-          // Use Clerk's client-side signOut
-          if (window.Clerk) {
-            await window.Clerk.signOut();
-          }
-          
-          // Redirect to sign-in page after logout
-          window.location.href = '/sign-in';
-        } catch (error) {
-          console.error('Logout failed:', error);
-          // Fallback: redirect to sign-in page anyway
-          window.location.href = '/sign-in';
+      // Remove any existing listeners to prevent duplicates
+      logoutButton.removeEventListener('click', handleLogout);
+      
+      // Add the click handler
+      logoutButton.addEventListener('click', handleLogout);
+      console.log('Logout button event listener added');
+    } else {
+      console.error('Logout button not found!');
+    }
+    
+    // Define the logout handler function
+    async function handleLogout(event: Event) {
+      event.preventDefault();
+      console.log('Logout button clicked');
+      
+      try {
+        // Use Clerk's client-side signOut if available
+        if (window.Clerk && window.Clerk.signOut) {
+          console.log('Using Clerk signOut');
+          await window.Clerk.signOut();
+        } else {
+          console.log('Clerk not available, using direct redirect');
         }
-      });
+        
+        // Always redirect to sign-in page
+        console.log('Redirecting to sign-in page');
+        window.location.href = '/sign-in';
+      } catch (error) {
+        console.error('Logout failed:', error);
+        // Fallback: redirect to sign-in page anyway
+        console.log('Fallback: redirecting to sign-in page');
+        window.location.href = '/sign-in';
+      }
     }
     
     // Global function to close profile panels
@@ -645,6 +666,20 @@ const contentId = "profile";
     
     // Set up listeners when DOM is ready
     setupProfilePanelListeners();
+    
+    // Additional logout button setup as fallback
+    setTimeout(() => {
+      const logoutButton = document.getElementById('logout-button');
+      if (logoutButton && !logoutButton.hasAttribute('data-listener-added')) {
+        logoutButton.setAttribute('data-listener-added', 'true');
+        logoutButton.addEventListener('click', (e) => {
+          e.preventDefault();
+          console.log('Fallback logout clicked');
+          window.location.href = '/sign-in';
+        });
+        console.log('Fallback logout listener added');
+      }
+    }, 1000);
     
     // Listen for profile data requests from EditNameColorPanel
     window.addEventListener('requestProfileData', async () => {
