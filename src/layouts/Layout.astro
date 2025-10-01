@@ -433,7 +433,14 @@ const showMoreButton = shouldShowMoreButton(contentType);
               <!-- Note Details Panel (notes only) -->
               {contentType === 'note' && currentNote && (
                 <div x-show="showNoteDetailsPanel" class="h-full">
-                  <NoteDetailsPanel noteId={currentNote.id} noteTitle={currentNote.title || "Note Details"} />
+                  <NoteDetailsPanel 
+                    noteId={currentNote.id} 
+                    noteTitle={currentNote.title || "Note Details"} 
+                    onClose={() => {
+                      // Close the panel when NoteDetailsPanel requests to close
+                      window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
+                    }}
+                  />
                 </div>
               )}
               
