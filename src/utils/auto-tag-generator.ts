@@ -1,4 +1,4 @@
-import { findKeywordsInText, BIBLE_STUDY_KEYWORDS } from './bible-study-keywords';
+import { findKeywordsInText, findKeywordsInTextWithPriority, BIBLE_STUDY_KEYWORDS } from './bible-study-keywords';
 import { db, Tags, NoteTags, eq, and } from 'astro:db';
 
 // Helper function to detect overlapping/similar tags
@@ -12,12 +12,12 @@ function isTagOverlapping(newTag: string, existingTag: string): boolean {
   // One tag contains the other (e.g., "Holy Spirit" vs "Spirit")
   if (newLower.includes(existingLower) || existingLower.includes(newLower)) return true;
   
-  // Similar spiritual concepts that overlap
+  // Similar spiritual concepts that overlap (removed salvation/redemption overlap)
   const overlappingPairs = [
     ['goodness', 'righteousness'],
-    ['redemption', 'salvation'],
-    ['redemption', 'forgiveness'],
-    ['salvation', 'forgiveness'],
+    // Removed: ['redemption', 'salvation'] - these are distinct concepts
+    // Removed: ['redemption', 'forgiveness'] - these are distinct concepts  
+    // Removed: ['salvation', 'forgiveness'] - these are distinct concepts
     ['grace', 'mercy'],
     ['love', 'mercy'],
     ['faith', 'belief'],
@@ -64,7 +64,7 @@ export async function generateAutoTags(
   noteTitle: string, 
   noteContent: string, 
   userId: string,
-  confidenceThreshold: number = 0.95 // Only generate high-confidence tags
+  confidenceThreshold: number = 0.7 // Lowered threshold to include more relevant tags
 ): Promise<AutoTagResult> {
   try {
     // Auto-tag generation started
@@ -86,17 +86,19 @@ export async function generateAutoTags(
     // Strip HTML tags from content for better keyword detection
     const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     
-    // Combine title and content for analysis
-    const fullText = `${noteTitle || ''} ${stripHtml(noteContent || '')}`.trim();
+    // Separate title and content for enhanced analysis
+    const cleanTitle = (noteTitle || '').trim();
+    const cleanContent = stripHtml(noteContent || '').trim();
+    const fullText = `${cleanTitle} ${cleanContent}`.trim();
     
     if (!fullText) {
       return { suggestions: [], totalFound: 0, highConfidence: 0 };
     }
 
-    // Find keywords in the text
+    // Find keywords in the text with enhanced detection
     let foundKeywords: Array<{ keyword: any; confidence: number }> = [];
     try {
-      foundKeywords = findKeywordsInText(fullText);
+      foundKeywords = findKeywordsInTextWithPriority(fullText, cleanTitle, cleanContent);
     } catch (keywordError: unknown) {
       console.error('Keyword detection error:', keywordError);
       if (process.env.NODE_ENV === 'production') {
@@ -149,28 +151,36 @@ export async function generateAutoTags(
     let highConfidence = 0;
 
     for (const { keyword, confidence } of foundKeywords) {
+      console.log(`Processing keyword: ${keyword.name} (confidence: ${confidence})`);
+      
       // Skip "God" as it's implied in all biblical content
       if (keyword.name.toLowerCase() === 'god') {
+        console.log(`Skipping ${keyword.name}: God is implied in all biblical content`);
         continue;
       }
       
       // Only suggest single-word tags (no spaces)
       if (keyword.name.includes(' ')) {
+        console.log(`Skipping ${keyword.name}: contains spaces`);
         continue;
       }
       
       // Only suggest if confidence is above threshold
       if (confidence >= confidenceThreshold) {
+        console.log(`${keyword.name} meets confidence threshold (${confidence} >= ${confidenceThreshold})`);
+        
         // Check for overlapping/similar tags already in suggestions
         const isOverlapping = suggestions.some(existing => 
           isTagOverlapping(keyword.name, existing.keyword)
         );
         
         if (isOverlapping) {
+          console.log(`Skipping ${keyword.name}: overlaps with existing suggestion`);
           continue;
         }
         
         const isExisting = existingTagNames.has(keyword.name.toLowerCase());
+        console.log(`${keyword.name} isExisting: ${isExisting}`);
         
         // Find the most recent tag with this name (to avoid duplicates)
         const existingTag = isExisting ? 
@@ -187,17 +197,60 @@ export async function generateAutoTags(
           tagId: existingTag?.id
         });
 
+        console.log(`Added ${keyword.name} to suggestions`);
+
         if (confidence >= 0.8) {
           highConfidence++;
         }
+      } else {
+        console.log(`Skipping ${keyword.name}: confidence ${confidence} below threshold ${confidenceThreshold}`);
       }
     }
 
     // Sort by confidence (highest first)
     suggestions.sort((a, b) => b.confidence - a.confidence);
 
+    // Apply Bible study keyword priority boost
+    // Bible study keywords should get higher priority in final suggestions
+    const bibleStudyCategories = ['spiritual', 'biblical', 'character', 'book', 'theme'];
+    const enhancedSuggestions = suggestions.map(suggestion => {
+      const isBibleStudy = bibleStudyCategories.includes(suggestion.category);
+      if (isBibleStudy) {
+        // Add a small priority boost for Bible study keywords to ensure they appear in top 8
+        const priorityBoost = 0.05;
+        const enhancedConfidence = Math.min(1.0, suggestion.confidence + priorityBoost);
+        console.log(`Bible study priority boost for ${suggestion.keyword}: +${priorityBoost} (${suggestion.confidence} -> ${enhancedConfidence})`);
+        return {
+          ...suggestion,
+          confidence: enhancedConfidence
+        };
+      }
+      return suggestion;
+    });
+
+    // Re-sort with enhanced confidence
+    enhancedSuggestions.sort((a, b) => b.confidence - a.confidence);
+
     // Apply proper limits: maximum 8 tags (0-8 based on content quality)
-    const topSuggestions = suggestions.slice(0, 8);
+    const topSuggestions = enhancedSuggestions.slice(0, 8);
+
+    console.log('Final auto-tag results:', {
+      totalFound: suggestions.length,
+      highConfidence: highConfidence,
+      topSuggestions: topSuggestions.map(s => ({ 
+        name: s.keyword, 
+        confidence: s.confidence, 
+        isExisting: s.isExisting,
+        category: s.category 
+      })),
+      allSuggestions: enhancedSuggestions.map(s => ({ 
+        name: s.keyword, 
+        confidence: s.confidence, 
+        isExisting: s.isExisting,
+        category: s.category 
+      })),
+      bibleStudyKeywords: topSuggestions.filter(s => bibleStudyCategories.includes(s.category)).map(s => s.keyword)
+    });
 
     return {
       suggestions: topSuggestions,
