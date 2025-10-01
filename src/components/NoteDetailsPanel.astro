@@ -202,6 +202,59 @@ if (noteId) {
       }
     },
 
+    async addNewTag() {
+      const tagName = prompt('Enter tag name:');
+      if (tagName && tagName.trim()) {
+        try {
+          // Create the tag
+          const createResponse = await fetch('/api/tags/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: tagName.trim(),
+              color: '#006eff',
+              category: 'spiritual'
+            })
+          });
+
+          if (createResponse.ok) {
+            const result = await createResponse.json();
+            
+            // Assign the tag to the note
+            const assignResponse = await fetch('/api/note-tags/assign', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                noteId: this.noteId,
+                tagId: result.tag.id
+              })
+            });
+
+            if (assignResponse.ok) {
+              // Reload the panel data
+              await this.loadData();
+              alert('Tag created and assigned successfully!');
+            } else {
+              const errorData = await assignResponse.json();
+              console.error('Assign error:', errorData);
+              alert('Tag created but failed to assign to note: ' + (errorData.error || 'Unknown error'));
+            }
+          } else {
+            const errorData = await createResponse.json();
+            console.error('Create error:', errorData);
+            alert('Failed to create tag: ' + (errorData.error || 'Unknown error'));
+          }
+        } catch (error) {
+          console.error('Error creating tag:', error);
+          alert('Error creating tag: ' + error.message);
+        }
+      }
+    }
+
   }"
 >
   <!-- Content area that expands to fill available space -->
@@ -406,60 +459,6 @@ if (noteId) {
 <script>
 
   // Global functions for tag management
-  (window as any).addNewTag = async function() {
-    const tagName = prompt('Enter tag name:');
-    if (tagName && tagName.trim()) {
-      try {
-        // Create the tag
-        const createResponse = await fetch('/api/tags/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: tagName.trim(),
-            color: '#006eff',
-            category: 'spiritual'
-          })
-        });
-
-        if (createResponse.ok) {
-          const result = await createResponse.json();
-          
-          // Assign the tag to the note
-          const assignResponse = await fetch('/api/note-tags/assign', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              noteId: document.querySelector('.note-details-panel')?.getAttribute('data-note-id') || '',
-              tagId: result.tag.id
-            })
-          });
-
-          if (assignResponse.ok) {
-            // Reload the panel data
-            const panel = document.querySelector('.note-details-panel');
-            if (panel && (window as any).Alpine) {
-              const alpineData = (window as any).Alpine.$data(panel);
-              if (alpineData && alpineData.loadData) {
-                await alpineData.loadData();
-              }
-            }
-            alert('Tag created and assigned successfully!');
-          } else {
-            alert('Tag created but failed to assign to note');
-          }
-        } else {
-          alert('Failed to create tag');
-        }
-      } catch (error) {
-        console.error('Error creating tag:', error);
-        alert('Error creating tag');
-      }
-    }
-  };
   
   (window as any).removeThread = function(threadId: string) {
     if (confirm('Are you sure you want to remove this note from this thread?')) {
