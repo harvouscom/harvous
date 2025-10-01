@@ -129,7 +129,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         capitalizedTitle || '',
         capitalizedContent,
         userId,
-        0.8 // Generate high-confidence tags including spiritual themes
+        0.8 // Generate high-confidence tags
       );
       
          // Apply the auto-generated tags if any were found

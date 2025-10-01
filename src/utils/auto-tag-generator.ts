@@ -196,7 +196,7 @@ export async function generateAutoTags(
     // Sort by confidence (highest first)
     suggestions.sort((a, b) => b.confidence - a.confidence);
 
-    // Limit to top 8 suggestions (most relevant tags, but allow 1-8 based on content)
+    // Apply proper limits: maximum 8 tags (0-8 based on content quality)
     const topSuggestions = suggestions.slice(0, 8);
 
     return {
