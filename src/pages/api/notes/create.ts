@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { db, Notes, Threads, UserMetadata, Tags, NoteTags, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId } from '@/utils/ids';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
+import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -128,16 +129,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
           clerkKeyType: process.env.CLERK_SECRET_KEY?.startsWith('sk_live_') ? 'production' : 'test'
         });
         
-      // Use static import instead of dynamic import for better production compatibility
-      const { generateAutoTags, applyAutoTags } = await import('../../../utils/auto-tag-generator.js');
+      // Check if auto-tag functions are available
+      if (!generateAutoTags || !applyAutoTags) {
+        throw new Error('Auto-tag functions not available');
+      }
+      
+      console.log('Auto-tag functions loaded successfully');
       
       // Generate auto-tag suggestions based on note content (80% confidence threshold)
+      console.log('Starting auto-tag generation for note:', newNote.id);
       const autoTagResult = await generateAutoTags(
         capitalizedTitle || '',
         capitalizedContent,
         userId,
         0.8 // Generate high-confidence tags including spiritual themes
       );
+      
+      console.log('Auto-tag generation completed:', {
+        suggestionsCount: autoTagResult.suggestions.length,
+        totalFound: autoTagResult.totalFound,
+        highConfidence: autoTagResult.highConfidence
+      });
       
          // Apply the auto-generated tags if any were found
          if (autoTagResult.suggestions.length > 0) {
