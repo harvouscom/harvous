@@ -6,8 +6,11 @@ import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
+    console.log('🔥 API CALL: Note creation API called');
+    
     // Get userId from authenticated context
     const { userId } = locals.auth();
+    console.log('🔥 API CALL: User authenticated:', !!userId);
     
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Authentication required' }), {
@@ -101,7 +104,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .returning()
       .get();
       
-    console.log("Note created successfully:", newNote);
+    console.log("🔥 NOTE CREATED: Note created successfully:", newNote.id);
 
     // Update user metadata to track the new highest simpleNoteId
     await db.update(UserMetadata)
