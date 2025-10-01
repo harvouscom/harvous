@@ -73,8 +73,15 @@ export async function generateAutoTags(
       hasDb: !!db,
       userId: userId?.substring(0, 10) + '...',
       noteTitle: noteTitle?.substring(0, 20),
-      confidenceThreshold
+      confidenceThreshold,
+      isProduction: process.env.NODE_ENV === 'production'
     });
+
+    // Early validation for production
+    if (!userId) {
+      console.error('Auto-tag generation failed: userId is required');
+      return { suggestions: [], totalFound: 0, highConfidence: 0 };
+    }
 
     // Strip HTML tags from content for better keyword detection
     const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -106,17 +113,28 @@ export async function generateAutoTags(
     // Get existing tags for the user to avoid duplicates
     let existingTags: any[] = [];
     try {
+      // Test database connectivity first
+      if (!db) {
+        throw new Error('Database connection not available');
+      }
+      
       existingTags = await db
         .select()
         .from(Tags)
         .where(eq(Tags.userId, userId));
+        
+      console.log('Successfully fetched existing tags:', {
+        count: existingTags.length,
+        userId: userId?.substring(0, 10) + '...'
+      });
     } catch (dbError: unknown) {
       console.error('Database error fetching existing tags:', dbError);
       if (process.env.NODE_ENV === 'production') {
         console.error('Production database error:', {
           error: dbError instanceof Error ? dbError.message : String(dbError),
           userId: userId,
-          operation: 'fetch_existing_tags'
+          operation: 'fetch_existing_tags',
+          stack: dbError instanceof Error ? dbError.stack : undefined
         });
       }
       // Continue with empty tags array if database fails
@@ -212,9 +230,22 @@ export async function applyAutoTags(
   suggestions: AutoTagSuggestion[],
   userId: string
 ): Promise<{ applied: number; errors: string[] }> {
+  console.log('Starting applyAutoTags:', {
+    noteId,
+    suggestionsCount: suggestions.length,
+    userId: userId?.substring(0, 10) + '...',
+    isProduction: process.env.NODE_ENV === 'production'
+  });
 
   const errors: string[] = [];
   let applied = 0;
+
+  // Early validation
+  if (!noteId || !userId) {
+    const error = 'Missing required parameters: noteId or userId';
+    console.error('applyAutoTags validation failed:', error);
+    return { applied: 0, errors: [error] };
+  }
 
   for (const suggestion of suggestions) {
     try {
@@ -222,46 +253,48 @@ export async function applyAutoTags(
 
       // Create tag if it doesn't exist
       if (!tagId) {
-        // Check if a tag with this name already exists (case-insensitive)
-        const existingTagWithName = await db
-          .select()
-          .from(Tags)
-          .where(and(
-            eq(Tags.userId, userId),
-            // Note: We need to use a case-insensitive comparison
-            // Since Astro DB doesn't support ILIKE, we'll check all tags and filter
-          ))
-          .get();
-        
-        // Get all tags for the user and filter by name (case-insensitive)
-        const allUserTags = await db
-          .select()
-          .from(Tags)
-          .where(eq(Tags.userId, userId));
-        
-        const existingTag = allUserTags.find(t => 
-          t.name.toLowerCase() === suggestion.keyword.toLowerCase()
-        );
-        
-        if (existingTag) {
-          // Use the existing tag instead of creating a new one
-          tagId = existingTag.id;
-          // Using existing tag to avoid duplicates
-        } else {
-          // Create new tag only if no tag with this name exists
-          const newTagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        try {
+          // Get all tags for the user and filter by name (case-insensitive)
+          const allUserTags = await db
+            .select()
+            .from(Tags)
+            .where(eq(Tags.userId, userId));
           
-          await db.insert(Tags).values({
-            id: newTagId,
-            name: suggestion.keyword,
-            color: getColorForCategory(suggestion.category),
-            category: suggestion.category,
-            userId: userId,
-            isSystem: true, // Auto-generated tags are system tags
-            createdAt: new Date(),
-          });
+          const existingTag = allUserTags.find(t => 
+            t.name.toLowerCase() === suggestion.keyword.toLowerCase()
+          );
+          
+          if (existingTag) {
+            // Use the existing tag instead of creating a new one
+            tagId = existingTag.id;
+            console.log('Using existing tag:', { tagId, tagName: suggestion.keyword });
+          } else {
+            // Create new tag only if no tag with this name exists
+            const newTagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            console.log('Creating new tag:', { 
+              tagId: newTagId, 
+              tagName: suggestion.keyword,
+              category: suggestion.category 
+            });
+            
+            await db.insert(Tags).values({
+              id: newTagId,
+              name: suggestion.keyword,
+              color: getColorForCategory(suggestion.category),
+              category: suggestion.category,
+              userId: userId,
+              isSystem: true, // Auto-generated tags are system tags
+              createdAt: new Date(),
+            });
 
-          tagId = newTagId;
+            tagId = newTagId;
+            console.log('New tag created successfully:', { tagId, tagName: suggestion.keyword });
+          }
+        } catch (tagError) {
+          console.error(`Error handling tag ${suggestion.keyword}:`, tagError);
+          errors.push(`Failed to handle tag "${suggestion.keyword}": ${tagError}`);
+          continue;
         }
       }
 
