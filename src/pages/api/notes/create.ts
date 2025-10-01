@@ -119,6 +119,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Award XP for note creation
     await awardNoteCreatedXP(userId, newNote.id);
 
+    console.log('🔥 NOTE CREATION: XP awarded, starting auto-tag process for note:', newNote.id);
+
     // Auto-generate and apply tags based on note content
     try {
         // Starting auto-tag generation
@@ -202,10 +204,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
          }
     } catch (error: unknown) {
       // Don't fail note creation if auto-tagging fails
-      console.error('Auto-tagging failed (non-critical):', error);
+      console.error('🔥 AUTO-TAG ERROR: Auto-tagging failed (non-critical):', error);
+      console.error('🔥 AUTO-TAG ERROR: Error details:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        noteId: newNote.id,
+        userId: userId?.substring(0, 10) + '...',
+        isProduction: process.env.NODE_ENV === 'production'
+      });
       // In production, we should log this for debugging
       if (process.env.NODE_ENV === 'production') {
-        console.error('Production auto-tag error:', {
+        console.error('🔥 PRODUCTION AUTO-TAG ERROR:', {
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
           noteId: newNote.id,
