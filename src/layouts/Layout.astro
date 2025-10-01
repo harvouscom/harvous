@@ -422,12 +422,24 @@ const showMoreButton = shouldShowMoreButton(contentType);
               
               <!-- New Note Panel -->
               <div x-show="showNewNotePanel" class="h-full">
-                <NewNotePanel currentThread={currentThread} />
+                <NewNotePanel 
+                  currentThread={currentThread} 
+                  onClose={() => {
+                    // Close the panel when NewNotePanel requests to close
+                    window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+                  }}
+                />
               </div>
               
               <!-- New Thread Panel -->
               <div x-show="showNewThreadPanel" class="h-full">
-                <NewThreadPanel currentSpace={currentSpace} />
+                <NewThreadPanel 
+                  currentSpace={currentSpace} 
+                  onClose={() => {
+                    // Close the panel when NewThreadPanel requests to close
+                    window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+                  }}
+                />
               </div>
               
               <!-- Note Details Panel (notes only) -->
