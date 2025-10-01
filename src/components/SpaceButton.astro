@@ -295,12 +295,10 @@ const {
     
     // Close click handler with confirmation for spaces
     function handleCloseClick(event: Event, element: HTMLElement) {
-        console.log('🔥 handleCloseClick called');
         event.stopPropagation();
         event.preventDefault();
         
         const itemId = element.getAttribute('data-item-id');
-        console.log('🔥 Close clicked for item:', itemId);
         
         if (!itemId) {
             console.log('❌ No item ID found');
@@ -313,7 +311,6 @@ const {
         if (isTag) {
             // Handle tag removal
             if ((window as any).removeTagFromNote) {
-                console.log('🔥 Removing tag from note');
                 (window as any).removeTagFromNote(event, element);
             } else {
                 console.log('❌ removeTagFromNote function not available');
@@ -342,7 +339,6 @@ const {
         if (isRecentSearch) {
             // Remove from recent searches
             if ((window as any).removeFromRecentSearches) {
-                console.log('🔥 Removing from recent searches');
                 (window as any).removeFromRecentSearches(itemId);
             } else {
                 console.log('❌ removeFromRecentSearches function not available');
@@ -350,7 +346,6 @@ const {
         } else {
             // Remove from navigation history
             if ((window as any).removeFromNavigationHistory) {
-                console.log('🔥 Removing from navigation history');
                 (window as any).removeFromNavigationHistory(itemId);
             } else {
                 console.log('❌ removeFromNavigationHistory function not available');
@@ -358,10 +353,8 @@ const {
             
             // For regular navigation items, navigate to dashboard
             if ((window as any).astroNavigate) {
-                console.log('🔥 Navigating to dashboard with astroNavigate');
                 (window as any).astroNavigate('/dashboard');
             } else {
-                console.log('🔥 Navigating to dashboard with location.replace');
                 window.location.replace('/dashboard');
             }
         }

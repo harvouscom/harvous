@@ -589,17 +589,10 @@ if (!userId) {
             credentials: 'include'
           });
           
-          console.log('🔥 CLIENT: API response status:', response.status);
+          console.log('API response status:', response.status);
           
           if (response.ok) {
             const result = await response.json();
-            
-            console.log('🔥 CLIENT: Note creation successful, dispatching toast event:', {
-              message: result.success || 'Note created successfully!',
-              type: 'success',
-              noteId: result.note?.id,
-              hasNote: !!result.note
-            });
             
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
