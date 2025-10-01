@@ -122,6 +122,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Auto-generate and apply tags based on note content
     try {
         // Starting auto-tag generation
+        console.log('🔥 AUTO-TAG: Starting auto-tag generation process');
         console.log('Environment check:', {
           NODE_ENV: process.env.NODE_ENV,
           isProduction: process.env.NODE_ENV === 'production',
@@ -131,13 +132,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
         
       // Check if auto-tag functions are available
       if (!generateAutoTags || !applyAutoTags) {
+        console.error('🔥 AUTO-TAG: Functions not available!', { generateAutoTags: !!generateAutoTags, applyAutoTags: !!applyAutoTags });
         throw new Error('Auto-tag functions not available');
       }
       
-      console.log('Auto-tag functions loaded successfully');
+      console.log('🔥 AUTO-TAG: Functions loaded successfully');
       
       // Generate auto-tag suggestions based on note content (80% confidence threshold)
-      console.log('Starting auto-tag generation for note:', newNote.id);
+      console.log('🔥 AUTO-TAG: Starting generation for note:', newNote.id);
+      console.log('🔥 AUTO-TAG: Content to analyze:', {
+        title: capitalizedTitle || '',
+        content: capitalizedContent.substring(0, 100) + '...',
+        userId: userId?.substring(0, 10) + '...'
+      });
+      
       const autoTagResult = await generateAutoTags(
         capitalizedTitle || '',
         capitalizedContent,
@@ -145,10 +153,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
         0.8 // Generate high-confidence tags including spiritual themes
       );
       
-      console.log('Auto-tag generation completed:', {
+      console.log('🔥 AUTO-TAG: Generation completed:', {
         suggestionsCount: autoTagResult.suggestions.length,
         totalFound: autoTagResult.totalFound,
-        highConfidence: autoTagResult.highConfidence
+        highConfidence: autoTagResult.highConfidence,
+        suggestions: autoTagResult.suggestions.map(s => s.keyword)
       });
       
          // Apply the auto-generated tags if any were found
