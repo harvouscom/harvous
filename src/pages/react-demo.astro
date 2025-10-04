@@ -1,0 +1,99 @@
+---
+// Demo page to showcase React islands working with Astro
+import Layout from '../layouts/Layout.astro';
+import Counter from '../components/react/Counter';
+import NoteEditor from '../components/react/NoteEditor';
+---
+
+<Layout title="React Islands Demo">
+  <div class="max-w-4xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6">React Islands Demo</h1>
+    <p class="text-gray-600 mb-8">
+      This page demonstrates React components working as "islands" within your Astro application.
+      The React components are interactive while the rest of the page remains static.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <!-- React Counter Component -->
+      <div>
+        <h2 class="text-xl font-semibold mb-4">React Counter</h2>
+        <Counter initialValue={5} label="React Counter" client:load />
+      </div>
+
+      <!-- Another React Counter -->
+      <div>
+        <h2 class="text-xl font-semibold mb-4">Another Counter</h2>
+        <Counter initialValue={0} label="Zero Counter" client:load />
+      </div>
+    </div>
+
+    <!-- React Note Editor -->
+    <div class="mb-8">
+      <h2 class="text-xl font-semibold mb-4">React Note Editor</h2>
+      <NoteEditor 
+        placeholder="Try typing something here..."
+        client:load 
+      />
+    </div>
+
+    <!-- Multiple Note Editors -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div>
+        <h3 class="text-lg font-medium mb-3">Quick Note</h3>
+        <NoteEditor 
+          placeholder="Quick thoughts..."
+          client:load 
+        />
+      </div>
+      <div>
+        <h3 class="text-lg font-medium mb-3">Detailed Note</h3>
+        <NoteEditor 
+          placeholder="More detailed thoughts..."
+          client:load 
+        />
+      </div>
+    </div>
+
+    <!-- Alpine.js Component (existing functionality) -->
+    <div class="mb-8">
+      <h2 class="text-xl font-semibold mb-4">Alpine.js Component (Existing)</h2>
+      <div x-data="{ open: false }" class="border border-gray-300 rounded-lg p-4">
+        <button 
+          @click="open = !open" 
+          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+        >
+          Toggle Alpine Content
+        </button>
+        <div x-show="open" x-transition class="mt-4 p-4 bg-gray-50 rounded">
+          <p>This is an Alpine.js component working alongside React islands!</p>
+          <p class="text-sm text-gray-600 mt-2">Both React and Alpine.js can coexist in the same page.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Static Astro Content -->
+    <div class="bg-gray-50 p-6 rounded-lg">
+      <h2 class="text-xl font-semibold mb-4">Static Astro Content</h2>
+      <p class="text-gray-700 mb-4">
+        This content is rendered server-side by Astro and doesn't require JavaScript.
+        It loads instantly and works even with JavaScript disabled.
+      </p>
+      <ul class="list-disc list-inside text-gray-600 space-y-1">
+        <li>React components are hydrated on the client</li>
+        <li>Alpine.js components work with minimal JavaScript</li>
+        <li>Static content loads immediately</li>
+        <li>Best of all worlds!</li>
+      </ul>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // This script runs on the client and can interact with both React and Alpine components
+  console.log('React Islands Demo page loaded');
+  
+  // You can add event listeners or other client-side logic here
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('All components (React, Alpine, and static) are ready');
+  });
+</script>

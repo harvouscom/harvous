@@ -4,6 +4,7 @@ import db from '@astrojs/db';
 import clerk from '@clerk/astro';
 import tailwind from '@astrojs/tailwind';
 import alpinejs from '@astrojs/alpinejs';
+import react from '@astrojs/react';
 
 import netlify from '@astrojs/netlify';
 
@@ -73,6 +74,7 @@ export default defineConfig({
     }),
     tailwind(),
     alpinejs(),
+    react(),
   ],
 
   // Use different output modes for development vs production
