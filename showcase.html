@@ -301,6 +301,143 @@
             </div>
         </section>
 
+        <!-- Panel Components -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-semibold mb-6">Panel Components</h2>
+            
+            <!-- NewNotePanel -->
+            <div class="mb-8">
+                <h3 class="text-lg font-medium mb-4">NewNotePanel</h3>
+                <div class="rounded-lg border bg-card text-card-foreground shadow-sm max-w-md">
+                    <div class="p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-lg font-semibold">New Note</h4>
+                            <button class="hover:bg-accent p-2 rounded-md">×</button>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-sm font-medium mb-2 block">Title (Optional)</label>
+                                <input type="text" placeholder="Note title..." class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium mb-2 block">Thread</label>
+                                <select class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                                    <option>Select a thread</option>
+                                    <option>Bible Study</option>
+                                    <option>Project Ideas</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium mb-2 block">Content</label>
+                                <textarea placeholder="Write your note content here..." class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows="4"></textarea>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" class="rounded" />
+                                <label class="text-sm">Make this note public</label>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-4 border-t mt-4">
+                            <button class="px-4 py-2 border border-input bg-background hover:bg-accent rounded-md text-sm">Cancel</button>
+                            <button class="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm">Create Note</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NewThreadPanel -->
+            <div class="mb-8">
+                <h3 class="text-lg font-medium mb-4">NewThreadPanel</h3>
+                <div class="rounded-lg border bg-card text-card-foreground shadow-sm max-w-md">
+                    <div class="p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-lg font-semibold">New Thread</h4>
+                            <button class="hover:bg-accent p-2 rounded-md">×</button>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-sm font-medium mb-2 block">Thread Title</label>
+                                <input type="text" placeholder="Thread title..." class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium mb-2 block">Subtitle (Optional)</label>
+                                <input type="text" placeholder="Thread subtitle..." class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium mb-2 block">Thread Color</label>
+                                <div class="grid grid-cols-4 gap-2">
+                                    <button class="h-8 w-full rounded-lg border-2 ring-2 ring-blue-500 border-white bg-blue-500"></button>
+                                    <button class="h-8 w-full rounded-lg border-2 border-transparent bg-green-500 hover:border-white/50"></button>
+                                    <button class="h-8 w-full rounded-lg border-2 border-transparent bg-purple-500 hover:border-white/50"></button>
+                                    <button class="h-8 w-full rounded-lg border-2 border-transparent bg-orange-500 hover:border-white/50"></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end space-x-2 pt-4 border-t mt-4">
+                            <button class="px-4 py-2 border border-input bg-background hover:bg-accent rounded-md text-sm">Cancel</button>
+                            <button class="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm">Create Thread</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Menu Components -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-semibold mb-6">Menu Components</h2>
+            
+            <!-- MoreMenu -->
+            <div class="mb-8">
+                <h3 class="text-lg font-medium mb-4">MoreMenu</h3>
+                <div class="flex items-center space-x-4">
+                    <button class="hover:bg-accent p-2 rounded-md">
+                        <div class="h-4 w-4">⋯</div>
+                    </button>
+                    <div class="text-sm text-muted-foreground">Dropdown menu with New Note, New Thread, New Space, Settings</div>
+                </div>
+            </div>
+
+            <!-- SpaceDropdown -->
+            <div class="mb-8">
+                <h3 class="text-lg font-medium mb-4">SpaceDropdown</h3>
+                <div class="max-w-md">
+                    <button class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 rounded-full bg-blue-500"></div>
+                            <span>Personal</span>
+                            <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold">12</span>
+                        </div>
+                        <div class="h-4 w-4">⌄</div>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Layout Components -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-semibold mb-6">Layout Components</h2>
+            
+            <!-- MobileDrawer -->
+            <div class="mb-8">
+                <h3 class="text-lg font-medium mb-4">MobileDrawer</h3>
+                <div class="text-sm text-muted-foreground">
+                    Bottom sheet for mobile that contains NewNotePanel, NewThreadPanel, or NoteDetailsPanel
+                </div>
+            </div>
+
+            <!-- CardStack -->
+            <div class="mb-8">
+                <h3 class="text-lg font-medium mb-4">CardStack</h3>
+                <div class="rounded-lg border bg-card text-card-foreground shadow-sm max-w-md">
+                    <div class="p-4 border-b">
+                        <h4 class="text-lg font-semibold">Details</h4>
+                    </div>
+                    <div class="p-4">
+                        <p class="text-sm text-muted-foreground">Card container with header and content sections</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Usage Patterns -->
         <section class="mb-12">
             <h2 class="text-2xl font-semibold mb-6">Usage Patterns</h2>
