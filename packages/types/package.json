@@ -1,0 +1,22 @@
+{
+  "name": "@harvous/types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types for Harvous",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "echo \"Error: no lint specified\" && exit 1"
+  },
+  "keywords": [
+    "types",
+    "harvous"
+  ],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.18.0",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

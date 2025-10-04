@@ -38,5 +38,8 @@
     "tailwindcss": "^3.4.17",
     "trix": "^2.1.13",
     "typescript": "^5.9.2"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.8"
   }
 }
