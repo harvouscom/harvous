@@ -1,0 +1,119 @@
+---
+import Layout from '../layouts/Layout.astro';
+import CardFullEditable from '../components/CardFullEditable.astro';
+import CardFullEditableReact from '../components/CardFullEditableReact.astro';
+---
+
+<Layout title="React Islands Test">
+  <div class="max-w-6xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6">React Islands Test</h1>
+    <p class="text-gray-600 mb-8">
+      Testing React Islands components within the actual app structure.
+    </p>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- Original Astro Version -->
+      <div class="border border-gray-300 rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4 text-red-600">Original Astro CardFullEditable</h2>
+        <div class="h-96 border border-gray-200 rounded">
+          <CardFullEditable 
+            title="Original Astro Note"
+            content="<p>This is the original Astro version with complex QuillEditor integration.</p><p>Click to edit and see the difference.</p>"
+            date="Today"
+            noteId="N001"
+            className="h-full"
+          />
+        </div>
+      </div>
+
+      <!-- React Islands Version -->
+      <div class="border border-gray-300 rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4 text-green-600">React Islands CardFullEditable</h2>
+        <div class="h-96 border border-gray-200 rounded">
+          <CardFullEditableReact 
+            title="React Islands Note"
+            content="<p>This is the React Islands version with clean state management.</p><p>Click to edit and see the difference.</p>"
+            date="Today"
+            noteId="N002"
+            className="h-full"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="mt-8 bg-blue-50 p-6 rounded-lg">
+      <h2 class="text-xl font-semibold mb-4">Test Instructions</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <h3 class="font-semibold mb-2">Desktop Testing</h3>
+          <ul class="text-sm text-gray-600 space-y-1">
+            <li>• Click "Add" button to test NewNotePanel</li>
+            <li>• Click on note content to test editing</li>
+            <li>• Test both desktop and mobile views</li>
+            <li>• Compare performance and UX</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-semibold mb-2">Mobile Testing</h3>
+          <ul class="text-sm text-gray-600 space-y-1">
+            <li>• Resize browser to mobile width</li>
+            <li>• Test mobile drawer functionality</li>
+            <li>• Test note editing on mobile</li>
+            <li>• Check responsive behavior</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Current Status -->
+    <div class="mt-8 bg-green-50 p-6 rounded-lg">
+      <h2 class="text-xl font-semibold mb-4">Current React Islands Status</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <h3 class="font-semibold mb-2 text-green-600">✅ Implemented</h3>
+          <ul class="text-sm text-gray-600 space-y-1">
+            <li>• NewNotePanel (React version)</li>
+            <li>• CardFullEditable (React version)</li>
+            <li>• Desktop and mobile support</li>
+            <li>• Same API as Astro versions</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-semibold mb-2 text-yellow-600">🔄 Next Steps</h3>
+          <ul class="text-sm text-gray-600 space-y-1">
+            <li>• Replace QuillEditor with React version</li>
+            <li>• Test in production environment</li>
+            <li>• Performance optimization</li>
+            <li>• Mobile app preparation</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // Set up the global save callback for React components
+  window.noteSaveCallback = async function(newTitle, newContent) {
+    try {
+      console.log('React Islands: Saving note', { newTitle, newContent });
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Show success toast
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Note saved successfully!',
+          type: 'success'
+        }
+      }));
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error saving note:', error);
+      throw error;
+    }
+  };
+</script>

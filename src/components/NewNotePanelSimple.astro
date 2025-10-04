@@ -1,0 +1,20 @@
+---
+import NewNotePanel from './react/NewNotePanel';
+
+export interface Props {
+  onClose?: () => void;
+  currentThread?: any;
+}
+
+const { onClose, currentThread = null } = Astro.props;
+---
+
+<!-- Simple wrapper that uses React component -->
+<NewNotePanel 
+  currentThread={currentThread}
+  onClose={() => {
+    // Dispatch close event to Layout
+    window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+  }}
+  client:only="react" 
+/>

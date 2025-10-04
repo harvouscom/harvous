@@ -1,0 +1,23 @@
+---
+import CardFullEditable from './react/CardFullEditable';
+
+export interface Props {
+  title: string;
+  content: string;
+  date: string;
+  noteId?: string;
+  className?: string;
+}
+
+const { title, content, date, noteId, className } = Astro.props;
+---
+
+<!-- React version of CardFullEditable -->
+<CardFullEditable 
+  title={title}
+  content={content}
+  date={date}
+  noteId={noteId}
+  className={className}
+  client:load 
+/>

@@ -1,6 +1,7 @@
 ---
 import SquareButton from "./SquareButton.astro";
 import NewNotePanel from "./NewNotePanel.astro";
+import NewNotePanelSimple from "./NewNotePanelSimple.astro";
 import NewThreadPanel from "./NewThreadPanel.astro";
 import NoteDetailsPanel from "./NoteDetailsPanel.astro";
 
@@ -120,7 +121,7 @@ const {
     <div class="drawer-content h-full flex flex-col">
       <!-- New Note Panel -->
       <div x-show="drawerType === 'note'" class="panel-container flex-1 flex flex-col min-h-0 p-3">
-        <NewNotePanel 
+        <NewNotePanelSimple 
           currentThread={currentThread} 
           onClose={() => {
             // Close the drawer when NewNotePanel requests to close

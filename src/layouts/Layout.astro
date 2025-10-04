@@ -9,6 +9,7 @@ import "trix/dist/trix.css";
 import Toast from "@/components/Toast-v2.astro";
 import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanel from "@/components/NewNotePanel.astro";
+import NewNotePanelSimple from "@/components/NewNotePanelSimple.astro";
 import NewThreadPanel from "@/components/NewThreadPanel.astro";
 import NoteDetailsPanel from "@/components/NoteDetailsPanel.astro";
 import MobileDrawer from "@/components/MobileDrawer.astro";
@@ -360,6 +361,10 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 showNewThreadPanel = false;
                 showNoteDetailsPanel = false;
                 
+                // Force panels closed on initialization
+                localStorage.removeItem('showNewNotePanel');
+                localStorage.removeItem('showNewThreadPanel');
+                
                 // Check localStorage for panel state
                 const savedNotePanel = localStorage.getItem('showNewNotePanel');
                 const savedThreadPanel = localStorage.getItem('showNewThreadPanel');
@@ -370,6 +375,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 if (savedThreadPanel === 'true') {
                   showNewThreadPanel = true;
                 }
+                
+                // Debug: Log current state
+                console.log('Layout init - showNewNotePanel:', showNewNotePanel, 'savedNotePanel:', savedNotePanel);
                 
                 // Listen for NoteDetailsPanel events (notes only)
                 window.addEventListener('openNoteDetailsPanel', () => {
@@ -420,9 +428,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 )}
               </div>
               
-              <!-- New Note Panel -->
+              <!-- New Note Panel - React Islands Version -->
               <div x-show="showNewNotePanel" class="h-full">
-                <NewNotePanel 
+                <NewNotePanelSimple 
                   currentThread={currentThread} 
                   onClose={() => {
                     // Close the panel when NewNotePanel requests to close
