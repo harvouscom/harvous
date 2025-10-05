@@ -323,7 +323,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         </div>
       )}
       
-      <style jsx>{`
+      <style>{`
         .tiptap-editor-container {
           height: 100%;
           max-height: 100%;
