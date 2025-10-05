@@ -364,7 +364,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       </div>
 
       {/* Note Content */}
-      <div className="flex-1 flex flex-col min-h-0 mb-3.5">
+      <div className="flex-1 flex flex-col min-h-0 mb-3.5" style={{ maxHeight: 'calc(100vh - 200px)' }}>
         <div className="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
           {/* Header with title input */}
           <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
@@ -385,9 +385,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
             </div>
           </div>
           
-          {/* Content area with React QuillEditor */}
-          <div className="flex-1 px-3 py-0 relative w-full" style={{ marginBottom: '12px', marginTop: '20px' }}>
-            <div className="quill-constrained-container flex-1 flex flex-col" style={{ height: '100%', maxHeight: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* Editor wrapper - spans available space */}
+          <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px' }}>
+            <div className="flex-1 flex flex-col min-h-0 px-3">
               <TiptapEditor
                 content={content}
                 id="new-note-content"
@@ -399,8 +399,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
             </div>
           </div>
 
-          {/* Date and Note ID */}
-          <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full">
+          {/* Date and Note ID - fixed at bottom */}
+          <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" style={{ marginTop: '8px' }}>
             <div className="relative shrink-0">
               <p className="leading-[normal] text-nowrap whitespace-pre">Today</p>
             </div>
@@ -412,10 +412,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       </div>
 
       {/* Bottom buttons */}
-      <div className="flex items-center justify-between gap-3 shrink-0" style={{ 
-        paddingBottom: 'max(20px, env(safe-area-inset-bottom, 0px))',
-        marginBottom: 'env(safe-area-inset-bottom, 0px)'
-      }}>
+      <div className="flex items-center justify-between gap-3 shrink-0">
         {/* Close button - SquareButton Close variant */}
         <button 
           type="button"

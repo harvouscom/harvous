@@ -162,7 +162,7 @@ export default function CardFullEditable({
         `}
       </style>
       <div 
-        className={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full card-full-editable ${className}`}
+        className={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full card-full-editable md:max-h-[calc(100vh-7.5rem)] max-h-[calc(100vh-10.75rem)] ${className}`}
         data-card-full-editable
       >
       {/* Header with title and bookmark icon */}
@@ -208,18 +208,18 @@ export default function CardFullEditable({
       </div>
       
       {/* Content */}
-      <div className="basis-0 box-border content-stretch flex grow items-start justify-between min-h-px min-w-px px-3 py-0 relative shrink-0 w-full">
-        <div className="basis-0 flex flex-col font-sans font-normal grow justify-center leading-[1.6] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[16px]">
+      <div className="flex-1 flex flex-col min-h-0 w-full">
+        <div className="flex-1 flex flex-col font-sans font-normal min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
           {/* Display mode */}
           {!isEditing ? (
             <div 
-              className="min-h-[200px] max-w-none cursor-pointer rounded px-2 py-1 hover:bg-gray-50 transition-colors"
+              className="flex-1 overflow-auto cursor-pointer rounded px-2 py-1 hover:bg-gray-50 transition-colors"
               onClick={startEditing}
               dangerouslySetInnerHTML={{ __html: displayContent }}
             />
           ) : (
-            <div className="min-h-[200px] flex flex-col">
-              <div className="flex-1 flex flex-col" style={{ height: '100%', maxHeight: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 flex flex-col min-h-0">
                 <TiptapEditor
                   content={editContent}
                   id="edit-note-content"
@@ -232,7 +232,7 @@ export default function CardFullEditable({
               </div>
               
               {/* Save/Cancel buttons */}
-              <div className="flex justify-end gap-2 mt-4">
+              <div className="flex justify-end gap-2 mt-4 shrink-0">
                 <button
                   onClick={cancelEdit}
                   disabled={isSaving}

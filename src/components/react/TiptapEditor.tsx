@@ -253,7 +253,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   );
 
   return (
-    <div className="tiptap-editor-container flex flex-col h-full">
+    <div className="tiptap-editor-container flex flex-col h-full" style={{ height: '100%' }}>
       {/* Hidden input for form submission */}
       <input
         ref={hiddenInputRef}
@@ -264,14 +264,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       />
       
       {/* Editor content area */}
-      <div className="flex-1 min-h-0">
+      <div className="tiptap-content flex-1 min-h-0 overflow-auto">
         <EditorContent editor={editor} />
       </div>
       
       {/* Custom SpaceButton-styled toolbar - positioned at bottom */}
         {!minimalToolbar && (
           <div 
-            className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] mt-4"
+            className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] mt-2"
           >
           <ToolbarButton
             onClick={() => editor.chain().focus().toggleBold().run()}
@@ -325,7 +325,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       
       <style>{`
         .tiptap-editor-container {
-          height: 100%;
+          height: 100% !important;
           max-height: 100%;
           overflow: hidden;
           display: flex;
@@ -345,6 +345,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           flex: 1;
           overflow: auto;
           min-height: 0;
+          display: flex;
+          flex-direction: column;
         }
         
         .tiptap-content :global(.ProseMirror) {
@@ -357,6 +359,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           background: transparent !important;
           outline: none !important;
           min-height: 200px !important;
+          max-height: none !important;
+          height: auto !important;
+          overflow: visible !important;
         }
         
         .tiptap-content :global(.ProseMirror:focus) {
