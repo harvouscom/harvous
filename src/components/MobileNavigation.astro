@@ -33,7 +33,7 @@ console.log('MobileNavigation received props:', { initials, userColor });
   <SquareButton variant="Search" />
 
   <!-- Spaces Dropdown (Column 2: 1fr) -->
-  <div class="relative min-w-0 overflow-hidden" x-data="{ open: false }">
+  <div class="relative min-w-0" x-data="{ open: false }">
     <SpaceButton 
       text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "For You"}
       count={currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
@@ -54,7 +54,6 @@ console.log('MobileNavigation received props:', { initials, userColor });
       x-transition:leave-start="opacity-100 scale-100"
       x-transition:leave-end="opacity-0 scale-95"
       class="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999]"
-      style="display: none;"
     >
       <div class="p-2">
         <!-- For You -->
