@@ -154,7 +154,7 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
           // Redirect to the newly created thread
           if (result.thread && result.thread.id) {
             console.log('NewThreadPanel: Redirecting to thread:', result.thread.id);
-            window.location.href = `/thread_${result.thread.id}`;
+            window.location.href = `/${result.thread.id}`;
           }
         }, 100);
       } else {
