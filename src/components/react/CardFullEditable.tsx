@@ -30,6 +30,8 @@ export default function CardFullEditable({
   
   const titleInputRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const contentDisplayRef = useRef<HTMLDivElement>(null);
+  const [scrollPosition, setScrollPosition] = useState(0);
 
   // Initialize display content
   useEffect(() => {
@@ -44,7 +46,15 @@ export default function CardFullEditable({
     }
   }, [isEditing]);
 
+
   const startEditing = () => {
+    // Save current scroll position
+    if (contentDisplayRef.current) {
+      const currentScroll = contentDisplayRef.current.scrollTop;
+      console.log('Saving scroll position:', currentScroll);
+      setScrollPosition(currentScroll);
+    }
+    
     setEditTitle(displayTitle);
     setEditContent(displayContent);
     setIsEditing(true);
@@ -162,7 +172,7 @@ export default function CardFullEditable({
         `}
       </style>
       <div 
-        className={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full card-full-editable md:max-h-[calc(100vh-7.5rem)] max-h-[calc(100vh-10.75rem)] ${className}`}
+        className={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full card-full-editable max-h-[calc(100vh-10.75rem)] min-[1160px]:max-h-[calc(100vh-3rem)] ${className}`}
         data-card-full-editable
       >
       {/* Header with title and bookmark icon */}
@@ -171,7 +181,7 @@ export default function CardFullEditable({
           {/* Display mode */}
           {!isEditing ? (
             <p 
-              className="leading-[normal] cursor-pointer rounded px-2 py-1 -mx-2 -my-1 hover:bg-gray-50 transition-colors"
+              className="leading-[normal] cursor-pointer rounded px-2 py-1 -mx-2 -my-1"
               onClick={startEditing}
             >
               {displayTitle}
@@ -213,13 +223,15 @@ export default function CardFullEditable({
           {/* Display mode */}
           {!isEditing ? (
             <div 
-              className="flex-1 overflow-auto cursor-pointer rounded px-2 py-1 hover:bg-gray-50 transition-colors"
+              ref={contentDisplayRef}
+              className="flex-1 overflow-auto cursor-pointer rounded px-2 py-1 px-3"
+              style={{ lineHeight: '1.6' }}
               onClick={startEditing}
               dangerouslySetInnerHTML={{ __html: displayContent }}
             />
           ) : (
             <div className="flex-1 flex flex-col min-h-0">
-              <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 flex flex-col min-h-0 px-3">
                 <TiptapEditor
                   content={editContent}
                   id="edit-note-content"
@@ -228,6 +240,7 @@ export default function CardFullEditable({
                   tabindex={3}
                   minimalToolbar={false}
                   onContentChange={handleContentChange}
+                  scrollPosition={scrollPosition}
                 />
               </div>
               

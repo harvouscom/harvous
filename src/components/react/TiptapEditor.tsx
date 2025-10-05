@@ -14,6 +14,7 @@ interface TiptapEditorProps {
   minimalToolbar?: boolean;
   tabindex?: number;
   onContentChange?: (content: string) => void;
+  scrollPosition?: number;
 }
 
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
@@ -23,7 +24,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   placeholder = "Write something...",
   minimalToolbar = false,
   tabindex,
-  onContentChange
+  onContentChange,
+  scrollPosition
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -41,6 +43,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     console.log('TiptapEditor: Setting client to true');
     setIsClient(true);
   }, []);
+
+  // Restore scroll position when provided
+  useEffect(() => {
+    if (scrollPosition && scrollPosition > 0) {
+      const timer = setTimeout(() => {
+        const editorContent = document.querySelector('.tiptap-content');
+        if (editorContent) {
+          editorContent.scrollTop = scrollPosition;
+          console.log('TiptapEditor: Scroll position restored:', scrollPosition);
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [scrollPosition]);
 
   console.log('TiptapEditor: Placeholder text:', placeholder);
 
