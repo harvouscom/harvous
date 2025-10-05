@@ -10,6 +10,14 @@ import NewNotePanel from './NewNotePanel';
 import NewThreadPanel from './NewThreadPanel';
 import EditNameColorPanel from './EditNameColorPanel';
 
+// Extend the Window interface to include custom functions
+declare global {
+  interface Window {
+    initThreadCreation?: () => void;
+    setupCreateNoteButton?: () => void;
+  }
+}
+
 export interface BottomSheetProps {
   isOpen?: boolean;
   onClose?: () => void;
@@ -87,8 +95,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     console.log('BottomSheet: Closing');
     
     // Trigger slide-down animation
-    const sheetContent = document.querySelector('.bottom-sheet-content');
-    const overlay = document.querySelector('[data-radix-sheet-overlay]');
+    const sheetContent = document.querySelector('.bottom-sheet-content') as HTMLElement;
+    const overlay = document.querySelector('[data-radix-sheet-overlay]') as HTMLElement;
     
     if (sheetContent) {
       sheetContent.style.transform = 'translateY(100%)';
@@ -156,8 +164,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     if (isVisible) {
       // Small delay to ensure the element is rendered
       const timer = setTimeout(() => {
-        const sheetContent = document.querySelector('.bottom-sheet-content');
-        const overlay = document.querySelector('[data-radix-sheet-overlay]');
+        const sheetContent = document.querySelector('.bottom-sheet-content') as HTMLElement;
+        const overlay = document.querySelector('[data-radix-sheet-overlay]') as HTMLElement;
         
         if (sheetContent) {
           sheetContent.style.transform = 'translateY(0)';
