@@ -48,6 +48,16 @@
     --shadow-small: inset 0px -3px 0px rgba(120, 118, 111, 0.2);
 }
 
+/* Center badge numbers globally */
+.badge-number {
+    text-align: center !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
 @theme {
     --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
     --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

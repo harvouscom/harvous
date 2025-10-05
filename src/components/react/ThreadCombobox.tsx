@@ -48,7 +48,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
           <div className="flex items-center gap-2">
             <div className="p-[20px]">
               <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
                   {selectedThreadObj?.noteCount || 0}
                 </span>
               </div>

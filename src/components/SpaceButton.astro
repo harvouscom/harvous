@@ -55,7 +55,7 @@ const {
             </div>
             <div class="p-[20px] flex-shrink-0">
                 <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
                         {count}
                     </span>
                 </div>
@@ -79,7 +79,7 @@ const {
             {count !== undefined && count !== null && (
                 <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 ml-3">
                     <slot name="count">
-                        <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                        <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
                             {count}
                         </span>
                     </slot>
@@ -114,7 +114,7 @@ const {
                     </span>
                 </div>
                 <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
                         {count}
                     </span>
                 </div>
@@ -151,7 +151,7 @@ const {
                 <div class="flex items-center justify-center p-[20px]">
                     <!-- Badge count - show when not hovering -->
                     <div class="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                        <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                        <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
                             {count}
                         </span>
                     </div>
@@ -234,7 +234,7 @@ const {
                     </span>
                 </div>
                 <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
                         {count}
                     </span>
                 </div>
@@ -263,9 +263,19 @@ const {
             box-shadow 0.125s ease-in-out;
     }
     
-    /* Force left alignment for all SpaceButton text */
-    .space-button span {
+    /* Force left alignment for all SpaceButton text, except badge numbers */
+    .space-button span:not(.badge-number) {
         text-align: left !important;
+    }
+    
+    /* Center badge numbers */
+    .badge-number {
+        text-align: center !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        height: 100% !important;
     }
     
     /* Ensure the button content is left-aligned */
