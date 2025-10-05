@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, type ThreadColor } from '@/utils/colors';
+import { SimpleSwitch } from '@/components/ui/simple-switch';
+import CardNote from '@/components/react/CardNote';
 
 interface NewThreadPanelProps {
   currentSpace?: any;
@@ -13,7 +15,15 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
   const [activeTab, setActiveTab] = useState('recent');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+  const [recentNotes, setRecentNotes] = useState<any[]>([]);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(false);
+  // Shared functionality disabled for now
+  // const [isShared, setIsShared] = useState(false);
+  // const [sharedSettings, setSharedSettings] = useState({
+  //   allowComments: true,
+  //   allowReactions: true,
+  //   visibility: 'space' // 'space', 'public', 'invite-only'
+  // });
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -21,12 +31,12 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
     const savedColor = localStorage.getItem('newThreadColor') || 'paper';
     const savedType = localStorage.getItem('newThreadType') || 'Private';
     const savedTab = localStorage.getItem('newThreadActiveTab') || 'recent';
-    
     setTitle(savedTitle);
     setSelectedColor(savedColor);
     setSelectedType(savedType);
     setActiveTab(savedTab);
   }, []);
+
 
   // Save data to localStorage on change
   useEffect(() => {
@@ -44,6 +54,33 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
   useEffect(() => {
     localStorage.setItem('newThreadActiveTab', activeTab);
   }, [activeTab]);
+
+  // Fetch recent notes when component mounts or tab changes to recent
+  useEffect(() => {
+    if (activeTab === 'recent') {
+      fetchRecentNotes();
+    }
+  }, [activeTab]);
+
+  const fetchRecentNotes = async () => {
+    setIsLoadingNotes(true);
+    try {
+      const response = await fetch('/api/notes/recent');
+      if (response.ok) {
+        const notes = await response.json();
+        setRecentNotes(notes);
+      } else {
+        console.error('Failed to fetch recent notes');
+        setRecentNotes([]);
+      }
+    } catch (error) {
+      console.error('Error fetching recent notes:', error);
+      setRecentNotes([]);
+    } finally {
+      setIsLoadingNotes(false);
+    }
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,14 +103,14 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
       const formData = new FormData();
       formData.append('title', title.trim());
       formData.append('color', selectedColor);
-      formData.append('isPublic', selectedType === 'Shared' ? 'true' : 'false');
+      formData.append('isPublic', 'false'); // Always private for now
       formData.append('spaceId', currentSpace?.id || '');
       
       console.log('NewThreadPanel: Sending request to /api/threads/create');
       console.log('Form data:', {
         title: title.trim(),
         color: selectedColor,
-        isPublic: selectedType === 'Shared',
+        isPublic: false, // Always private for now
         spaceId: currentSpace?.id || null,
       });
       
@@ -233,82 +270,29 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
                   ))}
                 </div>
                 
-                {/* Thread type selection */}
+                {/* Thread type selection with toggle */}
                 <div className="w-full">
-                  <div className="relative">
-                    <div 
-                      onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                      className="w-full cursor-pointer"
-                    >
-                      <div className="relative w-full">
-                        <div className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full bg-gradient-to-b from-[var(--color-paper)] to-[var(--color-paper)]">
-                          <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">{selectedType}</span>
-                            <div className="p-[20px]">
-                              <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
-                                  0
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                          <svg className="w-5 h-5 text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M7 10l5 5 5-5z"/>
-                          </svg>
-                        </div>
-                      </div>
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--color-snow-white)]">
+                    <span className="text-[var(--color-blue)] font-sans text-[16px] font-semibold">
+                      Private
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <SimpleSwitch
+                        checked={false}
+                        onCheckedChange={() => {}} // Disabled - no action
+                        disabled={true}
+                        className="opacity-50 cursor-not-allowed"
+                      />
+                      <span className="text-[10px] text-[var(--color-pebble-grey)] font-medium">
+                        Coming Soon
+                      </span>
                     </div>
-                    
-                    {/* Dropdown content */}
-                    {isTypeDropdownOpen && (
-                      <div className="absolute top-full left-0 right-0 mt-2 z-10 min-w-[223px]">
-                        <div>
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              setSelectedType('Private');
-                              setIsTypeDropdownOpen(false);
-                            }}
-                            className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full bg-gradient-to-b from-[var(--color-paper)] to-[var(--color-paper)]"
-                          >
-                            <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                              <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Private</span>
-                              <div className="p-[20px]">
-                                <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                                  <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
-                                    0
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                          
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              setSelectedType('Shared');
-                              setIsTypeDropdownOpen(false);
-                            }}
-                            className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full bg-gradient-to-b from-[var(--color-paper)] to-[var(--color-paper)]"
-                          >
-                            <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                              <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
-                              <div className="p-[20px]">
-                                <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                                  <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
-                                    0
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    <span className="text-[var(--color-pebble-grey)] font-sans text-[16px] font-semibold opacity-50">
+                      Shared
+                    </span>
                   </div>
                 </div>
+
                 
                 {/* Tab navigation */}
                 <div className="w-full">
@@ -354,8 +338,30 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
                     {/* Tab content */}
                     <div className="tab-content">
                       {activeTab === 'recent' && (
-                        <div className="text-center py-8 text-gray-500">
-                          Recent threads will appear here
+                        <div className="space-y-4">
+                          {isLoadingNotes ? (
+                            <div className="text-center py-8 text-gray-500">
+                              Loading recent notes...
+                            </div>
+                          ) : recentNotes.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-4">
+                              {recentNotes.map((note) => (
+                                <CardNote
+                                  key={note.id}
+                                  title={note.title}
+                                  content={note.content}
+                                  onClick={() => {
+                                    // Navigate to the note
+                                    window.location.href = `/note_${note.id}`;
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-gray-500">
+                              No recent notes found
+                            </div>
+                          )}
                         </div>
                       )}
                       {activeTab === 'search' && (
