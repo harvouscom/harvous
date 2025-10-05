@@ -47,12 +47,20 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
     firstName: '',
     lastName: '',
     selectedColor: 'paper',
+    isLoading: false,
+    validationErrors: {},
     THREAD_COLORS: ['paper', 'blessed-blue', 'mindful-mint', 'graceful-gold', 'pleasant-peach', 'caring-coral', 'peaceful-pink', 'lovely-lavender'],
     get firstNamePlaceholder() {
       return this.firstName ? '' : 'First Name';
     },
     get lastNamePlaceholder() {
       return this.lastName ? '' : 'Last Name';
+    },
+    get hasValidationErrors() {
+      return Object.keys(this.validationErrors).length > 0;
+    },
+    get isFormValid() {
+      return this.firstName.trim() && this.lastName.trim() && !this.hasValidationErrors;
     },
     getThreadColorCSS(color) {
       if (!color) return 'var(--color-paper)';

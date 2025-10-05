@@ -12,12 +12,16 @@ export const GET: APIRoute = async ({ locals }) => {
       });
     }
 
-    // Get user metadata including color preference
+    // Get user metadata including color preference and cached user data
     const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
     
     const userColor = userMetadata?.userColor || 'paper';
+    const firstName = userMetadata?.firstName || '';
+    const lastName = userMetadata?.lastName || '';
 
     return new Response(JSON.stringify({ 
+      firstName,
+      lastName,
       userColor
     }), {
       status: 200,

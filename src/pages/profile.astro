@@ -11,7 +11,7 @@ import MobileAdditional from "@/components/MobileAdditional.astro";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 import { calculateTotalXP } from "@/utils/xp-system";
 import FaBoltIcon from "@fortawesome/fontawesome-free/svgs/solid/bolt.svg";
-import EditNameColorPanel from "@/components/EditNameColorPanel.astro";
+import EditNameColorPanel from "@/components/EditNameColorPanelReact.astro";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -232,12 +232,14 @@ const contentId = "profile";
 
         <!-- Bottom Section - Get Support -->
         <div class="mt-auto">
-          <SpaceButton 
-            text="Get Support"
-            state="WithArrow"
-            backgroundGradient="var(--color-gradient-gray)"
-            className="w-full"
-          />
+          <div x-on:click="openPanel('getSupport')" class="w-full">
+            <SpaceButton 
+              text="Get Support"
+              state="WithArrow"
+              backgroundGradient="var(--color-gradient-gray)"
+              className="w-full"
+            />
+          </div>
         </div>
       </div>
     </CardStack>
@@ -271,6 +273,7 @@ const contentId = "profile";
     showEmailPasswordPanel: false,
     showMyChurchPanel: false,
     showMyDataPanel: false,
+    showGetSupportPanel: false,
     openProfilePanel(panelName) {
       // Close all other panels first
       this.showNewNotePanel = false;
@@ -279,24 +282,27 @@ const contentId = "profile";
       this.showEmailPasswordPanel = false;
       this.showMyChurchPanel = false;
       this.showMyDataPanel = false;
+      this.showGetSupportPanel = false;
       
       // Open the requested panel
       if (panelName === 'editNameColor') this.showEditNameColorPanel = true;
       else if (panelName === 'emailPassword') this.showEmailPasswordPanel = true;
       else if (panelName === 'myChurch') this.showMyChurchPanel = true;
       else if (panelName === 'myData') this.showMyDataPanel = true;
+      else if (panelName === 'getSupport') this.showGetSupportPanel = true;
     },
     closeProfilePanel() {
       this.showEditNameColorPanel = false;
       this.showEmailPasswordPanel = false;
       this.showMyChurchPanel = false;
       this.showMyDataPanel = false;
+      this.showGetSupportPanel = false;
     }
   }" x-init="
     console.log('Additional slot initialized');
   ">
     <!-- Default state: SquareButtons -->
-    <div x-show="!showNewNotePanel && !showNewThreadPanel && !showEditNameColorPanel && !showEmailPasswordPanel && !showMyChurchPanel && !showMyDataPanel" class="flex flex-col items-left h-full justify-end">
+    <div x-show="!showNewNotePanel && !showNewThreadPanel && !showEditNameColorPanel && !showEmailPasswordPanel && !showMyChurchPanel && !showMyDataPanel && !showGetSupportPanel" class="flex flex-col items-left h-full justify-end">
       <!-- No buttons for profile page -->
     </div>
     
@@ -321,6 +327,12 @@ const contentId = "profile";
     <div x-show="showMyDataPanel">
       <div class="text-center text-[var(--color-deep-grey)] p-8">
         <p>My Data panel coming soon...</p>
+      </div>
+    </div>
+    
+    <div x-show="showGetSupportPanel">
+      <div class="text-center text-[var(--color-deep-grey)] p-8">
+        <p>Get Support panel coming soon...</p>
       </div>
     </div>
   </div>

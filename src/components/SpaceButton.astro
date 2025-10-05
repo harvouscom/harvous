@@ -34,8 +34,8 @@ const {
         {...props}
     >
         <div class="flex items-center justify-start relative w-full h-full pl-2 pr-2 transition-transform duration-125 min-w-0">
-            <div class="flex-1 min-w-0 overflow-hidden">
-                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block">
+            <div class="flex-1 min-w-0 overflow-hidden text-left">
+                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style="text-align: left !important;">
                     {text}
                 </span>
             </div>
@@ -261,6 +261,20 @@ const {
         will-change: transform;
         transition:
             box-shadow 0.125s ease-in-out;
+    }
+    
+    /* Force left alignment for all SpaceButton text */
+    .space-button span {
+        text-align: left !important;
+    }
+    
+    /* Ensure the button content is left-aligned */
+    .space-button {
+        text-align: left !important;
+    }
+    
+    .space-button div {
+        justify-content: flex-start !important;
     }
 
     button[style*="background-image"] {

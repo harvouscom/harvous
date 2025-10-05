@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/sheet';
 import NewNotePanel from './NewNotePanel';
 import NewThreadPanel from './NewThreadPanel';
+import EditNameColorPanel from './EditNameColorPanel';
 
 export interface BottomSheetProps {
   isOpen?: boolean;
@@ -19,7 +20,7 @@ export interface BottomSheetProps {
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
 }
 
-type DrawerType = 'note' | 'thread' | 'noteDetails';
+type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'getSupport';
 
 const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen = false,
@@ -128,6 +129,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     window.addEventListener('closeNewNotePanel', handleCloseBottomSheet);
     window.addEventListener('closeNewThreadPanel', handleCloseBottomSheet);
     window.addEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
+    window.addEventListener('closeProfilePanel', handleCloseBottomSheet);
 
     return () => {
       window.removeEventListener('openMobileDrawer', handleOpenBottomSheet as EventListener);
@@ -135,6 +137,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('closeNewNotePanel', handleCloseBottomSheet);
       window.removeEventListener('closeNewThreadPanel', handleCloseBottomSheet);
       window.removeEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
+      window.removeEventListener('closeProfilePanel', handleCloseBottomSheet);
     };
   }, [openBottomSheet, closeBottomSheet]);
 
@@ -227,6 +230,26 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   </small>
                 </div>
               )}
+            </div>
+          )}
+          
+          {/* Edit Name & Color Panel */}
+          {drawerType === 'editNameColor' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <EditNameColorPanel 
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+              />
+            </div>
+          )}
+          
+          {/* Get Support Panel */}
+          {drawerType === 'getSupport' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <div className="text-center text-[var(--color-deep-grey)] p-8">
+                <p>Get Support panel coming soon...</p>
+              </div>
             </div>
           )}
         </div>

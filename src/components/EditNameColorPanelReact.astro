@@ -1,0 +1,24 @@
+---
+import EditNameColorPanel from './react/EditNameColorPanel';
+
+interface Props {
+  firstName?: string;
+  lastName?: string;
+  selectedColor?: "paper" | "blessed-blue" | "graceful-gold" | "caring-coral" | "mindful-mint" | "peaceful-pink" | "pleasant-peach" | "lovely-lavender";
+}
+
+const { 
+  firstName = "", 
+  lastName = "", 
+  selectedColor = "paper" as const
+} = Astro.props;
+---
+
+<div class="edit-name-color-panel">
+  <EditNameColorPanel 
+    firstName={firstName}
+    lastName={lastName}
+    selectedColor={selectedColor}
+    client:only="react"
+  />
+</div>

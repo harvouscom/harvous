@@ -40,6 +40,22 @@ const showMoreButton = shouldShowMoreButton(contentType);
         detail: { type: 'noteDetails' } 
       }));
     });
+    
+    window.addEventListener('openProfilePanel', (event) => {
+      console.log('MobileAdditional: openProfilePanel received', event.detail);
+      const panelName = event.detail?.panelName;
+      if (panelName === 'editNameColor') {
+        // Dispatch event to open mobile drawer for edit name & color
+        window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
+          detail: { type: 'editNameColor' } 
+        }));
+      } else if (panelName === 'getSupport') {
+        // Dispatch event to open mobile drawer for get support
+        window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
+          detail: { type: 'getSupport' } 
+        }));
+      }
+    });
   "
 >
   <!-- Default state: SquareButtons in horizontal layout -->
