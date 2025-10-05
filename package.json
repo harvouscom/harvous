@@ -34,6 +34,7 @@
     "@tiptap/extension-bullet-list": "^3.6.5",
     "@tiptap/extension-list-item": "^3.6.5",
     "@tiptap/extension-ordered-list": "^3.6.5",
+    "@tiptap/extension-placeholder": "^3.6.5",
     "@tiptap/extension-underline": "^3.6.5",
     "@tiptap/react": "^3.6.5",
     "@tiptap/starter-kit": "^3.6.5",

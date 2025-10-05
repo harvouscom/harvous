@@ -3,6 +3,7 @@ import Layout from "@/layouts/Layout.astro";
 import CardStack from "@/components/CardStack.astro";
 import CardFull from "@/components/CardFull.astro";
 import CardFullEditable from "@/components/CardFullEditable.astro";
+import CardFullEditableReact from "@/components/CardFullEditableReact.astro";
 import SearchInput from "@/components/SearchInput.astro";
 import SpaceButton from "@/components/SpaceButton.astro";
 import SquareButton from "@/components/SquareButton.astro";
@@ -532,7 +533,7 @@ if (!content) {
               data-parent-thread-color={currentThread?.color || 'blue'}
               class="h-full"
             >
-              <CardFullEditable 
+              <CardFullEditableReact 
                 title={content.title || "Untitled Note"}
                 content={content.content}
                 date={content.createdAt ? content.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Feb 7, 2025"}

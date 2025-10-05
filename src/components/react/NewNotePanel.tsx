@@ -388,7 +388,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                 content={content}
                 id="new-note-content"
                 name="content"
-                placeholder="Start writing your note..."
+                placeholder="Type your note..."
                 tabindex={3}
                 minimalToolbar={false}
               />

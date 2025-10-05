@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import BulletList from '@tiptap/extension-bullet-list';
 import OrderedList from '@tiptap/extension-ordered-list';
 import ListItem from '@tiptap/extension-list-item';
+import Placeholder from '@tiptap/extension-placeholder';
 
 interface TiptapEditorProps {
   content: string;
@@ -12,6 +13,7 @@ interface TiptapEditorProps {
   placeholder?: string;
   minimalToolbar?: boolean;
   tabindex?: number;
+  onContentChange?: (content: string) => void;
 }
 
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
@@ -20,7 +22,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   name = "content",
   placeholder = "Write something...",
   minimalToolbar = false,
-  tabindex
+  tabindex,
+  onContentChange
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -39,6 +42,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     setIsClient(true);
   }, []);
 
+  console.log('TiptapEditor: Placeholder text:', placeholder);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -49,6 +54,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       BulletList,
       OrderedList,
       ListItem,
+      Placeholder.configure({
+        placeholder: placeholder,
+        showOnlyWhenEditable: true,
+        showOnlyCurrent: true,
+      }),
     ],
     content: content || '',
     onUpdate: ({ editor }) => {
@@ -56,17 +66,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (hiddenInputRef.current) {
         hiddenInputRef.current.value = editor.getHTML();
       }
+      if (onContentChange) {
+        onContentChange(editor.getHTML());
+      }
     },
     editorProps: {
       attributes: {
         class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none',
         style: 'font-family: var(--font-sans); font-size: 16px; line-height: 1.6; color: var(--color-deep-grey); min-height: 200px;',
       },
-    },
-    onUpdate: ({ editor }) => {
-      if (hiddenInputRef.current) {
-        hiddenInputRef.current.value = editor.getHTML();
-      }
     },
     // Fix SSR issues
     immediatelyRender: false,
@@ -322,6 +330,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           overflow: hidden;
           display: flex;
           flex-direction: column;
+        }
+        
+        /* Placeholder styling */
+        .tiptap-editor-container .ProseMirror p.is-editor-empty:first-child::before {
+          content: attr(data-placeholder);
+          float: left;
+          color: #9ca3af;
+          pointer-events: none;
+          height: 0;
         }
         
         .tiptap-content {
