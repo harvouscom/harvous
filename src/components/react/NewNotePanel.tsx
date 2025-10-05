@@ -348,6 +348,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     <form 
       onSubmit={handleSubmit}
       className="new-note-panel h-full flex flex-col"
+      style={{ 
+        minHeight: '100%',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+      }}
     >
       {/* Thread Selection */}
       <div className="mb-3.5 shrink-0">
@@ -408,7 +412,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       </div>
 
       {/* Bottom buttons */}
-      <div className="flex items-center justify-between gap-3 shrink-0">
+      <div className="flex items-center justify-between gap-3 shrink-0" style={{ 
+        paddingBottom: 'max(20px, env(safe-area-inset-bottom, 0px))',
+        marginBottom: 'env(safe-area-inset-bottom, 0px)'
+      }}>
         {/* Close button - SquareButton Close variant */}
         <button 
           type="button"

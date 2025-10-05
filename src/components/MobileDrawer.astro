@@ -108,7 +108,7 @@ const {
   <!-- Drawer Panel -->
   <div 
     class="fixed bottom-0 left-0 right-0 w-full bg-white shadow-xl rounded-t-3xl"
-    style="height: 100vh; top: 0;"
+    style="height: 100dvh; top: 0; padding-bottom: env(safe-area-inset-bottom, 0px);"
     x-transition:enter="transition ease-out duration-300"
     x-transition:enter-start="translate-y-full"
     x-transition:enter-end="translate-y-0"
@@ -252,6 +252,12 @@ const {
     flex-shrink: 0 !important;
   }
   
+  /* Add extra padding to bottom buttons in mobile drawer to ensure visibility */
+  .mobile-drawer .new-note-panel .flex.items-center.justify-between.gap-3 {
+    padding-bottom: 20px !important;
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  
   
   /* Override height constraints on NewNotePanel form */
   .mobile-drawer .new-note-panel form {
@@ -304,6 +310,20 @@ const {
     height: auto !important;
     min-height: 100% !important;
     max-height: none !important;
+  }
+  
+  /* Mobile viewport handling for better button visibility */
+  @supports (height: 100dvh) {
+    .mobile-drawer .drawer-panel {
+      height: 100dvh !important;
+    }
+  }
+  
+  /* Fallback for browsers that don't support dvh */
+  @supports not (height: 100dvh) {
+    .mobile-drawer .drawer-panel {
+      height: calc(100vh - env(safe-area-inset-bottom, 0px)) !important;
+    }
   }
   
 </style>
