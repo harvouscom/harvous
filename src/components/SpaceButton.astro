@@ -33,10 +33,12 @@ const {
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
-        <div class="flex items-center justify-start relative w-full h-full pl-2 pr-2 transition-transform duration-125">
-            <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-                {text}
-            </span>
+        <div class="flex items-center justify-start relative w-full h-full pl-2 pr-2 transition-transform duration-125 min-w-0">
+            <div class="flex-1 min-w-0 overflow-hidden">
+                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block">
+                    {text}
+                </span>
+            </div>
         </div>
     </button>
 ) : state === "WithCount" ? (
@@ -45,11 +47,13 @@ const {
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
-        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-            <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-                {text}
-            </span>
-            <div class="p-[20px]">
+        <div class="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+            <div class="flex-1 min-w-0 overflow-hidden text-left">
+                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                    {text}
+                </span>
+            </div>
+            <div class="p-[20px] flex-shrink-0">
                 <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
                     <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
                         {count}
@@ -64,23 +68,23 @@ const {
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
-        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-            <div class="flex items-center gap-3">
+        <div class="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+            <div class="flex-1 min-w-0 overflow-hidden text-left">
                 <slot name="text">
-                    <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+                    <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
                         {text}
                     </span>
                 </slot>
-                {count !== undefined && count !== null && (
-                    <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                        <slot name="count">
-                            <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
-                                {count}
-                            </span>
-                        </slot>
-                    </div>
-                )}
             </div>
+            {count !== undefined && count !== null && (
+                <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 ml-3">
+                    <slot name="count">
+                        <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
+                            {count}
+                        </span>
+                    </slot>
+                </div>
+            )}
             <div class="flex items-center justify-center relative shrink-0">
                 <div class="flex-none scale-y-[-100%]">
                     <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
@@ -102,11 +106,13 @@ const {
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
-        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-            <div class="flex items-center gap-3">
-                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-                    {text}
-                </span>
+        <div class="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+            <div class="flex items-center gap-3 flex-1 min-w-0">
+                <div class="flex-1 min-w-0 overflow-hidden text-left">
+                    <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                        {text}
+                    </span>
+                </div>
                 <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
                     <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
                         {count}
@@ -135,10 +141,12 @@ const {
                 style={isActive ? `background-image: ${backgroundGradient};` : ''}
                 {...props}
             >
-            <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-                    {text}
-                </span>
+            <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                <div class="flex-1 min-w-0 overflow-hidden">
+                    <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block">
+                        {text}
+                    </span>
+                </div>
                 <!-- Right box - simple flex container for badge -->
                 <div class="flex items-center justify-center p-[20px]">
                     <!-- Badge count - show when not hovering -->
@@ -170,10 +178,12 @@ const {
             style={isActive ? `background-image: ${backgroundGradient};` : ''}
             {...props}
         >
-        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-            <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-                {text}
-            </span>
+        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+            <div class="flex-1 min-w-0 overflow-hidden">
+                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block">
+                    {text}
+                </span>
+            </div>
         </div>
         </button>
         <!-- Close icon - always visible for tags -->
@@ -193,10 +203,12 @@ const {
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
-        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-            <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-                {text}
-            </span>
+        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+            <div class="flex-1 min-w-0 overflow-hidden">
+                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block">
+                    {text}
+                </span>
+            </div>
             <div class="flex items-center justify-center relative shrink-0">
                 <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
                     <div class="flex items-center justify-center relative shrink-0">
@@ -214,11 +226,13 @@ const {
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
-        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-            <div class="flex items-center gap-3">
-                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-                    {text}
-                </span>
+        <div class="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+            <div class="flex items-center gap-3 flex-1 min-w-0">
+                <div class="flex-1 min-w-0 overflow-hidden text-left">
+                    <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                        {text}
+                    </span>
+                </div>
                 <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
                     <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0]">
                         {count}
