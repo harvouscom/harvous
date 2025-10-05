@@ -132,6 +132,19 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     loadNextNoteId();
   }, []);
 
+  // Auto-focus content area when component mounts
+  useEffect(() => {
+    // Small delay to ensure TiptapEditor is fully rendered
+    const timer = setTimeout(() => {
+      const editorElement = document.querySelector('#new-note-content .ProseMirror');
+      if (editorElement) {
+        (editorElement as HTMLElement).focus();
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
   // Get selected thread object
   const getSelectedThread = () => {
     return threadOptions.find(thread => thread.title === selectedThread) || threadOptions[0];
@@ -374,7 +387,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Note title"
-                tabIndex={2}
+                tabIndex={1}
                 className="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
               />
             </div>
@@ -393,7 +406,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                 id="new-note-content"
                 name="content"
                 placeholder="Type your note..."
-                tabindex={3}
+                tabindex={2}
                 minimalToolbar={false}
               />
             </div>
@@ -417,7 +430,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         <button 
           type="button"
           onClick={handleClose} 
-          tabIndex={5}
+          tabIndex={4}
           data-outer-shadow
           className="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] bg-[var(--color-stone-grey)] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
         >
@@ -444,7 +457,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           data-outer-shadow
           className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ backgroundColor: 'var(--color-blue)' }}
-          tabIndex={4}
+          tabIndex={3}
         >
           <div className="relative shrink-0 transition-transform duration-125">
             {isSubmitting ? 'Creating...' : 'Create Note'}
