@@ -37,15 +37,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     const savedTitle = localStorage.getItem('newNoteTitle') || '';
     const savedContent = localStorage.getItem('newNoteContent') || '';
     
-    // Use currentThread prop if available, otherwise fall back to localStorage
+    // Priority: currentThread prop (if in thread view) > default to "Unorganized"
     let initialThread = 'Unorganized';
     if (currentThread && currentThread.title) {
       initialThread = currentThread.title;
-    } else {
-      const savedThread = localStorage.getItem('newNoteThread');
-      if (savedThread) {
-        initialThread = savedThread;
-      }
     }
     
     setTitle(savedTitle);
@@ -71,6 +66,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   useEffect(() => {
     if (currentThread && currentThread.title) {
       setSelectedThread(currentThread.title);
+    } else {
+      // If no currentThread, default to "Unorganized"
+      setSelectedThread('Unorganized');
     }
   }, [currentThread]);
 
