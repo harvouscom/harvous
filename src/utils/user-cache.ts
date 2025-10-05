@@ -179,3 +179,22 @@ export async function refreshUserData(userId: string): Promise<CachedUserData> {
     throw error;
   }
 }
+
+/**
+ * Invalidate user cache by setting clerkDataUpdatedAt to a very old date
+ * This forces the cache to be considered invalid and triggers a refresh
+ */
+export async function invalidateUserCache(userId: string): Promise<void> {
+  try {
+    await db.update(UserMetadata)
+      .set({ 
+        clerkDataUpdatedAt: new Date(0) // Set to epoch to force cache invalidation
+      })
+      .where(eq(UserMetadata.userId, userId));
+    
+    console.log('User cache invalidated successfully');
+  } catch (error) {
+    console.error('Error invalidating user cache:', error);
+    throw error;
+  }
+}

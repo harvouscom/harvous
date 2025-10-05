@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, UserMetadata, eq } from 'astro:db';
+import { invalidateUserCache } from '@/utils/user-cache';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -55,16 +56,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Store the color preference in the database
+    // Store the color preference and updated user data in the database
     try {
       // Check if user metadata exists
       const existingMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
       
       if (existingMetadata) {
-        // Update existing metadata
+        // Update existing metadata with new user data and color
         await db.update(UserMetadata)
           .set({ 
+            firstName: firstName,
+            lastName: lastName,
             userColor: color,
+            clerkDataUpdatedAt: new Date(), // Invalidate cache to force refresh
             updatedAt: new Date()
           })
           .where(eq(UserMetadata.userId, userId));
@@ -73,15 +77,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
         await db.insert(UserMetadata).values({
           id: `user_metadata_${userId}`,
           userId: userId,
+          firstName: firstName,
+          lastName: lastName,
           userColor: color,
           highestSimpleNoteId: 0,
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          clerkDataUpdatedAt: new Date()
         });
       }
     } catch (dbError) {
       console.error('Database error:', dbError);
-      // Continue with success response even if color save fails
+      // Continue with success response even if database save fails
+    }
+
+    // Invalidate the user cache to force refresh on next page load
+    try {
+      await invalidateUserCache(userId);
+      console.log('User cache invalidated successfully');
+    } catch (cacheError) {
+      console.error('Error invalidating user cache:', cacheError);
+      // Continue with success response even if cache invalidation fails
     }
 
     return new Response(JSON.stringify({ 
