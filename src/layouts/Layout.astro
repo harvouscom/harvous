@@ -429,7 +429,16 @@ const showMoreButton = shouldShowMoreButton(contentType);
               </div>
               
               <!-- New Note Panel - React Islands Version -->
-              <div x-show="showNewNotePanel" class="h-full">
+              <div 
+                x-show="showNewNotePanel" 
+                x-transition:enter=""
+                x-transition:enter-start=""
+                x-transition:enter-end=""
+                x-transition:leave=""
+                x-transition:leave-start=""
+                x-transition:leave-end=""
+                class="h-full new-note-panel-container"
+              >
                 <NewNotePanelSimple 
                   currentThread={currentThread} 
                   onClose={() => {
@@ -1371,5 +1380,46 @@ window.testNavigationScript = function() {
   
   .mobile-drawer .backdrop.open {
     opacity: 1;
+  }
+  
+  /* Ensure NewNotePanel appears instantly without fade */
+  .new-note-panel-container {
+    opacity: 1 !important;
+    transition: none !important;
+    animation: none !important;
+  }
+  
+  .new-note-panel-container * {
+    opacity: 1 !important;
+    transition: none !important;
+    animation: none !important;
+  }
+  
+  /* Override any potential React component fade effects */
+  .new-note-panel {
+    opacity: 1 !important;
+    transition: none !important;
+    animation: none !important;
+  }
+  
+  /* Force instant visibility changes for NewNotePanel */
+  .new-note-panel-container[x-cloak] {
+    display: none !important;
+  }
+  
+  /* Override any Alpine.js transition effects */
+  .new-note-panel-container[x-transition] {
+    transition: none !important;
+  }
+  
+  /* Force instant show/hide for NewNotePanel */
+  .new-note-panel-container[x-show="true"] {
+    opacity: 1 !important;
+    transition: none !important;
+  }
+  
+  .new-note-panel-container[x-show="false"] {
+    opacity: 0 !important;
+    transition: none !important;
   }
 </style>

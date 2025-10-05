@@ -539,6 +539,25 @@ const buttonStyles = `
   .new-note-panel button:active > img {
     transform: scale(0.95);
   }
+  
+  /* Ensure NewNotePanel appears instantly without fade */
+  .new-note-panel {
+    opacity: 1 !important;
+    transition: none !important;
+    animation: none !important;
+  }
+  
+  .new-note-panel * {
+    opacity: 1 !important;
+    transition: none !important;
+    animation: none !important;
+  }
+  
+  /* Override any React component unmount transitions */
+  .new-note-panel[data-astro-cid] {
+    transition: none !important;
+    animation: none !important;
+  }
 `;
 
 // Inject the styles
