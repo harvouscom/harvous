@@ -232,9 +232,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
 
         // Navigate to the newly created note
         if (result.note && result.note.id) {
+          console.log('NewNotePanel: Redirecting to note:', result.note.id);
           setTimeout(() => {
             window.location.href = `/${result.note.id}`;
-          }, 1000);
+          }, 100);
         }
 
         // Reset form
@@ -343,9 +344,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
 
         // Navigate to the newly created note
         if (result.note && result.note.id) {
+          console.log('NewNotePanel: Redirecting to note:', result.note.id);
           setTimeout(() => {
             window.location.href = `/${result.note.id}`;
-          }, 1000);
+          }, 100);
         }
       }
     } catch (error) {
@@ -438,11 +440,11 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
             <div className="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-4 px-4 relative w-full h-full">
               <div className="flex h-[42.426px] items-center justify-center relative shrink-0 w-[42.426px]">
                 <div className="flex-none">
-                  <div className="relative w-6 h-6 flex items-center justify-center">
-                    <svg className="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 24 24">
-                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                  </div>
+                    <div className="relative w-6 h-6 flex items-center justify-center">
+                      <svg className="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 384 512">
+                        <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+                      </svg>
+                    </div>
                 </div>
               </div>
             </div>
@@ -455,7 +457,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           type="submit"
           disabled={isSubmitting}
           data-outer-shadow
-          className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
+          className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ backgroundColor: 'var(--color-blue)' }}
           tabIndex={3}
         >

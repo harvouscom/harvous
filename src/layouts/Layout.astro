@@ -10,9 +10,9 @@ import Toast from "@/components/Toast-v2.astro";
 import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanel from "@/components/NewNotePanel.astro";
 import NewNotePanelSimple from "@/components/NewNotePanelSimple.astro";
-import NewThreadPanel from "@/components/NewThreadPanel.astro";
+import NewThreadPanelReact from "@/components/react/NewThreadPanel.tsx";
 import NoteDetailsPanel from "@/components/NoteDetailsPanel.astro";
-import MobileDrawer from "@/components/MobileDrawer.astro";
+import BottomSheetReact from "@/components/BottomSheetReact.astro";
 import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 
@@ -428,7 +428,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 )}
               </div>
               
-              <!-- New Note Panel - React Islands Version -->
+              <!-- New Note Panel - Desktop Only -->
               <div 
                 x-show="showNewNotePanel" 
                 x-transition:enter=""
@@ -437,7 +437,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 x-transition:leave=""
                 x-transition:leave-start=""
                 x-transition:leave-end=""
-                class="h-full new-note-panel-container"
+                class="h-full new-note-panel-container hidden min-[1160px]:block"
               >
                 <NewNotePanelSimple 
                   currentThread={currentThread} 
@@ -448,20 +448,21 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 />
               </div>
               
-              <!-- New Thread Panel -->
-              <div x-show="showNewThreadPanel" class="h-full">
-                <NewThreadPanel 
+              <!-- New Thread Panel - Desktop Only -->
+              <div x-show="showNewThreadPanel" class="h-full hidden min-[1160px]:block">
+                <NewThreadPanelReact 
                   currentSpace={currentSpace} 
                   onClose={() => {
                     // Close the panel when NewThreadPanel requests to close
                     window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
                   }}
+                  client:only="react"
                 />
               </div>
               
-              <!-- Note Details Panel (notes only) -->
+              <!-- Note Details Panel (notes only) - Desktop Only -->
               {contentType === 'note' && currentNote && (
-                <div x-show="showNoteDetailsPanel" class="h-full">
+                <div x-show="showNoteDetailsPanel" class="h-full hidden min-[1160px]:block">
                   <NoteDetailsPanel 
                     noteId={currentNote.id} 
                     noteTitle={currentNote.title || "Note Details"} 
@@ -497,9 +498,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
       </div>
     </div>
 
-    <!-- Mobile Drawer System -->
+    <!-- Mobile Bottom Sheet System -->
     <div class="min-[1160px]:hidden">
-      <MobileDrawer 
+      <BottomSheetReact 
         currentThread={currentThread}
         currentSpace={currentSpace}
         currentNote={currentNote}

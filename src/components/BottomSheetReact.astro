@@ -1,0 +1,103 @@
+---
+import BottomSheet from './react/BottomSheet';
+
+export interface Props {
+  isOpen?: boolean;
+  onClose?: () => void;
+  title?: string;
+  currentThread?: any;
+  currentSpace?: any;
+  currentNote?: any;
+  contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
+}
+
+const { 
+  isOpen = false, 
+  onClose, 
+  title = "Panel", 
+  currentThread,
+  currentSpace,
+  currentNote,
+  contentType = "dashboard"
+} = Astro.props;
+---
+
+<div class="min-[1160px]:hidden">
+  <BottomSheet 
+    isOpen={isOpen}
+    onClose={onClose}
+    title={title}
+    currentThread={currentThread}
+    currentSpace={currentSpace}
+    currentNote={currentNote}
+    contentType={contentType}
+    client:only="react"
+  />
+</div>
+
+<style>
+  /* Prevent body scroll when bottom sheet is open */
+  body.bottom-sheet-open {
+    overflow: hidden;
+  }
+  
+  /* Mobile-specific styles - bottom sheet only shows on mobile */
+  @media (max-width: 1159px) {
+    .bottom-sheet {
+      display: block;
+    }
+  }
+  
+  /* Completely hidden on desktop */
+  @media (min-width: 1160px) {
+    .bottom-sheet {
+      display: none !important;
+    }
+  }
+  
+  /* Bottom sheet content container */
+  .bottom-sheet .panel-container {
+    height: auto;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
+  
+  /* Custom bottom sheet animations - Mobile only */
+  @media (max-width: 1159px) {
+    /* Bottom sheet content animation */
+    .bottom-sheet-content {
+      transform: translateY(100%) !important;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+    
+    /* Overlay fade animation - imperceptible timing */
+    .bottom-sheet [data-radix-sheet-overlay] {
+      opacity: 0;
+      transition: opacity 0.6s ease-out;
+    }
+    
+    .bottom-sheet [data-state="open"][data-radix-sheet-overlay] {
+      opacity: 0.4;
+    }
+    
+    .bottom-sheet [data-state="closed"][data-radix-sheet-overlay] {
+      opacity: 0;
+      transition: opacity 0.4s ease-in;
+    }
+  }
+  
+  /* Mobile viewport handling for better button visibility */
+  @supports (height: 100dvh) {
+    .bottom-sheet .drawer-panel {
+      height: 90dvh !important;
+    }
+  }
+  
+  /* Fallback for browsers that don't support dvh */
+  @supports not (height: 100dvh) {
+    .bottom-sheet .drawer-panel {
+      height: calc(90vh - env(safe-area-inset-bottom, 0px)) !important;
+    }
+  }
+</style>
