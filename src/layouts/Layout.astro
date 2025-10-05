@@ -6,7 +6,7 @@ import "@fontsource/reddit-sans/600.css";
 import "@fontsource/reddit-mono/500.css";
 import "@fontsource/reddit-mono/600.css";
 import "trix/dist/trix.css";
-import Toast from "@/components/Toast-v2.astro";
+import ToastProvider from "@/components/react/ToastProvider.tsx";
 import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanel from "@/components/NewNotePanel.astro";
 import NewNotePanelSimple from "@/components/NewNotePanelSimple.astro";
@@ -316,7 +316,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
   <body 
     class={`font-sans bg-[var(--color-light-paper)] ${classNames}`}
   >
-    <Toast />
+    <ToastProvider client:load />
 
     <div class="h-[100svh] p-3 min-[1160px]:p-6" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->
@@ -510,29 +510,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
   </body>
 </html>
 
-<script>
-  // Simple toast functionality without Alpine.js dependencies
-  document.addEventListener('DOMContentLoaded', () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const message = urlParams.get('toast');
-    if (message) {
-      // Simple toast implementation
-      const toast = document.createElement('div');
-      toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50';
-      toast.textContent = message;
-      document.body.appendChild(toast);
-      
-      setTimeout(() => {
-        toast.remove();
-      }, 3000);
-      
-      // Clear URL params
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('toast');
-      window.history.replaceState({}, '', newUrl);
-    }
-  });
-</script>
 
 <!-- Service Worker Registration for PWA -->
 <script>
@@ -639,6 +616,50 @@ const showMoreButton = shouldShowMoreButton(contentType);
     if ((window as any).Alpine) {
       (window as any).Alpine.initTree(document.body);
     }
+  });
+
+  // Import and setup toast utilities
+  import('/src/utils/toast.ts').then(({ toast }) => {
+    (window as any).toast = toast;
+    
+    // Check for toast parameters in URL and show toast
+    const urlParams = new URLSearchParams(window.location.search);
+    const toastType = urlParams.get('toast');
+    const message = urlParams.get('message');
+    
+    if (toastType && message) {
+      const decodedMessage = decodeURIComponent(message);
+      
+      // Small delay to ensure Sonner is fully initialized
+      setTimeout(() => {
+        try {
+          switch (toastType) {
+            case 'success':
+              toast.success(decodedMessage);
+              break;
+            case 'error':
+              toast.error(decodedMessage);
+              break;
+            case 'info':
+              toast.info(decodedMessage);
+              break;
+            case 'warning':
+              toast.warning(decodedMessage);
+              break;
+          }
+        } catch (error) {
+          console.error('Error calling toast function:', error);
+        }
+      }, 1000);
+      
+      // Clean up URL parameters
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('toast');
+      newUrl.searchParams.delete('message');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+  }).catch((error) => {
+    console.error('Failed to load toast utilities:', error);
   });
 </script>
 

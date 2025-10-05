@@ -217,25 +217,16 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       if (response.ok) {
         const result = await response.json();
         
-        // Show success toast
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: result.success || 'Note created successfully!',
-            type: 'success'
-          }
-        }));
-
         // Dispatch note created event
         window.dispatchEvent(new CustomEvent('noteCreated', {
           detail: { note: result.note }
         }));
 
-        // Navigate to the newly created note
+        // Navigate to the newly created note with toast parameter
         if (result.note && result.note.id) {
           console.log('NewNotePanel: Redirecting to note:', result.note.id);
-          setTimeout(() => {
-            window.location.href = `/${result.note.id}`;
-          }, 100);
+          const redirectUrl = `/${result.note.id}?toast=success&message=${encodeURIComponent(result.success || 'Note created successfully!')}`;
+          window.location.href = redirectUrl;
         }
 
         // Reset form
@@ -259,24 +250,22 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       } else {
         const error = await response.json();
         
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: error.error || 'Error creating note',
-            type: 'error'
-          }
-        }));
+        if (window.toast) {
+          window.toast.error(error.error || 'Error creating note');
+        } else {
+          alert(error.error || 'Error creating note');
+        }
         
         setIsSubmitting(false);
       }
     } catch (error: any) {
       console.error('Error creating note:', error);
       
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: `Error creating note: ${error?.message || 'Please try again.'}`,
-          type: 'error'
-        }
-      }));
+      if (window.toast) {
+        window.toast.error(`Error creating note: ${error?.message || 'Please try again.'}`);
+      } else {
+        alert(`Error creating note: ${error?.message || 'Please try again.'}`);
+      }
       
       setIsSubmitting(false);
     }

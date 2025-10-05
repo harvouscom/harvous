@@ -126,11 +126,6 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
         const result = await response.json();
         console.log('NewThreadPanel: Thread created successfully:', result);
         
-        // Show success message first
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: { message: 'Thread created successfully!', type: 'success' }
-        }));
-        
         // Clear form data
         setTitle('');
         setSelectedColor('paper');
@@ -141,22 +136,20 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
         localStorage.removeItem('newThreadType');
         localStorage.removeItem('newThreadActiveTab');
         
-        // Small delay to ensure toast shows before redirecting
-        setTimeout(() => {
-          // Close panel
-          // Dispatch close event for event system
-          window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
-          
-          if (onClose) {
-            onClose();
-          }
-          
-          // Redirect to the newly created thread
-          if (result.thread && result.thread.id) {
-            console.log('NewThreadPanel: Redirecting to thread:', result.thread.id);
-            window.location.href = `/${result.thread.id}`;
-          }
-        }, 100);
+        // Close panel
+        // Dispatch close event for event system
+        window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+        
+        if (onClose) {
+          onClose();
+        }
+        
+        // Redirect to the newly created thread with toast parameter
+        if (result.thread && result.thread.id) {
+          console.log('NewThreadPanel: Redirecting to thread:', result.thread.id);
+          const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
+          window.location.href = redirectUrl;
+        }
       } else {
         const errorText = await response.text();
         console.error('NewThreadPanel: API error response:', errorText);
@@ -164,9 +157,11 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
       }
     } catch (error) {
       console.error('NewThreadPanel: Error creating thread:', error);
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: { message: 'Failed to create thread. Please try again.', type: 'error' }
-      }));
+      if (window.toast) {
+        window.toast.error('Failed to create thread. Please try again.');
+      } else {
+        alert('Failed to create thread. Please try again.');
+      }
     } finally {
       console.log('NewThreadPanel: Submission finished, setting isSubmitting to false');
       // Use setTimeout to ensure state update happens after any pending operations

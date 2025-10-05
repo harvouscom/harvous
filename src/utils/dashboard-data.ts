@@ -1,4 +1,4 @@
-import { db, Threads, Notes, Spaces, NoteThreads, eq, and, desc, count, or, ne, isNull } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, eq, and, desc, count, or, ne, isNull, isNotNull } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 
 // Helper function to strip HTML tags and decode entities
@@ -123,10 +123,11 @@ async function findUnorganizedThread(userId: string) {
 }
 
 
-// Fetch all threads with note counts (excluding unorganized thread)
+// Fetch all threads with note counts (excluding unorganized thread) - OPTIMIZED
 export async function getAllThreadsWithCounts(userId: string) {
   try {
-    const threads = await db.select({
+    // Single query with JOIN to get threads and their note counts
+    const threadsWithCounts = await db.select({
       id: Threads.id,
       title: Threads.title,
       subtitle: Threads.subtitle,
@@ -136,43 +137,33 @@ export async function getAllThreadsWithCounts(userId: string) {
       isPinned: Threads.isPinned,
       createdAt: Threads.createdAt,
       updatedAt: Threads.updatedAt,
+      noteCount: count(Notes.id),
     })
     .from(Threads)
+    .leftJoin(Notes, eq(Threads.id, Notes.threadId))
     .where(and(
       eq(Threads.userId, userId),
       ne(Threads.id, "thread_unorganized") // Exclude unorganized thread from dashboard display
     ))
+    .groupBy(Threads.id)
     .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt));
 
-    // Get note counts for each thread
-    const threadsWithCounts = await Promise.all(
-      threads.map(async (thread) => {
-        const noteCount = await db.select({ count: count() })
-          .from(Notes)
-          .where(eq(Notes.threadId, thread.id))
-          .get();
-
-        return {
-          ...thread,
-          noteCount: noteCount?.count || 0,
-          lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
-          accentColor: getThreadColorCSS(thread.color),
-          backgroundGradient: getThreadGradientCSS(thread.color),
-        };
-      })
-    );
-
-    // Get count for unorganized notes
-    const unorganizedThread = await findUnorganizedThread(userId);
-    const unorganizedNoteCount = unorganizedThread ? await db.select({ count: count() })
-      .from(Notes)
-      .where(eq(Notes.threadId, unorganizedThread.id))
-      .get() : { count: 0 };
-
-    // Don't add unorganized thread to the threads list - it should be hidden from dashboard display
-    // The unorganized thread exists for data organization but shouldn't appear in navigation
-
-    return threadsWithCounts;
+    // Transform the results to match the expected format
+    return threadsWithCounts.map(thread => ({
+      id: thread.id,
+      title: thread.title,
+      subtitle: thread.subtitle,
+      color: thread.color,
+      spaceId: thread.spaceId,
+      isPublic: thread.isPublic,
+      isPinned: thread.isPinned,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
+      noteCount: thread.noteCount || 0,
+      lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
+      accentColor: getThreadColorCSS(thread.color),
+      backgroundGradient: getThreadGradientCSS(thread.color),
+    }));
   } catch (error) {
     console.error("Error fetching threads:", error);
     // Return empty array if database fails - unorganized thread should not be displayed
@@ -180,10 +171,11 @@ export async function getAllThreadsWithCounts(userId: string) {
   }
 }
 
-// Fetch spaces with their content counts (only created spaces)
+// Fetch spaces with their content counts (only created spaces) - OPTIMIZED
 export async function getSpacesWithCounts(userId: string) {
   try {
-    const spaces = await db.select({
+    // Get spaces with thread counts in a single query
+    const spacesWithThreadCounts = await db.select({
       id: Spaces.id,
       title: Spaces.title,
       description: Spaces.description,
@@ -193,54 +185,71 @@ export async function getSpacesWithCounts(userId: string) {
       isActive: Spaces.isActive,
       createdAt: Spaces.createdAt,
       updatedAt: Spaces.updatedAt,
+      threadCount: count(Threads.id),
     })
     .from(Spaces)
+    .leftJoin(Threads, eq(Spaces.id, Threads.spaceId))
     .where(eq(Spaces.userId, userId))
+    .groupBy(Spaces.id)
     .orderBy(desc(Spaces.isActive), desc(Spaces.updatedAt || Spaces.createdAt));
 
-    // Get content counts for each space
-    const spacesWithCounts = await Promise.all(
-      spaces.map(async (space) => {
-        // Count threads in this space
-        const threadCount = await db.select({ count: count() })
-          .from(Threads)
-          .where(eq(Threads.spaceId, space.id))
-          .get();
+    // Get standalone note counts for each space in a single query
+    const standaloneNoteCounts = await db.select({
+      spaceId: Notes.spaceId,
+      standaloneNoteCount: count(Notes.id),
+    })
+    .from(Notes)
+    .where(and(
+      eq(Notes.userId, userId),
+      eq(Notes.threadId, "thread_unorganized"),
+      isNotNull(Notes.spaceId)
+    ))
+    .groupBy(Notes.spaceId);
 
-        // Count notes directly in this space (not in threads)
-        const standaloneNoteCount = await db.select({ count: count() })
-          .from(Notes)
-          .where(and(eq(Notes.spaceId, space.id), eq(Notes.threadId, "thread_unorganized")))
-          .get();
+    // Get total note counts for each space in a single query
+    const totalNoteCounts = await db.select({
+      spaceId: Notes.spaceId,
+      totalNoteCount: count(Notes.id),
+    })
+    .from(Notes)
+    .where(and(
+      eq(Notes.userId, userId),
+      isNotNull(Notes.spaceId)
+    ))
+    .groupBy(Notes.spaceId);
 
-        // Count all notes in this space (both in threads and standalone)
-        const totalNoteCount = await db.select({ count: count() })
-          .from(Notes)
-          .where(eq(Notes.spaceId, space.id))
-          .get();
+    // Create lookup maps for efficient joining
+    const standaloneCountMap = new Map(standaloneNoteCounts.map(item => [item.spaceId, item.standaloneNoteCount]));
+    const totalCountMap = new Map(totalNoteCounts.map(item => [item.spaceId, item.totalNoteCount]));
 
-        return {
-          ...space,
-          threadCount: threadCount?.count || 0,
-          standaloneNoteCount: standaloneNoteCount?.count || 0,
-          totalItemCount: (threadCount?.count || 0) + (standaloneNoteCount?.count || 0),
-          totalNoteCount: totalNoteCount?.count || 0,
-          lastUpdated: formatRelativeTime(space.updatedAt || space.createdAt),
-        };
-      })
-    );
-
-    return spacesWithCounts;
+    // Transform the results
+    return spacesWithThreadCounts.map(space => ({
+      id: space.id,
+      title: space.title,
+      description: space.description,
+      color: space.color,
+      backgroundGradient: space.backgroundGradient,
+      isPublic: space.isPublic,
+      isActive: space.isActive,
+      createdAt: space.createdAt,
+      updatedAt: space.updatedAt,
+      threadCount: space.threadCount || 0,
+      standaloneNoteCount: standaloneCountMap.get(space.id) || 0,
+      totalItemCount: (space.threadCount || 0) + (standaloneCountMap.get(space.id) || 0),
+      totalNoteCount: totalCountMap.get(space.id) || 0,
+      lastUpdated: formatRelativeTime(space.updatedAt || space.createdAt),
+    }));
   } catch (error) {
     console.error("Error fetching spaces:", error);
     return [];
   }
 }
 
-// Fetch threads for a specific space
+// Fetch threads for a specific space - OPTIMIZED
 export async function getThreadsForSpace(spaceId: string, userId: string) {
   try {
-    const threads = await db.select({
+    // Single query with JOIN to get threads and their note counts
+    const threadsWithCounts = await db.select({
       id: Threads.id,
       title: Threads.title,
       subtitle: Threads.subtitle,
@@ -250,30 +259,30 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
       isPinned: Threads.isPinned,
       createdAt: Threads.createdAt,
       updatedAt: Threads.updatedAt,
+      noteCount: count(Notes.id),
     })
     .from(Threads)
+    .leftJoin(Notes, eq(Threads.id, Notes.threadId))
     .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
+    .groupBy(Threads.id)
     .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt));
 
-    // Get note counts for each thread
-    const threadsWithCounts = await Promise.all(
-      threads.map(async (thread) => {
-        const noteCount = await db.select({ count: count() })
-          .from(Notes)
-          .where(eq(Notes.threadId, thread.id))
-          .get();
-
-        return {
-          ...thread,
-          noteCount: noteCount?.count || 0,
-          lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
-          accentColor: getThreadColorCSS(thread.color),
-          backgroundGradient: getThreadGradientCSS(thread.color),
-        };
-      })
-    );
-
-    return threadsWithCounts;
+    // Transform the results to match the expected format
+    return threadsWithCounts.map(thread => ({
+      id: thread.id,
+      title: thread.title,
+      subtitle: thread.subtitle,
+      color: thread.color,
+      spaceId: thread.spaceId,
+      isPublic: thread.isPublic,
+      isPinned: thread.isPinned,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
+      noteCount: thread.noteCount || 0,
+      lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
+      accentColor: getThreadColorCSS(thread.color),
+      backgroundGradient: getThreadGradientCSS(thread.color),
+    }));
   } catch (error) {
     console.error("Error fetching threads for space:", error);
     return [];

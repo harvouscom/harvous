@@ -87,6 +87,12 @@ const UserMetadata = defineTable({
     userId: column.text({ unique: true }), // Clerk user id
     highestSimpleNoteId: column.number({ default: 0 }), // Highest simpleNoteId ever used by this user
     userColor: column.text({ default: 'paper' }), // User's preferred color for profile/avatar
+    // Cached Clerk user data to avoid API calls
+    firstName: column.text({ optional: true }),
+    lastName: column.text({ optional: true }),
+    email: column.text({ optional: true }),
+    profileImageUrl: column.text({ optional: true }),
+    clerkDataUpdatedAt: column.date({ optional: true }), // When we last fetched from Clerk
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
   }

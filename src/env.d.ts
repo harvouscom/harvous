@@ -5,6 +5,14 @@ declare global {
   interface Window {
     Alpine: import("alpinejs").Alpine;
     htmx: typeof htmx;
+    toast: {
+      success: (message: string) => void;
+      error: (message: string) => void;
+      info: (message: string) => void;
+      warning: (message: string) => void;
+      show: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
+    };
+    testToast: () => void;
   }
 
   // Harvous Content Organization Types
