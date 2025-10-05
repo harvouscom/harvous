@@ -300,6 +300,8 @@ const contentId = "profile";
     }
   }" x-init="
     console.log('Additional slot initialized');
+    console.log('Alpine data available:', this);
+    console.log('openProfilePanel method available:', typeof this.openProfilePanel);
   ">
     <!-- Default state: SquareButtons -->
     <div x-show="!showNewNotePanel && !showNewThreadPanel && !showEditNameColorPanel && !showEmailPasswordPanel && !showMyChurchPanel && !showMyDataPanel && !showGetSupportPanel" class="flex flex-col items-left h-full justify-end">
@@ -308,7 +310,7 @@ const contentId = "profile";
     
     <!-- Edit Name & Color Panel -->
     <div x-show="showEditNameColorPanel" class="h-full">
-      <EditNameColorPanel firstName={firstName} lastName={lastName} selectedColor={userColor} />
+      <EditNameColorPanel firstName={firstName} lastName={lastName} selectedColor={userColor as any} />
     </div>
     
     <!-- Placeholder for other panels -->
@@ -588,6 +590,17 @@ const contentId = "profile";
             console.error('Fallback: EditNameColorPanel element not found');
           }
         }
+        
+        // Additional fallback: Try to trigger Alpine.js manually
+        console.log('Attempting manual Alpine.js trigger...');
+        const alpineElement = additionalSlot.querySelector('[x-data]');
+        if (alpineElement && (alpineElement as any)._x_dataStack) {
+          const alpineData = (alpineElement as any)._x_dataStack[0];
+          if (alpineData && alpineData.openProfilePanel) {
+            console.log('Manually triggering Alpine.js openProfilePanel');
+            alpineData.openProfilePanel(panelName);
+          }
+        }
       }
     }
     
@@ -642,8 +655,10 @@ const contentId = "profile";
       }
     }
     
-    // Set up listeners when DOM is ready
-    setupProfilePanelListeners();
+    // Set up listeners when DOM is ready, with a small delay to ensure Alpine.js is initialized
+    setTimeout(() => {
+      setupProfilePanelListeners();
+    }, 100);
     
     // Additional logout button setup as fallback
     setTimeout(() => {
@@ -698,79 +713,39 @@ const contentId = "profile";
       console.log('Event detail:', detail);
       if (detail) {
         try {
-          console.log('Starting profile update process...');
-          // Update user data in Clerk
-          const response = await fetch('/api/user/update-profile', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              firstName: detail.firstName,
-              lastName: detail.lastName,
-              color: detail.selectedColor
-            })
-          });
+          console.log('Handling profile update UI changes...');
           
-          if (response.ok) {
-            // Show success toast
-            window.dispatchEvent(new CustomEvent('toast', {
-              detail: {
-                message: 'Profile updated successfully!',
-                type: 'success'
-              }
-            }));
-            
-            // Update CardStack title
-            const cardStack = document.getElementById('profile-cardstack');
-            if (cardStack) {
-              const titleElement = cardStack.querySelector('p');
-              if (titleElement) {
-                titleElement.textContent = `${detail.firstName} ${detail.lastName.charAt(0)}`.trim();
-              }
-              
-              // Update header background color
-              const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement;
-              if (headerElement) {
-                headerElement.style.backgroundColor = `var(--color-${detail.selectedColor})`;
-              }
+          // Update CardStack title
+          const cardStack = document.getElementById('profile-cardstack');
+          if (cardStack) {
+            const titleElement = cardStack.querySelector('p');
+            if (titleElement) {
+              titleElement.textContent = `${detail.firstName} ${detail.lastName.charAt(0)}`.trim();
             }
             
-            // Update all avatars using the global function
-            const newInitials = `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase();
-            console.log('Updating all avatars with:', { color: detail.selectedColor, initials: newInitials });
-            
-            // Use the global function to update all avatars
-            const updatedCount = (window as any).updateAllAvatars(detail.selectedColor, newInitials);
-            console.log(`Successfully updated ${updatedCount} avatars`);
-            
-            // Also dispatch events for any reactive components
-            window.dispatchEvent(new CustomEvent('colorChanged', {
-              detail: { color: detail.selectedColor }
-            }));
-            console.log('Dispatched colorChanged event with color:', detail.selectedColor);
-          
-          } else {
-            // Show error toast with more specific message
-            const errorData = await response.json().catch(() => ({}));
-            const errorMessage = errorData.error || 'Failed to update profile. Please try again.';
-            
-            window.dispatchEvent(new CustomEvent('toast', {
-              detail: {
-                message: errorMessage,
-                type: 'error'
-              }
-            }));
+            // Update header background color
+            const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement;
+            if (headerElement) {
+              headerElement.style.backgroundColor = `var(--color-${detail.selectedColor})`;
+            }
           }
-        } catch (error) {
-          console.error('Error updating profile:', error);
-          // Show error toast
-          window.dispatchEvent(new CustomEvent('toast', {
-            detail: {
-              message: 'Failed to update profile. Please try again.',
-              type: 'error'
-            }
+          
+          // Update all avatars using the global function
+          const newInitials = `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase();
+          console.log('Updating all avatars with:', { color: detail.selectedColor, initials: newInitials });
+          
+          // Use the global function to update all avatars
+          const updatedCount = (window as any).updateAllAvatars(detail.selectedColor, newInitials);
+          console.log(`Successfully updated ${updatedCount} avatars`);
+          
+          // Also dispatch events for any reactive components
+          window.dispatchEvent(new CustomEvent('colorChanged', {
+            detail: { color: detail.selectedColor }
           }));
+          console.log('Dispatched colorChanged event with color:', detail.selectedColor);
+          
+        } catch (error) {
+          console.error('Error handling profile update:', error);
         }
       }
     }
