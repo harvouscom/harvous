@@ -222,17 +222,60 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 - **Panel State Management**: Navigation retention issues (being replaced by React)
 - **Code Organization**: Much improved with React Islands architecture
 
+## 📝 **Issues Tracking**
+
+### **Centralized Issues Management**
+All V1 issues are now tracked in `V1_ISSUES.md` for better organization:
+
+#### **High Priority Issues**
+- **Mobile Toolbar Visibility**: TiptapEditor toolbar not visible in mobile viewport during note creation
+  - **Impact**: Users can't access formatting options on mobile
+  - **Solution**: Toolbar repositioning or mobile-specific layout
+  - **Estimated Time**: 1-2 days
+
+#### **Medium Priority Issues**
+- **Navigation Real-time Updates**: Navigation counts don't update when notes added/removed from threads
+  - **Impact**: Stale navigation data, poor UX
+  - **Solution**: React Islands migration for navigation system
+  - **Estimated Time**: 1-2 weeks (can be v1.1)
+
+#### **Low Priority Issues**
+- **Minor Polish Items**: Mobile avatar updates, EditNameColorPanel navigation retention
+  - **Impact**: Minor UX improvements
+  - **Estimated Time**: 2-3 days
+
+### **Marketing Site (Separate Project)**
+- **Current Sign-up**: Basic Clerk integration in Harvous app (functional for V1)
+- **Future Enhancement**: Professional marketing site in Webflow (post-V1)
+- **Timeline**: 2-4 weeks after V1 release
+- **Priority**: Can be done in parallel or after V1
+
 ## 📝 **Next Steps**
 
-1. **Convert NoteDetailsPanel**: Start with viewing existing content (highest impact)
-2. **Convert SearchInput**: Enable content discovery and search
-3. **Convert Navigation**: Improve content organization
-4. **Convert Thread Management**: Complete content management experience
-5. **Testing & Polish**: Integration testing, mobile testing, bug fixes
-6. **Deploy V1**: Production-ready web application
+### **V1 Completion (1-2 weeks)**
+1. **Fix Mobile Toolbar Visibility**: High priority mobile UX issue
+2. **Testing & Polish**: Integration testing, mobile testing, bug fixes
+3. **Deploy V1**: Production-ready web application
+
+### **Post-V1 (Separate Projects)**
+1. **Navigation System React Conversion**: Optional for v1.1
+2. **Marketing Site Development**: Professional Webflow site (2-4 weeks)
+3. **Minor Polish Items**: Low priority improvements
 
 ---
 
 **Last Updated**: January 2025  
-**Status**: 90% complete, 1-3 weeks to V1  
+**Status**: 94% complete, 1-2 weeks to V1  
 **Confidence Level**: Very High (major components completed, established patterns, proven velocity)
+
+## 📊 **Updated V1 Status: 94% Complete**
+
+### **Remaining V1 Work (6% of V1)**
+1. **Mobile Toolbar Visibility** - **HIGH PRIORITY** (1-2 days)
+2. **Navigation Real-time Updates** - **MEDIUM PRIORITY** (v1.1)
+3. **Minor Polish Items** - **LOW PRIORITY** (v1.1)
+
+### **Marketing Site (Separate Project)**
+- **Current**: Basic Clerk sign-up in Harvous app (functional for V1)
+- **Future**: Professional Webflow marketing site (2-4 weeks after V1)
+- **Priority**: Can be done in parallel or after V1 release

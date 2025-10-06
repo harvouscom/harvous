@@ -1,6 +1,140 @@
-# Persistent Navigation Issues
+# V1 Issues & Bug Tracking
 
-## Current Issue: Thread Synchronization with Navigation
+## Mobile Note Creation Toolbar Visibility Issue
+
+### Problem Description
+When creating a new note on mobile, the TiptapEditor toolbar is not visible within the viewport. Users cannot access formatting options (bold, italic, underline, lists) because the toolbar is positioned outside the visible area.
+
+### What's Working ✅
+- **Desktop Experience**: Toolbar is visible and functional
+- **Mobile Bottom Sheet**: Opens correctly and contains the editor
+- **Editor Functionality**: TiptapEditor works properly when toolbar is accessible
+- **Form Submission**: Note creation process completes successfully
+
+### What's Not Working ❌
+- **Mobile Toolbar Visibility**: TiptapEditor toolbar is positioned outside viewport
+- **Formatting Access**: Users cannot access bold, italic, underline, list formatting
+- **Mobile UX**: Poor user experience for note creation on mobile devices
+
+### Root Cause Analysis
+The issue appears to be related to the mobile bottom sheet layout and how the TiptapEditor toolbar is positioned within the constrained mobile viewport. The toolbar is positioned at the bottom of the editor but may be getting cut off or positioned outside the visible area.
+
+### Technical Details
+
+#### Current Implementation
+- **Mobile Container**: `BottomSheet.tsx` with `h-[90vh]` height
+- **Editor Container**: `NewNotePanel.tsx` with flex layout
+- **Toolbar Position**: `TiptapEditor.tsx` toolbar positioned at bottom with `mt-2`
+- **Viewport Issues**: Toolbar may be positioned below the visible area
+
+#### Files Involved
+- `src/components/react/BottomSheet.tsx` - Mobile container layout
+- `src/components/react/NewNotePanel.tsx` - Note creation panel layout
+- `src/components/react/TiptapEditor.tsx` - Editor with toolbar positioning
+
+### Expected Behavior
+On mobile note creation:
+1. Bottom sheet should open with full viewport coverage ✅
+2. TiptapEditor should be visible and functional ✅
+3. **Toolbar should be visible within the viewport** ❌
+4. Users should be able to access all formatting options ❌
+5. Note creation should complete successfully ✅
+
+### Solution Strategy
+
+#### Option 1: Toolbar Repositioning
+- Move toolbar to top of editor instead of bottom
+- Adjust mobile layout to accommodate toolbar
+- Ensure toolbar stays within viewport bounds
+
+#### Option 2: Mobile-Specific Toolbar
+- Create a mobile-optimized toolbar layout
+- Use horizontal scrolling for toolbar buttons
+- Implement sticky toolbar positioning
+
+#### Option 3: Layout Adjustments
+- Adjust bottom sheet height to accommodate toolbar
+- Modify flex layout to ensure toolbar visibility
+- Add padding/margins to prevent toolbar cutoff
+
+### Implementation Plan
+
+#### Phase 1: Quick Fix
+- Adjust toolbar positioning in `TiptapEditor.tsx`
+- Modify mobile layout in `NewNotePanel.tsx`
+- Test on various mobile devices
+
+#### Phase 2: Mobile Optimization
+- Create mobile-specific toolbar component
+- Implement responsive toolbar behavior
+- Add mobile-specific styling
+
+#### Phase 3: Testing & Polish
+- Test on various mobile devices and screen sizes
+- Ensure toolbar accessibility
+- Optimize mobile user experience
+
+### Files to Update
+
+#### High Priority
+- `src/components/react/TiptapEditor.tsx` - Toolbar positioning
+- `src/components/react/NewNotePanel.tsx` - Mobile layout
+- `src/components/react/BottomSheet.tsx` - Container height
+
+#### Medium Priority
+- Mobile-specific CSS adjustments
+- Responsive toolbar behavior
+- Mobile UX improvements
+
+### Testing Strategy
+
+#### Current Testing
+- ✅ Desktop toolbar visibility
+- ✅ Mobile bottom sheet functionality
+- ❌ Mobile toolbar visibility
+- ❌ Mobile formatting access
+
+#### Future Testing
+- [ ] Mobile toolbar visibility on various devices
+- [ ] Toolbar functionality on mobile
+- [ ] Mobile note creation workflow
+- [ ] Cross-device consistency
+
+### Related Issues
+- Mobile user experience
+- Mobile note creation workflow
+- TiptapEditor mobile optimization
+- Bottom sheet layout constraints
+
+### Notes
+- This issue affects mobile note creation usability
+- High priority for mobile user experience
+- Should be addressed before V1 release
+- Consider mobile-first design approach
+
+---
+
+**Created**: January 2025  
+**Status**: Open - Mobile toolbar visibility issue  
+**Priority**: High  
+**Assigned**: Mobile UX Team
+
+---
+
+## Additional V1 Issues
+
+### Minor Polish Items
+**Priority**: Low  
+**Current Issues**:
+- Mobile avatar color updates (desktop works, mobile doesn't update in real-time)
+- EditNameColorPanel navigation retention (shows empty placeholders after navigation)
+- Various UI polish items
+
+**Estimated Time**: 2-3 days
+
+---
+
+## Navigation System Real-time Updates Issue
 
 ### Problem Description
 The thread synchronization system is working correctly for the NoteDetailsPanel, but the persistent navigation system is not updating when notes are added or removed from threads. This results in stale navigation counts and thread pages not reflecting real-time changes.
@@ -57,12 +191,6 @@ const allNotes = [...primaryNotes, ...junctionNotes];
 - **Event Dispatch**: `src/components/react/NoteDetailsPanel.tsx` (lines 135-137, 204-206)
 - **Thread Page Listeners**: `src/pages/[id].astro` (lines 685-717)
 - **Navigation Listeners**: `src/layouts/Layout.astro` (lines 1083-1097)
-
-#### Debug Logs
-- 🟢 **Green**: NoteDetailsPanel dispatching events
-- 🔵 **Blue**: Thread page receiving events
-- 🔴 **Red**: Thread page receiving remove events
-- 🟡 **Yellow**: Navigation system receiving events
 
 ### Expected Behavior
 When a note is added/removed from a thread:
@@ -152,7 +280,6 @@ This issue should be resolved when implementing the persistent navigation with R
 
 ---
 
-**Created**: October 6, 2025  
-**Status**: Partially Resolved - Core database issues fixed, navigation updates pending React Islands Migration  
-**Priority**: High  
-**Assigned**: React Islands Team
+**Last Updated**: January 2025  
+**Status**: V1 Issues Tracking  
+**Priority**: Mixed (High for mobile toolbar, Medium for navigation updates, Low for polish items)
