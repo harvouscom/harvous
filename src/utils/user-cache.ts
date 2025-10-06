@@ -23,6 +23,8 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       .get();
 
     const userColor = userMetadata?.userColor || 'paper';
+    console.log('User cache - userMetadata:', userMetadata);
+    console.log('User cache - userColor from database:', userColor);
     
     // Always fetch fresh data from Clerk API to ensure we have the latest name/email
     const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
@@ -59,6 +61,7 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
           profileImageUrl,
           clerkDataUpdatedAt: new Date(),
           updatedAt: new Date(),
+          // DO NOT update userColor - preserve existing value
         })
         .where(eq(UserMetadata.userId, userId));
     } else {
@@ -77,7 +80,7 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       });
     }
 
-    return {
+    const result = {
       firstName,
       lastName,
       email,
@@ -86,6 +89,9 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       displayName: generateDisplayName(firstName, lastName),
       userColor, // Use the color from database, not from Clerk
     };
+    
+    console.log('User cache - returning result:', result);
+    return result;
 
   } catch (error) {
     console.error('Error getting user data:', error);

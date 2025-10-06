@@ -368,26 +368,30 @@ const contentId = "profile";
       console.log('updateAllAvatars called with:', { color, initials });
       const newColor = `var(--color-${color})`;
       
-      // Find all avatar elements - target specific IDs first, then fallback to all
-      const specificAvatars = [
-        'mobile-navigation-avatar',
-        'dashboard-navigation-avatar', 
-        'content-navigation-avatar',
-        'new-space-navigation-avatar'
+      // Find all avatar elements - try multiple selectors
+      const avatarSelectors = [
+        '#mobile-navigation-avatar',
+        '#dashboard-navigation-avatar', 
+        '#content-navigation-avatar',
+        '#new-space-navigation-avatar',
+        '.avatar-button',
+        '[data-avatar-color]',
+        'div[style*="background"][style*="var(--color-"]'
       ];
       
       let avatars: HTMLElement[] = [];
-      specificAvatars.forEach(id => {
-        const avatar = document.getElementById(id);
-        if (avatar) {
-          avatars.push(avatar);
-        }
+      
+      // Try each selector
+      avatarSelectors.forEach(selector => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => {
+          if (!avatars.includes(el as HTMLElement)) {
+            avatars.push(el as HTMLElement);
+          }
+        });
       });
       
-      // Fallback: find all avatar elements if specific ones not found
-      if (avatars.length === 0) {
-        avatars = Array.from(document.querySelectorAll('.avatar-button')) as HTMLElement[];
-      }
+      console.log(`Found ${avatars.length} avatar elements to update`);
       
       const avatarsWithData = document.querySelectorAll('.avatar-button[data-avatar-color]');
       
@@ -457,6 +461,23 @@ const contentId = "profile";
       });
       
       console.log(`Total avatars updated: ${totalUpdated}`);
+      
+      // Also dispatch events to update navigation components
+      window.dispatchEvent(new CustomEvent('updateProfile', {
+        detail: {
+          firstName: initials.substring(0, 1),
+          lastName: initials.substring(1, 2),
+          selectedColor: color,
+          initials: initials
+        }
+      }));
+      
+      // Dispatch color change event
+      window.dispatchEvent(new CustomEvent('colorChanged', {
+        detail: { color: color }
+      }));
+      
+      console.log('Dispatched updateProfile and colorChanged events');
       return totalUpdated;
     };
     
@@ -545,26 +566,32 @@ const contentId = "profile";
       }
     }
     
-    // Listen for profile panel events (desktop only)
-    window.addEventListener('openProfilePanel', (event: any) => {
-      console.log('Desktop: openProfilePanel event received:', event.detail);
-      const panelName = event.detail.panelName;
+    // Listen for profile panel events (desktop only) - with delay to ensure DOM is ready
+    setTimeout(() => {
+      console.log('Setting up profile panel event listeners');
       
-      // Check if we're on desktop (screen width >= 1160px)
-      if (window.innerWidth >= 1160) {
-        console.log('Desktop: Opening panel in additional column');
-        showPanel(panelName);
-      } else {
-        console.log('Desktop: On mobile, letting MobileAdditional handle it');
-      }
-    });
-    
-    window.addEventListener('closeProfilePanel', () => {
-      console.log('Desktop: closeProfilePanel event received');
-      if (window.innerWidth >= 1160) {
-        hideAllPanels();
-      }
-    });
+      window.addEventListener('openProfilePanel', (event: any) => {
+        console.log('Desktop: openProfilePanel event received:', event.detail);
+        const panelName = event.detail.panelName;
+        
+        // Check if we're on desktop (screen width >= 1160px)
+        if (window.innerWidth >= 1160) {
+          console.log('Desktop: Opening panel in additional column');
+          showPanel(panelName);
+        } else {
+          console.log('Desktop: On mobile, letting MobileAdditional handle it');
+        }
+      });
+      
+      window.addEventListener('closeProfilePanel', () => {
+        console.log('Desktop: closeProfilePanel event received');
+        if (window.innerWidth >= 1160) {
+          hideAllPanels();
+        }
+      });
+      
+      console.log('Profile panel event listeners set up successfully');
+    }, 100);
     
     // Additional logout button setup as fallback
     setTimeout(() => {
