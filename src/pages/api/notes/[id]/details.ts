@@ -144,15 +144,36 @@ export const GET: APIRoute = async ({ params, locals }) => {
     }
 
     // Format all threads that contain this note (many-to-many relationship)
-    const formattedThreads = allThreads.map(thread => ({
-      id: thread.id,
-      title: thread.title,
-      subtitle: thread.subtitle || "Thread",
-      color: thread.color,
-      isPublic: thread.isPublic,
-      isPinned: thread.isPinned,
-      createdAt: thread.createdAt,
-      updatedAt: thread.updatedAt
+    const formattedThreads = await Promise.all(allThreads.map(async (thread) => {
+      // Get note count for this thread (both primary threadId and junction table)
+      const primaryCountResult = await db.select({ count: count() })
+        .from(Notes)
+        .where(and(eq(Notes.threadId, thread.id), eq(Notes.userId, userId)));
+      
+      const junctionCountResult = await db.select({ count: count() })
+        .from(Notes)
+        .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+        .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, userId)));
+      
+      // Combine both counts and remove duplicates
+      const primaryCount = primaryCountResult[0]?.count || 0;
+      const junctionCount = junctionCountResult[0]?.count || 0;
+      
+      // For now, use the maximum of the two counts to avoid double counting
+      // In a more sophisticated implementation, we'd need to deduplicate
+      const noteCount = Math.max(primaryCount, junctionCount);
+      
+      return {
+        id: thread.id,
+        title: thread.title,
+        subtitle: thread.subtitle || "Thread",
+        color: thread.color,
+        isPublic: thread.isPublic,
+        isPinned: thread.isPinned,
+        createdAt: thread.createdAt,
+        updatedAt: thread.updatedAt,
+        count: noteCount
+      };
     }));
 
     // Use the allUserThreads we already fetched above

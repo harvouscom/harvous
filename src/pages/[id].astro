@@ -681,6 +681,60 @@ if (!content) {
     }
   };
   
+  // Listen for note thread changes and refresh the page
+  document.addEventListener('noteAddedToThread', async (event) => {
+    const { noteId, threadId } = event.detail;
+    console.log('🔵 Thread page: Note added to thread event received:', { noteId, threadId });
+    console.log('🔵 Thread page: Current URL:', window.location.pathname);
+    console.log('🔵 Thread page: Current thread ID from URL:', window.location.pathname.substring(1));
+    
+    // Check if we're on the affected thread page
+    const currentThreadId = window.location.pathname.substring(1);
+    if (currentThreadId === threadId) {
+      console.log('🔵 Thread page: Refreshing thread data after note added');
+      // Refresh the page to show updated note list
+      window.location.reload();
+    } else {
+      console.log('🔵 Thread page: Not the affected thread, no refresh needed');
+    }
+  });
+  
+  document.addEventListener('noteRemovedFromThread', async (event) => {
+    const { noteId, threadId } = event.detail;
+    console.log('🔴 Thread page: Note removed from thread event received:', { noteId, threadId });
+    console.log('🔴 Thread page: Current URL:', window.location.pathname);
+    console.log('🔴 Thread page: Current thread ID from URL:', window.location.pathname.substring(1));
+    
+    // Check if we're on the affected thread page
+    const currentThreadId = window.location.pathname.substring(1);
+    if (currentThreadId === threadId) {
+      console.log('🔴 Thread page: Refreshing thread data after note removed');
+      // Refresh the page to show updated note list
+      window.location.reload();
+    } else {
+      console.log('🔴 Thread page: Not the affected thread, no refresh needed');
+    }
+  });
+  
+  // Test function to manually trigger events (for debugging)
+  window.testThreadEvents = function() {
+    console.log('🧪 Testing thread events...');
+    
+    // Test noteAddedToThread event
+    const addEvent = new CustomEvent('noteAddedToThread', {
+      detail: { noteId: 'test_note_123', threadId: window.location.pathname.substring(1) }
+    });
+    document.dispatchEvent(addEvent);
+    
+    // Test noteRemovedFromThread event
+    setTimeout(() => {
+      const removeEvent = new CustomEvent('noteRemovedFromThread', {
+        detail: { noteId: 'test_note_123', threadId: window.location.pathname.substring(1) }
+      });
+      document.dispatchEvent(removeEvent);
+    }, 2000);
+  };
+  
 </script>
 
 

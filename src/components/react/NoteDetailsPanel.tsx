@@ -9,6 +9,10 @@ interface Thread {
   color: string;
   type: string;
   createdAt: string;
+  count?: number;
+  accentColor?: string;
+  lastUpdated?: string;
+  isPrivate?: boolean;
 }
 
 interface Comment {
@@ -75,6 +79,7 @@ export default function NoteDetailsPanel({
         setLocalTags(data.tags || []);
         console.log('NoteDetailsPanel: Updated local threads to:', data.threads?.length || 0);
         console.log('NoteDetailsPanel: Thread titles from API:', data.threads?.map(t => t.title) || []);
+        console.log('NoteDetailsPanel: Thread objects with counts:', data.threads?.map(t => ({ title: t.title, count: t.count })) || []);
       } else {
         console.error('NoteDetailsPanel: Details API error:', response.status);
       }
@@ -132,6 +137,7 @@ export default function NoteDetailsPanel({
         await fetchNoteDetails();
         
         // Dispatch note added to thread event
+        console.log('🟢 NoteDetailsPanel: Dispatching noteAddedToThread event:', { noteId, threadId });
         window.dispatchEvent(new CustomEvent('noteAddedToThread', {
           detail: { noteId, threadId }
         }));
@@ -200,6 +206,7 @@ export default function NoteDetailsPanel({
         await fetchNoteDetails();
         
         // Dispatch note removed from thread event
+        console.log('🟢 NoteDetailsPanel: Dispatching noteRemovedFromThread event:', { noteId, threadId });
         window.dispatchEvent(new CustomEvent('noteRemovedFromThread', {
           detail: { noteId, threadId }
         }));
@@ -262,6 +269,7 @@ export default function NoteDetailsPanel({
         console.log('NoteDetailsPanel: After refresh, localThreads count:', localThreads.length);
         
         // Dispatch note removed from thread event
+        console.log('🟢 NoteDetailsPanel: Dispatching noteRemovedFromThread event:', { noteId, threadId: threadToRemove });
         window.dispatchEvent(new CustomEvent('noteRemovedFromThread', {
           detail: { noteId, threadId: threadToRemove }
         }));

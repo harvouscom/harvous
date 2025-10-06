@@ -1079,6 +1079,23 @@ document.addEventListener('noteCreated', () => {
   setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
 });
 
+// Listen for note thread changes to update navigation
+document.addEventListener('noteAddedToThread', (event) => {
+  const { noteId, threadId } = event.detail;
+  console.log('🟡 Navigation: Note added to thread event received:', { noteId, threadId });
+  
+  // Update navigation to reflect new note count
+  setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
+});
+
+document.addEventListener('noteRemovedFromThread', (event) => {
+  const { noteId, threadId } = event.detail;
+  console.log('🟡 Navigation: Note removed from thread event received:', { noteId, threadId });
+  
+  // Update navigation to reflect new note count
+  setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
+});
+
 // Fallback: also try to track on window load
 window.addEventListener('load', () => {
   initTracking();

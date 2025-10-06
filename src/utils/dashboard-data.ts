@@ -292,7 +292,8 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
 // Fetch notes for a specific thread
 export async function getNotesForThread(threadId: string, userId: string, limit = 20) {
   try {
-    const notes = await db.select({
+    // Get notes that are primarily in this thread (primary threadId)
+    const primaryNotes = await db.select({
       id: Notes.id,
       title: Notes.title,
       content: Notes.content,
@@ -308,8 +309,42 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     .where(and(eq(Notes.threadId, threadId), eq(Notes.userId, userId)))
     .orderBy(desc(Notes.updatedAt || Notes.createdAt))
     .limit(limit);
+
+    // Get notes that are associated with this thread via junction table (many-to-many)
+    const junctionNotes = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      threadId: Notes.threadId,
+      spaceId: Notes.spaceId,
+      simpleNoteId: Notes.simpleNoteId,
+      isPublic: Notes.isPublic,
+      isFeatured: Notes.isFeatured,
+      createdAt: Notes.createdAt,
+      updatedAt: Notes.updatedAt,
+    })
+    .from(Notes)
+    .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+    .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
+    .orderBy(desc(Notes.updatedAt || Notes.createdAt))
+    .limit(limit);
+
+    // Combine both results and remove duplicates
+    const allNotes = [...primaryNotes, ...junctionNotes];
+    const uniqueNotes = allNotes.filter((note, index, self) => 
+      index === self.findIndex(n => n.id === note.id)
+    );
+
+    // Sort by updatedAt/createdAt and limit
+    const sortedNotes = uniqueNotes
+      .sort((a, b) => {
+        const aTime = a.updatedAt || a.createdAt;
+        const bTime = b.updatedAt || b.createdAt;
+        return bTime.getTime() - aTime.getTime();
+      })
+      .slice(0, limit);
     
-    return notes.map(note => ({
+    return sortedNotes.map(note => ({
       ...note,
       lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
     }));
