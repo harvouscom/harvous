@@ -19,15 +19,24 @@ export interface CachedUserData {
  */
 export async function getCachedUserData(userId: string): Promise<CachedUserData> {
   try {
+    console.log(`[getCachedUserData] Fetching data for userId: ${userId}`);
+    
     // First, try to get cached data from database
     const cachedData = await db.select()
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, userId))
       .get();
 
+    console.log(`[getCachedUserData] Cached data:`, {
+      firstName: cachedData?.firstName,
+      lastName: cachedData?.lastName,
+      userColor: cachedData?.userColor,
+      clerkDataUpdatedAt: cachedData?.clerkDataUpdatedAt
+    });
+
     if (cachedData && isCacheValid(cachedData.clerkDataUpdatedAt)) {
       // Cache is valid, return cached data
-      return {
+      const result = {
         firstName: cachedData.firstName || '',
         lastName: cachedData.lastName || '',
         email: cachedData.email || '',
@@ -36,8 +45,12 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
         displayName: generateDisplayName(cachedData.firstName, cachedData.lastName),
         userColor: cachedData.userColor || 'paper',
       };
+      
+      console.log(`[getCachedUserData] Returning cached data:`, result);
+      return result;
     }
 
+    console.log(`[getCachedUserData] Cache invalid or missing, fetching from Clerk API`);
     // Cache is invalid or doesn't exist, fetch from Clerk API
     return await fetchAndCacheUserData(userId, cachedData);
 
@@ -60,11 +73,17 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
  * Check if cached data is still valid
  */
 function isCacheValid(updatedAt: Date | null): boolean {
-  if (!updatedAt) return false;
+  if (!updatedAt) {
+    console.log(`[isCacheValid] No updatedAt date, cache invalid`);
+    return false;
+  }
   
   const now = new Date();
   const cacheAge = now.getTime() - updatedAt.getTime();
-  return cacheAge < CACHE_DURATION;
+  const isValid = cacheAge < CACHE_DURATION;
+  
+  console.log(`[isCacheValid] Cache age: ${cacheAge}ms, duration: ${CACHE_DURATION}ms, valid: ${isValid}`);
+  return isValid;
 }
 
 /**
@@ -98,6 +117,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
     const profileImageUrl = userData?.profile_image_url || userData?.image_url;
 
     // Update or create user metadata in database
+    // IMPORTANT: Don't overwrite userColor - it's stored only in our database, not in Clerk
     const updateData = {
       firstName,
       lastName,
@@ -108,12 +128,14 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
     };
 
     if (existingMetadata) {
-      // Update existing record
+      // Update existing record (preserve userColor from existing metadata)
       await db.update(UserMetadata)
         .set(updateData)
         .where(eq(UserMetadata.userId, userId));
+      
+      console.log(`[fetchAndCacheUserData] Updated existing metadata, preserved userColor: ${existingMetadata.userColor}`);
     } else {
-      // Create new record
+      // Create new record (use default 'paper' for new users)
       await db.insert(UserMetadata).values({
         id: `user_metadata_${userId}`,
         userId: userId,
@@ -122,6 +144,8 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
         createdAt: new Date(),
         ...updateData,
       });
+      
+      console.log(`[fetchAndCacheUserData] Created new metadata with default userColor: paper`);
     }
 
     return {
