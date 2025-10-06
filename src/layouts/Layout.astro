@@ -11,7 +11,7 @@ import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanel from "@/components/NewNotePanel.astro";
 import NewNotePanelSimple from "@/components/NewNotePanelSimple.astro";
 import NewThreadPanelReact from "@/components/react/NewThreadPanel.tsx";
-import NoteDetailsPanel from "@/components/NoteDetailsPanel.astro";
+import NoteDetailsPanel from "@/components/react/NoteDetailsPanel.tsx";
 import BottomSheetReact from "@/components/BottomSheetReact.astro";
 import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
@@ -465,11 +465,15 @@ const showMoreButton = shouldShowMoreButton(contentType);
                 <div x-show="showNoteDetailsPanel" class="h-full hidden min-[1160px]:block">
                   <NoteDetailsPanel 
                     noteId={currentNote.id} 
-                    noteTitle={currentNote.title || "Note Details"} 
+                    noteTitle={currentNote.title || "Note Details"}
+                    threads={[]}
+                    comments={[]}
+                    tags={[]}
                     onClose={() => {
                       // Close the panel when NoteDetailsPanel requests to close
                       window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
                     }}
+                    client:only="react"
                   />
                 </div>
               )}

@@ -1,0 +1,21 @@
+---
+import NoteDetailsPanel from './react/NoteDetailsPanel';
+
+export interface Props {
+  noteId?: string;
+  noteTitle?: string;
+  onClose?: () => void;
+}
+
+const { noteId, noteTitle, onClose } = Astro.props;
+---
+
+<!-- Simple wrapper that uses React component -->
+<NoteDetailsPanel
+  noteId={noteId}
+  noteTitle={noteTitle}
+  threads={[]}
+  comments={[]}
+  tags={[]}
+  client:only="react"
+/>

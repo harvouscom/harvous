@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/sheet';
 import NewNotePanel from './NewNotePanel';
 import NewThreadPanel from './NewThreadPanel';
+import NoteDetailsPanel from './NoteDetailsPanel';
 import EditNameColorPanel from './EditNameColorPanel';
 
 // Extend the Window interface to include custom functions
@@ -231,13 +232,16 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {drawerType === 'noteDetails' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
               {contentType === 'note' && currentNote && (
-                <div className="text-center py-8 text-gray-500">
-                  Note Details Panel - Mobile Bottom Sheet
-                  <br />
-                  <small className="text-sm text-gray-400">
-                    This will show the NoteDetailsPanel component
-                  </small>
-                </div>
+                <NoteDetailsPanel
+                  noteId={currentNote.id}
+                  noteTitle={currentNote.title || "Note Details"}
+                  threads={[]}
+                  comments={[]}
+                  tags={[]}
+                  onClose={() => {
+                    window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
+                  }}
+                />
               )}
             </div>
           )}

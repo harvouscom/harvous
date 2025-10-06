@@ -265,9 +265,9 @@ export default function EditNameColorPanel({
 
         {/* Bottom buttons */}
         <div className="flex items-center justify-between gap-3 shrink-0">
-          {/* Close button - SquareButton Close variant */}
+          {/* Back button - SquareButton Back variant */}
           <SquareButton 
-            variant="Close"
+            variant="Back"
             onClick={handleClose}
           />
           

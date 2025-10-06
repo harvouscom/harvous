@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TiptapEditor from './TiptapEditor';
 import ThreadCombobox from './ThreadCombobox';
+import SquareButton from './SquareButton';
 
 interface Thread {
   id: string;
@@ -415,29 +416,11 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
 
       {/* Bottom buttons */}
       <div className="flex items-center justify-between gap-3 shrink-0">
-        {/* Close button - SquareButton Close variant */}
-        <button 
-          type="button"
-          onClick={handleClose} 
-          tabIndex={4}
-          data-outer-shadow
-          className="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] bg-[var(--color-stone-grey)] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
-        >
-          <div className="flex flex-row items-center justify-center relative w-full h-full">
-            <div className="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-4 px-4 relative w-full h-full">
-              <div className="flex h-[42.426px] items-center justify-center relative shrink-0 w-[42.426px]">
-                <div className="flex-none">
-                    <div className="relative w-6 h-6 flex items-center justify-center">
-                      <svg className="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 384 512">
-                        <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
-                      </svg>
-                    </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
-        </button>
+        {/* Close button using SquareButton Close variant */}
+        <SquareButton 
+          variant="Close" 
+          onClick={handleClose}
+        />
         
         {/* Create Note button - Button Default variant */}
         <button 
