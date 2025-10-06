@@ -85,62 +85,54 @@ export default function EditNameColorPanel({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/user/update-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      console.log('EditNameColorPanel: Dispatching updateProfileRequest event');
+      console.log('EditNameColorPanel: Data being sent:', {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        color: formData.selectedColor
+      });
+      
+      // Dispatch custom event to trigger API call from Astro page
+      window.dispatchEvent(new CustomEvent('updateProfileRequest', {
+        detail: {
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
           color: formData.selectedColor
-        })
-      });
-
-      if (response.ok) {
-        // Show success toast
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: 'Profile updated successfully!',
-            type: 'success'
-          }
-        }));
-
-        // Update all avatars on the page
-        const newInitials = `${formData.firstName.charAt(0) || ''}${formData.lastName.charAt(0) || ''}`.toUpperCase();
-        if ((window as any).updateAllAvatars) {
-          (window as any).updateAllAvatars(formData.selectedColor, newInitials);
         }
+      }));
 
-        // Dispatch profile update event
-        window.dispatchEvent(new CustomEvent('updateProfile', {
-          detail: {
-            firstName: formData.firstName.trim(),
-            lastName: formData.lastName.trim(),
-            selectedColor: formData.selectedColor
-          }
-        }));
+      // Show success toast immediately (the actual API call will happen in the background)
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Profile updated successfully!',
+          type: 'success'
+        }
+      }));
 
-        // Close panel after a short delay
-        setTimeout(() => {
-          if (onClose) {
-            onClose();
-          } else {
-            window.dispatchEvent(new CustomEvent('closeProfilePanel'));
-          }
-        }, 500);
-
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || 'Failed to update profile. Please try again.';
-        
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: errorMessage,
-            type: 'error'
-          }
-        }));
+      // Update all avatars on the page
+      const newInitials = `${formData.firstName.charAt(0) || ''}${formData.lastName.charAt(0) || ''}`.toUpperCase();
+      if ((window as any).updateAllAvatars) {
+        (window as any).updateAllAvatars(formData.selectedColor, newInitials);
       }
+
+      // Dispatch profile update event
+      window.dispatchEvent(new CustomEvent('updateProfile', {
+        detail: {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          selectedColor: formData.selectedColor
+        }
+      }));
+
+      // Close panel after a short delay
+      setTimeout(() => {
+        if (onClose) {
+          onClose();
+        } else {
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+        }
+      }, 500);
+
     } catch (error) {
       console.error('Error updating profile:', error);
       window.dispatchEvent(new CustomEvent('toast', {

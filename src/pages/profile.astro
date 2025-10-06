@@ -146,12 +146,7 @@ const contentId = "profile";
   </div>
 
   <!-- Main Column -->
-  <div slot="main" class="h-full flex flex-col" x-data="{
-    openPanel(panelName) {
-      console.log('Main column openPanel called with:', panelName);
-      window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName } }));
-    }
-  }">
+  <div slot="main" class="h-full flex flex-col">
     <CardStack 
       title={displayName}
       headerBgColor={`var(--color-${userColor})`}
@@ -189,7 +184,7 @@ const contentId = "profile";
           <!-- Settings Options -->
           <div class="flex flex-col gap-3">
             <!-- Edit Name & Color -->
-            <div x-on:click="console.log('Edit Name & Color div clicked'); openPanel('editNameColor')" class="w-full">
+            <div x-on:click="$dispatch('openProfilePanel', { panelName: 'editNameColor' })" class="w-full">
               <SpaceButton 
                 text="Edit Name & Color"
                 state="WithArrow"
@@ -199,7 +194,7 @@ const contentId = "profile";
             </div>
             
             <!-- Email & Password -->
-            <div x-on:click="openPanel('emailPassword')" class="w-full">
+            <div x-on:click="$dispatch('openProfilePanel', { panelName: 'emailPassword' })" class="w-full">
               <SpaceButton 
                 text="Email & Password"
                 state="WithArrow"
@@ -209,7 +204,7 @@ const contentId = "profile";
             </div>
             
             <!-- My Church -->
-            <div x-on:click="openPanel('myChurch')" class="w-full">
+            <div x-on:click="$dispatch('openProfilePanel', { panelName: 'myChurch' })" class="w-full">
               <SpaceButton 
                 text="My Church"
                 state="WithArrow"
@@ -219,7 +214,7 @@ const contentId = "profile";
             </div>
             
             <!-- My Data -->
-            <div x-on:click="openPanel('myData')" class="w-full">
+            <div x-on:click="$dispatch('openProfilePanel', { panelName: 'myData' })" class="w-full">
               <SpaceButton 
                 text="My Data"
                 state="WithArrow"
@@ -232,7 +227,7 @@ const contentId = "profile";
 
         <!-- Bottom Section - Get Support -->
         <div class="mt-auto">
-          <div x-on:click="openPanel('getSupport')" class="w-full">
+          <div x-on:click="$dispatch('openProfilePanel', { panelName: 'getSupport' })" class="w-full">
             <SpaceButton 
               text="Get Support"
               state="WithArrow"
@@ -275,6 +270,7 @@ const contentId = "profile";
     showMyDataPanel: false,
     showGetSupportPanel: false,
     openProfilePanel(panelName) {
+      console.log('Alpine openProfilePanel called with:', panelName);
       // Close all other panels first
       this.showNewNotePanel = false;
       this.showNewThreadPanel = false;
@@ -290,15 +286,21 @@ const contentId = "profile";
       else if (panelName === 'myChurch') this.showMyChurchPanel = true;
       else if (panelName === 'myData') this.showMyDataPanel = true;
       else if (panelName === 'getSupport') this.showGetSupportPanel = true;
+      
+      console.log('Panel opened:', panelName);
     },
     closeProfilePanel() {
+      console.log('Alpine closeProfilePanel called');
       this.showEditNameColorPanel = false;
       this.showEmailPasswordPanel = false;
       this.showMyChurchPanel = false;
       this.showMyDataPanel = false;
       this.showGetSupportPanel = false;
     }
-  }" x-init="
+  }" 
+  x-on:openProfilePanel.window="openProfilePanel($event.detail.panelName)"
+  x-on:closeProfilePanel.window="closeProfilePanel()"
+  x-init="
     console.log('Additional slot initialized');
     console.log('Alpine data available:', this);
     console.log('openProfilePanel method available:', typeof this.openProfilePanel);
@@ -544,140 +546,7 @@ const contentId = "profile";
     // Make sure the functions are available globally
     (window as any).closeProfilePanel = (window as any).closeProfilePanel;
     
-    // Set up event listeners for profile panels
-    function setupProfilePanelListeners() {
-      // Remove existing listeners to prevent duplicates
-      window.removeEventListener('openProfilePanel', handleOpenProfilePanel);
-      window.removeEventListener('closeProfilePanel', handleCloseProfilePanel);
-      
-      // Add new listeners
-      window.addEventListener('openProfilePanel', handleOpenProfilePanel);
-      window.addEventListener('closeProfilePanel', handleCloseProfilePanel);
-    }
-    
-    function handleOpenProfilePanel(event: any) {
-      console.log('openProfilePanel event received:', event.detail);
-      const panelName = event.detail.panelName;
-      
-      // Try multiple selectors to find the Alpine component
-      const selectors = [
-        '[slot="additional"]',
-        '.additional-slot',
-        'div[slot="additional"]',
-        'div[data-slot="additional"]'
-      ];
-      
-      let additionalSlot = null;
-      for (const selector of selectors) {
-        additionalSlot = document.querySelector(selector);
-        if (additionalSlot) {
-          console.log('Found additional slot with selector:', selector);
-          break;
-        }
-      }
-      
-      if (!additionalSlot) {
-        console.error('Additional slot not found with any selector');
-        console.log('Available elements with slot attribute:', document.querySelectorAll('[slot]'));
-        return;
-      }
-      
-      console.log('Additional slot element:', additionalSlot);
-      console.log('Alpine data stack:', (additionalSlot as any)._x_dataStack);
-      
-      if ((additionalSlot as any)._x_dataStack && (additionalSlot as any)._x_dataStack[0]) {
-        const alpineData = (additionalSlot as any)._x_dataStack[0];
-        console.log('Alpine data:', alpineData);
-        if (alpineData.openProfilePanel) {
-          alpineData.openProfilePanel(panelName);
-        } else {
-          console.error('openProfilePanel method not found on Alpine data');
-          console.log('Available methods:', Object.keys(alpineData));
-        }
-      } else {
-        console.error('Alpine component not found in additional slot');
-        console.log('Element has Alpine data:', !!(additionalSlot as any)._x_dataStack);
-        
-        // Fallback: Try to directly show the EditNameColorPanel
-        if (panelName === 'editNameColor') {
-          console.log('Attempting fallback: directly showing EditNameColorPanel');
-          const editPanel = additionalSlot.querySelector('[x-show="showEditNameColorPanel"]');
-          if (editPanel) {
-            (editPanel as HTMLElement).style.display = 'block';
-            console.log('Fallback: EditNameColorPanel shown directly');
-          } else {
-            console.error('Fallback: EditNameColorPanel element not found');
-          }
-        }
-        
-        // Additional fallback: Try to trigger Alpine.js manually
-        console.log('Attempting manual Alpine.js trigger...');
-        const alpineElement = additionalSlot.querySelector('[x-data]');
-        if (alpineElement && (alpineElement as any)._x_dataStack) {
-          const alpineData = (alpineElement as any)._x_dataStack[0];
-          if (alpineData && alpineData.openProfilePanel) {
-            console.log('Manually triggering Alpine.js openProfilePanel');
-            alpineData.openProfilePanel(panelName);
-          }
-        }
-      }
-    }
-    
-    function handleCloseProfilePanel() {
-      console.log('closeProfilePanel event received');
-      
-      // Try multiple selectors to find the Alpine component
-      const selectors = [
-        '[slot="additional"]',
-        '.additional-slot',
-        'div[slot="additional"]',
-        'div[data-slot="additional"]'
-      ];
-      
-      let additionalSlot = null;
-      for (const selector of selectors) {
-        additionalSlot = document.querySelector(selector);
-        if (additionalSlot) {
-          console.log('Found additional slot with selector:', selector);
-          break;
-        }
-      }
-      
-      if (!additionalSlot) {
-        console.error('Additional slot not found with any selector');
-        return;
-      }
-      
-      console.log('Additional slot element:', additionalSlot);
-      console.log('Alpine data stack:', (additionalSlot as any)._x_dataStack);
-      
-      if ((additionalSlot as any)._x_dataStack && (additionalSlot as any)._x_dataStack[0]) {
-        const alpineData = (additionalSlot as any)._x_dataStack[0];
-        console.log('Alpine data:', alpineData);
-        if (alpineData.closeProfilePanel) {
-          alpineData.closeProfilePanel();
-        } else {
-          console.error('closeProfilePanel method not found on Alpine data');
-          console.log('Available methods:', Object.keys(alpineData));
-        }
-      } else {
-        console.error('Alpine component not found in additional slot');
-        console.log('Element has Alpine data:', !!(additionalSlot as any)._x_dataStack);
-        
-        // Fallback: Try to directly hide all panels
-        console.log('Attempting fallback: directly hiding all panels');
-        const panels = additionalSlot.querySelectorAll('[x-show*="Panel"]');
-        panels.forEach(panel => {
-          (panel as HTMLElement).style.display = 'none';
-        });
-        console.log('Fallback: All panels hidden directly');
-      }
-    }
-    
-    // Set up listeners when DOM is ready, with a small delay to ensure Alpine.js is initialized
-    setTimeout(() => {
-      setupProfilePanelListeners();
-    }, 100);
+    // Simplified event handling - Alpine.js will handle the events directly
     
     // Additional logout button setup as fallback
     setTimeout(() => {
@@ -693,6 +562,37 @@ const contentId = "profile";
       }
     }, 1000);
     
+    // Listen for profile update requests from EditNameColorPanel
+    window.addEventListener('updateProfileRequest', async (event: any) => {
+      console.log('updateProfileRequest event received:', event.detail);
+      try {
+        const { firstName, lastName, color } = event.detail;
+        
+        // Make API call to update profile
+        const response = await fetch('/api/user/update-profile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            firstName,
+            lastName,
+            color
+          })
+        });
+
+        if (response.ok) {
+          console.log('Profile updated successfully via API');
+        } else {
+          console.error('Profile update failed:', response.status);
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Error details:', errorData);
+        }
+      } catch (error) {
+        console.error('Error updating profile:', error);
+      }
+    });
+
     // Listen for profile data requests from EditNameColorPanel
     window.addEventListener('requestProfileData', async () => {
       console.log('requestProfileData event received');
