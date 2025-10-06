@@ -184,7 +184,11 @@ const contentId = "profile";
           <!-- Settings Options -->
           <div class="flex flex-col gap-3">
             <!-- Edit Name & Color -->
-            <div x-on:click="$dispatch('openProfilePanel', { panelName: 'editNameColor' })" class="w-full">
+            <div onclick="
+              console.log('Edit Name & Color button clicked');
+              window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'editNameColor' } }));
+              console.log('openProfilePanel event dispatched');
+            " class="w-full">
               <SpaceButton 
                 text="Edit Name & Color"
                 state="WithArrow"
@@ -194,7 +198,11 @@ const contentId = "profile";
             </div>
             
             <!-- Email & Password -->
-            <div x-on:click="$dispatch('openProfilePanel', { panelName: 'emailPassword' })" class="w-full">
+            <div onclick="
+              console.log('Email & Password button clicked');
+              window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'emailPassword' } }));
+              console.log('openProfilePanel event dispatched for emailPassword');
+            " class="w-full">
               <SpaceButton 
                 text="Email & Password"
                 state="WithArrow"
@@ -204,7 +212,7 @@ const contentId = "profile";
             </div>
             
             <!-- My Church -->
-            <div x-on:click="$dispatch('openProfilePanel', { panelName: 'myChurch' })" class="w-full">
+            <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'myChurch' } }))" class="w-full">
               <SpaceButton 
                 text="My Church"
                 state="WithArrow"
@@ -214,7 +222,7 @@ const contentId = "profile";
             </div>
             
             <!-- My Data -->
-            <div x-on:click="$dispatch('openProfilePanel', { panelName: 'myData' })" class="w-full">
+            <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'myData' } }))" class="w-full">
               <SpaceButton 
                 text="My Data"
                 state="WithArrow"
@@ -227,7 +235,7 @@ const contentId = "profile";
 
         <!-- Bottom Section - Get Support -->
         <div class="mt-auto">
-          <div x-on:click="$dispatch('openProfilePanel', { panelName: 'getSupport' })" class="w-full">
+          <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'getSupport' } }))" class="w-full">
             <SpaceButton 
               text="Get Support"
               state="WithArrow"
@@ -261,80 +269,37 @@ const contentId = "profile";
   </div>
 
   <!-- Additional Column for Panels -->
-  <div slot="additional" class="h-full additional-slot" x-data="{ 
-    showNewNotePanel: false, 
-    showNewThreadPanel: false,
-    showEditNameColorPanel: false,
-    showEmailPasswordPanel: false,
-    showMyChurchPanel: false,
-    showMyDataPanel: false,
-    showGetSupportPanel: false,
-    openProfilePanel(panelName) {
-      console.log('Alpine openProfilePanel called with:', panelName);
-      // Close all other panels first
-      this.showNewNotePanel = false;
-      this.showNewThreadPanel = false;
-      this.showEditNameColorPanel = false;
-      this.showEmailPasswordPanel = false;
-      this.showMyChurchPanel = false;
-      this.showMyDataPanel = false;
-      this.showGetSupportPanel = false;
-      
-      // Open the requested panel
-      if (panelName === 'editNameColor') this.showEditNameColorPanel = true;
-      else if (panelName === 'emailPassword') this.showEmailPasswordPanel = true;
-      else if (panelName === 'myChurch') this.showMyChurchPanel = true;
-      else if (panelName === 'myData') this.showMyDataPanel = true;
-      else if (panelName === 'getSupport') this.showGetSupportPanel = true;
-      
-      console.log('Panel opened:', panelName);
-    },
-    closeProfilePanel() {
-      console.log('Alpine closeProfilePanel called');
-      this.showEditNameColorPanel = false;
-      this.showEmailPasswordPanel = false;
-      this.showMyChurchPanel = false;
-      this.showMyDataPanel = false;
-      this.showGetSupportPanel = false;
-    }
-  }" 
-  x-on:openProfilePanel.window="openProfilePanel($event.detail.panelName)"
-  x-on:closeProfilePanel.window="closeProfilePanel()"
-  x-init="
-    console.log('Additional slot initialized');
-    console.log('Alpine data available:', this);
-    console.log('openProfilePanel method available:', typeof this.openProfilePanel);
-  ">
-    <!-- Default state: SquareButtons -->
-    <div x-show="!showNewNotePanel && !showNewThreadPanel && !showEditNameColorPanel && !showEmailPasswordPanel && !showMyChurchPanel && !showMyDataPanel && !showGetSupportPanel" class="flex flex-col items-left h-full justify-end">
+  <div slot="additional" class="h-full additional-slot" id="profile-panels">
+    <!-- Default state: No panels shown -->
+    <div id="default-panel" class="flex flex-col items-left h-full justify-end">
       <!-- No buttons for profile page -->
     </div>
     
     <!-- Edit Name & Color Panel -->
-    <div x-show="showEditNameColorPanel" class="h-full">
+    <div id="editNameColor-panel" class="h-full" style="display: none;">
       <EditNameColorPanel firstName={firstName} lastName={lastName} selectedColor={userColor as any} />
     </div>
     
     <!-- Placeholder for other panels -->
-    <div x-show="showEmailPasswordPanel">
+    <div id="emailPassword-panel" style="display: none;">
       <div class="text-center text-[var(--color-deep-grey)] p-8">
         <p>Email & Password panel coming soon...</p>
       </div>
     </div>
     
-    <div x-show="showMyChurchPanel">
+    <div id="myChurch-panel" style="display: none;">
       <div class="text-center text-[var(--color-deep-grey)] p-8">
         <p>My Church panel coming soon...</p>
       </div>
     </div>
     
-    <div x-show="showMyDataPanel">
+    <div id="myData-panel" style="display: none;">
       <div class="text-center text-[var(--color-deep-grey)] p-8">
         <p>My Data panel coming soon...</p>
       </div>
     </div>
     
-    <div x-show="showGetSupportPanel">
+    <div id="getSupport-panel" style="display: none;">
       <div class="text-center text-[var(--color-deep-grey)] p-8">
         <p>Get Support panel coming soon...</p>
       </div>
@@ -546,7 +511,60 @@ const contentId = "profile";
     // Make sure the functions are available globally
     (window as any).closeProfilePanel = (window as any).closeProfilePanel;
     
-    // Simplified event handling - Alpine.js will handle the events directly
+    // Desktop panel switching functionality
+    function showPanel(panelName: string) {
+      console.log('Desktop: Showing panel:', panelName);
+      
+      // Hide all panels
+      const allPanels = document.querySelectorAll('[id$="-panel"]');
+      allPanels.forEach(panel => {
+        (panel as HTMLElement).style.display = 'none';
+      });
+      
+      // Show the requested panel
+      const targetPanel = document.getElementById(`${panelName}-panel`);
+      if (targetPanel) {
+        (targetPanel as HTMLElement).style.display = 'block';
+        console.log('Desktop: Panel shown:', panelName);
+      } else {
+        console.log('Desktop: Panel not found:', panelName);
+      }
+    }
+    
+    function hideAllPanels() {
+      console.log('Desktop: Hiding all panels');
+      const allPanels = document.querySelectorAll('[id$="-panel"]');
+      allPanels.forEach(panel => {
+        (panel as HTMLElement).style.display = 'none';
+      });
+      
+      // Show default panel
+      const defaultPanel = document.getElementById('default-panel');
+      if (defaultPanel) {
+        (defaultPanel as HTMLElement).style.display = 'block';
+      }
+    }
+    
+    // Listen for profile panel events (desktop only)
+    window.addEventListener('openProfilePanel', (event: any) => {
+      console.log('Desktop: openProfilePanel event received:', event.detail);
+      const panelName = event.detail.panelName;
+      
+      // Check if we're on desktop (screen width >= 1160px)
+      if (window.innerWidth >= 1160) {
+        console.log('Desktop: Opening panel in additional column');
+        showPanel(panelName);
+      } else {
+        console.log('Desktop: On mobile, letting MobileAdditional handle it');
+      }
+    });
+    
+    window.addEventListener('closeProfilePanel', () => {
+      console.log('Desktop: closeProfilePanel event received');
+      if (window.innerWidth >= 1160) {
+        hideAllPanels();
+      }
+    });
     
     // Additional logout button setup as fallback
     setTimeout(() => {

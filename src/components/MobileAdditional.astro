@@ -44,16 +44,32 @@ const showMoreButton = shouldShowMoreButton(contentType);
     window.addEventListener('openProfilePanel', (event) => {
       console.log('MobileAdditional: openProfilePanel received', event.detail);
       const panelName = event.detail?.panelName;
-      if (panelName === 'editNameColor') {
-        // Dispatch event to open mobile drawer for edit name & color
-        window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
-          detail: { type: 'editNameColor' } 
-        }));
-      } else if (panelName === 'getSupport') {
-        // Dispatch event to open mobile drawer for get support
-        window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
-          detail: { type: 'getSupport' } 
-        }));
+      console.log('MobileAdditional: Panel name:', panelName);
+      
+      // Only handle on mobile (screen width < 1160px)
+      if (window.innerWidth < 1160) {
+        console.log('MobileAdditional: On mobile, opening drawer');
+        
+        // Map panel names to drawer types
+        const panelMap = {
+          'editNameColor': 'editNameColor',
+          'getSupport': 'getSupport',
+          'emailPassword': 'emailPassword',
+          'myChurch': 'myChurch',
+          'myData': 'myData'
+        };
+        
+        const drawerType = panelMap[panelName];
+        if (drawerType) {
+          console.log('MobileAdditional: Opening drawer for:', drawerType);
+          window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
+            detail: { drawerType: drawerType } 
+          }));
+        } else {
+          console.log('MobileAdditional: Unknown panel name:', panelName);
+        }
+      } else {
+        console.log('MobileAdditional: On desktop, letting profile page handle it');
       }
     });
   "

@@ -28,7 +28,7 @@ export interface BottomSheetProps {
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
 }
 
-type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'getSupport';
+type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'getSupport' | 'emailPassword' | 'myChurch' | 'myData';
 
 const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen = false,
@@ -121,7 +121,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   useEffect(() => {
     const handleOpenBottomSheet = (event: CustomEvent) => {
       console.log('BottomSheet: openBottomSheet received:', event.detail);
-      const type = (event.detail && event.detail.type) || 'note';
+      const type = (event.detail && (event.detail.type || event.detail.drawerType)) || 'note';
+      console.log('BottomSheet: Opening with type:', type);
       openBottomSheet(type as DrawerType);
     };
 
@@ -257,6 +258,33 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
             <div className="panel-container flex-1 flex flex-col min-h-0">
               <div className="text-center text-[var(--color-deep-grey)] p-8">
                 <p>Get Support panel coming soon...</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Email & Password Panel */}
+          {drawerType === 'emailPassword' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <div className="text-center text-[var(--color-deep-grey)] p-8">
+                <p>Email & Password panel coming soon...</p>
+              </div>
+            </div>
+          )}
+          
+          {/* My Church Panel */}
+          {drawerType === 'myChurch' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <div className="text-center text-[var(--color-deep-grey)] p-8">
+                <p>My Church panel coming soon...</p>
+              </div>
+            </div>
+          )}
+          
+          {/* My Data Panel */}
+          {drawerType === 'myData' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <div className="text-center text-[var(--color-deep-grey)] p-8">
+                <p>My Data panel coming soon...</p>
               </div>
             </div>
           )}
