@@ -5,6 +5,7 @@ interface Thread {
   id: string;
   title: string;
   subtitle?: string;
+  color?: string;
   count?: number;
   accentColor?: string;
   lastUpdated?: string;
@@ -41,12 +42,16 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
   const {
     title = "Prayer Series",
     subtitle,
+    color,
     count = 2,
-    accentColor = "var(--color-lovely-lavender)",
+    accentColor,
     lastUpdated,
     createdAt,
     isPrivate = true
   } = thread;
+
+  // Convert color to CSS variable format
+  const threadAccentColor = accentColor || (color ? `var(--color-${color})` : "var(--color-lovely-lavender)");
 
   // Format the timestamp properly
   let displaySubtitle = subtitle || "5 hours ago";
@@ -106,7 +111,7 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
       {/* Accent bar */}
       <div 
         className="absolute inset-y-0 left-0 w-11 rounded-l-xl" 
-        style={{ backgroundColor: accentColor }}
+        style={{ backgroundColor: threadAccentColor }}
       />
       
       {/* Header content */}

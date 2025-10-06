@@ -36,26 +36,93 @@ export const GET: APIRoute = async ({ params, locals }) => {
       });
     }
 
-    // Get the primary thread that contains this note with note count
-    const primaryThreadResult = await db
-      .select({
-        id: Threads.id,
-        title: Threads.title,
-        subtitle: Threads.subtitle,
-        color: Threads.color,
-        isPublic: Threads.isPublic,
-        isPinned: Threads.isPinned,
-        createdAt: Threads.createdAt,
-        updatedAt: Threads.updatedAt,
-        noteCount: count(Notes.id)
-      })
-      .from(Threads)
-      .leftJoin(Notes, and(eq(Notes.threadId, Threads.id), eq(Notes.userId, userId)))
-      .where(and(eq(Threads.id, note.threadId), eq(Threads.userId, userId)))
-      .groupBy(Threads.id)
-      .get();
+    console.log("Note ID:", noteId);
+    console.log("Note threadId:", note.threadId);
 
-    const primaryThread = primaryThreadResult;
+    // Get all user threads first
+    const allUserThreads = await db.select({
+      id: Threads.id,
+      title: Threads.title,
+      color: Threads.color,
+      isPublic: Threads.isPublic,
+      createdAt: Threads.createdAt,
+      updatedAt: Threads.updatedAt
+    })
+      .from(Threads)
+      .where(eq(Threads.userId, userId))
+      .all();
+
+    console.log("Total user threads:", allUserThreads.length);
+
+    // Get threads from junction table (many-to-many)
+    let allThreads = [];
+    try {
+      const junctionThreads = await db
+        .select({
+          id: Threads.id,
+          title: Threads.title,
+          subtitle: Threads.subtitle,
+          color: Threads.color,
+          isPublic: Threads.isPublic,
+          isPinned: Threads.isPinned,
+          createdAt: Threads.createdAt,
+          updatedAt: Threads.updatedAt
+        })
+        .from(Threads)
+        .innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id))
+        .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, userId)))
+        .all();
+
+      console.log("Junction table threads found:", junctionThreads.length);
+      // Filter out "Unorganized" threads - they shouldn't appear in the threads list
+      allThreads = junctionThreads.filter(thread => thread.title !== 'Unorganized');
+      console.log("Threads after filtering out Unorganized:", allThreads.length);
+    } catch (error) {
+      console.log("Error querying junction table:", error);
+      allThreads = [];
+    }
+
+    // If no threads in junction table, check if we have a primary thread and auto-populate
+    if (allThreads.length === 0 && note.threadId) {
+      console.log("No junction threads, checking primary thread:", note.threadId);
+      try {
+        const primaryThread = await db.select()
+          .from(Threads)
+          .where(and(eq(Threads.id, note.threadId), eq(Threads.userId, userId)))
+          .get();
+        
+        if (primaryThread) {
+          // Only include non-Unorganized threads in the results
+          if (primaryThread.title !== 'Unorganized') {
+            allThreads = [primaryThread];
+            console.log("Found primary thread:", primaryThread.title);
+          } else {
+            console.log("Primary thread is Unorganized, not showing in threads list");
+            allThreads = [];
+          }
+          
+          // Auto-populate the junction table for backward compatibility (only if not Unorganized)
+          if (primaryThread.title !== 'Unorganized') {
+            try {
+              await db.insert(NoteThreads).values({
+                noteId: noteId,
+                threadId: note.threadId
+              });
+              console.log("Auto-populated junction table with primary thread");
+            } catch (insertError) {
+              console.log("Note: Junction table entry may already exist:", insertError);
+            }
+          }
+        } else {
+          console.log("Primary thread not found or doesn't belong to user");
+        }
+      } catch (error) {
+        console.log("Error querying primary thread:", error);
+      }
+    }
+
+    console.log("Final threads to return:", allThreads.length);
+    console.log("Thread titles:", allThreads.map(t => t.title));
 
     // Helper function to format relative time (same as original)
     function formatRelativeTime(date: Date): string {
@@ -76,18 +143,19 @@ export const GET: APIRoute = async ({ params, locals }) => {
       }
     }
 
-    // Get the thread that contains this note (one-to-one relationship)
-    // Format it to match the original CardThread.astro format
-    const allThreads = primaryThread ? [{
-      id: primaryThread.id,
-      title: primaryThread.title,
-      subtitle: `${primaryThread.noteCount || 0} notes`, // Add note count if available
-      count: primaryThread.noteCount || 0,
-      accentColor: `var(--color-${primaryThread.color || 'blessed-blue'})`, // Format color correctly
-      lastUpdated: formatRelativeTime(new Date(primaryThread.updatedAt || primaryThread.createdAt)),
-      createdAt: primaryThread.createdAt,
-      isPrivate: !primaryThread.isPublic
-    }] : [];
+    // Format all threads that contain this note (many-to-many relationship)
+    const formattedThreads = allThreads.map(thread => ({
+      id: thread.id,
+      title: thread.title,
+      subtitle: thread.subtitle || "Thread",
+      color: thread.color,
+      isPublic: thread.isPublic,
+      isPinned: thread.isPinned,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt
+    }));
+
+    // Use the allUserThreads we already fetched above
 
     // Get all comments for this note
     const comments = await db.select({
@@ -131,18 +199,15 @@ export const GET: APIRoute = async ({ params, locals }) => {
         createdAt: note.createdAt,
         updatedAt: note.updatedAt
       },
-      // Return both primary thread and all threads
-      primaryThread: primaryThread ? {
-        id: primaryThread.id,
-        title: primaryThread.title,
-        subtitle: primaryThread.subtitle,
-        color: primaryThread.color,
-        isPublic: primaryThread.isPublic,
-        isPinned: primaryThread.isPinned,
-        createdAt: primaryThread.createdAt,
-        updatedAt: primaryThread.updatedAt
-      } : null,
-      threads: allThreads,
+      threads: formattedThreads,
+      allUserThreads: allUserThreads.map(thread => ({
+        id: thread.id,
+        title: thread.title,
+        color: thread.color,
+        isPublic: thread.isPublic,
+        createdAt: thread.createdAt,
+        updatedAt: thread.updatedAt
+      })),
       comments: comments.map(comment => ({
         id: comment.id,
         content: comment.content,
@@ -162,11 +227,9 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
     console.log("Note details fetched successfully:", {
       noteId,
-      primaryThreadCount: primaryThread ? 1 : 0,
       allThreadsCount: allThreads.length,
       commentCount: comments.length,
       tagCount: noteTags.length,
-      primaryThread: primaryThread ? { id: primaryThread.id, title: primaryThread.title } : null,
       allThreads: allThreads.map(t => ({ id: t.id, title: t.title }))
     });
 
