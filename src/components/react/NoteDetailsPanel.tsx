@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import CardThread from '../CardThread.astro';
+import CardThread from './CardThread';
 import SquareButton from './SquareButton';
 
 interface Thread {
@@ -57,6 +57,7 @@ export default function NoteDetailsPanel({
       const response = await fetch(`/api/notes/${noteId}/details`);
       if (response.ok) {
         const data = await response.json();
+        // Use the new threads array from the API response
         setLocalThreads(data.threads || []);
         setLocalComments(data.comments || []);
         setLocalTags(data.tags || []);
@@ -92,7 +93,17 @@ export default function NoteDetailsPanel({
   };
 
   return (
-    <div className="note-details-panel h-full flex flex-col justify-between">
+    <>
+      <style>{`
+        .card-thread-container {
+          background-color: var(--color-fog-white);
+        }
+        
+        .lavender-accent {
+          background-color: var(--color-lovely-lavender);
+        }
+      `}</style>
+      <div className="note-details-panel h-full flex flex-col justify-between">
       {/* Content area that expands to fill available space */}
       <div className="flex-1 flex flex-col min-h-0 mb-3.5">
         {/* Single unified panel using CardStack structure */}
@@ -202,7 +213,14 @@ export default function NoteDetailsPanel({
                           <div className="text-center py-4 text-gray-500">No threads found for this note.</div>
                         ) : (
                           localThreads.map(thread => (
-                            <CardThread key={thread.id} thread={thread} />
+                            <div key={thread.id} className="relative">
+                              <a 
+                                href={`/${thread.id}`}
+                                className="block transition-transform duration-200 hover:scale-[1.002]"
+                              >
+                                <CardThread thread={thread} />
+                              </a>
+                            </div>
                           ))
                         )}
                       </div>
@@ -288,6 +306,7 @@ export default function NoteDetailsPanel({
           onClick={closePanel}
         />
       </div>
-    </div>
+      </div>
+    </>
   );
 }

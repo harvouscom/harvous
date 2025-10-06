@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, Comments, Tags, NoteTags, eq, and } from 'astro:db';
+import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, eq, and, count } from 'astro:db';
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
@@ -36,11 +36,58 @@ export const GET: APIRoute = async ({ params, locals }) => {
       });
     }
 
-    // Get the thread that contains this note
-    const thread = await db.select()
+    // Get the primary thread that contains this note with note count
+    const primaryThreadResult = await db
+      .select({
+        id: Threads.id,
+        title: Threads.title,
+        subtitle: Threads.subtitle,
+        color: Threads.color,
+        isPublic: Threads.isPublic,
+        isPinned: Threads.isPinned,
+        createdAt: Threads.createdAt,
+        updatedAt: Threads.updatedAt,
+        noteCount: count(Notes.id)
+      })
       .from(Threads)
+      .leftJoin(Notes, and(eq(Notes.threadId, Threads.id), eq(Notes.userId, userId)))
       .where(and(eq(Threads.id, note.threadId), eq(Threads.userId, userId)))
+      .groupBy(Threads.id)
       .get();
+
+    const primaryThread = primaryThreadResult;
+
+    // Helper function to format relative time (same as original)
+    function formatRelativeTime(date: Date): string {
+      const now = new Date();
+      const diffInMs = now.getTime() - date.getTime();
+      const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+
+      if (diffInDays > 0) {
+        return diffInDays === 1 ? "1 day ago" : `${diffInDays} days ago`;
+      } else if (diffInHours > 0) {
+        return diffInHours === 1 ? "1 hour ago" : `${diffInHours} hours ago`;
+      } else if (diffInMinutes > 0) {
+        return diffInMinutes === 1 ? "1 minute ago" : `${diffInMinutes} minutes ago`;
+      } else {
+        return "Just now";
+      }
+    }
+
+    // Get the thread that contains this note (one-to-one relationship)
+    // Format it to match the original CardThread.astro format
+    const allThreads = primaryThread ? [{
+      id: primaryThread.id,
+      title: primaryThread.title,
+      subtitle: `${primaryThread.noteCount || 0} notes`, // Add note count if available
+      count: primaryThread.noteCount || 0,
+      accentColor: `var(--color-${primaryThread.color || 'blessed-blue'})`, // Format color correctly
+      lastUpdated: formatRelativeTime(new Date(primaryThread.updatedAt || primaryThread.createdAt)),
+      createdAt: primaryThread.createdAt,
+      isPrivate: !primaryThread.isPublic
+    }] : [];
 
     // Get all comments for this note
     const comments = await db.select({
@@ -84,16 +131,18 @@ export const GET: APIRoute = async ({ params, locals }) => {
         createdAt: note.createdAt,
         updatedAt: note.updatedAt
       },
-      thread: thread ? {
-        id: thread.id,
-        title: thread.title,
-        subtitle: thread.subtitle,
-        color: thread.color,
-        isPublic: thread.isPublic,
-        isPinned: thread.isPinned,
-        createdAt: thread.createdAt,
-        updatedAt: thread.updatedAt
+      // Return both primary thread and all threads
+      primaryThread: primaryThread ? {
+        id: primaryThread.id,
+        title: primaryThread.title,
+        subtitle: primaryThread.subtitle,
+        color: primaryThread.color,
+        isPublic: primaryThread.isPublic,
+        isPinned: primaryThread.isPinned,
+        createdAt: primaryThread.createdAt,
+        updatedAt: primaryThread.updatedAt
       } : null,
+      threads: allThreads,
       comments: comments.map(comment => ({
         id: comment.id,
         content: comment.content,
@@ -113,9 +162,12 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
     console.log("Note details fetched successfully:", {
       noteId,
-      threadCount: thread ? 1 : 0,
+      primaryThreadCount: primaryThread ? 1 : 0,
+      allThreadsCount: allThreads.length,
       commentCount: comments.length,
-      tagCount: noteTags.length
+      tagCount: noteTags.length,
+      primaryThread: primaryThread ? { id: primaryThread.id, title: primaryThread.title } : null,
+      allThreads: allThreads.map(t => ({ id: t.id, title: t.title }))
     });
 
     return new Response(JSON.stringify(response), {
