@@ -112,8 +112,57 @@ console.log('MobileNavigation received props:', { initials, userColor });
 
   <!-- Avatar (Column 3: auto) -->
   <a href="/profile">
-    <Avatar initials={initials} color={userColor} />
+    <Avatar initials={initials} color={userColor} id="mobile-navigation-avatar" />
   </a>
 </div>
+
+<script>
+  // Listen for avatar updates and update the mobile navigation avatar
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('MobileNavigation: Setting up avatar update listener');
+    
+    // Listen for profile updates
+    window.addEventListener('updateProfile', (event: any) => {
+      console.log('MobileNavigation: updateProfile event received', event.detail);
+      const detail = event.detail;
+      
+      if (detail) {
+        const newInitials = `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase();
+        const newColor = detail.selectedColor;
+        
+        console.log('MobileNavigation: Updating avatar with:', { newInitials, newColor });
+        
+        // Find the mobile navigation avatar
+        const mobileAvatar = document.getElementById('mobile-navigation-avatar');
+        if (mobileAvatar) {
+          // Update the avatar using the global update function
+          if ((window as any).updateAllAvatars) {
+            (window as any).updateAllAvatars(newColor, newInitials);
+          }
+        }
+      }
+    });
+    
+    // Also listen for color changes
+    window.addEventListener('colorChanged', (event: any) => {
+      console.log('MobileNavigation: colorChanged event received', event.detail);
+      const detail = event.detail;
+      
+      if (detail && detail.color) {
+        console.log('MobileNavigation: Updating avatar color to:', detail.color);
+        
+        // Find the mobile navigation avatar
+        const mobileAvatar = document.getElementById('mobile-navigation-avatar');
+        if (mobileAvatar) {
+          // Update just the color
+          const newColor = `var(--color-${detail.color})`;
+          mobileAvatar.style.background = newColor;
+          mobileAvatar.style.backgroundColor = newColor;
+          mobileAvatar.setAttribute('data-avatar-color', detail.color);
+        }
+      }
+    });
+  });
+</script>
 
 

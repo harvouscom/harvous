@@ -401,8 +401,27 @@ const contentId = "profile";
       console.log('updateAllAvatars called with:', { color, initials });
       const newColor = `var(--color-${color})`;
       
-      // Find all avatar elements - simple approach
-      const avatars = document.querySelectorAll('.avatar-button');
+      // Find all avatar elements - target specific IDs first, then fallback to all
+      const specificAvatars = [
+        'mobile-navigation-avatar',
+        'dashboard-navigation-avatar', 
+        'content-navigation-avatar',
+        'new-space-navigation-avatar'
+      ];
+      
+      let avatars: HTMLElement[] = [];
+      specificAvatars.forEach(id => {
+        const avatar = document.getElementById(id);
+        if (avatar) {
+          avatars.push(avatar);
+        }
+      });
+      
+      // Fallback: find all avatar elements if specific ones not found
+      if (avatars.length === 0) {
+        avatars = Array.from(document.querySelectorAll('.avatar-button')) as HTMLElement[];
+      }
+      
       const avatarsWithData = document.querySelectorAll('.avatar-button[data-avatar-color]');
       
       console.log(`Found ${avatarsWithData.length} avatar elements with data attribute`);
