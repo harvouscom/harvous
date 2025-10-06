@@ -184,23 +184,7 @@ const contentId = "profile";
           <!-- Settings Options -->
           <div class="flex flex-col gap-3">
             <!-- Edit Name & Color -->
-            <div onclick="
-              console.log('Edit Name & Color button clicked');
-              // Try event dispatch first
-              window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'editNameColor' } }));
-              console.log('openProfilePanel event dispatched');
-              
-              // Fallback: direct panel opening if event doesn't work
-              setTimeout(() => {
-                const panel = document.getElementById('editNameColor-panel');
-                const defaultPanel = document.getElementById('default-panel');
-                if (panel && defaultPanel && panel.style.display === 'none') {
-                  console.log('Fallback: Directly opening editNameColor panel');
-                  defaultPanel.style.display = 'none';
-                  panel.style.display = 'block';
-                }
-              }, 50);
-            " class="w-full">
+            <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'editNameColor' } }))" class="w-full">
               <SpaceButton 
                 text="Edit Name & Color"
                 state="WithArrow"
@@ -210,22 +194,7 @@ const contentId = "profile";
             </div>
             
             <!-- Email & Password -->
-            <div onclick="
-              console.log('Email & Password button clicked');
-              window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'emailPassword' } }));
-              console.log('openProfilePanel event dispatched for emailPassword');
-              
-              // Fallback: direct panel opening
-              setTimeout(() => {
-                const panel = document.getElementById('emailPassword-panel');
-                const defaultPanel = document.getElementById('default-panel');
-                if (panel && defaultPanel && panel.style.display === 'none') {
-                  console.log('Fallback: Directly opening emailPassword panel');
-                  defaultPanel.style.display = 'none';
-                  panel.style.display = 'block';
-                }
-              }, 50);
-            " class="w-full">
+            <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'emailPassword' } }))" class="w-full">
               <SpaceButton 
                 text="Email & Password"
                 state="WithArrow"
@@ -510,21 +479,6 @@ const contentId = "profile";
       return (window as any).updateAllAvatars(color, initials);
     };
     
-    // Debug function to manually open panels (for production debugging)
-    (window as any).openProfilePanel = (panelName: string) => {
-      console.log('Manually opening panel:', panelName);
-      showPanel(panelName);
-    };
-    
-    // Debug function to test panel opening
-    (window as any).testPanelOpening = () => {
-      console.log('Testing panel opening...');
-      const panels = ['editNameColor', 'emailPassword', 'myChurch', 'myData', 'getSupport'];
-      panels.forEach(panel => {
-        const element = document.getElementById(`${panel}-panel`);
-        console.log(`Panel ${panel}:`, element ? 'Found' : 'Not found', element?.style.display);
-      });
-    };
     
     // Debug function to inspect all avatars on the page
     (window as any).debugAllAvatars = () => {
@@ -605,22 +559,8 @@ const contentId = "profile";
       }
     }
     
-    // More robust event listener setup for production
-    function setupProfilePanelListeners() {
-      console.log('Setting up profile panel event listeners');
-      
-      // Remove existing listeners to prevent duplicates
-      window.removeEventListener('openProfilePanel', handleOpenProfilePanel);
-      window.removeEventListener('closeProfilePanel', handleCloseProfilePanel);
-      
-      // Add new listeners
-      window.addEventListener('openProfilePanel', handleOpenProfilePanel);
-      window.addEventListener('closeProfilePanel', handleCloseProfilePanel);
-      
-      console.log('Profile panel event listeners set up successfully');
-    }
-    
-    function handleOpenProfilePanel(event: any) {
+    // Listen for profile panel events (desktop only)
+    window.addEventListener('openProfilePanel', (event: any) => {
       console.log('Desktop: openProfilePanel event received:', event.detail);
       const panelName = event.detail.panelName;
       
@@ -631,20 +571,14 @@ const contentId = "profile";
       } else {
         console.log('Desktop: On mobile, letting MobileAdditional handle it');
       }
-    }
+    });
     
-    function handleCloseProfilePanel() {
+    window.addEventListener('closeProfilePanel', () => {
       console.log('Desktop: closeProfilePanel event received');
       if (window.innerWidth >= 1160) {
         hideAllPanels();
       }
-    }
-    
-    // Try multiple times to ensure listeners are set up
-    setupProfilePanelListeners();
-    setTimeout(setupProfilePanelListeners, 100);
-    setTimeout(setupProfilePanelListeners, 500);
-    setTimeout(setupProfilePanelListeners, 1000);
+    });
     
     // Additional logout button setup as fallback
     setTimeout(() => {
