@@ -1,6 +1,5 @@
 import type { APIRoute } from 'astro';
 import { db, UserMetadata, eq } from 'astro:db';
-import { invalidateUserCache } from '@/utils/user-cache';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -58,21 +57,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Store the color preference and updated user data in the database
     try {
+      console.log('Updating database with:', { firstName, lastName, color, userId });
+      
       // Check if user metadata exists
       const existingMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
       
       if (existingMetadata) {
+        console.log('Updating existing metadata');
         // Update existing metadata with new user data and color
         await db.update(UserMetadata)
           .set({ 
             firstName: firstName,
             lastName: lastName,
             userColor: color,
-            clerkDataUpdatedAt: new Date(), // Invalidate cache to force refresh
+            clerkDataUpdatedAt: new Date(), // Keep cache valid with fresh data
             updatedAt: new Date()
           })
           .where(eq(UserMetadata.userId, userId));
+        
+        console.log('Database updated successfully');
       } else {
+        console.log('Creating new metadata record');
         // Create new metadata record
         await db.insert(UserMetadata).values({
           id: `user_metadata_${userId}`,
@@ -85,20 +90,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
           updatedAt: new Date(),
           clerkDataUpdatedAt: new Date()
         });
+        
+        console.log('Database record created successfully');
       }
     } catch (dbError) {
       console.error('Database error:', dbError);
       // Continue with success response even if database save fails
     }
 
-    // Invalidate the user cache to force refresh on next page load
-    try {
-      await invalidateUserCache(userId);
-      console.log('User cache invalidated successfully');
-    } catch (cacheError) {
-      console.error('Error invalidating user cache:', cacheError);
-      // Continue with success response even if cache invalidation fails
-    }
+    // Note: We don't need to invalidate the cache since we just updated it with the correct data
+    // The cache now contains the updated firstName, lastName, and userColor
+    console.log('User data updated successfully in database');
 
     return new Response(JSON.stringify({ 
       success: true, 
