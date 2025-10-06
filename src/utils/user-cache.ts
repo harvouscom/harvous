@@ -1,8 +1,5 @@
 import { db, UserMetadata, eq } from 'astro:db';
 
-// Cache duration: 24 hours (in milliseconds)
-const CACHE_DURATION = 24 * 60 * 60 * 1000;
-
 export interface CachedUserData {
   firstName: string;
   lastName: string;
@@ -19,84 +16,20 @@ export interface CachedUserData {
  */
 export async function getCachedUserData(userId: string): Promise<CachedUserData> {
   try {
-    console.log(`[getCachedUserData] Fetching data for userId: ${userId}`);
-    
-    // First, try to get cached data from database
-    const cachedData = await db.select()
+    // Get user metadata from database (including color preference)
+    const userMetadata = await db.select()
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, userId))
       .get();
 
-    console.log(`[getCachedUserData] Cached data:`, {
-      firstName: cachedData?.firstName,
-      lastName: cachedData?.lastName,
-      userColor: cachedData?.userColor,
-      clerkDataUpdatedAt: cachedData?.clerkDataUpdatedAt
-    });
-
-    if (cachedData && isCacheValid(cachedData.clerkDataUpdatedAt)) {
-      // Cache is valid, return cached data
-      const result = {
-        firstName: cachedData.firstName || '',
-        lastName: cachedData.lastName || '',
-        email: cachedData.email || '',
-        profileImageUrl: cachedData.profileImageUrl,
-        initials: generateInitials(cachedData.firstName, cachedData.lastName),
-        displayName: generateDisplayName(cachedData.firstName, cachedData.lastName),
-        userColor: cachedData.userColor || 'paper',
-      };
-      
-      console.log(`[getCachedUserData] Returning cached data:`, result);
-      return result;
-    }
-
-    console.log(`[getCachedUserData] Cache invalid or missing, fetching from Clerk API`);
-    // Cache is invalid or doesn't exist, fetch from Clerk API
-    return await fetchAndCacheUserData(userId, cachedData);
-
-  } catch (error) {
-    console.error('Error getting cached user data:', error);
+    const userColor = userMetadata?.userColor || 'paper';
     
-    // Fallback to basic data if everything fails
-    return {
-      firstName: '',
-      lastName: '',
-      email: '',
-      initials: 'U',
-      displayName: 'User',
-      userColor: 'paper',
-    };
-  }
-}
-
-/**
- * Check if cached data is still valid
- */
-function isCacheValid(updatedAt: Date | null): boolean {
-  if (!updatedAt) {
-    console.log(`[isCacheValid] No updatedAt date, cache invalid`);
-    return false;
-  }
-  
-  const now = new Date();
-  const cacheAge = now.getTime() - updatedAt.getTime();
-  const isValid = cacheAge < CACHE_DURATION;
-  
-  console.log(`[isCacheValid] Cache age: ${cacheAge}ms, duration: ${CACHE_DURATION}ms, valid: ${isValid}`);
-  return isValid;
-}
-
-/**
- * Fetch user data from Clerk API and cache it in the database
- */
-async function fetchAndCacheUserData(userId: string, existingMetadata: any): Promise<CachedUserData> {
-  try {
+    // Always fetch fresh data from Clerk API to ensure we have the latest name/email
     const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
     if (!clerkSecretKey) {
       throw new Error('Clerk secret key not found');
     }
 
-    // Fetch from Clerk API
     const response = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
       headers: {
         'Authorization': `Bearer ${clerkSecretKey}`,
@@ -110,42 +43,38 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
 
     const userData = await response.json();
     
-    // Extract user data
+    // Extract user data from Clerk API
     const firstName = userData?.first_name || userData?.firstName || '';
     const lastName = userData?.last_name || userData?.lastName || '';
     const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
     const profileImageUrl = userData?.profile_image_url || userData?.image_url;
 
-    // Update or create user metadata in database
-    // IMPORTANT: Don't overwrite userColor - it's stored only in our database, not in Clerk
-    const updateData = {
-      firstName,
-      lastName,
-      email,
-      profileImageUrl,
-      clerkDataUpdatedAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    if (existingMetadata) {
-      // Update existing record (preserve userColor from existing metadata)
+    // Update database with fresh Clerk data (but preserve userColor)
+    if (userMetadata) {
       await db.update(UserMetadata)
-        .set(updateData)
+        .set({
+          firstName,
+          lastName,
+          email,
+          profileImageUrl,
+          clerkDataUpdatedAt: new Date(),
+          updatedAt: new Date(),
+        })
         .where(eq(UserMetadata.userId, userId));
-      
-      console.log(`[fetchAndCacheUserData] Updated existing metadata, preserved userColor: ${existingMetadata.userColor}`);
     } else {
-      // Create new record (use default 'paper' for new users)
       await db.insert(UserMetadata).values({
         id: `user_metadata_${userId}`,
         userId: userId,
-        highestSimpleNoteId: 0,
+        firstName,
+        lastName,
+        email,
+        profileImageUrl,
         userColor: 'paper',
+        highestSimpleNoteId: 0,
         createdAt: new Date(),
-        ...updateData,
+        updatedAt: new Date(),
+        clerkDataUpdatedAt: new Date(),
       });
-      
-      console.log(`[fetchAndCacheUserData] Created new metadata with default userColor: paper`);
     }
 
     return {
@@ -155,13 +84,13 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       profileImageUrl,
       initials: generateInitials(firstName, lastName),
       displayName: generateDisplayName(firstName, lastName),
-      userColor: existingMetadata?.userColor || 'paper',
+      userColor, // Use the color from database, not from Clerk
     };
 
   } catch (error) {
-    console.error('Error fetching user data from Clerk:', error);
+    console.error('Error getting user data:', error);
     
-    // Return fallback data
+    // Fallback to basic data if everything fails
     return {
       firstName: '',
       lastName: '',
@@ -172,6 +101,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
     };
   }
 }
+
 
 /**
  * Generate initials from first and last name
