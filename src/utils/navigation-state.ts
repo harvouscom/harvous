@@ -30,7 +30,7 @@ export async function getThreadContext(threadId: string, userId: string): Promis
       return null;
     }
 
-    // Get note count for this thread using junction table (pure junction table approach)
+    // Get note count for this thread using junction table only
     const noteCountResult = await db.select({ count: count() })
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))

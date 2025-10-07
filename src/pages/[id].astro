@@ -276,7 +276,11 @@ let inboxCount: number = 0;
         threads.map(async (thread) => {
           const threadNoteCount = await db.select({ count: count() })
             .from(Notes)
-            .where(eq(Notes.threadId, thread.id))
+            .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+            .where(and(
+              eq(NoteThreads.threadId, thread.id),
+              eq(Notes.userId, userId)
+            ))
             .get();
 
           return {

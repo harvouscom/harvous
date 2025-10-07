@@ -145,7 +145,7 @@ export async function getAllThreadsWithCounts(userId: string) {
     ))
     .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt));
 
-    // Get note counts for each thread using junction table (pure junction table approach)
+    // Get note counts for each thread using junction table only
     const threadsWithCounts = await Promise.all(
       threads.map(async (thread) => {
         const noteCountResult = await db.select({ count: count() })
@@ -280,7 +280,7 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
     .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
     .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt));
 
-    // Get note counts for each thread using junction table (pure junction table approach)
+    // Get note counts for each thread using junction table only
     const threadsWithCounts = await Promise.all(
       threads.map(async (thread) => {
         const noteCountResult = await db.select({ count: count() })
@@ -347,7 +347,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       
       allNotes = unorganizedNotes;
     } else {
-      // For regular threads, use pure junction table approach
+      // For regular threads, use junction table only
       const junctionNotes = await db.select({
         id: Notes.id,
         title: Notes.title,
