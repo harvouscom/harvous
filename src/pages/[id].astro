@@ -12,7 +12,7 @@ import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
 import PersistentNavigation from "@/components/PersistentNavigation.astro";
-import { db, Threads, Notes, Spaces, eq, and, desc, count, ne } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, eq, and, desc, count, ne } from "astro:db";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount } from "@/utils/dashboard-data";
 import { getThreadColorCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
@@ -355,6 +355,9 @@ let inboxCount: number = 0;
           
           pageTitle = threadData.title;
           pageContent = `${notesData.length} notes`;
+          
+          // Track thread context for smart navigation
+          console.log('🧵 Tracking thread context for smart navigation:', threadData.id);
         }
       }
     } else if (isNote) {
@@ -372,8 +375,132 @@ let inboxCount: number = 0;
           updatedAt: note.updatedAt
         };
 
-        // Get the thread this note belongs to
-        if (note.threadId === 'thread_unorganized') {
+        // Smart Default Logic for Multi-Thread Navigation
+        // 1. Check URL parameter for specific thread context
+        const urlParams = new URL(Astro.url.href).searchParams;
+        const requestedThreadId = urlParams.get('thread');
+        
+        let selectedThreadId = note.threadId; // Default to primary thread
+        
+        if (requestedThreadId) {
+          // Verify the requested thread exists and note belongs to it
+          const noteThreads = await db.select()
+            .from(NoteThreads)
+            .where(eq(NoteThreads.noteId, note.id))
+            .all();
+          
+          const threadIds = noteThreads.map(nt => nt.threadId);
+          if (threadIds.includes(requestedThreadId)) {
+            selectedThreadId = requestedThreadId;
+          }
+        } else {
+          // 2. Smart Default: Use navigation context if available
+          // Check if user was recently viewing a thread that this note belongs to
+          const noteThreads = await db.select()
+            .from(NoteThreads)
+            .where(eq(NoteThreads.noteId, note.id))
+            .all();
+          
+          // Pure junction table approach: Only use junction table for thread relationships
+          // Primary threadId is only used for unorganized notes (fallback)
+          let allThreadIds = [...noteThreads.map(nt => nt.threadId)];
+          
+          // Only include primary threadId if it's unorganized (fallback case)
+          if (note.threadId === 'thread_unorganized') {
+            allThreadIds.push('thread_unorganized');
+          }
+          
+          // Remove duplicates
+          const uniqueThreadIds = [...new Set(allThreadIds)];
+          
+          if (uniqueThreadIds.length > 1) {
+            // Note belongs to multiple threads - use smart default
+            console.log('🔍 Note belongs to multiple threads:', uniqueThreadIds);
+            
+            // Enhanced breadcrumb-like logic for thread context detection
+            let navigationHistoryThreadId = null;
+            try {
+              // 1. Check referrer for thread context (server-side approach)
+              const referrer = Astro.request.headers.get('referer');
+              console.log('🔍 Server-side: Checking referrer for thread context...');
+              console.log('🔍 Server-side: Raw referrer:', referrer);
+              
+              if (referrer) {
+                try {
+                  const referrerUrl = new URL(referrer);
+                  const referrerPath = referrerUrl.pathname;
+                  console.log('🔍 Server-side: Referrer path:', referrerPath);
+                  
+                  // Check if referrer is a thread page
+                  if (referrerPath.includes('/thread_')) {
+                    const threadId = referrerPath.split('/').pop();
+                    console.log('🔍 Server-side: Extracted thread ID from referrer:', threadId);
+                    
+                    if (threadId && threadId !== 'dashboard' && threadId !== 'sign-in' && threadId !== 'sign-up') {
+                      // Verify this thread is one the note belongs to
+                      if (uniqueThreadIds.includes(threadId)) {
+                        navigationHistoryThreadId = threadId;
+                        console.log('🔗 Server-side: Using referrer thread context:', navigationHistoryThreadId);
+                      } else {
+                        console.log('🔗 Server-side: Referrer thread not in note threads, skipping');
+                        console.log('  - Referrer thread:', threadId);
+                        console.log('  - Note threads:', uniqueThreadIds);
+                      }
+                    } else {
+                      console.log('🔗 Server-side: Invalid thread ID from referrer');
+                    }
+                  } else {
+                    console.log('🔗 Server-side: Referrer is not a thread page');
+                  }
+                } catch (parseError) {
+                  console.log('🔗 Server-side: Could not parse referrer URL:', parseError);
+                }
+              } else {
+                console.log('🔗 Server-side: No referrer available');
+              }
+              
+              // 2. Fallback: Use the most recently updated thread
+              if (!navigationHistoryThreadId) {
+                console.log('🔗 Server-side: No referrer context, using fallback logic');
+              }
+            } catch (error) {
+              console.log('Could not access navigation history:', error);
+            }
+            
+            if (navigationHistoryThreadId) {
+              // Use the thread from navigation history
+              selectedThreadId = navigationHistoryThreadId;
+            } else {
+              // Fallback: Use the most recently updated thread
+              const threads = await Promise.all(
+                uniqueThreadIds.map(async (threadId) => {
+                  const thread = await db.select()
+                    .from(Threads)
+                    .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)))
+                    .get();
+                  return thread;
+                })
+              );
+              
+              // Filter out null results and sort by most recent
+              const validThreads = threads.filter(thread => thread !== null)
+                .sort((a, b) => {
+                  if (!a || !b) return 0;
+                  const aTime = a.updatedAt || a.createdAt;
+                  const bTime = b.updatedAt || b.createdAt;
+                  return bTime.getTime() - aTime.getTime();
+                });
+              
+              if (validThreads.length > 0 && validThreads[0]) {
+                selectedThreadId = validThreads[0].id;
+                console.log('🔄 Using fallback thread (most recent):', selectedThreadId);
+              }
+            }
+          }
+        }
+
+        // Get the selected thread context
+        if (selectedThreadId === 'thread_unorganized') {
           // Special handling for unorganized thread
           const noteCount = await getNotesForThread('thread_unorganized', userId).then(notes => notes.length);
           currentThread = {
@@ -384,7 +511,7 @@ let inboxCount: number = 0;
             backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
           };
         } else {
-          const thread = await db.select().from(Threads).where(eq(Threads.id, note.threadId)).get();
+          const thread = await db.select().from(Threads).where(eq(Threads.id, selectedThreadId)).get();
           
           if (thread) {
             currentThread = {
@@ -517,6 +644,7 @@ if (!content) {
               data-parent-thread-count={currentThread?.noteCount || 0}
               data-parent-thread-background-gradient={currentThread?.backgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)'}
               data-parent-thread-color={currentThread?.color || 'blue'}
+              data-selected-thread-id={currentThread?.id || 'thread_unorganized'}
               class="h-full"
             >
               <CardFullEditableReact 
@@ -525,7 +653,6 @@ if (!content) {
                 date={content.createdAt ? content.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Feb 7, 2025"}
                 noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : undefined}
                 className="h-full"
-                isEditable={true}
               />
             </div>
           ) : !content ? (
@@ -641,6 +768,7 @@ if (!content) {
 </Layout>
 
 <script type="text/javascript">
+  console.log('🚀 Client-side script in [id].astro is running!'); // Added for debugging
   // Set the global save callback for CardFullEditable
   var noteSaveCallback = async function(newTitle, newContent) {
     try {
@@ -734,6 +862,176 @@ if (!content) {
       document.dispatchEvent(removeEvent);
     }, 2000);
   };
+  
+  // Debug function to check breadcrumb data
+  window.debugBreadcrumb = function() {
+    console.log('🍞 Debugging breadcrumb data...');
+    const breadcrumbData = localStorage.getItem('harvous-breadcrumb-navigation');
+    console.log('Raw breadcrumb data:', breadcrumbData);
+    
+    if (breadcrumbData) {
+      try {
+        const parsed = JSON.parse(breadcrumbData);
+        console.log('Parsed breadcrumb data:', parsed);
+        const age = Date.now() - parsed.timestamp;
+        console.log('Breadcrumb age (minutes):', Math.round(age / 60000));
+        console.log('Current note ID:', window.location.pathname.substring(1));
+        console.log('Breadcrumb matches current note:', parsed.toNoteId === window.location.pathname.substring(1));
+      } catch (error) {
+        console.log('Error parsing breadcrumb data:', error);
+      }
+    }
+    
+    // Check other context data
+    console.log('Current thread context:', localStorage.getItem('harvous-current-thread-context'));
+    console.log('Referrer thread context:', localStorage.getItem('harvous-referrer-thread-context'));
+  };
+  
+  // Detect page type (client-side)
+  const currentPath = window.location.pathname;
+  console.log('🔍 Current path:', currentPath); // Added for debugging
+  
+  // More specific detection logic
+  const isThread = currentPath.includes('/thread_') || (currentPath.match(/^\/thread_[a-zA-Z0-9_-]+$/) && !currentPath.includes('/dashboard') && !currentPath.includes('/sign-in') && !currentPath.includes('/sign-up'));
+  const isNote = currentPath.includes('/note_') || (currentPath.match(/^\/note_[a-zA-Z0-9_-]+$/) && !currentPath.includes('/dashboard') && !currentPath.includes('/sign-in') && !currentPath.includes('/sign-up'));
+  
+  console.log('🔍 Detection logic:', {
+    path: currentPath,
+    includesThread: currentPath.includes('/thread_'),
+    includesNote: currentPath.includes('/note_'),
+    matchesThread: currentPath.match(/^\/thread_[a-zA-Z0-9_-]+$/),
+    matchesNote: currentPath.match(/^\/note_[a-zA-Z0-9_-]+$/)
+  });
+  
+  console.log('🔍 Page type detection:', { currentPath, isThread, isNote });
+  
+  // Check if Layout.astro functions are available
+  console.log('🔍 Available functions:', {
+    trackThreadContext: typeof window.trackThreadContext,
+    trackBreadcrumbNavigation: typeof window.trackBreadcrumbNavigation,
+    getThreadContextFromReferrer: typeof window.getThreadContextFromReferrer
+  });
+  
+  // Track thread context for smart navigation (only on thread pages)
+  if (window.trackThreadContext && isThread) {
+    const threadId = window.location.pathname.substring(1);
+    window.trackThreadContext(threadId);
+    console.log('🧵 Tracked thread context:', threadId);
+  } else if (isNote) {
+    console.log('🧵 Note page: Not tracking thread context (this is correct)');
+  }
+  
+  // Enhanced breadcrumb navigation tracking (on thread pages)
+  if (isThread) {
+    const threadId = window.location.pathname.substring(1);
+    console.log('🧵 Thread page: Setting up breadcrumb tracking for thread:', threadId);
+    
+    // Track referrer-based context for breadcrumb navigation
+    if (window.getThreadContextFromReferrer) {
+      const referrerThreadId = window.getThreadContextFromReferrer();
+      if (referrerThreadId) {
+        localStorage.setItem('harvous-referrer-thread-context', referrerThreadId);
+        console.log('🔗 Tracked referrer thread context:', referrerThreadId);
+      }
+    }
+    
+    // Add click handlers to note links for breadcrumb tracking
+    document.addEventListener('click', function(event) {
+      const link = event.target.closest('a[href]');
+      if (link) {
+        const href = link.getAttribute('href');
+        console.log('🔍 Thread page: Click detected on link:', href);
+        
+        // Check if it's a note link (starts with / and contains note ID pattern)
+        if (href && href.startsWith('/') && href.length > 1) {
+          const noteId = href.split('/').pop();
+          console.log('🔍 Thread page: Extracted note ID:', noteId);
+          
+          // Check if it looks like a note ID (not a thread or space ID)
+          if (noteId && noteId !== 'dashboard' && noteId !== 'sign-in' && noteId !== 'sign-up' && !noteId.startsWith('thread_') && !noteId.startsWith('space_')) {
+            console.log('🍞 Thread page: Note link detected, tracking breadcrumb...');
+            if (window.trackBreadcrumbNavigation) {
+              window.trackBreadcrumbNavigation(threadId, noteId);
+              console.log('🍞 Thread page: Tracked breadcrumb navigation from thread to note:', { fromThread: threadId, toNote: noteId });
+            } else {
+              console.log('❌ Thread page: trackBreadcrumbNavigation function not available');
+            }
+          } else {
+            console.log('🔍 Thread page: Not a note link, skipping breadcrumb tracking');
+          }
+        }
+      }
+    });
+  } else if (isNote) {
+    console.log('🧵 Note page: Not setting up breadcrumb tracking (this is correct)');
+  }
+  
+  // Debug breadcrumb data on note pages
+  if (isNote) {
+    console.log('🍞 Note page: Checking for breadcrumb data...');
+    
+    // Wrap in try-catch to prevent script breaking
+    try {
+      const breadcrumbData = localStorage.getItem('harvous-breadcrumb-navigation');
+      if (breadcrumbData) {
+        try {
+          const parsed = JSON.parse(breadcrumbData);
+          console.log('🍞 Note page: Found breadcrumb data:', parsed);
+          const age = Date.now() - parsed.timestamp;
+          console.log('🍞 Note page: Breadcrumb age (minutes):', Math.round(age / 60000));
+          console.log('🍞 Note page: Current note ID:', window.location.pathname.substring(1));
+          console.log('🍞 Note page: Breadcrumb matches current note:', parsed.toNoteId === window.location.pathname.substring(1));
+          
+          // Check if the breadcrumb data is valid
+          if (parsed.fromThreadId && parsed.toNoteId && parsed.timestamp) {
+            console.log('🍞 Note page: Breadcrumb data is valid');
+            console.log('🍞 Note page: From thread:', parsed.fromThreadId);
+            console.log('🍞 Note page: To note:', parsed.toNoteId);
+            console.log('🍞 Note page: Timestamp:', new Date(parsed.timestamp).toLocaleString());
+            
+            // Apply the breadcrumb context immediately
+            console.log('🍞 Note page: Applying breadcrumb context to localStorage...');
+            localStorage.setItem('harvous-current-thread-context', parsed.fromThreadId);
+            localStorage.setItem('harvous-thread-context-timestamp', Date.now().toString());
+            console.log('🍞 Note page: Applied thread context:', parsed.fromThreadId);
+            
+            // Force update the React component with the correct thread context
+            console.log('🍞 Note page: Forcing React component update...');
+            setTimeout(() => {
+              try {
+                // Update the data attributes on the container
+                const container = document.querySelector('[data-note-id]');
+                if (container) {
+                  container.setAttribute('data-selected-thread-id', parsed.fromThreadId);
+                  container.setAttribute('data-parent-thread-id', parsed.fromThreadId);
+                  console.log('🍞 Note page: Updated container data attributes with thread:', parsed.fromThreadId);
+                  
+                  // Trigger a custom event to update the React component
+                  const event = new CustomEvent('breadcrumbContextUpdate', {
+                    detail: { threadId: parsed.fromThreadId }
+                  });
+                  window.dispatchEvent(event);
+                  console.log('🍞 Note page: Dispatched breadcrumb context update event');
+                } else {
+                  console.log('🍞 Note page: Container not found, cannot update data attributes');
+                }
+              } catch (updateError) {
+                console.log('🍞 Note page: Error updating container:', updateError);
+              }
+            }, 100);
+          } else {
+            console.log('🍞 Note page: Breadcrumb data is invalid or incomplete');
+          }
+        } catch (parseError) {
+          console.log('🍞 Note page: Error parsing breadcrumb data:', parseError);
+        }
+      } else {
+        console.log('🍞 Note page: No breadcrumb data found');
+      }
+    } catch (breadcrumbError) {
+      console.log('🍞 Note page: Error in breadcrumb logic:', breadcrumbError);
+    }
+  }
   
 </script>
 

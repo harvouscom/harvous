@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, UserMetadata, Tags, NoteTags, eq, and, desc, isNotNull } from 'astro:db';
+import { db, Notes, Threads, UserMetadata, Tags, NoteTags, NoteThreads, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId } from '@/utils/ids';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
@@ -34,14 +34,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
     const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
     
-    // Ensure we have a valid threadId - if it's unorganized, use the default
-    let finalThreadId = threadId;
-    if (!finalThreadId || finalThreadId === 'thread_unorganized') {
-      // Ensure the unorganized thread exists
-      const { ensureUnorganizedThread } = await import('@/utils/unorganized-thread');
-      await ensureUnorganizedThread(userId);
-      finalThreadId = 'thread_unorganized';
-    }
+    // Pure junction table approach: Always create note in unorganized, then add to specific thread via junction table
+    const { ensureUnorganizedThread } = await import('@/utils/unorganized-thread');
+    await ensureUnorganizedThread(userId);
+    const finalThreadId = 'thread_unorganized'; // Always use unorganized as primary
     
     // Get or create user metadata to track highest simpleNoteId used
     let userMetadata = await db.select()
@@ -113,6 +109,37 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await db.update(Threads)
       .set({ updatedAt: new Date() })
       .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
+
+    // If a specific thread was requested (not unorganized), add the note to that thread via junction table
+    if (threadId && threadId !== 'thread_unorganized') {
+      try {
+        // Verify the target thread exists and belongs to the user
+        const targetThread = await db.select()
+          .from(Threads)
+          .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)))
+          .get();
+        
+        if (targetThread) {
+          // Add note to the specific thread via junction table
+          await db.insert(NoteThreads).values({
+            id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            noteId: newNote.id,
+            threadId: threadId,
+            createdAt: new Date()
+          });
+          
+          // Update the target thread's timestamp
+          await db.update(Threads)
+            .set({ updatedAt: new Date() })
+            .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
+          
+          console.log(`Note ${newNote.id} added to thread ${threadId} via junction table`);
+        }
+      } catch (error) {
+        console.error('Error adding note to specific thread:', error);
+        // Don't fail the note creation if junction table insertion fails
+      }
+    }
 
     // Award XP for note creation
     await awardNoteCreatedXP(userId, newNote.id);

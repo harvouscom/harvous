@@ -147,7 +147,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     setIsLoaded(true);
     
     return () => {
-      document.head.removeChild(link);
+      if (link && link.parentNode === document.head) {
+        document.head.removeChild(link);
+      }
     };
   }, []);
 

@@ -77,19 +77,10 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
       console.log(`Note ${id} added to thread ${threadId} successfully`);
       
-      // If this is the first thread for the note, also update the primary threadId
-      const existingThreads = await db.select()
-        .from(NoteThreads)
-        .where(eq(NoteThreads.noteId, id))
-        .all();
-      
-      if (existingThreads.length === 1) {
-        // This is the first thread, update the primary threadId
-        await db.update(Notes)
-          .set({ threadId: threadId })
-          .where(eq(Notes.id, id));
-        console.log(`Updated primary threadId to ${threadId} for note ${id}`);
-      }
+      // Note: We don't update the primary threadId when adding to additional threads
+      // The primary threadId should remain unchanged to preserve the original thread context
+      // Only the junction table (NoteThreads) is updated for many-to-many relationships
+      console.log(`Note ${id} added to thread ${threadId} via junction table (primary threadId unchanged)`);
     } catch (insertError) {
       console.error('Error inserting into NoteThreads:', insertError);
       return new Response(JSON.stringify({ 

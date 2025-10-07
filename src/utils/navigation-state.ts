@@ -1,7 +1,7 @@
 // Navigation state management using URL-based detection
 // This approach doesn't rely on global state that gets reset between page requests
 
-import { db, Threads, Notes, eq, and, count } from "astro:db";
+import { db, Threads, Notes, NoteThreads, eq, and, count } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 
 export interface ActiveThread {
@@ -30,10 +30,14 @@ export async function getThreadContext(threadId: string, userId: string): Promis
       return null;
     }
 
-    // Get note count for this thread
+    // Get note count for this thread using junction table (pure junction table approach)
     const noteCountResult = await db.select({ count: count() })
       .from(Notes)
-      .where(eq(Notes.threadId, threadId))
+      .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+      .where(and(
+        eq(NoteThreads.threadId, threadId),
+        eq(Notes.userId, userId)
+      ))
       .get();
 
     return {

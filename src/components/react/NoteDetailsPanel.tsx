@@ -505,7 +505,7 @@ export default function NoteDetailsPanel({
                     {/* Add to Thread Section - at the bottom */}
                     <div className="mt-auto">
                       <AddToSection
-                        allItems={localAllUserThreads}
+                        allItems={localAllUserThreads.filter(thread => thread.id !== 'thread_unorganized')}
                         currentItems={localThreads}
                         onItemSelect={handleAddToThread}
                         isLoading={isMovingThread}

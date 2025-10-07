@@ -790,6 +790,118 @@ function removeFromNavigationHistory(itemId) {
   }
 }
 
+// Track thread context for smart navigation
+function trackThreadContext(threadId) {
+  try {
+    const contextKey = 'harvous-current-thread-context';
+    const timestampKey = 'harvous-thread-context-timestamp';
+    
+    localStorage.setItem(contextKey, threadId);
+    localStorage.setItem(timestampKey, Date.now().toString());
+    console.log('🧵 Tracked thread context:', threadId);
+  } catch (error) {
+    console.log('Could not track thread context:', error);
+  }
+}
+
+// Get current thread context
+function getCurrentThreadContext() {
+  try {
+    const contextKey = 'harvous-current-thread-context';
+    const timestampKey = 'harvous-thread-context-timestamp';
+    
+    const threadId = localStorage.getItem(contextKey);
+    const timestamp = localStorage.getItem(timestampKey);
+    
+    // Only use context if it's recent (within last 30 minutes)
+    if (threadId && timestamp) {
+      const age = Date.now() - parseInt(timestamp);
+      if (age < 30 * 60 * 1000) { // 30 minutes
+        return threadId;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.log('Could not get thread context:', error);
+    return null;
+  }
+}
+
+// Enhanced breadcrumb navigation tracking
+function trackBreadcrumbNavigation(fromThreadId, toNoteId) {
+  try {
+    const breadcrumbKey = 'harvous-breadcrumb-navigation';
+    const breadcrumbData = {
+      fromThreadId: fromThreadId,
+      toNoteId: toNoteId,
+      timestamp: Date.now()
+    };
+    
+    localStorage.setItem(breadcrumbKey, JSON.stringify(breadcrumbData));
+    console.log('🍞 Tracked breadcrumb navigation:', breadcrumbData);
+  } catch (error) {
+    console.log('Could not track breadcrumb navigation:', error);
+  }
+}
+
+// Get breadcrumb navigation context
+function getBreadcrumbNavigation(noteId) {
+  try {
+    const breadcrumbKey = 'harvous-breadcrumb-navigation';
+    const breadcrumbData = localStorage.getItem(breadcrumbKey);
+    
+    if (breadcrumbData) {
+      const data = JSON.parse(breadcrumbData);
+      
+      // Only use if it's recent (within last 5 minutes) and matches the note
+      const age = Date.now() - data.timestamp;
+      if (age < 5 * 60 * 1000 && data.toNoteId === noteId) { // 5 minutes
+        return data.fromThreadId;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.log('Could not get breadcrumb navigation:', error);
+    return null;
+  }
+}
+
+// Detect thread context from referrer
+function getThreadContextFromReferrer() {
+  try {
+    const referrer = document.referrer;
+    console.log('🔗 Full referrer URL:', referrer);
+    
+    if (referrer) {
+      const referrerPath = new URL(referrer).pathname;
+      console.log('🔗 Referrer path:', referrerPath);
+      console.log('🔗 Referrer path includes /thread_:', referrerPath.includes('/thread_'));
+      
+      // Only extract thread context from actual thread pages
+      if (referrerPath.includes('/thread_')) {
+        const threadId = referrerPath.split('/').pop();
+        console.log('🔗 Extracted thread ID from referrer:', threadId);
+        if (threadId && threadId !== 'dashboard' && threadId !== 'sign-in' && threadId !== 'sign-up') {
+          console.log('🔗 Detected thread context from referrer:', threadId);
+          return threadId;
+        }
+      } else {
+        console.log('🔗 Referrer is not a thread page, skipping thread context detection');
+        console.log('🔗 Referrer path does not contain /thread_');
+      }
+    } else {
+      console.log('🔗 No referrer available');
+    }
+    
+    return null;
+  } catch (error) {
+    console.log('Could not detect thread context from referrer:', error);
+    return null;
+  }
+}
+
 // Track navigation access
 function trackNavigationAccess() {
   const currentPath = window.location.pathname;
@@ -1045,6 +1157,11 @@ window.getNavigationHistory = getNavigationHistory;
 window.addToNavigationHistory = addToNavigationHistory;
 window.removeFromNavigationHistory = removeFromNavigationHistory;
 window.trackNavigationAccess = trackNavigationAccess;
+window.trackThreadContext = trackThreadContext;
+window.getCurrentThreadContext = getCurrentThreadContext;
+window.trackBreadcrumbNavigation = trackBreadcrumbNavigation;
+window.getBreadcrumbNavigation = getBreadcrumbNavigation;
+window.getThreadContextFromReferrer = getThreadContextFromReferrer;
 window.initTracking = initTracking;
 
 // Initialize on page load
