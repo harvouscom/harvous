@@ -1,8 +1,8 @@
 # Harvous v1 Roadmap & Status
 
-## 🚀 **MAJOR UPDATE: 90% Complete for v1 - 1-3 Weeks to Production!**
+## 🚀 **MAJOR UPDATE: 85% Complete for v1 - 3-4 Weeks to Production!**
 
-Harvous is a Bible study notes application with a **solid foundation and modern React Islands architecture**. The core functionality is production-ready, and we're **very close to a complete v1 release**!
+Harvous is a Bible study notes application with a **solid foundation and modern React Islands architecture**. The core functionality is production-ready, and we're **adding powerful differentiating features for v1**!
 
 ### **🎉 Recent Major Progress:**
 - ✅ **Modern Mobile Experience**: Shadcn bottom sheet system
@@ -13,6 +13,11 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 - ✅ **NoteDetailsPanel**: Complete many-to-many thread management system
 - ✅ **SearchInput**: React component with search functionality
 - ✅ **Thread Management**: Add/remove notes from multiple threads
+
+### **🚀 NEW V1 FEATURES: Core Differentiators**
+- 🆕 **Selected Text Note Creation**: Select text in TiptapEditor → instant note creation
+- 🆕 **Note Types System**: Default, Scripture, and Resource note types
+- 🆕 **Enhanced Note Organization**: Specialized note types for Bible study workflow
 
 ## ✅ **Fully Implemented Core Features**
 
@@ -128,11 +133,11 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 
 **Estimated Time**: 2-3 days
 
-## 📅 **Updated Timeline: 1-3 Weeks to V1 Release**
+## 📅 **Updated Timeline: 3-4 Weeks to V1 Release**
 
 ### **Current Date**: January 2025
 ### **Target Release**: February 2025  
-### **Available Time**: ~1-3 weeks
+### **Available Time**: ~3-4 weeks
 ### **Working Hours**: ~10-15 hours/week (weekends + weeknights)
 
 ### **🚀 Why We're So Close:**
@@ -153,13 +158,28 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 - ✅ **Thread Management**: Complete add/remove functionality
 - **Deliverable**: ✅ Users can view existing content, search, and manage threads
 
-#### **Week 2-3: Navigation & Polish**
-**Goal**: Complete navigation and final polish
-- **Week 2**: Convert Navigation System to React (optional - can be v1.1)
-- **Week 3**: Testing, bug fixes, performance optimization
-- **Deliverable**: Production-ready v1 release
+#### **Week 2: Note Types Foundation**
+**Goal**: Implement note types system foundation
+- **Database Schema**: Add noteType column to Notes table
+- **Basic UI**: Note type selection in NewNotePanel
+- **API Updates**: Note creation API for note types
+- **Deliverable**: Foundation for specialized note types
 
-## 🎯 **V1 Feature Set (2-4 Weeks)**
+#### **Week 3: Selected Text Feature**
+**Goal**: Implement selected text note creation
+- **TiptapEditor Enhancement**: Selection detection and floating button
+- **Mobile Optimization**: Touch selection handling
+- **Integration**: Seamless NewNotePanel integration
+- **Deliverable**: Unique "select text → create note" workflow
+
+#### **Week 4: Polish & Launch**
+**Goal**: Final testing and production deployment
+- **Testing**: Cross-device testing, bug fixes
+- **Performance**: Optimization and mobile fixes
+- **Deployment**: Production-ready v1 release
+- **Deliverable**: Complete v1 with differentiating features
+
+## 🎯 **V1 Feature Set (3-4 Weeks)**
 
 ### **✅ MUST HAVE (Core Features)**
 1. **Content Creation** ✅ **COMPLETED**
@@ -168,15 +188,28 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
    - Mobile/desktop responsive design
    - Fast redirects and toast notifications
 
-2. **Content Viewing** (Week 1-2)
+2. **Content Viewing** ✅ **COMPLETED**
    - View/edit existing notes (NoteDetailsPanel)
    - Search and find content (SearchInput)
    - Mobile/desktop responsive design
 
-3. **Content Management** (Week 3-4)
-   - Navigation system improvements
+3. **Content Management** ✅ **COMPLETED**
    - Thread management capabilities
+   - Many-to-many note-thread relationships
    - Enhanced user experience
+
+### **🆕 NEW V1 FEATURES (Core Differentiators)**
+4. **Note Types System** (Week 2)
+   - Database schema for note types
+   - Default, Scripture, and Resource note types
+   - Note type selection in NewNotePanel
+   - Foundation for specialized Bible study workflow
+
+5. **Selected Text Note Creation** (Week 3)
+   - Select text in TiptapEditor → instant note creation
+   - Floating button above selected text
+   - Mobile and desktop support
+   - Unique "select text → create note" workflow
 
 ### **❌ DEFER TO v1.1 (Post-V1)**
 - Advanced sharing features
@@ -187,9 +220,9 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 
 ## 🎯 **Recommended Approach**
 
-**Start with NoteDetailsPanel** - it's the most critical missing feature for viewing existing content. This is your **foundation feature** that everything else builds on.
+**Start with Note Types Foundation** - this sets up the architecture for specialized note types and enables the selected text feature to work with different note types.
 
-**Timeline is realistic** because we have established React Islands patterns and proven development velocity. The key is **scope discipline** - focus on core functionality and defer advanced features.
+**Timeline is realistic** because we have established React Islands patterns and proven development velocity. The key is **scope discipline** - focus on core differentiators that set Harvous apart from generic note apps.
 
 ## 🚀 **Post-v1 Roadmap**
 
@@ -206,17 +239,18 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 - User Feedback Integration
 
 ### v1.3 (2-3 months after v1)
-- **Selected Text Note Creation**: Powerful feature for creating notes from selected text in TiptapEditor
-  - See: `SELECTED_TEXT_NOTE_CREATION.md` for detailed specification
-  - Floating button appears above selected text
-  - Seamless integration with existing NewNotePanel
-  - Mobile and desktop support
-
-- **Note Types System**: Specialized note types for different content categories
+- **Advanced Note Types**: Enhanced scripture and resource note features
   - See: `NOTE_TYPES_SYSTEM.md` for detailed specification
-  - Default, Scripture, and Resource note types
+  - Advanced scripture formatting and cross-references
+  - Resource metadata and media attachments
   - Automatic type detection and formatting
   - Enhanced organization and search capabilities
+
+- **Advanced Selected Text Features**: Enhanced text selection capabilities
+  - See: `SELECTED_TEXT_NOTE_CREATION.md` for detailed specification
+  - Bulk note creation from multiple selections
+  - Smart thread suggestions based on selected text
+  - Content analysis and auto-tagging
 
 ## 📊 **Current Architecture Strengths**
 
@@ -265,10 +299,11 @@ All V1 issues are now tracked in `V1_ISSUES.md` for better organization:
 
 ## 📝 **Next Steps**
 
-### **V1 Completion (1-2 weeks)**
-1. **Fix Mobile Toolbar Visibility**: High priority mobile UX issue
-2. **Testing & Polish**: Integration testing, mobile testing, bug fixes
-3. **Deploy V1**: Production-ready web application
+### **V1 Completion (3-4 weeks)**
+1. **Week 2: Note Types Foundation**: Database schema and basic UI
+2. **Week 3: Selected Text Feature**: TiptapEditor enhancement and mobile optimization
+3. **Week 4: Testing & Polish**: Integration testing, mobile testing, bug fixes
+4. **Deploy V1**: Production-ready web application with differentiating features
 
 ### **Post-V1 (Separate Projects)**
 1. **Navigation System React Conversion**: Optional for v1.1
@@ -278,15 +313,18 @@ All V1 issues are now tracked in `V1_ISSUES.md` for better organization:
 ---
 
 **Last Updated**: January 2025  
-**Status**: 94% complete, 1-2 weeks to V1  
+**Status**: 85% complete, 3-4 weeks to V1  
 **Confidence Level**: Very High (major components completed, established patterns, proven velocity)
 
-## 📊 **Updated V1 Status: 94% Complete**
+## 📊 **Updated V1 Status: 85% Complete**
 
-### **Remaining V1 Work (6% of V1)**
-1. **Mobile Toolbar Visibility** - **HIGH PRIORITY** (1-2 days)
-2. **Navigation Real-time Updates** - **MEDIUM PRIORITY** (v1.1)
-3. **Minor Polish Items** - **LOW PRIORITY** (v1.1)
+### **Remaining V1 Work (15% of V1)**
+1. **Note Types Foundation** - **HIGH PRIORITY** (Week 2)
+2. **Selected Text Feature** - **HIGH PRIORITY** (Week 3)
+3. **Mobile Toolbar Visibility** - **HIGH PRIORITY** (Week 4)
+4. **Testing & Polish** - **HIGH PRIORITY** (Week 4)
+5. **Navigation Real-time Updates** - **MEDIUM PRIORITY** (v1.1)
+6. **Minor Polish Items** - **LOW PRIORITY** (v1.1)
 
 ### **Marketing Site (Separate Project)**
 - **Current**: Basic Clerk sign-up in Harvous app (functional for V1)
