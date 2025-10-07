@@ -205,6 +205,19 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 - Advanced Mobile Gestures
 - User Feedback Integration
 
+### v1.3 (2-3 months after v1)
+- **Selected Text Note Creation**: Powerful feature for creating notes from selected text in TiptapEditor
+  - See: `SELECTED_TEXT_NOTE_CREATION.md` for detailed specification
+  - Floating button appears above selected text
+  - Seamless integration with existing NewNotePanel
+  - Mobile and desktop support
+
+- **Note Types System**: Specialized note types for different content categories
+  - See: `NOTE_TYPES_SYSTEM.md` for detailed specification
+  - Default, Scripture, and Resource note types
+  - Automatic type detection and formatting
+  - Enhanced organization and search capabilities
+
 ## 📊 **Current Architecture Strengths**
 
 - **Solid Foundation**: Database schema, authentication, and core features are production-ready
