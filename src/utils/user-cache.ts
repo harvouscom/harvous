@@ -24,12 +24,9 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
 
     console.log('User cache - userMetadata:', userMetadata);
     
-    // Check if cache is fresh (less than 5 minutes old)
-    const cacheAge = Date.now() - (userMetadata?.clerkDataUpdatedAt?.getTime() || 0);
-    const isCacheFresh = cacheAge < 5 * 60 * 1000; // 5 minutes
-
-    if (userMetadata && isCacheFresh) {
-      console.log('User cache - using fresh database cache');
+    // Use database as source of truth if we have recent data
+    if (userMetadata) {
+      console.log('User cache - using database as source of truth');
       return {
         firstName: userMetadata.firstName || '',
         lastName: userMetadata.lastName || '',
@@ -41,8 +38,8 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       };
     }
 
-    // Cache is stale or missing - fetch from Clerk
-    console.log('User cache - fetching from Clerk (cache stale or missing)');
+    // No database record - fetch from Clerk for initial setup
+    console.log('User cache - no database record, fetching from Clerk for initial setup');
     const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
     if (!clerkSecretKey) {
       throw new Error('Clerk secret key not found');
@@ -61,37 +58,31 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
 
     const userData = await response.json();
     
-    // Extract standard fields
-    const firstName = userData?.first_name || userData?.firstName || '';
-    const lastName = userData?.last_name || userData?.lastName || '';
+    // Only extract email from Clerk (we manage name and color in our database)
     const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
     const profileImageUrl = userData?.profile_image_url || userData?.image_url;
 
-    // Extract custom field from Clerk's public_metadata
-    const userColor = userData?.public_metadata?.userColor || 'paper';
-
-    // Update database with fresh Clerk data (including metadata)
+    // Update database with only email and profile image from Clerk
     if (userMetadata) {
       await db.update(UserMetadata)
         .set({
-          firstName,
-          lastName,
-          email,
+          email,  // Only update email from Clerk
           profileImageUrl,
-          userColor,  // Cache from Clerk's public_metadata
           clerkDataUpdatedAt: new Date(),
           updatedAt: new Date()
+          // DO NOT update firstName, lastName, or userColor - database is source of truth
         })
         .where(eq(UserMetadata.userId, userId));
     } else {
+      // Create new user record with default values
       await db.insert(UserMetadata).values({
         id: `user_metadata_${userId}`,
         userId: userId,
-        firstName,
-        lastName,
+        firstName: '',  // Will be set when user updates profile
+        lastName: '',   // Will be set when user updates profile
         email,
         profileImageUrl,
-        userColor: 'paper',
+        userColor: 'paper',  // Default color
         highestSimpleNoteId: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -99,14 +90,15 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       });
     }
 
+    // Return the database values (our source of truth)
     const result = {
-      firstName,
-      lastName,
+      firstName: userMetadata?.firstName || '',
+      lastName: userMetadata?.lastName || '',
       email,
       profileImageUrl,
-      initials: generateInitials(firstName, lastName),
-      displayName: generateDisplayName(firstName, lastName),
-      userColor, // Use the color from Clerk's public_metadata
+      initials: generateInitials(userMetadata?.firstName || '', userMetadata?.lastName || ''),
+      displayName: generateDisplayName(userMetadata?.firstName || '', userMetadata?.lastName || ''),
+      userColor: userMetadata?.userColor || 'paper',
     };
     
     console.log('User cache - returning result:', result);
