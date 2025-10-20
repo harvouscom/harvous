@@ -307,8 +307,139 @@ const contentId = "profile";
 
 <script>
   // Avatar manager is loaded globally via Layout.astro
-  // Get the logout button and add click handler
-  document.addEventListener('DOMContentLoaded', () => {
+  
+  // ===== FUNCTION DEFINITIONS (SCRIPT SCOPE) =====
+  
+  // Setup profile event listeners
+  function setupProfileListeners() {
+    console.log('🔧 Setting up profile event listeners');
+    
+    // Remove any existing listeners to prevent duplicates
+    window.removeEventListener('updateProfileRequest', handleProfileUpdateRequest);
+    window.addEventListener('updateProfileRequest', handleProfileUpdateRequest);
+    
+    console.log('✅ Profile event listeners attached');
+  }
+
+  async function handleProfileUpdateRequest(event: any) {
+    console.log('✅ profile.astro: updateProfileRequest event received:', event.detail);
+    
+    try {
+      const { firstName, lastName, color } = event.detail;
+      
+      console.log('📤 profile.astro: Making API call to /api/user/update-profile');
+      
+      const response = await fetch('/api/user/update-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          color
+        })
+      });
+
+      console.log('📥 profile.astro: API response status:', response.status);
+      const data = await response.json();
+      console.log('📥 profile.astro: API response data:', data);
+
+      if (response.ok) {
+        console.log('✅ profile.astro: Profile updated successfully');
+        
+        // Show success toast
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Profile saved successfully!',
+            type: 'success'
+          }
+        }));
+      } else {
+        console.error('❌ profile.astro: Profile update failed:', data);
+        
+        // Show error toast
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Failed to save profile. Please try again.',
+            type: 'error'
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('❌ profile.astro: Error updating profile:', error);
+      
+      // Show error toast
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Error saving profile. Please try again.',
+          type: 'error'
+        }
+      }));
+    }
+  }
+
+  // Logout handler function
+  async function handleLogout(event: Event) {
+    event.preventDefault();
+    console.log('Logout button clicked');
+    
+    try {
+      // Use Clerk's client-side signOut if available
+      if (window.Clerk && window.Clerk.signOut) {
+        console.log('Using Clerk signOut');
+        await window.Clerk.signOut();
+      } else {
+        console.log('Clerk not available, using direct redirect');
+      }
+      
+      // Always redirect to sign-in page
+      console.log('Redirecting to sign-in page');
+      window.location.href = '/sign-in';
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Fallback: redirect to sign-in page anyway
+      console.log('Fallback: redirecting to sign-in page');
+      window.location.href = '/sign-in';
+    }
+  }
+
+  // Desktop panel switching functionality
+  function showPanel(panelName: string) {
+    console.log('Desktop: Showing panel:', panelName);
+    
+    // Hide all panels
+    const allPanels = document.querySelectorAll('[id$="-panel"]');
+    allPanels.forEach(panel => {
+      (panel as HTMLElement).style.display = 'none';
+    });
+    
+    // Show the requested panel
+    const targetPanel = document.getElementById(`${panelName}-panel`);
+    if (targetPanel) {
+      (targetPanel as HTMLElement).style.display = 'block';
+      console.log('Desktop: Panel shown:', panelName);
+    } else {
+      console.log('Desktop: Panel not found:', panelName);
+    }
+  }
+  
+  function hideAllPanels() {
+    console.log('Desktop: Hiding all panels');
+    const allPanels = document.querySelectorAll('[id$="-panel"]');
+    allPanels.forEach(panel => {
+      (panel as HTMLElement).style.display = 'none';
+    });
+    
+    // Show default panel
+    const defaultPanel = document.getElementById('default-panel');
+    if (defaultPanel) {
+      (defaultPanel as HTMLElement).style.display = 'block';
+    }
+  }
+
+  // Setup logout button
+  function setupLogoutButton() {
     console.log('Profile page DOM loaded, setting up logout button');
     
     const logoutButton = document.getElementById('logout-button');
@@ -325,71 +456,23 @@ const contentId = "profile";
       console.error('Logout button not found!');
     }
     
-    // Define the logout handler function
-    async function handleLogout(event: Event) {
-      event.preventDefault();
-      console.log('Logout button clicked');
-      
-      try {
-        // Use Clerk's client-side signOut if available
-        if (window.Clerk && window.Clerk.signOut) {
-          console.log('Using Clerk signOut');
-          await window.Clerk.signOut();
-        } else {
-          console.log('Clerk not available, using direct redirect');
-        }
-        
-        // Always redirect to sign-in page
-        console.log('Redirecting to sign-in page');
-        window.location.href = '/sign-in';
-      } catch (error) {
-        console.error('Logout failed:', error);
-        // Fallback: redirect to sign-in page anyway
-        console.log('Fallback: redirecting to sign-in page');
-        window.location.href = '/sign-in';
+    // Additional logout button setup as fallback
+    setTimeout(() => {
+      const logoutButton = document.getElementById('logout-button');
+      if (logoutButton && !logoutButton.hasAttribute('data-listener-added')) {
+        logoutButton.setAttribute('data-listener-added', 'true');
+        logoutButton.addEventListener('click', (e) => {
+          e.preventDefault();
+          console.log('Fallback logout clicked');
+          window.location.href = '/sign-in';
+        });
+        console.log('Fallback logout listener added');
       }
-    }
-    
-    // Global function to close profile panels
-    (window as any).closeProfilePanel = () => {
-      console.log('closeProfilePanel function called');
-      window.dispatchEvent(new CustomEvent('closeProfilePanel'));
-    };
-    
-    // Desktop panel switching functionality
-    function showPanel(panelName: string) {
-      console.log('Desktop: Showing panel:', panelName);
-      
-      // Hide all panels
-      const allPanels = document.querySelectorAll('[id$="-panel"]');
-      allPanels.forEach(panel => {
-        (panel as HTMLElement).style.display = 'none';
-      });
-      
-      // Show the requested panel
-      const targetPanel = document.getElementById(`${panelName}-panel`);
-      if (targetPanel) {
-        (targetPanel as HTMLElement).style.display = 'block';
-        console.log('Desktop: Panel shown:', panelName);
-      } else {
-        console.log('Desktop: Panel not found:', panelName);
-      }
-    }
-    
-    function hideAllPanels() {
-      console.log('Desktop: Hiding all panels');
-      const allPanels = document.querySelectorAll('[id$="-panel"]');
-      allPanels.forEach(panel => {
-        (panel as HTMLElement).style.display = 'none';
-      });
-      
-      // Show default panel
-      const defaultPanel = document.getElementById('default-panel');
-      if (defaultPanel) {
-        (defaultPanel as HTMLElement).style.display = 'block';
-      }
-    }
-    
+    }, 1000);
+  }
+
+  // Setup panel event listeners
+  function setupPanelListeners() {
     // Listen for profile panel events (desktop only)
     window.addEventListener('openProfilePanel', (event: any) => {
       console.log('Desktop: openProfilePanel event received:', event.detail);
@@ -410,128 +493,51 @@ const contentId = "profile";
         hideAllPanels();
       }
     });
-    
-    // Additional logout button setup as fallback
-    setTimeout(() => {
-      const logoutButton = document.getElementById('logout-button');
-      if (logoutButton && !logoutButton.hasAttribute('data-listener-added')) {
-        logoutButton.setAttribute('data-listener-added', 'true');
-        logoutButton.addEventListener('click', (e) => {
-          e.preventDefault();
-          console.log('Fallback logout clicked');
-          window.location.href = '/sign-in';
-        });
-        console.log('Fallback logout listener added');
-      }
-    }, 1000);
-    
-    // Listen for profile update requests from EditNameColorPanel
-    window.addEventListener('updateProfileRequest', async (event: any) => {
-      console.log('updateProfileRequest event received:', event.detail);
-      try {
-        const { firstName, lastName, color } = event.detail;
-        
-        // Make API call to update profile
-        const response = await fetch('/api/user/update-profile', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            firstName,
-            lastName,
-            color
-          })
-        });
+  }
 
-        if (response.ok) {
-          console.log('Profile updated successfully via API');
-        } else {
-          console.error('Profile update failed:', response.status);
-          const errorData = await response.json().catch(() => ({}));
-          console.error('Error details:', errorData);
-        }
-      } catch (error) {
-        console.error('Error updating profile:', error);
-      }
-    });
+  // Setup other event listeners
+  function setupOtherListeners() {
+    // Global function to close profile panels
+    (window as any).closeProfilePanel = () => {
+      console.log('closeProfilePanel function called');
+      window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+    };
+  }
 
-    // Listen for profile data requests from EditNameColorPanel
-    window.addEventListener('requestProfileData', async () => {
-      console.log('requestProfileData event received');
-      try {
-        // Fetch current user profile data
-        const response = await fetch('/api/user/get-profile');
-        if (response.ok) {
-          const userData = await response.json();
-          console.log('User profile data:', userData);
-          
-          // Only dispatch updateProfile if we have valid data
-          if (userData.firstName && userData.lastName) {
-            window.dispatchEvent(new CustomEvent('updateProfile', {
-              detail: {
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                userColor: userData.userColor
-              }
-            }));
-          } else {
-            console.warn('Invalid user data received:', userData);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching profile data:', error);
-      }
-    });
+  // ===== INITIALIZATION FUNCTION =====
+  
+  function initializeProfilePage() {
+    console.log('🚀 Initializing profile page...');
     
-    // Listen for profile updates and update the CardStack header
-    // Remove any existing listeners to prevent duplicates
-    window.removeEventListener('updateProfile', handleProfileUpdate);
-    window.addEventListener('updateProfile', handleProfileUpdate);
+    // Setup profile event listeners (MOST CRITICAL - DO FIRST)
+    setupProfileListeners();
     
-    async function handleProfileUpdate(event: any) {
-      console.log('updateProfile event received:', event);
-      const detail = (event as any).detail;
-      console.log('Event detail:', detail);
-      if (detail) {
-        try {
-          console.log('Handling profile update UI changes...');
-          
-          // Update CardStack title
-          const cardStack = document.getElementById('profile-cardstack');
-          if (cardStack) {
-            const titleElement = cardStack.querySelector('p');
-            if (titleElement) {
-              titleElement.textContent = `${detail.firstName} ${detail.lastName.charAt(0)}`.trim();
-            }
-            
-            // Update header background color
-            const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement;
-            if (headerElement) {
-              headerElement.style.backgroundColor = `var(--color-${detail.selectedColor})`;
-            }
-          }
-          
-          // Update all avatars using the global function
-          const newInitials = `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase();
-          console.log('Updating all avatars with:', { color: detail.selectedColor, initials: newInitials });
-          
-          // Use the global avatar manager function
-          if ((window as any).updateAllAvatars) {
-            const result = await (window as any).updateAllAvatars(detail.selectedColor, newInitials);
-            console.log(`Successfully updated ${result.updatedCount} avatars`);
-            
-            if (result.errors.length > 0) {
-              console.warn('Avatar update errors:', result.errors);
-            }
-          } else {
-            console.error('Avatar manager not available');
-          }
-          
-        } catch (error) {
-          console.error('Error handling profile update:', error);
-        }
-      }
-    }
+    // Setup logout button
+    setupLogoutButton();
+    
+    // Setup panel listeners
+    setupPanelListeners();
+    
+    // Setup other listeners
+    setupOtherListeners();
+    
+    console.log('✅ Profile page initialization complete');
+  }
+
+  // ===== INITIALIZATION LOGIC =====
+  
+  // Check if DOM is already ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeProfilePage);
+  } else {
+    // DOM already loaded (View Transitions case) - initialize immediately
+    initializeProfilePage();
+  }
+
+  // Also handle View Transitions
+  document.addEventListener('astro:page-load', () => {
+    console.log('🔄 Re-initializing profile page after View Transitions');
+    initializeProfilePage();
   });
+
 </script>

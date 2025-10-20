@@ -85,21 +85,24 @@ export default function EditNameColorPanel({
     setIsSubmitting(true);
 
     try {
-      console.log('EditNameColorPanel: Dispatching updateProfileRequest event');
-      console.log('EditNameColorPanel: Data being sent:', {
+      console.log('📤 EditNameColorPanel: Dispatching updateProfileRequest event');
+      console.log('📤 EditNameColorPanel: Data being sent:', {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         color: formData.selectedColor
       });
       
       // Dispatch custom event to trigger API call from Astro page
-      window.dispatchEvent(new CustomEvent('updateProfileRequest', {
+      const event = new CustomEvent('updateProfileRequest', {
         detail: {
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
           color: formData.selectedColor
         }
-      }));
+      });
+      
+      console.log('📤 EditNameColorPanel: Event dispatched:', event);
+      window.dispatchEvent(event);
 
       // Show success toast immediately (the actual API call will happen in the background)
       window.dispatchEvent(new CustomEvent('toast', {
