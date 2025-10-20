@@ -13,6 +13,8 @@ declare global {
       show: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
     };
     testToast: () => void;
+    updateAllAvatars?: (color: string, initials: string) => Promise<{ updatedCount: number; errors: string[] }>;
+    closeProfilePanel?: () => void;
   }
 
   // Harvous Content Organization Types

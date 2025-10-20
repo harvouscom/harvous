@@ -306,6 +306,11 @@ const contentId = "profile";
 
 
 <script>
+  import { updateAllAvatars, initializeAvatarManager } from '@/utils/avatar-manager';
+  
+  // Initialize avatar manager
+  initializeAvatarManager();
+  
   // Get the logout button and add click handler
   document.addEventListener('DOMContentLoaded', () => {
     console.log('Profile page DOM loaded, setting up logout button');
@@ -354,176 +359,6 @@ const contentId = "profile";
       console.log('closeProfilePanel function called');
       window.dispatchEvent(new CustomEvent('closeProfilePanel'));
     };
-    
-    // Global function to update all avatars
-    (window as any).updateAllAvatars = (color: string, initials: string) => {
-      console.log('updateAllAvatars called with:', { color, initials });
-      const newColor = `var(--color-${color})`;
-      
-      // Find all avatar elements - try multiple selectors
-      const avatarSelectors = [
-        '#mobile-navigation-avatar',
-        '#dashboard-navigation-avatar', 
-        '#content-navigation-avatar',
-        '#new-space-navigation-avatar',
-        '.avatar-button',
-        '[data-avatar-color]',
-        'div[style*="background"][style*="var(--color-"]'
-      ];
-      
-      let avatars: HTMLElement[] = [];
-      
-      // Try each selector
-      avatarSelectors.forEach(selector => {
-        const elements = document.querySelectorAll(selector);
-        elements.forEach(el => {
-          if (!avatars.includes(el as HTMLElement)) {
-            avatars.push(el as HTMLElement);
-          }
-        });
-      });
-      
-      console.log(`Found ${avatars.length} avatar elements to update`);
-      
-      const avatarsWithData = document.querySelectorAll('.avatar-button[data-avatar-color]');
-      
-      console.log(`Found ${avatarsWithData.length} avatar elements with data attribute`);
-      console.log(`Found ${avatars.length} total avatar elements on page`);
-      console.log(`Will update all ${avatars.length} avatar elements`);
-      
-      // Log details about each avatar found
-      avatars.forEach((avatar, index) => {
-        const avatarElement = avatar as HTMLElement;
-        const currentColor = avatarElement.getAttribute('data-avatar-color') || 'no-data-attr';
-        const currentStyle = avatarElement.getAttribute('style') || 'no-style';
-        const parentElement = avatarElement.parentElement?.tagName || 'no-parent';
-        const parentHref = avatarElement.parentElement?.getAttribute('href') || 'no-href';
-        
-        console.log(`Avatar ${index + 1}:`, {
-          hasDataAttr: avatarElement.hasAttribute('data-avatar-color'),
-          currentColor,
-          currentStyle: currentStyle.substring(0, 50) + '...',
-          parentElement,
-          parentHref,
-          element: avatarElement
-        });
-      });
-      
-      let totalUpdated = 0;
-      avatars.forEach((avatar, index) => {
-        const avatarElement = avatar as HTMLElement;
-        
-        // Log before update
-        console.log(`Before update - Avatar ${index + 1}:`, {
-          currentStyle: avatarElement.getAttribute('style'),
-          computedStyle: window.getComputedStyle(avatarElement).backgroundColor
-        });
-        
-        // Update color with multiple approaches
-        avatarElement.style.background = newColor;
-        avatarElement.style.backgroundColor = newColor;
-        avatarElement.setAttribute('style', `background: ${newColor} !important; background-color: ${newColor} !important;`);
-        
-        // Force update with CSS custom property
-        avatarElement.style.setProperty('--avatar-color', newColor);
-        avatarElement.style.setProperty('background', newColor, 'important');
-        avatarElement.style.setProperty('background-color', newColor, 'important');
-        
-        // Update data attribute (add it if it doesn't exist)
-        avatarElement.setAttribute('data-avatar-color', color);
-        
-        // Update initials
-        const initialsElement = avatarElement.querySelector('p');
-        if (initialsElement) {
-          initialsElement.textContent = initials;
-          avatarElement.setAttribute('data-avatar-initials', initials);
-        }
-        
-        // Log after update
-        console.log(`After update - Avatar ${index + 1}:`, {
-          newStyle: avatarElement.getAttribute('style'),
-          computedStyle: window.getComputedStyle(avatarElement).backgroundColor,
-          color: color,
-          initials: initials,
-          parentElement: avatarElement.parentElement?.tagName,
-          parentHref: avatarElement.parentElement?.getAttribute('href')
-        });
-        
-        totalUpdated++;
-      });
-      
-      console.log(`Total avatars updated: ${totalUpdated}`);
-      
-      // Also dispatch events to update navigation components
-      window.dispatchEvent(new CustomEvent('updateProfile', {
-        detail: {
-          firstName: initials.substring(0, 1),
-          lastName: initials.substring(1, 2),
-          selectedColor: color,
-          initials: initials
-        }
-      }));
-      
-      // Dispatch color change event
-      window.dispatchEvent(new CustomEvent('colorChanged', {
-        detail: { color: color }
-      }));
-      
-      console.log('Dispatched updateProfile and colorChanged events');
-      return totalUpdated;
-    };
-    
-    // Test function to manually update avatars
-    (window as any).testAvatarUpdate = (color = 'peaceful-pink', initials = 'TJ') => {
-      console.log('Testing avatar update with:', { color, initials });
-      return (window as any).updateAllAvatars(color, initials);
-    };
-    
-    
-    // Debug function to inspect all avatars on the page
-    (window as any).debugAllAvatars = () => {
-      console.log('=== DEBUGGING ALL AVATARS ON PAGE ===');
-      
-      // Find all possible avatar elements
-      const selectors = [
-        '.avatar-button',
-        '[class*="avatar"]',
-        'div[style*="background"]',
-        'a[href="/profile"] div',
-        '.mobile-navigation div'
-      ];
-      
-      selectors.forEach((selector, index) => {
-        const elements = document.querySelectorAll(selector);
-        console.log(`\nSelector ${index + 1}: "${selector}"`);
-        console.log(`Found ${elements.length} elements`);
-        
-        elements.forEach((element, elementIndex) => {
-          const el = element as HTMLElement;
-          const rect = el.getBoundingClientRect();
-          const computedStyle = window.getComputedStyle(el);
-          
-          console.log(`  Element ${elementIndex + 1}:`, {
-            tagName: el.tagName,
-            className: el.className,
-            id: el.id,
-            style: el.getAttribute('style'),
-            computedBackground: computedStyle.backgroundColor,
-            computedBackgroundColor: computedStyle.backgroundColor,
-            visible: rect.width > 0 && rect.height > 0,
-            position: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-            parentElement: el.parentElement?.tagName,
-            parentHref: el.parentElement?.getAttribute('href'),
-            textContent: el.textContent?.trim()
-          });
-        });
-      });
-      
-      console.log('=== END AVATAR DEBUG ===');
-    };
-    
-    // Make sure the functions are available globally
-    (window as any).closeProfilePanel = (window as any).closeProfilePanel;
     
     // Desktop panel switching functionality
     function showPanel(panelName: string) {
@@ -681,19 +516,17 @@ const contentId = "profile";
             }
           }
           
-          // Update all avatars using the global function
+          // Update all avatars using the centralized utility
           const newInitials = `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase();
           console.log('Updating all avatars with:', { color: detail.selectedColor, initials: newInitials });
           
-          // Use the global function to update all avatars
-          const updatedCount = (window as any).updateAllAvatars(detail.selectedColor, newInitials);
-          console.log(`Successfully updated ${updatedCount} avatars`);
+          // Use the centralized avatar manager
+          const result = await updateAllAvatars(detail.selectedColor, newInitials);
+          console.log(`Successfully updated ${result.updatedCount} avatars`);
           
-          // Also dispatch events for any reactive components
-          window.dispatchEvent(new CustomEvent('colorChanged', {
-            detail: { color: detail.selectedColor }
-          }));
-          console.log('Dispatched colorChanged event with color:', detail.selectedColor);
+          if (result.errors.length > 0) {
+            console.warn('Avatar update errors:', result.errors);
+          }
           
         } catch (error) {
           console.error('Error handling profile update:', error);
