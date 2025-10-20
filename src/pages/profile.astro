@@ -306,11 +306,7 @@ const contentId = "profile";
 
 
 <script>
-  import { updateAllAvatars, initializeAvatarManager } from '@/utils/avatar-manager';
-  
-  // Initialize avatar manager
-  initializeAvatarManager();
-  
+  // Avatar manager is loaded globally via Layout.astro
   // Get the logout button and add click handler
   document.addEventListener('DOMContentLoaded', () => {
     console.log('Profile page DOM loaded, setting up logout button');
@@ -516,16 +512,20 @@ const contentId = "profile";
             }
           }
           
-          // Update all avatars using the centralized utility
+          // Update all avatars using the global function
           const newInitials = `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase();
           console.log('Updating all avatars with:', { color: detail.selectedColor, initials: newInitials });
           
-          // Use the centralized avatar manager
-          const result = await updateAllAvatars(detail.selectedColor, newInitials);
-          console.log(`Successfully updated ${result.updatedCount} avatars`);
-          
-          if (result.errors.length > 0) {
-            console.warn('Avatar update errors:', result.errors);
+          // Use the global avatar manager function
+          if ((window as any).updateAllAvatars) {
+            const result = await (window as any).updateAllAvatars(detail.selectedColor, newInitials);
+            console.log(`Successfully updated ${result.updatedCount} avatars`);
+            
+            if (result.errors.length > 0) {
+              console.warn('Avatar update errors:', result.errors);
+            }
+          } else {
+            console.error('Avatar manager not available');
           }
           
         } catch (error) {

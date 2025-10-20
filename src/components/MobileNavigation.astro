@@ -117,8 +117,7 @@ console.log('MobileNavigation received props:', { initials, userColor });
 </div>
 
 <script>
-  import { updateAllAvatars } from '@/utils/avatar-manager';
-  
+  // Avatar manager is loaded globally via Layout.astro
   // Listen for avatar updates and update the mobile navigation avatar
   document.addEventListener('DOMContentLoaded', () => {
     console.log('MobileNavigation: Setting up avatar update listener');
@@ -134,9 +133,13 @@ console.log('MobileNavigation received props:', { initials, userColor });
         
         console.log('MobileNavigation: Updating avatar with:', { newInitials, newColor });
         
-        // Use the centralized avatar manager
-        const result = await updateAllAvatars(newColor, newInitials);
-        console.log(`MobileNavigation: Updated ${result.updatedCount} avatars`);
+        // Use the global avatar manager function
+        if ((window as any).updateAllAvatars) {
+          const result = await (window as any).updateAllAvatars(newColor, newInitials);
+          console.log(`MobileNavigation: Updated ${result.updatedCount} avatars`);
+        } else {
+          console.error('MobileNavigation: Avatar manager not available');
+        }
       }
     });
     
