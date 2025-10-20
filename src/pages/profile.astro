@@ -508,6 +508,84 @@ const contentId = "profile";
       console.log('closeProfilePanel function called');
       window.dispatchEvent(new CustomEvent('closeProfilePanel'));
     };
+
+    // Listen for profile data requests from EditNameColorPanel
+    window.addEventListener('requestProfileData', async () => {
+      console.log('requestProfileData event received');
+      try {
+        // Fetch current user profile data
+        const response = await fetch('/api/user/get-profile');
+        if (response.ok) {
+          const userData = await response.json();
+          console.log('User profile data:', userData);
+          
+          // Only dispatch updateProfile if we have valid data
+          if (userData.firstName && userData.lastName) {
+            window.dispatchEvent(new CustomEvent('updateProfile', {
+              detail: {
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+                userColor: userData.userColor
+              }
+            }));
+          } else {
+            console.warn('Invalid user data received:', userData);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+      }
+    });
+    
+    // Listen for profile updates and update the CardStack header
+    // Remove any existing listeners to prevent duplicates
+    window.removeEventListener('updateProfile', handleProfileUpdate);
+    window.addEventListener('updateProfile', handleProfileUpdate);
+  }
+
+  async function handleProfileUpdate(event) {
+    console.log('updateProfile event received:', event);
+    const detail = event.detail;
+    console.log('Event detail:', detail);
+    if (detail) {
+      try {
+        console.log('Handling profile update UI changes...');
+        
+        // Update CardStack title
+        const cardStack = document.getElementById('profile-cardstack');
+        if (cardStack) {
+          const titleElement = cardStack.querySelector('p');
+          if (titleElement) {
+            titleElement.textContent = `${detail.firstName} ${detail.lastName.charAt(0)}`.trim();
+          }
+          
+          // Update header background color
+          const headerElement = cardStack.querySelector('div[style*="background-color"]');
+          if (headerElement) {
+            headerElement.style.backgroundColor = `var(--color-${detail.selectedColor})`;
+          }
+        }
+        
+        // Update all avatars using the global function
+        const newInitials = `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase();
+        console.log('Updating all avatars with:', { color: detail.selectedColor, initials: newInitials });
+        
+        // Use the global avatar manager function
+        if (window.updateAllAvatars) {
+          const result = await window.updateAllAvatars(detail.selectedColor, newInitials);
+          console.log(`Successfully updated ${result.updatedCount} avatars`);
+          
+          if (result.errors.length > 0) {
+            console.warn('Avatar update errors:', result.errors);
+          }
+        } else {
+          console.error('Avatar manager not available');
+        }
+        
+      } catch (error) {
+        console.error('Error handling profile update:', error);
+      }
+    }
   }
 
   // ===== INITIALIZATION FUNCTION =====
