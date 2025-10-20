@@ -141,3 +141,173 @@
 .trix-content ol li {
     list-style-type: decimal;
 }
+
+/* React Island Button Styles - moved from dynamic injection to ensure immediate availability */
+
+/* EditNameColorPanel button styles */
+.edit-name-color-panel button[data-outer-shadow] {
+  will-change: transform, box-shadow;
+  transition:
+    background-color 0.125s ease-in-out,
+    box-shadow 0.125s ease-in-out;
+  box-shadow:
+    0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+    0px 4px 4px 0px hsla(0, 0%, 0%, 0.25);
+}
+
+.edit-name-color-panel button:not([data-outer-shadow]) {
+  transition:
+    box-shadow 0.125s ease-in-out;
+  box-shadow: 0px -3px 0px 0px #78766F33 inset;
+}
+
+.edit-name-color-panel button:not([data-outer-shadow]):active {
+  filter: brightness(0.97);
+  box-shadow: 
+    0px -1px 0px 0px #78766F33 inset,
+    0px 1px 0px 0px #78766F33 inset;
+}
+
+.edit-name-color-panel button {
+  will-change: transform, box-shadow;
+}
+
+.edit-name-color-panel button:active > img {
+  transform: scale(0.95);
+}
+
+/* Ensure EditNameColorPanel appears instantly without fade */
+.edit-name-color-panel {
+  opacity: 1 !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+.edit-name-color-panel * {
+  opacity: 1 !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Override any React component unmount transitions */
+.edit-name-color-panel[data-astro-cid] {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* NewNotePanel button styles */
+.new-note-panel button[data-outer-shadow] {
+  will-change: transform, box-shadow;
+  transition:
+    background-color 0.125s ease-in-out,
+    box-shadow 0.125s ease-in-out;
+  box-shadow:
+    0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+    0px 4px 4px 0px hsla(0, 0%, 0%, 0.25);
+}
+
+.new-note-panel button:not([data-outer-shadow]) {
+  transition:
+    box-shadow 0.125s ease-in-out;
+  box-shadow: 0px -3px 0px 0px #78766F33 inset;
+}
+
+.new-note-panel button:not([data-outer-shadow]):active {
+  filter: brightness(0.97);
+  box-shadow: 
+    0px -1px 0px 0px #78766F33 inset,
+    0px 1px 0px 0px #78766F33 inset;
+}
+
+.new-note-panel button {
+  will-change: transform, box-shadow;
+}
+
+.new-note-panel button:active > img {
+  transform: scale(0.95);
+}
+
+/* Ensure NewNotePanel appears instantly without fade */
+.new-note-panel {
+  opacity: 1 !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+.new-note-panel * {
+  opacity: 1 !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Override any React component unmount transitions */
+.new-note-panel[data-astro-cid] {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* SquareButton styles */
+.square-button button[data-outer-shadow] {
+  will-change: transform, box-shadow;
+  transition:
+    background-color 0.125s ease-in-out,
+    box-shadow 0.125s ease-in-out;
+  box-shadow:
+    0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+    0px 4px 4px 0px hsla(0, 0%, 0%, 0.25);
+}
+
+.square-button button:not([data-outer-shadow]) {
+  transition:
+    box-shadow 0.125s ease-in-out;
+  box-shadow: 0px -3px 0px 0px #78766F33 inset;
+}
+
+.square-button button:not([data-outer-shadow]):active {
+  filter: brightness(0.97);
+  box-shadow: 
+    0px -1px 0px 0px #78766F33 inset,
+    0px 1px 0px 0px #78766F33 inset;
+}
+
+.square-button button {
+  will-change: transform, box-shadow;
+}
+
+.square-button button:active > img {
+  transform: scale(0.95);
+}
+
+button:active[class*="bg-[var(--color-blue)]"] {
+  background-color: var(--color-navy);
+  box-shadow:
+    0px -4px 0px 0px #0000001a inset,
+    0px 0px 4px 0px #00000040,
+    0px 4px 0px 0px #00000040 inset;
+}
+
+button:active[class*="bg-[var(--color-stone-grey)]"] {
+  background-color: var(--color-deep-grey);
+  box-shadow:
+    0px -4px 0px 0px #0000001a inset,
+    0px 0px 4px 0px #00000040,
+    0px 4px 0px 0px #00000040 inset;
+}
+
+/* Common input and color selection styles */
+.search-input {
+  background: var(--color-gradient-gray);
+  box-shadow: var(--shadow-small);
+}
+
+.color-selection button[style*="background-color"] {
+  box-shadow: 0px -4px 0px 0px rgba(0, 0, 0, 0.1) inset;
+}
+
+.color-selection button[style*="background-color"]:hover {
+  transform: scale(1.05);
+}
+
+.color-selection button[style*="background-color"]:active {
+  transform: scale(0.95);
+}

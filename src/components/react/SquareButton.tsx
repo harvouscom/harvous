@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 
 interface SquareButtonProps {
   variant?: "Add" | "Close" | "More" | "Back" | "Search";
@@ -13,64 +13,7 @@ export default function SquareButton({
   className = "",
   type = "button"
 }: SquareButtonProps) {
-  useEffect(() => {
-    const buttonStyles = `
-      .square-button button[data-outer-shadow] {
-        will-change: transform, box-shadow;
-        transition:
-          background-color 0.125s ease-in-out,
-          box-shadow 0.125s ease-in-out;
-        box-shadow:
-          0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
-          0px 4px 4px 0px hsla(0, 0%, 0%, 0.25);
-      }
-      
-      .square-button button:not([data-outer-shadow]) {
-        transition:
-          box-shadow 0.125s ease-in-out;
-        box-shadow: 0px -3px 0px 0px #78766F33 inset;
-      }
-
-      .square-button button:not([data-outer-shadow]):active {
-        filter: brightness(0.97);
-        box-shadow: 
-          0px -1px 0px 0px #78766F33 inset,
-          0px 1px 0px 0px #78766F33 inset;
-      }
-
-      .square-button button {
-        will-change: transform, box-shadow;
-      }
-
-      .square-button button:active > img {
-        transform: scale(0.95);
-      }
-
-      button:active[class*="bg-[var(--color-blue)]"] {
-        background-color: var(--color-navy);
-        box-shadow:
-          0px -4px 0px 0px #0000001a inset,
-          0px 0px 4px 0px #00000040,
-          0px 4px 0px 0px #00000040 inset;
-      }
-
-      button:active[class*="bg-[var(--color-stone-grey)]"] {
-        background-color: var(--color-deep-grey);
-        box-shadow:
-          0px -4px 0px 0px #0000001a inset,
-          0px 0px 4px 0px #00000040,
-          0px 4px 0px 0px #00000040 inset;
-      }
-    `;
-
-    const styleId = 'square-button-styles';
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement('style');
-      style.id = styleId;
-      style.textContent = buttonStyles;
-      document.head.appendChild(style);
-    }
-  }, []);
+  // Styles moved to global.css for immediate availability
   const renderIcon = () => {
     switch (variant) {
       case "Back":
