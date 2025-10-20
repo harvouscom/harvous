@@ -22,10 +22,44 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Update user data in our database (source of truth)
-    // No need to update Clerk since we're using database as source of truth
+    // Update user data in Clerk (source of truth)
+    const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
+    
+    if (!clerkSecretKey) {
+      return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-    // Store the color preference and updated user data in the database
+    // Update Clerk with name AND custom metadata
+    const clerkResponse = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${clerkSecretKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        first_name: firstName,
+        last_name: lastName,
+        public_metadata: {
+          userColor: color  // Store custom field in Clerk's metadata
+        }
+      })
+    });
+
+    if (!clerkResponse.ok) {
+      const errorText = await clerkResponse.text();
+      console.error('Clerk API error:', errorText);
+      return new Response(JSON.stringify({ error: 'Failed to update profile in Clerk' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log('Clerk updated successfully');
+
+    // Store the color preference and updated user data in the database (cache)
     try {
       console.log('Updating database with:', { firstName, lastName, color, userId });
       
