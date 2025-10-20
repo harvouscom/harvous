@@ -15,9 +15,13 @@ export const GET: APIRoute = async ({ locals }) => {
     // Get user metadata including color preference and cached user data
     const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
     
+    console.log('get-profile API - userMetadata:', userMetadata);
+    
     const userColor = userMetadata?.userColor || 'paper';
     const firstName = userMetadata?.firstName || '';
     const lastName = userMetadata?.lastName || '';
+    
+    console.log('get-profile API - returning:', { firstName, lastName, userColor });
 
     return new Response(JSON.stringify({ 
       firstName,

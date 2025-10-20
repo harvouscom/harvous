@@ -345,17 +345,23 @@ const contentId = "profile";
       const data = await response.json();
       console.log('📥 profile.astro: API response data:', data);
 
-      if (response.ok) {
-        console.log('✅ profile.astro: Profile updated successfully');
-        
-        // Show success toast
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: 'Profile saved successfully!',
-            type: 'success'
-          }
-        }));
-      } else {
+        if (response.ok) {
+          console.log('✅ profile.astro: Profile updated successfully');
+          
+          // Show success toast
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Profile saved successfully!',
+              type: 'success'
+            }
+          }));
+          
+          // Refresh the page to show updated data
+          console.log('🔄 Refreshing page to show updated profile data');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
         console.error('❌ profile.astro: Profile update failed:', data);
         
         // Show error toast

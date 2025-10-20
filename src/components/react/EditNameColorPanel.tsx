@@ -24,27 +24,33 @@ export default function EditNameColorPanel({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load initial data from API if not provided
+  // Always load fresh data from API when component mounts
   useEffect(() => {
-    if (!firstName && !lastName) {
-      loadUserData();
-    }
-  }, [firstName, lastName]);
+    console.log('🔄 EditNameColorPanel: useEffect triggered, loading user data');
+    loadUserData();
+  }, []);
 
   const loadUserData = async () => {
+    console.log('📥 EditNameColorPanel: loadUserData called');
     setIsLoading(true);
     try {
+      console.log('📤 EditNameColorPanel: Fetching from /api/user/get-profile');
       const response = await fetch('/api/user/get-profile');
+      console.log('📥 EditNameColorPanel: Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('📥 EditNameColorPanel: Received data:', data);
         setFormData({
           firstName: data.firstName || '',
           lastName: data.lastName || '',
           selectedColor: data.userColor || 'paper'
         });
+        console.log('✅ EditNameColorPanel: Form data updated');
+      } else {
+        console.error('❌ EditNameColorPanel: API call failed:', response.status);
       }
     } catch (error) {
-      console.error('Error loading user data:', error);
+      console.error('❌ EditNameColorPanel: Error loading user data:', error);
     } finally {
       setIsLoading(false);
     }
