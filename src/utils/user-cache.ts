@@ -22,11 +22,27 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       .where(eq(UserMetadata.userId, userId))
       .get();
 
-    const userColor = userMetadata?.userColor || 'paper';
     console.log('User cache - userMetadata:', userMetadata);
-    console.log('User cache - userColor from database:', userColor);
     
-    // Always fetch fresh data from Clerk API to ensure we have the latest name/email
+    // Check if cache is fresh (less than 5 minutes old)
+    const cacheAge = Date.now() - (userMetadata?.clerkDataUpdatedAt?.getTime() || 0);
+    const isCacheFresh = cacheAge < 5 * 60 * 1000; // 5 minutes
+
+    if (userMetadata && isCacheFresh) {
+      console.log('User cache - using fresh database cache');
+      return {
+        firstName: userMetadata.firstName || '',
+        lastName: userMetadata.lastName || '',
+        email: userMetadata.email || '',
+        profileImageUrl: userMetadata.profileImageUrl,
+        initials: generateInitials(userMetadata.firstName || '', userMetadata.lastName || ''),
+        displayName: generateDisplayName(userMetadata.firstName || '', userMetadata.lastName || ''),
+        userColor: userMetadata.userColor || 'paper',
+      };
+    }
+
+    // Cache is stale or missing - fetch from Clerk
+    console.log('User cache - fetching from Clerk (cache stale or missing)');
     const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
     if (!clerkSecretKey) {
       throw new Error('Clerk secret key not found');
@@ -45,13 +61,16 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
 
     const userData = await response.json();
     
-    // Extract user data from Clerk API
+    // Extract standard fields
     const firstName = userData?.first_name || userData?.firstName || '';
     const lastName = userData?.last_name || userData?.lastName || '';
     const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
     const profileImageUrl = userData?.profile_image_url || userData?.image_url;
 
-    // Update database with fresh Clerk data (but preserve userColor)
+    // Extract custom field from Clerk's public_metadata
+    const userColor = userData?.public_metadata?.userColor || 'paper';
+
+    // Update database with fresh Clerk data (including metadata)
     if (userMetadata) {
       await db.update(UserMetadata)
         .set({
@@ -59,9 +78,9 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
           lastName,
           email,
           profileImageUrl,
+          userColor,  // Cache from Clerk's public_metadata
           clerkDataUpdatedAt: new Date(),
-          updatedAt: new Date(),
-          // DO NOT update userColor - preserve existing value
+          updatedAt: new Date()
         })
         .where(eq(UserMetadata.userId, userId));
     } else {
@@ -87,7 +106,7 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       profileImageUrl,
       initials: generateInitials(firstName, lastName),
       displayName: generateDisplayName(firstName, lastName),
-      userColor, // Use the color from database, not from Clerk
+      userColor, // Use the color from Clerk's public_metadata
     };
     
     console.log('User cache - returning result:', result);

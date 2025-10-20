@@ -41,8 +41,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       body: JSON.stringify({
         first_name: firstName,
         last_name: lastName,
-        // Note: Clerk doesn't have a built-in color field, so we might need to store this in a database
-        // For now, we'll just update the name fields
+        public_metadata: {
+          userColor: color  // Store custom field in Clerk's metadata
+        }
       })
     });
 
@@ -70,7 +71,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
             firstName: firstName,
             lastName: lastName,
             userColor: color,
-            clerkDataUpdatedAt: new Date(), // Keep cache valid with fresh data
+            clerkDataUpdatedAt: new Date(), // Refresh cache timestamp
             updatedAt: new Date()
           })
           .where(eq(UserMetadata.userId, userId));
