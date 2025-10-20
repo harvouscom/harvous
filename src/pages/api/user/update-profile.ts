@@ -59,52 +59,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     console.log('Clerk updated successfully');
 
-    // Store the color preference and updated user data in the database (cache)
-    try {
-      console.log('Updating database with:', { firstName, lastName, color, userId });
-      
-      // Check if user metadata exists
-      const existingMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
-      
-      if (existingMetadata) {
-        console.log('Updating existing metadata');
-        // Update existing metadata with new user data and color
-        await db.update(UserMetadata)
-          .set({ 
-            firstName: firstName,
-            lastName: lastName,
-            userColor: color,
-            clerkDataUpdatedAt: new Date(), // Refresh cache timestamp
-            updatedAt: new Date()
-          })
-          .where(eq(UserMetadata.userId, userId));
-        
-        console.log('Database updated successfully');
-      } else {
-        console.log('Creating new metadata record');
-        // Create new metadata record
-        await db.insert(UserMetadata).values({
-          id: `user_metadata_${userId}`,
-          userId: userId,
-          firstName: firstName,
-          lastName: lastName,
-          userColor: color,
-          highestSimpleNoteId: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          clerkDataUpdatedAt: new Date()
-        });
-        
-        console.log('Database record created successfully');
-      }
-    } catch (dbError) {
-      console.error('Database error:', dbError);
-      // Continue with success response even if database save fails
-    }
-
-    // Note: We don't need to invalidate the cache since we just updated it with the correct data
-    // The cache now contains the updated firstName, lastName, and userColor
-    console.log('User data updated successfully in database');
+    // Profile updated successfully in Clerk - next page load will fetch fresh data
+    console.log('User data updated successfully in Clerk');
 
     return new Response(JSON.stringify({ 
       success: true, 

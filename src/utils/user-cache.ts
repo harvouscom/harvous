@@ -24,25 +24,8 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
 
     console.log('User cache - userMetadata:', userMetadata);
     
-    // Check if cache is fresh (less than 5 minutes old)
-    const cacheAge = Date.now() - (userMetadata?.clerkDataUpdatedAt?.getTime() || 0);
-    const isCacheFresh = cacheAge < 5 * 60 * 1000; // 5 minutes
-
-    if (userMetadata && isCacheFresh) {
-      console.log('User cache - using fresh database cache');
-      return {
-        firstName: userMetadata.firstName || '',
-        lastName: userMetadata.lastName || '',
-        email: userMetadata.email || '',
-        profileImageUrl: userMetadata.profileImageUrl,
-        initials: generateInitials(userMetadata.firstName || '', userMetadata.lastName || ''),
-        displayName: generateDisplayName(userMetadata.firstName || '', userMetadata.lastName || ''),
-        userColor: userMetadata.userColor || 'paper',
-      };
-    }
-
-    // Cache is stale or missing - fetch from Clerk
-    console.log('User cache - fetching from Clerk (cache stale or missing)');
+    // Always fetch from Clerk to ensure data consistency
+    console.log('User cache - fetching from Clerk (always fresh)');
     const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
     if (!clerkSecretKey) {
       throw new Error('Clerk secret key not found');
