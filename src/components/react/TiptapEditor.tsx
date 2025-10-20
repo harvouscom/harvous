@@ -290,7 +290,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       {/* Custom SpaceButton-styled toolbar - positioned at bottom */}
         {!minimalToolbar && (
           <div 
-            className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] mt-2"
+            className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] mt-2 shrink-0"
           >
           <ToolbarButton
             onClick={() => editor.chain().focus().toggleBold().run()}
@@ -377,7 +377,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           border: none !important;
           background: transparent !important;
           outline: none !important;
-          min-height: 200px !important;
+          min-height: 100px !important;
           max-height: none !important;
           height: auto !important;
           overflow: visible !important;

@@ -367,7 +367,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       </div>
 
       {/* Note Content */}
-      <div className="flex-1 flex flex-col min-h-0 mb-3.5" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+      <div className="flex-1 flex flex-col min-h-0 mb-3.5">
         <div className="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
           {/* Header with title input */}
           <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
