@@ -15,6 +15,7 @@
       console.log(`Avatar Manager: Found ${avatars.length} avatar elements`);
       
       if (avatars.length === 0) {
+        console.warn('Avatar Manager: No avatar elements found with selector:', avatarSelector);
         return { updatedCount: 0, errors: ['No avatar elements found'] };
       }
       
@@ -27,17 +28,22 @@
           // Update background color
           avatarElement.style.backgroundColor = newColor;
           
-          // Update initials text
-          const initialsElement = avatarElement.querySelector('.avatar-initials');
+          // Update initials text - correct selector for Avatar component structure
+          const initialsElement = avatarElement.querySelector('p');
           if (initialsElement) {
             initialsElement.textContent = initials;
+            console.log(`Avatar Manager: Updated initials for avatar ${index + 1}: ${initials}`);
+          } else {
+            console.warn(`Avatar Manager: No initials element found in avatar ${index + 1}`);
+            errors.push(`No initials element found in avatar ${index + 1}`);
           }
           
-          // Update data attribute
+          // Update data attributes
           avatarElement.setAttribute('data-avatar-color', color);
+          avatarElement.setAttribute('data-avatar-initials', initials);
           
           updatedCount++;
-          console.log(`Avatar Manager: Updated avatar ${index + 1}`);
+          console.log(`Avatar Manager: Successfully updated avatar ${index + 1}`);
         } catch (error) {
           const errorMsg = `Failed to update avatar ${index + 1}: ${error}`;
           console.error(errorMsg);
@@ -45,7 +51,7 @@
         }
       });
       
-      console.log(`Avatar Manager: Updated ${updatedCount} avatars`);
+      console.log(`Avatar Manager: Updated ${updatedCount} avatars successfully`);
       
       // Dispatch custom event for other components to listen to
       window.dispatchEvent(new CustomEvent('avatarUpdated', {

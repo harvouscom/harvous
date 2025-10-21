@@ -91,62 +91,82 @@ export default function EditNameColorPanel({
     setIsSubmitting(true);
 
     try {
-      console.log('📤 EditNameColorPanel: Dispatching updateProfileRequest event');
+      console.log('📤 EditNameColorPanel: Making direct API call to update profile');
       console.log('📤 EditNameColorPanel: Data being sent:', {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         color: formData.selectedColor
       });
       
-      // Dispatch custom event to trigger API call from Astro page
-      const event = new CustomEvent('updateProfileRequest', {
-        detail: {
+      // Make direct API call instead of dispatching event
+      const response = await fetch('/api/user/update-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
           color: formData.selectedColor
-        }
+        })
       });
-      
-      console.log('📤 EditNameColorPanel: Event dispatched:', event);
-      window.dispatchEvent(event);
 
-      // Show success toast immediately (the actual API call will happen in the background)
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: 'Profile updated successfully!',
-          type: 'success'
+      console.log('📥 EditNameColorPanel: API response status:', response.status);
+      const data = await response.json();
+      console.log('📥 EditNameColorPanel: API response data:', data);
+
+      if (response.ok) {
+        console.log('✅ EditNameColorPanel: Profile updated successfully');
+        
+        // Show success toast only after API success
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Profile updated successfully!',
+            type: 'success'
+          }
+        }));
+
+        // Update all avatars on the page
+        const newInitials = `${formData.firstName.charAt(0) || ''}${formData.lastName.charAt(0) || ''}`.toUpperCase();
+        if ((window as any).updateAllAvatars) {
+          const result = await (window as any).updateAllAvatars(formData.selectedColor, newInitials);
+          console.log(`✅ EditNameColorPanel: Updated ${result.updatedCount} avatars`);
         }
-      }));
 
-      // Update all avatars on the page
-      const newInitials = `${formData.firstName.charAt(0) || ''}${formData.lastName.charAt(0) || ''}`.toUpperCase();
-      if ((window as any).updateAllAvatars) {
-        (window as any).updateAllAvatars(formData.selectedColor, newInitials);
+        // Dispatch profile update event for other components
+        window.dispatchEvent(new CustomEvent('updateProfile', {
+          detail: {
+            firstName: formData.firstName.trim(),
+            lastName: formData.lastName.trim(),
+            selectedColor: formData.selectedColor
+          }
+        }));
+
+        // Close panel after a short delay
+        setTimeout(() => {
+          if (onClose) {
+            onClose();
+          } else {
+            window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          }
+        }, 500);
+      } else {
+        console.error('❌ EditNameColorPanel: Profile update failed:', data);
+        
+        // Show error toast
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: data.error || 'Failed to update profile. Please try again.',
+            type: 'error'
+          }
+        }));
       }
 
-      // Dispatch profile update event
-      window.dispatchEvent(new CustomEvent('updateProfile', {
-        detail: {
-          firstName: formData.firstName.trim(),
-          lastName: formData.lastName.trim(),
-          selectedColor: formData.selectedColor
-        }
-      }));
-
-      // Close panel after a short delay
-      setTimeout(() => {
-        if (onClose) {
-          onClose();
-        } else {
-          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
-        }
-      }, 500);
-
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error('❌ EditNameColorPanel: Error updating profile:', error);
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
-          message: 'Failed to update profile. Please try again.',
+          message: 'Error updating profile. Please try again.',
           type: 'error'
         }
       }));

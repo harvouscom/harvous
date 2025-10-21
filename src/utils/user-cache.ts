@@ -24,78 +24,29 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
 
     console.log('User cache - userMetadata:', userMetadata);
     
-    // Always fetch from Clerk to ensure data consistency
-    console.log('User cache - fetching from Clerk (always fresh)');
-    const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
-    if (!clerkSecretKey) {
-      throw new Error('Clerk secret key not found');
-    }
-
-    const response = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
-      headers: {
-        'Authorization': `Bearer ${clerkSecretKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Clerk API error: ${response.status}`);
-    }
-
-    const userData = await response.json();
+    // Check if cache is fresh (5 minutes)
+    const now = new Date();
+    const cacheAge = userMetadata?.clerkDataUpdatedAt ? 
+      now.getTime() - userMetadata.clerkDataUpdatedAt.getTime() : 
+      Infinity;
+    const isCacheFresh = cacheAge < 5 * 60 * 1000; // 5 minutes in milliseconds
     
-    // Extract standard fields
-    const firstName = userData?.first_name || userData?.firstName || '';
-    const lastName = userData?.last_name || userData?.lastName || '';
-    const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
-    const profileImageUrl = userData?.profile_image_url || userData?.image_url;
-
-    // Extract custom field from Clerk's public_metadata
-    const userColor = userData?.public_metadata?.userColor || 'paper';
-
-    // Update database with fresh Clerk data (including metadata)
-    if (userMetadata) {
-      await db.update(UserMetadata)
-        .set({
-          firstName,
-          lastName,
-          email,
-          profileImageUrl,
-          userColor,  // Cache from Clerk's public_metadata
-          clerkDataUpdatedAt: new Date(),
-          updatedAt: new Date()
-        })
-        .where(eq(UserMetadata.userId, userId));
-    } else {
-      // Create new user record with Clerk data
-      await db.insert(UserMetadata).values({
-        id: `user_metadata_${userId}`,
-        userId: userId,
-        firstName,
-        lastName,
-        email,
-        profileImageUrl,
-        userColor,  // From Clerk's public_metadata
-        highestSimpleNoteId: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        clerkDataUpdatedAt: new Date(),
-      });
+    if (userMetadata && isCacheFresh) {
+      console.log('User cache - using database cache (fresh)');
+      return {
+        firstName: userMetadata.firstName || '',
+        lastName: userMetadata.lastName || '',
+        email: userMetadata.email || '',
+        profileImageUrl: userMetadata.profileImageUrl,
+        initials: generateInitials(userMetadata.firstName || '', userMetadata.lastName || ''),
+        displayName: generateDisplayName(userMetadata.firstName || '', userMetadata.lastName || ''),
+        userColor: userMetadata.userColor || 'paper',
+      };
     }
-
-    // Return the Clerk values (our source of truth)
-    const result = {
-      firstName,
-      lastName,
-      email,
-      profileImageUrl,
-      initials: generateInitials(firstName, lastName),
-      displayName: generateDisplayName(firstName, lastName),
-      userColor, // Use the color from Clerk's public_metadata
-    };
     
-    console.log('User cache - returning result:', result);
-    return result;
+    // Cache is stale or doesn't exist - fetch from Clerk
+    console.log('User cache - fetching from Clerk (cache stale or missing)');
+    return await fetchAndCacheUserData(userId, userMetadata);
 
   } catch (error) {
     console.error('Error getting user data:', error);
@@ -112,6 +63,82 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
   }
 }
 
+
+/**
+ * Fetch user data from Clerk and cache it in the database
+ */
+async function fetchAndCacheUserData(userId: string, existingMetadata: any): Promise<CachedUserData> {
+  const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
+  if (!clerkSecretKey) {
+    throw new Error('Clerk secret key not found');
+  }
+
+  const response = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
+    headers: {
+      'Authorization': `Bearer ${clerkSecretKey}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Clerk API error: ${response.status}`);
+  }
+
+  const userData = await response.json();
+  
+  // Extract standard fields
+  const firstName = userData?.first_name || userData?.firstName || '';
+  const lastName = userData?.last_name || userData?.lastName || '';
+  const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
+  const profileImageUrl = userData?.profile_image_url || userData?.image_url;
+
+  // Extract custom field from Clerk's public_metadata
+  const userColor = userData?.public_metadata?.userColor || 'paper';
+
+  // Update database with fresh Clerk data (including metadata)
+  if (existingMetadata) {
+    await db.update(UserMetadata)
+      .set({
+        firstName,
+        lastName,
+        email,
+        profileImageUrl,
+        userColor,  // Cache from Clerk's public_metadata
+        clerkDataUpdatedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(UserMetadata.userId, userId));
+  } else {
+    // Create new user record with Clerk data
+    await db.insert(UserMetadata).values({
+      id: `user_metadata_${userId}`,
+      userId: userId,
+      firstName,
+      lastName,
+      email,
+      profileImageUrl,
+      userColor,  // From Clerk's public_metadata
+      highestSimpleNoteId: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      clerkDataUpdatedAt: new Date(),
+    });
+  }
+
+  // Return the Clerk values (our source of truth)
+  const result = {
+    firstName,
+    lastName,
+    email,
+    profileImageUrl,
+    initials: generateInitials(firstName, lastName),
+    displayName: generateDisplayName(firstName, lastName),
+    userColor, // Use the color from Clerk's public_metadata
+  };
+  
+  console.log('User cache - returning fresh Clerk data:', result);
+  return result;
+}
 
 /**
  * Generate initials from first and last name

@@ -59,8 +59,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     console.log('Clerk updated successfully');
 
-    // Profile updated successfully in Clerk - next page load will fetch fresh data
-    console.log('User data updated successfully in Clerk');
+    // Update database cache immediately after successful Clerk update
+    try {
+      await db.update(UserMetadata)
+        .set({
+          firstName,
+          lastName,
+          userColor: color,
+          clerkDataUpdatedAt: new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(UserMetadata.userId, userId));
+      
+      console.log('Database cache updated successfully');
+    } catch (dbError) {
+      console.error('Error updating database cache:', dbError);
+      // Don't fail the request - Clerk update succeeded
+    }
+
+    // Profile updated successfully in Clerk and database
+    console.log('User data updated successfully in Clerk and database');
 
     return new Response(JSON.stringify({ 
       success: true, 
