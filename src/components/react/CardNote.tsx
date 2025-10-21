@@ -5,6 +5,7 @@ interface CardNoteProps {
   title?: string;
   content?: string;
   imageUrl?: string;
+  noteType?: 'default' | 'scripture' | 'resource';
   className?: string;
   onClick?: () => void;
 }
@@ -53,6 +54,7 @@ const CardNote: React.FC<CardNoteProps> = ({
   title,
   content,
   imageUrl,
+  noteType = 'default',
   className = "",
   onClick
 }) => {
@@ -63,6 +65,24 @@ const CardNote: React.FC<CardNoteProps> = ({
     >
       {variant === "default" && (
         <div className="relative rounded-xl h-full">
+          {/* Type indicator badge */}
+          {noteType !== 'default' && (
+            <div className="absolute top-2 right-2 z-10">
+              <div className="bg-[var(--color-blue)] text-white rounded-full p-1.5 shadow-sm">
+                {noteType === 'scripture' && (
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                  </svg>
+                )}
+                {noteType === 'resource' && (
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M10.59 13.41c.41.39.41 1.03 0 1.42-.39.39-1.03.39-1.42 0a5.003 5.003 0 0 1 0-7.07l3.54-3.54a5.003 5.003 0 0 1 7.07 0 5.003 5.003 0 0 1 0 7.07l-1.49 1.49c.01-.82-.12-1.64-.4-2.42l.47-.48a2.982 2.982 0 0 0 0-4.24 2.982 2.982 0 0 0-4.24 0l-3.53 3.53a2.982 2.982 0 0 0 0 4.24zm2.82-4.24c.39-.39 1.03-.39 1.42 0a5.003 5.003 0 0 1 0 7.07l-3.54 3.54a5.003 5.003 0 0 1-7.07 0 5.003 5.003 0 0 1 0-7.07l1.49-1.49c-.01.82.12 1.64.4 2.42l-.47.48a2.982 2.982 0 0 0 0 4.24 2.982 2.982 0 0 0 4.24 0l3.53-3.53a2.982 2.982 0 0 0 0-4.24z"/>
+                  </svg>
+                )}
+              </div>
+            </div>
+          )}
+          
           <div className="box-border content-stretch flex gap-3 items-center justify-start overflow-clip p-[8px] relative h-full">
             {/* Left sidebar with bookmark icon */}
             <div className="bg-[var(--color-light-paper)] box-border content-stretch flex gap-2.5 h-full items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20">

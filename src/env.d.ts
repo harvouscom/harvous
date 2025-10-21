@@ -23,6 +23,7 @@ declare global {
     title: string;
     content: string;
     imageUrl?: string;
+    noteType?: 'default' | 'scripture' | 'resource';
     createdAt: Date;
     updatedAt: Date;
     threadId?: string; // Optional: if note belongs to a thread
@@ -67,6 +68,7 @@ declare global {
     title?: string;
     content?: string;
     imageUrl?: string;
+    noteType?: 'default' | 'scripture' | 'resource';
     class?: string;
   }
 }

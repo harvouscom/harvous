@@ -21,8 +21,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const content = formData.get('content') as string;
     const title = formData.get('title') as string;
     const threadId = formData.get('threadId') as string;
+    const noteType = formData.get('noteType') as string;
 
-    console.log("Creating note with userId:", userId, "title:", title, "content:", content?.substring(0, 50));
+    console.log("Creating note with userId:", userId, "title:", title, "content:", content?.substring(0, 50), "noteType:", noteType);
 
     if (!content || !content.trim()) {
       return new Response(JSON.stringify({ error: 'Content is required' }), {
@@ -30,6 +31,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
+
+    // Validate noteType
+    const validNoteTypes = ['default', 'scripture', 'resource'];
+    const finalNoteType = noteType && validNoteTypes.includes(noteType) ? noteType : 'default';
 
     const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
     const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
@@ -73,6 +78,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
         userId: userId,
         highestSimpleNoteId: highestExistingId,
         userColor: 'paper',
+        email: null,
+        firstName: null,
+        lastName: null,
+        profileImageUrl: null,
+        clerkDataUpdatedAt: null,
         createdAt: new Date(),
         updatedAt: null
       };
@@ -90,6 +100,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         threadId: finalThreadId,
         spaceId: null,
         simpleNoteId: nextSimpleNoteId,
+        noteType: finalNoteType,
         userId, 
         isPublic: false,
         createdAt: new Date() 
