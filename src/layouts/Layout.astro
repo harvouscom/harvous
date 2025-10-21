@@ -89,6 +89,59 @@ const showMoreButton = shouldShowMoreButton(contentType);
     <!-- Avatar Manager Global Script -->
     <script is:inline src="/scripts/avatar-manager-global.js"></script>
     
+    <!-- Profile Data Sync Script -->
+    <script is:inline>
+      // Global profile data sync - runs on every page load
+      (function() {
+        console.log('Profile Data Sync: Initializing...');
+        
+        function syncProfileData() {
+          const storedProfileData = sessionStorage.getItem('userProfileData');
+          if (storedProfileData) {
+            try {
+              const profileData = JSON.parse(storedProfileData);
+              
+              // Check if data is too old (1 hour)
+              const oneHour = 60 * 60 * 1000;
+              const isDataStale = Date.now() - profileData.timestamp > oneHour;
+              
+              if (isDataStale) {
+                console.log('Profile Data Sync: Data is stale, removing from sessionStorage');
+                sessionStorage.removeItem('userProfileData');
+                return;
+              }
+              
+              console.log('Profile Data Sync: Found updated profile data:', profileData);
+              
+              // Update all avatars using the global function
+              if (window.updateAllAvatars) {
+                window.updateAllAvatars(profileData.color, profileData.initials).then(result => {
+                  console.log(`Profile Data Sync: Updated ${result.updatedCount} avatars`);
+                });
+              } else {
+                console.warn('Profile Data Sync: Avatar manager not available yet');
+              }
+            } catch (error) {
+              console.error('Profile Data Sync: Error parsing stored profile data:', error);
+              sessionStorage.removeItem('userProfileData');
+            }
+          }
+        }
+        
+        // Run immediately if DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', syncProfileData);
+        } else {
+          syncProfileData();
+        }
+        
+        // Also run after View Transitions
+        document.addEventListener('astro:page-load', syncProfileData);
+        
+        console.log('Profile Data Sync: Initialized');
+      })();
+    </script>
+    
     <!-- Development environment fixes -->
     <script>
       // Only run in development

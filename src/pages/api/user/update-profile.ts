@@ -59,22 +59,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     console.log('Clerk updated successfully');
 
-    // Update database cache immediately after successful Clerk update
+    // Force cache invalidation to ensure next page load fetches fresh data from Clerk
+    // This ensures that when the user navigates away and comes back, fresh data is fetched
     try {
       await db.update(UserMetadata)
-        .set({
-          firstName,
-          lastName,
-          userColor: color,
-          clerkDataUpdatedAt: new Date(),
-          updatedAt: new Date()
+        .set({ 
+          clerkDataUpdatedAt: new Date(0) // Set to epoch to force cache invalidation
         })
         .where(eq(UserMetadata.userId, userId));
       
-      console.log('Database cache updated successfully');
-    } catch (dbError) {
-      console.error('Error updating database cache:', dbError);
-      // Don't fail the request - Clerk update succeeded
+      console.log('Cache invalidated to force fresh Clerk fetch on next page load');
+    } catch (invalidationError) {
+      console.error('Error invalidating cache:', invalidationError);
+      // Don't fail the request - main update succeeded
     }
 
     // Profile updated successfully in Clerk and database

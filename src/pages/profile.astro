@@ -404,6 +404,16 @@ const contentId = "profile";
               selectedColor: color
             }
           }));
+
+          // Store updated data in sessionStorage to persist across navigation
+          sessionStorage.setItem('userProfileData', JSON.stringify({
+            firstName,
+            lastName,
+            color,
+            initials: newInitials,
+            displayName: `${firstName} ${lastName.charAt(0)}`.trim(),
+            timestamp: Date.now()
+          }));
           
           console.log('✅ profile.astro: Profile update complete - no page reload needed');
         } else {
@@ -503,6 +513,10 @@ const contentId = "profile";
       } else {
         console.log('Clerk not available, using direct redirect');
       }
+      
+      // Clear sessionStorage data on logout
+      sessionStorage.removeItem('userProfileData');
+      console.log('Cleared profile data from sessionStorage');
       
       // Always redirect to sign-in page
       console.log('Redirecting to sign-in page');
@@ -699,6 +713,21 @@ const contentId = "profile";
   function initializeProfilePage() {
     console.log('🚀 Initializing profile page...');
     
+    // Check for updated profile data in sessionStorage
+    const storedProfileData = sessionStorage.getItem('userProfileData');
+    if (storedProfileData) {
+      try {
+        const profileData = JSON.parse(storedProfileData);
+        console.log('🔄 Found updated profile data in sessionStorage:', profileData);
+        
+        // Update the page with the stored data
+        updatePageWithProfileData(profileData);
+      } catch (error) {
+        console.error('Error parsing stored profile data:', error);
+        sessionStorage.removeItem('userProfileData');
+      }
+    }
+    
     // Setup profile event listeners (MOST CRITICAL - DO FIRST)
     setupProfileListeners();
     
@@ -712,6 +741,32 @@ const contentId = "profile";
     setupOtherListeners();
     
     console.log('✅ Profile page initialization complete');
+  }
+
+  function updatePageWithProfileData(profileData: any) {
+    console.log('🔄 Updating page with profile data:', profileData);
+    
+    // Update CardStack title
+    const cardStack = document.getElementById('profile-cardstack');
+    if (cardStack) {
+      const titleElement = cardStack.querySelector('p');
+      if (titleElement) {
+        titleElement.textContent = profileData.displayName;
+      }
+      
+      // Update header background color
+      const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement;
+      if (headerElement) {
+        headerElement.style.backgroundColor = `var(--color-${profileData.color})`;
+      }
+    }
+    
+    // Update all avatars using the global function
+    if (window.updateAllAvatars) {
+      window.updateAllAvatars(profileData.color, profileData.initials).then(result => {
+        console.log(`✅ Updated ${result.updatedCount} avatars with sessionStorage data`);
+      });
+    }
   }
 
   // ===== INITIALIZATION LOGIC =====
