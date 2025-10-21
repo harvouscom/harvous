@@ -12,6 +12,7 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/u
 import { calculateTotalXP } from "@/utils/xp-system";
 import FaBoltIcon from "@fortawesome/fontawesome-free/svgs/solid/bolt.svg";
 import EditNameColorPanel from "@/components/EditNameColorPanelReact.astro";
+import EmailPasswordPanel from "@/components/EmailPasswordPanelReact.astro";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -272,11 +273,9 @@ const contentId = "profile";
       <EditNameColorPanel firstName={firstName} lastName={lastName} selectedColor={userColor as any} />
     </div>
     
-    <!-- Placeholder for other panels -->
-    <div id="emailPassword-panel" style="display: none;">
-      <div class="text-center text-[var(--color-deep-grey)] p-8">
-        <p>Email & Password panel coming soon...</p>
-      </div>
+    <!-- Email & Password Panel -->
+    <div id="emailPassword-panel" class="h-full" style="display: none;">
+      <EmailPasswordPanel />
     </div>
     
     <div id="myChurch-panel" style="display: none;">
@@ -316,7 +315,9 @@ const contentId = "profile";
     
     // Remove any existing listeners to prevent duplicates
     window.removeEventListener('updateProfileRequest', handleProfileUpdateRequest);
+    window.removeEventListener('updateCredentialsRequest', handleCredentialsUpdateRequest);
     window.addEventListener('updateProfileRequest', handleProfileUpdateRequest);
+    window.addEventListener('updateCredentialsRequest', handleCredentialsUpdateRequest);
     
     console.log('✅ Profile event listeners attached');
   }
@@ -379,6 +380,70 @@ const contentId = "profile";
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
           message: 'Error saving profile. Please try again.',
+          type: 'error'
+        }
+      }));
+    }
+  }
+
+  async function handleCredentialsUpdateRequest(event) {
+    console.log('✅ profile.astro: updateCredentialsRequest event received:', event.detail);
+    
+    try {
+      const { newEmail, currentPassword, newPassword } = event.detail;
+      
+      console.log('📤 profile.astro: Making API call to /api/user/update-credentials');
+      
+      const response = await fetch('/api/user/update-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          newEmail,
+          currentPassword,
+          newPassword
+        })
+      });
+
+      console.log('📥 profile.astro: API response status:', response.status);
+      const data = await response.json();
+      console.log('📥 profile.astro: API response data:', data);
+
+      if (response.ok) {
+        console.log('✅ profile.astro: Credentials updated successfully');
+        
+        // Show success toast
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Credentials updated successfully!',
+            type: 'success'
+          }
+        }));
+        
+        // Refresh the page to show updated data
+        console.log('🔄 Refreshing page to show updated profile data');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        console.error('❌ profile.astro: Credentials update failed:', data);
+        
+        // Show error toast with specific error message
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: data.error || 'Failed to update credentials. Please try again.',
+            type: 'error'
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('❌ profile.astro: Error updating credentials:', error);
+      
+      // Show error toast
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Error updating credentials. Please try again.',
           type: 'error'
         }
       }));
