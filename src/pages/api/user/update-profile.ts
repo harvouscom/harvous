@@ -59,22 +59,46 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     console.log('Clerk updated successfully');
 
-    // Force cache invalidation to ensure next page load fetches fresh data from Clerk
-    // This ensures that when the user navigates away and comes back, fresh data is fetched
+    // Instead of invalidating cache, UPDATE it with fresh data
     try {
-      const staleDate = new Date('2020-01-01'); // Set to very old date to force cache invalidation
-      console.log('Cache invalidation - setting clerkDataUpdatedAt to stale date:', staleDate);
+      console.log('Updating UserMetadata with fresh profile data');
       
-      await db.update(UserMetadata)
-        .set({ 
-          clerkDataUpdatedAt: staleDate // Set to very old date to force cache invalidation
-        })
-        .where(eq(UserMetadata.userId, userId));
+      // Check if user metadata exists
+      const existingMetadata = await db.select()
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, userId))
+        .get();
+
+      if (existingMetadata) {
+        // Update existing metadata with new profile data
+        await db.update(UserMetadata)
+          .set({
+            firstName,
+            lastName,
+            userColor: color,
+            clerkDataUpdatedAt: new Date(), // Mark as fresh, not stale
+            updatedAt: new Date()
+          })
+          .where(eq(UserMetadata.userId, userId));
+      } else {
+        // Create new metadata record
+        await db.insert(UserMetadata).values({
+          id: `user_metadata_${userId}`,
+          userId: userId,
+          firstName,
+          lastName,
+          userColor: color,
+          highestSimpleNoteId: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          clerkDataUpdatedAt: new Date(),
+        });
+      }
       
-      console.log('Cache invalidated to force fresh Clerk fetch on next page load');
-    } catch (invalidationError) {
-      console.error('Error invalidating cache:', invalidationError);
-      // Don't fail the request - main update succeeded
+      console.log('UserMetadata updated successfully with profile data');
+    } catch (dbError) {
+      console.error('Error updating UserMetadata:', dbError);
+      // Don't fail the request - Clerk update succeeded
     }
 
     // Profile updated successfully in Clerk and database
@@ -86,7 +110,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       user: {
         firstName,
         lastName,
-        color
+        color,
+        initials: `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase(),
+        displayName: `${firstName} ${lastName.charAt(0)}`.trim()
       }
     }), {
       status: 200,
