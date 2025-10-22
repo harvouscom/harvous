@@ -133,6 +133,17 @@ export default function EditNameColorPanel({
           console.log(`✅ EditNameColorPanel: Updated ${result.updatedCount} avatars`);
         }
 
+        // Store updated data in sessionStorage to persist across navigation
+        const newInitials = `${formData.firstName.charAt(0) || ''}${formData.lastName.charAt(0) || ''}`.toUpperCase();
+        sessionStorage.setItem('userProfileData', JSON.stringify({
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          color: formData.selectedColor,
+          initials: newInitials,
+          displayName: `${formData.firstName.trim()} ${formData.lastName.trim().charAt(0)}`.trim(),
+          timestamp: Date.now()
+        }));
+
         // Dispatch profile update event for other components
         window.dispatchEvent(new CustomEvent('updateProfile', {
           detail: {

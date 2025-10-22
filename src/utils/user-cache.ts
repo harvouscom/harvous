@@ -31,6 +31,14 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       Infinity;
     const isCacheFresh = cacheAge < 5 * 60 * 1000; // 5 minutes in milliseconds
     
+    console.log('User cache - cache analysis:', {
+      hasMetadata: !!userMetadata,
+      clerkDataUpdatedAt: userMetadata?.clerkDataUpdatedAt,
+      cacheAge: cacheAge,
+      isCacheFresh: isCacheFresh,
+      cacheAgeMinutes: Math.round(cacheAge / (60 * 1000))
+    });
+    
     if (userMetadata && isCacheFresh) {
       console.log('User cache - using database cache (fresh)');
       return {

@@ -96,7 +96,10 @@ const showMoreButton = shouldShowMoreButton(contentType);
         console.log('Profile Data Sync: Initializing...');
         
         function syncProfileData() {
+          console.log('Profile Data Sync: Checking sessionStorage...');
           const storedProfileData = sessionStorage.getItem('userProfileData');
+          console.log('Profile Data Sync: Raw sessionStorage data:', storedProfileData);
+          
           if (storedProfileData) {
             try {
               const profileData = JSON.parse(storedProfileData);
@@ -104,6 +107,13 @@ const showMoreButton = shouldShowMoreButton(contentType);
               // Check if data is too old (1 hour)
               const oneHour = 60 * 60 * 1000;
               const isDataStale = Date.now() - profileData.timestamp > oneHour;
+              
+              console.log('Profile Data Sync: Data analysis:', {
+                timestamp: profileData.timestamp,
+                age: Date.now() - profileData.timestamp,
+                isDataStale: isDataStale,
+                profileData: profileData
+              });
               
               if (isDataStale) {
                 console.log('Profile Data Sync: Data is stale, removing from sessionStorage');
@@ -125,6 +135,8 @@ const showMoreButton = shouldShowMoreButton(contentType);
               console.error('Profile Data Sync: Error parsing stored profile data:', error);
               sessionStorage.removeItem('userProfileData');
             }
+          } else {
+            console.log('Profile Data Sync: No sessionStorage data found');
           }
         }
         
