@@ -57,47 +57,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    console.log('Clerk updated successfully');
+    const clerkResponseData = await clerkResponse.json();
+    console.log('✅ Clerk updated successfully:', {
+      first_name: clerkResponseData?.first_name,
+      last_name: clerkResponseData?.last_name,
+      public_metadata: clerkResponseData?.public_metadata,
+      userColor_saved: clerkResponseData?.public_metadata?.userColor
+    });
 
-    // Instead of invalidating cache, UPDATE it with fresh data
+    // Force cache refresh by invalidating it completely
     try {
-      console.log('Updating UserMetadata with fresh profile data');
+      console.log('🔄 Forcing cache refresh after profile update');
       
-      // Check if user metadata exists
-      const existingMetadata = await db.select()
-        .from(UserMetadata)
-        .where(eq(UserMetadata.userId, userId))
-        .get();
-
-      if (existingMetadata) {
-        // Update existing metadata with new profile data
-        await db.update(UserMetadata)
-          .set({
-            firstName,
-            lastName,
-            userColor: color,
-            clerkDataUpdatedAt: new Date(), // Mark as fresh, not stale
-            updatedAt: new Date()
-          })
-          .where(eq(UserMetadata.userId, userId));
-      } else {
-        // Create new metadata record
-        await db.insert(UserMetadata).values({
-          id: `user_metadata_${userId}`,
-          userId: userId,
-          firstName,
-          lastName,
-          userColor: color,
-          highestSimpleNoteId: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          clerkDataUpdatedAt: new Date(),
-        });
-      }
+      // Import the cache invalidation function
+      const { invalidateUserCache } = await import('@/utils/user-cache');
       
-      console.log('UserMetadata updated successfully with profile data');
+      // Invalidate the cache to force fresh fetch from Clerk
+      await invalidateUserCache(userId);
+      
+      console.log('✅ Cache invalidated - next page load will fetch fresh from Clerk');
     } catch (dbError) {
-      console.error('Error updating UserMetadata:', dbError);
+      console.error('Error invalidating cache:', dbError);
       // Don't fail the request - Clerk update succeeded
     }
 

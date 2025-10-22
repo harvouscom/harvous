@@ -31,14 +31,17 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       Infinity;
     const isCacheFresh = cacheAge < 5 * 60 * 1000; // 5 minutes in milliseconds
     
-    console.log('User cache - cache analysis:', {
-      hasMetadata: !!userMetadata,
-      clerkDataUpdatedAt: userMetadata?.clerkDataUpdatedAt,
-      cacheAge: cacheAge,
-      isCacheFresh: isCacheFresh,
-      cacheAgeMinutes: Math.round(cacheAge / (60 * 1000)),
-      isStaleDate: userMetadata?.clerkDataUpdatedAt?.getTime() < new Date('2023-01-01').getTime()
-    });
+  console.log('User cache - cache analysis:', {
+    hasMetadata: !!userMetadata,
+    clerkDataUpdatedAt: userMetadata?.clerkDataUpdatedAt,
+    cacheAge: cacheAge,
+    isCacheFresh: isCacheFresh,
+    cacheAgeMinutes: Math.round(cacheAge / (60 * 1000)),
+    isStaleDate: userMetadata?.clerkDataUpdatedAt?.getTime() < new Date('2023-01-01').getTime(),
+    currentUserColor: userMetadata?.userColor,
+    currentFirstName: userMetadata?.firstName,
+    currentLastName: userMetadata?.lastName
+  });
     
     // Check if cache is explicitly stale (set to old date for invalidation)
     const isExplicitlyStale = userMetadata?.clerkDataUpdatedAt && 
@@ -46,6 +49,12 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
     
     if (userMetadata && isCacheFresh && !isExplicitlyStale) {
       console.log('User cache - using database cache (fresh)');
+      console.log('📊 Database cache values:', {
+        firstName: userMetadata.firstName,
+        lastName: userMetadata.lastName,
+        userColor: userMetadata.userColor,
+        clerkDataUpdatedAt: userMetadata.clerkDataUpdatedAt
+      });
       return {
         firstName: userMetadata.firstName || '',
         lastName: userMetadata.lastName || '',
@@ -99,6 +108,14 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
 
   const userData = await response.json();
   
+  console.log('🔍 Clerk API Response Debug:', {
+    first_name: userData?.first_name,
+    last_name: userData?.last_name,
+    public_metadata: userData?.public_metadata,
+    userColor_from_metadata: userData?.public_metadata?.userColor,
+    full_response_keys: Object.keys(userData || {})
+  });
+  
   // Extract standard fields
   const firstName = userData?.first_name || userData?.firstName || '';
   const lastName = userData?.last_name || userData?.lastName || '';
@@ -107,6 +124,13 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
 
   // Extract custom field from Clerk's public_metadata
   const userColor = userData?.public_metadata?.userColor || 'paper';
+  
+  console.log('🔍 Extracted Data:', {
+    firstName,
+    lastName,
+    userColor,
+    source: 'Clerk API'
+  });
 
   // Update database with fresh Clerk data (including metadata)
   if (existingMetadata) {
@@ -196,9 +220,9 @@ export async function invalidateUserCache(userId: string): Promise<void> {
       })
       .where(eq(UserMetadata.userId, userId));
     
-    console.log('User cache invalidated successfully');
+    console.log('🔄 User cache invalidated successfully - next fetch will be from Clerk');
   } catch (error) {
-    console.error('Error invalidating user cache:', error);
+    console.error('❌ Error invalidating user cache:', error);
     throw error;
   }
 }
