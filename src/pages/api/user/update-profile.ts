@@ -35,6 +35,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Update Clerk with name AND custom metadata
+    console.log('🔑 Clerk API Debug:', {
+      userId,
+      hasSecretKey: !!clerkSecretKey,
+      secretKeyLength: clerkSecretKey?.length,
+      environment: import.meta.env.MODE,
+      isProduction: import.meta.env.PROD
+    });
+    
     const clerkResponse = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
       method: 'PATCH',
       headers: {
@@ -52,8 +60,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (!clerkResponse.ok) {
       const errorText = await clerkResponse.text();
-      console.error('Clerk API error:', errorText);
-      return new Response(JSON.stringify({ error: 'Failed to update profile in Clerk' }), {
+      console.error('❌ Clerk API error:', {
+        status: clerkResponse.status,
+        statusText: clerkResponse.statusText,
+        error: errorText,
+        environment: import.meta.env.MODE,
+        isProduction: import.meta.env.PROD
+      });
+      return new Response(JSON.stringify({ 
+        error: 'Failed to update profile in Clerk',
+        details: `Status: ${clerkResponse.status}, Environment: ${import.meta.env.MODE}`
+      }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -79,12 +96,36 @@ export const POST: APIRoute = async ({ request, locals }) => {
       
       console.log('✅ Cache invalidated - next page load will fetch fresh from Clerk');
     } catch (dbError) {
-      console.error('Error invalidating cache:', dbError);
+      console.error('❌ Error invalidating cache:', dbError);
       // Don't fail the request - Clerk update succeeded
+    }
+    
+    // Production fallback: Ensure database is updated even if cache invalidation fails
+    try {
+      console.log('🔄 Production fallback: Direct database update');
+      await db.update(UserMetadata)
+        .set({
+          firstName,
+          lastName,
+          userColor: color,
+          updatedAt: new Date()
+        })
+        .where(eq(UserMetadata.userId, userId));
+      console.log('✅ Production fallback: Database updated directly');
+    } catch (fallbackError) {
+      console.error('❌ Production fallback failed:', fallbackError);
     }
 
     // Profile updated successfully in Clerk and database
-    console.log('User data updated successfully in Clerk and database');
+    console.log('✅ User data updated successfully in Clerk and database');
+    
+    // Additional production debugging
+    console.log('🌍 Production Debug Info:', {
+      environment: import.meta.env.MODE,
+      isProduction: import.meta.env.PROD,
+      hasClerkSecret: !!clerkSecretKey,
+      timestamp: new Date().toISOString()
+    });
 
     return new Response(JSON.stringify({ 
       success: true, 
