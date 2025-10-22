@@ -24,9 +24,32 @@ export default function EditNameColorPanel({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  // Always load fresh data from API when component mounts
+  // Check sessionStorage first, then load from API if needed
   useEffect(() => {
-    console.log('🔄 EditNameColorPanel: useEffect triggered, loading user data');
+    console.log('🔄 EditNameColorPanel: useEffect triggered, checking for data');
+    
+    // First check sessionStorage for updated data
+    const storedProfileData = sessionStorage.getItem('userProfileData');
+    if (storedProfileData) {
+      try {
+        const profileData = JSON.parse(storedProfileData);
+        console.log('🔄 EditNameColorPanel: Found sessionStorage data:', profileData);
+        
+        // Update form with sessionStorage data
+        setFormData({
+          firstName: profileData.firstName || '',
+          lastName: profileData.lastName || '',
+          selectedColor: profileData.color || 'paper'
+        });
+        console.log('✅ EditNameColorPanel: Form updated with sessionStorage data');
+        return; // Don't load from API if we have sessionStorage data
+      } catch (error) {
+        console.error('❌ EditNameColorPanel: Error parsing sessionStorage data:', error);
+      }
+    }
+    
+    // If no sessionStorage data, load from API
+    console.log('🔄 EditNameColorPanel: No sessionStorage data, loading from API');
     loadUserData();
   }, []);
 
@@ -142,6 +165,12 @@ export default function EditNameColorPanel({
           displayName: `${formData.firstName.trim()} ${formData.lastName.trim().charAt(0)}`.trim(),
           timestamp: Date.now()
         }));
+
+        // Clear sessionStorage after a short delay to ensure fresh data on next open
+        setTimeout(() => {
+          sessionStorage.removeItem('userProfileData');
+          console.log('🔄 EditNameColorPanel: Cleared sessionStorage for fresh data on next open');
+        }, 2000);
 
         // Dispatch profile update event for other components
         window.dispatchEvent(new CustomEvent('updateProfile', {
