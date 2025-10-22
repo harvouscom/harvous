@@ -62,12 +62,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Force cache invalidation to ensure next page load fetches fresh data from Clerk
     // This ensures that when the user navigates away and comes back, fresh data is fetched
     try {
-      const epochDate = new Date(0);
-      console.log('Cache invalidation - setting clerkDataUpdatedAt to epoch:', epochDate);
+      const staleDate = new Date('2020-01-01'); // Set to very old date to force cache invalidation
+      console.log('Cache invalidation - setting clerkDataUpdatedAt to stale date:', staleDate);
       
       await db.update(UserMetadata)
         .set({ 
-          clerkDataUpdatedAt: epochDate // Set to epoch to force cache invalidation
+          clerkDataUpdatedAt: staleDate // Set to very old date to force cache invalidation
         })
         .where(eq(UserMetadata.userId, userId));
       

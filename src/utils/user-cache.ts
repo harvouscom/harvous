@@ -36,10 +36,15 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       clerkDataUpdatedAt: userMetadata?.clerkDataUpdatedAt,
       cacheAge: cacheAge,
       isCacheFresh: isCacheFresh,
-      cacheAgeMinutes: Math.round(cacheAge / (60 * 1000))
+      cacheAgeMinutes: Math.round(cacheAge / (60 * 1000)),
+      isStaleDate: userMetadata?.clerkDataUpdatedAt?.getTime() < new Date('2023-01-01').getTime()
     });
     
-    if (userMetadata && isCacheFresh) {
+    // Check if cache is explicitly stale (set to old date for invalidation)
+    const isExplicitlyStale = userMetadata?.clerkDataUpdatedAt && 
+      userMetadata.clerkDataUpdatedAt.getTime() < new Date('2023-01-01').getTime();
+    
+    if (userMetadata && isCacheFresh && !isExplicitlyStale) {
       console.log('User cache - using database cache (fresh)');
       return {
         firstName: userMetadata.firstName || '',

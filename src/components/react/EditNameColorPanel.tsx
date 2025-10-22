@@ -166,11 +166,8 @@ export default function EditNameColorPanel({
           timestamp: Date.now()
         }));
 
-        // Clear sessionStorage after a short delay to ensure fresh data on next open
-        setTimeout(() => {
-          sessionStorage.removeItem('userProfileData');
-          console.log('🔄 EditNameColorPanel: Cleared sessionStorage for fresh data on next open');
-        }, 2000);
+        // Keep sessionStorage data for navigation persistence
+        // It will be cleared by the global sync script after 1 hour or on logout
 
         // Dispatch profile update event for other components
         window.dispatchEvent(new CustomEvent('updateProfile', {

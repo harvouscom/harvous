@@ -415,11 +415,8 @@ const contentId = "profile";
             timestamp: Date.now()
           }));
 
-          // Clear sessionStorage after a delay to ensure fresh data on next panel open
-          setTimeout(() => {
-            sessionStorage.removeItem('userProfileData');
-            console.log('🔄 profile.astro: Cleared sessionStorage for fresh data on next panel open');
-          }, 3000);
+          // Keep sessionStorage data for navigation persistence
+          // It will be cleared by the global sync script after 1 hour or on logout
           
           console.log('✅ profile.astro: Profile update complete - no page reload needed');
         } else {
