@@ -91,7 +91,17 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
  */
 async function fetchAndCacheUserData(userId: string, existingMetadata: any): Promise<CachedUserData> {
   const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
+  
+  console.log('🔑 Clerk Secret Key Debug:', {
+    hasSecretKey: !!clerkSecretKey,
+    secretKeyLength: clerkSecretKey?.length,
+    environment: import.meta.env.MODE,
+    isProduction: import.meta.env.PROD,
+    keyPrefix: clerkSecretKey?.substring(0, 10) + '...'
+  });
+  
   if (!clerkSecretKey) {
+    console.error('❌ CRITICAL: Clerk secret key not found in environment');
     throw new Error('Clerk secret key not found');
   }
 
@@ -103,6 +113,27 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
   });
 
   if (!response.ok) {
+    console.error('❌ Clerk API failed:', {
+      status: response.status,
+      statusText: response.statusText,
+      environment: import.meta.env.MODE,
+      isProduction: import.meta.env.PROD
+    });
+    
+    // Production fallback: Use database data if Clerk API fails
+    if (import.meta.env.PROD && existingMetadata) {
+      console.log('🔄 Production fallback: Using database data instead of Clerk');
+      return {
+        firstName: existingMetadata.firstName || '',
+        lastName: existingMetadata.lastName || '',
+        email: existingMetadata.email || '',
+        profileImageUrl: existingMetadata.profileImageUrl,
+        initials: generateInitials(existingMetadata.firstName || '', existingMetadata.lastName || ''),
+        displayName: generateDisplayName(existingMetadata.firstName || '', existingMetadata.lastName || ''),
+        userColor: existingMetadata.userColor || 'paper',
+      };
+    }
+    
     throw new Error(`Clerk API error: ${response.status}`);
   }
 

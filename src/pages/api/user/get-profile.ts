@@ -3,6 +3,13 @@ import { getCachedUserData } from '@/utils/user-cache';
 
 export const GET: APIRoute = async ({ locals }) => {
   console.log('🚀 GET-PROFILE API CALLED - Server-side debug started');
+  console.log('🌍 Environment Debug:', {
+    environment: import.meta.env.MODE,
+    isProduction: import.meta.env.PROD,
+    hasClerkSecret: !!import.meta.env.CLERK_SECRET_KEY,
+    clerkSecretLength: import.meta.env.CLERK_SECRET_KEY?.length
+  });
+  
   try {
     const { userId } = locals.auth();
     console.log('🔐 GET-PROFILE Auth check - userId:', userId);
