@@ -2,8 +2,10 @@ import type { APIRoute } from 'astro';
 import { getCachedUserData } from '@/utils/user-cache';
 
 export const GET: APIRoute = async ({ locals }) => {
+  console.log('🚀 GET-PROFILE API CALLED - Server-side debug started');
   try {
     const { userId } = locals.auth();
+    console.log('🔐 GET-PROFILE Auth check - userId:', userId);
     
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {

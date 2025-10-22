@@ -2,8 +2,10 @@ import type { APIRoute } from 'astro';
 import { db, UserMetadata, eq } from 'astro:db';
 
 export const POST: APIRoute = async ({ request, locals }) => {
+  console.log('🚀 PROFILE UPDATE API CALLED - Server-side debug started');
   try {
     const { userId, getToken } = locals.auth();
+    console.log('🔐 Auth check - userId:', userId);
     
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
