@@ -134,7 +134,6 @@ export default function EditNameColorPanel({
         }
 
         // Store updated data in sessionStorage to persist across navigation
-        const newInitials = `${formData.firstName.charAt(0) || ''}${formData.lastName.charAt(0) || ''}`.toUpperCase();
         sessionStorage.setItem('userProfileData', JSON.stringify({
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
