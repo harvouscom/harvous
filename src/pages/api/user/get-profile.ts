@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, UserMetadata, eq } from 'astro:db';
+import { getCachedUserData } from '@/utils/user-cache';
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
@@ -12,17 +12,13 @@ export const GET: APIRoute = async ({ locals }) => {
       });
     }
 
-    // Get user metadata including color preference and cached user data
-    const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
+    // Use the same cached user data function that pages use
+    // This ensures consistency and proper cache invalidation
+    const userData = await getCachedUserData(userId);
     
-    console.log('get-profile API - userMetadata:', userMetadata);
+    console.log('get-profile API - userData:', userData);
     
-    const userColor = userMetadata?.userColor || 'paper';
-    const firstName = userMetadata?.firstName || '';
-    const lastName = userMetadata?.lastName || '';
-    
-    // Get user email from Clerk API
-    let email = '';
+    // Get user email verification status from Clerk API
     let emailVerified = false;
     
     try {
@@ -37,21 +33,26 @@ export const GET: APIRoute = async ({ locals }) => {
         
         if (clerkResponse.ok) {
           const clerkUser = await clerkResponse.json();
-          email = clerkUser.email_addresses?.[0]?.email_address || '';
           emailVerified = clerkUser.email_addresses?.[0]?.verification?.status === 'verified';
         }
       }
     } catch (error) {
-      console.error('Error fetching user email from Clerk:', error);
+      console.error('Error fetching email verification from Clerk:', error);
     }
     
-    console.log('get-profile API - returning:', { firstName, lastName, userColor, email, emailVerified });
+    console.log('get-profile API - returning:', { 
+      firstName: userData.firstName, 
+      lastName: userData.lastName, 
+      userColor: userData.userColor, 
+      email: userData.email, 
+      emailVerified 
+    });
 
     return new Response(JSON.stringify({ 
-      firstName,
-      lastName,
-      userColor,
-      email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      userColor: userData.userColor,
+      email: userData.email,
       emailVerified
     }), {
       status: 200,
