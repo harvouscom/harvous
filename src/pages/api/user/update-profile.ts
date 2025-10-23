@@ -34,14 +34,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Update Clerk with name AND custom metadata
-    console.log('🔑 Clerk API Debug:', {
-      userId,
-      hasSecretKey: !!clerkSecretKey,
-      secretKeyLength: clerkSecretKey?.length,
-      environment: import.meta.env.MODE,
-      isProduction: import.meta.env.PROD
-    });
+    // Production debugging - only log in production
+    if (import.meta.env.PROD) {
+      console.log('🔑 Clerk API Debug:', {
+        userId,
+        hasSecretKey: !!clerkSecretKey,
+        secretKeyLength: clerkSecretKey?.length,
+        environment: import.meta.env.MODE
+      });
+    }
     
     const clerkResponse = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
       method: 'PATCH',
@@ -77,12 +78,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const clerkResponseData = await clerkResponse.json();
-    console.log('✅ Clerk updated successfully:', {
-      first_name: clerkResponseData?.first_name,
-      last_name: clerkResponseData?.last_name,
-      public_metadata: clerkResponseData?.public_metadata,
-      userColor_saved: clerkResponseData?.public_metadata?.userColor
-    });
+    
+    // Production debugging - only log in production
+    if (import.meta.env.PROD) {
+      console.log('✅ Clerk updated successfully:', {
+        first_name: clerkResponseData?.first_name,
+        last_name: clerkResponseData?.last_name,
+        public_metadata: clerkResponseData?.public_metadata,
+        userColor_saved: clerkResponseData?.public_metadata?.userColor
+      });
+    }
 
     // Force cache refresh by invalidating it completely
     try {
@@ -119,13 +124,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Profile updated successfully in Clerk and database
     console.log('✅ User data updated successfully in Clerk and database');
     
-    // Additional production debugging
-    console.log('🌍 Production Debug Info:', {
-      environment: import.meta.env.MODE,
-      isProduction: import.meta.env.PROD,
-      hasClerkSecret: !!clerkSecretKey,
-      timestamp: new Date().toISOString()
-    });
+    // Production debugging - only log in production
+    if (import.meta.env.PROD) {
+      console.log('🌍 Production Debug Info:', {
+        environment: import.meta.env.MODE,
+        hasClerkSecret: !!clerkSecretKey,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     return new Response(JSON.stringify({ 
       success: true, 

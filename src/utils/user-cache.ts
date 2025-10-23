@@ -92,13 +92,15 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
 async function fetchAndCacheUserData(userId: string, existingMetadata: any): Promise<CachedUserData> {
   const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
   
-  console.log('🔑 Clerk Secret Key Debug:', {
-    hasSecretKey: !!clerkSecretKey,
-    secretKeyLength: clerkSecretKey?.length,
-    environment: import.meta.env.MODE,
-    isProduction: import.meta.env.PROD,
-    keyPrefix: clerkSecretKey?.substring(0, 10) + '...'
-  });
+  // Production debugging - only log in production
+  if (import.meta.env.PROD) {
+    console.log('🔑 Clerk Secret Key Debug:', {
+      hasSecretKey: !!clerkSecretKey,
+      secretKeyLength: clerkSecretKey?.length,
+      environment: import.meta.env.MODE,
+      keyPrefix: clerkSecretKey?.substring(0, 10) + '...'
+    });
+  }
   
   if (!clerkSecretKey) {
     console.error('❌ CRITICAL: Clerk secret key not found in environment');
@@ -139,13 +141,15 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
 
   const userData = await response.json();
   
-  console.log('🔍 Clerk API Response Debug:', {
-    first_name: userData?.first_name,
-    last_name: userData?.last_name,
-    public_metadata: userData?.public_metadata,
-    userColor_from_metadata: userData?.public_metadata?.userColor,
-    full_response_keys: Object.keys(userData || {})
-  });
+  // Production debugging - only log in production
+  if (import.meta.env.PROD) {
+    console.log('🔍 Clerk API Response Debug:', {
+      first_name: userData?.first_name,
+      last_name: userData?.last_name,
+      public_metadata: userData?.public_metadata,
+      userColor_from_metadata: userData?.public_metadata?.userColor
+    });
+  }
   
   // Extract standard fields
   const firstName = userData?.first_name || userData?.firstName || '';
@@ -156,12 +160,15 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
   // Extract custom field from Clerk's public_metadata
   const userColor = userData?.public_metadata?.userColor || 'paper';
   
-  console.log('🔍 Extracted Data:', {
-    firstName,
-    lastName,
-    userColor,
-    source: 'Clerk API'
-  });
+  // Production debugging - only log in production
+  if (import.meta.env.PROD) {
+    console.log('🔍 Extracted Data:', {
+      firstName,
+      lastName,
+      userColor,
+      source: 'Clerk API'
+    });
+  }
 
   // Update database with fresh Clerk data (including metadata)
   if (existingMetadata) {

@@ -13,6 +13,7 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 - ✅ **NoteDetailsPanel**: Complete many-to-many thread management system
 - ✅ **SearchInput**: React component with search functionality
 - ✅ **Thread Management**: Add/remove notes from multiple threads
+- ✅ **Profile Persistence**: Cross-device profile synchronization with Clerk integration
 
 ### **🚀 NEW V1 FEATURES: Core Differentiators**
 - 🆕 **Selected Text Note Creation**: Select text in TiptapEditor → instant note creation
@@ -33,7 +34,7 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 - **XP System**: Gamification with points for content creation (10 XP threads, 10 XP notes, 1 XP opening)
 - **Navigation**: Persistent navigation with recent items and active states
 - **Mobile Support**: Responsive design with mobile navigation
-- **Profile Customization**: Name and avatar color editing
+- **Profile Customization**: Name and avatar color editing with cross-device persistence
 
 ### Technical Foundation
 - **Database**: Production-ready Turso database with proper schema
@@ -217,6 +218,7 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 - Advanced collaboration features
 - Performance optimizations
 - Advanced mobile gestures
+- Profile persistence debugging (production environment setup)
 
 ## 🎯 **Recommended Approach**
 
