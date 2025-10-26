@@ -12,14 +12,20 @@ The Note Types Foundation has been implemented with basic functionality:
 ### ✅ Completed
 - **Database Schema**: `noteType` column exists with default value 'default'
 - **API Integration**: Note creation API handles noteType validation and storage
-- **Icon Cycling**: Clickable icons to switch between note types (bookmark/scroll/file-image)
+- **Icon Cycling**: Clickable icons to switch between note types (bookmark/scroll/file-image) - **TEMPORARILY DISABLED**
 - **Type-Specific Validation**: Different validation rules for each note type
 - **Form Submission**: Type-specific form data handling
 
 ### 🚧 Current Layout (Temporary)
-- **Default Notes**: Title input + content editor
-- **Scripture Notes**: Reference input + content editor  
-- **Resource Notes**: URL input + content editor
+- **Default Notes**: Title input + content editor ✅ **ACTIVE**
+- **Scripture Notes**: Reference input + content editor - **DISABLED**
+- **Resource Notes**: URL input + content editor - **DISABLED**
+
+### 🔒 Current Status (January 26, 2025)
+- **Note Type Switching**: DISABLED until designs are ready
+- **Only Default Notes**: Users can only create default notes
+- **Icons Visible**: Note type icons are visible but non-functional (opacity-50)
+- **Easy Re-enable**: Code is ready to re-enable when designs are complete
 
 ## Design Decision Needed
 
@@ -81,9 +87,12 @@ The technical foundation is complete and ready for design implementation:
 ## Next Steps
 
 1. **Design Review**: User to provide designs for each note type
-2. **Layout Implementation**: Implement specialized layouts based on designs
-3. **Testing**: Test each note type workflow
-4. **Integration**: Ensure seamless switching between types
+2. **Re-enable Functionality**: Change `{false && noteType === 'scripture' && (` back to `{noteType === 'scripture' && (`
+3. **Restore Click Handlers**: Add back `onClick={cycleNoteType}` to note type icons
+4. **Update cycleNoteType()**: Restore proper note type cycling functionality
+5. **Layout Implementation**: Implement specialized layouts based on designs
+6. **Testing**: Test each note type workflow
+7. **Integration**: Ensure seamless switching between types
 
 ## Files to Update (When Designs Ready)
 

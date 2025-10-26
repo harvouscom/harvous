@@ -23,6 +23,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nextNoteId, setNextNoteId] = useState('#New');
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  // Force note type to 'default' until designs are ready
   const [noteType, setNoteType] = useState<'default' | 'scripture' | 'resource'>('default');
   const [scriptureReference, setScriptureReference] = useState('');
   const [resourceUrl, setResourceUrl] = useState('');
@@ -162,13 +163,11 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     return threadOptions.find(thread => thread.title === selectedThread) || threadOptions[0];
   };
 
-  // Cycle through note types
+  // Cycle through note types - DISABLED until designs are ready
   const cycleNoteType = () => {
-    setNoteType(current => {
-      if (current === 'default') return 'scripture';
-      if (current === 'scripture') return 'resource';
-      return 'default';
-    });
+    // Note type switching is disabled until designs are ready
+    console.log('Note type switching is disabled until designs are ready');
+    return;
   };
 
   // Check if there are unsaved changes
@@ -194,12 +193,37 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       return;
     }
     
-    // Get content from TiptapEditor
+    // Get content from TiptapEditor - try multiple methods
     let editorContent = content;
+    
+    // Method 1: Try to get from hidden input
     const hiddenInput = document.querySelector('#new-note-content') as HTMLInputElement;
     if (hiddenInput && hiddenInput.value) {
       editorContent = hiddenInput.value;
+      console.log('Content from hidden input:', editorContent.substring(0, 50) + '...');
     }
+    
+    // Method 2: Try to get from TiptapEditor directly via DOM
+    const tiptapEditor = document.querySelector('.tiptap-content');
+    if (tiptapEditor && (!editorContent || editorContent.trim() === '')) {
+      editorContent = tiptapEditor.innerHTML;
+      console.log('Content from TiptapEditor DOM:', editorContent.substring(0, 50) + '...');
+    }
+    
+    // Method 3: Use the content state as fallback
+    if (!editorContent || editorContent.trim() === '') {
+      editorContent = content;
+      console.log('Content from state:', editorContent.substring(0, 50) + '...');
+    }
+    
+    // Final content validation and logging
+    console.log('Final editorContent for submission:', {
+      content: editorContent,
+      contentLength: editorContent.length,
+      contentTrimmed: editorContent.trim(),
+      contentTrimmedLength: editorContent.trim().length,
+      isEmpty: !editorContent || editorContent.trim() === '' || editorContent.trim() === '<p></p>' || editorContent.trim() === '<p><br></p>'
+    });
     
     // Check for meaningful content based on note type
     const trimmedTitle = title.trim();
@@ -481,8 +505,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   className="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
                 />
               </div>
-              <div className="relative shrink-0 size-5 cursor-pointer" onClick={cycleNoteType} title="Click to change note type">
-                <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
+              <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">
+                <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-50" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
                 </svg>
               </div>
@@ -497,6 +521,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   placeholder="Type your note..."
                   tabindex={2}
                   minimalToolbar={false}
+                  onContentChange={(newContent) => {
+                    console.log('TiptapEditor content changed:', newContent.substring(0, 50) + '...');
+                    setContent(newContent);
+                  }}
                 />
               </div>
             </div>
@@ -512,7 +540,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           </div>
         )}
 
-        {noteType === 'scripture' && (
+        {/* Scripture note type - DISABLED until designs are ready */}
+        {false && noteType === 'scripture' && (
           <div className="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
             {/* Scripture Note Layout */}
             <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
@@ -526,8 +555,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   className="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
                 />
               </div>
-              <div className="relative shrink-0 size-5 cursor-pointer" onClick={cycleNoteType} title="Click to change note type">
-                <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] text-[20px]" />
+              <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">
+                <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] text-[20px] opacity-50" />
               </div>
             </div>
             
@@ -540,6 +569,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   placeholder="Share your thoughts about this scripture..."
                   tabindex={2}
                   minimalToolbar={false}
+                  onContentChange={(newContent) => {
+                    console.log('TiptapEditor content changed (scripture):', newContent.substring(0, 50) + '...');
+                    setContent(newContent);
+                  }}
                 />
               </div>
             </div>
@@ -555,7 +588,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           </div>
         )}
 
-        {noteType === 'resource' && (
+        {/* Resource note type - DISABLED until designs are ready */}
+        {false && noteType === 'resource' && (
           <div className="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
             {/* Resource Note Layout */}
             <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
@@ -569,8 +603,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   className="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
                 />
               </div>
-              <div className="relative shrink-0 size-5 cursor-pointer" onClick={cycleNoteType} title="Click to change note type">
-                <i className="fa-solid fa-file-image text-[var(--color-deep-grey)] text-[20px]" />
+              <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">
+                <i className="fa-solid fa-file-image text-[var(--color-deep-grey)] text-[20px] opacity-50" />
               </div>
             </div>
             
@@ -583,6 +617,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   placeholder="Share your thoughts about this resource..."
                   tabindex={2}
                   minimalToolbar={false}
+                  onContentChange={(newContent) => {
+                    console.log('TiptapEditor content changed (resource):', newContent.substring(0, 50) + '...');
+                    setContent(newContent);
+                  }}
                 />
               </div>
             </div>

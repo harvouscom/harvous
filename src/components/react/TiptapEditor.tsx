@@ -80,11 +80,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     content: content || '',
     onUpdate: ({ editor }) => {
       console.log('TiptapEditor: Editor updated');
+      const htmlContent = editor.getHTML();
+      
+      // Update hidden input
       if (hiddenInputRef.current) {
-        hiddenInputRef.current.value = editor.getHTML();
+        hiddenInputRef.current.value = htmlContent;
+        console.log('TiptapEditor: Updated hidden input with content:', htmlContent.substring(0, 50) + '...');
       }
+      
+      // Notify parent component
       if (onContentChange) {
-        onContentChange(editor.getHTML());
+        onContentChange(htmlContent);
       }
     },
     editorProps: {
