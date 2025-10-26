@@ -43,6 +43,8 @@ const menuOptions = menuOptionsData.map(option => {
     x-data={`{
       contentType: '${contentType}',
       contentId: '${contentId || ''}',
+      showConfirmDialog: false,
+      pendingAction: null,
       
       async handleAction(action, label) {
         console.log('ContextMoreMenu:', label, 'button clicked');
@@ -59,6 +61,36 @@ const menuOptions = menuOptionsData.map(option => {
             console.error('No content ID provided for delete action');
             return;
           }
+          
+          // Show custom confirmation dialog
+          this.pendingAction = action;
+          this.showConfirmDialog = true;
+          return;
+        }
+        
+        // Handle other actions
+        await this.executeAction(action, label);
+      },
+      
+      async executeAction(action, label) {
+        if (action.includes('erase')) {
+          await this.performErase();
+        } else if (action === 'seeDetails') {
+          // Handle See Details action for notes
+          try {
+            window.dispatchEvent(new CustomEvent('openNoteDetailsPanel', {
+              detail: { contentId: this.contentId, contentType: this.contentType }
+            }));
+          } catch (error) {
+            console.error('Error opening note details panel:', error);
+          }
+        } else {
+          // Handle other actions (like edit)
+          console.log('Other action:', action);
+        }
+      },
+      
+      async performErase() {
           
           // Determine the API endpoint and parameter name
           let apiUrl, paramName, successMessage;
@@ -95,47 +127,32 @@ const menuOptions = menuOptionsData.map(option => {
             const data = await response.json();
             
             if (data.success) {
-              // Show success toast
-              window.dispatchEvent(new CustomEvent('toast', {
-                detail: { message: successMessage, type: 'success' }
-              }));
-              
-              // Redirect to dashboard after successful deletion
-              setTimeout(() => {
-                window.location.href = '/dashboard';
-              }, 1000);
+              // Redirect to dashboard with toast parameters (like create operations)
+              const redirectUrl = '/dashboard?toast=success&message=' + encodeURIComponent(successMessage);
+              window.location.href = redirectUrl;
             } else {
-              // Show error toast
-              window.dispatchEvent(new CustomEvent('toast', {
-                detail: { message: data.error || 'Failed to erase item', type: 'error' }
-              }));
+              // Show error toast immediately (no redirect on error)
+              if (window.toast) {
+                window.toast.error(data.error || 'Failed to erase item');
+              }
             }
           } catch (error) {
             console.error('Error deleting item:', error);
-            window.dispatchEvent(new CustomEvent('toast', {
-              detail: { message: 'Failed to erase item', type: 'error' }
-            }));
+            if (window.toast) {
+              window.toast.error('Failed to erase item');
+            }
           }
-        } else if (action === 'seeDetails') {
-          // Handle See Details action for notes
-          try {
-            window.dispatchEvent(new CustomEvent('openNoteDetailsPanel', {
-              detail: { contentId: this.contentId, contentType: this.contentType }
-            }));
-          } catch (error) {
-            console.error('Error opening note details panel:', error);
-          }
-        } else {
-          // Handle other actions (like edit)
-          try {
-            window.dispatchEvent(new CustomEvent(action, {
-              detail: { contentId: this.contentId, contentType: this.contentType }
-            }));
-          } catch (error) {
-            console.error('Error dispatching', action, 'event:', error);
-          }
+        },
+        
+        confirmErase() {
+          this.showConfirmDialog = false;
+          this.executeAction(this.pendingAction, 'erase');
+        },
+        
+        cancelErase() {
+          this.showConfirmDialog = false;
+          this.pendingAction = null;
         }
-      }
     }`}
   >
     {menuOptions.map((option, index) => (
@@ -151,6 +168,33 @@ const menuOptions = menuOptionsData.map(option => {
         </span>
       </button>
     ))}
+    
+    <!-- Confirmation Dialog -->
+    <div x-show="showConfirmDialog" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-lg">
+        <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
+          Are you sure?
+        </h3>
+        <p class="text-[var(--color-pebble-grey)] mb-6" x-text="`Are you sure you want to erase this ${contentType}?`">
+        </p>
+        <div class="flex gap-3 justify-end">
+          <button
+            type="button"
+            x-on:click="cancelErase()"
+            class="px-4 py-2 text-[var(--color-deep-grey)] hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            x-on:click="confirmErase()"
+            class="px-4 py-2 bg-[var(--color-red)] text-white rounded-lg hover:bg-opacity-90 transition-colors"
+          >
+            Erase
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 )}
 
