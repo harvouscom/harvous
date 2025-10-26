@@ -83,7 +83,7 @@ const CardNote: React.FC<CardNoteProps> = ({
             </div>
           )}
           
-          <div className="box-border content-stretch flex gap-3 items-center justify-start overflow-clip p-[8px] relative h-full">
+          <div className="box-border content-stretch flex gap-3 items-start justify-start overflow-clip p-[8px] relative h-full">
             {/* Left sidebar with bookmark icon */}
             <div className="bg-[var(--color-light-paper)] box-border content-stretch flex gap-2.5 h-full items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20">
               <div className="relative shrink-0 size-5">
@@ -94,19 +94,19 @@ const CardNote: React.FC<CardNoteProps> = ({
             </div>
             
             {/* Right content area */}
-            <div className="basis-0 content-stretch flex gap-6 grow items-start justify-start min-h-px min-w-px relative shrink-0">
+            <div className="basis-0 content-stretch flex gap-6 grow items-start justify-start min-h-px min-w-px relative shrink-0 pt-2">
               <div className="basis-0 content-stretch flex flex-col gap-2 grow items-start justify-start leading-[0] min-h-px min-w-px not-italic relative self-stretch shrink-0">
                 {/* Title */}
-                <div className="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] text-nowrap w-full">
+                <div className="flex flex-col font-bold justify-start overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] text-nowrap w-full">
                   <p className="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
                     {title || "Quick Tour of Harvous"}
                   </p>
                 </div>
                 
                 {/* Content */}
-                <div className="flex flex-col font-normal justify-center overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
+                <div className="flex flex-col font-normal justify-start overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
                   <p className="leading-[1.3] line-clamp-2">
-                    {content ? stripHtml(content) : "Play a video walkthrough going through the app. Think of this as a live demo and feel free to leave a comment with questions."}
+                    {content ? stripHtml(content) : ""}
                   </p>
                 </div>
               </div>
@@ -118,7 +118,7 @@ const CardNote: React.FC<CardNoteProps> = ({
 
       {variant === "withImage" && (
         <div className="relative rounded-xl h-full">
-          <div className="box-border content-stretch flex gap-3 items-center justify-start overflow-clip p-[8px] relative h-full">
+          <div className="box-border content-stretch flex gap-3 items-start justify-start overflow-clip p-[8px] relative h-full">
             {/* Left sidebar with image background */}
             <div 
               className="bg-center bg-cover bg-no-repeat box-border content-stretch flex gap-2.5 h-full items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" 
@@ -127,19 +127,19 @@ const CardNote: React.FC<CardNoteProps> = ({
             </div>
             
             {/* Right content area */}
-            <div className="basis-0 content-stretch flex gap-6 grow items-start justify-start min-h-px min-w-px relative shrink-0">
+            <div className="basis-0 content-stretch flex gap-6 grow items-start justify-start min-h-px min-w-px relative shrink-0 pt-2">
               <div className="basis-0 content-stretch flex flex-col gap-2 grow items-start justify-start leading-[0] min-h-px min-w-px not-italic relative self-stretch shrink-0">
                 {/* Title */}
-                <div className="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] text-nowrap w-full">
+                <div className="flex flex-col font-bold justify-start overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] text-nowrap w-full">
                   <p className="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
                     {title || "Note with Image"}
                   </p>
                 </div>
                 
                 {/* Content */}
-                <div className="flex flex-col font-normal justify-center overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
+                <div className="flex flex-col font-normal justify-start overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
                   <p className="leading-[1.3] line-clamp-2">
-                    {content ? stripHtml(content) : "Note content with an image background. The image adds visual context to the note."}
+                    {content ? stripHtml(content) : ""}
                   </p>
                 </div>
               </div>
