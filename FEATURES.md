@@ -48,6 +48,17 @@ Discover the powerful features that make Harvous the perfect companion for your 
 - **Recently Accessed**: Your most recent spaces and threads appear in the navigation
 - **Active State**: Currently viewed items show with proper styling and shadows
 - **Easy Access**: Quick navigation to your frequently used content
+
+## ⚠️ Known Issues & Missing Features
+
+### Edit Thread Functionality ❌ **MISSING**
+- **Issue**: "Edit Thread" menu option exists but has no functionality
+- **Impact**: Users cannot edit thread names, colors, or properties
+- **Status**: Attempted implementation failed due to over-engineering
+- **Next Steps**: Need to study existing patterns and implement incrementally
+- **Documentation**: See `EDIT_THREAD_ATTEMPT.md` for details
+
+### Navigation Features ✅ **IMPLEMENTED**
 - **Space Protection**: Confirmation dialog when closing spaces (since they can't be recovered)
 - **Clean Interface**: No duplicate entries - each item appears only once
 - **localStorage Integration**: Simple localStorage-based system for tracking recently accessed items

@@ -2,6 +2,36 @@
 
 This document tracks all design improvements and updates needed across the Harvous application to maintain consistency and improve user experience.
 
+## Pending Updates
+
+### Edit Thread Panel Implementation
+**Status**: ❌ Failed Attempt  
+**Date**: Jan 26, 2025  
+**Priority**: HIGH  
+**Issue**: "Edit Thread" menu option exists but has no functionality
+
+**Problem**:
+- Users cannot edit thread names, colors, or properties
+- Menu option exists but clicking it does nothing
+- Missing Edit Thread Panel component
+- Missing API endpoint for thread updates
+- Delete actions don't show toast notifications
+
+**Attempted Solution**:
+- Created `EditThreadPanel.tsx` and `ConfirmationDialog.tsx` components
+- Added complex event handling between Astro, Alpine.js, and React
+- Over-engineered solution that didn't follow existing patterns
+- All changes reverted due to complexity and unreliability
+
+**Next Steps**:
+1. Study existing `EditNameColorPanel.tsx` pattern
+2. Create simple Edit Thread Panel following existing patterns
+3. Implement incrementally with testing at each step
+4. Use existing event system instead of creating new ones
+5. Focus on making it work first, then making it pretty
+
+**Documentation**: See `EDIT_THREAD_ATTEMPT.md` for detailed analysis
+
 ## Completed Updates
 
 ### Icon Button Redesign (NoteDetailsPanel)

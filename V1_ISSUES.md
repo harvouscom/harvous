@@ -1,5 +1,56 @@
 # V1 Issues & Bug Tracking
 
+## Edit Thread Panel Missing Functionality
+
+### Problem Description
+The "Edit Thread" menu option exists in the thread page menu but has no corresponding functionality. When clicked, nothing happens. Users cannot edit thread names, colors, or other properties.
+
+### What's Working ✅
+- **Menu Option**: "Edit Thread" appears in the thread page more menu
+- **Menu System**: ContextMoreMenu.astro dispatches the `editThread` event correctly
+- **Event Dispatch**: The event is being dispatched but not handled
+
+### What's Not Working ❌
+- **No Edit Panel**: No Edit Thread Panel exists to handle the editThread event
+- **No Event Handler**: No component listens for the `editThread` event
+- **No API Endpoint**: No `/api/threads/update` endpoint exists for thread updates
+- **No Toast Notifications**: Delete actions don't show success/error toasts
+
+### Root Cause Analysis
+The issue is that the "Edit Thread" menu option was added to the menu system but the corresponding functionality was never implemented. This is a missing feature rather than a bug.
+
+### Technical Details
+
+#### Current Implementation
+- **Menu Option**: Defined in `src/utils/menu-options.ts` for thread content type
+- **Event Dispatch**: `ContextMoreMenu.astro` dispatches `editThread` event
+- **Missing Handler**: No component listens for `editThread` event
+- **Missing Panel**: No Edit Thread Panel component exists
+- **Missing API**: No thread update endpoint exists
+
+#### Files Involved
+- `src/utils/menu-options.ts` - Defines the menu option
+- `src/components/ContextMoreMenu.astro` - Dispatches the event
+- `src/layouts/Layout.astro` - Should handle the event (missing)
+- `src/components/react/` - Missing EditThreadPanel component
+- `src/pages/api/threads/` - Missing update endpoint
+
+### Attempted Solutions (FAILED)
+- **First Attempt**: Tried to create `EditThreadPanel.tsx` and `ConfirmationDialog.tsx`
+- **Issues**: Over-engineered solution, didn't follow existing patterns
+- **Result**: All changes reverted, problem still exists
+- **Documentation**: `EDIT_THREAD_ATTEMPT.md` documents the failed attempt
+
+### Next Steps
+1. Study existing `EditNameColorPanel.tsx` pattern
+2. Create simple Edit Thread Panel following existing patterns
+3. Implement incrementally with testing at each step
+4. Use existing event system instead of creating new ones
+5. Focus on making it work first, then making it pretty
+
+### Priority
+**HIGH** - This is a missing core functionality that users expect to work
+
 ## Mobile Note Creation Toolbar Visibility Issue
 
 ### Problem Description
