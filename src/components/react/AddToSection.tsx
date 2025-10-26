@@ -104,10 +104,15 @@ export default function AddToSection({
           e.stopPropagation();
           onClick();
         }}
-        className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-green-600"
+        className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+        style={{
+          color: 'var(--color-stone-grey)'
+        }}
         disabled={isLoading}
       >
-        Add
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+        </svg>
       </button>
     </div>
   );

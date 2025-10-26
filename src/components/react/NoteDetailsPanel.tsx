@@ -492,10 +492,15 @@ export default function NoteDetailsPanel({
                                 e.stopPropagation();
                                 handleRemoveFromThread(thread.id);
                               }}
-                              className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
+                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                              style={{
+                                color: 'var(--color-stone-grey)'
+                              }}
                               disabled={isMovingThread}
                             >
-                              Remove
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M5 11h14v2H5z"/>
+                              </svg>
                             </button>
                           </div>
                         ))}

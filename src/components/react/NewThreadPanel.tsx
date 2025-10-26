@@ -7,9 +7,13 @@ import SquareButton from './SquareButton';
 interface NewThreadPanelProps {
   currentSpace?: any;
   onClose?: () => void;
+  // Edit mode props
+  threadId?: string;
+  initialTitle?: string;
+  initialColor?: ThreadColor;
 }
 
-export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanelProps) {
+export default function NewThreadPanel({ currentSpace, onClose, threadId, initialTitle, initialColor }: NewThreadPanelProps) {
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
@@ -26,35 +30,55 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
   //   visibility: 'space' // 'space', 'public', 'invite-only'
   // });
 
-  // Load data from localStorage on mount
+  // Detect edit mode
+  const isEditMode = !!threadId;
+
+  // Load data from localStorage on mount (create mode) or use initial data (edit mode)
   useEffect(() => {
-    const savedTitle = localStorage.getItem('newThreadTitle') || '';
-    const savedColor = localStorage.getItem('newThreadColor') || 'paper';
-    const savedType = localStorage.getItem('newThreadType') || 'Private';
-    const savedTab = localStorage.getItem('newThreadActiveTab') || 'recent';
-    setTitle(savedTitle);
-    setSelectedColor(savedColor);
-    setSelectedType(savedType);
-    setActiveTab(savedTab);
-  }, []);
+    if (isEditMode) {
+      // Edit mode: use initial data
+      setTitle(initialTitle || '');
+      setSelectedColor(initialColor || 'paper');
+      setSelectedType('Private'); // Always private for now
+      setActiveTab('recent');
+    } else {
+      // Create mode: load from localStorage
+      const savedTitle = localStorage.getItem('newThreadTitle') || '';
+      const savedColor = localStorage.getItem('newThreadColor') || 'paper';
+      const savedType = localStorage.getItem('newThreadType') || 'Private';
+      const savedTab = localStorage.getItem('newThreadActiveTab') || 'recent';
+      setTitle(savedTitle);
+      setSelectedColor(savedColor);
+      setSelectedType(savedType);
+      setActiveTab(savedTab);
+    }
+  }, [isEditMode, initialTitle, initialColor]);
 
 
-  // Save data to localStorage on change
+  // Save data to localStorage on change (create mode only)
   useEffect(() => {
-    localStorage.setItem('newThreadTitle', title);
-  }, [title]);
+    if (!isEditMode) {
+      localStorage.setItem('newThreadTitle', title);
+    }
+  }, [title, isEditMode]);
 
   useEffect(() => {
-    localStorage.setItem('newThreadColor', selectedColor);
-  }, [selectedColor]);
+    if (!isEditMode) {
+      localStorage.setItem('newThreadColor', selectedColor);
+    }
+  }, [selectedColor, isEditMode]);
 
   useEffect(() => {
-    localStorage.setItem('newThreadType', selectedType);
-  }, [selectedType]);
+    if (!isEditMode) {
+      localStorage.setItem('newThreadType', selectedType);
+    }
+  }, [selectedType, isEditMode]);
 
   useEffect(() => {
-    localStorage.setItem('newThreadActiveTab', activeTab);
-  }, [activeTab]);
+    if (!isEditMode) {
+      localStorage.setItem('newThreadActiveTab', activeTab);
+    }
+  }, [activeTab, isEditMode]);
 
   // Fetch recent notes when component mounts or tab changes to recent
   useEffect(() => {
@@ -90,6 +114,7 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
     console.log('Title:', title);
     console.log('Selected color:', selectedColor);
     console.log('Selected type:', selectedType);
+    console.log('Is edit mode:', isEditMode);
     
     if (!title.trim()) {
       console.log('NewThreadPanel: No title provided, returning');
@@ -105,63 +130,107 @@ export default function NewThreadPanel({ currentSpace, onClose }: NewThreadPanel
       formData.append('title', title.trim());
       formData.append('color', selectedColor);
       formData.append('isPublic', 'false'); // Always private for now
-      formData.append('spaceId', currentSpace?.id || '');
       
-      console.log('NewThreadPanel: Sending request to /api/threads/create');
-      console.log('Form data:', {
-        title: title.trim(),
-        color: selectedColor,
-        isPublic: false, // Always private for now
-        spaceId: currentSpace?.id || null,
-      });
-      
-      const response = await fetch('/api/threads/create', {
-        method: 'POST',
-        body: formData,
-      });
+      if (isEditMode) {
+        formData.append('threadId', threadId!);
+        console.log('NewThreadPanel: Sending request to /api/threads/update');
+        console.log('Form data:', {
+          threadId: threadId,
+          title: title.trim(),
+          color: selectedColor,
+          isPublic: false,
+        });
+        
+        const response = await fetch('/api/threads/update', {
+          method: 'POST',
+          body: formData,
+        });
 
-      console.log('NewThreadPanel: Response status:', response.status);
-      console.log('NewThreadPanel: Response ok:', response.ok);
+        console.log('NewThreadPanel: Response status:', response.status);
+        console.log('NewThreadPanel: Response ok:', response.ok);
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('NewThreadPanel: Thread created successfully:', result);
-        
-        // Clear form data
-        setTitle('');
-        setSelectedColor('paper');
-        setSelectedType('Private');
-        setActiveTab('recent');
-        localStorage.removeItem('newThreadTitle');
-        localStorage.removeItem('newThreadColor');
-        localStorage.removeItem('newThreadType');
-        localStorage.removeItem('newThreadActiveTab');
-        
-        // Close panel
-        // Dispatch close event for event system
-        window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
-        
-        if (onClose) {
-          onClose();
-        }
-        
-        // Redirect to the newly created thread with toast parameter
-        if (result.thread && result.thread.id) {
-          console.log('NewThreadPanel: Redirecting to thread:', result.thread.id);
-          const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
-          window.location.href = redirectUrl;
+        if (response.ok) {
+          const result = await response.json();
+          console.log('NewThreadPanel: Thread updated successfully:', result);
+          
+          // Close panel
+          window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+          
+          if (onClose) {
+            onClose();
+          }
+          
+          // Show success toast and refresh page
+          if (window.toast) {
+            window.toast.success('Thread updated successfully!');
+          }
+          
+          // Refresh the page to show updated thread
+          window.location.reload();
+        } else {
+          const errorText = await response.text();
+          console.error('NewThreadPanel: API error response:', errorText);
+          throw new Error(`Failed to update thread: ${response.status}`);
         }
       } else {
-        const errorText = await response.text();
-        console.error('NewThreadPanel: API error response:', errorText);
-        throw new Error(`Failed to create thread: ${response.status}`);
+        // Create mode
+        formData.append('spaceId', currentSpace?.id || '');
+        
+        console.log('NewThreadPanel: Sending request to /api/threads/create');
+        console.log('Form data:', {
+          title: title.trim(),
+          color: selectedColor,
+          isPublic: false,
+          spaceId: currentSpace?.id || null,
+        });
+        
+        const response = await fetch('/api/threads/create', {
+          method: 'POST',
+          body: formData,
+        });
+
+        console.log('NewThreadPanel: Response status:', response.status);
+        console.log('NewThreadPanel: Response ok:', response.ok);
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('NewThreadPanel: Thread created successfully:', result);
+          
+          // Clear form data
+          setTitle('');
+          setSelectedColor('paper');
+          setSelectedType('Private');
+          setActiveTab('recent');
+          localStorage.removeItem('newThreadTitle');
+          localStorage.removeItem('newThreadColor');
+          localStorage.removeItem('newThreadType');
+          localStorage.removeItem('newThreadActiveTab');
+          
+          // Close panel
+          window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+          
+          if (onClose) {
+            onClose();
+          }
+          
+          // Redirect to the newly created thread with toast parameter
+          if (result.thread && result.thread.id) {
+            console.log('NewThreadPanel: Redirecting to thread:', result.thread.id);
+            const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
+            window.location.href = redirectUrl;
+          }
+        } else {
+          const errorText = await response.text();
+          console.error('NewThreadPanel: API error response:', errorText);
+          throw new Error(`Failed to create thread: ${response.status}`);
+        }
       }
     } catch (error) {
-      console.error('NewThreadPanel: Error creating thread:', error);
+      console.error('NewThreadPanel: Error:', error);
       if (window.toast) {
-        window.toast.error('Failed to create thread. Please try again.');
+        window.toast.error(`Failed to ${isEditMode ? 'update' : 'create'} thread. Please try again.`);
       } else {
-        alert('Failed to create thread. Please try again.');
+        alert(`Failed to ${isEditMode ? 'update' : 'create'} thread. Please try again.`);
       }
     } finally {
       console.log('NewThreadPanel: Submission finished, setting isSubmitting to false');
