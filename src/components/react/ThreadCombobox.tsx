@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, ChevronsUpDown } from 'lucide-react';
+// Removed Check and ChevronsUpDown imports - using clean design without arrow icons
 
 interface Thread {
   id: string;
@@ -53,7 +53,6 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                 </span>
               </div>
             </div>
-            <ChevronsUpDown className="h-4 w-4 text-[var(--color-deep-grey)] mr-4" />
           </div>
         </div>
       </button>
@@ -102,9 +101,6 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                         {thread.noteCount}
                       </span>
                     </div>
-                    {selectedThread === thread.title && (
-                      <Check className="h-4 w-4 text-blue-500" />
-                    )}
                   </div>
                 </button>
               ))
