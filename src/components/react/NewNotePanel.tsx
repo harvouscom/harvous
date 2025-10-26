@@ -23,6 +23,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nextNoteId, setNextNoteId] = useState('#New');
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [noteType, setNoteType] = useState<'default' | 'scripture' | 'resource'>('default');
+  const [scriptureReference, setScriptureReference] = useState('');
+  const [resourceUrl, setResourceUrl] = useState('');
   const [threadOptions, setThreadOptions] = useState<Thread[]>([
     {
       id: 'thread_unorganized',
@@ -131,6 +134,16 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     loadNextNoteId();
   }, []);
 
+  // Load Font Awesome for icons
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
+    if (!document.querySelector(`link[href="${link.href}"]`)) {
+      document.head.appendChild(link);
+    }
+  }, []);
+
   // Auto-focus content area when component mounts
   useEffect(() => {
     // Small delay to ensure TiptapEditor is fully rendered
@@ -147,6 +160,15 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   // Get selected thread object
   const getSelectedThread = () => {
     return threadOptions.find(thread => thread.title === selectedThread) || threadOptions[0];
+  };
+
+  // Cycle through note types
+  const cycleNoteType = () => {
+    setNoteType(current => {
+      if (current === 'default') return 'scripture';
+      if (current === 'scripture') return 'resource';
+      return 'default';
+    });
   };
 
   // Check if there are unsaved changes
@@ -179,9 +201,11 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       editorContent = hiddenInput.value;
     }
     
-    // Check for meaningful content
+    // Check for meaningful content based on note type
     const trimmedTitle = title.trim();
     const trimmedContent = editorContent.trim();
+    const trimmedScriptureRef = scriptureReference.trim();
+    const trimmedResourceUrl = resourceUrl.trim();
     
     // Check if there's meaningful content (not just whitespace or empty HTML)
     const hasContent = trimmedContent && 
@@ -189,23 +213,81 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       trimmedContent !== '<p><br></p>' &&
       trimmedContent !== '<br>';
     
-    if (!trimmedTitle && !hasContent) {
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: 'Please add a title or content to your note',
-          type: 'warning'
-        }
-      }));
-      return;
+    // Type-specific validation
+    if (noteType === 'default') {
+      if (!trimmedTitle && !hasContent) {
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Please add a title or content to your note',
+            type: 'warning'
+          }
+        }));
+        return;
+      }
+    } else if (noteType === 'scripture') {
+      if (!trimmedScriptureRef) {
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Please add a scripture reference (e.g., John 3:16)',
+            type: 'warning'
+          }
+        }));
+        return;
+      }
+      if (!hasContent) {
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Please add your thoughts about this scripture',
+            type: 'warning'
+          }
+        }));
+        return;
+      }
+    } else if (noteType === 'resource') {
+      if (!trimmedResourceUrl) {
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Please add a resource URL',
+            type: 'warning'
+          }
+        }));
+        return;
+      }
+      if (!hasContent) {
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Please add your thoughts about this resource',
+            type: 'warning'
+          }
+        }));
+        return;
+      }
     }
 
     setIsSubmitting(true);
 
     try {
       const formData = new FormData();
-      formData.set('title', title);
+      
+      // Set title based on note type
+      if (noteType === 'default') {
+        formData.set('title', title);
+      } else if (noteType === 'scripture') {
+        formData.set('title', scriptureReference); // Use scripture reference as title
+      } else if (noteType === 'resource') {
+        formData.set('title', resourceUrl); // Use URL as title
+      }
+      
       formData.set('content', editorContent);
       formData.set('threadId', getSelectedThread().id);
+      formData.set('noteType', noteType);
+      
+      // Add type-specific metadata
+      if (noteType === 'scripture') {
+        formData.set('scriptureReference', scriptureReference);
+      } else if (noteType === 'resource') {
+        formData.set('resourceUrl', resourceUrl);
+      }
 
       const response = await fetch('/api/notes/create', {
         method: 'POST',
@@ -309,9 +391,26 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     // Try to save the note first
     try {
       const formData = new FormData();
-      formData.set('title', title);
+      
+      // Set title based on note type
+      if (noteType === 'default') {
+        formData.set('title', title);
+      } else if (noteType === 'scripture') {
+        formData.set('title', scriptureReference);
+      } else if (noteType === 'resource') {
+        formData.set('title', resourceUrl);
+      }
+      
       formData.set('content', content);
       formData.set('threadId', getSelectedThread().id);
+      formData.set('noteType', noteType);
+      
+      // Add type-specific metadata
+      if (noteType === 'scripture') {
+        formData.set('scriptureReference', scriptureReference);
+      } else if (noteType === 'resource') {
+        formData.set('resourceUrl', resourceUrl);
+      }
 
       const response = await fetch('/api/notes/create', {
         method: 'POST',
@@ -366,52 +465,138 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         />
       </div>
 
-      {/* Note Content */}
+      {/* Note Content - Type-specific layouts */}
       <div className="flex-1 flex flex-col min-h-0 mb-3.5">
-        <div className="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
-          {/* Header with title input */}
-          <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
-            <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
-              <input 
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Note title"
-                tabIndex={1}
-                className="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
-              />
+        {noteType === 'default' && (
+          <div className="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            {/* Default Note Layout */}
+            <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
+              <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
+                <input 
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Note title"
+                  tabIndex={1}
+                  className="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
+                />
+              </div>
+              <div className="relative shrink-0 size-5 cursor-pointer" onClick={cycleNoteType} title="Click to change note type">
+                <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                </svg>
+              </div>
             </div>
-            <div className="relative shrink-0 size-5">
-              <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-              </svg>
+            
+            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3">
+                <TiptapEditor
+                  content={content}
+                  id="new-note-content"
+                  name="content"
+                  placeholder="Type your note..."
+                  tabindex={2}
+                  minimalToolbar={false}
+                />
+              </div>
             </div>
-          </div>
-          
-          {/* Editor wrapper - spans available space */}
-          <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px' }}>
-            <div className="flex-1 flex flex-col min-h-0 px-3">
-              <TiptapEditor
-                content={content}
-                id="new-note-content"
-                name="content"
-                placeholder="Type your note..."
-                tabindex={2}
-                minimalToolbar={false}
-              />
-            </div>
-          </div>
 
-          {/* Date and Note ID - fixed at bottom */}
-          <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" style={{ marginTop: '8px' }}>
-            <div className="relative shrink-0">
-              <p className="leading-[normal] text-nowrap whitespace-pre">Today</p>
-            </div>
-            <div className="relative shrink-0">
-              <p className="leading-[normal] text-nowrap whitespace-pre">{nextNoteId}</p>
+            <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" style={{ marginTop: '8px' }}>
+              <div className="relative shrink-0">
+                <p className="leading-[normal] text-nowrap whitespace-pre">Today</p>
+              </div>
+              <div className="relative shrink-0">
+                <p className="leading-[normal] text-nowrap whitespace-pre">{nextNoteId}</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {noteType === 'scripture' && (
+          <div className="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            {/* Scripture Note Layout */}
+            <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
+              <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
+                <input 
+                  type="text"
+                  value={scriptureReference}
+                  onChange={(e) => setScriptureReference(e.target.value)}
+                  placeholder="Scripture reference (e.g., John 3:16)"
+                  tabIndex={1}
+                  className="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
+                />
+              </div>
+              <div className="relative shrink-0 size-5 cursor-pointer" onClick={cycleNoteType} title="Click to change note type">
+                <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] text-[20px]" />
+              </div>
+            </div>
+            
+            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3">
+                <TiptapEditor
+                  content={content}
+                  id="new-note-content"
+                  name="content"
+                  placeholder="Share your thoughts about this scripture..."
+                  tabindex={2}
+                  minimalToolbar={false}
+                />
+              </div>
+            </div>
+
+            <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" style={{ marginTop: '8px' }}>
+              <div className="relative shrink-0">
+                <p className="leading-[normal] text-nowrap whitespace-pre">Today</p>
+              </div>
+              <div className="relative shrink-0">
+                <p className="leading-[normal] text-nowrap whitespace-pre">{nextNoteId}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {noteType === 'resource' && (
+          <div className="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+            {/* Resource Note Layout */}
+            <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
+              <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
+                <input 
+                  type="url"
+                  value={resourceUrl}
+                  onChange={(e) => setResourceUrl(e.target.value)}
+                  placeholder="Resource URL"
+                  tabIndex={1}
+                  className="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
+                />
+              </div>
+              <div className="relative shrink-0 size-5 cursor-pointer" onClick={cycleNoteType} title="Click to change note type">
+                <i className="fa-solid fa-file-image text-[var(--color-deep-grey)] text-[20px]" />
+              </div>
+            </div>
+            
+            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3">
+                <TiptapEditor
+                  content={content}
+                  id="new-note-content"
+                  name="content"
+                  placeholder="Share your thoughts about this resource..."
+                  tabindex={2}
+                  minimalToolbar={false}
+                />
+              </div>
+            </div>
+
+            <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" style={{ marginTop: '8px' }}>
+              <div className="relative shrink-0">
+                <p className="leading-[normal] text-nowrap whitespace-pre">Today</p>
+              </div>
+              <div className="relative shrink-0">
+                <p className="leading-[normal] text-nowrap whitespace-pre">{nextNoteId}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom buttons */}
