@@ -24,7 +24,7 @@ Harvous is a Bible study notes application with a **solid foundation and modern 
 
 ### Content Organization
 - **Hierarchical Structure**: Spaces → Threads → Notes system
-- **Rich Text Editor**: Quill.js integration with inline editing
+- **Rich Text Editor**: TiptapEditor integration with inline editing (React Islands architecture)
 - **Sequential Note IDs**: User-friendly IDs (N001, N002, N003) that never reuse deleted numbers
 - **Color System**: 8-color palette for spaces and threads
 - **Search Functionality**: Full-text search across notes and threads
