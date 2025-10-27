@@ -169,6 +169,27 @@ export default function CardFullEditable({
               0px 0px 2px 0px #00000040,
               0px 2px 0px 0px #00000040 inset;
           }
+
+          /* List styling for display mode */
+          .card-full-editable .flex-1.overflow-auto ul {
+            list-style-type: disc !important;
+            padding-left: 1.5em !important;
+            margin-left: 0 !important;
+          }
+
+          .card-full-editable .flex-1.overflow-auto ol {
+            list-style-type: decimal !important;
+            padding-left: 1.5em !important;
+            margin-left: 0 !important;
+          }
+
+          .card-full-editable .flex-1.overflow-auto li {
+            display: list-item !important;
+            list-style-position: outside !important;
+            list-style-type: inherit !important;
+            margin-bottom: 0.5em !important;
+            color: var(--color-deep-grey) !important;
+          }
         `}
       </style>
       <div 
