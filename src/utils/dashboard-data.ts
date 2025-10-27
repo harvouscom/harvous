@@ -1,5 +1,6 @@
 import { db, Threads, Notes, Spaces, NoteThreads, eq, and, desc, count, or, ne, isNull, isNotNull } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
+import { formatRelativeTime } from "@/utils/date-formatting";
 
 // Helper function to strip HTML tags and decode entities
 function stripHtml(html: string): string {
@@ -28,25 +29,6 @@ function stripHtml(html: string): string {
     .trim();
     
   return text;
-}
-
-// Helper function to format relative time
-function formatRelativeTime(date: Date): string {
-  const now = new Date();
-  const diffInMs = now.getTime() - date.getTime();
-  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-
-  if (diffInDays > 0) {
-    return diffInDays === 1 ? "1 day ago" : `${diffInDays} days ago`;
-  } else if (diffInHours > 0) {
-    return diffInHours === 1 ? "1 hour ago" : `${diffInHours} hours ago`;
-  } else if (diffInMinutes > 0) {
-    return diffInMinutes === 1 ? "1 minute ago" : `${diffInMinutes} minutes ago`;
-  } else {
-    return "Just now";
-  }
 }
 
 // Helper function to find unorganized thread (create it if it doesn't exist)
