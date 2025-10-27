@@ -1,6 +1,6 @@
 import React from 'react';
 import OverlappingNotes from './OverlappingNotes';
-import { formatRelativeTime } from '@/utils/date-formatting';
+import { getRelativeTime } from '@/utils/date-formatting';
 
 interface Thread {
   id: string;
@@ -38,10 +38,14 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
   // Format the timestamp properly
   let displaySubtitle = subtitle || "5 hours ago";
   if (lastUpdated) {
-    displaySubtitle = formatRelativeTime(new Date(lastUpdated));
+    try {
+      displaySubtitle = getRelativeTime(new Date(lastUpdated));
+    } catch (error) {
+      displaySubtitle = lastUpdated;
+    }
   } else if (createdAt) {
     try {
-      displaySubtitle = formatRelativeTime(new Date(createdAt));
+      displaySubtitle = getRelativeTime(new Date(createdAt));
     } catch (error) {
       displaySubtitle = createdAt;
     }

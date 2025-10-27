@@ -1,6 +1,5 @@
 import { db, Threads, Notes, Spaces, NoteThreads, eq, and, desc, count, or, ne, isNull, isNotNull } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
-import { formatRelativeTime } from "@/utils/date-formatting";
 
 // Helper function to strip HTML tags and decode entities
 function stripHtml(html: string): string {
@@ -158,7 +157,7 @@ export async function getAllThreadsWithCounts(userId: string) {
       createdAt: thread.createdAt,
       updatedAt: thread.updatedAt,
       noteCount: thread.noteCount || 0,
-      lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
+      lastUpdated: thread.updatedAt || thread.createdAt,
       accentColor: getThreadColorCSS(thread.color),
       backgroundGradient: getThreadGradientCSS(thread.color),
     }));
@@ -235,7 +234,7 @@ export async function getSpacesWithCounts(userId: string) {
       standaloneNoteCount: standaloneCountMap.get(space.id) || 0,
       totalItemCount: (space.threadCount || 0) + (standaloneCountMap.get(space.id) || 0),
       totalNoteCount: totalCountMap.get(space.id) || 0,
-      lastUpdated: formatRelativeTime(space.updatedAt || space.createdAt),
+      lastUpdated: space.updatedAt || space.createdAt,
     }));
   } catch (error) {
     console.error("Error fetching spaces:", error);
@@ -293,7 +292,7 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
       createdAt: thread.createdAt,
       updatedAt: thread.updatedAt,
       noteCount: thread.noteCount || 0,
-      lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
+      lastUpdated: thread.updatedAt || thread.createdAt,
       accentColor: getThreadColorCSS(thread.color),
       backgroundGradient: getThreadGradientCSS(thread.color),
     }));
@@ -362,7 +361,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     
     return sortedNotes.map(note => ({
       ...note,
-      lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
+      lastUpdated: note.updatedAt || note.createdAt,
     }));
   } catch (error) {
     console.error("Error fetching notes for thread:", error);
@@ -392,7 +391,7 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
 
     return notes.map(note => ({
       ...note,
-      lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
+      lastUpdated: note.updatedAt || note.createdAt,
     }));
   } catch (error) {
     console.error("Error fetching notes for space:", error);
@@ -422,7 +421,7 @@ export async function getNotesForDashboard(userId: string, limit = 10) {
 
     return notes.map(note => ({
       ...note,
-      lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
+      lastUpdated: note.updatedAt || note.createdAt,
     }));
   } catch (error) {
     console.error("Error fetching notes:", error);
@@ -584,7 +583,7 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
 
     return notes.map(note => ({
       ...note,
-      lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
+      lastUpdated: note.updatedAt || note.createdAt,
     }));
   } catch (error) {
     console.error("Error fetching unorganized notes:", error);
@@ -617,7 +616,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
 
       return notes.map(note => ({
         ...note,
-        lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
+        lastUpdated: note.updatedAt || note.createdAt,
       }));
     }
 
@@ -643,7 +642,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
 
     return notes.map(note => ({
       ...note,
-      lastUpdated: formatRelativeTime(note.updatedAt || note.createdAt),
+      lastUpdated: note.updatedAt || note.createdAt,
     }));
   } catch (error) {
     console.error("Error fetching assigned notes:", error);

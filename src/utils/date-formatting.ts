@@ -1,4 +1,4 @@
-export function formatRelativeTime(date: Date): string {
+export function getRelativeTime(date: Date): string {
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
   const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
