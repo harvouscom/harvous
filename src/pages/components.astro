@@ -2,7 +2,6 @@
 import Layout from "@/layouts/Layout.astro";
 import Button from "@/components/Button.astro";
 import SquareButton from "@/components/SquareButton.astro";
-import SpaceButton from "@/components/SpaceButton.astro";
 import ActionButton from "@/components/ActionButton.astro";
 import CardFeat from "@/components/CardFeat.astro";
 import CardFull from "@/components/CardFull.astro";
@@ -79,26 +78,6 @@ import Welcome from "@/components/Welcome.astro";
             </div>
           </div>
 
-          <!-- SpaceButton Component -->
-          <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
-            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">SpaceButton</h3>
-            <div class="space-y-4">
-              <SpaceButton 
-                text="Unorganized" 
-                state="Default" 
-                count={5}
-                backgroundGradient="linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
-                isActive={false}
-              />
-              <SpaceButton 
-                text="Gospel of John" 
-                state="Default" 
-                count={12}
-                backgroundGradient="linear-gradient(180deg, var(--color-blessed-blue) 0%, var(--color-blessed-blue) 100%)"
-                isActive={true}
-              />
-            </div>
-          </div>
         </div>
       </section>
 

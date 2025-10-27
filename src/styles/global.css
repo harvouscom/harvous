@@ -311,3 +311,43 @@ button:active[class*="bg-[var(--color-stone-grey)]"] {
 .color-selection button[style*="background-color"]:active {
   transform: scale(0.95);
 }
+
+/* Fix inactive navigation button shadows */
+.space-button:not([style*="background-image"]):not([style*="background-color"]) {
+  box-shadow: none !important;
+}
+
+/* Override SpaceButton.astro shadow rules */
+button.space-button:not([style*="background-image"]):not([style*="background-color"]) {
+  box-shadow: none !important;
+}
+
+/* Override all SpaceButton shadows for inactive buttons */
+.space-button:not(.active):not([style*="background"]) {
+  box-shadow: none !important;
+}
+
+/* Fix TabNav bottom line */
+.tab-nav-container,
+.tab-nav-container > div {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove all borders from TabNav buttons */
+.tab-nav-container button,
+.tab-nav-container button[data-tab-button],
+[data-tab-button] {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Remove any potential borders from TabNav containers */
+.tab-nav-container,
+.tab-nav-container *,
+.tab-nav-container button,
+.tab-nav-container button * {
+  border: none !important;
+  box-shadow: none !important;
+}

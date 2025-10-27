@@ -237,9 +237,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                tabElement.classList.remove('opacity-100');
                tabElement.classList.add('opacity-50');
                
-               // Hide the dot element
-               const dot = tabElement.querySelector('[data-dot]') as HTMLElement;
-               if (dot) dot.style.display = 'none';
+               // Dot is now handled by CSS ::after pseudo-element
              });
              
              // Activate the clicked tab
@@ -247,9 +245,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
              clickedButton.classList.remove('opacity-50');
              clickedButton.classList.add('opacity-100');
              
-             // Show the dot element for the active tab
-             const activeDot = clickedButton.querySelector('[data-dot]') as HTMLElement;
-             if (activeDot) activeDot.style.display = 'block';
+             // Dot is now handled by CSS ::after pseudo-element
              
              // Find and switch content sections that belong to this specific TabNav
              const tabNavParent = tabNavContainer.parentElement;

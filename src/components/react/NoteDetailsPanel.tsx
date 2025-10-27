@@ -391,7 +391,7 @@ export default function NoteDetailsPanel({
                       <div className="flex items-center justify-start gap-0 pb-0 pt-1 px-1 relative w-full overflow-x-auto">
                         <button
                           type="button"
-                          className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200 ${
+                          className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative shrink-0 transition-all duration-200 ${
                             activeTab === 'threads' ? 'opacity-100' : 'opacity-50 hover:opacity-75'
                           }`}
                           onClick={() => switchTab('threads')}
@@ -415,7 +415,7 @@ export default function NoteDetailsPanel({
                         
                         <button
                           type="button"
-                          className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200 ${
+                          className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative shrink-0 transition-all duration-200 ${
                             activeTab === 'tags' ? 'opacity-100' : 'opacity-50 hover:opacity-75'
                           }`}
                           onClick={() => switchTab('tags')}
@@ -439,7 +439,7 @@ export default function NoteDetailsPanel({
                         
                         <button
                           type="button"
-                          className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative rounded-tl-[8px] rounded-tr-[8px] shrink-0 transition-all duration-200 ${
+                          className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative shrink-0 transition-all duration-200 ${
                             activeTab === 'comments' ? 'opacity-100' : 'opacity-50 hover:opacity-75'
                           }`}
                           onClick={() => switchTab('comments')}

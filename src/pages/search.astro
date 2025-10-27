@@ -5,8 +5,7 @@ import SearchInput from "@/components/SearchInput.astro";
 import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
-import PersistentNavigation from "@/components/PersistentNavigation.astro";
-import SpaceButton from "@/components/SpaceButton.astro";
+import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import SquareButton from "@/components/SquareButton.astro";
 import Avatar from "@/components/Avatar.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
@@ -366,33 +365,18 @@ if (query.trim()) {
 
 <Layout title="Search - Harvous" contentType="dashboard" currentThread={null} currentSpace={null}>
   <!-- Navigation Column -->
-  <div slot="navigation" class="h-full">
-    <div class="flex flex-col items-start justify-between relative h-full">
-      <!-- Top Section - Navigation -->
-      <div class="flex flex-col gap-12 items-start justify-start w-full flex-1 min-h-0">
-        <!-- Navigation Buttons -->
-        <div class="flex flex-col items-start justify-start w-full">
-          <a href="/dashboard" class="w-full">
-            <SpaceButton text="For You" count={0} state="WithCount" className="w-full" isActive={false} />
-          </a>
-          
-          {/* Persistent Navigation - shows recently accessed items */}
-          <PersistentNavigation />
-        </div>
-      </div>
-      
-      <!-- Bottom Section with New Space Button, Search, and Avatar -->
-      <div class="flex gap-3 items-center justify-start w-full shrink-0">
-        <a href="/new-space" class="flex-1">
-          <SpaceButton text="New Space" className="w-full" />
-        </a>
-        <SquareButton variant="Search" />
-        <a href="/profile">
-          <Avatar initials={initials} color={userColor} />
-        </a>
-      </div>
-    </div>
-  </div>
+  <NavigationColumnReact 
+    slot="navigation"
+    inboxCount={0}
+    spaces={[]}
+    activeThread={null}
+    currentSpace={null}
+    isNote={false}
+    currentId={undefined}
+    showProfile={false}
+    initials={initials}
+    userColor={userColor}
+  />
 
   <!-- Main Column -->
   <div slot="main" class="h-full">

@@ -93,7 +93,7 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
         .card-thread-container:hover .stagger-note:nth-child(25) { animation: staggerHover 0.6s ease-in-out 1.2s forwards; }
         .card-thread-container:hover .stagger-note:nth-child(26) { animation: staggerHover 0.6s ease-in-out 1.25s forwards; }
       `}</style>
-      <div className={`card-thread-container box-border flex flex-col gap-3 items-start justify-start overflow-hidden pb-0 pt-4 px-3 relative rounded-xl w-full h-[90px] ${className}`}>
+      <div className={`card-thread-container box-border flex flex-col gap-3 items-start justify-start overflow-hidden pb-0 pt-3 px-3 relative rounded-xl w-full h-[96px] ${className}`}>
       {/* Accent bar */}
       <div 
         className="absolute inset-y-0 left-0 w-11 rounded-l-xl" 
@@ -119,17 +119,17 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
           </div>
           
           {/* Text content */}
-          <div className="basis-0 flex flex-col gap-2 grow items-center justify-center leading-[0] min-h-px min-w-px relative shrink-0 text-nowrap">
+          <div className="basis-0 flex flex-col gap-2 grow items-center justify-center min-h-px min-w-px relative shrink-0 text-nowrap">
             {/* Title */}
             <div className="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] w-full">
-              <p className="leading-none overflow-hidden text-ellipsis whitespace-nowrap">
+              <p className="leading-tight overflow-hidden text-ellipsis whitespace-nowrap">
                 {title}
               </p>
             </div>
             
             {/* Subtitle */}
             <div className="flex flex-col font-normal justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
-              <p className="leading-none overflow-hidden text-ellipsis whitespace-nowrap">
+              <p className="leading-tight overflow-hidden text-ellipsis whitespace-nowrap">
                 {displaySubtitle}
               </p>
             </div>

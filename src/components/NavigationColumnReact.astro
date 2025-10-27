@@ -1,0 +1,54 @@
+---
+import NavigationColumn from "./react/navigation/NavigationColumn.tsx";
+import { NavigationProvider } from "./react/navigation/NavigationContext.tsx";
+
+interface Props {
+  inboxCount?: number;
+  spaces?: Array<{
+    id: string;
+    title: string;
+    totalItemCount: number;
+    backgroundGradient: string;
+  }>;
+  activeThread?: {
+    id: string;
+    title: string;
+    noteCount: number;
+    backgroundGradient: string;
+  } | null;
+  currentSpace?: {
+    id: string;
+  } | null;
+  isNote?: boolean;
+  currentId?: string;
+  showProfile?: boolean;
+  initials?: string;
+  userColor?: string;
+}
+
+const { 
+  inboxCount = 0,
+  spaces = [],
+  activeThread = null,
+  currentSpace = null,
+  isNote = false,
+  currentId = null,
+  showProfile = false,
+  initials = "DJ",
+  userColor = "paper"
+} = Astro.props;
+---
+
+<NavigationProvider client:load>
+  <NavigationColumn 
+    inboxCount={inboxCount}
+    spaces={spaces}
+    activeThread={activeThread}
+    currentSpace={currentSpace}
+    isNote={isNote}
+    currentId={currentId || undefined}
+    showProfile={showProfile}
+    initials={initials}
+    userColor={userColor}
+  />
+</NavigationProvider>

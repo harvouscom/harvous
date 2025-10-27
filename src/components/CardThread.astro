@@ -53,7 +53,7 @@ if (lastUpdated) {
 
 </style>
 
-<div class={`card-thread-container box-border flex flex-col gap-3 items-start justify-start overflow-hidden pb-0 pt-4 px-3 relative rounded-xl w-full h-[90px] ${className}`}>
+<div class={`card-thread-container box-border flex flex-col gap-3 items-start justify-start overflow-hidden pb-0 pt-3 px-3 relative rounded-xl w-full h-[96px] ${className}`}>
   <!-- Accent bar -->
   <div class="absolute inset-y-0 left-0 w-11 rounded-l-xl" style={`background-color: ${accentColor};`}></div>
   
@@ -76,17 +76,17 @@ if (lastUpdated) {
       </div>
       
       <!-- Text content -->
-      <div class="basis-0 flex flex-col gap-2 grow items-center justify-center leading-[0] min-h-px min-w-px relative shrink-0 text-nowrap">
+      <div class="basis-0 flex flex-col gap-2 grow items-center justify-center min-h-px min-w-px relative shrink-0 text-nowrap">
         <!-- Title -->
         <div class="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] w-full">
-          <p class="leading-none overflow-hidden text-ellipsis whitespace-nowrap">
+          <p class="leading-tight overflow-hidden text-ellipsis whitespace-nowrap">
             {title}
           </p>
         </div>
         
         <!-- Subtitle -->
         <div class="flex flex-col font-normal justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
-          <p class="leading-none overflow-hidden text-ellipsis whitespace-nowrap">
+          <p class="leading-tight overflow-hidden text-ellipsis whitespace-nowrap">
             {displaySubtitle}
           </p>
         </div>
