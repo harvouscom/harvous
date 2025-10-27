@@ -38,7 +38,7 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
   // Format the timestamp properly
   let displaySubtitle = subtitle || "5 hours ago";
   if (lastUpdated) {
-    displaySubtitle = lastUpdated;
+    displaySubtitle = formatRelativeTime(new Date(lastUpdated));
   } else if (createdAt) {
     try {
       displaySubtitle = formatRelativeTime(new Date(createdAt));
