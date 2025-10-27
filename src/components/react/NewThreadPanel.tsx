@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, type ThreadColor } from '@/utils/colors';
-import { SimpleSwitch } from '@/components/ui/simple-switch';
 import CardNote from '@/components/react/CardNote';
 import SquareButton from './SquareButton';
+import ChevronDownIcon from '@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg';
 
 interface NewThreadPanelProps {
   currentSpace?: any;
@@ -22,6 +22,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [recentNotes, setRecentNotes] = useState<any[]>([]);
   const [isLoadingNotes, setIsLoadingNotes] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   // Shared functionality disabled for now
   // const [isShared, setIsShared] = useState(false);
   // const [sharedSettings, setSharedSettings] = useState({
@@ -86,6 +87,23 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
       fetchRecentNotes();
     }
   }, [activeTab]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isDropdownOpen) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.dropdown-container')) {
+          setIsDropdownOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
 
   const fetchRecentNotes = async () => {
     setIsLoadingNotes(true);
@@ -335,26 +353,66 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
                   ))}
                 </div>
                 
-                {/* Thread type selection with toggle */}
+                {/* Thread type selection with dropdown */}
                 <div className="w-full">
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--color-snow-white)]">
-                    <span className="text-[var(--color-blue)] font-sans text-[16px] font-semibold">
-                      Private
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <SimpleSwitch
-                        checked={false}
-                        onCheckedChange={() => {}} // Disabled - no action
-                        disabled={true}
-                        className="opacity-50 cursor-not-allowed"
-                      />
-                      <span className="text-[10px] text-[var(--color-pebble-grey)] font-medium">
-                        Coming Soon
-                      </span>
+                  <div className="relative dropdown-container">
+                    <div 
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                      className="w-full cursor-pointer"
+                    >
+                      <div className="relative w-full">
+                        <div className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                             style={{ backgroundImage: 'var(--color-gradient-gray)' }}>
+                          <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+                              {selectedType}
+                            </span>
+                            <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                              <img src={ChevronDownIcon.src} alt="Dropdown" className="w-5 h-5" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-[var(--color-pebble-grey)] font-sans text-[16px] font-semibold opacity-50">
-                      Shared
-                    </span>
+                    
+                    {/* Dropdown content */}
+                    {isDropdownOpen && (
+                      <div className="absolute top-full left-0 right-0 mt-2 z-10"
+                           style={{ minWidth: '223px' }}
+                           onClick={(e) => e.stopPropagation()}>
+                        <div>
+                          {/* Private option */}
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setSelectedType('Private');
+                              setIsDropdownOpen(false);
+                            }}
+                            className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                            style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                          >
+                            <div className="flex items-center justify-start relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                              <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Private</span>
+                            </div>
+                          </button>
+                          
+                          {/* Shared option - disabled */}
+                          <button 
+                            type="button"
+                            disabled
+                            className="space-button relative rounded-xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
+                            style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                          >
+                            <div className="flex items-center justify-start relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                              <div className="flex flex-col items-start">
+                                <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
+                                <span className="text-[12px] text-[var(--color-pebble-grey)] font-medium">Coming Soon</span>
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

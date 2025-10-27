@@ -2,7 +2,7 @@
 import SquareButton from "./SquareButton.astro";
 import Button from "./Button.astro";
 import SpaceButton from "./SpaceButton.astro";
-import FaAngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down.svg";
+import FaChevronDownIcon from "@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg";
 import TabNav from "./TabNav.astro";
 import CardFeat from "./CardFeat.astro";
 import Toast from "./Toast-v2.astro";
@@ -305,9 +305,10 @@ try {
                     text="Private"
                     state="Default"
                     className="w-full pr-12"
+                    backgroundGradient="var(--color-gradient-gray)"
                   />
                   <div class="absolute right-4 top-1/2 transform -translate-y-1/2">
-                    <FaAngleDownIcon class="w-5 h-5 text-[var(--color-deep-grey)]" />
+                    <FaChevronDownIcon class="w-5 h-5 text-[var(--color-deep-grey)]" />
                   </div>
                 </div>
               </div>
@@ -331,34 +332,23 @@ try {
                     type="button"
                     @click="selectedType = 'Private'; isOpen = false"
                     class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                    style="background-image: linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%);"
+                    style="background-image: var(--color-gradient-gray);"
                   >
-                    <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                    <div class="flex items-center justify-start relative w-full h-full pl-2 pr-0 transition-transform duration-125">
                       <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Private</span>
-                      <div class="p-[20px]">
-                        <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                          <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                            0
-                          </span>
-                        </div>
-                      </div>
                     </div>
                   </button>
                   
                   <button 
                     type="button"
-                    @click="selectedType = 'Shared'; isOpen = false"
-                    class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                    style="background-image: linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%);"
+                    disabled
+                    class="space-button relative rounded-xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
+                    style="background-image: var(--color-gradient-gray);"
                   >
-                    <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                      <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
-                      <div class="p-[20px]">
-                        <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                          <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                            0
-                          </span>
-                        </div>
+                    <div class="flex items-center justify-start relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                      <div class="flex flex-col items-start">
+                        <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
+                        <span class="text-[12px] text-[var(--color-pebble-grey)] font-medium">Coming Soon</span>
                       </div>
                     </div>
                   </button>
