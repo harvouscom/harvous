@@ -379,6 +379,9 @@ let inboxCount: number = 0;
           updatedAt: note.updatedAt
         };
 
+        // Set page title for note
+        pageTitle = note.title || "Untitled Note";
+
         // Smart Default Logic for Multi-Thread Navigation
         // 1. Check URL parameter for specific thread context
         const urlParams = new URL(Astro.url.href).searchParams;
