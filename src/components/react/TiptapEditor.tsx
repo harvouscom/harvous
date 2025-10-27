@@ -1,10 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import BulletList from '@tiptap/extension-bullet-list';
-import OrderedList from '@tiptap/extension-ordered-list';
-import ListItem from '@tiptap/extension-list-item';
 import Placeholder from '@tiptap/extension-placeholder';
+import Underline from '@tiptap/extension-underline';
 
 interface TiptapEditorProps {
   content: string;
@@ -64,13 +62,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        bulletList: false,
-        orderedList: false,
-        listItem: false,
+        // Keep all default extensions including lists
       }),
-      BulletList,
-      OrderedList,
-      ListItem,
+      Underline,
       Placeholder.configure({
         placeholder: placeholder,
         showOnlyWhenEditable: true,
@@ -93,10 +87,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         onContentChange(htmlContent);
       }
     },
+    editable: true,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none',
+        class: 'prose prose-sm max-w-none focus:outline-none [&_ol]:list-decimal [&_ul]:list-disc',
         style: 'font-family: var(--font-sans); font-size: 16px; line-height: 1.6; color: var(--color-deep-grey); min-height: 200px;',
+        tabindex: tabindex || 0,
       },
     },
     // Fix SSR issues
@@ -104,10 +100,29 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   });
 
   useEffect(() => {
-    if (editor && content) {
+    if (editor && content && !editor.isFocused) {
       editor.commands.setContent(content);
     }
   }, [editor, content]);
+
+  // Ensure editor is focused and editable
+  useEffect(() => {
+    if (editor) {
+      // Focus the editor when it receives focus via tab
+      const handleFocus = () => {
+        editor.commands.focus();
+      };
+      
+      const editorElement = document.querySelector(`#${id} .ProseMirror`);
+      if (editorElement) {
+        editorElement.addEventListener('focus', handleFocus);
+        
+        return () => {
+          editorElement.removeEventListener('focus', handleFocus);
+        };
+      }
+    }
+  }, [editor, id]);
 
   // Update active states when editor changes
   useEffect(() => {
@@ -289,7 +304,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       />
       
       {/* Editor content area */}
-      <div className="tiptap-content flex-1 min-h-0 overflow-auto">
+      <div 
+        className="tiptap-content flex-1 min-h-0 overflow-auto"
+        onClick={() => {
+          console.log('TiptapEditor: Clicked, focusing editor');
+          if (editor) {
+            editor.commands.focus();
+          }
+        }}
+      >
         <EditorContent editor={editor} />
       </div>
       
@@ -379,14 +402,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           font-size: 16px !important;
           line-height: 1.6 !important;
           color: var(--color-deep-grey) !important;
-          padding: 0 !important;
-          border: none !important;
-          background: transparent !important;
+          padding: 16px !important;
+          border: 1px solid #e5e5e5 !important;
+          background: white !important;
           outline: none !important;
           min-height: 100px !important;
           max-height: none !important;
           height: auto !important;
           overflow: visible !important;
+          border-radius: 8px !important;
         }
         
         .tiptap-content :global(.ProseMirror:focus) {

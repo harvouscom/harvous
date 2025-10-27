@@ -42,6 +42,12 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     const savedTitle = localStorage.getItem('newNoteTitle') || '';
     const savedContent = localStorage.getItem('newNoteContent') || '';
     
+    // Clear any existing content to prevent interference with manual input
+    if (savedContent) {
+      console.log('NewNotePanel: Clearing saved content from localStorage:', savedContent);
+      localStorage.removeItem('newNoteContent');
+    }
+    
     // Priority: currentThread prop (if in thread view) > default to "Unorganized"
     let initialThread = 'Unorganized';
     if (currentThread && currentThread.title) {
@@ -49,7 +55,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     }
     
     setTitle(savedTitle);
-    setContent(savedContent);
+    // Don't set content from localStorage to prevent overriding manual input
+    setContent('');
     setSelectedThread(initialThread);
   }, [currentThread]);
 

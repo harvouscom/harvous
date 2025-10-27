@@ -60,7 +60,7 @@ const CardNote: React.FC<CardNoteProps> = ({
 }) => {
   return (
     <div 
-      className={`card-note-container bg-white relative rounded-xl h-20 transition-all duration-200 hover:shadow-sm hover:scale-[1.005] cursor-pointer ${className}`}
+      className={`card-note-container bg-white relative rounded-xl h-22 transition-all duration-200 hover:shadow-sm hover:scale-[1.005] cursor-pointer ${className}`}
       onClick={onClick}
     >
       {variant === "default" && (
@@ -83,9 +83,9 @@ const CardNote: React.FC<CardNoteProps> = ({
             </div>
           )}
           
-          <div className="box-border content-stretch flex gap-3 items-start justify-start overflow-clip p-[8px] relative h-full">
+          <div className="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
             {/* Left sidebar with bookmark icon */}
-            <div className="bg-[var(--color-light-paper)] box-border content-stretch flex gap-2.5 h-full items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20">
+            <div className="bg-[var(--color-light-paper)] box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" style={{ height: '68px' }}>
               <div className="relative shrink-0 size-5">
                 <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
@@ -95,7 +95,7 @@ const CardNote: React.FC<CardNoteProps> = ({
             
             {/* Right content area */}
             <div className="basis-0 content-stretch flex gap-6 grow items-start justify-start min-h-px min-w-px relative shrink-0 pt-2">
-              <div className="basis-0 content-stretch flex flex-col gap-2 grow items-start justify-start leading-[0] min-h-px min-w-px not-italic relative self-stretch shrink-0">
+              <div className="basis-0 content-stretch flex flex-col gap-1 grow items-start justify-start leading-[0] min-h-px min-w-px not-italic relative self-stretch shrink-0">
                 {/* Title */}
                 <div className="flex flex-col font-bold justify-start overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] text-nowrap w-full">
                   <p className="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
@@ -118,17 +118,17 @@ const CardNote: React.FC<CardNoteProps> = ({
 
       {variant === "withImage" && (
         <div className="relative rounded-xl h-full">
-          <div className="box-border content-stretch flex gap-3 items-start justify-start overflow-clip p-[8px] relative h-full">
+          <div className="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
             {/* Left sidebar with image background */}
             <div 
-              className="bg-center bg-cover bg-no-repeat box-border content-stretch flex gap-2.5 h-full items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" 
-              style={imageUrl ? { backgroundImage: `url('${imageUrl}')` } : { backgroundColor: 'var(--color-aged-paper)' }}
+              className="bg-center bg-cover bg-no-repeat box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" 
+              style={imageUrl ? { backgroundImage: `url('${imageUrl}')`, height: '68px' } : { backgroundColor: 'var(--color-aged-paper)', height: '68px' }}
             >
             </div>
             
             {/* Right content area */}
             <div className="basis-0 content-stretch flex gap-6 grow items-start justify-start min-h-px min-w-px relative shrink-0 pt-2">
-              <div className="basis-0 content-stretch flex flex-col gap-2 grow items-start justify-start leading-[0] min-h-px min-w-px not-italic relative self-stretch shrink-0">
+              <div className="basis-0 content-stretch flex flex-col gap-1 grow items-start justify-start leading-[0] min-h-px min-w-px not-italic relative self-stretch shrink-0">
                 {/* Title */}
                 <div className="flex flex-col font-bold justify-start overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] text-nowrap w-full">
                   <p className="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
