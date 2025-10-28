@@ -632,6 +632,11 @@ const contentId = "new-space";
           if (response.ok) {
             const result = await response.json();
             
+            // Dispatch event to notify other components
+            window.dispatchEvent(new CustomEvent('spaceCreated', {
+              detail: { space: result.space }
+            }));
+            
             // Clear localStorage
             localStorage.removeItem('newSpaceTitle');
             localStorage.removeItem('newSpaceColor');

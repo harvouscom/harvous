@@ -1756,235 +1756,61 @@ function loadPersistentNavigation() {
       const badgeContainer = document.createElement('div');
       badgeContainer.className = 'p-[20px] flex-shrink-0';
       
-      // Badge count with larger hitbox
+      // Badge count with hover functionality
       const badgeCount = document.createElement('div');
-      badgeCount.className = 'badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative';
-      badgeCount.style.pointerEvents = 'none';
-      
-      // Add invisible hitbox for better hover detection
-      const hitbox = document.createElement('div');
-      hitbox.className = 'hitbox-trigger absolute cursor-pointer';
-      hitbox.style.cssText = `
-        width: 40px;
-        height: 40px;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 10;
-        pointer-events: auto;
-        background-color: transparent;
-      `;
+      badgeCount.className = 'badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer';
+      badgeCount.style.pointerEvents = 'auto';
+      badgeCount.setAttribute('data-close-item', item.id);
       
       const countSpan = document.createElement('span');
       countSpan.textContent = item.count || 0;
       countSpan.className = 'text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number';
+      countSpan.style.display = 'block'; // Ensure it's visible initially
       
-      // Close icon - only show for non-current pages
-      let closeIcon = null;
-      if (!isCurrentPage) {
-        closeIcon = document.createElement('div');
-        closeIcon.className = 'close-icon absolute top-1/2 right-1 transform -translate-y-1/2 w-8 h-8 cursor-pointer flex items-center justify-center';
-        closeIcon.setAttribute('data-close-item', item.id);
-        closeIcon.innerHTML = '<i class="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>';
-        closeIcon.style.pointerEvents = 'auto';
-        closeIcon.style.display = 'flex';
-        closeIcon.style.zIndex = '100'; // Ensure it's above the link
-        closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Semi-transparent background
-        closeIcon.style.borderRadius = '50%'; // Make it circular
-        closeIcon.style.border = '1px solid rgba(0,0,0,0.1)'; // Subtle border
-        closeIcon.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'; // Add shadow for better visibility
-        closeIcon.style.right = '16px'; // Move 16px left to align with badge count center
-      }
+      // Close icon (×) - hidden by default, shown on hover
+      const closeIcon = document.createElement('i');
+      closeIcon.className = 'fa-solid fa-xmark close-icon';
+      closeIcon.style.display = 'none';
+      closeIcon.style.cursor = 'pointer';
+      closeIcon.style.pointerEvents = 'auto';
+      closeIcon.style.fontSize = '16px';
+      closeIcon.style.color = 'var(--color-deep-grey)';
+      closeIcon.style.position = 'absolute';
+      closeIcon.style.top = '50%';
+      closeIcon.style.left = '50%';
+      closeIcon.style.transform = 'translate(-50%, -50%)';
       
-      // Add a clickable overlay that covers the entire close icon area
-      const closeOverlay = document.createElement('div');
-      closeOverlay.className = 'close-overlay absolute inset-0 w-full h-full cursor-pointer';
-      closeOverlay.style.zIndex = '101'; // Above the close icon
-      closeOverlay.style.backgroundColor = 'transparent';
-      closeOverlay.setAttribute('data-close-item', item.id);
-      
-      // Add a larger hit area for better clickability
-      const closeHitArea = document.createElement('div');
-      closeHitArea.className = 'close-hit-area absolute top-1/2 right-1 transform -translate-y-1/2 w-12 h-12 cursor-pointer';
-      closeHitArea.style.zIndex = '102'; // Above everything
-      closeHitArea.style.backgroundColor = 'transparent';
-      closeHitArea.setAttribute('data-close-item', item.id);
-      
-      // Build structure - hitbox first so it can trigger hover on siblings
-      badgeCount.appendChild(hitbox);
+      // Build structure - add both count and close icon to badge
       badgeCount.appendChild(countSpan);
+      badgeCount.appendChild(closeIcon);
       
-      // Add hover event listeners to hitbox (only for items with close buttons)
-      if (closeIcon) {
-        hitbox.addEventListener('mouseenter', () => {
-          countSpan.style.display = 'none';
-          badgeCount.style.backgroundColor = 'transparent';
-          closeIcon.style.display = 'flex';
-          closeIcon.style.alignItems = 'center';
-          closeIcon.style.justifyContent = 'center';
-          closeOverlay.style.display = 'block';
-          // Disable link when hovering over close area
-          link.style.pointerEvents = 'none';
-          link.style.cursor = 'default';
-          link.style.opacity = '0.7'; // Visual feedback that link is disabled
-        });
-        
-        hitbox.addEventListener('mouseleave', () => {
-          countSpan.style.display = 'block';
-          badgeCount.style.backgroundColor = 'rgba(120,118,111,0.1)';
-          closeIcon.style.display = 'none';
-          closeOverlay.style.display = 'none';
-          // Re-enable link when not hovering over close area
-          link.style.pointerEvents = 'auto';
-          link.style.cursor = 'pointer';
-          link.style.opacity = '1'; // Restore full opacity
-        });
-      }
-      
-      // Also add hover listeners to close icon itself (only for items with close buttons)
-      if (closeIcon) {
-        closeIcon.addEventListener('mouseenter', () => {
-          link.style.pointerEvents = 'none';
-          link.style.cursor = 'default';
-          link.style.opacity = '0.7'; // Visual feedback that link is disabled
-          closeIcon.style.backgroundColor = 'rgba(255,255,255,1)'; // Make background more opaque on hover
-        });
-        
-        closeIcon.addEventListener('mouseleave', () => {
-          link.style.pointerEvents = 'auto';
-          link.style.cursor = 'pointer';
-          link.style.opacity = '1'; // Restore full opacity
-          closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Restore original background
-        });
-        
-        // Add hover listeners to close overlay
-        closeOverlay.addEventListener('mouseenter', () => {
-          link.style.pointerEvents = 'none';
-          link.style.cursor = 'default';
-          link.style.opacity = '0.7'; // Visual feedback that link is disabled
-          closeIcon.style.backgroundColor = 'rgba(255,255,255,1)'; // Make background more opaque on hover
-        });
-        
-        closeOverlay.addEventListener('mouseleave', () => {
-          link.style.pointerEvents = 'auto';
-          link.style.cursor = 'pointer';
-          link.style.opacity = '1'; // Restore full opacity
-          closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Restore original background
-        });
-        
-        // Add click event listener to close overlay
-        closeOverlay.addEventListener('click', (e) => {
-        e.stopImmediatePropagation();
-        e.stopPropagation();
-        e.preventDefault();
-        
-        const itemId = closeOverlay.getAttribute('data-close-item');
-        if (!itemId) return;
-        
-        console.log('🧭 Close overlay clicked for item:', itemId);
-        
-        // Use the global function from NavigationContext if available
-        if ((window as any).removeFromNavigationHistory) {
-          (window as any).removeFromNavigationHistory(itemId);
-        } else {
-          // Fallback to direct localStorage manipulation
-          try {
-            const navHistory = localStorage.getItem('harvous-navigation-history-v2');
-            if (navHistory) {
-              const history = JSON.parse(navHistory);
-              const filteredHistory = history.filter((item: any) => item.id !== itemId);
-              localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(filteredHistory));
-            }
-          } catch (error) {
-            console.error('Error removing item from navigation history:', error);
-          }
-        }
-        
-        // Remove the item from DOM immediately for instant visual feedback
-        const itemElement = document.querySelector(`[data-navigation-item="${itemId}"]`);
-        if (itemElement && itemElement.parentNode) {
-          itemElement.parentNode.removeChild(itemElement);
-        }
-        
-        // Also reload persistent navigation to ensure consistency
-        loadPersistentNavigation();
-        
-        console.log('🧭 Removed item from navigation history:', itemId);
-        
-        // Return false to prevent any further event handling
-        return false;
-      });
-      
-      // Also add click event listener to close icon itself as backup
+      // Add click event listener to close icon for close functionality
       closeIcon.addEventListener('click', (e) => {
+        console.log('🧭 Close icon click handler triggered');
         e.stopImmediatePropagation();
         e.stopPropagation();
         e.preventDefault();
         
-        const itemId = closeIcon.getAttribute('data-close-item');
+        const itemId = badgeCount.getAttribute('data-close-item');
         if (!itemId) return;
         
         console.log('🧭 Close icon clicked for item:', itemId);
         
-        // Use the global function from NavigationContext if available
-        if ((window as any).removeFromNavigationHistory) {
-          (window as any).removeFromNavigationHistory(itemId);
-        } else {
-          // Fallback to direct localStorage manipulation
-          try {
-            const navHistory = localStorage.getItem('harvous-navigation-history-v2');
-            if (navHistory) {
-              const history = JSON.parse(navHistory);
-              const filteredHistory = history.filter((item: any) => item.id !== itemId);
-              localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(filteredHistory));
-            }
-          } catch (error) {
-            console.error('Error removing item from navigation history:', error);
+        // Check if this is the current page (active item)
+        const isCurrentPage = itemId === currentItemId;
+        
+        if (isCurrentPage) {
+          // Find next item to navigate to (bottom to top)
+          const currentIndex = persistentItems.findIndex((item: any) => item.id === currentItemId);
+          const nextItem = persistentItems[currentIndex + 1] || persistentItems[currentIndex - 1] || null;
+          
+          // Navigate to next item or dashboard
+          if (nextItem) {
+            window.location.href = `/${nextItem.id}`;
+          } else {
+            window.location.href = '/dashboard';
           }
         }
-        
-        // Remove the item from DOM immediately for instant visual feedback
-        const itemElement = document.querySelector(`[data-navigation-item="${itemId}"]`);
-        if (itemElement && itemElement.parentNode) {
-          itemElement.parentNode.removeChild(itemElement);
-        }
-        
-        // Also reload persistent navigation to ensure consistency
-        loadPersistentNavigation();
-        
-        console.log('🧭 Removed item from navigation history:', itemId);
-        
-        // Return false to prevent any further event handling
-        return false;
-      });
-      }
-      
-      // Add mousedown event listener to prevent link activation (only for items with close buttons)
-      if (closeIcon) {
-        closeIcon.addEventListener('mousedown', (e) => {
-        e.stopImmediatePropagation();
-        e.stopPropagation();
-        e.preventDefault();
-        return false;
-      });
-      
-        closeOverlay.addEventListener('mousedown', (e) => {
-          e.stopImmediatePropagation();
-          e.stopPropagation();
-          e.preventDefault();
-          return false;
-        });
-        
-        // Add event listeners to close hit area
-        closeHitArea.addEventListener('click', (e) => {
-        e.stopImmediatePropagation();
-        e.stopPropagation();
-        e.preventDefault();
-        
-        const itemId = closeHitArea.getAttribute('data-close-item');
-        if (!itemId) return;
-        
-        console.log('🧭 Close hit area clicked for item:', itemId);
         
         // Use the global function from NavigationContext if available
         if ((window as any).removeFromNavigationHistory) {
@@ -2017,49 +1843,7 @@ function loadPersistentNavigation() {
         // Return false to prevent any further event handling
         return false;
       });
-      }
       
-      if (closeIcon) {
-        closeHitArea.addEventListener('mousedown', (e) => {
-          e.stopImmediatePropagation();
-          e.stopPropagation();
-          e.preventDefault();
-          return false;
-        });
-      }
-      
-      // Prevent all mouse events on close icon from bubbling to link (only for items with close buttons)
-      if (closeIcon) {
-        closeIcon.addEventListener('mousedown', (e) => {
-          e.stopImmediatePropagation();
-          e.stopPropagation();
-          e.preventDefault();
-          return false;
-        });
-        
-        closeIcon.addEventListener('mouseup', (e) => {
-          e.stopImmediatePropagation();
-          e.stopPropagation();
-          e.preventDefault();
-          return false;
-        });
-      }
-      
-      if (closeIcon) {
-        closeIcon.addEventListener('pointerdown', (e) => {
-          e.stopImmediatePropagation();
-          e.stopPropagation();
-          e.preventDefault();
-          return false;
-        });
-        
-        closeIcon.addEventListener('pointerup', (e) => {
-          e.stopImmediatePropagation();
-          e.stopPropagation();
-          e.preventDefault();
-          return false;
-        });
-      }
       
       badgeContainer.appendChild(badgeCount);
       titleWrapper.appendChild(title);
@@ -2074,13 +1858,36 @@ function loadPersistentNavigation() {
       
       link.appendChild(navItemContainer);
       
-      // Add close icon to outer container (outside link) - only for items with close buttons
+      // Add link to outer container
       outerContainer.appendChild(link);
-      if (closeIcon) {
-        outerContainer.appendChild(closeIcon);
-        closeIcon.appendChild(closeOverlay); // Add overlay inside close icon
-        outerContainer.appendChild(closeHitArea); // Add larger hit area
-      }
+      
+      // Add hover event listeners to badge count AFTER DOM is built
+      badgeCount.addEventListener('mouseenter', () => {
+        // Hide count, show close icon
+        countSpan.style.display = 'none';
+        closeIcon.style.display = 'block';
+        // Disable link when hovering over close area
+        link.style.pointerEvents = 'none';
+        link.style.cursor = 'default';
+        link.style.opacity = '0.7'; // Visual feedback that link is disabled
+      });
+      
+      badgeCount.addEventListener('mouseleave', () => {
+        // Show count, hide close icon
+        countSpan.style.display = 'block';
+        closeIcon.style.display = 'none';
+        // Re-enable link when not hovering over close area
+        link.style.pointerEvents = 'auto';
+        link.style.cursor = 'pointer';
+        link.style.opacity = '1'; // Restore full opacity
+      });
+      
+      // Force initial state to be correct (show count, hide close icon)
+      countSpan.style.display = 'block';
+      closeIcon.style.display = 'none';
+      link.style.pointerEvents = 'auto';
+      link.style.cursor = 'pointer';
+      link.style.opacity = '1';
       
       itemDiv.appendChild(outerContainer);
       persistentNav.appendChild(itemDiv);
@@ -2102,16 +1909,18 @@ function loadPersistentNavigation() {
 function addPersistentNavigationStyles() {
   const style = document.createElement('style');
   style.textContent = `
-    /* Ensure hitbox is invisible but clickable */
-    .hitbox-trigger {
-      background: transparent;
-      border: none;
-      outline: none;
+    /* Badge count hover effect - remove background when close icon is visible */
+    .badge-count:hover {
+      background-color: transparent !important;
     }
     
-    /* Close icon hover effect */
+    /* Close icon styling - no opacity effects */
+    .close-icon {
+      transition: none;
+    }
+    
     .close-icon:hover {
-      opacity: 0.7;
+      opacity: 1 !important;
     }
   `;
   document.head.appendChild(style);
@@ -2169,5 +1978,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 document.addEventListener('astro:page-load', loadPersistentNavigation);
 window.addEventListener('popstate', loadPersistentNavigation);
+
+// Listen for thread and space creation events to refresh navigation
+document.addEventListener('threadCreated', () => {
+  console.log('🧭 Thread created event received, refreshing navigation');
+  loadPersistentNavigation();
+});
+
+document.addEventListener('spaceCreated', () => {
+  console.log('🧭 Space created event received, refreshing navigation');
+  loadPersistentNavigation();
+});
 </script>
 
