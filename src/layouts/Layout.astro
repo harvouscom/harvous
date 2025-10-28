@@ -1240,10 +1240,9 @@ document.addEventListener('DOMContentLoaded', () => {
         initTracking();
       }
     } else {
-      console.log('🧭 React NavigationProvider is loaded, but running Astro tracking anyway');
-      if (typeof initTracking === 'function') {
-        initTracking();
-      }
+      console.log('🧭 React NavigationProvider is loaded, skipping Astro tracking to prevent conflicts');
+      // Don't run Astro tracking when React NavigationProvider is available
+      // This prevents conflicts between the two navigation systems
     }
   }, 100);
 });
@@ -1258,10 +1257,9 @@ document.addEventListener('astro:page-load', () => {
         initTracking();
       }
     } else {
-      console.log('🧭 React NavigationProvider is loaded, but running Astro tracking anyway');
-      if (typeof initTracking === 'function') {
-        initTracking();
-      }
+      console.log('🧭 React NavigationProvider is loaded, skipping Astro tracking to prevent conflicts');
+      // Don't run Astro tracking when React NavigationProvider is available
+      // This prevents conflicts between the two navigation systems
     }
   }, 100);
 });
@@ -1649,9 +1647,9 @@ function loadPersistentNavigation() {
     const history = JSON.parse(navHistory);
     console.log('🧭 Loaded navigation history:', history);
     
-    // Sort by firstAccessed (chronological order) - oldest first
+    // Sort by firstAccessed (chronological order - maintain original order)
     const sortedHistory = history.sort((a: any, b: any) => a.firstAccessed - b.firstAccessed);
-    console.log('🧭 Sorted navigation history (chronological):', sortedHistory);
+    console.log('🧭 Sorted navigation history (chronological order):', sortedHistory);
     
     // Filter out items that shouldn't be shown
     const currentPath = window.location.pathname;
@@ -1662,16 +1660,6 @@ function loadPersistentNavigation() {
     const activeThreadId = navigationElement?.getAttribute('data-thread-id');
     
     let persistentItems = sortedHistory.filter((item: any) => {
-      // Don't show the currently active item (except for spaces)
-      if (item.id === currentItemId && !item.id.startsWith('space_')) {
-        return false;
-      }
-      
-      // Don't show the active thread (already shown by React NavigationColumn)
-      if (activeThreadId && item.id === activeThreadId) {
-        return false;
-      }
-      
       // Don't show dashboard
       if (item.id === 'dashboard') {
         return false;
@@ -1680,7 +1668,7 @@ function loadPersistentNavigation() {
       return true;
     });
     
-    console.log('🧭 Filtered persistent items (chronological):', persistentItems);
+    console.log('🧭 Filtered persistent items (chronological order):', persistentItems);
     
     if (persistentItems.length === 0) {
       console.log('🧭 No persistent items to show');
@@ -1723,6 +1711,9 @@ function loadPersistentNavigation() {
       itemDiv.className = 'w-full nav-item-container';
       itemDiv.setAttribute('data-navigation-item', item.id);
       
+      // Check if this is the current page
+      const isCurrentPage = item.id === currentItemId;
+      
       // Create outer container for positioning close icon outside link
       const outerContainer = document.createElement('div');
       outerContainer.className = 'relative w-full';
@@ -1735,6 +1726,19 @@ function loadPersistentNavigation() {
       const button = document.createElement('button');
       button.className = 'space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full';
       button.style.color = 'var(--color-deep-grey)';
+      
+      // Apply active styling if this is the current page
+      if (isCurrentPage) {
+        // Use thread's background color or paper color for spaces
+        if (item.id.startsWith('space_')) {
+          button.style.background = 'var(--color-paper)';
+        } else {
+          button.style.backgroundImage = item.backgroundGradient;
+        }
+        button.style.color = 'var(--color-deep-grey)';
+        button.style.boxShadow = '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset';
+        button.classList.add('active-state');
+      }
       
       // Inner structure matching SpaceButton "WithCount" state exactly
       const innerDiv = document.createElement('div');
@@ -1775,19 +1779,22 @@ function loadPersistentNavigation() {
       countSpan.textContent = item.count || 0;
       countSpan.className = 'text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number';
       
-      // Close icon - positioned outside the link element, aligned with badge count center
-      const closeIcon = document.createElement('div');
-      closeIcon.className = 'close-icon absolute top-1/2 right-1 transform -translate-y-1/2 w-8 h-8 cursor-pointer flex items-center justify-center';
-      closeIcon.setAttribute('data-close-item', item.id);
-      closeIcon.innerHTML = '<i class="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>';
-      closeIcon.style.pointerEvents = 'auto';
-      closeIcon.style.display = 'flex';
-      closeIcon.style.zIndex = '100'; // Ensure it's above the link
-      closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Semi-transparent background
-      closeIcon.style.borderRadius = '50%'; // Make it circular
-      closeIcon.style.border = '1px solid rgba(0,0,0,0.1)'; // Subtle border
-      closeIcon.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'; // Add shadow for better visibility
-      closeIcon.style.right = '16px'; // Move 16px left to align with badge count center
+      // Close icon - only show for non-current pages
+      let closeIcon = null;
+      if (!isCurrentPage) {
+        closeIcon = document.createElement('div');
+        closeIcon.className = 'close-icon absolute top-1/2 right-1 transform -translate-y-1/2 w-8 h-8 cursor-pointer flex items-center justify-center';
+        closeIcon.setAttribute('data-close-item', item.id);
+        closeIcon.innerHTML = '<i class="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>';
+        closeIcon.style.pointerEvents = 'auto';
+        closeIcon.style.display = 'flex';
+        closeIcon.style.zIndex = '100'; // Ensure it's above the link
+        closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Semi-transparent background
+        closeIcon.style.borderRadius = '50%'; // Make it circular
+        closeIcon.style.border = '1px solid rgba(0,0,0,0.1)'; // Subtle border
+        closeIcon.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'; // Add shadow for better visibility
+        closeIcon.style.right = '16px'; // Move 16px left to align with badge count center
+      }
       
       // Add a clickable overlay that covers the entire close icon area
       const closeOverlay = document.createElement('div');
@@ -1807,63 +1814,66 @@ function loadPersistentNavigation() {
       badgeCount.appendChild(hitbox);
       badgeCount.appendChild(countSpan);
       
-      // Add hover event listeners to hitbox
-      hitbox.addEventListener('mouseenter', () => {
-        countSpan.style.display = 'none';
-        badgeCount.style.backgroundColor = 'transparent';
-        closeIcon.style.display = 'flex';
-        closeIcon.style.alignItems = 'center';
-        closeIcon.style.justifyContent = 'center';
-        closeOverlay.style.display = 'block';
-        // Disable link when hovering over close area
-        link.style.pointerEvents = 'none';
-        link.style.cursor = 'default';
-        link.style.opacity = '0.7'; // Visual feedback that link is disabled
-      });
+      // Add hover event listeners to hitbox (only for items with close buttons)
+      if (closeIcon) {
+        hitbox.addEventListener('mouseenter', () => {
+          countSpan.style.display = 'none';
+          badgeCount.style.backgroundColor = 'transparent';
+          closeIcon.style.display = 'flex';
+          closeIcon.style.alignItems = 'center';
+          closeIcon.style.justifyContent = 'center';
+          closeOverlay.style.display = 'block';
+          // Disable link when hovering over close area
+          link.style.pointerEvents = 'none';
+          link.style.cursor = 'default';
+          link.style.opacity = '0.7'; // Visual feedback that link is disabled
+        });
+        
+        hitbox.addEventListener('mouseleave', () => {
+          countSpan.style.display = 'block';
+          badgeCount.style.backgroundColor = 'rgba(120,118,111,0.1)';
+          closeIcon.style.display = 'none';
+          closeOverlay.style.display = 'none';
+          // Re-enable link when not hovering over close area
+          link.style.pointerEvents = 'auto';
+          link.style.cursor = 'pointer';
+          link.style.opacity = '1'; // Restore full opacity
+        });
+      }
       
-      hitbox.addEventListener('mouseleave', () => {
-        countSpan.style.display = 'block';
-        badgeCount.style.backgroundColor = 'rgba(120,118,111,0.1)';
-        closeIcon.style.display = 'none';
-        closeOverlay.style.display = 'none';
-        // Re-enable link when not hovering over close area
-        link.style.pointerEvents = 'auto';
-        link.style.cursor = 'pointer';
-        link.style.opacity = '1'; // Restore full opacity
-      });
-      
-      // Also add hover listeners to close icon itself
-      closeIcon.addEventListener('mouseenter', () => {
-        link.style.pointerEvents = 'none';
-        link.style.cursor = 'default';
-        link.style.opacity = '0.7'; // Visual feedback that link is disabled
-        closeIcon.style.backgroundColor = 'rgba(255,255,255,1)'; // Make background more opaque on hover
-      });
-      
-      closeIcon.addEventListener('mouseleave', () => {
-        link.style.pointerEvents = 'auto';
-        link.style.cursor = 'pointer';
-        link.style.opacity = '1'; // Restore full opacity
-        closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Restore original background
-      });
-      
-      // Add hover listeners to close overlay
-      closeOverlay.addEventListener('mouseenter', () => {
-        link.style.pointerEvents = 'none';
-        link.style.cursor = 'default';
-        link.style.opacity = '0.7'; // Visual feedback that link is disabled
-        closeIcon.style.backgroundColor = 'rgba(255,255,255,1)'; // Make background more opaque on hover
-      });
-      
-      closeOverlay.addEventListener('mouseleave', () => {
-        link.style.pointerEvents = 'auto';
-        link.style.cursor = 'pointer';
-        link.style.opacity = '1'; // Restore full opacity
-        closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Restore original background
-      });
-      
-      // Add click event listener to close overlay
-      closeOverlay.addEventListener('click', (e) => {
+      // Also add hover listeners to close icon itself (only for items with close buttons)
+      if (closeIcon) {
+        closeIcon.addEventListener('mouseenter', () => {
+          link.style.pointerEvents = 'none';
+          link.style.cursor = 'default';
+          link.style.opacity = '0.7'; // Visual feedback that link is disabled
+          closeIcon.style.backgroundColor = 'rgba(255,255,255,1)'; // Make background more opaque on hover
+        });
+        
+        closeIcon.addEventListener('mouseleave', () => {
+          link.style.pointerEvents = 'auto';
+          link.style.cursor = 'pointer';
+          link.style.opacity = '1'; // Restore full opacity
+          closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Restore original background
+        });
+        
+        // Add hover listeners to close overlay
+        closeOverlay.addEventListener('mouseenter', () => {
+          link.style.pointerEvents = 'none';
+          link.style.cursor = 'default';
+          link.style.opacity = '0.7'; // Visual feedback that link is disabled
+          closeIcon.style.backgroundColor = 'rgba(255,255,255,1)'; // Make background more opaque on hover
+        });
+        
+        closeOverlay.addEventListener('mouseleave', () => {
+          link.style.pointerEvents = 'auto';
+          link.style.cursor = 'pointer';
+          link.style.opacity = '1'; // Restore full opacity
+          closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Restore original background
+        });
+        
+        // Add click event listener to close overlay
+        closeOverlay.addEventListener('click', (e) => {
         e.stopImmediatePropagation();
         e.stopPropagation();
         e.preventDefault();
@@ -1947,24 +1957,26 @@ function loadPersistentNavigation() {
         // Return false to prevent any further event handling
         return false;
       });
+      }
       
-      // Add mousedown event listener to prevent link activation
-      closeIcon.addEventListener('mousedown', (e) => {
+      // Add mousedown event listener to prevent link activation (only for items with close buttons)
+      if (closeIcon) {
+        closeIcon.addEventListener('mousedown', (e) => {
         e.stopImmediatePropagation();
         e.stopPropagation();
         e.preventDefault();
         return false;
       });
       
-      closeOverlay.addEventListener('mousedown', (e) => {
-        e.stopImmediatePropagation();
-        e.stopPropagation();
-        e.preventDefault();
-        return false;
-      });
-      
-      // Add event listeners to close hit area
-      closeHitArea.addEventListener('click', (e) => {
+        closeOverlay.addEventListener('mousedown', (e) => {
+          e.stopImmediatePropagation();
+          e.stopPropagation();
+          e.preventDefault();
+          return false;
+        });
+        
+        // Add event listeners to close hit area
+        closeHitArea.addEventListener('click', (e) => {
         e.stopImmediatePropagation();
         e.stopPropagation();
         e.preventDefault();
@@ -2005,42 +2017,49 @@ function loadPersistentNavigation() {
         // Return false to prevent any further event handling
         return false;
       });
+      }
       
-      closeHitArea.addEventListener('mousedown', (e) => {
-        e.stopImmediatePropagation();
-        e.stopPropagation();
-        e.preventDefault();
-        return false;
-      });
+      if (closeIcon) {
+        closeHitArea.addEventListener('mousedown', (e) => {
+          e.stopImmediatePropagation();
+          e.stopPropagation();
+          e.preventDefault();
+          return false;
+        });
+      }
       
-      // Prevent all mouse events on close icon from bubbling to link
-      closeIcon.addEventListener('mousedown', (e) => {
-        e.stopImmediatePropagation();
-        e.stopPropagation();
-        e.preventDefault();
-        return false;
-      });
+      // Prevent all mouse events on close icon from bubbling to link (only for items with close buttons)
+      if (closeIcon) {
+        closeIcon.addEventListener('mousedown', (e) => {
+          e.stopImmediatePropagation();
+          e.stopPropagation();
+          e.preventDefault();
+          return false;
+        });
+        
+        closeIcon.addEventListener('mouseup', (e) => {
+          e.stopImmediatePropagation();
+          e.stopPropagation();
+          e.preventDefault();
+          return false;
+        });
+      }
       
-      closeIcon.addEventListener('mouseup', (e) => {
-        e.stopImmediatePropagation();
-        e.stopPropagation();
-        e.preventDefault();
-        return false;
-      });
-      
-      closeIcon.addEventListener('pointerdown', (e) => {
-        e.stopImmediatePropagation();
-        e.stopPropagation();
-        e.preventDefault();
-        return false;
-      });
-      
-      closeIcon.addEventListener('pointerup', (e) => {
-        e.stopImmediatePropagation();
-        e.stopPropagation();
-        e.preventDefault();
-        return false;
-      });
+      if (closeIcon) {
+        closeIcon.addEventListener('pointerdown', (e) => {
+          e.stopImmediatePropagation();
+          e.stopPropagation();
+          e.preventDefault();
+          return false;
+        });
+        
+        closeIcon.addEventListener('pointerup', (e) => {
+          e.stopImmediatePropagation();
+          e.stopPropagation();
+          e.preventDefault();
+          return false;
+        });
+      }
       
       badgeContainer.appendChild(badgeCount);
       titleWrapper.appendChild(title);
@@ -2055,11 +2074,13 @@ function loadPersistentNavigation() {
       
       link.appendChild(navItemContainer);
       
-      // Add close icon to outer container (outside link)
+      // Add close icon to outer container (outside link) - only for items with close buttons
       outerContainer.appendChild(link);
-      outerContainer.appendChild(closeIcon);
-      closeIcon.appendChild(closeOverlay); // Add overlay inside close icon
-      outerContainer.appendChild(closeHitArea); // Add larger hit area
+      if (closeIcon) {
+        outerContainer.appendChild(closeIcon);
+        closeIcon.appendChild(closeOverlay); // Add overlay inside close icon
+        outerContainer.appendChild(closeHitArea); // Add larger hit area
+      }
       
       itemDiv.appendChild(outerContainer);
       persistentNav.appendChild(itemDiv);

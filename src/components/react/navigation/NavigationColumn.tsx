@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
 import Avatar from './Avatar';
@@ -45,6 +45,24 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   initials = "DJ",
   userColor = "paper"
 }) => {
+  const [showActiveThread, setShowActiveThread] = useState(false);
+  
+  // Check if active thread is in persistent navigation on client side
+  useEffect(() => {
+    if (activeThread && typeof window !== 'undefined') {
+      try {
+        const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+        if (navHistory) {
+          const history = JSON.parse(navHistory);
+          const isInPersistentNav = history.some((item: any) => item.id === activeThread.id);
+          setShowActiveThread(!isInPersistentNav);
+        }
+      } catch (error) {
+        console.error('Error checking persistent navigation:', error);
+        setShowActiveThread(true); // Default to showing if error
+      }
+    }
+  }, [activeThread]);
   return (
     <div slot="navigation" className="h-full">
       <div className="flex flex-col items-start justify-between relative h-full">
@@ -84,8 +102,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
               </div>
             ))}
             
-            {/* Show active thread if any */}
-            {activeThread ? (
+            {/* Show active thread if any - but only if it's not already in persistent navigation */}
+            {activeThread && showActiveThread ? (
               <a href={`/${activeThread.id}`} className="w-full">
                 <SpaceButton 
                   text={activeThread.title} 

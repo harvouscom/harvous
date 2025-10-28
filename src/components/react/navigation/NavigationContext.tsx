@@ -121,15 +121,21 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         lastAccessed: Date.now()
       };
     } else {
-      // Item doesn't exist - add to end first, then sort
-      console.log('🧭 Adding new item to history:', item.id);
+      // Item doesn't exist - this could be first time opening or reopening after being closed
+      // For now, we'll add to the end (first time opening behavior)
+      // TODO: In the future, we could track closed items to detect true reopening
+      console.log('🧭 Adding new item to history (first time):', item.id);
       const newItem: NavigationItem = {
         ...item,
         firstAccessed: Date.now(),
         lastAccessed: Date.now()
       };
-      history.push(newItem);
+      history.push(newItem); // Add to end for first time opening
     }
+    
+    // Sort by firstAccessed to maintain chronological order
+    // This ensures the order is consistent between React and Astro
+    history.sort((a, b) => a.firstAccessed - b.firstAccessed);
     
     // Remove any duplicates by ID (defensive programming)
     const uniqueHistory = history.reduce((acc, current) => {
@@ -146,7 +152,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return acc;
     }, [] as NavigationItem[]);
     
-    // Sort by firstAccessed (chronological order - oldest first)
+    // Sort again after deduplication to maintain chronological order
     uniqueHistory.sort((a, b) => a.firstAccessed - b.firstAccessed);
     
     // Limit to 10 items, keeping the most recently accessed
