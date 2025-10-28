@@ -55,14 +55,16 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         if (navHistory) {
           const history = JSON.parse(navHistory);
           const isInPersistentNav = history.some((item: any) => item.id === activeThread.id);
-          setShowActiveThread(!isInPersistentNav);
+          // For note pages, always show the active thread button to maintain context
+          // For other pages, only show if not in persistent navigation
+          setShowActiveThread(isNote || !isInPersistentNav);
         }
       } catch (error) {
         console.error('Error checking persistent navigation:', error);
         setShowActiveThread(true); // Default to showing if error
       }
     }
-  }, [activeThread]);
+  }, [activeThread, isNote]);
   return (
     <div slot="navigation" className="h-full">
       <div className="flex flex-col items-start justify-between relative h-full">
@@ -116,6 +118,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                 />
               </a>
             ) : null}
+            
+            
           </div>
         </div>
         

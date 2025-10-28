@@ -1713,8 +1713,19 @@ function loadPersistentNavigation() {
       itemDiv.className = 'w-full nav-item-container';
       itemDiv.setAttribute('data-navigation-item', item.id);
       
-      // Check if this is the current page
-      const isCurrentPage = item.id === currentItemId;
+      // Check if this is the current page or if we're on a note page and this is the parent thread
+      let isCurrentPage = item.id === currentItemId;
+      
+      // Special case: if we're on a note page, check if this thread is the parent thread
+      if (!isCurrentPage && currentItemId.startsWith('note_')) {
+        const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+        if (navigationElement) {
+          const parentThreadId = navigationElement.dataset.parentThreadId;
+          if (parentThreadId && item.id === parentThreadId) {
+            isCurrentPage = true;
+          }
+        }
+      }
       
       // Create outer container for positioning close icon outside link
       const outerContainer = document.createElement('div');
@@ -1735,6 +1746,8 @@ function loadPersistentNavigation() {
         if (item.id.startsWith('space_')) {
           button.style.background = 'var(--color-paper)';
         } else {
+          // Apply thread's background gradient
+          button.style.background = item.backgroundGradient;
           button.style.backgroundImage = item.backgroundGradient;
         }
         button.style.color = 'var(--color-deep-grey)';
