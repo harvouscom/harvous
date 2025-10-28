@@ -224,17 +224,56 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
           localStorage.removeItem('newThreadType');
           localStorage.removeItem('newThreadActiveTab');
           
+          // Dispatch event to notify other components
+          console.log('NewThreadPanel: Dispatching threadCreated event with thread:', result.thread);
+
+          // Immediately update localStorage synchronously (don't wait for React)
+          try {
+            // Convert thread color to background gradient
+            const threadColor = result.thread.color || 'blessed-blue';
+            const backgroundGradient = `linear-gradient(180deg, var(--color-${threadColor}) 0%, var(--color-${threadColor}) 100%)`;
+            
+            const threadItem = {
+              id: result.thread.id,
+              title: result.thread.title,
+              count: result.thread.noteCount || 0,
+              backgroundGradient: backgroundGradient,
+              firstAccessed: Date.now(),
+              lastAccessed: Date.now()
+            };
+            
+            const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+            const history = navHistory ? JSON.parse(navHistory) : [];
+            
+            // Check if item already exists
+            const existingIndex = history.findIndex((h: any) => h.id === threadItem.id);
+            if (existingIndex === -1) {
+              history.push(threadItem);
+              history.sort((a: any, b: any) => a.firstAccessed - b.firstAccessed);
+              localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
+              console.log('NewThreadPanel: Updated localStorage with new thread');
+            }
+          } catch (error) {
+            console.error('Error updating navigation history:', error);
+          }
+
+          window.dispatchEvent(new CustomEvent('threadCreated', {
+            detail: { thread: result.thread }
+          }));
+          console.log('NewThreadPanel: threadCreated event dispatched successfully');
+
           // Close panel
           window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
-          
+
           if (onClose) {
             onClose();
           }
-          
+
           // Redirect to the newly created thread with toast parameter
           if (result.thread && result.thread.id) {
             console.log('NewThreadPanel: Redirecting to thread:', result.thread.id);
             const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
+            // No delay needed since localStorage is already updated
             window.location.href = redirectUrl;
           }
         } else {

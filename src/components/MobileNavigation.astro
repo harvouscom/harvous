@@ -1,9 +1,6 @@
 ---
-import SearchInput from "@/components/SearchInput.astro";
-import SpaceButton from "@/components/SpaceButton.astro";
-import Avatar from "@/components/Avatar.astro";
-import SquareButton from "@/components/SquareButton.astro";
-import MobileDropdown from "@/components/react/navigation/MobileDropdown.tsx";
+import MobileNavigationReact from "@/components/react/navigation/MobileNavigation.tsx";
+import { NavigationProvider } from "@/components/react/navigation/NavigationContext.tsx";
 
 export interface Props {
   spaces?: any[];
@@ -29,89 +26,17 @@ const {
 console.log('MobileNavigation received props:', { initials, userColor });
 ---
 
-<div class="grid grid-cols-[auto_1fr_auto] items-center gap-3 w-full min-w-0">
-  <!-- Search Icon Button (Column 1: auto) -->
-  <SquareButton variant="Search" />
+<NavigationProvider client:load>
+  <MobileNavigationReact 
+    spaces={spaces}
+    threads={threads}
+    inboxCount={inboxCount}
+    currentSpace={currentSpace}
+    currentThread={currentThread}
+    initials={initials}
+    userColor={userColor}
+  />
+</NavigationProvider>
 
-  <!-- Spaces Dropdown (Column 2: 1fr) -->
-  <div class="relative min-w-0" x-data="{ open: false }">
-    <SpaceButton 
-      text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "For You"}
-      count={currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
-      state="DropdownTrigger"
-      className="w-full min-w-0"
-      backgroundGradient={currentThread?.backgroundGradient || (currentSpace ? "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)" : "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)")}
-      @click="open = !open"
-    />
-    
-    <!-- Dropdown Menu - React Component -->
-    <div 
-      x-show="open" 
-      @click.away="open = false"
-      x-transition:enter="transition ease-out duration-200"
-      x-transition:enter-start="opacity-0 scale-95"
-      x-transition:enter-end="opacity-100 scale-100"
-      x-transition:leave="transition ease-in duration-150"
-      x-transition:leave-start="opacity-100 scale-100"
-      x-transition:leave-end="opacity-0 scale-95"
-    >
-      <MobileDropdown 
-        client:load
-        spaces={spaces}
-        threads={threads}
-        inboxCount={inboxCount}
-        currentSpace={currentSpace}
-        currentThread={currentThread}
-        isOpen={true}
-        onClose={() => {
-          // Close the dropdown when an item is clicked
-          const dropdown = document.querySelector('[x-data]');
-          if (dropdown && (dropdown as any)._x_dataStack) {
-            (dropdown as any)._x_dataStack[0].open = false;
-          }
-        }}
-      />
-    </div>
-  </div>
-
-  <!-- Avatar (Column 3: auto) -->
-  <a href="/profile">
-    <Avatar initials={initials} color={userColor} id="mobile-navigation-avatar" />
-  </a>
-</div>
-
-<script>
-  // Avatar manager is loaded globally via Layout.astro
-  // Listen for avatar updates and update the mobile navigation avatar
-  document.addEventListener('DOMContentLoaded', () => {
-    console.log('MobileNavigation: Setting up avatar update listener');
-    
-    // Listen for profile updates
-    window.addEventListener('updateProfile', async (event: any) => {
-      console.log('MobileNavigation: updateProfile event received', event.detail);
-      const detail = event.detail;
-      
-      if (detail) {
-        const newInitials = `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase();
-        const newColor = detail.selectedColor;
-        
-        console.log('MobileNavigation: Updating avatar with:', { newInitials, newColor });
-        
-        // Use the global avatar manager function
-        if ((window as any).updateAllAvatars) {
-          const result = await (window as any).updateAllAvatars(newColor, newInitials);
-          console.log(`MobileNavigation: Updated ${result.updatedCount} avatars`);
-        } else {
-          console.error('MobileNavigation: Avatar manager not available');
-        }
-      }
-    });
-    
-    // Also listen for avatar updates from the centralized manager
-    window.addEventListener('avatarUpdated', (event: any) => {
-      console.log('MobileNavigation: avatarUpdated event received', event.detail);
-    });
-  });
-</script>
 
 

@@ -633,9 +633,42 @@ const contentId = "new-space";
             const result = await response.json();
             
             // Dispatch event to notify other components
+            console.log('🚀 Dispatching spaceCreated event with space:', result.space);
+
+            // Immediately update localStorage synchronously (don't wait for React)
+            try {
+              // Convert space color to background gradient
+              const spaceColor = result.space.color || 'blessed-blue';
+              const backgroundGradient = `linear-gradient(180deg, var(--color-${spaceColor}) 0%, var(--color-${spaceColor}) 100%)`;
+              
+              const spaceItem = {
+                id: result.space.id,
+                title: result.space.title,
+                count: result.space.totalItemCount || 0,
+                backgroundGradient: backgroundGradient,
+                firstAccessed: Date.now(),
+                lastAccessed: Date.now()
+              };
+              
+              const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+              const history = navHistory ? JSON.parse(navHistory) : [];
+              
+              // Check if item already exists
+              const existingIndex = history.findIndex((h: any) => h.id === spaceItem.id);
+              if (existingIndex === -1) {
+                history.push(spaceItem);
+                history.sort((a: any, b: any) => a.firstAccessed - b.firstAccessed);
+                localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
+                console.log('NewSpace: Updated localStorage with new space');
+              }
+            } catch (error) {
+              console.error('Error updating navigation history:', error);
+            }
+
             window.dispatchEvent(new CustomEvent('spaceCreated', {
               detail: { space: result.space }
             }));
+            console.log('🚀 spaceCreated event dispatched successfully');
             
             // Clear localStorage
             localStorage.removeItem('newSpaceTitle');

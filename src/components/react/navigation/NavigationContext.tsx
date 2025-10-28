@@ -72,10 +72,24 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         parsed = (window as any).navigationHistoryBackup;
       }
       
-      return parsed;
+      // Filter out specific test items (exact title matches only)
+      const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
+      const filteredItems = parsed.filter(item => 
+        !testItemTitles.includes(item.title)
+      );
+      
+      return filteredItems;
     } catch (error) {
       console.error('Error getting navigation history:', error);
-      return (window as any).navigationHistoryBackup || [];
+      const backup = (window as any).navigationHistoryBackup || [];
+      
+      // Filter out specific test items from backup too (exact title matches only)
+      const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
+      const filteredBackup = backup.filter(item => 
+        !testItemTitles.includes(item.title)
+      );
+      
+      return filteredBackup;
     }
   };
 
@@ -107,6 +121,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Add item to navigation history
   const addToNavigationHistory = (item: Omit<NavigationItem, 'firstAccessed' | 'lastAccessed'>) => {
+    // Skip specific test items (exact title matches only)
+    const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
+    if (testItemTitles.includes(item.title)) {
+      console.log('🧭 Skipping test item from navigation history:', item.title);
+      return;
+    }
+    
     const history = getNavigationHistory();
     
     // Check if item already exists - use strict equality check
@@ -251,6 +272,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
     
+    // Skip specific test items
+    const testItemIds = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
+    if (testItemIds.some(testId => currentItemId.includes(testId))) {
+      console.log('🧭 Skipping navigation tracking for test item:', currentItemId);
+      return;
+    }
+    
     // Track spaces too (they should be persistent and closable)
     // Spaces are now tracked in navigation history
     
@@ -312,7 +340,45 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       trackNavigationAccess();
     };
     
+    // Listen for space creation events
+    const handleSpaceCreated = (event: CustomEvent) => {
+      console.log('🧭 Space created event received in NavigationContext:', event.detail);
+      const space = event.detail?.space;
+      if (space) {
+        // Skip specific test spaces (exact title matches only)
+        const testSpaceTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
+        if (testSpaceTitles.includes(space.title)) {
+          console.log('🧭 Skipping test space from navigation history:', space.title);
+          return;
+        }
+        // Reload navigation history from localStorage (which was updated synchronously)
+        const history = getNavigationHistory();
+        setNavigationHistory(history);
+        console.log('🧭 Navigation history reloaded after space creation:', history);
+      }
+    };
+    
+    // Listen for thread creation events
+    const handleThreadCreated = (event: CustomEvent) => {
+      console.log('🧭 Thread created event received in NavigationContext:', event.detail);
+      const thread = event.detail?.thread;
+      if (thread) {
+        // Skip specific test threads (exact title matches only)
+        const testThreadTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
+        if (testThreadTitles.includes(thread.title)) {
+          console.log('🧭 Skipping test thread from navigation history:', thread.title);
+          return;
+        }
+        // Reload navigation history from localStorage (which was updated synchronously)
+        const history = getNavigationHistory();
+        setNavigationHistory(history);
+        console.log('🧭 Navigation history reloaded after thread creation:', history);
+      }
+    };
+    
     document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('spaceCreated', handleSpaceCreated as EventListener);
+    document.addEventListener('threadCreated', handleThreadCreated as EventListener);
     
     // Expose functions to global scope for non-React code
     (window as any).removeFromNavigationHistory = removeFromNavigationHistory;
@@ -322,6 +388,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     return () => {
       document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
+      document.removeEventListener('threadCreated', handleThreadCreated as EventListener);
     };
   }, []);
 

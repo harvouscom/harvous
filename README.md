@@ -19,6 +19,7 @@ Aka our approach to a Bible notes app.
 - **Real Database**: Production-ready with Turso database and Clerk authentication
 - **Sequential Note IDs**: User-friendly IDs (N001, N002, N003) that never reuse deleted numbers
 - **XP System**: Gamified experience with points for creating content and daily bonuses
+- **Immediate Navigation Updates**: New threads and spaces appear in navigation instantly without page refresh
 
 ## Documentation
 
@@ -28,6 +29,7 @@ Aka our approach to a Bible notes app.
 
 ### For Developers
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)**: Core functionality, data structures, and implementation details
+- **[NAVIGATION_SYSTEM_WINS.md](./NAVIGATION_SYSTEM_WINS.md)**: Navigation system development wins, learnings, and patterns
 - **[Development Rules](#development)**: Setup, workflow, and best practices
 
 ## Content Organization

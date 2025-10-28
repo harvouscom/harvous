@@ -1638,7 +1638,9 @@ window.testNavigationScript = function() {
 // Load persistent navigation from localStorage with proper chronological ordering
 function loadPersistentNavigation() {
   try {
+    console.log('🧭 loadPersistentNavigation called');
     const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+    console.log('🧭 Raw localStorage data:', navHistory);
     if (!navHistory) {
       console.log('🧭 No navigation history found');
       return;
@@ -1784,9 +1786,10 @@ function loadPersistentNavigation() {
       badgeCount.appendChild(countSpan);
       badgeCount.appendChild(closeIcon);
       
-      // Add click event listener to close icon for close functionality
-      closeIcon.addEventListener('click', (e) => {
-        console.log('🧭 Close icon click handler triggered');
+      // Add mousedown event listener to close icon for close functionality
+      // Using mousedown instead of click because click events are being intercepted
+      closeIcon.addEventListener('mousedown', (e) => {
+        console.log('🧭 Close icon mousedown handler triggered');
         e.stopImmediatePropagation();
         e.stopPropagation();
         e.preventDefault();
@@ -1794,7 +1797,7 @@ function loadPersistentNavigation() {
         const itemId = badgeCount.getAttribute('data-close-item');
         if (!itemId) return;
         
-        console.log('🧭 Close icon clicked for item:', itemId);
+        console.log('🧭 Close icon mousedown for item:', itemId);
         
         // Check if this is the current page (active item)
         const isCurrentPage = itemId === currentItemId;
@@ -1872,14 +1875,40 @@ function loadPersistentNavigation() {
         link.style.opacity = '0.7'; // Visual feedback that link is disabled
       });
       
-      badgeCount.addEventListener('mouseleave', () => {
-        // Show count, hide close icon
-        countSpan.style.display = 'block';
-        closeIcon.style.display = 'none';
-        // Re-enable link when not hovering over close area
-        link.style.pointerEvents = 'auto';
-        link.style.cursor = 'pointer';
-        link.style.opacity = '1'; // Restore full opacity
+      // Add hover listeners to close icon to keep it visible
+      closeIcon.addEventListener('mouseenter', () => {
+        // Keep close icon visible when hovering over it
+        countSpan.style.display = 'none';
+        closeIcon.style.display = 'block';
+        link.style.pointerEvents = 'none';
+        link.style.cursor = 'default';
+        link.style.opacity = '0.7';
+      });
+      
+      badgeCount.addEventListener('mouseleave', (e) => {
+        // Only hide close icon if we're not moving to the close icon itself
+        const relatedTarget = e.relatedTarget;
+        if (relatedTarget !== closeIcon) {
+          // Show count, hide close icon
+          countSpan.style.display = 'block';
+          closeIcon.style.display = 'none';
+          // Re-enable link when not hovering over close area
+          link.style.pointerEvents = 'auto';
+          link.style.cursor = 'pointer';
+          link.style.opacity = '1'; // Restore full opacity
+        }
+      });
+      
+      closeIcon.addEventListener('mouseleave', (e) => {
+        // Hide close icon when leaving the close icon area
+        const relatedTarget = e.relatedTarget;
+        if (relatedTarget !== badgeCount) {
+          countSpan.style.display = 'block';
+          closeIcon.style.display = 'none';
+          link.style.pointerEvents = 'auto';
+          link.style.cursor = 'pointer';
+          link.style.opacity = '1';
+        }
       });
       
       // Force initial state to be correct (show count, hide close icon)
@@ -1972,22 +2001,33 @@ function addCloseFunctionality() {
 
 // Load persistent navigation on page load
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('🧭 DOMContentLoaded - loading persistent navigation');
   addPersistentNavigationStyles();
   addCloseFunctionality();
   loadPersistentNavigation();
 });
-document.addEventListener('astro:page-load', loadPersistentNavigation);
-window.addEventListener('popstate', loadPersistentNavigation);
-
-// Listen for thread and space creation events to refresh navigation
-document.addEventListener('threadCreated', () => {
-  console.log('🧭 Thread created event received, refreshing navigation');
+document.addEventListener('astro:page-load', () => {
+  console.log('🧭 astro:page-load - loading persistent navigation');
   loadPersistentNavigation();
 });
+window.addEventListener('popstate', loadPersistentNavigation);
 
-document.addEventListener('spaceCreated', () => {
-  console.log('🧭 Space created event received, refreshing navigation');
-  loadPersistentNavigation();
+// Listen for thread and space creation events to refresh navigation display
+// Note: The React NavigationContext handles adding items to history
+(document as any).addEventListener('threadCreated', (event: any) => {
+  console.log('🧭 Thread created event received, refreshing navigation display');
+  // Small delay to ensure React system has updated localStorage
+  setTimeout(() => {
+    loadPersistentNavigation();
+  }, 100);
+});
+
+(document as any).addEventListener('spaceCreated', (event: any) => {
+  console.log('🧭 Space created event received, refreshing navigation display');
+  // Small delay to ensure React system has updated localStorage
+  setTimeout(() => {
+    loadPersistentNavigation();
+  }, 100);
 });
 </script>
 

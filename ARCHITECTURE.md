@@ -664,43 +664,40 @@ if (window.astroNavigate) {
 
 ## Navigation History System
 
-The navigation history system uses a clean, single-file approach with proper deduplication and state management:
+The navigation history system uses a hybrid React/JavaScript approach with synchronous localStorage updates for immediate UI feedback:
 
 ### Key Components
 
-- **`public/scripts/navigation-history.js`**: Single file containing all navigation history logic
-- **`src/components/PersistentNavigation.astro`**: Component that renders navigation history
-- **`src/layouts/Layout.astro`**: Contains fallback functions and unorganized thread hiding logic
-- **localStorage**: Simple key-value storage for navigation history data
+- **`src/components/react/navigation/NavigationContext.tsx`**: React context managing navigation state and event handling
+- **`src/layouts/Layout.astro`**: JavaScript-based navigation rendering and localStorage management
+- **`src/components/react/NewThreadPanel.tsx`**: Synchronous localStorage updates for thread creation
+- **`src/pages/new-space.astro`**: Synchronous localStorage updates for space creation
+- **localStorage**: Single source of truth for navigation history data
 
 ### How It Works
 
-1. **Tracking**: When users navigate to threads, spaces, or notes, the system automatically tracks the access
-2. **Storage**: Navigation history is stored in localStorage as a JSON array with `firstAccessed` and `lastAccessed` timestamps
-3. **Display**: Recently accessed items appear in the persistent navigation section
-4. **Space vs Thread Behavior**: 
-   - **Spaces**: Always shown in persistent navigation, even when active (with proper active styling)
-   - **Threads**: Filtered out when active to prevent duplication with static navigation
-5. **Close Functionality**: Users can close items from persistent navigation, removing them from history
-6. **Space Confirmation**: Spaces require confirmation before closing (permanent removal)
-7. **Unorganized Thread Management**: Special handling for the unorganized thread with localStorage-based hiding
+1. **Immediate Updates**: New threads/spaces are added to localStorage synchronously before page redirects
+2. **Event-Driven Architecture**: Custom events (`threadCreated`, `spaceCreated`) notify React components
+3. **Hybrid Rendering**: JavaScript system renders navigation, React system manages state
+4. **Color Integration**: Thread/space colors are converted to CSS gradients for immediate display
+5. **Race Condition Prevention**: Single localStorage update prevents conflicts between systems
 
 ### Critical Implementation Details
 
-- **Blue Wave Duplication Fix**: Prevents Blue wave thread from being added to history when on unorganized thread
-- **Position Retention**: Items maintain their original position in history (don't jump to bottom)
-- **Unorganized Thread Closability**: Unorganized thread can be closed and stays closed via localStorage flag
-- **Fallback Functions**: Layout.astro contains fallback functions to ensure navigation works even if main script fails
-- **Cache Busting**: Script includes version parameters to prevent caching issues
+- **Synchronous localStorage Updates**: Items are added to navigation history BEFORE `window.location.href` redirects
+- **Color-to-Gradient Conversion**: Thread colors are converted to `linear-gradient(180deg, var(--color-${color}) 0%, var(--color-${color}) 100%)`
+- **Event Handler Optimization**: React components reload from localStorage instead of duplicating updates
+- **FontAwesome Close Icons**: 16px close buttons with proper hover states and `mousedown` events
+- **Filter Logic**: Precise filtering prevents test items from interfering with navigation
 
 ### Benefits of Current Approach
 
-- **Single Source of Truth**: All navigation logic in one file
-- **No Complex Dependencies**: Uses only localStorage and vanilla JavaScript
-- **Easy to Debug**: Clear, readable code with comprehensive logging
-- **View Transitions Compatible**: Works seamlessly with Astro's View Transitions
-- **Alpine.js Integration**: Properly integrates with Alpine.js for interactive elements
-- **Robust Fallbacks**: Multiple fallback mechanisms ensure functionality even if main script fails
+- **Immediate UI Feedback**: New items appear in navigation without page refresh
+- **No Race Conditions**: Synchronous updates prevent React/JavaScript conflicts
+- **Proper Color Display**: Thread/space colors show correctly in navigation backgrounds
+- **Event-Driven Architecture**: Clean separation between React and JavaScript systems
+- **Robust Error Handling**: Fallbacks ensure navigation works even if components fail
+- **Comprehensive Documentation**: `NAVIGATION_SYSTEM_WINS.md` captures all learnings and patterns
 
 ## Sharing System Architecture
 
