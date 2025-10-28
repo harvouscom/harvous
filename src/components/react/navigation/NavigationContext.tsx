@@ -35,8 +35,6 @@ const defaultContextValue: NavigationContextType = {
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [navigationHistory, setNavigationHistory] = useState<NavigationItem[]>([]);
 
-  console.log('🧭 NavigationProvider initialized');
-
   // Storage utility with localStorage fallback to sessionStorage
   const getStorage = () => {
     try {
@@ -111,14 +109,20 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const addToNavigationHistory = (item: Omit<NavigationItem, 'firstAccessed' | 'lastAccessed'>) => {
     const history = getNavigationHistory();
     
-    // Check if item already exists
+    // Check if item already exists - use strict equality check
     const existingIndex = history.findIndex(h => h.id === item.id);
     
     if (existingIndex !== -1) {
-      // Item already exists - this shouldn't happen if called correctly
-      return;
+      // Item already exists - update lastAccessed time but keep position
+      console.log('🧭 Item already exists, updating lastAccessed:', item.id);
+      history[existingIndex] = {
+        ...history[existingIndex],
+        ...item,
+        lastAccessed: Date.now()
+      };
     } else {
       // Item doesn't exist - add to end first, then sort
+      console.log('🧭 Adding new item to history:', item.id);
       const newItem: NavigationItem = {
         ...item,
         firstAccessed: Date.now(),
@@ -127,10 +131,28 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       history.push(newItem);
     }
     
+    // Remove any duplicates by ID (defensive programming)
+    const uniqueHistory = history.reduce((acc, current) => {
+      const existingItem = acc.find(item => item.id === current.id);
+      if (!existingItem) {
+        acc.push(current);
+      } else {
+        // Keep the one with the most recent lastAccessed
+        if (current.lastAccessed > existingItem.lastAccessed) {
+          const index = acc.findIndex(item => item.id === current.id);
+          acc[index] = current;
+        }
+      }
+      return acc;
+    }, [] as NavigationItem[]);
+    
+    // Sort by firstAccessed (chronological order - oldest first)
+    uniqueHistory.sort((a, b) => a.firstAccessed - b.firstAccessed);
+    
     // Limit to 10 items, keeping the most recently accessed
-    let limitedHistory = history;
-    if (history.length > 10) {
-      limitedHistory = history.slice(0, 10);
+    let limitedHistory = uniqueHistory;
+    if (uniqueHistory.length > 10) {
+      limitedHistory = uniqueHistory.slice(0, 10);
     }
     
     saveNavigationHistory(limitedHistory);
@@ -158,53 +180,51 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return null;
     }
     
-    // Try to get data from page elements
-    const pageElement = document.querySelector('[data-navigation-item]') as HTMLElement;
-    const titleElement = document.querySelector('h1, [data-title]') as HTMLElement;
-    const countElement = document.querySelector('[data-count]') as HTMLElement;
-    const gradientElement = document.querySelector('[data-background-gradient]') as HTMLElement;
+    // Get data from navigation slot element (set by Layout.astro)
+    const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
     
-    let title = titleElement?.textContent || titleElement?.dataset.title || 'Untitled';
-    let count = 0;
-    let backgroundGradient = 'var(--color-gradient-gray)';
+    if (!navigationElement) return null;
     
-    // Try to parse count
-    if (countElement) {
-      const countText = countElement.textContent || countElement.dataset.count;
-      if (countText) {
-        const parsedCount = parseInt(countText);
-        if (!isNaN(parsedCount)) {
-          count = parsedCount;
-        }
+    // For notes, use parent thread data
+    if (currentItemId.startsWith('note_')) {
+      const parentThreadId = navigationElement.dataset.parentThreadId;
+      if (parentThreadId) {
+        return {
+          id: parentThreadId,
+          title: navigationElement.dataset.parentThreadTitle || 'Thread',
+          count: parseInt(navigationElement.dataset.parentThreadCount || '0'),
+          backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)'
+        };
       }
     }
     
-    // Try to get background gradient
-    if (gradientElement) {
-      const gradient = gradientElement.dataset.backgroundGradient;
-      if (gradient) {
-        backgroundGradient = gradient;
+    // For threads
+    if (currentItemId.startsWith('thread_') || navigationElement.dataset.threadId) {
+      const threadId = navigationElement.dataset.threadId;
+      if (threadId) {
+        return {
+          id: threadId,
+          title: navigationElement.dataset.threadTitle || 'Thread',
+          count: parseInt(navigationElement.dataset.threadNoteCount || '0'),
+          backgroundGradient: navigationElement.dataset.threadBackgroundGradient || 'var(--color-gradient-gray)'
+        };
       }
     }
     
-    // Determine content type and set appropriate defaults
-    if (currentItemId.startsWith('thread_')) {
-      title = title || 'Untitled Thread';
-      backgroundGradient = backgroundGradient || 'var(--color-gradient-gray)';
-    } else if (currentItemId.startsWith('space_')) {
-      title = title || 'Untitled Space';
-      backgroundGradient = backgroundGradient || 'var(--color-gradient-gray)';
-    } else if (currentItemId.startsWith('note_')) {
-      title = title || 'Untitled Note';
-      backgroundGradient = 'var(--color-gradient-gray)'; // Notes always use paper color
+    // For spaces
+    if (currentItemId.startsWith('space_') || navigationElement.dataset.spaceId) {
+      const spaceId = navigationElement.dataset.spaceId;
+      if (spaceId) {
+        return {
+          id: spaceId,
+          title: navigationElement.dataset.spaceTitle || 'Space',
+          count: parseInt(navigationElement.dataset.spaceItemCount || '0'),
+          backgroundGradient: navigationElement.dataset.spaceBackgroundGradient || 'var(--color-gradient-gray)'
+        };
+      }
     }
     
-    return {
-      id: currentItemId,
-      title,
-      count,
-      backgroundGradient
-    };
+    return null;
   };
 
   // Track navigation access
@@ -333,3 +353,4 @@ export const useNavigation = () => {
   
   return context;
 };
+

@@ -401,6 +401,11 @@ const showMoreButton = shouldShowMoreButton(contentType);
             data-space-background-gradient={currentSpace?.backgroundGradient}
             data-content-type={contentType}
             data-content-id={contentId}
+            data-parent-thread-id={currentThread?.id}
+            data-parent-thread-title={currentThread?.title}
+            data-parent-thread-count={currentThread?.noteCount}
+            data-parent-thread-background-gradient={currentThread?.backgroundGradient}
+            data-parent-thread-color={currentThread?.color}
           >
             <slot name="navigation" />
           </div>
@@ -686,49 +691,46 @@ const showMoreButton = shouldShowMoreButton(contentType);
     }
   });
 
-  // Import and setup toast utilities
-  import('/src/utils/toast.ts').then(({ toast }) => {
-    (window as any).toast = toast;
+  // Toast utilities are handled by the ToastProvider component
+  // Check for toast parameters in URL and show toast
+  const urlParams = new URLSearchParams(window.location.search);
+  const toastType = urlParams.get('toast');
+  const message = urlParams.get('message');
+  
+  if (toastType && message) {
+    const decodedMessage = decodeURIComponent(message);
     
-    // Check for toast parameters in URL and show toast
-    const urlParams = new URLSearchParams(window.location.search);
-    const toastType = urlParams.get('toast');
-    const message = urlParams.get('message');
-    
-    if (toastType && message) {
-      const decodedMessage = decodeURIComponent(message);
-      
-      // Small delay to ensure Sonner is fully initialized
-      setTimeout(() => {
-        try {
+    // Small delay to ensure Sonner is fully initialized
+    setTimeout(() => {
+      try {
+        // Use global toast if available
+        if ((window as any).toast) {
           switch (toastType) {
             case 'success':
-              toast.success(decodedMessage);
+              (window as any).toast.success(decodedMessage);
               break;
             case 'error':
-              toast.error(decodedMessage);
+              (window as any).toast.error(decodedMessage);
               break;
             case 'info':
-              toast.info(decodedMessage);
+              (window as any).toast.info(decodedMessage);
               break;
             case 'warning':
-              toast.warning(decodedMessage);
+              (window as any).toast.warning(decodedMessage);
               break;
           }
-        } catch (error) {
-          console.error('Error calling toast function:', error);
         }
-      }, 1000);
-      
-      // Clean up URL parameters
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('toast');
-      newUrl.searchParams.delete('message');
-      window.history.replaceState({}, '', newUrl.toString());
-    }
-  }).catch((error) => {
-    console.error('Failed to load toast utilities:', error);
-  });
+      } catch (error) {
+        console.error('Error calling toast function:', error);
+      }
+    }, 1000);
+    
+    // Clean up URL parameters
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.delete('toast');
+    newUrl.searchParams.delete('message');
+    window.history.replaceState({}, '', newUrl.toString());
+  }
 </script>
 
 <!-- Simple Navigation History Script - Embedded -->
@@ -1230,88 +1232,74 @@ window.initTracking = initTracking;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-  
-  if (typeof initTracking === 'function') {
-    // DOMContentLoaded event fired - calling initTracking
-    initTracking();
-  } else {
-    console.error('📄 DOMContentLoaded event fired - initTracking is not a function!');
-  }
+  // Only run Astro tracking if React NavigationProvider hasn't loaded yet
+  setTimeout(() => {
+    if (!window.addToNavigationHistory || typeof window.addToNavigationHistory !== 'function') {
+      console.log('🧭 Astro fallback: React NavigationProvider not loaded, using Astro tracking');
+      if (typeof initTracking === 'function') {
+        initTracking();
+      }
+    } else {
+      console.log('🧭 React NavigationProvider is loaded, but running Astro tracking anyway');
+      if (typeof initTracking === 'function') {
+        initTracking();
+      }
+    }
+  }, 100);
 });
 
 // Listen for astro:page-load events
 document.addEventListener('astro:page-load', () => {
-  
-  if (typeof initTracking === 'function') {
-    // astro:page-load event fired - calling initTracking
-    initTracking();
-  } else {
-    console.error('🔄 astro:page-load event fired - initTracking is not a function!');
-  }
+  // Only run Astro tracking if React NavigationProvider hasn't loaded yet
+  setTimeout(() => {
+    if (!window.addToNavigationHistory || typeof window.addToNavigationHistory !== 'function') {
+      console.log('🧭 Astro fallback: React NavigationProvider not loaded, using Astro tracking');
+      if (typeof initTracking === 'function') {
+        initTracking();
+      }
+    } else {
+      console.log('🧭 React NavigationProvider is loaded, but running Astro tracking anyway');
+      if (typeof initTracking === 'function') {
+        initTracking();
+      }
+    }
+  }, 100);
 });
 
 // Also listen for astro:after-swap events (alternative to astro:page-load)
-document.addEventListener('astro:after-swap', () => {
-  initTracking();
-});
+// Note: React NavigationProvider handles tracking via its useEffect hook
+// This initialization is disabled to prevent conflicts with React tracking
 
 // Also listen for note creation events to update navigation
-document.addEventListener('noteCreated', () => {
-  setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
-});
+// Note: React NavigationProvider handles tracking via its useEffect hook
+// This initialization is disabled to prevent conflicts with React tracking
 
 // Listen for note thread changes to update navigation
-document.addEventListener('noteAddedToThread', (event) => {
-  const { noteId, threadId } = event.detail;
-  console.log('🟡 Navigation: Note added to thread event received:', { noteId, threadId });
-  
-  // Update navigation to reflect new note count
-  setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
-});
+// Note: React NavigationProvider handles tracking via its useEffect hook
+// This initialization is disabled to prevent conflicts with React tracking
 
-document.addEventListener('noteRemovedFromThread', (event) => {
-  const { noteId, threadId } = event.detail;
-  console.log('🟡 Navigation: Note removed from thread event received:', { noteId, threadId });
-  
-  // Update navigation to reflect new note count
-  setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
-});
+// Note: React NavigationProvider handles tracking via its useEffect hook
+// This initialization is disabled to prevent conflicts with React tracking
 
 // Fallback: also try to track on window load
-window.addEventListener('load', () => {
-  initTracking();
-});
+// Note: React NavigationProvider handles tracking via its useEffect hook
+// This initialization is disabled to prevent conflicts with React tracking
 
 // Additional fallback: track on any navigation change
-window.addEventListener('popstate', () => {
-  initTracking();
-});
+// Note: React NavigationProvider handles tracking via its useEffect hook
+// This initialization is disabled to prevent conflicts with React tracking
 
 // Track on hash change
-window.addEventListener('hashchange', () => {
-  initTracking();
-});
+// Note: React NavigationProvider handles tracking via its useEffect hook
+// This initialization is disabled to prevent conflicts with React tracking
 
 // Aggressive fallback: track on any DOM change that might indicate navigation
-if (typeof window.lastUrl === 'undefined') {
-  window.lastUrl = window.location.href;
-}
+// Note: React NavigationProvider handles tracking via its useEffect hook
+// This initialization is disabled to prevent conflicts with React tracking
 
 // Only create observer if it doesn't exist
-if (!window.urlObserver) {
-  window.urlObserver = new MutationObserver(() => {
-    if (window.location.href !== window.lastUrl) {
-      window.lastUrl = window.location.href;
-      setTimeout(initTracking, 100); // Small delay to ensure DOM is updated
-    }
-  });
-
-  // Start observing
-  window.urlObserver.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
-}
+// Note: React NavigationProvider handles tracking via its useEffect hook
+// This initialization is disabled to prevent conflicts with React tracking
 
 // Test function to manually trigger navigation tracking
 window.testNavigationTracking = function() {
@@ -1647,3 +1635,518 @@ window.testNavigationScript = function() {
     transition: none !important;
   }
 </style>
+
+<script>
+// Load persistent navigation from localStorage with proper chronological ordering
+function loadPersistentNavigation() {
+  try {
+    const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+    if (!navHistory) {
+      console.log('🧭 No navigation history found');
+      return;
+    }
+    
+    const history = JSON.parse(navHistory);
+    console.log('🧭 Loaded navigation history:', history);
+    
+    // Sort by firstAccessed (chronological order) - oldest first
+    const sortedHistory = history.sort((a: any, b: any) => a.firstAccessed - b.firstAccessed);
+    console.log('🧭 Sorted navigation history (chronological):', sortedHistory);
+    
+    // Filter out items that shouldn't be shown
+    const currentPath = window.location.pathname;
+    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    
+    // Get active thread ID from navigation element data attributes
+    const navigationElement = document.querySelector('[slot="navigation"]');
+    const activeThreadId = navigationElement?.getAttribute('data-thread-id');
+    
+    let persistentItems = sortedHistory.filter((item: any) => {
+      // Don't show the currently active item (except for spaces)
+      if (item.id === currentItemId && !item.id.startsWith('space_')) {
+        return false;
+      }
+      
+      // Don't show the active thread (already shown by React NavigationColumn)
+      if (activeThreadId && item.id === activeThreadId) {
+        return false;
+      }
+      
+      // Don't show dashboard
+      if (item.id === 'dashboard') {
+        return false;
+      }
+      
+      return true;
+    });
+    
+    console.log('🧭 Filtered persistent items (chronological):', persistentItems);
+    
+    if (persistentItems.length === 0) {
+      console.log('🧭 No persistent items to show');
+      // Remove existing persistent navigation if it exists
+      const existingPersistentNav = document.getElementById('persistent-navigation');
+      if (existingPersistentNav) {
+        existingPersistentNav.remove();
+      }
+      return;
+    }
+    
+    // Find the "For You" button and insert persistent navigation after it
+    const forYouButton = document.querySelector('a[href="/dashboard"]');
+    if (!forYouButton) {
+      console.log('🧭 For You button not found');
+      return;
+    }
+    
+    // Find the parent container
+    const parentContainer = forYouButton.parentElement;
+    if (!parentContainer) {
+      console.log('🧭 Parent container not found');
+      return;
+    }
+    
+    // Check if persistent navigation already exists
+    let persistentNav = document.getElementById('persistent-navigation');
+    if (persistentNav) {
+      persistentNav.remove();
+    }
+    
+    // Create persistent navigation container
+    persistentNav = document.createElement('div');
+    persistentNav.id = 'persistent-navigation';
+    persistentNav.className = 'w-full';
+    
+    // Add each item in chronological order (oldest first)
+    persistentItems.forEach((item: any) => {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'w-full nav-item-container';
+      itemDiv.setAttribute('data-navigation-item', item.id);
+      
+      // Create outer container for positioning close icon outside link
+      const outerContainer = document.createElement('div');
+      outerContainer.className = 'relative w-full';
+      
+      const link = document.createElement('a');
+      link.href = `/${item.id}`;
+      link.className = 'w-full relative block';
+      
+      // Create SpaceButton element using Tailwind classes like the actual component
+      const button = document.createElement('button');
+      button.className = 'space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full';
+      button.style.color = 'var(--color-deep-grey)';
+      
+      // Inner structure matching SpaceButton "WithCount" state exactly
+      const innerDiv = document.createElement('div');
+      innerDiv.className = 'flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0';
+      
+      // Title wrapper
+      const titleWrapper = document.createElement('div');
+      titleWrapper.className = 'flex-1 min-w-0 overflow-hidden text-left';
+      
+      const title = document.createElement('span');
+      title.textContent = item.title;
+      title.className = 'text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left';
+      
+      // Badge container
+      const badgeContainer = document.createElement('div');
+      badgeContainer.className = 'p-[20px] flex-shrink-0';
+      
+      // Badge count with larger hitbox
+      const badgeCount = document.createElement('div');
+      badgeCount.className = 'badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative';
+      badgeCount.style.pointerEvents = 'none';
+      
+      // Add invisible hitbox for better hover detection
+      const hitbox = document.createElement('div');
+      hitbox.className = 'hitbox-trigger absolute cursor-pointer';
+      hitbox.style.cssText = `
+        width: 40px;
+        height: 40px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 10;
+        pointer-events: auto;
+        background-color: transparent;
+      `;
+      
+      const countSpan = document.createElement('span');
+      countSpan.textContent = item.count || 0;
+      countSpan.className = 'text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number';
+      
+      // Close icon - positioned outside the link element, aligned with badge count center
+      const closeIcon = document.createElement('div');
+      closeIcon.className = 'close-icon absolute top-1/2 right-1 transform -translate-y-1/2 w-8 h-8 cursor-pointer flex items-center justify-center';
+      closeIcon.setAttribute('data-close-item', item.id);
+      closeIcon.innerHTML = '<i class="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>';
+      closeIcon.style.pointerEvents = 'auto';
+      closeIcon.style.display = 'flex';
+      closeIcon.style.zIndex = '100'; // Ensure it's above the link
+      closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Semi-transparent background
+      closeIcon.style.borderRadius = '50%'; // Make it circular
+      closeIcon.style.border = '1px solid rgba(0,0,0,0.1)'; // Subtle border
+      closeIcon.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'; // Add shadow for better visibility
+      closeIcon.style.right = '16px'; // Move 16px left to align with badge count center
+      
+      // Add a clickable overlay that covers the entire close icon area
+      const closeOverlay = document.createElement('div');
+      closeOverlay.className = 'close-overlay absolute inset-0 w-full h-full cursor-pointer';
+      closeOverlay.style.zIndex = '101'; // Above the close icon
+      closeOverlay.style.backgroundColor = 'transparent';
+      closeOverlay.setAttribute('data-close-item', item.id);
+      
+      // Add a larger hit area for better clickability
+      const closeHitArea = document.createElement('div');
+      closeHitArea.className = 'close-hit-area absolute top-1/2 right-1 transform -translate-y-1/2 w-12 h-12 cursor-pointer';
+      closeHitArea.style.zIndex = '102'; // Above everything
+      closeHitArea.style.backgroundColor = 'transparent';
+      closeHitArea.setAttribute('data-close-item', item.id);
+      
+      // Build structure - hitbox first so it can trigger hover on siblings
+      badgeCount.appendChild(hitbox);
+      badgeCount.appendChild(countSpan);
+      
+      // Add hover event listeners to hitbox
+      hitbox.addEventListener('mouseenter', () => {
+        countSpan.style.display = 'none';
+        badgeCount.style.backgroundColor = 'transparent';
+        closeIcon.style.display = 'flex';
+        closeIcon.style.alignItems = 'center';
+        closeIcon.style.justifyContent = 'center';
+        closeOverlay.style.display = 'block';
+        // Disable link when hovering over close area
+        link.style.pointerEvents = 'none';
+        link.style.cursor = 'default';
+        link.style.opacity = '0.7'; // Visual feedback that link is disabled
+      });
+      
+      hitbox.addEventListener('mouseleave', () => {
+        countSpan.style.display = 'block';
+        badgeCount.style.backgroundColor = 'rgba(120,118,111,0.1)';
+        closeIcon.style.display = 'none';
+        closeOverlay.style.display = 'none';
+        // Re-enable link when not hovering over close area
+        link.style.pointerEvents = 'auto';
+        link.style.cursor = 'pointer';
+        link.style.opacity = '1'; // Restore full opacity
+      });
+      
+      // Also add hover listeners to close icon itself
+      closeIcon.addEventListener('mouseenter', () => {
+        link.style.pointerEvents = 'none';
+        link.style.cursor = 'default';
+        link.style.opacity = '0.7'; // Visual feedback that link is disabled
+        closeIcon.style.backgroundColor = 'rgba(255,255,255,1)'; // Make background more opaque on hover
+      });
+      
+      closeIcon.addEventListener('mouseleave', () => {
+        link.style.pointerEvents = 'auto';
+        link.style.cursor = 'pointer';
+        link.style.opacity = '1'; // Restore full opacity
+        closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Restore original background
+      });
+      
+      // Add hover listeners to close overlay
+      closeOverlay.addEventListener('mouseenter', () => {
+        link.style.pointerEvents = 'none';
+        link.style.cursor = 'default';
+        link.style.opacity = '0.7'; // Visual feedback that link is disabled
+        closeIcon.style.backgroundColor = 'rgba(255,255,255,1)'; // Make background more opaque on hover
+      });
+      
+      closeOverlay.addEventListener('mouseleave', () => {
+        link.style.pointerEvents = 'auto';
+        link.style.cursor = 'pointer';
+        link.style.opacity = '1'; // Restore full opacity
+        closeIcon.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Restore original background
+      });
+      
+      // Add click event listener to close overlay
+      closeOverlay.addEventListener('click', (e) => {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        
+        const itemId = closeOverlay.getAttribute('data-close-item');
+        if (!itemId) return;
+        
+        console.log('🧭 Close overlay clicked for item:', itemId);
+        
+        // Use the global function from NavigationContext if available
+        if ((window as any).removeFromNavigationHistory) {
+          (window as any).removeFromNavigationHistory(itemId);
+        } else {
+          // Fallback to direct localStorage manipulation
+          try {
+            const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+            if (navHistory) {
+              const history = JSON.parse(navHistory);
+              const filteredHistory = history.filter((item: any) => item.id !== itemId);
+              localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(filteredHistory));
+            }
+          } catch (error) {
+            console.error('Error removing item from navigation history:', error);
+          }
+        }
+        
+        // Remove the item from DOM immediately for instant visual feedback
+        const itemElement = document.querySelector(`[data-navigation-item="${itemId}"]`);
+        if (itemElement && itemElement.parentNode) {
+          itemElement.parentNode.removeChild(itemElement);
+        }
+        
+        // Also reload persistent navigation to ensure consistency
+        loadPersistentNavigation();
+        
+        console.log('🧭 Removed item from navigation history:', itemId);
+        
+        // Return false to prevent any further event handling
+        return false;
+      });
+      
+      // Also add click event listener to close icon itself as backup
+      closeIcon.addEventListener('click', (e) => {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        
+        const itemId = closeIcon.getAttribute('data-close-item');
+        if (!itemId) return;
+        
+        console.log('🧭 Close icon clicked for item:', itemId);
+        
+        // Use the global function from NavigationContext if available
+        if ((window as any).removeFromNavigationHistory) {
+          (window as any).removeFromNavigationHistory(itemId);
+        } else {
+          // Fallback to direct localStorage manipulation
+          try {
+            const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+            if (navHistory) {
+              const history = JSON.parse(navHistory);
+              const filteredHistory = history.filter((item: any) => item.id !== itemId);
+              localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(filteredHistory));
+            }
+          } catch (error) {
+            console.error('Error removing item from navigation history:', error);
+          }
+        }
+        
+        // Remove the item from DOM immediately for instant visual feedback
+        const itemElement = document.querySelector(`[data-navigation-item="${itemId}"]`);
+        if (itemElement && itemElement.parentNode) {
+          itemElement.parentNode.removeChild(itemElement);
+        }
+        
+        // Also reload persistent navigation to ensure consistency
+        loadPersistentNavigation();
+        
+        console.log('🧭 Removed item from navigation history:', itemId);
+        
+        // Return false to prevent any further event handling
+        return false;
+      });
+      
+      // Add mousedown event listener to prevent link activation
+      closeIcon.addEventListener('mousedown', (e) => {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        return false;
+      });
+      
+      closeOverlay.addEventListener('mousedown', (e) => {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        return false;
+      });
+      
+      // Add event listeners to close hit area
+      closeHitArea.addEventListener('click', (e) => {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        
+        const itemId = closeHitArea.getAttribute('data-close-item');
+        if (!itemId) return;
+        
+        console.log('🧭 Close hit area clicked for item:', itemId);
+        
+        // Use the global function from NavigationContext if available
+        if ((window as any).removeFromNavigationHistory) {
+          (window as any).removeFromNavigationHistory(itemId);
+        } else {
+          // Fallback to direct localStorage manipulation
+          try {
+            const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+            if (navHistory) {
+              const history = JSON.parse(navHistory);
+              const filteredHistory = history.filter((item: any) => item.id !== itemId);
+              localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(filteredHistory));
+            }
+          } catch (error) {
+            console.error('Error removing item from navigation history:', error);
+          }
+        }
+        
+        // Remove the item from DOM immediately for instant visual feedback
+        const itemElement = document.querySelector(`[data-navigation-item="${itemId}"]`);
+        if (itemElement && itemElement.parentNode) {
+          itemElement.parentNode.removeChild(itemElement);
+        }
+        
+        // Also reload persistent navigation to ensure consistency
+        loadPersistentNavigation();
+        
+        console.log('🧭 Removed item from navigation history:', itemId);
+        
+        // Return false to prevent any further event handling
+        return false;
+      });
+      
+      closeHitArea.addEventListener('mousedown', (e) => {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        return false;
+      });
+      
+      // Prevent all mouse events on close icon from bubbling to link
+      closeIcon.addEventListener('mousedown', (e) => {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        return false;
+      });
+      
+      closeIcon.addEventListener('mouseup', (e) => {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        return false;
+      });
+      
+      closeIcon.addEventListener('pointerdown', (e) => {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        return false;
+      });
+      
+      closeIcon.addEventListener('pointerup', (e) => {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        return false;
+      });
+      
+      badgeContainer.appendChild(badgeCount);
+      titleWrapper.appendChild(title);
+      innerDiv.appendChild(titleWrapper);
+      innerDiv.appendChild(badgeContainer);
+      button.appendChild(innerDiv);
+      
+      // Wrap in nav-item-container div
+      const navItemContainer = document.createElement('div');
+      navItemContainer.className = 'relative nav-item-container';
+      navItemContainer.appendChild(button);
+      
+      link.appendChild(navItemContainer);
+      
+      // Add close icon to outer container (outside link)
+      outerContainer.appendChild(link);
+      outerContainer.appendChild(closeIcon);
+      closeIcon.appendChild(closeOverlay); // Add overlay inside close icon
+      outerContainer.appendChild(closeHitArea); // Add larger hit area
+      
+      itemDiv.appendChild(outerContainer);
+      persistentNav.appendChild(itemDiv);
+      
+      console.log('🧭 Added persistent item (chronological):', item.title, 'firstAccessed:', new Date(item.firstAccessed));
+    });
+    
+    // Insert persistent navigation after the "For You" button
+    parentContainer.insertBefore(persistentNav, forYouButton.nextSibling);
+    
+    console.log('🧭 Rendered', persistentItems.length, 'persistent items in chronological order');
+    
+  } catch (error) {
+    console.error('🧭 Error loading persistent navigation:', error);
+  }
+}
+
+// Add CSS for hover behavior and close functionality
+function addPersistentNavigationStyles() {
+  const style = document.createElement('style');
+  style.textContent = `
+    /* Ensure hitbox is invisible but clickable */
+    .hitbox-trigger {
+      background: transparent;
+      border: none;
+      outline: none;
+    }
+    
+    /* Close icon hover effect */
+    .close-icon:hover {
+      opacity: 0.7;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// Add close functionality
+function addCloseFunctionality() {
+  document.addEventListener('click', (event) => {
+    // Check if clicked on close icon or any element inside it
+    const closeIcon = (event.target as Element)?.closest('.close-icon');
+    
+    if (!closeIcon) return;
+    
+    // Prevent all default behavior and event propagation
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    event.preventDefault();
+    
+    const itemId = closeIcon.getAttribute('data-close-item');
+    if (!itemId) return;
+    
+    console.log('🧭 Close icon clicked for item:', itemId);
+    
+    // Use the global function from NavigationContext if available
+    if ((window as any).removeFromNavigationHistory) {
+      (window as any).removeFromNavigationHistory(itemId);
+    } else {
+      // Fallback to direct localStorage manipulation
+      try {
+        const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+        if (navHistory) {
+          const history = JSON.parse(navHistory);
+          const filteredHistory = history.filter((item: any) => item.id !== itemId);
+          localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(filteredHistory));
+        }
+      } catch (error) {
+        console.error('Error removing item from navigation history:', error);
+      }
+    }
+    
+    // Reload persistent navigation
+    loadPersistentNavigation();
+    
+    console.log('🧭 Removed item from navigation history:', itemId);
+    
+    return false;
+  }, true); // Use capture phase to catch the event before it bubbles
+}
+
+// Load persistent navigation on page load
+document.addEventListener('DOMContentLoaded', () => {
+  addPersistentNavigationStyles();
+  addCloseFunctionality();
+  loadPersistentNavigation();
+});
+document.addEventListener('astro:page-load', loadPersistentNavigation);
+window.addEventListener('popstate', loadPersistentNavigation);
+</script>
+

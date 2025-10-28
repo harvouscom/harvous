@@ -6,9 +6,14 @@ const PersistentNavigation: React.FC = () => {
   const { navigationHistory, removeFromNavigationHistory } = useNavigation();
   const [isClient, setIsClient] = useState(false);
 
+  console.log('🧭 PersistentNavigation: Component function called');
+  console.log('🧭 PersistentNavigation: navigationHistory:', navigationHistory);
+  console.log('🧭 PersistentNavigation: isClient:', isClient);
+
   // Handle SSR - only run client-side code after hydration
   useEffect(() => {
     setIsClient(true);
+    console.log('🧭 PersistentNavigation: Client-side hydration complete');
   }, []);
 
   // Get currently active item (the one being viewed) - only on client
@@ -56,11 +61,8 @@ const PersistentNavigation: React.FC = () => {
     if (!isClient) return [];
     
     let persistentItems = navigationHistory.filter((item) => {
-      // Don't show the currently active item (use the resolved active item ID)
-      // EXCEPT for spaces - spaces should always be shown even when active
-      if (item.id === currentActiveItemId && !item.id.startsWith('space_')) {
-        return false;
-      }
+      // Show all items, including active ones, so close icons can appear on hover
+      // This allows users to close active items by hovering over the badge count
       
       // Don't show dashboard
       if (item.id === 'dashboard') {
@@ -92,7 +94,7 @@ const PersistentNavigation: React.FC = () => {
 
   const persistentItems = getPersistentItems();
 
-  // Don't render anything during SSR
+  // Don't render anything during SSR or if no items to show
   if (!isClient || persistentItems.length === 0) {
     return null;
   }
@@ -105,27 +107,49 @@ const PersistentNavigation: React.FC = () => {
         
         return (
           <div key={item.id} data-navigation-item={item.id} className="w-full nav-item-container">
-            <a href={`/${item.id}`} className="w-full relative block">
-              <SpaceButton
-                text={item.title}
-                count={item.count || 0}
-                state="Close"
-                className="w-full"
-                backgroundGradient={item.backgroundGradient}
-                isActive={isActive}
-                itemId={item.id}
-              />
-            </a>
+            <div className="relative w-full">
+              <a href={`/${item.id}`} className="w-full relative block">
+                <SpaceButton
+                  text={item.title}
+                  count={item.count || 0}
+                  state="WithCount"
+                  className="w-full"
+                  backgroundGradient={item.backgroundGradient}
+                  isActive={isActive}
+                  itemId={item.id}
+                />
+              </a>
+              {/* Close icon positioned outside the link element, aligned with badge count center */}
+              {!isActive && (
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    console.log('🧭 React close icon clicked for item:', item.id);
+                    removeFromNavigationHistory(item.id);
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }}
+                  className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center"
+                  style={{ right: '16px' }} // Move 16px left to align with badge count center
+                  data-item-id={item.id}
+                >
+                  <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
       
       {/* Add CSS for hover states and active shadow */}
       <style jsx>{`
-        .nav-item-container:not(.active):hover .badge-count {
+        .nav-item-container:not(.active) .badge-count:hover .badge-number {
           display: none !important;
         }
-        .nav-item-container:not(.active):hover .close-icon {
+        .nav-item-container:not(.active) .badge-count:hover .close-icon {
           display: flex !important;
         }
         .close-icon {

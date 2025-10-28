@@ -3,6 +3,7 @@ import SearchInput from "@/components/SearchInput.astro";
 import SpaceButton from "@/components/SpaceButton.astro";
 import Avatar from "@/components/Avatar.astro";
 import SquareButton from "@/components/SquareButton.astro";
+import MobileDropdown from "@/components/react/navigation/MobileDropdown.tsx";
 
 export interface Props {
   spaces?: any[];
@@ -43,7 +44,7 @@ console.log('MobileNavigation received props:', { initials, userColor });
       @click="open = !open"
     />
     
-    <!-- Dropdown Menu -->
+    <!-- Dropdown Menu - React Component -->
     <div 
       x-show="open" 
       @click.away="open = false"
@@ -53,60 +54,23 @@ console.log('MobileNavigation received props:', { initials, userColor });
       x-transition:leave="transition ease-in duration-150"
       x-transition:leave-start="opacity-100 scale-100"
       x-transition:leave-end="opacity-0 scale-95"
-      class="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999]"
     >
-      <div class="p-2">
-        <!-- For You -->
-        <a href="/dashboard" class="block w-full">
-          <div class="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-            <span class="text-sm font-medium">For You</span>
-            <span class="text-xs text-gray-500">{inboxCount}</span>
-          </div>
-        </a>
-        
-        <!-- Spaces -->
-        {spaces.map(space => (
-          <a href={`/${space.id}`} class="block w-full">
-            <div class="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-              <span class="text-sm font-medium">{space.title}</span>
-              <span class="text-xs text-gray-500">{space.totalItemCount}</span>
-            </div>
-          </a>
-        ))}
-        
-        <!-- Threads (context-aware) -->
-        {currentThread && (
-          <a href={`/${currentThread.id}`} class="block w-full">
-            <div class="flex items-center justify-between p-2 rounded hover:bg-gray-50 bg-blue-50">
-              <span class="text-sm font-medium">{currentThread.title}</span>
-              <span class="text-xs text-blue-600">{currentThread.noteCount}</span>
-            </div>
-          </a>
-        )}
-        
-        {currentSpace && threads.length > 0 && (
-          threads.filter(thread => thread.spaceId === currentSpace.id).map(thread => (
-            <a href={`/${thread.id}`} class="block w-full">
-              <div class="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                <span class="text-sm font-medium">{thread.title}</span>
-                <span class="text-xs text-gray-500">{thread.noteCount}</span>
-              </div>
-            </a>
-          ))
-        )}
-        
-
-        
-        <!-- New Space Button -->
-        <a href="/new-space" class="block w-full">
-          <div class="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-            <span class="text-sm font-medium text-blue-600">New Space</span>
-            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-            </svg>
-          </div>
-        </a>
-      </div>
+      <MobileDropdown 
+        client:load
+        spaces={spaces}
+        threads={threads}
+        inboxCount={inboxCount}
+        currentSpace={currentSpace}
+        currentThread={currentThread}
+        isOpen={true}
+        onClose={() => {
+          // Close the dropdown when an item is clicked
+          const dropdown = document.querySelector('[x-data]');
+          if (dropdown && (dropdown as any)._x_dataStack) {
+            (dropdown as any)._x_dataStack[0].open = false;
+          }
+        }}
+      />
     </div>
   </div>
 

@@ -351,3 +351,13 @@ button.space-button:not([style*="background-image"]):not([style*="background-col
   border: none !important;
   box-shadow: none !important;
 }
+
+/* Remove any borders from menu items */
+.context-more-menu button,
+.more-menu button,
+.context-more-menu-item,
+.more-menu-item {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}

@@ -64,7 +64,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             </a>
             
             {/* Persistent Navigation - shows recently accessed items */}
-            <PersistentNavigation />
+            {/* Disabled - using JavaScript-based system in Layout.astro instead */}
+            {/* <PersistentNavigation /> */}
             
             {/* Show created spaces */}
             {spaces.map(space => (
@@ -121,7 +122,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       </div>
       
       {/* Add CSS for SpaceButton styling */}
-      <style jsx>{`
+      <style>{`
         button {
           will-change: transform;
           transition: box-shadow 0.125s ease-in-out;
@@ -171,10 +172,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         }
 
         /* Close icon hover states - only for inactive items */
-        .nav-item-container:not(.active):hover .badge-count {
+        .nav-item-container:not(.active) .badge-count:hover .badge-number {
           display: none !important;
         }
-        .nav-item-container:not(.active):hover .close-icon {
+        .nav-item-container:not(.active) .badge-count:hover .close-icon {
           display: flex !important;
         }
         .close-icon {
