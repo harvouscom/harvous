@@ -1,6 +1,5 @@
 ---
-import MobileNavigationReact from "@/components/react/navigation/MobileNavigation.tsx";
-import { NavigationProvider } from "@/components/react/navigation/NavigationContext.tsx";
+import MobileNavigationWrapper from "@/components/react/navigation/MobileNavigationWrapper.tsx";
 
 export interface Props {
   spaces?: any[];
@@ -23,20 +22,27 @@ const {
 } = Astro.props;
 
 // Debug: Log the props received
-console.log('MobileNavigation received props:', { initials, userColor });
+console.log('MobileNavigation received props:', { 
+  spaces: spaces?.length || 0, 
+  threads: threads?.length || 0, 
+  inboxCount, 
+  currentSpace: currentSpace?.id || 'null', 
+  currentThread: currentThread?.id || 'null', 
+  initials, 
+  userColor 
+});
 ---
 
-<NavigationProvider client:load>
-  <MobileNavigationReact 
-    spaces={spaces}
-    threads={threads}
-    inboxCount={inboxCount}
-    currentSpace={currentSpace}
-    currentThread={currentThread}
-    initials={initials}
-    userColor={userColor}
-  />
-</NavigationProvider>
+<MobileNavigationWrapper 
+  client:load
+  spaces={spaces}
+  threads={threads}
+  inboxCount={inboxCount}
+  currentSpace={currentSpace}
+  currentThread={currentThread}
+  initials={initials}
+  userColor={userColor}
+/>
 
 
 

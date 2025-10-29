@@ -45,6 +45,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   // Handle SSR - only run client-side code after hydration
   useEffect(() => {
+    console.log('🚀 MobileNavigation component mounted and hydrated!');
     setIsClient(true);
     // Initialize current item ID
     setCurrentItemId(window.location.pathname.substring(1));
@@ -102,11 +103,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     if (!isClient) return [];
     
     let persistentItems = navigationHistory.filter((item) => {
-      // Don't show the currently active item (use the resolved active item ID)
-      // EXCEPT for spaces - spaces should always be shown even when active
-      if (item.id === currentActiveItemId && !item.id.startsWith('space_')) {
-        return false;
-      }
+      // Show all items, including active ones, to match desktop behavior
+      // This allows users to see active items and close them if needed
       
       // Don't show dashboard
       if (item.id === 'dashboard') {
@@ -138,6 +136,22 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const persistentItems = getPersistentItems();
 
+  // Organize persistent items hierarchically (spaces with threads nested)
+  const organizePersistentItems = () => {
+    if (!isClient || persistentItems.length === 0) return { spaces: [], threads: [] };
+    
+    const spaces = persistentItems.filter(item => item.id.startsWith('space_'));
+    const threads = persistentItems.filter(item => item.id.startsWith('thread_'));
+    
+    // For now, show all threads as unorganized since we don't have space relationships
+    // In the future, this could be enhanced to group threads under their parent spaces
+    const unorganizedThreads = threads;
+    
+    return { spaces, threads: unorganizedThreads };
+  };
+
+  const { spaces: persistentSpaces, threads: persistentThreads } = organizePersistentItems();
+
   // Debug logging
   console.log('MobileNavigation React component rendering:', { 
     spaces: spaces.length, 
@@ -150,7 +164,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   });
 
   const handleDropdownToggle = () => {
-    console.log('Dropdown toggle clicked, current state:', isDropdownOpen);
+    console.log('🎯 Dropdown toggle clicked, current state:', isDropdownOpen);
+    console.log('🎯 Setting dropdown to:', !isDropdownOpen);
     setIsDropdownOpen(!isDropdownOpen);
   };
 
@@ -214,100 +229,134 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 </div>
               </a>
               
-              {/* Spaces */}
-              {spaces.map(space => (
-                <a key={space.id} href={`/${space.id}`} className="block w-full" onClick={handleItemClick}>
-                  <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                    <span className="text-sm font-medium">{space.title}</span>
-                    <span className="text-xs text-gray-500">{space.totalItemCount}</span>
-                  </div>
-                </a>
-              ))}
-              
-              {/* Threads (context-aware) */}
-              {currentThread && (
-                <a href={`/${currentThread.id}`} className="block w-full" onClick={handleItemClick}>
-                  <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50 bg-blue-50">
-                    <span className="text-sm font-medium">{currentThread.title}</span>
-                    <span className="text-xs text-blue-600">{currentThread.noteCount}</span>
-                  </div>
-                </a>
-              )}
-              
-              {currentSpace && threads.length > 0 && (
-                threads.filter(thread => thread.spaceId === currentSpace.id).map(thread => (
-                  <a key={thread.id} href={`/${thread.id}`} className="block w-full" onClick={handleItemClick}>
-                    <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                      <span className="text-sm font-medium">{thread.title}</span>
-                      <span className="text-xs text-gray-500">{thread.noteCount}</span>
-                    </div>
-                  </a>
-                ))
-              )}
-
-              {/* Persistent Navigation Items */}
+              {/* Persistent Navigation Items - Hierarchical Display */}
               {isClient && persistentItems.length > 0 && (
                 <>
                   {/* Divider */}
                   <div className="border-t border-gray-200 my-2"></div>
                   
-                  {persistentItems.map((item) => {
-                    const isActive = item.id === currentActiveItemId;
+                  {/* Persistent Spaces */}
+                  {persistentSpaces.map((space) => {
+                    const isActive = space.id === currentActiveItemId;
                     
                     return (
-                      <div key={item.id} className="relative group">
-                        <a href={`/${item.id}`} className="block w-full" onClick={handleItemClick}>
-                          <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                            <span className="text-sm font-medium">{item.title}</span>
+                      <div key={space.id} className="relative group">
+                        <a href={`/${space.id}`} className="block w-full" onClick={handleItemClick}>
+                          <div 
+                            className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 ${isActive ? 'bg-blue-50' : ''}`}
+                            style={isActive ? {
+                              background: space.backgroundGradient || 'var(--color-paper)',
+                              boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset'
+                            } : {}}
+                          >
                             <div className="flex items-center gap-2">
-                              {/* Badge count with hover functionality */}
+                              <div className="w-1 h-4 bg-blue-500 rounded-full flex-shrink-0"></div>
+                              <span className="text-sm font-medium">{space.title}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
                               <div 
                                 className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer group/badge"
-                                data-close-item={item.id}
+                                data-close-item={space.id}
                                 onMouseEnter={(e) => {
-                                  if (!isActive) {
-                                    const badgeCount = e.currentTarget;
-                                    const countSpan = badgeCount.querySelector('.badge-number');
-                                    const closeIcon = badgeCount.querySelector('.close-icon');
-                                    
-                                    if (countSpan && closeIcon) {
-                                      countSpan.style.display = 'none';
-                                      closeIcon.style.display = 'block';
-                                      badgeCount.style.backgroundColor = 'transparent';
-                                    }
+                                  const badgeCount = e.currentTarget;
+                                  const countSpan = badgeCount.querySelector('.badge-number');
+                                  const closeIcon = badgeCount.querySelector('.close-icon');
+                                  
+                                  if (countSpan && closeIcon) {
+                                    countSpan.style.display = 'none';
+                                    closeIcon.style.display = 'block';
+                                    badgeCount.style.backgroundColor = 'transparent';
                                   }
                                 }}
                                 onMouseLeave={(e) => {
-                                  if (!isActive) {
-                                    const badgeCount = e.currentTarget;
-                                    const countSpan = badgeCount.querySelector('.badge-number');
-                                    const closeIcon = badgeCount.querySelector('.close-icon');
-                                    
-                                    if (countSpan && closeIcon) {
-                                      countSpan.style.display = 'block';
-                                      closeIcon.style.display = 'none';
-                                      badgeCount.style.backgroundColor = 'rgba(120,118,111,0.1)';
-                                    }
+                                  const badgeCount = e.currentTarget;
+                                  const countSpan = badgeCount.querySelector('.badge-number');
+                                  const closeIcon = badgeCount.querySelector('.close-icon');
+                                  
+                                  if (countSpan && closeIcon) {
+                                    countSpan.style.display = 'block';
+                                    closeIcon.style.display = 'none';
+                                    badgeCount.style.backgroundColor = 'rgba(120,118,111,0.1)';
                                   }
                                 }}
                                 onClick={(e) => {
-                                  if (!isActive) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    removeFromNavigationHistory(item.id);
-                                  }
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  removeFromNavigationHistory(space.id);
                                 }}
                               >
                                 <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                                  {item.count || 0}
+                                  {space.count || 0}
                                 </span>
-                                {/* Close icon - only show for inactive items */}
-                                {!isActive && (
-                                  <i 
-                                    className="fa-solid fa-xmark close-icon text-[var(--color-deep-grey)] text-xs"
-                                    style={{ display: 'none', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                                  ></i>
-                                )}
+                                <i 
+                                  className="fa-solid fa-xmark close-icon text-[var(--color-deep-grey)] text-xs"
+                                  style={{ display: 'none', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                                ></i>
+                              </div>
+                            </div>
+                          </div>
+                        </a>
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Persistent Threads */}
+                  {persistentThreads.map((thread) => {
+                    const isActive = thread.id === currentActiveItemId;
+                    
+                    return (
+                      <div key={thread.id} className="relative group">
+                        <a href={`/${thread.id}`} className="block w-full" onClick={handleItemClick}>
+                          <div 
+                            className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 ${isActive ? 'bg-blue-50' : ''}`}
+                            style={isActive ? {
+                              background: thread.backgroundGradient || 'var(--color-paper)',
+                              boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset'
+                            } : {}}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-1 h-4 bg-gray-400 rounded-full flex-shrink-0 ml-2"></div>
+                              <span className="text-sm font-medium text-gray-600">{thread.title}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer group/badge"
+                                data-close-item={thread.id}
+                                onMouseEnter={(e) => {
+                                  const badgeCount = e.currentTarget;
+                                  const countSpan = badgeCount.querySelector('.badge-number');
+                                  const closeIcon = badgeCount.querySelector('.close-icon');
+                                  
+                                  if (countSpan && closeIcon) {
+                                    countSpan.style.display = 'none';
+                                    closeIcon.style.display = 'block';
+                                    badgeCount.style.backgroundColor = 'transparent';
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  const badgeCount = e.currentTarget;
+                                  const countSpan = badgeCount.querySelector('.badge-number');
+                                  const closeIcon = badgeCount.querySelector('.close-icon');
+                                  
+                                  if (countSpan && closeIcon) {
+                                    countSpan.style.display = 'block';
+                                    closeIcon.style.display = 'none';
+                                    badgeCount.style.backgroundColor = 'rgba(120,118,111,0.1)';
+                                  }
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  removeFromNavigationHistory(thread.id);
+                                }}
+                              >
+                                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                                  {thread.count || 0}
+                                </span>
+                                <i 
+                                  className="fa-solid fa-xmark close-icon text-[var(--color-deep-grey)] text-xs"
+                                  style={{ display: 'none', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                                ></i>
                               </div>
                             </div>
                           </div>
@@ -318,7 +367,36 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 </>
               )}
               
-              {/* TEMPORARILY DISABLED: New Space Button - need to figure out spaces */}
+              {/* Created Spaces */}
+              {spaces.length > 0 && (
+                <>
+                  <div className="border-t border-gray-200 my-2"></div>
+                  {spaces.map(space => (
+                    <a key={space.id} href={`/${space.id}`} className="block w-full" onClick={handleItemClick}>
+                      <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
+                        <span className="text-sm font-medium">{space.title}</span>
+                        <span className="text-xs text-gray-500">{space.totalItemCount}</span>
+                      </div>
+                    </a>
+                  ))}
+                </>
+              )}
+              
+              {/* Active Thread (if not in persistent navigation) */}
+              {currentThread && !persistentItems.some(item => item.id === currentThread.id) && (
+                <>
+                  <div className="border-t border-gray-200 my-2"></div>
+                  <a href={`/${currentThread.id}`} className="block w-full" onClick={handleItemClick}>
+                    <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50 bg-blue-50">
+                      <span className="text-sm font-medium">{currentThread.title}</span>
+                      <span className="text-xs text-blue-600">{currentThread.noteCount}</span>
+                    </div>
+                  </a>
+                </>
+              )}
+              
+              {/* New Space Button */}
+              <div className="border-t border-gray-200 my-2"></div>
               <div className="block w-full cursor-not-allowed pointer-events-none">
                 <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
                   <span className="text-sm font-medium text-blue-600 opacity-60">New Space</span>

@@ -9,11 +9,11 @@ import CardFeat from "@/components/CardFeat.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
+import MobileNavigation from "@/components/MobileNavigation.astro";
 import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
-import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -131,6 +131,19 @@ try {
     initials={initials}
     userColor={userColor}
   />
+
+  <!-- Mobile Navigation -->
+  <div slot="mobile-navigation">
+    <MobileNavigation 
+      spaces={spaces}
+      threads={threads}
+      inboxCount={inboxItemCount}
+      currentSpace={null}
+      currentThread={activeThread}
+      initials={initials}
+      userColor={userColor}
+    />
+  </div>
 
   <!-- Main Column -->
   <div slot="main" class="h-full" id="dashboard-content" data-navigation-item="dashboard" data-title="For You" data-count={inboxItemCount} data-background-gradient="var(--color-paper)">
@@ -326,18 +339,6 @@ try {
           </div>
   </div>
 
-  <!-- Mobile Navigation -->
-  <div slot="mobile-navigation">
-    <MobileNavigation 
-      spaces={spaces}
-      threads={threads}
-      inboxCount={inboxItemCount}
-      currentSpace={null}
-      currentThread={activeThread}
-      initials={initials}
-      userColor={userColor}
-    />
-  </div>
 
   <!-- Mobile Additional -->
   <div slot="mobile-additional">
