@@ -558,21 +558,25 @@ const showMoreButton = shouldShowMoreButton(contentType);
       </div>
 
       <!-- Mobile/Tablet Layout (below 1160px) -->
-      <div class="min-[1160px]:hidden flex flex-col gap-3 h-[100svh] min-[1160px]:h-full">
+      <div class="min-[1160px]:hidden flex flex-col h-[100svh] min-[1160px]:h-full">
         <!-- Navigation Column (Top) -->
-        <div class="w-full">
+        <div class="w-full flex-shrink-0">
           <slot name="mobile-navigation" />
         </div>
         
-        <!-- Main Column (Middle) - Scrollable with padding for shadows -->
-        <div class="flex-1 overflow-y-auto px-3 pb-3">
-          <div class="min-h-full">
-            <slot name="main" />
-          </div>
+        <!-- Gap between top and middle -->
+        <div class="h-3 flex-shrink-0"></div>
+        
+        <!-- Main Column (Middle) - Takes remaining space -->
+        <div class="flex-1 overflow-y-auto px-3">
+          <slot name="main" />
         </div>
         
+        <!-- Gap between middle and bottom -->
+        <div class="h-3 flex-shrink-0"></div>
+        
         <!-- Additional Column (Bottom) -->
-        <div class="px-3">
+        <div class="px-3 flex-shrink-0">
           <slot name="mobile-additional" />
         </div>
       </div>
