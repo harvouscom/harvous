@@ -24,6 +24,7 @@ interface Props {
   showProfile?: boolean;
   initials?: string;
   userColor?: string;
+  [key: `data-${string}`]: string | number | undefined;
 }
 
 const { 
@@ -35,20 +36,34 @@ const {
   currentId = null,
   showProfile = false,
   initials = "DJ",
-  userColor = "paper"
+  userColor = "paper",
+  ...rest
 } = Astro.props;
+
+// Extract data-* attributes from rest props
+const dataAttributes: Record<string, string | number> = {};
+Object.keys(rest).forEach(key => {
+  if (key.startsWith('data-')) {
+    const value = (rest as Record<string, string | number | undefined>)[key];
+    if (value !== undefined) {
+      dataAttributes[key] = value;
+    }
+  }
+});
 ---
 
-<NavigationProvider client:load>
-  <NavigationColumn 
-    inboxCount={inboxCount}
-    spaces={spaces}
-    activeThread={activeThread}
-    currentSpace={currentSpace}
-    isNote={isNote}
-    currentId={currentId || undefined}
-    showProfile={showProfile}
-    initials={initials}
-    userColor={userColor}
-  />
-</NavigationProvider>
+<div {...dataAttributes} slot="navigation">
+  <NavigationProvider client:load>
+    <NavigationColumn 
+      inboxCount={inboxCount}
+      spaces={spaces}
+      activeThread={activeThread}
+      currentSpace={currentSpace}
+      isNote={isNote}
+      currentId={currentId || undefined}
+      showProfile={showProfile}
+      initials={initials}
+      userColor={userColor}
+    />
+  </NavigationProvider>
+</div>

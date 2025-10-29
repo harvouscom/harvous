@@ -699,6 +699,10 @@ if (!content) {
     showProfile={false}
     initials={initials}
     userColor={userColor}
+    data-parent-thread-id={isNote ? (currentThread?.id || 'thread_unorganized') : undefined}
+    data-parent-thread-title={isNote ? (currentThread?.title || 'Unorganized') : undefined}
+    data-parent-thread-count={isNote ? (currentThread?.noteCount || 0) : undefined}
+    data-parent-thread-background-gradient={isNote ? (currentThread?.backgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)') : undefined}
   />
 
   <!-- Main Column -->
