@@ -83,7 +83,7 @@ export default function EditThreadPanel({
       });
       
       const formDataToSend = new FormData();
-      formDataToSend.append('threadId', threadId);
+      formDataToSend.append('id', threadId);
       formDataToSend.append('title', formData.title.trim());
       formDataToSend.append('color', formData.selectedColor);
       formDataToSend.append('isPublic', 'false');
