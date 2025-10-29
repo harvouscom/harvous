@@ -200,28 +200,29 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       return;
     }
     
-    // Get content from TiptapEditor - try multiple methods
-    let editorContent = content;
-    
-    // Method 1: Try to get from hidden input
-    const hiddenInput = document.querySelector('#new-note-content') as HTMLInputElement;
-    if (hiddenInput && hiddenInput.value) {
-      editorContent = hiddenInput.value;
-      console.log('Content from hidden input:', editorContent.substring(0, 50) + '...');
+    // Get content from TiptapEditor - prioritize React state
+    let editorContent = content; // Start with React state as primary source
+
+    // Only fallback to DOM queries if React state is empty/invalid
+    if (!editorContent || editorContent.trim() === '' || editorContent === '<p></p>' || editorContent === '<p><br></p>') {
+      // Method 2: Try to get from hidden input as fallback
+      const hiddenInput = document.querySelector('#new-note-content') as HTMLInputElement;
+      if (hiddenInput && hiddenInput.value && hiddenInput.value.trim() !== '' && hiddenInput.value !== '<p></p>') {
+        editorContent = hiddenInput.value;
+        console.log('Content from hidden input (fallback):', editorContent.substring(0, 50) + '...');
+      }
+      
+      // Method 3: Try to get from TiptapEditor DOM as last resort
+      if (!editorContent || editorContent.trim() === '') {
+        const tiptapEditor = document.querySelector('.ProseMirror');
+        if (tiptapEditor) {
+          editorContent = tiptapEditor.innerHTML;
+          console.log('Content from TiptapEditor DOM (last resort):', editorContent.substring(0, 50) + '...');
+        }
+      }
     }
-    
-    // Method 2: Try to get from TiptapEditor directly via DOM
-    const tiptapEditor = document.querySelector('.tiptap-content');
-    if (tiptapEditor && (!editorContent || editorContent.trim() === '')) {
-      editorContent = tiptapEditor.innerHTML;
-      console.log('Content from TiptapEditor DOM:', editorContent.substring(0, 50) + '...');
-    }
-    
-    // Method 3: Use the content state as fallback
-    if (!editorContent || editorContent.trim() === '') {
-      editorContent = content;
-      console.log('Content from state:', editorContent.substring(0, 50) + '...');
-    }
+
+    console.log('Using React state as primary source:', editorContent.substring(0, 50) + '...');
     
     // Final content validation and logging
     console.log('Final editorContent for submission:', {
