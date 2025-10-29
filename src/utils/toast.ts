@@ -1,37 +1,50 @@
 import { toast as sonnerToast } from 'sonner';
 
+// Helper function to safely call Sonner toast
+function safeToast(callback: () => void, type: string, message: string) {
+  try {
+    callback();
+    console.log(`Toast [${type}]: ${message}`);
+  } catch (error) {
+    console.error(`Toast [${type}] error:`, error);
+    console.error('Message that failed:', message);
+    // Fallback to alert if Sonner isn't available
+    alert(message);
+  }
+}
+
 // Toast utility functions that can be used from anywhere
 export const toast = {
   success: (message: string) => {
-    sonnerToast.success(message);
+    safeToast(() => sonnerToast.success(message), 'success', message);
   },
   
   error: (message: string) => {
-    sonnerToast.error(message);
+    safeToast(() => sonnerToast.error(message), 'error', message);
   },
   
   info: (message: string) => {
-    sonnerToast.info(message);
+    safeToast(() => sonnerToast.info(message), 'info', message);
   },
   
   warning: (message: string) => {
-    sonnerToast.warning(message);
+    safeToast(() => sonnerToast.warning(message), 'warning', message);
   },
   
   // Generic toast function
   show: (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
     switch (type) {
       case 'success':
-        sonnerToast.success(message);
+        safeToast(() => sonnerToast.success(message), 'success', message);
         break;
       case 'error':
-        sonnerToast.error(message);
+        safeToast(() => sonnerToast.error(message), 'error', message);
         break;
       case 'info':
-        sonnerToast.info(message);
+        safeToast(() => sonnerToast.info(message), 'info', message);
         break;
       case 'warning':
-        sonnerToast.warning(message);
+        safeToast(() => sonnerToast.warning(message), 'warning', message);
         break;
     }
   }
@@ -47,4 +60,5 @@ declare global {
 // Make toast available globally
 if (typeof window !== 'undefined') {
   window.toast = toast;
+  console.log('Toast utility initialized and available at window.toast');
 }

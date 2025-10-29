@@ -24,9 +24,6 @@ export default function ToastProvider() {
           boxShadow: '0px 7px 16px 0px rgba(0, 0, 0, 0.1), 0px 30px 30px 0px rgba(0, 0, 0, 0.09), 0px 67px 40px 0px rgba(0, 0, 0, 0.05), 0px 119px 47px 0px rgba(0, 0, 0, 0.01), 0px 185px 52px 0px rgba(0, 0, 0, 0)',
           padding: '8px 20px',
           height: '60px',
-          zIndex: 9999,
-          width: 'calc(100vw - 32px)',
-          maxWidth: '500px',
         },
         classNames: {
           toast: 'text-[var(--color-deep-grey)] rounded-xl flex items-center gap-3 h-[60px]',
@@ -53,7 +50,7 @@ export default function ToastProvider() {
           icon: null,
         },
       }}
-      className="[&>[data-sonner-toaster]]:top-4 [&>[data-sonner-toaster]]:left-4 [&>[data-sonner-toaster]]:right-4 [&>[data-sonner-toaster]]:transform-none
+      className="[&>[data-sonner-toaster]]:top-4 [&>[data-sonner-toaster]]:left-4 [&>[data-sonner-toaster]]:right-4 [&>[data-sonner-toaster]]:transform-none [&>[data-sonner-toaster]]:z-[9999]
                  [&_[data-icon-wrapper]]:!hidden [&_[data-icon-wrapper]]:!w-0 [&_[data-icon-wrapper]]:!h-0 [&_[data-icon-wrapper]]:!p-0 [&_[data-icon-wrapper]]:!m-0
                  [&_[data-icon]]:!hidden [&_[data-icon]]:!w-0 [&_[data-icon]]:!h-0 [&_[data-icon]]:!p-0 [&_[data-icon]]:!m-0
                  [&_[data-icon-container]]:!hidden [&_[data-icon-container]]:!w-0 [&_[data-icon-container]]:!h-0 [&_[data-icon-container]]:!p-0 [&_[data-icon-container]]:!m-0

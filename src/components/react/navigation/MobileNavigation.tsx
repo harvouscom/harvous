@@ -75,20 +75,25 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     
     // If we're on a note page, we need to determine the parent thread
     if (currentItemId.startsWith('note_')) {
-      // Try to get parent thread from page data
-      const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-      
-      if (noteElement && noteElement.dataset.parentThreadId) {
-        currentActiveItemId = noteElement.dataset.parentThreadId;
+      // First priority: use the currentThread prop passed from server-side
+      if (currentThread && currentThread.id) {
+        currentActiveItemId = currentThread.id;
       } else {
-        // Try to get from navigation element
-        const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+        // Fallback: try to get parent thread from page data
+        const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
         
-        if (navigationElement && navigationElement.dataset.parentThreadId) {
-          currentActiveItemId = navigationElement.dataset.parentThreadId;
+        if (noteElement && noteElement.dataset.parentThreadId) {
+          currentActiveItemId = noteElement.dataset.parentThreadId;
         } else {
-          // Fallback: assume unorganized thread
-          currentActiveItemId = 'thread_unorganized';
+          // Try to get from navigation element
+          const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+          
+          if (navigationElement && navigationElement.dataset.parentThreadId) {
+            currentActiveItemId = navigationElement.dataset.parentThreadId;
+          } else {
+            // Final fallback: assume unorganized thread
+            currentActiveItemId = 'thread_unorganized';
+          }
         }
       }
     }

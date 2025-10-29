@@ -42,19 +42,19 @@ const PersistentNavigation: React.FC = () => {
     
     // If we're on a note page, we need to determine the parent thread
     if (currentItemId.startsWith('note_')) {
-      // Try to get parent thread from page data
-      const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+      // First priority: try to get from navigation element (set by server-side)
+      const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
       
-      if (noteElement && noteElement.dataset.parentThreadId) {
-        currentActiveItemId = noteElement.dataset.parentThreadId;
+      if (navigationElement && navigationElement.dataset.parentThreadId) {
+        currentActiveItemId = navigationElement.dataset.parentThreadId;
       } else {
-        // Try to get from navigation element
-        const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+        // Fallback: try to get parent thread from note element
+        const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
         
-        if (navigationElement && navigationElement.dataset.parentThreadId) {
-          currentActiveItemId = navigationElement.dataset.parentThreadId;
+        if (noteElement && noteElement.dataset.parentThreadId) {
+          currentActiveItemId = noteElement.dataset.parentThreadId;
         } else {
-          // Fallback: assume unorganized thread
+          // Final fallback: assume unorganized thread
           currentActiveItemId = 'thread_unorganized';
         }
       }

@@ -10,6 +10,7 @@ import NewNotePanel from './NewNotePanel';
 import NewThreadPanel from './NewThreadPanel';
 import NoteDetailsPanel from './NoteDetailsPanel';
 import EditNameColorPanel from './EditNameColorPanel';
+import EditThreadPanel from './EditThreadPanel';
 
 // Extend the Window interface to include custom functions
 declare global {
@@ -29,7 +30,7 @@ export interface BottomSheetProps {
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
 }
 
-type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'getSupport' | 'emailPassword' | 'myChurch' | 'myData';
+type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'editThread' | 'getSupport' | 'emailPassword' | 'myChurch' | 'myData';
 
 const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen = false,
@@ -135,21 +136,33 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     window.addEventListener('openMobileDrawer', handleOpenBottomSheet as EventListener);
     window.addEventListener('closeMobileDrawer', handleCloseBottomSheet);
     
+    // Listen for panel events and open mobile drawer if on mobile
+    const handleOpenEditThreadPanel = () => {
+      if (isMobile) {
+        openBottomSheet('editThread');
+      }
+    };
+    
+    window.addEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
+    
     // Listen for panel close events
     window.addEventListener('closeNewNotePanel', handleCloseBottomSheet);
     window.addEventListener('closeNewThreadPanel', handleCloseBottomSheet);
     window.addEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
     window.addEventListener('closeProfilePanel', handleCloseBottomSheet);
+    window.addEventListener('closeEditThreadPanel', handleCloseBottomSheet);
 
     return () => {
       window.removeEventListener('openMobileDrawer', handleOpenBottomSheet as EventListener);
       window.removeEventListener('closeMobileDrawer', handleCloseBottomSheet);
+      window.removeEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
       window.removeEventListener('closeNewNotePanel', handleCloseBottomSheet);
       window.removeEventListener('closeNewThreadPanel', handleCloseBottomSheet);
       window.removeEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
       window.removeEventListener('closeProfilePanel', handleCloseBottomSheet);
+      window.removeEventListener('closeEditThreadPanel', handleCloseBottomSheet);
     };
-  }, [openBottomSheet, closeBottomSheet]);
+  }, [openBottomSheet, closeBottomSheet, isMobile]);
 
   // Handle visibility changes
   useEffect(() => {
@@ -254,6 +267,22 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}
               />
+            </div>
+          )}
+          
+          {/* Edit Thread Panel */}
+          {drawerType === 'editThread' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              {contentType === 'thread' && currentThread && (
+                <EditThreadPanel 
+                  threadId={currentThread.id}
+                  initialTitle={currentThread.title}
+                  initialColor={currentThread.color}
+                  onClose={() => {
+                    window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+                  }}
+                />
+              )}
             </div>
           )}
           
