@@ -362,9 +362,9 @@ const showMoreButton = shouldShowMoreButton(contentType);
   >
     <ToastProvider client:load />
 
-    <div class="min-h-screen p-3 min-[1160px]:p-6 bg-[var(--color-light-paper)]" transition:animate={fade({ duration: '0.1s' })}>
+    <div class="min-h-screen h-[100svh] p-3 min-[1160px]:p-6 bg-[var(--color-light-paper)]" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->
-      <div class="hidden min-[1160px]:grid min-[1160px]:grid-cols-[minmax(280px,clamp(280px,20vw,300px))_minmax(380px,640px)_minmax(380px,640px)] min-[1160px]:gap-6 min-[1160px]:h-full">        <!-- Navigation Column -->
+      <div class="hidden min-[1160px]:grid min-[1160px]:grid-cols-[minmax(280px,clamp(280px,20vw,300px))_minmax(380px,640px)_minmax(380px,640px)] min-[1160px]:gap-6 min-[1160px]:h-screen">        <!-- Navigation Column -->
         <section class="h-full">
           <div 
             slot="navigation" 
@@ -558,25 +558,19 @@ const showMoreButton = shouldShowMoreButton(contentType);
       </div>
 
       <!-- Mobile/Tablet Layout (below 1160px) -->
-      <div class="min-[1160px]:hidden flex flex-col h-[100dvh] min-[1160px]:h-full overflow-hidden">
+      <div class="min-[1160px]:hidden flex flex-col gap-3 h-full">
         <!-- Navigation Column (Top) -->
-        <div class="w-full flex-shrink-0">
+        <div class="w-full">
           <slot name="mobile-navigation" />
         </div>
         
-        <!-- Gap between top and middle -->
-        <div class="h-3 flex-shrink-0"></div>
-        
-        <!-- Main Column (Middle) - Constrained height with overflow -->
-        <div class="flex-1 min-h-0 max-h-[calc(100dvh-150px)] overflow-y-auto px-3">
+        <!-- Main Column (Middle) -->
+        <div class="flex-1">
           <slot name="main" />
         </div>
         
-        <!-- Gap between middle and bottom -->
-        <div class="h-3 flex-shrink-0"></div>
-        
         <!-- Additional Column (Bottom) -->
-        <div class="px-3 flex-shrink-0 pb-3">
+        <div class="px-3">
           <slot name="mobile-additional" />
         </div>
       </div>

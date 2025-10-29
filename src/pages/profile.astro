@@ -126,7 +126,7 @@ const contentId = "profile";
   />
 
   <!-- Main Column -->
-  <div slot="main" class="h-full flex flex-col">
+  <div slot="main" class="h-full flex flex-col p-4 pb-6">
     <CardStack 
       title={displayName}
       headerBgColor={`var(--color-${userColor})`}
@@ -220,7 +220,7 @@ const contentId = "profile";
     </CardStack>
     
     <!-- Logout Button at Bottom -->
-    <div class="mt-4">
+    <div class="mt-4 mb-safe">
       <Button state="Secondary" class="w-full" id="logout-button">
         Logout
       </Button>
