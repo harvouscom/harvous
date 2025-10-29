@@ -70,6 +70,13 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     console.log("Thread deleted and notes moved to unorganized thread:", threadId);
 
+    // Dispatch thread deleted event for navigation updates
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('threadDeleted', {
+        detail: { threadId: threadId }
+      }));
+    }
+
     return new Response(JSON.stringify({ 
       success: "Thread erased successfully! Notes have been moved to the Unorganized thread.",
       threadId: threadId

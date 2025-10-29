@@ -2042,5 +2042,55 @@ window.addEventListener('popstate', loadPersistentNavigation);
     loadPersistentNavigation();
   }, 100);
 });
+
+// Listen for deletion events to refresh navigation display
+(document as any).addEventListener('threadDeleted', (event: any) => {
+  console.log('🧭 Thread deleted event received, refreshing navigation display');
+  // Small delay to ensure React system has updated localStorage
+  setTimeout(() => {
+    loadPersistentNavigation();
+  }, 100);
+});
+
+(document as any).addEventListener('spaceDeleted', (event: any) => {
+  console.log('🧭 Space deleted event received, refreshing navigation display');
+  // Small delay to ensure React system has updated localStorage
+  setTimeout(() => {
+    loadPersistentNavigation();
+  }, 100);
+});
+
+// Listen for note events to refresh navigation display (for count updates)
+(document as any).addEventListener('noteCreated', (event: any) => {
+  console.log('🧭 Note created event received, refreshing navigation display');
+  // Small delay to ensure React system has updated localStorage
+  setTimeout(() => {
+    loadPersistentNavigation();
+  }, 100);
+});
+
+(document as any).addEventListener('noteDeleted', (event: any) => {
+  console.log('🧭 Note deleted event received, refreshing navigation display');
+  // Small delay to ensure React system has updated localStorage
+  setTimeout(() => {
+    loadPersistentNavigation();
+  }, 100);
+});
+
+(document as any).addEventListener('noteRemovedFromThread', (event: any) => {
+  console.log('🧭 Note removed from thread event received, refreshing navigation display');
+  // Small delay to ensure React system has updated localStorage
+  setTimeout(() => {
+    loadPersistentNavigation();
+  }, 100);
+});
+
+(document as any).addEventListener('noteAddedToThread', (event: any) => {
+  console.log('🧭 Note added to thread event received, refreshing navigation display');
+  // Small delay to ensure React system has updated localStorage
+  setTimeout(() => {
+    loadPersistentNavigation();
+  }, 100);
+});
 </script>
 

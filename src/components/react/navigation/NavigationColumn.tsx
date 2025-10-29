@@ -46,6 +46,28 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   userColor = "paper"
 }) => {
   const [showActiveThread, setShowActiveThread] = useState(false);
+  const [currentItemId, setCurrentItemId] = useState('');
+  
+  // Initialize current item ID and listen for page changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentItemId(window.location.pathname.substring(1));
+    }
+  }, []);
+
+  // Listen for page changes to update current item
+  useEffect(() => {
+    const handlePageLoad = () => {
+      // Update current item ID when page changes
+      setCurrentItemId(window.location.pathname.substring(1));
+    };
+
+    document.addEventListener('astro:page-load', handlePageLoad);
+    
+    return () => {
+      document.removeEventListener('astro:page-load', handlePageLoad);
+    };
+  }, []);
   
   // Check if active thread is in persistent navigation on client side
   useEffect(() => {
@@ -64,7 +86,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         setShowActiveThread(true); // Default to showing if error
       }
     }
-  }, [activeThread, isNote]);
+  }, [activeThread, isNote, currentItemId]);
   return (
     <div slot="navigation" className="h-full">
       <div className="flex flex-col items-start justify-between relative h-full">
@@ -113,7 +135,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                   state="Close" 
                   className="w-full" 
                   backgroundGradient={activeThread.backgroundGradient}
-                  isActive={isNote || activeThread.id === currentId}
+                  isActive={isNote || activeThread.id === currentItemId}
                   itemId={activeThread.id}
                 />
               </a>

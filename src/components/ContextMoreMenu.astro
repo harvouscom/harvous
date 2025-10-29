@@ -127,6 +127,21 @@ const menuOptions = menuOptionsData.map(option => {
             const data = await response.json();
             
             if (data.success) {
+              // Dispatch appropriate deletion event for navigation updates
+              if (this.contentType === 'thread') {
+                window.dispatchEvent(new CustomEvent('threadDeleted', {
+                  detail: { threadId: this.contentId }
+                }));
+              } else if (this.contentType === 'note') {
+                window.dispatchEvent(new CustomEvent('noteDeleted', {
+                  detail: { noteId: this.contentId }
+                }));
+              } else if (this.contentType === 'space') {
+                window.dispatchEvent(new CustomEvent('spaceDeleted', {
+                  detail: { spaceId: this.contentId }
+                }));
+              }
+              
               // Redirect to dashboard with toast parameters (like create operations)
               const redirectUrl = '/dashboard?toast=success&message=' + encodeURIComponent(successMessage);
               window.location.href = redirectUrl;

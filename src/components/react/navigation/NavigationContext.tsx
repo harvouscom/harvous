@@ -375,10 +375,106 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.log('🧭 Navigation history reloaded after thread creation:', history);
       }
     };
+
+    // Listen for thread deletion events
+    const handleThreadDeleted = (event: CustomEvent) => {
+      console.log('🧭 Thread deleted event received in NavigationContext:', event.detail);
+      const threadId = event.detail?.threadId;
+      if (threadId) {
+        // Remove the thread from navigation history
+        removeFromNavigationHistory(threadId);
+        console.log('🧭 Thread removed from navigation history:', threadId);
+      }
+    };
+
+    // Listen for note creation events to update thread counts
+    const handleNoteCreated = (event: CustomEvent) => {
+      console.log('🧭 Note created event received in NavigationContext:', event.detail);
+      const note = event.detail?.note;
+      if (note && note.threadId) {
+        // Update the thread's note count in navigation history
+        const history = getNavigationHistory();
+        const threadIndex = history.findIndex((item: any) => item.id === note.threadId);
+        if (threadIndex !== -1) {
+          history[threadIndex].count = (history[threadIndex].count || 0) + 1;
+          saveNavigationHistory(history);
+          setNavigationHistory(history);
+          console.log('🧭 Updated thread note count after note creation:', note.threadId);
+        }
+      }
+    };
+
+    // Listen for note removal from thread events
+    const handleNoteRemovedFromThread = (event: CustomEvent) => {
+      console.log('🧭 Note removed from thread event received in NavigationContext:', event.detail);
+      const { noteId, threadId } = event.detail;
+      if (threadId) {
+        // Update the thread's note count in navigation history
+        const history = getNavigationHistory();
+        const threadIndex = history.findIndex((item: any) => item.id === threadId);
+        if (threadIndex !== -1) {
+          history[threadIndex].count = Math.max(0, (history[threadIndex].count || 0) - 1);
+          saveNavigationHistory(history);
+          setNavigationHistory(history);
+          console.log('🧭 Updated thread note count after note removal:', threadId);
+        }
+      }
+    };
+
+    // Listen for note addition to thread events
+    const handleNoteAddedToThread = (event: CustomEvent) => {
+      console.log('🧭 Note added to thread event received in NavigationContext:', event.detail);
+      const { noteId, threadId } = event.detail;
+      if (threadId) {
+        // Update the thread's note count in navigation history
+        const history = getNavigationHistory();
+        const threadIndex = history.findIndex((item: any) => item.id === threadId);
+        if (threadIndex !== -1) {
+          history[threadIndex].count = (history[threadIndex].count || 0) + 1;
+          saveNavigationHistory(history);
+          setNavigationHistory(history);
+          console.log('🧭 Updated thread note count after note addition:', threadId);
+        }
+      }
+    };
+
+    // Listen for space deletion events
+    const handleSpaceDeleted = (event: CustomEvent) => {
+      console.log('🧭 Space deleted event received in NavigationContext:', event.detail);
+      const spaceId = event.detail?.spaceId;
+      if (spaceId) {
+        // Remove the space from navigation history
+        removeFromNavigationHistory(spaceId);
+        console.log('🧭 Space removed from navigation history:', spaceId);
+      }
+    };
+
+    // Listen for note deletion events
+    const handleNoteDeleted = (event: CustomEvent) => {
+      console.log('🧭 Note deleted event received in NavigationContext:', event.detail);
+      const note = event.detail?.note;
+      if (note && note.threadId) {
+        // Update the thread's note count in navigation history
+        const history = getNavigationHistory();
+        const threadIndex = history.findIndex((item: any) => item.id === note.threadId);
+        if (threadIndex !== -1) {
+          history[threadIndex].count = Math.max(0, (history[threadIndex].count || 0) - 1);
+          saveNavigationHistory(history);
+          setNavigationHistory(history);
+          console.log('🧭 Updated thread note count after note deletion:', note.threadId);
+        }
+      }
+    };
     
     document.addEventListener('astro:page-load', handlePageLoad);
     document.addEventListener('spaceCreated', handleSpaceCreated as EventListener);
+    document.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
     document.addEventListener('threadCreated', handleThreadCreated as EventListener);
+    document.addEventListener('threadDeleted', handleThreadDeleted as EventListener);
+    document.addEventListener('noteCreated', handleNoteCreated as EventListener);
+    document.addEventListener('noteDeleted', handleNoteDeleted as EventListener);
+    document.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+    document.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
     
     // Expose functions to global scope for non-React code
     (window as any).removeFromNavigationHistory = removeFromNavigationHistory;
@@ -389,7 +485,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => {
       document.removeEventListener('astro:page-load', handlePageLoad);
       document.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
+      document.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
       document.removeEventListener('threadCreated', handleThreadCreated as EventListener);
+      document.removeEventListener('threadDeleted', handleThreadDeleted as EventListener);
+      document.removeEventListener('noteCreated', handleNoteCreated as EventListener);
+      document.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
+      document.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+      document.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
     };
   }, []);
 

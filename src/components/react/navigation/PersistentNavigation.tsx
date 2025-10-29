@@ -5,6 +5,7 @@ import SpaceButton from './SpaceButton';
 const PersistentNavigation: React.FC = () => {
   const { navigationHistory, removeFromNavigationHistory } = useNavigation();
   const [isClient, setIsClient] = useState(false);
+  const [currentItemId, setCurrentItemId] = useState('');
 
   console.log('🧭 PersistentNavigation: Component function called');
   console.log('🧭 PersistentNavigation: navigationHistory:', navigationHistory);
@@ -13,17 +14,25 @@ const PersistentNavigation: React.FC = () => {
   // Handle SSR - only run client-side code after hydration
   useEffect(() => {
     setIsClient(true);
+    setCurrentItemId(window.location.pathname.substring(1));
     console.log('🧭 PersistentNavigation: Client-side hydration complete');
   }, []);
 
-  // Get currently active item (the one being viewed) - only on client
-  const getCurrentItemId = () => {
-    if (!isClient) return '';
-    const currentPath = window.location.pathname;
-    return currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-  };
+  // Listen for page changes to update current item
+  useEffect(() => {
+    if (!isClient) return;
 
-  const currentItemId = getCurrentItemId();
+    const handlePageLoad = () => {
+      // Update current item ID when page changes
+      setCurrentItemId(window.location.pathname.substring(1));
+    };
+
+    document.addEventListener('astro:page-load', handlePageLoad);
+    
+    return () => {
+      document.removeEventListener('astro:page-load', handlePageLoad);
+    };
+  }, [isClient]);
   
   // Determine what the current active thread/space is - only on client
   const getCurrentActiveItemId = () => {
