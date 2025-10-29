@@ -567,8 +567,8 @@ const showMoreButton = shouldShowMoreButton(contentType);
         <!-- Gap between top and middle -->
         <div class="h-3 flex-shrink-0"></div>
         
-        <!-- Main Column (Middle) - Takes remaining space with proper overflow -->
-        <div class="flex-1 min-h-0 overflow-y-auto px-3">
+        <!-- Main Column (Middle) - Constrained height with overflow -->
+        <div class="flex-1 min-h-0 max-h-[calc(100dvh-150px)] overflow-y-auto px-3">
           <slot name="main" />
         </div>
         
