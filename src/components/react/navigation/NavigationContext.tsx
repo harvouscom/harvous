@@ -124,7 +124,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Skip specific test items (exact title matches only)
     const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
     if (testItemTitles.includes(item.title)) {
-      console.log('🧭 Skipping test item from navigation history:', item.title);
       return;
     }
     
@@ -135,7 +134,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     if (existingIndex !== -1) {
       // Item already exists - update lastAccessed time but keep position
-      console.log('🧭 Item already exists, updating lastAccessed:', item.id);
       history[existingIndex] = {
         ...history[existingIndex],
         ...item,
@@ -145,7 +143,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Item doesn't exist - this could be first time opening or reopening after being closed
       // For now, we'll add to the end (first time opening behavior)
       // TODO: In the future, we could track closed items to detect true reopening
-      console.log('🧭 Adding new item to history (first time):', item.id);
       const newItem: NavigationItem = {
         ...item,
         firstAccessed: Date.now(),
@@ -264,18 +261,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const currentPath = window.location.pathname;
     const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
 
-    console.log('🧭 trackNavigationAccess called for:', currentItemId);
-
     // Skip dashboard and empty paths
     if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
-      console.log('🧭 Skipping navigation tracking for:', currentItemId);
       return;
     }
     
     // Skip specific test items
     const testItemIds = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
     if (testItemIds.some(testId => currentItemId.includes(testId))) {
-      console.log('🧭 Skipping navigation tracking for test item:', currentItemId);
       return;
     }
     
@@ -284,7 +277,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     // Extract item data from page
     const itemData = extractItemDataFromPage(currentItemId);
-    console.log('🧭 Extracted item data:', itemData);
     
     if (itemData) {
       // Special handling for unorganized thread
@@ -296,16 +288,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const history = getNavigationHistory();
       const existingItem = history.find(h => h.id === itemData.id);
       
-      console.log('🧭 Current history:', history);
-      console.log('🧭 Existing item:', existingItem);
-      
       if (!existingItem) {
         // Only add new items to history - this preserves the order
-        console.log('🧭 Adding new item to history:', itemData);
         addToNavigationHistory(itemData);
       } else {
         // Update the item data but DON'T change its position
-        console.log('🧭 Updating existing item:', itemData);
         const existingIndex = history.findIndex(h => h.id === itemData.id);
         history[existingIndex] = {
           ...history[existingIndex],
@@ -316,8 +303,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         saveNavigationHistory(history);
         setNavigationHistory(history);
       }
-    } else {
-      console.log('🧭 No item data found for:', currentItemId);
     }
   };
 
@@ -342,54 +327,45 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     // Listen for space creation events
     const handleSpaceCreated = (event: CustomEvent) => {
-      console.log('🧭 Space created event received in NavigationContext:', event.detail);
       const space = event.detail?.space;
       if (space) {
         // Skip specific test spaces (exact title matches only)
         const testSpaceTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
         if (testSpaceTitles.includes(space.title)) {
-          console.log('🧭 Skipping test space from navigation history:', space.title);
           return;
         }
         // Reload navigation history from localStorage (which was updated synchronously)
         const history = getNavigationHistory();
         setNavigationHistory(history);
-        console.log('🧭 Navigation history reloaded after space creation:', history);
       }
     };
     
     // Listen for thread creation events
     const handleThreadCreated = (event: CustomEvent) => {
-      console.log('🧭 Thread created event received in NavigationContext:', event.detail);
       const thread = event.detail?.thread;
       if (thread) {
         // Skip specific test threads (exact title matches only)
         const testThreadTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
         if (testThreadTitles.includes(thread.title)) {
-          console.log('🧭 Skipping test thread from navigation history:', thread.title);
           return;
         }
         // Reload navigation history from localStorage (which was updated synchronously)
         const history = getNavigationHistory();
         setNavigationHistory(history);
-        console.log('🧭 Navigation history reloaded after thread creation:', history);
       }
     };
 
     // Listen for thread deletion events
     const handleThreadDeleted = (event: CustomEvent) => {
-      console.log('🧭 Thread deleted event received in NavigationContext:', event.detail);
       const threadId = event.detail?.threadId;
       if (threadId) {
         // Remove the thread from navigation history
         removeFromNavigationHistory(threadId);
-        console.log('🧭 Thread removed from navigation history:', threadId);
       }
     };
 
     // Listen for note creation events to update thread counts
     const handleNoteCreated = (event: CustomEvent) => {
-      console.log('🧭 Note created event received in NavigationContext:', event.detail);
       const note = event.detail?.note;
       if (note && note.threadId) {
         // Update the thread's note count in navigation history
@@ -399,14 +375,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           history[threadIndex].count = (history[threadIndex].count || 0) + 1;
           saveNavigationHistory(history);
           setNavigationHistory(history);
-          console.log('🧭 Updated thread note count after note creation:', note.threadId);
         }
       }
     };
 
     // Listen for note removal from thread events
     const handleNoteRemovedFromThread = (event: CustomEvent) => {
-      console.log('🧭 Note removed from thread event received in NavigationContext:', event.detail);
       const { noteId, threadId } = event.detail;
       if (threadId) {
         // Update the thread's note count in navigation history
@@ -416,14 +390,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           history[threadIndex].count = Math.max(0, (history[threadIndex].count || 0) - 1);
           saveNavigationHistory(history);
           setNavigationHistory(history);
-          console.log('🧭 Updated thread note count after note removal:', threadId);
         }
       }
     };
 
     // Listen for note addition to thread events
     const handleNoteAddedToThread = (event: CustomEvent) => {
-      console.log('🧭 Note added to thread event received in NavigationContext:', event.detail);
       const { noteId, threadId } = event.detail;
       if (threadId) {
         // Update the thread's note count in navigation history
@@ -433,25 +405,21 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           history[threadIndex].count = (history[threadIndex].count || 0) + 1;
           saveNavigationHistory(history);
           setNavigationHistory(history);
-          console.log('🧭 Updated thread note count after note addition:', threadId);
         }
       }
     };
 
     // Listen for space deletion events
     const handleSpaceDeleted = (event: CustomEvent) => {
-      console.log('🧭 Space deleted event received in NavigationContext:', event.detail);
       const spaceId = event.detail?.spaceId;
       if (spaceId) {
         // Remove the space from navigation history
         removeFromNavigationHistory(spaceId);
-        console.log('🧭 Space removed from navigation history:', spaceId);
       }
     };
 
     // Listen for note deletion events
     const handleNoteDeleted = (event: CustomEvent) => {
-      console.log('🧭 Note deleted event received in NavigationContext:', event.detail);
       const note = event.detail?.note;
       if (note && note.threadId) {
         // Update the thread's note count in navigation history
@@ -461,7 +429,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           history[threadIndex].count = Math.max(0, (history[threadIndex].count || 0) - 1);
           saveNavigationHistory(history);
           setNavigationHistory(history);
-          console.log('🧭 Updated thread note count after note deletion:', note.threadId);
         }
       }
     };

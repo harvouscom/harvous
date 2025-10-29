@@ -95,12 +95,8 @@ const showMoreButton = shouldShowMoreButton(contentType);
     <script is:inline>
       // Global profile data sync - runs on every page load
       (function() {
-        console.log('Profile Data Sync: Initializing...');
-        
         function syncProfileData() {
-          console.log('Profile Data Sync: Checking sessionStorage...');
           const storedProfileData = sessionStorage.getItem('userProfileData');
-          console.log('Profile Data Sync: Raw sessionStorage data:', storedProfileData);
           
           if (storedProfileData) {
             try {
@@ -110,35 +106,19 @@ const showMoreButton = shouldShowMoreButton(contentType);
               const oneHour = 60 * 60 * 1000;
               const isDataStale = Date.now() - profileData.timestamp > oneHour;
               
-              console.log('Profile Data Sync: Data analysis:', {
-                timestamp: profileData.timestamp,
-                age: Date.now() - profileData.timestamp,
-                isDataStale: isDataStale,
-                profileData: profileData
-              });
-              
               if (isDataStale) {
-                console.log('Profile Data Sync: Data is stale, removing from sessionStorage');
                 sessionStorage.removeItem('userProfileData');
                 return;
               }
               
-              console.log('Profile Data Sync: Found updated profile data:', profileData);
-              
               // Update all avatars using the global function
               if (window.updateAllAvatars) {
-                window.updateAllAvatars(profileData.color, profileData.initials).then(result => {
-                  console.log(`Profile Data Sync: Updated ${result.updatedCount} avatars`);
-                });
-              } else {
-                console.warn('Profile Data Sync: Avatar manager not available yet');
+                window.updateAllAvatars(profileData.color, profileData.initials);
               }
             } catch (error) {
               console.error('Profile Data Sync: Error parsing stored profile data:', error);
               sessionStorage.removeItem('userProfileData');
             }
-          } else {
-            console.log('Profile Data Sync: No sessionStorage data found');
           }
         }
         
@@ -151,8 +131,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
         
         // Also run after View Transitions
         document.addEventListener('astro:page-load', syncProfileData);
-        
-        console.log('Profile Data Sync: Initialized');
       })();
     </script>
     
@@ -448,9 +426,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   showNewThreadPanel = true;
                 }
                 
-                // Debug: Log current state
-                console.log('Layout init - showNewNotePanel:', showNewNotePanel, 'savedNotePanel:', savedNotePanel);
-                
                 // Listen for NoteDetailsPanel events (notes only)
                 window.addEventListener('openNoteDetailsPanel', () => {
                   showNoteDetailsPanel = true;
@@ -459,9 +434,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   showEditThreadPanel = false;
                 });
                 window.addEventListener('closeNoteDetailsPanel', () => {
-                  console.log('Layout: closeNoteDetailsPanel event received');
                   showNoteDetailsPanel = false;
-                  console.log('Layout: showNoteDetailsPanel set to:', showNoteDetailsPanel);
                 });
                 
                 // Listen for EditThreadPanel events (threads only)
@@ -472,9 +445,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   showNewThreadPanel = false;
                 });
                 window.addEventListener('closeEditThreadPanel', () => {
-                  console.log('Layout: closeEditThreadPanel event received');
                   showEditThreadPanel = false;
-                  console.log('Layout: showEditThreadPanel set to:', showEditThreadPanel);
                 });
                 
                 // Listen for NewNotePanel events
@@ -623,9 +594,8 @@ const showMoreButton = shouldShowMoreButton(contentType);
   // Register the service worker for PWA support
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
+          navigator.serviceWorker.register('/sw.js')
         .then(registration => {
-          console.log('ServiceWorker registration successful');
           
           // Check if there's a waiting worker and offer update if needed
           if (registration.waiting) {
@@ -898,9 +868,8 @@ function trackThreadContext(threadId) {
     
     localStorage.setItem(contextKey, threadId);
     localStorage.setItem(timestampKey, Date.now().toString());
-    console.log('🧵 Tracked thread context:', threadId);
   } catch (error) {
-    console.log('Could not track thread context:', error);
+    // Silent failure for thread context tracking
   }
 }
 
@@ -923,7 +892,6 @@ function getCurrentThreadContext() {
     
     return null;
   } catch (error) {
-    console.log('Could not get thread context:', error);
     return null;
   }
 }
@@ -939,9 +907,8 @@ function trackBreadcrumbNavigation(fromThreadId, toNoteId) {
     };
     
     localStorage.setItem(breadcrumbKey, JSON.stringify(breadcrumbData));
-    console.log('🍞 Tracked breadcrumb navigation:', breadcrumbData);
   } catch (error) {
-    console.log('Could not track breadcrumb navigation:', error);
+    // Silent failure for breadcrumb tracking
   }
 }
 
@@ -963,7 +930,6 @@ function getBreadcrumbNavigation(noteId) {
     
     return null;
   } catch (error) {
-    console.log('Could not get breadcrumb navigation:', error);
     return null;
   }
 }
@@ -972,32 +938,21 @@ function getBreadcrumbNavigation(noteId) {
 function getThreadContextFromReferrer() {
   try {
     const referrer = document.referrer;
-    console.log('🔗 Full referrer URL:', referrer);
     
     if (referrer) {
       const referrerPath = new URL(referrer).pathname;
-      console.log('🔗 Referrer path:', referrerPath);
-      console.log('🔗 Referrer path includes /thread_:', referrerPath.includes('/thread_'));
       
       // Only extract thread context from actual thread pages
       if (referrerPath.includes('/thread_')) {
         const threadId = referrerPath.split('/').pop();
-        console.log('🔗 Extracted thread ID from referrer:', threadId);
         if (threadId && threadId !== 'dashboard' && threadId !== 'sign-in' && threadId !== 'sign-up') {
-          console.log('🔗 Detected thread context from referrer:', threadId);
           return threadId;
         }
-      } else {
-        console.log('🔗 Referrer is not a thread page, skipping thread context detection');
-        console.log('🔗 Referrer path does not contain /thread_');
       }
-    } else {
-      console.log('🔗 No referrer available');
     }
     
     return null;
   } catch (error) {
-    console.log('Could not detect thread context from referrer:', error);
     return null;
   }
 }
@@ -1269,14 +1224,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Only run Astro tracking if React NavigationProvider hasn't loaded yet
   setTimeout(() => {
     if (!window.addToNavigationHistory || typeof window.addToNavigationHistory !== 'function') {
-      console.log('🧭 Astro fallback: React NavigationProvider not loaded, using Astro tracking');
       if (typeof initTracking === 'function') {
         initTracking();
       }
-    } else {
-      console.log('🧭 React NavigationProvider is loaded, skipping Astro tracking to prevent conflicts');
-      // Don't run Astro tracking when React NavigationProvider is available
-      // This prevents conflicts between the two navigation systems
     }
   }, 100);
 });
@@ -1286,14 +1236,9 @@ document.addEventListener('astro:page-load', () => {
   // Only run Astro tracking if React NavigationProvider hasn't loaded yet
   setTimeout(() => {
     if (!window.addToNavigationHistory || typeof window.addToNavigationHistory !== 'function') {
-      console.log('🧭 Astro fallback: React NavigationProvider not loaded, using Astro tracking');
       if (typeof initTracking === 'function') {
         initTracking();
       }
-    } else {
-      console.log('🧭 React NavigationProvider is loaded, skipping Astro tracking to prevent conflicts');
-      // Don't run Astro tracking when React NavigationProvider is available
-      // This prevents conflicts between the two navigation systems
     }
   }, 100);
 });
@@ -1705,20 +1650,15 @@ window.testNavigationScript = function() {
 // Load persistent navigation from localStorage with proper chronological ordering
 function loadPersistentNavigation() {
   try {
-    console.log('🧭 loadPersistentNavigation called');
     const navHistory = localStorage.getItem('harvous-navigation-history-v2');
-    console.log('🧭 Raw localStorage data:', navHistory);
     if (!navHistory) {
-      console.log('🧭 No navigation history found');
       return;
     }
     
     const history = JSON.parse(navHistory);
-    console.log('🧭 Loaded navigation history:', history);
     
     // Sort by firstAccessed (chronological order - maintain original order)
     const sortedHistory = history.sort((a: any, b: any) => a.firstAccessed - b.firstAccessed);
-    console.log('🧭 Sorted navigation history (chronological order):', sortedHistory);
     
     // Filter out items that shouldn't be shown
     const currentPath = window.location.pathname;
@@ -1737,10 +1677,7 @@ function loadPersistentNavigation() {
       return true;
     });
     
-    console.log('🧭 Filtered persistent items (chronological order):', persistentItems);
-    
     if (persistentItems.length === 0) {
-      console.log('🧭 No persistent items to show');
       // Remove existing persistent navigation if it exists
       const existingPersistentNav = document.getElementById('persistent-navigation');
       if (existingPersistentNav) {
@@ -1752,14 +1689,12 @@ function loadPersistentNavigation() {
     // Find the "For You" button and insert persistent navigation after it
     const forYouButton = document.querySelector('a[href="/dashboard"]');
     if (!forYouButton) {
-      console.log('🧭 For You button not found');
       return;
     }
     
     // Find the parent container
     const parentContainer = forYouButton.parentElement;
     if (!parentContainer) {
-      console.log('🧭 Parent container not found');
       return;
     }
     
@@ -1869,15 +1804,12 @@ function loadPersistentNavigation() {
       // Add mousedown event listener to close icon for close functionality
       // Using mousedown instead of click because click events are being intercepted
       closeIcon.addEventListener('mousedown', (e) => {
-        console.log('🧭 Close icon mousedown handler triggered');
         e.stopImmediatePropagation();
         e.stopPropagation();
         e.preventDefault();
         
         const itemId = badgeCount.getAttribute('data-close-item');
         if (!itemId) return;
-        
-        console.log('🧭 Close icon mousedown for item:', itemId);
         
         // Check if this is the current page (active item)
         const isCurrentPage = itemId === currentItemId;
@@ -1920,8 +1852,6 @@ function loadPersistentNavigation() {
         
         // Also reload persistent navigation to ensure consistency
         loadPersistentNavigation();
-        
-        console.log('🧭 Removed item from navigation history:', itemId);
         
         // Return false to prevent any further event handling
         return false;
@@ -2000,8 +1930,6 @@ function loadPersistentNavigation() {
       
       itemDiv.appendChild(outerContainer);
       persistentNav.appendChild(itemDiv);
-      
-      console.log('🧭 Added persistent item (chronological):', item.title, 'firstAccessed:', new Date(item.firstAccessed));
     });
     
     // Insert persistent navigation after the "For You" button but before the bottom section
@@ -2014,11 +1942,8 @@ function loadPersistentNavigation() {
       // Fallback to original behavior
       parentContainer.insertBefore(persistentNav, forYouButton.nextSibling);
     }
-    
-    console.log('🧭 Rendered', persistentItems.length, 'persistent items in chronological order');
-    
   } catch (error) {
-    console.error('🧭 Error loading persistent navigation:', error);
+    console.error('Error loading persistent navigation:', error);
   }
 }
 
@@ -2059,8 +1984,6 @@ function addCloseFunctionality() {
     const itemId = closeIcon.getAttribute('data-close-item');
     if (!itemId) return;
     
-    console.log('🧭 Close icon clicked for item:', itemId);
-    
     // Use the global function from NavigationContext if available
     if ((window as any).removeFromNavigationHistory) {
       (window as any).removeFromNavigationHistory(itemId);
@@ -2081,21 +2004,17 @@ function addCloseFunctionality() {
     // Reload persistent navigation
     loadPersistentNavigation();
     
-    console.log('🧭 Removed item from navigation history:', itemId);
-    
     return false;
   }, true); // Use capture phase to catch the event before it bubbles
 }
 
 // Load persistent navigation on page load
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('🧭 DOMContentLoaded - loading persistent navigation');
   addPersistentNavigationStyles();
   addCloseFunctionality();
   loadPersistentNavigation();
 });
 document.addEventListener('astro:page-load', () => {
-  console.log('🧭 astro:page-load - loading persistent navigation');
   loadPersistentNavigation();
 });
 window.addEventListener('popstate', loadPersistentNavigation);
@@ -2103,7 +2022,6 @@ window.addEventListener('popstate', loadPersistentNavigation);
 // Listen for thread and space creation events to refresh navigation display
 // Note: The React NavigationContext handles adding items to history
 (document as any).addEventListener('threadCreated', (event: any) => {
-  console.log('🧭 Thread created event received, refreshing navigation display');
   // Small delay to ensure React system has updated localStorage
   setTimeout(() => {
     loadPersistentNavigation();
@@ -2111,7 +2029,6 @@ window.addEventListener('popstate', loadPersistentNavigation);
 });
 
 (document as any).addEventListener('spaceCreated', (event: any) => {
-  console.log('🧭 Space created event received, refreshing navigation display');
   // Small delay to ensure React system has updated localStorage
   setTimeout(() => {
     loadPersistentNavigation();
@@ -2120,7 +2037,6 @@ window.addEventListener('popstate', loadPersistentNavigation);
 
 // Listen for deletion events to refresh navigation display
 (document as any).addEventListener('threadDeleted', (event: any) => {
-  console.log('🧭 Thread deleted event received, refreshing navigation display');
   // Small delay to ensure React system has updated localStorage
   setTimeout(() => {
     loadPersistentNavigation();
@@ -2128,7 +2044,6 @@ window.addEventListener('popstate', loadPersistentNavigation);
 });
 
 (document as any).addEventListener('spaceDeleted', (event: any) => {
-  console.log('🧭 Space deleted event received, refreshing navigation display');
   // Small delay to ensure React system has updated localStorage
   setTimeout(() => {
     loadPersistentNavigation();
@@ -2137,7 +2052,6 @@ window.addEventListener('popstate', loadPersistentNavigation);
 
 // Listen for note events to refresh navigation display (for count updates)
 (document as any).addEventListener('noteCreated', (event: any) => {
-  console.log('🧭 Note created event received, refreshing navigation display');
   // Small delay to ensure React system has updated localStorage
   setTimeout(() => {
     loadPersistentNavigation();
@@ -2145,7 +2059,6 @@ window.addEventListener('popstate', loadPersistentNavigation);
 });
 
 (document as any).addEventListener('noteDeleted', (event: any) => {
-  console.log('🧭 Note deleted event received, refreshing navigation display');
   // Small delay to ensure React system has updated localStorage
   setTimeout(() => {
     loadPersistentNavigation();
@@ -2153,7 +2066,6 @@ window.addEventListener('popstate', loadPersistentNavigation);
 });
 
 (document as any).addEventListener('noteRemovedFromThread', (event: any) => {
-  console.log('🧭 Note removed from thread event received, refreshing navigation display');
   // Small delay to ensure React system has updated localStorage
   setTimeout(() => {
     loadPersistentNavigation();
@@ -2161,7 +2073,6 @@ window.addEventListener('popstate', loadPersistentNavigation);
 });
 
 (document as any).addEventListener('noteAddedToThread', (event: any) => {
-  console.log('🧭 Note added to thread event received, refreshing navigation display');
   // Small delay to ensure React system has updated localStorage
   setTimeout(() => {
     loadPersistentNavigation();
