@@ -138,6 +138,18 @@ const NoteTags = defineTable({
   }
 })
 
+// Track which thread a user last accessed each note from (for multi-thread navigation)
+const NoteThreadAccess = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    userId: column.text(), // Clerk user id
+    noteId: column.text(), // Reference to note
+    threadId: column.text(), // Reference to thread
+    lastAccessed: column.date(),
+    accessCount: column.number({ default: 1 })
+  }
+})
+
 // https://astro.build/db/config
 export default defineDb({
   tables: {
@@ -150,6 +162,7 @@ export default defineDb({
     UserMetadata,
     UserXP,
     Tags,
-    NoteTags
+    NoteTags,
+    NoteThreadAccess
   }
 });

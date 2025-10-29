@@ -134,12 +134,30 @@ The system uses a dual ID approach for notes:
 
 The system uses a hybrid approach for note-thread relationships:
 
-- **Primary Relationship**: Each note has a required `threadId` field pointing to its primary thread
+- **Primary Relationship**: Each note has a required `threadId` field pointing to its primary thread (used primarily for unorganized thread fallback)
 - **Many-to-Many Support**: `NoteThreads` junction table allows notes to belong to multiple threads
+- **Access Tracking**: `NoteThreadAccess` table tracks which thread a user last accessed each note from for smart multi-thread navigation
 - **Unorganized Thread**: Special thread with ID `thread_unorganized` serves as default for unassigned notes
 - **Thread Deletion Logic**: When a thread is deleted, notes with that thread as primary `threadId` are moved to unorganized thread
 - **Junction Cleanup**: Many-to-many relationships are removed from `NoteThreads` table when threads are deleted
 - **Data Integrity**: No notes are ever deleted - they are always preserved and moved to unorganized thread
+
+### Multi-Thread Navigation System
+
+When a note belongs to multiple threads, the system uses intelligent defaults to determine which thread context to open the note in:
+
+1. **URL Parameter Override** (`?thread=threadId`) - explicit user choice
+2. **Navigation Context Detection** - thread user was viewing when they clicked the note
+3. **Last Accessed Thread** - tracks per-note thread access patterns via `NoteThreadAccess` table
+4. **Most Recent Thread Activity** - fallback to thread with most recent `updatedAt` timestamp
+5. **Unorganized Thread Fallback** - final fallback for notes with no valid thread context
+
+The `NoteThreadAccess` table stores:
+- `userId`: Clerk user ID
+- `noteId`: Reference to the note
+- `threadId`: Reference to the thread the user accessed the note from
+- `lastAccessed`: Timestamp of last access
+- `accessCount`: Number of times the user accessed this note from this thread
 
 ### XP System & Gamification
 

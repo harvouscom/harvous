@@ -11,7 +11,7 @@ import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
-import { db, Threads, Notes, Spaces, NoteThreads, eq, and, desc, count, ne } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, NoteThreadAccess, eq, and, desc, count, ne } from "astro:db";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount } from "@/utils/dashboard-data";
 import { getThreadColorCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
@@ -386,7 +386,7 @@ let inboxCount: number = 0;
         const urlParams = new URL(Astro.url.href).searchParams;
         const requestedThreadId = urlParams.get('thread');
         
-        let selectedThreadId = note.threadId; // Default to primary thread
+        let selectedThreadId = null; // No default - will be determined by logic below
         
         if (requestedThreadId) {
           // Verify the requested thread exists and note belongs to it
@@ -465,9 +465,34 @@ let inboxCount: number = 0;
                 console.log('🔗 Server-side: No referrer available');
               }
               
-              // 2. Fallback: Use the most recently updated thread
+              // 2. NEW: Check last accessed thread for this specific note
               if (!navigationHistoryThreadId) {
-                console.log('🔗 Server-side: No referrer context, using fallback logic');
+                console.log('🔍 Checking last accessed thread for this note...');
+                try {
+                  const lastAccess = await db.select()
+                    .from(NoteThreadAccess)
+                    .where(and(
+                      eq(NoteThreadAccess.userId, userId),
+                      eq(NoteThreadAccess.noteId, note.id)
+                    ))
+                    .orderBy(desc(NoteThreadAccess.lastAccessed))
+                    .limit(1)
+                    .get();
+                  
+                  if (lastAccess && uniqueThreadIds.includes(lastAccess.threadId)) {
+                    navigationHistoryThreadId = lastAccess.threadId;
+                    console.log('🔗 Using last accessed thread for this note:', navigationHistoryThreadId);
+                  } else {
+                    console.log('🔗 No valid last accessed thread found for this note');
+                  }
+                } catch (accessError) {
+                  console.log('🔗 Could not query last accessed thread:', accessError);
+                }
+              }
+              
+              // 3. Fallback: Use the most recently updated thread
+              if (!navigationHistoryThreadId) {
+                console.log('🔗 Server-side: No referrer or access context, using fallback logic');
               }
             } catch (error) {
               console.log('Could not access navigation history:', error);
@@ -502,6 +527,14 @@ let inboxCount: number = 0;
                 console.log('🔄 Using fallback thread (most recent):', selectedThreadId);
               }
             }
+          } else if (uniqueThreadIds.length === 1) {
+            // Note belongs to only one thread - use that thread
+            selectedThreadId = uniqueThreadIds[0];
+            console.log('🔍 Note belongs to single thread:', selectedThreadId);
+          } else {
+            // Note has no threads - use unorganized thread as fallback
+            selectedThreadId = 'thread_unorganized';
+            console.log('🔍 Note has no threads, using unorganized fallback');
           }
         }
 
@@ -516,7 +549,7 @@ let inboxCount: number = 0;
             noteCount: noteCount,
             backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
           };
-        } else {
+        } else if (selectedThreadId) {
           const thread = await db.select().from(Threads).where(eq(Threads.id, selectedThreadId)).get();
           
           if (thread) {
@@ -527,6 +560,70 @@ let inboxCount: number = 0;
               noteCount: await getNotesForThread(thread.id, userId).then(notes => notes.length),
               backgroundGradient: `linear-gradient(180deg, var(--color-${thread.color}) 0%, var(--color-${thread.color}) 100%)`
             };
+          }
+        } else {
+          // Fallback: no valid thread selected, use unorganized
+          const noteCount = await getNotesForThread('thread_unorganized', userId).then(notes => notes.length);
+          currentThread = {
+            id: 'thread_unorganized',
+            title: 'Unorganized',
+            color: null,
+            noteCount: noteCount,
+            backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+          };
+        }
+
+        // Track note-thread access for multi-thread navigation
+        if (isNote && selectedThreadId && selectedThreadId !== 'thread_unorganized') {
+          try {
+            // Check if this note belongs to multiple threads (optimization)
+            const noteThreads = await db.select()
+              .from(NoteThreads)
+              .where(eq(NoteThreads.noteId, note.id))
+              .all();
+            
+            const allThreadIds = [...noteThreads.map(nt => nt.threadId)];
+            if (note.threadId === 'thread_unorganized') {
+              allThreadIds.push('thread_unorganized');
+            }
+            const uniqueThreadIds = [...new Set(allThreadIds)];
+            
+            // Only track if note belongs to multiple threads
+            if (uniqueThreadIds.length > 1) {
+              // Check if access record already exists
+              const existingAccess = await db.select()
+                .from(NoteThreadAccess)
+                .where(and(
+                  eq(NoteThreadAccess.userId, userId),
+                  eq(NoteThreadAccess.noteId, note.id),
+                  eq(NoteThreadAccess.threadId, selectedThreadId)
+                ))
+                .get();
+              
+              if (existingAccess) {
+                // Update existing record
+                await db.update(NoteThreadAccess)
+                  .set({
+                    lastAccessed: new Date(),
+                    accessCount: existingAccess.accessCount + 1
+                  })
+                  .where(eq(NoteThreadAccess.id, existingAccess.id));
+                console.log('📊 Updated note-thread access record');
+              } else {
+                // Create new record
+                await db.insert(NoteThreadAccess).values({
+                  id: `nta_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                  userId: userId,
+                  noteId: note.id,
+                  threadId: selectedThreadId,
+                  lastAccessed: new Date(),
+                  accessCount: 1
+                });
+                console.log('📊 Created new note-thread access record');
+              }
+            }
+          } catch (trackingError) {
+            console.log('Could not track note-thread access:', trackingError);
           }
         }
       }
