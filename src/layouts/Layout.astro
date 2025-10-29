@@ -564,9 +564,11 @@ const showMoreButton = shouldShowMoreButton(contentType);
           <slot name="mobile-navigation" />
         </div>
         
-        <!-- Main Column (Middle) - Scrollable -->
-        <div class="flex-1 overflow-y-auto">
-          <slot name="main" />
+        <!-- Main Column (Middle) - Scrollable with padding for shadows -->
+        <div class="flex-1 overflow-y-auto px-3 pb-3">
+          <div class="min-h-full">
+            <slot name="main" />
+          </div>
         </div>
         
         <!-- Additional Column (Bottom) -->
