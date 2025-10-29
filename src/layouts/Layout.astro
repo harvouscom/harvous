@@ -1938,8 +1938,16 @@ function loadPersistentNavigation() {
       console.log('🧭 Added persistent item (chronological):', item.title, 'firstAccessed:', new Date(item.firstAccessed));
     });
     
-    // Insert persistent navigation after the "For You" button
-    parentContainer.insertBefore(persistentNav, forYouButton.nextSibling);
+    // Insert persistent navigation after the "For You" button but before the bottom section
+    // Find the navigation buttons container (the div that contains all navigation items)
+    const navigationButtonsContainer = forYouButton.closest('.flex.flex-col.items-start.justify-start.w-full');
+    if (navigationButtonsContainer) {
+      // Insert after the "For You" button but within the navigation buttons container
+      navigationButtonsContainer.insertBefore(persistentNav, forYouButton.nextSibling);
+    } else {
+      // Fallback to original behavior
+      parentContainer.insertBefore(persistentNav, forYouButton.nextSibling);
+    }
     
     console.log('🧭 Rendered', persistentItems.length, 'persistent items in chronological order');
     

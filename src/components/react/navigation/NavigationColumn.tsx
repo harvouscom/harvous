@@ -88,7 +88,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     }
   }, [activeThread, isNote, currentItemId]);
   return (
-    <div slot="navigation" className="h-full">
+    <div className="h-full">
       <div className="flex flex-col items-start justify-between relative h-full">
         {/* Top Section - Navigation */}
         <div className="flex flex-col gap-12 items-start justify-start w-full flex-1 min-h-0">
