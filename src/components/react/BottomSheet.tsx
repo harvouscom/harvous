@@ -98,16 +98,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     
     // Trigger slide-down animation
     const sheetContent = document.querySelector('.bottom-sheet-content') as HTMLElement;
-    const overlay = document.querySelector('[data-radix-sheet-overlay]') as HTMLElement;
     
     if (sheetContent) {
       sheetContent.style.transform = 'translateY(100%)';
       sheetContent.style.transition = 'transform 0.2s cubic-bezier(0.4, 0, 1, 1)';
-    }
-    
-    if (overlay) {
-      overlay.style.opacity = '0';
-      overlay.style.transition = 'opacity 0.4s ease-in';
     }
     
     // Close after animation completes
@@ -180,14 +174,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       // Small delay to ensure the element is rendered
       const timer = setTimeout(() => {
         const sheetContent = document.querySelector('.bottom-sheet-content') as HTMLElement;
-        const overlay = document.querySelector('[data-radix-sheet-overlay]') as HTMLElement;
         
         if (sheetContent) {
           sheetContent.style.transform = 'translateY(0)';
-        }
-        
-        if (overlay) {
-          overlay.style.opacity = '0.4';
         }
       }, 10);
       return () => clearTimeout(timer);

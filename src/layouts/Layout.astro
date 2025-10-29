@@ -558,7 +558,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
       </div>
 
       <!-- Mobile/Tablet Layout (below 1160px) -->
-      <div class="min-[1160px]:hidden flex flex-col h-[100svh] min-[1160px]:h-full overflow-hidden">
+      <div class="min-[1160px]:hidden flex flex-col h-[100dvh] min-[1160px]:h-full overflow-hidden">
         <!-- Navigation Column (Top) -->
         <div class="w-full flex-shrink-0">
           <slot name="mobile-navigation" />
@@ -576,7 +576,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
         <div class="h-3 flex-shrink-0"></div>
         
         <!-- Additional Column (Bottom) -->
-        <div class="px-3 flex-shrink-0">
+        <div class="px-3 flex-shrink-0 pb-3">
           <slot name="mobile-additional" />
         </div>
       </div>
