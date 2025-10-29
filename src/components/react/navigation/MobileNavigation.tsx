@@ -318,15 +318,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 </>
               )}
               
-              {/* New Space Button */}
-              <a href="/new-space" className="block w-full" onClick={handleItemClick}>
+              {/* TEMPORARILY DISABLED: New Space Button - need to figure out spaces */}
+              <div className="block w-full cursor-not-allowed pointer-events-none">
                 <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                  <span className="text-sm font-medium text-blue-600">New Space</span>
-                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <span className="text-sm font-medium text-blue-600 opacity-60">New Space</span>
+                  <svg className="w-4 h-4 text-blue-600 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                   </svg>
                 </div>
-              </a>
+              </div>
             </div>
           </div>
         )}

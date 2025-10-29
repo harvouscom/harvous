@@ -1,5 +1,16 @@
 ### Jan 28, 2025
 
+**Temporary Disable: New Space Button** 🚧
+
+- 🚧 **Temporarily Disabled**: "New Space" button in both desktop and mobile navigation
+- 🚧 **Reason**: Need to figure out spaces functionality before re-enabling
+- 🚧 **Implementation**: Button shows as disabled with opacity and no-click styling
+- 🚧 **Files Modified**: 
+  - `src/components/react/navigation/SpaceButton.tsx` - Added disabled prop and styling
+  - `src/components/react/navigation/NavigationColumn.tsx` - Uses disabled SpaceButton
+  - `src/components/react/navigation/MobileNavigation.tsx` - Shows disabled button styling
+- 🚧 **Status**: Temporary - will be re-enabled once spaces functionality is clarified
+
 **Navigation System Complete Overhaul - SUCCESS** ✅
 
 - ✅ **Immediate Navigation Updates**: New threads/spaces now appear in navigation immediately without requiring page refresh

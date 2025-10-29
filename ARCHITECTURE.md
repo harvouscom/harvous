@@ -26,6 +26,7 @@ Harvous uses a hierarchical content organization system to help users structure 
 - Private/Shared type selection during creation
 - Persistent form state with localStorage
 - Real-time preview of selected color in header
+- **🚧 TEMPORARILY DISABLED**: New Space button is currently disabled (shows with opacity and no-click styling) while spaces functionality is being figured out (Jan 28, 2025)
 
 ### Data Structure
 

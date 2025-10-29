@@ -14,6 +14,7 @@ interface SpaceButtonProps {
   isActive?: boolean;
   itemId?: string;
   onClick?: () => void;
+  disabled?: boolean;
 }
 
 const SpaceButton: React.FC<SpaceButtonProps> = ({
@@ -26,6 +27,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   isActive = true,
   itemId,
   onClick,
+  disabled = false,
   ...props
 }) => {
   const { removeFromNavigationHistory } = useNavigation();
@@ -90,22 +92,26 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     }
   };
 
-  const buttonStyle = isActive ? { 
+  const buttonStyle = isActive && !disabled ? { 
     backgroundImage: backgroundGradient?.includes('gradient') ? backgroundGradient : undefined,
     backgroundColor: backgroundGradient?.includes('gradient') ? undefined : backgroundGradient
   } : {};
+  
+  const disabledStyle = disabled ? 'cursor-not-allowed pointer-events-none' : '';
+  const textStyle = disabled ? 'opacity-60' : '';
 
   if (state === "Default") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 px-4 ${className}`}
+        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 px-4 ${disabledStyle} ${className}`}
         style={buttonStyle}
-        onClick={onClick}
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
         {...props}
       >
         <div className="flex items-center justify-start relative w-full h-full pl-2 pr-2 transition-transform duration-125 min-w-0">
           <div className="flex-1 min-w-0 overflow-hidden text-left">
-            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{textAlign: 'left'}}>
+            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`} style={{textAlign: 'left'}}>
               {text}
             </span>
           </div>
@@ -117,14 +123,15 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "WithCount") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${disabledStyle} ${className}`}
         style={buttonStyle}
-        onClick={onClick}
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
         {...props}
       >
         <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
           <div className="flex-1 min-w-0 overflow-hidden text-left">
-            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`}>
               {text}
             </span>
           </div>
@@ -148,14 +155,15 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "DropdownTrigger") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${disabledStyle} ${className}`}
         style={buttonStyle}
-        onClick={onClick}
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
         {...props}
       >
         <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
           <div className="flex-1 min-w-0 overflow-hidden text-left">
-            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`}>
               {text}
             </span>
           </div>
@@ -187,15 +195,16 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "Dropdown") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${disabledStyle} ${className}`}
         style={buttonStyle}
-        onClick={onClick}
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
         {...props}
       >
         <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="flex-1 min-w-0 overflow-hidden text-left">
-              <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+              <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`}>
                 {text}
               </span>
             </div>
@@ -227,14 +236,15 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     return (
       <div className={`relative nav-item-container ${isActive ? 'active' : ''}`}>
         <button
-          className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group ${className}`}
+          className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group ${disabledStyle} ${className}`}
           style={buttonStyle}
-          onClick={onClick}
+          onClick={disabled ? undefined : onClick}
+          disabled={disabled}
           {...props}
         >
           <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
             <div className="flex-1 min-w-0 overflow-hidden">
-              <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block">
+              <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block ${textStyle}`}>
                 {text}
               </span>
             </div>
@@ -267,14 +277,15 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     return (
       <div className={`relative nav-item-container ${isActive ? 'active' : ''}`}>
         <button
-          className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group ${className}`}
+          className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group ${disabledStyle} ${className}`}
           style={buttonStyle}
-          onClick={onClick}
+          onClick={disabled ? undefined : onClick}
+          disabled={disabled}
           {...props}
         >
           <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
             <div className="flex-1 min-w-0 overflow-hidden">
-              <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block">
+              <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block ${textStyle}`}>
                 {text}
               </span>
             </div>
@@ -295,14 +306,15 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "WithArrow") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${disabledStyle} ${className}`}
         style={buttonStyle}
-        onClick={onClick}
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
         {...props}
       >
         <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
           <div className="flex-1 min-w-0 overflow-hidden">
-            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block">
+            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block ${textStyle}`}>
               {text}
             </span>
           </div>
@@ -323,15 +335,16 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   // Default fallback
   return (
     <button 
-      className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+      className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${disabledStyle} ${className}`}
       style={buttonStyle}
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       {...props}
     >
       <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="flex-1 min-w-0 overflow-hidden text-left">
-            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`}>
               {text}
             </span>
           </div>
