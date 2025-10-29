@@ -12,6 +12,7 @@ import NewNotePanel from "@/components/NewNotePanel.astro";
 import NewNotePanelSimple from "@/components/NewNotePanelSimple.astro";
 import NewThreadPanelReact from "@/components/react/NewThreadPanel.tsx";
 import NoteDetailsPanel from "@/components/react/NoteDetailsPanel.tsx";
+import EditThreadPanel from "@/components/react/EditThreadPanel.tsx";
 import BottomSheetReact from "@/components/BottomSheetReact.astro";
 import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
@@ -424,12 +425,13 @@ const showMoreButton = shouldShowMoreButton(contentType);
           <slot name="additional">
               <div 
                 class="flex flex-col items-left justify-between h-full"
-                x-data="{ showNewNotePanel: false, showNewThreadPanel: false, showNoteDetailsPanel: false }"
+                x-data="{ showNewNotePanel: false, showNewThreadPanel: false, showNoteDetailsPanel: false, showEditThreadPanel: false }"
               x-init="
                 // Initialize panels as closed by default
                 showNewNotePanel = false;
                 showNewThreadPanel = false;
                 showNoteDetailsPanel = false;
+                showEditThreadPanel = false;
                 
                 // Force panels closed on initialization
                 localStorage.removeItem('showNewNotePanel');
@@ -454,6 +456,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   showNoteDetailsPanel = true;
                   showNewNotePanel = false;
                   showNewThreadPanel = false;
+                  showEditThreadPanel = false;
                 });
                 window.addEventListener('closeNoteDetailsPanel', () => {
                   console.log('Layout: closeNoteDetailsPanel event received');
@@ -461,11 +464,25 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   console.log('Layout: showNoteDetailsPanel set to:', showNoteDetailsPanel);
                 });
                 
+                // Listen for EditThreadPanel events (threads only)
+                window.addEventListener('openEditThreadPanel', () => {
+                  showEditThreadPanel = true;
+                  showNoteDetailsPanel = false;
+                  showNewNotePanel = false;
+                  showNewThreadPanel = false;
+                });
+                window.addEventListener('closeEditThreadPanel', () => {
+                  console.log('Layout: closeEditThreadPanel event received');
+                  showEditThreadPanel = false;
+                  console.log('Layout: showEditThreadPanel set to:', showEditThreadPanel);
+                });
+                
                 // Listen for NewNotePanel events
                 window.addEventListener('openNewNotePanel', () => {
                   showNewNotePanel = true;
                   showNoteDetailsPanel = false;
                   showNewThreadPanel = false;
+                  showEditThreadPanel = false;
                   localStorage.setItem('showNewNotePanel', 'true');
                   localStorage.setItem('showNewThreadPanel', 'false');
                 });
@@ -479,6 +496,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   showNewThreadPanel = true;
                   showNoteDetailsPanel = false;
                   showNewNotePanel = false;
+                  showEditThreadPanel = false;
                   localStorage.setItem('showNewThreadPanel', 'true');
                   localStorage.setItem('showNewNotePanel', 'false');
                 });
@@ -489,7 +507,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
               "
             >
               <!-- Default state: SquareButtons -->
-              <div x-show="!showNoteDetailsPanel && !showNewNotePanel && !showNewThreadPanel" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
+              <div x-show="!showNoteDetailsPanel && !showNewNotePanel && !showNewThreadPanel && !showEditThreadPanel" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
                 {showMoreButton && (
                   <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
                 )}
@@ -542,6 +560,21 @@ const showMoreButton = shouldShowMoreButton(contentType);
                     onClose={() => {
                       // Close the panel when NoteDetailsPanel requests to close
                       window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
+                    }}
+                    client:only="react"
+                  />
+                </div>
+              )}
+              
+              <!-- Edit Thread Panel (threads only) - Desktop Only -->
+              {contentType === 'thread' && currentThread && (
+                <div x-show="showEditThreadPanel" class="h-full hidden min-[1160px]:block">
+                  <EditThreadPanel 
+                    threadId={currentThread.id}
+                    initialTitle={currentThread.title}
+                    initialColor={currentThread.color}
+                    onClose={() => {
+                      window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
                     }}
                     client:only="react"
                   />

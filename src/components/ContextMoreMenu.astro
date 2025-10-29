@@ -84,6 +84,15 @@ const menuOptions = menuOptionsData.map(option => {
           } catch (error) {
             console.error('Error opening note details panel:', error);
           }
+        } else if (action === 'editThread') {
+          // Handle Edit Thread action
+          try {
+            window.dispatchEvent(new CustomEvent('openEditThreadPanel', {
+              detail: { contentId: this.contentId, contentType: this.contentType }
+            }));
+          } catch (error) {
+            console.error('Error opening edit thread panel:', error);
+          }
         } else {
           // Handle other actions (like edit)
           console.log('Other action:', action);
