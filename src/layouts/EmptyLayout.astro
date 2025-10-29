@@ -20,10 +20,10 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
 <html lang="en" class="bg-[var(--color-light-paper)]">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="var(--color-fog-white)" />
+    <meta name="theme-color" content="#F3F2EC" />
     <!-- Apple specific tags for homescreen icons -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -64,11 +64,35 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
     -webkit-background-color: var(--color-light-paper);
   }
   
+  /* iOS Safari specific fixes for status bar area */
+  @supports (-webkit-touch-callout: none) {
+    html {
+      background-color: var(--color-light-paper) !important;
+      -webkit-background-color: var(--color-light-paper) !important;
+    }
+    
+    body {
+      background-color: var(--color-light-paper) !important;
+      -webkit-background-color: var(--color-light-paper) !important;
+      /* Ensure background extends behind status bar */
+      padding-top: env(safe-area-inset-top);
+      min-height: calc(100vh + env(safe-area-inset-top));
+    }
+  }
+  
   /* Ensure mobile browsers fill the entire screen */
   @media (max-width: 1159px) {
     html, body {
       min-height: 100vh;
       min-height: 100svh;
+    }
+    
+    /* iOS specific mobile fixes */
+    @supports (-webkit-touch-callout: none) {
+      body {
+        min-height: calc(100vh + env(safe-area-inset-top));
+        min-height: calc(100svh + env(safe-area-inset-top));
+      }
     }
   }
 </style>
