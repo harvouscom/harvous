@@ -62,13 +62,26 @@ export default function EditThreadPanel({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('EditThreadPanel: handleSubmit called');
+    console.log('EditThreadPanel: Form data:', formData);
+    
     if (!validateForm()) {
+      console.log('EditThreadPanel: Form validation failed');
       return;
     }
 
+    console.log('EditThreadPanel: Form validation passed, starting submission');
     setIsSubmitting(true);
 
     try {
+      console.log('EditThreadPanel: Making API call to update thread');
+      console.log('EditThreadPanel: Data being sent:', {
+        threadId: threadId,
+        title: formData.title.trim(),
+        color: formData.selectedColor,
+        isPublic: false
+      });
+      
       const formDataToSend = new FormData();
       formDataToSend.append('id', threadId);
       formDataToSend.append('title', formData.title.trim());
@@ -80,9 +93,12 @@ export default function EditThreadPanel({
         body: formDataToSend,
       });
 
+      console.log('EditThreadPanel: API response status:', response.status);
       const data = await response.json();
+      console.log('EditThreadPanel: API response data:', data);
 
       if (response.ok) {
+        console.log('✅ EditThreadPanel: Thread updated successfully');
         
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -300,7 +316,7 @@ export default function EditThreadPanel({
             className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--color-blue)' }}
             tabIndex={3}
-            onClick={() => {}}
+            onClick={() => console.log('EditThreadPanel: Save button clicked, isSubmitting:', isSubmitting, 'title:', formData.title.trim())}
           >
             <div className="relative shrink-0 transition-transform duration-125">
               {isSubmitting ? 'Saving...' : 'Save Changes'}
