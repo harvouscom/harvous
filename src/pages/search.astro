@@ -385,36 +385,17 @@ if (query.trim()) {
         <div class="flex flex-col gap-6">
           <!-- Search Input -->
           <div class="w-full" x-data="{ 
-              searchQuery: '', 
-              suggestions: [], 
-              showSuggestions: false,
-              selectedSuggestion: -1
+              searchQuery: ''
             }" x-init="
               const updateSearchQuery = () => {
                 const urlParams = new URLSearchParams(window.location.search);
                 searchQuery = urlParams.get('q') || '';
-                suggestions = [];
-                showSuggestions = false;
               };
               updateSearchQuery();
               
               // Listen for URL changes (for View Transitions)
               window.addEventListener('popstate', updateSearchQuery);
               document.addEventListener('astro:page-load', updateSearchQuery);
-              
-              // Global function for search suggestions
-              window.fetchSearchSuggestions = async (query) => {
-                if (query.length < 2) return;
-                try {
-                  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&type=all&limit=5`);
-                  const data = await response.json();
-                  suggestions = data.results || [];
-                  showSuggestions = true;
-                } catch (error) {
-                  console.error('Search suggestions error:', error);
-                  suggestions = [];
-                }
-              };
             ">
             <form method="GET" action="/search" class="w-full relative" x-on:submit="
               if (!searchQuery.trim()) { 
@@ -441,14 +422,6 @@ if (query.trim()) {
                   aria-label="Search"
                   class="outline-none bg-transparent text-subtitle text-[var(--color-deep-grey)] placeholder:text-[var(--color-pebble-grey)]" 
                   placeholder="Search notes and threads..."
-                  x-on:input="
-                    if (searchQuery.length >= 2) {
-                      // Show search suggestions
-                      fetchSearchSuggestions(searchQuery);
-                    } else {
-                      suggestions = [];
-                    }
-                  "
                 />
                 <svg 
                   x-show="Boolean(searchQuery)" 
@@ -465,33 +438,6 @@ if (query.trim()) {
                 </svg>
               </div>
               
-              <!-- Search Suggestions Dropdown -->
-              <div 
-                x-show="showSuggestions && suggestions.length > 0" 
-                x-cloak
-                class="absolute top-full left-0 right-0 mt-2 bg-white border border-[var(--color-pebble-grey)] rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto"
-              >
-                <template x-for="(suggestion, index) in suggestions" :key="suggestion.id">
-                  <div 
-                    class="px-4 py-3 hover:bg-[var(--color-paper)] cursor-pointer border-b border-[var(--color-pebble-grey)] last:border-b-0"
-                    :class="{ 'bg-[var(--color-paper)]': selectedSuggestion === index }"
-                    x-on:click="
-                      searchQuery = suggestion.title;
-                      showSuggestions = false;
-                      window.location.href = '/search?q=' + encodeURIComponent(suggestion.title);
-                    "
-                    x-on:mouseenter="selectedSuggestion = index"
-                  >
-                    <div class="flex items-center gap-3">
-                      <div class="w-2 h-2 rounded-full" :class="suggestion.type === 'note' ? 'bg-blue-500' : 'bg-green-500'"></div>
-                      <div class="flex-1 min-w-0">
-                        <div class="font-medium text-[var(--color-deep-grey)] truncate" x-text="suggestion.title"></div>
-                        <div class="text-sm text-[var(--color-pebble-grey)] truncate" x-text="suggestion.content || suggestion.subtitle"></div>
-                      </div>
-                    </div>
-                  </div>
-                </template>
-              </div>
             </form>
           </div>
 
