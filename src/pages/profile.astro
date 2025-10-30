@@ -221,9 +221,19 @@ const contentId = "profile";
     
     <!-- Logout Button at Bottom -->
     <div class="mt-4 mb-safe">
-      <Button state="Secondary" class="w-full" id="logout-button">
-        Logout
-      </Button>
+      <button
+        id="logout-button"
+        type="button"
+        onclick="handleLogout(event)"
+        data-outer-shadow
+        class="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] w-full shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
+        style="background-color: var(--color-stone-grey)"
+      >
+        <div class="relative shrink-0 transition-transform duration-125">
+          Logout
+        </div>
+        <div class="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+      </button>
     </div>
   </div>
 
@@ -283,7 +293,7 @@ const contentId = "profile";
 </Layout>
 
 
-<script>
+<script is:inline>
   // Avatar manager is loaded globally via Layout.astro
   
   // Type declarations for global functions
@@ -482,8 +492,8 @@ const contentId = "profile";
     }
   }
 
-  // Logout handler function
-  async function handleLogout(event: Event) {
+  // Logout handler function - now global for inline onclick
+  window.handleLogout = async function(event) {
     event.preventDefault();
     console.log('Logout button clicked');
     
@@ -509,7 +519,7 @@ const contentId = "profile";
       console.log('Fallback: redirecting to sign-in page');
       window.location.href = '/sign-in';
     }
-  }
+  };
 
   // Desktop panel switching functionality
   function showPanel(panelName: string) {
@@ -545,38 +555,6 @@ const contentId = "profile";
     }
   }
 
-  // Setup logout button
-  function setupLogoutButton() {
-    console.log('Profile page DOM loaded, setting up logout button');
-    
-    const logoutButton = document.getElementById('logout-button');
-    console.log('Logout button found:', !!logoutButton);
-    
-    if (logoutButton) {
-      // Remove any existing listeners to prevent duplicates
-      logoutButton.removeEventListener('click', handleLogout);
-      
-      // Add the click handler
-      logoutButton.addEventListener('click', handleLogout);
-      console.log('Logout button event listener added');
-    } else {
-      console.error('Logout button not found!');
-    }
-    
-    // Additional logout button setup as fallback
-    setTimeout(() => {
-      const logoutButton = document.getElementById('logout-button');
-      if (logoutButton && !logoutButton.hasAttribute('data-listener-added')) {
-        logoutButton.setAttribute('data-listener-added', 'true');
-        logoutButton.addEventListener('click', (e) => {
-          e.preventDefault();
-          console.log('Fallback logout clicked');
-          window.location.href = '/sign-in';
-        });
-        console.log('Fallback logout listener added');
-      }
-    }, 1000);
-  }
 
   // Setup panel event listeners
   function setupPanelListeners() {
@@ -712,9 +690,6 @@ const contentId = "profile";
     
     // Setup profile event listeners (MOST CRITICAL - DO FIRST)
     setupProfileListeners();
-    
-    // Setup logout button
-    setupLogoutButton();
     
     // Setup panel listeners
     setupPanelListeners();
