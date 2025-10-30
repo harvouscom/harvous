@@ -195,7 +195,15 @@ The application includes a comprehensive XP (Experience Points) system to gamify
 - **Threads**: Use their unique `color` property in CardStack headers and navigation
 - **Spaces**: Use their customizable `color` property in CardStack headers and navigation (same color palette as threads)
 - **Navigation**: Active items reflect their respective colors (thread color or space color)
-- **Color Palette**: Both spaces and threads use the same 8-color palette: `paper`, `blessed-blue`, `mindful-mint`, `graceful-gold`, `pleasant-peach`, `caring-coral`, `peaceful-pink`, `lovely-lavender`
+- **Color Palette (current)**: `paper`, `blue`, `yellow`, `orange`, `pink`, `purple`, `green`
+- **Legacy aliases (supported for existing data)**:
+  - `blessed-blue` → `blue`
+  - `graceful-gold` → `yellow`
+  - `pleasant-peach` → `orange`
+  - `caring-coral` → `orange`
+  - `peaceful-pink` → `pink`
+  - `lovely-lavender` → `purple`
+  - `mindful-mint` → `green`
 
 ## Navigation Logic
 
