@@ -13,7 +13,7 @@ export const threads = {
       subtitle: z.string().optional(),
       spaceId: z.string().min(1, "Space ID is required"),
       isPublic: z.boolean().optional(),
-      color: z.string().optional()
+      color: z.enum(THREAD_COLORS).optional()
     }),
     handler: async ({ title, subtitle, spaceId, isPublic = false, color }, context) => {
       // Get userId from authenticated context for security
@@ -94,7 +94,7 @@ export const threads = {
       title: z.string().min(1, "Title is required"),
       subtitle: z.string().optional(),
       isPublic: z.boolean().optional(),
-      color: z.string().optional()
+      color: z.enum(THREAD_COLORS).optional()
     }),
     handler: async ({ id, title, subtitle, isPublic = false, color }, context) => {
       // Get userId from authenticated context for security
