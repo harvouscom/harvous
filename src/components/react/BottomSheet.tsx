@@ -198,7 +198,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         side="bottom" 
         className="h-[90vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content"
         style={{ 
-          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
+          paddingBottom: '12px',
           paddingTop: '20px',
           transform: 'translateY(100%)',
           transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
