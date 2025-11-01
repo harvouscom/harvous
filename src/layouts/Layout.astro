@@ -91,15 +91,24 @@ const showMoreButton = shouldShowMoreButton(contentType);
     <script is:inline src="/scripts/avatar-manager-global.js"></script>
     
     <!-- Profile Data Sync Script -->
-    <script is:inline>
+    <script>
       // Global profile data sync - runs on every page load
       (function() {
+        interface ProfileData {
+          firstName?: string;
+          lastName?: string;
+          color: string;
+          initials: string;
+          displayName?: string;
+          timestamp: number;
+        }
+
         function syncProfileData() {
           const storedProfileData = sessionStorage.getItem('userProfileData');
           
           if (storedProfileData) {
             try {
-              const profileData = JSON.parse(storedProfileData);
+              const profileData = JSON.parse(storedProfileData) as ProfileData;
               
               // Check if data is too old (1 hour)
               const oneHour = 60 * 60 * 1000;
@@ -1301,11 +1310,11 @@ window.testNavigationScript = function() {
 
 
 <!-- Hide unorganized thread if it's been closed -->
-<script is:inline>
+<script>
   function hideUnorganizedThread() {
     const isClosed = localStorage.getItem('unorganized-thread-closed') === 'true';
     if (isClosed) {
-      const unorganizedElement = document.querySelector('[data-navigation-item="thread_unorganized"]');
+      const unorganizedElement = document.querySelector('[data-navigation-item="thread_unorganized"]') as HTMLElement | null;
       if (unorganizedElement) {
         unorganizedElement.style.display = 'none';
       }
@@ -1653,7 +1662,11 @@ window.testNavigationScript = function() {
 
 <script>
 // Load persistent navigation from localStorage with proper chronological ordering
-function loadPersistentNavigation() {
+// Added retry logic to wait for DOM readiness
+function loadPersistentNavigation(retryCount = 0) {
+  const maxRetries = 10;
+  const retryDelay = 100;
+  
   try {
     const navHistory = localStorage.getItem('harvous-navigation-history-v2');
     if (!navHistory) {
@@ -1692,14 +1705,27 @@ function loadPersistentNavigation() {
     }
     
     // Find the "For You" button and insert persistent navigation after it
+    // Use more specific selector to ensure we find the right element
     const forYouButton = document.querySelector('a[href="/dashboard"]');
     if (!forYouButton) {
+      // Retry if button not found and we haven't exceeded max retries
+      if (retryCount < maxRetries) {
+        setTimeout(() => {
+          loadPersistentNavigation(retryCount + 1);
+        }, retryDelay);
+      }
       return;
     }
     
     // Find the parent container
     const parentContainer = forYouButton.parentElement;
     if (!parentContainer) {
+      // Retry if parent container not found and we haven't exceeded max retries
+      if (retryCount < maxRetries) {
+        setTimeout(() => {
+          loadPersistentNavigation(retryCount + 1);
+        }, retryDelay);
+      }
       return;
     }
     
@@ -1731,6 +1757,14 @@ function loadPersistentNavigation() {
           if (parentThreadId && item.id === parentThreadId) {
             isCurrentPage = true;
           }
+        }
+      }
+      
+      // Also check data-thread-id attribute as fallback (useful for newly created threads)
+      if (!isCurrentPage && navigationElement) {
+        const threadId = navigationElement.getAttribute('data-thread-id');
+        if (threadId && item.id === threadId) {
+          isCurrentPage = true;
         }
       }
       
@@ -2019,25 +2053,32 @@ document.addEventListener('DOMContentLoaded', () => {
   addCloseFunctionality();
   loadPersistentNavigation();
 });
+
+// On astro:page-load, wait a brief moment to ensure React components have hydrated
+// This is especially important in production where hydration might take longer
 document.addEventListener('astro:page-load', () => {
-  loadPersistentNavigation();
+  // Small delay to ensure React hydration and DOM are ready
+  // The retry logic in loadPersistentNavigation will handle cases where DOM isn't ready yet
+  setTimeout(() => {
+    loadPersistentNavigation();
+  }, 50);
 });
 window.addEventListener('popstate', loadPersistentNavigation);
 
 // Listen for thread and space creation events to refresh navigation display
 // Note: The React NavigationContext handles adding items to history
+// localStorage is updated synchronously before the event is dispatched, so we can call immediately
+// but we still need to wait for DOM readiness (handled by retry logic in loadPersistentNavigation)
 (document as any).addEventListener('threadCreated', (event: any) => {
-  // Small delay to ensure React system has updated localStorage
-  setTimeout(() => {
-    loadPersistentNavigation();
-  }, 100);
+  // Call immediately - localStorage is already updated synchronously in NewThreadPanel
+  // Retry logic in loadPersistentNavigation will handle DOM readiness
+  loadPersistentNavigation();
 });
 
 (document as any).addEventListener('spaceCreated', (event: any) => {
-  // Small delay to ensure React system has updated localStorage
-  setTimeout(() => {
-    loadPersistentNavigation();
-  }, 100);
+  // Call immediately - localStorage is already updated synchronously
+  // Retry logic in loadPersistentNavigation will handle DOM readiness
+  loadPersistentNavigation();
 });
 
 // Listen for deletion events to refresh navigation display

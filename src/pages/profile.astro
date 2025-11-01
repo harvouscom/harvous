@@ -294,17 +294,47 @@ const contentId = "profile";
 </Layout>
 
 
-<script is:inline>
+<script>
   // Avatar manager is loaded globally via Layout.astro
   
-  // Type declarations for global functions
-  declare global {
-    interface Window {
-      updateAllAvatars: (color: string, initials: string) => Promise<{ updatedCount: number; errors: string[] }>;
-      closeProfilePanel: () => void;
-    }
+  // ===== TYPE DEFINITIONS =====
+  interface ProfileUpdateDetail {
+    firstName: string;
+    lastName: string;
+    color: string;
   }
-  
+
+  interface CredentialsUpdateDetail {
+    newEmail?: string;
+    currentPassword?: string;
+    newPassword?: string;
+  }
+
+  interface ProfileUpdateEventDetail {
+    firstName: string;
+    lastName: string;
+    selectedColor?: string;
+    userColor?: string;
+  }
+
+  interface ProfileData {
+    firstName?: string;
+    lastName?: string;
+    color: string;
+    initials: string;
+    displayName?: string;
+    timestamp?: number;
+  }
+
+  interface ToastDetail {
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }
+
+  interface OpenProfilePanelDetail {
+    panelName: string;
+  }
+
   // ===== FUNCTION DEFINITIONS (SCRIPT SCOPE) =====
   
   // Setup profile event listeners
@@ -312,15 +342,15 @@ const contentId = "profile";
     console.log('🔧 Setting up profile event listeners');
     
     // Remove any existing listeners to prevent duplicates
-    window.removeEventListener('updateProfileRequest', handleProfileUpdateRequest as unknown as EventListener);
-    window.removeEventListener('updateCredentialsRequest', handleCredentialsUpdateRequest as unknown as EventListener);
-    window.addEventListener('updateProfileRequest', handleProfileUpdateRequest as unknown as EventListener);
-    window.addEventListener('updateCredentialsRequest', handleCredentialsUpdateRequest as unknown as EventListener);
+    window.removeEventListener('updateProfileRequest', handleProfileUpdateRequest);
+    window.removeEventListener('updateCredentialsRequest', handleCredentialsUpdateRequest);
+    window.addEventListener('updateProfileRequest', handleProfileUpdateRequest);
+    window.addEventListener('updateCredentialsRequest', handleCredentialsUpdateRequest);
     
     console.log('✅ Profile event listeners attached');
   }
 
-  async function handleProfileUpdateRequest(event: CustomEvent) {
+  async function handleProfileUpdateRequest(event: CustomEvent<ProfileUpdateDetail>) {
     console.log('✅ profile.astro: updateProfileRequest event received:', event.detail);
     
     try {
@@ -352,15 +382,15 @@ const contentId = "profile";
           console.log('🔄 profile.astro: Updating UI with new data:', { firstName, lastName, color, newInitials });
           
           // Update CardStack title
-          const cardStack = document.getElementById('profile-cardstack');
+          const cardStack = document.getElementById('profile-cardstack') as HTMLElement | null;
           if (cardStack) {
-            const titleElement = cardStack.querySelector('p');
+            const titleElement = cardStack.querySelector('p') as HTMLParagraphElement | null;
             if (titleElement) {
               titleElement.textContent = `${firstName} ${lastName.charAt(0)}`.trim();
             }
             
             // Update header background color
-            const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement;
+            const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement | null;
             if (headerElement) {
               headerElement.style.backgroundColor = `var(--color-${color})`;
             }
@@ -379,7 +409,7 @@ const contentId = "profile";
           }
           
           // Show success toast
-          window.dispatchEvent(new CustomEvent('toast', {
+          window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
             detail: {
               message: 'Profile saved successfully!',
               type: 'success'
@@ -387,7 +417,7 @@ const contentId = "profile";
           }));
           
           // Dispatch profile update event for other components
-          window.dispatchEvent(new CustomEvent('updateProfile', {
+          window.dispatchEvent(new CustomEvent<ProfileUpdateEventDetail>('updateProfile', {
             detail: {
               firstName,
               lastName,
@@ -413,7 +443,7 @@ const contentId = "profile";
         console.error('❌ profile.astro: Profile update failed:', data);
         
         // Show error toast
-        window.dispatchEvent(new CustomEvent('toast', {
+        window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
           detail: {
             message: 'Failed to save profile. Please try again.',
             type: 'error'
@@ -424,7 +454,7 @@ const contentId = "profile";
       console.error('❌ profile.astro: Error updating profile:', error);
       
       // Show error toast
-      window.dispatchEvent(new CustomEvent('toast', {
+      window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
         detail: {
           message: 'Error saving profile. Please try again.',
           type: 'error'
@@ -433,7 +463,7 @@ const contentId = "profile";
     }
   }
 
-  async function handleCredentialsUpdateRequest(event: CustomEvent) {
+  async function handleCredentialsUpdateRequest(event: CustomEvent<CredentialsUpdateDetail>) {
     console.log('✅ profile.astro: updateCredentialsRequest event received:', event.detail);
     
     try {
@@ -461,7 +491,7 @@ const contentId = "profile";
         console.log('✅ profile.astro: Credentials updated successfully');
         
         // Show success toast
-        window.dispatchEvent(new CustomEvent('toast', {
+        window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
           detail: {
             message: 'Credentials updated successfully!',
             type: 'success'
@@ -473,9 +503,9 @@ const contentId = "profile";
         console.error('❌ profile.astro: Credentials update failed:', data);
         
         // Show error toast with specific error message
-        window.dispatchEvent(new CustomEvent('toast', {
+        window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
           detail: {
-            message: data.error || 'Failed to update credentials. Please try again.',
+            message: (data as { error?: string }).error || 'Failed to update credentials. Please try again.',
             type: 'error'
           }
         }));
@@ -484,7 +514,7 @@ const contentId = "profile";
       console.error('❌ profile.astro: Error updating credentials:', error);
       
       // Show error toast
-      window.dispatchEvent(new CustomEvent('toast', {
+      window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
         detail: {
           message: 'Error updating credentials. Please try again.',
           type: 'error'
@@ -494,7 +524,7 @@ const contentId = "profile";
   }
 
   // Logout handler function - now global for inline onclick
-  window.handleLogout = async function(event) {
+  window.handleLogout = async function(event: Event) {
     event.preventDefault();
     console.log('Logout button clicked');
     
@@ -524,58 +554,40 @@ const contentId = "profile";
 
   // Desktop panel switching functionality
   function showPanel(panelName: string) {
-    console.log('Desktop: Showing panel:', panelName);
-    
     // Hide all panels
-    const allPanels = document.querySelectorAll('[id$="-panel"]');
-    allPanels.forEach(panel => {
+    document.querySelectorAll('#profile-panels [id$="-panel"]').forEach((panel) => {
       (panel as HTMLElement).style.display = 'none';
     });
     
     // Show the requested panel
-    const targetPanel = document.getElementById(`${panelName}-panel`);
+    const targetPanel = document.getElementById(`${panelName}-panel`) as HTMLElement | null;
     if (targetPanel) {
-      (targetPanel as HTMLElement).style.display = 'block';
-      console.log('Desktop: Panel shown:', panelName);
-    } else {
-      console.log('Desktop: Panel not found:', panelName);
+      targetPanel.style.display = 'block';
     }
   }
   
   function hideAllPanels() {
-    console.log('Desktop: Hiding all panels');
-    const allPanels = document.querySelectorAll('[id$="-panel"]');
-    allPanels.forEach(panel => {
+    document.querySelectorAll('#profile-panels [id$="-panel"]').forEach((panel) => {
       (panel as HTMLElement).style.display = 'none';
     });
-    
-    // Show default panel
-    const defaultPanel = document.getElementById('default-panel');
+    const defaultPanel = document.getElementById('default-panel') as HTMLElement | null;
     if (defaultPanel) {
-      (defaultPanel as HTMLElement).style.display = 'block';
+      defaultPanel.style.display = 'flex';
     }
   }
 
-
   // Setup panel event listeners
   function setupPanelListeners() {
-    // Listen for profile panel events (desktop only)
-    window.addEventListener('openProfilePanel', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      console.log('Desktop: openProfilePanel event received:', customEvent.detail);
-      const panelName = customEvent.detail.panelName;
-      
-      // Check if we're on desktop (screen width >= 1160px)
+    window.addEventListener('openProfilePanel', (event: CustomEvent<OpenProfilePanelDetail>) => {
       if (window.innerWidth >= 1160) {
-        console.log('Desktop: Opening panel in additional column');
-        showPanel(panelName);
-      } else {
-        console.log('Desktop: On mobile, letting MobileAdditional handle it');
+        const panelName = event.detail?.panelName;
+        if (panelName) {
+          showPanel(panelName);
+        }
       }
     });
     
     window.addEventListener('closeProfilePanel', () => {
-      console.log('Desktop: closeProfilePanel event received');
       if (window.innerWidth >= 1160) {
         hideAllPanels();
       }
@@ -601,16 +613,17 @@ const contentId = "profile";
           console.log('User profile data:', userData);
           
           // Only dispatch updateProfile if we have valid data
-          if (userData.firstName && userData.lastName) {
-            window.dispatchEvent(new CustomEvent('updateProfile', {
+          const typedUserData = userData as { firstName?: string; lastName?: string; userColor?: string };
+          if (typedUserData.firstName && typedUserData.lastName) {
+            window.dispatchEvent(new CustomEvent<ProfileUpdateEventDetail>('updateProfile', {
               detail: {
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                userColor: userData.userColor
+                firstName: typedUserData.firstName,
+                lastName: typedUserData.lastName,
+                userColor: typedUserData.userColor
               }
             }));
           } else {
-            console.warn('Invalid user data received:', userData);
+            console.warn('Invalid user data received:', typedUserData);
           }
         }
       } catch (error) {
@@ -620,11 +633,11 @@ const contentId = "profile";
     
     // Listen for profile updates and update the CardStack header
     // Remove any existing listeners to prevent duplicates
-    window.removeEventListener('updateProfile', handleProfileUpdate as unknown as EventListener);
-    window.addEventListener('updateProfile', handleProfileUpdate as unknown as EventListener);
+    window.removeEventListener('updateProfile', handleProfileUpdate);
+    window.addEventListener('updateProfile', handleProfileUpdate);
   }
 
-  async function handleProfileUpdate(event: CustomEvent) {
+  async function handleProfileUpdate(event: CustomEvent<ProfileUpdateEventDetail>) {
     console.log('updateProfile event received:', event);
     const detail = event.detail;
     console.log('Event detail:', detail);
@@ -633,16 +646,16 @@ const contentId = "profile";
         console.log('Handling profile update UI changes...');
         
         // Update CardStack title
-        const cardStack = document.getElementById('profile-cardstack');
+        const cardStack = document.getElementById('profile-cardstack') as HTMLElement | null;
         if (cardStack) {
-          const titleElement = cardStack.querySelector('p');
+          const titleElement = cardStack.querySelector('p') as HTMLParagraphElement | null;
           if (titleElement) {
             titleElement.textContent = `${detail.firstName} ${detail.lastName.charAt(0)}`.trim();
           }
           
           // Update header background color
-          const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement;
-          if (headerElement) {
+          const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement | null;
+          if (headerElement && detail.selectedColor) {
             headerElement.style.backgroundColor = `var(--color-${detail.selectedColor})`;
           }
         }
@@ -675,10 +688,10 @@ const contentId = "profile";
     console.log('🚀 Initializing profile page...');
     
     // Check for updated profile data in sessionStorage
-    const storedProfileData = sessionStorage.getItem('userProfileData');
+        const storedProfileData = sessionStorage.getItem('userProfileData');
     if (storedProfileData) {
       try {
-        const profileData = JSON.parse(storedProfileData);
+        const profileData = JSON.parse(storedProfileData) as ProfileData;
         console.log('🔄 Found updated profile data in sessionStorage:', profileData);
         
         // Update the page with the stored data
@@ -701,19 +714,19 @@ const contentId = "profile";
     console.log('✅ Profile page initialization complete');
   }
 
-  function updatePageWithProfileData(profileData: any) {
+  function updatePageWithProfileData(profileData: ProfileData) {
     console.log('🔄 Updating page with profile data:', profileData);
     
     // Update CardStack title
-    const cardStack = document.getElementById('profile-cardstack');
+    const cardStack = document.getElementById('profile-cardstack') as HTMLElement | null;
     if (cardStack) {
-      const titleElement = cardStack.querySelector('p');
-      if (titleElement) {
+      const titleElement = cardStack.querySelector('p') as HTMLParagraphElement | null;
+      if (titleElement && profileData.displayName) {
         titleElement.textContent = profileData.displayName;
       }
       
       // Update header background color
-      const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement;
+      const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement | null;
       if (headerElement) {
         headerElement.style.backgroundColor = `var(--color-${profileData.color})`;
       }

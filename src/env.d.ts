@@ -15,6 +15,10 @@ declare global {
     testToast: () => void;
     updateAllAvatars?: (color: string, initials: string) => Promise<{ updatedCount: number; errors: string[] }>;
     closeProfilePanel?: () => void;
+    handleLogout?: (event: Event) => Promise<void>;
+    Clerk?: {
+      signOut: () => Promise<void>;
+    };
   }
 
   // Harvous Content Organization Types

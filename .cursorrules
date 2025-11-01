@@ -3,6 +3,7 @@
 ## Documentation Structure
 - **README.md**: Project overview, setup, and quick start guide
 - **ARCHITECTURE.md**: Core functionality, data structures, and implementation details
+- **TYPESCRIPT_INLINE_SCRIPTS.md**: Critical guide for TypeScript syntax in inline scripts
 - **ALWAYS consult ARCHITECTURE.md** when working on:
   - Content organization (Spaces/Threads/Notes)
   - Note ID system and UserMetadata
@@ -15,6 +16,10 @@
   - Development server setup
   - Project overview and features
   - Quick reference links
+- **ALWAYS consult TYPESCRIPT_INLINE_SCRIPTS.md** when:
+  - Using `<script is:inline>` tags in Astro files
+  - Encountering JavaScript syntax errors from inline scripts
+  - Deciding between `<script>` and `<script is:inline>`
 
 ## Development Server
 - **ALWAYS use port 4321** for the development server
@@ -65,6 +70,14 @@ When converting Alpine.js to React:
 - Example: `import { function } from "@/utils/helper"` not `import { function } from "../utils/helper"`
 - Use proper TypeScript types and interfaces - avoid `any` when possible
 - All React components should have TypeScript interfaces for props
+
+### Inline Scripts & TypeScript
+- **CRITICAL**: `<script is:inline>` tags bypass TypeScript compilation and are sent directly to the browser
+- **Never use TypeScript syntax in `is:inline` scripts** - will cause JavaScript syntax errors
+- **What doesn't work in `is:inline`**: `declare global`, type annotations (`: string`), type assertions (`as HTMLElement`), interface definitions
+- **Use regular `<script>` tags** (without `is:inline`) when you need TypeScript - these ARE processed by Astro
+- **For `is:inline` scripts**: Write plain JavaScript only
+- See `TYPESCRIPT_INLINE_SCRIPTS.md` for detailed examples and best practices
 
 ## Note ID System
 - **CRITICAL**: Never reuse deleted note IDs - always increment from highest ever used
@@ -183,6 +196,7 @@ When converting Alpine.js to React:
 - **Verify the fix works** by testing the actual functionality, not just checking for errors
 - **Document the root cause** and solution for future reference
 - **When fixing Alpine.js/TypeScript issues**: Simplify complex expressions, move logic to script tags if needed
+- **When fixing inline script syntax errors**: Check if TypeScript syntax is used in `is:inline` scripts - use plain JavaScript only (see `TYPESCRIPT_INLINE_SCRIPTS.md`)
 - **When fixing mobile/desktop differences**: Test both contexts, add viewport-specific debugging
 - **When fixing component integration**: Check all import paths, verify prop passing, test in isolation first
 
