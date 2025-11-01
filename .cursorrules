@@ -22,10 +22,49 @@
 - Then restart with: `npm run dev`
 - Never use other ports (4322, 4323, etc.) - always force port 4321
 
+## React Islands Strategy
+
+**CRITICAL**: The project is migrating from Alpine.js to React islands. This is a major architectural decision.
+
+### Component Organization
+- **React components** go in `src/components/react/` - use for ALL interactive components
+- **Astro components** for static/server-rendered content only
+- **Current migration status**: NewNotePanel, CardFullEditable, and other interactive components use React
+- **DO NOT add new Alpine.js code** - use React islands instead
+
+### Astro Client Directives
+Choose the right client directive for React components:
+- **`client:load`** - Critical interactive components (navigation, auth, forms in view) - loads immediately
+- **`client:visible`** - Components below the fold - loads when scrolled into view
+- **`client:idle`** - Non-critical features (analytics, widgets) - loads when browser is idle
+- **`client:only="react"`** - Skip SSR if component relies on browser APIs
+
+### Migrating from Alpine.js to React
+When converting Alpine.js to React:
+- `x-data` → `useState` or `useReducer` for state
+- `x-on:click` → `onClick` event handlers
+- `x-show` → conditional rendering (`{show && <div>...</div>}`)
+- `x-if` → conditional rendering
+- `x-model` → controlled components with `value` and `onChange`
+- Extract reusable logic to custom hooks
+- Use React Context for cross-component state (avoid prop drilling)
+
+### Reference Documentation
+- See `REACT_ISLANDS_STRATEGY.md` for detailed migration patterns
+- See `REFACTORING_PLAN.md` for state management rules and best practices
+
 ## Astro Development
 - Always consult Astro MCP for component development, API usage, and best practices
-- Use proper Alpine.js syntax with `x-data`, `x-on:click`, `x-show`, etc.
-- NO inline `onclick` handlers - use Alpine.js directives instead
+- Use proper Alpine.js syntax with `x-data`, `x-on:click`, `x-show`, etc. - **ONLY for legacy code**
+- NO inline `onclick` handlers - use Alpine.js directives for legacy components, React event handlers for new components
+- **For new interactive components**: Use React islands, not Alpine.js
+
+## TypeScript & Path Aliases
+- **Uses strict TypeScript mode** - extends `astro/tsconfigs/strict`
+- **Path aliases**: `@/` maps to `src/` - always use `@/` for source file imports
+- Example: `import { function } from "@/utils/helper"` not `import { function } from "../utils/helper"`
+- Use proper TypeScript types and interfaces - avoid `any` when possible
+- All React components should have TypeScript interfaces for props
 
 ## Note ID System
 - **CRITICAL**: Never reuse deleted note IDs - always increment from highest ever used
@@ -33,18 +72,107 @@
 - Next ID = `highestSimpleNoteId + 1` (never reuses deleted IDs)
 - See ARCHITECTURE.md for complete implementation details
 
+## Database & Scripts
+- **Astro DB** for schema management - schema defined in `db/config.ts`
+- **Important npm scripts**:
+  - `npm run db:sync` - Sync local database schema
+  - `npm run db:push` - Push schema changes to remote database (runs before deploy)
+  - `npm run db:check` - Check for schema mismatches (runs before commit)
+- **Pre-deploy hook**: `predeploy` runs `db:push` automatically
+- **Pre-commit hook**: `precommit` runs `db:check` to catch schema issues
+- Always run `db:check` before committing database changes
+- See `ARCHITECTURE.md` for database schema and relationships
+
 ## Navigation System
 - The persistent navigation system uses localStorage for history
 - Navigation items should only appear once (no duplicates)
 - Close icons should appear on hover and work properly
 - Use `window.debugNavigation.clearHistory()` to clear navigation history for testing
 
+## Component Development
+
+### Rich Text Editing
+- **Tiptap is the current editor** - use `src/components/react/TiptapEditor.tsx` for all new rich text editing
+- **React components only** - TiptapEditor is a React component, not Astro
+- **Legacy components**: Quill.js components archived in `src/components/_legacy/` - do not use for new development
+- See `ARCHITECTURE.md` for Tiptap implementation details
+
+### FontAwesome Icons
+- **Location**: `@fortawesome/fontawesome-free/svgs/solid/` - import SVG files directly
+- **Pattern 1 (Recommended for static)**: `import Icon from "@fortawesome/fontawesome-free/svgs/solid/icon-name.svg"` then use as `<img src={Icon.src} />`
+- **Pattern 2 (For dynamic styling)**: Load Font Awesome CSS via CDN, use `<i className="fas fa-icon-name"></i>`
+- **See**: `FONT_AWESOME_REACT_GUIDE.md` for detailed patterns and examples
+- **Common icons**: `plus.svg`, `xmark.svg`, `ellipsis.svg`, `chevron-down.svg`, `circle-check.svg`
+
+### CSS Variables & Theming
+- **Color system**: All colors defined as CSS custom properties in `src/styles/global.css`
+- **Thread colors**: `--color-blessed-blue`, `--color-graceful-gold`, `--color-caring-coral`, etc.
+- **UI colors**: `--color-paper`, `--color-stone-grey`, `--color-deep-grey`, etc.
+- **Font variables**: `--font-sans` for Reddit Sans font family
+- Always use CSS variables instead of hardcoded colors for consistency
+
+## Environment & Dependencies
+
+### Node Version
+- **Required**: Node >=20.6.1 (specified in `package.json` engines)
+- Check version with `node --version`
+- Use nvm or similar to manage Node versions
+
+### Critical Environment Variables
+**Required for production:**
+- `PUBLIC_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (public)
+- `CLERK_SECRET_KEY` - Clerk secret key (server-side only)
+- `ASTRO_DB_REMOTE_URL` - Remote database connection URL (for production)
+- `ASTRO_DB_APP_TOKEN` - Database authentication token
+
+**Development:**
+- See `env-template.txt` for example values
+- Create `.env` file from template for local development
+- NEVER commit `.env` file with real secrets
+
+### Clerk Authentication Patterns
+- **Middleware**: `src/middleware.ts` handles authentication via Clerk
+- **User ID access**: `Astro.locals.auth()` returns `{ userId }` for authenticated requests
+- **Protected routes**: Redirect unauthenticated users to sign-in
+- **Profile data**: Stored in Clerk's `public_metadata`, cached in database
+- **API endpoints**: Use `credentials: 'include'` in fetch requests for authenticated endpoints
+- See `PROFILE_PERSISTENCE_SOLUTION.md` for Clerk integration details
+
+### Technology Stack
+- **Astro** - Main framework with SSR
+- **React** - Interactive components (islands pattern)
+- **Tiptap** - Rich text editing (current implementation)
+- **Alpine.js** - Legacy interactive components (migrating to React)
+- **Clerk** - Authentication and user management
+- **Turso/Astro DB** - Database (remote in production, local in dev)
+- **Tailwind CSS** - Styling framework
+
 ## Code Quality
+
+### General Standards
 - Always test functionality before declaring it complete
-- Check for linting errors after making changes
+- Check for linting errors after making changes using `read_lints`
 - Use proper TypeScript types and avoid `any` when possible
-- Follow existing code patterns and architecture
+- Follow existing code patterns from existing codebase
 - **Update documentation** when making architectural changes
+
+### Layout.astro Restrictions
+- **NEVER add inline scripts** - Always extract to separate files in `src/scripts/`
+- **Keep it under 200 lines** - If adding new layout features, create new components
+- **Use React islands for interactive features** - Not Alpine.js or inline scripts
+- **Profile sync logic goes in dedicated files** - Not in layout
+- See `REFACTORING_PLAN.md` for detailed Layout.astro guidelines
+
+### Console.log Rules
+- **Avoid console.log in production code** - Use proper logging or remove before deployment
+- **Debugging**: Remove console.log statements after debugging is complete
+- **Development**: Console.log acceptable for temporary debugging, but clean up before commits
+
+### Script Extraction Patterns
+- Complex JavaScript logic should be extracted to `src/scripts/` directory
+- Use separate files for distinct functionality
+- Keep scripts focused and single-purpose
+- Document script purpose with comments or README if needed
 
 ## Debugging and Problem-Solving Methodology
 - **ALWAYS be thorough and systematic** when debugging issues

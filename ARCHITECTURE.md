@@ -220,32 +220,34 @@ The application includes a comprehensive XP (Experience Points) system to gamify
 
 ## Rich Text Editor System
 
-### Quill.js Integration
+### Tiptap Integration
 
-The application uses Quill.js as the primary rich text editor, replacing the previous Trix implementation for better Alpine.js compatibility and user experience.
+The application uses Tiptap as the primary rich text editor for React components, providing better React integration, TypeScript support, and modern architecture.
 
 #### Core Components
 
-- **`src/components/QuillEditor.astro`**: Main Quill.js editor component with static loading
-- **`src/components/NewNotePanel.astro`**: Note creation panel with Quill integration
-- **`src/components/CardFullEditable.astro`**: Inline note editing with Quill.js
+- **`src/components/react/TiptapEditor.tsx`**: Main Tiptap editor component for React Islands
+- **`src/components/react/NewNotePanel.tsx`**: Note creation panel with Tiptap integration
+- **`src/components/react/CardFullEditable.tsx`**: Inline note editing with Tiptap
 
 #### Technical Implementation
 
-**Static Loading Approach:**
-- Uses CDN-based Quill.js loading via `<link>` and `<script>` tags
-- Prevents SSR issues and ensures consistent initialization
-- Includes comprehensive CSS styling for font consistency
+**React Integration:**
+- Native React hooks and state management
+- TypeScript support with proper typing
+- Clean component architecture
+- Form submission integration via hidden inputs
 
-**Alpine.js Integration:**
-- Each editor instance manages its own Quill reference via `quillContainer.__quill`
-- Global callback system using `window.noteSaveCallback` for save functionality
-- Robust initialization with multiple fallback mechanisms (immediate, DOM ready, periodic)
+**Features:**
+- Bold, italic, underline text formatting
+- Ordered and unordered lists
+- Clean toolbar with Font Awesome icons
+- Consistent styling with app theme (Reddit Sans font)
+- Mobile and desktop responsive
 
-**Font Styling:**
-- Applies app's Reddit Sans font family to all Quill editors
-- Uses CSS variables (`--font-sans`) for consistent theming
-- Programmatic font application to override Quill's default styling
+**Legacy Components:**
+- Quill.js components have been archived to `src/components/_legacy/` (see legacy folder README)
+- All new development should use Tiptap-based components
 
 #### Content Processing System
 
@@ -884,12 +886,15 @@ Add a **"Manage Threads"** section to note pages and cards:
 
 ### Rich Text Editor Components
 
-- `src/components/QuillEditor.astro`: Main Quill.js editor component with static loading and Alpine.js integration
-- `src/components/NewNotePanel.astro`: Note creation panel with Quill.js integration
-- `src/components/CardFullEditable.astro`: Inline note editing component with Quill.js
+- `src/components/react/TiptapEditor.tsx`: Main Tiptap editor component for React Islands
+- `src/components/react/NewNotePanel.tsx`: Note creation panel with Tiptap integration
+- `src/components/react/CardFullEditable.tsx`: Inline note editing component with Tiptap
+- `src/components/NewNotePanelSimple.astro`: Astro wrapper for React NewNotePanel
+- `src/components/CardFullEditableReact.astro`: Astro wrapper for React CardFullEditable
 - `src/components/CardNote.astro`: Note preview component with HTML content processing
 - `src/components/CardFeat.astro`: Featured content component with HTML content processing
 - `src/pages/api/notes/update.ts`: API endpoint for updating note content via inline editing
+- **Legacy**: Quill.js components archived in `src/components/_legacy/` (not for new development)
 
 ## Component Dependencies
 
