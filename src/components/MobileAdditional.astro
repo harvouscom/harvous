@@ -10,7 +10,7 @@ export interface Props {
 }
 
 const { contentType = "dashboard", contentId, currentThread, currentSpace } = Astro.props;
-const showMoreButton = shouldShowMoreButton(contentType);
+const showMoreButton = shouldShowMoreButton(contentType, contentId);
 ---
 
 <div 

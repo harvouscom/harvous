@@ -28,35 +28,35 @@ function safeToast(callback: () => void, type: string, message: string) {
 // Toast utility functions that can be used from anywhere
 export const toast = {
   success: (message: string) => {
-    safeToast(() => sonnerToast.success(message), 'success', message);
+    safeToast(() => sonnerToast.success(message, { icon: null }), 'success', message);
   },
   
   error: (message: string) => {
-    safeToast(() => sonnerToast.error(message), 'error', message);
+    safeToast(() => sonnerToast.error(message, { icon: null }), 'error', message);
   },
   
   info: (message: string) => {
-    safeToast(() => sonnerToast.info(message), 'info', message);
+    safeToast(() => sonnerToast.info(message, { icon: null }), 'info', message);
   },
   
   warning: (message: string) => {
-    safeToast(() => sonnerToast.warning(message), 'warning', message);
+    safeToast(() => sonnerToast.warning(message, { icon: null }), 'warning', message);
   },
   
   // Generic toast function
   show: (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
     switch (type) {
       case 'success':
-        safeToast(() => sonnerToast.success(message), 'success', message);
+        safeToast(() => sonnerToast.success(message, { icon: null }), 'success', message);
         break;
       case 'error':
-        safeToast(() => sonnerToast.error(message), 'error', message);
+        safeToast(() => sonnerToast.error(message, { icon: null }), 'error', message);
         break;
       case 'info':
-        safeToast(() => sonnerToast.info(message), 'info', message);
+        safeToast(() => sonnerToast.info(message, { icon: null }), 'info', message);
         break;
       case 'warning':
-        safeToast(() => sonnerToast.warning(message), 'warning', message);
+        safeToast(() => sonnerToast.warning(message, { icon: null }), 'warning', message);
         break;
     }
   }

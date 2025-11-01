@@ -12,7 +12,7 @@ export interface Props {
 const { contentType = "dashboard", contentId } = Astro.props;
 
 // Get menu options using the utility function
-const menuOptionsData = getMenuOptions(contentType);
+const menuOptionsData = getMenuOptions(contentType, contentId);
 
 // Add icons to the menu options
 const menuOptions = menuOptionsData.map(option => {

@@ -11,6 +11,7 @@ export default function ToastProvider() {
     // Use a visible but very short toast to ensure portal is created
     const initId = toast.success('', { 
       duration: 100,
+      icon: null,
     });
     portalInitialized.current = true;
     
@@ -23,8 +24,10 @@ export default function ToastProvider() {
   return (
     <Toaster
       position="top-right"
+      icons={null}
       toastOptions={{
         duration: 5000,
+        icon: null,
         style: {
           background: 'linear-gradient(168.707deg, rgba(255, 255, 255, 0.8) 11.711%, rgb(248, 248, 248) 71.325%)',
           color: 'var(--color-deep-grey)',
