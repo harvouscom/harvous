@@ -11,7 +11,7 @@ async function seedDatabase() {
       title: "Welcome to Harvous",
       userId,
       isPublic: false,
-      color: "blessed-blue",
+      color: "blue",
       isPinned: true,
       createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
     }).returning().get();
@@ -20,7 +20,7 @@ async function seedDatabase() {
       title: "Bible Study Notes",
       userId,
       isPublic: false,
-      color: "graceful-gold",
+      color: "yellow",
       isPinned: false,
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
     }).returning().get();
@@ -29,7 +29,7 @@ async function seedDatabase() {
       title: "Prayer Requests",
       userId,
       isPublic: false,
-      color: "caring-coral",
+      color: "green",
       isPinned: false,
       createdAt: new Date(),
     }).returning().get();

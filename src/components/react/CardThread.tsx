@@ -33,7 +33,7 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
   } = thread;
 
   // Convert color to CSS variable format
-  const threadAccentColor = accentColor || (color ? `var(--color-${color})` : "var(--color-lovely-lavender)");
+  const threadAccentColor = accentColor || (color ? `var(--color-${color})` : "var(--color-purple)");
 
   // Format the timestamp properly
   let displaySubtitle = subtitle || "5 hours ago";

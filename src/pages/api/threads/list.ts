@@ -23,7 +23,7 @@ export const GET: APIRoute = async ({ locals }) => {
       title: thread.title,
       color: thread.color,
       noteCount: thread.noteCount,
-      backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blessed-blue')
+      backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
     }));
     
     // Ensure "Unorganized" thread exists

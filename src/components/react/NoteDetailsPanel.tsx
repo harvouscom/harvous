@@ -363,7 +363,7 @@ export default function NoteDetailsPanel({
         }
         
         .lavender-accent {
-          background-color: var(--color-lovely-lavender);
+          background-color: var(--color-purple);
         }
       `}</style>
       <div className="note-details-panel h-full flex flex-col justify-between">

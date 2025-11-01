@@ -1,13 +1,12 @@
 // Thread color mapping utility
 export const THREAD_COLORS = [
-  "paper",           // var(--color-paper)
-  "blessed-blue",    // var(--color-blessed-blue)
-  "graceful-gold",   // var(--color-graceful-gold)
-  "caring-coral",    // var(--color-caring-coral)
-  "mindful-mint",    // var(--color-mindful-mint)
-  "peaceful-pink",   // var(--color-peaceful-pink)
-  "pleasant-peach",  // var(--color-pleasant-peach)
-  "lovely-lavender"  // var(--color-lovely-lavender)
+  "paper",    // var(--color-paper)
+  "blue",     // var(--color-blue)
+  "yellow",   // var(--color-yellow)
+  "green",    // var(--color-green)
+  "pink",     // var(--color-pink)
+  "orange",   // var(--color-orange)
+  "purple"    // var(--color-purple)
 ] as const;
 
 export type ThreadColor = typeof THREAD_COLORS[number];
@@ -18,13 +17,12 @@ export function getThreadColorCSS(color: ThreadColor | string | null | undefined
   
   const colorMap: Record<string, string> = {
     "paper": "var(--color-paper)",
-    "blessed-blue": "var(--color-blessed-blue)",
-    "graceful-gold": "var(--color-graceful-gold)",
-    "caring-coral": "var(--color-caring-coral)",
-    "mindful-mint": "var(--color-mindful-mint)",
-    "peaceful-pink": "var(--color-peaceful-pink)",
-    "pleasant-peach": "var(--color-pleasant-peach)",
-    "lovely-lavender": "var(--color-lovely-lavender)"
+    "blue": "var(--color-blue)",
+    "yellow": "var(--color-yellow)",
+    "green": "var(--color-green)",
+    "pink": "var(--color-pink)",
+    "orange": "var(--color-orange)",
+    "purple": "var(--color-purple)"
   };
   
   return colorMap[color] || "var(--color-paper)";

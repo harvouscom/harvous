@@ -1031,8 +1031,8 @@ function extractItemDataFromPage(currentItemId) {
           title: navigationElement.dataset.threadTitle || 'Thread',
           type: 'thread',
           count: parseInt(navigationElement.dataset.threadNoteCount) || 0,
-          backgroundGradient: navigationElement.dataset.threadBackgroundGradient || getThreadGradientCSS('blessed-blue'),
-          color: navigationElement.dataset.threadColor || 'blessed-blue'
+          backgroundGradient: navigationElement.dataset.threadBackgroundGradient || getThreadGradientCSS('blue'),
+          color: navigationElement.dataset.threadColor || 'blue'
         };
       }
       
@@ -1059,8 +1059,8 @@ function extractItemDataFromPage(currentItemId) {
             title: parentThreadTitle || 'Thread',
             type: 'thread',
             count: parseInt(parentThreadCount) || 0,
-            backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || getThreadGradientCSS('blessed-blue'),
-            color: navigationElement.dataset.parentThreadColor || 'blessed-blue'
+            backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || getThreadGradientCSS('blue'),
+            color: navigationElement.dataset.parentThreadColor || 'blue'
           };
         }
       }
@@ -1093,8 +1093,8 @@ function extractItemDataFromPage(currentItemId) {
             title: parentThreadTitle,
             type: 'thread',
             count: parseInt(parentThreadCount) || 0,
-            backgroundGradient: parentThreadBackgroundGradient || getThreadGradientCSS('blessed-blue'),
-            color: parentThreadColor || 'blessed-blue'
+            backgroundGradient: parentThreadBackgroundGradient || getThreadGradientCSS('blue'),
+            color: parentThreadColor || 'blue'
           };
         }
       }
@@ -1111,8 +1111,8 @@ function extractItemDataFromPage(currentItemId) {
         count: 0,
         backgroundGradient: currentItemId === 'thread_unorganized' 
           ? getThreadGradientCSS('paper')
-          : getThreadGradientCSS('blessed-blue'),
-        color: currentItemId === 'thread_unorganized' ? 'paper' : 'blessed-blue'
+          : getThreadGradientCSS('blue'),
+        color: currentItemId === 'thread_unorganized' ? 'paper' : 'blue'
       };
     } else if (currentItemId.startsWith('space_')) {
       itemData = {
@@ -1327,8 +1327,8 @@ window.testNavigationScript = function() {
       title: 'Blue wave',
       type: 'thread',
       count: 1,
-      backgroundGradient: getThreadGradientCSS('blessed-blue'),
-      color: 'blessed-blue',
+      backgroundGradient: getThreadGradientCSS('blue'),
+      color: 'blue',
       lastAccessed: Date.now()
     };
     
@@ -1361,8 +1361,8 @@ window.testNavigationScript = function() {
       title: 'Blue wave',
       type: 'thread',
       count: 1,
-      backgroundGradient: getThreadGradientCSS('blessed-blue'),
-      color: 'blessed-blue',
+      backgroundGradient: getThreadGradientCSS('blue'),
+      color: 'blue',
       lastAccessed: Date.now()
     };
     

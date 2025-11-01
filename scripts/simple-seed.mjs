@@ -29,8 +29,8 @@ async function simpleSeed() {
       id: spaceId,
       title: "Bible Study",
       description: "Deep dive into scripture",
-      color: "graceful-gold",
-      backgroundGradient: "linear-gradient(180deg, var(--color-graceful-gold) 0%, var(--color-graceful-gold) 100%)",
+      color: "yellow",
+      backgroundGradient: "linear-gradient(180deg, var(--color-yellow) 0%, var(--color-yellow) 100%)",
       userId,
       isPublic: false,
       isActive: true,
@@ -48,7 +48,7 @@ async function simpleSeed() {
       spaceId: space.id,
       userId,
       isPublic: false,
-      color: "graceful-gold",
+      color: "yellow",
       isPinned: true,
       createdAt: new Date(),
     }).returning().get();
@@ -112,7 +112,7 @@ async function simpleSeed() {
       spaceId: null, // This makes it unorganized and appear in inbox
       userId,
       isPublic: false,
-      color: "graceful-gold",
+      color: "yellow",
       isPinned: false,
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 day ago
     }).returning().get();

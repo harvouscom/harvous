@@ -95,13 +95,13 @@ try {
   // Ensure threads have backgroundGradient property for consistency
   threads = threads.map(thread => ({
     ...thread,
-    backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blessed-blue')
+    backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
   }));
   
   // Ensure spaces have backgroundGradient property for consistency
   spaces = spaces.map(space => ({
     ...space,
-    backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blessed-blue')
+    backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue')
   }));
 } catch (error) {
   console.error("Error fetching navigation data:", error);
@@ -147,18 +147,17 @@ const contentId = "new-space";
         activeTab: localStorage.getItem('newSpaceActiveTab') || 'recent',
         searchQuery: '',
         searchResults: [],
-        THREAD_COLORS: ['paper', 'blessed-blue', 'mindful-mint', 'graceful-gold', 'pleasant-peach', 'caring-coral', 'peaceful-pink', 'lovely-lavender'],
+        THREAD_COLORS: ['paper', 'blue', 'green', 'yellow', 'orange', 'pink', 'purple'],
         getThreadColorCSS(color) {
           if (!color) return 'var(--color-paper)';
           const colorMap = {
             'paper': 'var(--color-paper)',
-            'blessed-blue': 'var(--color-blessed-blue)',
-            'graceful-gold': 'var(--color-graceful-gold)',
-            'caring-coral': 'var(--color-caring-coral)',
-            'mindful-mint': 'var(--color-mindful-mint)',
-            'peaceful-pink': 'var(--color-peaceful-pink)',
-            'pleasant-peach': 'var(--color-pleasant-peach)',
-            'lovely-lavender': 'var(--color-lovely-lavender)'
+            'blue': 'var(--color-blue)',
+            'yellow': 'var(--color-yellow)',
+            'green': 'var(--color-green)',
+            'pink': 'var(--color-pink)',
+            'orange': 'var(--color-orange)',
+            'purple': 'var(--color-purple)'
           };
           return colorMap[color] || 'var(--color-paper)';
         },
@@ -639,7 +638,7 @@ const contentId = "new-space";
             // Immediately update localStorage synchronously (don't wait for React)
             try {
               // Convert space color to background gradient
-              const spaceColor = result.space.color || 'blessed-blue';
+              const spaceColor = result.space.color || 'blue';
               const backgroundGradient = getThreadGradientCSS(spaceColor);
               
               const spaceItem = {

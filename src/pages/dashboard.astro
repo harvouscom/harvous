@@ -65,13 +65,13 @@ try {
     // Ensure threads have backgroundGradient property for consistency
     threads = threads.map(thread => ({
       ...thread,
-      backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blessed-blue')
+      backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
     }));
     
     // Ensure spaces have backgroundGradient property for consistency
     spaces = spaces.map(space => ({
       ...space,
-      backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blessed-blue')
+      backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue')
     }));
 } catch (error) {
   console.error("Error fetching dashboard data:", error);

@@ -230,7 +230,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
           // Immediately update localStorage synchronously (don't wait for React)
           try {
             // Convert thread color to background gradient
-            const threadColor = result.thread.color || 'blessed-blue';
+            const threadColor = result.thread.color || 'blue';
             const backgroundGradient = getThreadGradientCSS(threadColor);
             
             const threadItem = {
@@ -553,7 +553,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
             disabled={isSubmitting}
             data-outer-shadow
             className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: 'var(--color-blue)' }}
+            style={{ backgroundColor: 'var(--color-bold-blue)' }}
             tabIndex={3}
             onClick={() => console.log('Create button clicked, isSubmitting:', isSubmitting)}
           >
@@ -593,7 +593,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
               <button
                 type="button"
                 onClick={handleSaveAndClose}
-                className="px-4 py-2 bg-[var(--color-blue)] text-white rounded-lg hover:bg-opacity-90 transition-colors"
+                className="px-4 py-2 bg-[var(--color-bold-blue)] text-white rounded-lg hover:bg-opacity-90 transition-colors"
               >
                 Save & Close
               </button>

@@ -154,7 +154,7 @@ export default function CardFullEditable({
             transform: scale(0.98);
           }
 
-          .card-full-editable button:active[style*="var(--color-blue)"] {
+          .card-full-editable button:active[style*="var(--color-bold-blue)"] {
             background-color: var(--color-navy) !important;
             box-shadow:
               0px -2px 0px 0px #0000001a inset,
@@ -284,7 +284,7 @@ export default function CardFullEditable({
                   disabled={!hasChanges || isSaving}
                   data-outer-shadow
                   className="group relative rounded-2xl cursor-pointer transition-[scale,shadow] duration-300 pb-4 pt-3 px-4 flex items-center justify-center font-sans font-semibold text-[14px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[40px] shadow-[0px_2px_2px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: 'var(--color-blue)' }}
+                  style={{ backgroundColor: 'var(--color-bold-blue)' }}
                 >
                   <div className="relative shrink-0 transition-transform duration-125">
                     {isSaving ? 'Saving...' : 'Save'}

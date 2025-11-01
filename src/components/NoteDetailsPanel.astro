@@ -77,7 +77,7 @@ if (noteId) {
         title: item.thread.title,
         count: item.noteCount,
         subtitle: `${item.noteCount} notes`,
-        accentColor: `var(--color-${item.thread.color || 'blessed-blue'})`,
+        accentColor: `var(--color-${item.thread.color || 'blue'})`,
         lastUpdated: formatRelativeTime(new Date(item.thread.updatedAt || item.thread.createdAt)),
         isPrivate: !item.thread.isPublic
       }));

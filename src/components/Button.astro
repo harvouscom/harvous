@@ -20,7 +20,7 @@ const { state = "Default", class: className = "" } = Astro.props;
     "shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]",
     className
   ]}
-  style={state === "Default" ? "background-color: var(--color-blue)" : 
+  style={state === "Default" ? "background-color: var(--color-bold-blue)" : 
          state === "Secondary" ? "background-color: var(--color-stone-grey)" :
          "background-color: var(--color-red)"}
   {...Astro.props}
@@ -51,7 +51,7 @@ const { state = "Default", class: className = "" } = Astro.props;
     transform: scale(0.98);
   }
 
-  button:active[style*="var(--color-blue)"] {
+  button:active[style*="var(--color-bold-blue)"] {
     background-color: var(--color-navy) !important;
     box-shadow:
       0px -4px 0px 0px #0000001a inset,

@@ -43,7 +43,7 @@ export async function getThreadContext(threadId: string, userId: string): Promis
     return {
       id: thread.id,
       title: thread.title,
-      color: thread.color || 'blessed-blue',
+      color: thread.color || 'blue',
       noteCount: noteCountResult?.count || 0,
       backgroundGradient: getThreadGradientCSS(thread.color),
     };

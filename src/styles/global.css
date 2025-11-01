@@ -19,7 +19,7 @@
 }
 
 :root {
-    --color-blue: #006EFF;
+    --color-bold-blue: #006EFF;
     --color-navy: #0048A6;
     --color-red: #E4062E;
     --color-deep-grey: #4A473D;
@@ -33,13 +33,12 @@
     --color-snow-white: #FAFAFA;
     --color-fog-white: #F7F7F6;
     --color-gray: #E9E9E9;
-    --color-blessed-blue: #C3E4FF;
-    --color-graceful-gold: #F9DE78;
-    --color-caring-coral: #FCD1C8;
-    --color-mindful-mint: #C7ECBB;
-    --color-peaceful-pink: #F7CEEE;
-    --color-pleasant-peach: #FCD8A0;
-    --color-lovely-lavender: #E8C9FF;
+    --color-blue: #C3E4FF;
+    --color-yellow: #F9DE78;
+    --color-green: #C7ECBB;
+    --color-pink: #F7CEEE;
+    --color-orange: #FCD8A0;
+    --color-purple: #E8C9FF;
     --surface-primary: var(--color-soft-paper);
     --shadow-primary: 0px 6px 0px 0px #D3D0C5;
     --text-color-primary: var(--color-deep-grey);
@@ -61,7 +60,7 @@
 @theme {
     --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
     --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    --primary-color: var(--color-blue);
+    --primary-color: var(--color-bold-blue);
 }
 
 .text-title {
@@ -278,7 +277,7 @@
   transform: scale(0.95);
 }
 
-button:active[class*="bg-[var(--color-blue)]"] {
+button:active[class*="bg-[var(--color-bold-blue)]"] {
   background-color: var(--color-navy);
   box-shadow:
     0px -4px 0px 0px #0000001a inset,

@@ -68,7 +68,7 @@ const CardNote: React.FC<CardNoteProps> = ({
           {/* Type indicator badge */}
           {noteType !== 'default' && (
             <div className="absolute top-2 right-2 z-10">
-              <div className="bg-[var(--color-blue)] text-white rounded-full p-1.5 shadow-sm">
+              <div className="bg-[var(--color-bold-blue)] text-white rounded-full p-1.5 shadow-sm">
                 {noteType === 'scripture' && (
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>

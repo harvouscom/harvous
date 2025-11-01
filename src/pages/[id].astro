@@ -700,7 +700,7 @@ if (!content) {
     data-parent-thread-id={isNote ? (currentThread?.id || 'thread_unorganized') : undefined}
     data-parent-thread-title={isNote ? (currentThread?.title || 'Unorganized') : undefined}
     data-parent-thread-count={isNote ? (currentThread?.noteCount || 0) : undefined}
-    data-parent-thread-background-gradient={isNote ? (currentThread?.backgroundGradient || getThreadGradientCSS('blessed-blue')) : undefined}
+    data-parent-thread-background-gradient={isNote ? (currentThread?.backgroundGradient || getThreadGradientCSS('blue')) : undefined}
   />
 
   <!-- Main Column -->
@@ -711,8 +711,8 @@ if (!content) {
               data-parent-thread-id={currentThread?.id || 'thread_unorganized'}
               data-parent-thread-title={currentThread?.title || 'Unorganized'}
               data-parent-thread-count={currentThread?.noteCount || 0}
-              data-parent-thread-background-gradient={currentThread?.backgroundGradient || getThreadGradientCSS('blessed-blue')}
-              data-parent-thread-color={currentThread?.color || 'blessed-blue'}
+              data-parent-thread-background-gradient={currentThread?.backgroundGradient || getThreadGradientCSS('blue')}
+              data-parent-thread-color={currentThread?.color || 'blue'}
               data-selected-thread-id={currentThread?.id || 'thread_unorganized'}
               class="h-full"
             >

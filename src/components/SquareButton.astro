@@ -58,7 +58,7 @@ const { variant = "More", withMenu = false, contentType = "dashboard", contentId
 {variant === "Add" && !withMenu && (
   <button
     data-outer-shadow
-    class="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] bg-[var(--color-blue)] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
+    class="group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] bg-[var(--color-bold-blue)] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
     {...Astro.props}
   >
     <div class="flex flex-row items-center justify-center relative w-full h-full">
@@ -113,7 +113,7 @@ const { variant = "More", withMenu = false, contentType = "dashboard", contentId
       @click="toggle()"
       data-outer-shadow
       class="main-button group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
-      :class="isOpen ? 'bg-[var(--color-stone-grey)]' : 'bg-[var(--color-blue)]'"
+      :class="isOpen ? 'bg-[var(--color-stone-grey)]' : 'bg-[var(--color-bold-blue)]'"
       {...Astro.props}
     >
       <div class="flex flex-row items-center justify-center relative w-full h-full">
@@ -328,7 +328,7 @@ const { variant = "More", withMenu = false, contentType = "dashboard", contentId
     transform: scale(0.95);
   }
 
-  button:active[class*="bg-[var(--color-blue)]"] {
+  button:active[class*="bg-[var(--color-bold-blue)]"] {
     background-color: var(--color-navy);
     box-shadow:
       0px -4px 0px 0px #0000001a inset,

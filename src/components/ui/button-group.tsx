@@ -36,8 +36,8 @@ const ButtonGroup = React.forwardRef<HTMLDivElement, ButtonGroupProps>(
             className={cn(
               "px-4 py-2 text-sm font-medium rounded-md transition-all duration-200",
               value === option.value
-                ? "bg-[var(--color-blue)] text-[var(--color-fog-white)] shadow-sm"
-                : "text-[var(--color-deep-grey)] hover:text-[var(--color-blue)] hover:bg-[var(--color-paper)]"
+                ? "bg-[var(--color-bold-blue)] text-[var(--color-fog-white)] shadow-sm"
+                : "text-[var(--color-deep-grey)] hover:text-[var(--color-bold-blue)] hover:bg-[var(--color-paper)]"
             )}
           >
             {option.label}

@@ -49,7 +49,7 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
     selectedColor: 'paper',
     isLoading: false,
     validationErrors: {},
-    THREAD_COLORS: ['paper', 'blessed-blue', 'mindful-mint', 'graceful-gold', 'pleasant-peach', 'caring-coral', 'peaceful-pink', 'lovely-lavender'],
+    THREAD_COLORS: ['paper', 'blue', 'green', 'yellow', 'orange', 'pink', 'purple'],
     get firstNamePlaceholder() {
       return this.firstName ? '' : 'First Name';
     },
@@ -66,13 +66,12 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
       if (!color) return 'var(--color-paper)';
       const colorMap = {
         'paper': 'var(--color-paper)',
-        'blessed-blue': 'var(--color-blessed-blue)',
-        'graceful-gold': 'var(--color-graceful-gold)',
-        'caring-coral': 'var(--color-caring-coral)',
-        'mindful-mint': 'var(--color-mindful-mint)',
-        'peaceful-pink': 'var(--color-peaceful-pink)',
-        'pleasant-peach': 'var(--color-pleasant-peach)',
-        'lovely-lavender': 'var(--color-lovely-lavender)'
+        'blue': 'var(--color-blue)',
+        'yellow': 'var(--color-yellow)',
+        'green': 'var(--color-green)',
+        'pink': 'var(--color-pink)',
+        'orange': 'var(--color-orange)',
+        'purple': 'var(--color-purple)'
       };
       return colorMap[color] || 'var(--color-paper)';
     },
