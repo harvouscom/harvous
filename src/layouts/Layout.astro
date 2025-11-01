@@ -6,6 +6,7 @@ import "@fontsource/reddit-sans/600.css";
 import "@fontsource/reddit-mono/500.css";
 import "@fontsource/reddit-mono/600.css";
 import "trix/dist/trix.css";
+import "sonner/dist/styles.css";
 import ToastProvider from "@/components/react/ToastProvider.tsx";
 import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanelSimple from "@/components/NewNotePanelSimple.astro";
@@ -406,8 +407,19 @@ const showMoreButton = shouldShowMoreButton(contentType);
   });
 </script>
 
+<!-- Toast Initialization (ensure window.toast is available on client) -->
+<script>
+  // Initialize toast utility on client side
+  // Import the toast utility to ensure window.toast is set
+  import('@/utils/toast').then(() => {
+    console.log('[Toast Init] Toast utility module loaded, window.toast should be available');
+  }).catch((error) => {
+    console.warn('[Toast Init] Could not load toast utility module:', error);
+  });
+</script>
 <!-- Toast Handler -->
 <script is:inline src="/scripts/toast-handler.js"></script>
+<!-- Note: toast utility is also imported in frontmatter to initialize window.toast -->
 
 <!-- Navigation History Script -->
 <script is:inline src="/scripts/navigation/history-tracker.js" data-astro-rerun></script>

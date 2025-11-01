@@ -356,7 +356,34 @@ button.space-button:not([style*="background-image"]):not([style*="background-col
 .more-menu button,
 .context-more-menu-item,
 .more-menu-item {
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Sonner Toast Styles - Minimal overrides */
+/* Let Sonner handle most styling, we only ensure visibility and positioning */
+[data-sonner-toaster] {
+    position: fixed !important;
+    top: 16px !important;
+    right: 16px !important;
+    z-index: 999999 !important;
+    pointer-events: none !important;
+}
+
+[data-sonner-toaster] > * {
+    pointer-events: auto !important;
+}
+
+[data-sonner-toast] {
+    pointer-events: auto !important;
+}
+
+/* Mobile: Adjust positioning */
+@media (max-width: 1159px) {
+    [data-sonner-toaster] {
+        left: 16px !important;
+        right: 16px !important;
+        max-width: calc(100% - 32px) !important;
+    }
 }

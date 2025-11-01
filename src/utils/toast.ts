@@ -1,15 +1,27 @@
 import { toast as sonnerToast } from 'sonner';
 
+// Helper function to ensure toaster portal exists before showing toast
+function ensurePortalExists(callback: () => void, maxRetries = 10, attempt = 0): void {
+  const toaster = document.querySelector('[data-sonner-toaster]');
+  
+  if (toaster || attempt >= maxRetries) {
+    // Portal exists or we've given up, call the toast
+    callback();
+    return;
+  }
+  
+  // Portal doesn't exist yet, retry after a short delay
+  setTimeout(() => ensurePortalExists(callback, maxRetries, attempt + 1), 50);
+}
+
 // Helper function to safely call Sonner toast
 function safeToast(callback: () => void, type: string, message: string) {
   try {
-    callback();
+    ensurePortalExists(callback);
     console.log(`Toast [${type}]: ${message}`);
   } catch (error) {
     console.error(`Toast [${type}] error:`, error);
     console.error('Message that failed:', message);
-    // Fallback to alert if Sonner isn't available
-    alert(message);
   }
 }
 
