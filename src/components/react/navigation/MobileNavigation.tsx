@@ -3,6 +3,7 @@ import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import SquareButton from '../SquareButton';
 import Avatar from './Avatar';
+import { getThreadGradientCSS } from '@/utils/colors';
 
 interface Space {
   id: string;
@@ -215,7 +216,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           count={currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
           state="DropdownTrigger"
           className="w-full min-w-0"
-          backgroundGradient={currentThread?.backgroundGradient || (currentSpace ? "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)" : "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)")}
+          backgroundGradient={currentThread?.backgroundGradient || getThreadGradientCSS('paper')}
           onClick={handleDropdownToggle}
         />
         

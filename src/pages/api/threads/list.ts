@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getAllThreadsWithCounts } from '@/utils/dashboard-data';
+import { getThreadGradientCSS } from '@/utils/colors';
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
@@ -22,7 +23,7 @@ export const GET: APIRoute = async ({ locals }) => {
       title: thread.title,
       color: thread.color,
       noteCount: thread.noteCount,
-      backgroundGradient: thread.backgroundGradient || `linear-gradient(180deg, var(--color-${thread.color || 'blessed-blue'}) 0%, var(--color-${thread.color || 'blessed-blue'}) 100%)`
+      backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blessed-blue')
     }));
     
     // Ensure "Unorganized" thread exists
@@ -33,7 +34,7 @@ export const GET: APIRoute = async ({ locals }) => {
         title: 'Unorganized',
         color: null,
         noteCount: 0,
-        backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+        backgroundGradient: getThreadGradientCSS('paper')
       });
     }
 

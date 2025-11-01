@@ -13,6 +13,7 @@ import MobileNavigation from "@/components/MobileNavigation.astro";
 import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
+import { getThreadGradientCSS } from "@/utils/colors";
 import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 // Get user data from Clerk authentication
@@ -64,13 +65,13 @@ try {
     // Ensure threads have backgroundGradient property for consistency
     threads = threads.map(thread => ({
       ...thread,
-      backgroundGradient: thread.backgroundGradient || `linear-gradient(180deg, var(--color-${thread.color || 'blessed-blue'}) 0%, var(--color-${thread.color || 'blessed-blue'}) 100%)`
+      backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blessed-blue')
     }));
     
     // Ensure spaces have backgroundGradient property for consistency
     spaces = spaces.map(space => ({
       ...space,
-      backgroundGradient: space.backgroundGradient || `linear-gradient(180deg, var(--color-${space.color || 'blessed-blue'}) 0%, var(--color-${space.color || 'blessed-blue'}) 100%)`
+      backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blessed-blue')
     }));
 } catch (error) {
   console.error("Error fetching dashboard data:", error);

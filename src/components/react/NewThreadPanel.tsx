@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { THREAD_COLORS, getThreadColorCSS, type ThreadColor } from '@/utils/colors';
+import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, type ThreadColor } from '@/utils/colors';
 import CardNote from '@/components/react/CardNote';
 import SquareButton from './SquareButton';
 import ChevronDownIcon from '@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg';
@@ -231,7 +231,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
           try {
             // Convert thread color to background gradient
             const threadColor = result.thread.color || 'blessed-blue';
-            const backgroundGradient = `linear-gradient(180deg, var(--color-${threadColor}) 0%, var(--color-${threadColor}) 100%)`;
+            const backgroundGradient = getThreadGradientCSS(threadColor);
             
             const threadItem = {
               id: result.thread.id,

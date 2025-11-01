@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, Spaces, eq, and } from 'astro:db';
 import { generateSpaceId } from '@/utils/ids';
+import { getThreadGradientCSS } from '@/utils/colors';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -32,7 +33,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
     
     // Generate background gradient based on color
-    const backgroundGradient = `linear-gradient(180deg, var(--color-${color}) 0%, var(--color-${color}) 100%)`;
+    const backgroundGradient = getThreadGradientCSS(color);
     
     const newSpace = await db.insert(Spaces)
       .values({

@@ -11,6 +11,7 @@ import CardFeat from "@/components/CardFeat.astro";
 import Avatar from "@/components/Avatar.astro";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount, getNotesForDashboard } from "@/utils/dashboard-data";
 import { calculateTotalXP } from "@/utils/xp-system";
+import { getThreadGradientCSS } from "@/utils/colors";
 import { THREAD_COLORS, getThreadColorCSS, getRandomThreadColor } from "@/utils/colors";
 import FaAngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down.svg";
 
@@ -94,13 +95,13 @@ try {
   // Ensure threads have backgroundGradient property for consistency
   threads = threads.map(thread => ({
     ...thread,
-    backgroundGradient: thread.backgroundGradient || `linear-gradient(180deg, var(--color-${thread.color || 'blessed-blue'}) 0%, var(--color-${thread.color || 'blessed-blue'}) 100%)`
+    backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blessed-blue')
   }));
   
   // Ensure spaces have backgroundGradient property for consistency
   spaces = spaces.map(space => ({
     ...space,
-    backgroundGradient: space.backgroundGradient || `linear-gradient(180deg, var(--color-${space.color || 'blessed-blue'}) 0%, var(--color-${space.color || 'blessed-blue'}) 100%)`
+    backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blessed-blue')
   }));
 } catch (error) {
   console.error("Error fetching navigation data:", error);
@@ -639,7 +640,7 @@ const contentId = "new-space";
             try {
               // Convert space color to background gradient
               const spaceColor = result.space.color || 'blessed-blue';
-              const backgroundGradient = `linear-gradient(180deg, var(--color-${spaceColor}) 0%, var(--color-${spaceColor}) 100%)`;
+              const backgroundGradient = getThreadGradientCSS(spaceColor);
               
               const spaceItem = {
                 id: result.space.id,

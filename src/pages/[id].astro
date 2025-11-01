@@ -12,7 +12,7 @@ import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import { db, Threads, Notes, Spaces, NoteThreads, NoteThreadAccess, eq, and, desc, count, ne } from "astro:db";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount } from "@/utils/dashboard-data";
-import { getThreadColorCSS } from "@/utils/colors";
+import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 
@@ -133,7 +133,7 @@ let inboxCount: number = 0;
           title: thread.title,
           color: thread.color,
           noteCount: threadNotes.length,
-          backgroundGradient: `linear-gradient(180deg, var(--color-${thread.color}) 0%, var(--color-${thread.color}) 100%)`
+          backgroundGradient: getThreadGradientCSS(thread.color)
         };
 
         // Note: Active thread is now detected from URL path instead of global state
@@ -172,7 +172,7 @@ let inboxCount: number = 0;
               title: parentThread.title,
               color: parentThread.color,
               noteCount: SAMPLE_DATA.threadNotes.filter(n => n.threadId === parentThread.id).length,
-              backgroundGradient: `linear-gradient(180deg, var(--color-${parentThread.color}) 0%, var(--color-${parentThread.color}) 100%)`
+              backgroundGradient: getThreadGradientCSS(parentThread.color)
             };
             
             // Note: Active thread is now detected from URL path instead of global state
@@ -208,7 +208,7 @@ let inboxCount: number = 0;
           id: space.id,
           title: space.title,
           color: space.color,
-          backgroundGradient: `linear-gradient(180deg, var(--color-${space.color}) 0%, var(--color-${space.color}) 100%)`
+          backgroundGradient: getThreadGradientCSS(space.color)
         };
         
         // Note: Active thread is now detected from URL path instead of global state
@@ -284,7 +284,7 @@ let inboxCount: number = 0;
             ...thread,
             noteCount: threadNoteCount?.count || 0,
             backgroundGradient: thread.color 
-              ? `linear-gradient(180deg, var(--color-${thread.color}) 0%, var(--color-${thread.color}) 100%)`
+              ? getThreadGradientCSS(thread.color)
               : 'var(--color-gradient-gray)'
           };
         })
@@ -318,7 +318,7 @@ let inboxCount: number = 0;
           title: 'Unorganized',
           color: null,
           noteCount: notesData.length,
-          backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+          backgroundGradient: getThreadGradientCSS('paper')
         };
         
         // Set threadNotes for template rendering
@@ -348,7 +348,7 @@ let inboxCount: number = 0;
             title: threadData.title,
             color: threadData.color,
             noteCount: notesData.length,
-            backgroundGradient: `linear-gradient(180deg, var(--color-${threadData.color}) 0%, var(--color-${threadData.color}) 100%)`
+            backgroundGradient: getThreadGradientCSS(threadData.color)
           };
           
           // Set threadNotes for template rendering
@@ -545,7 +545,7 @@ let inboxCount: number = 0;
             title: 'Unorganized',
             color: null,
             noteCount: noteCount,
-            backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+            backgroundGradient: getThreadGradientCSS('paper')
           };
         } else if (selectedThreadId) {
           const thread = await db.select().from(Threads).where(eq(Threads.id, selectedThreadId)).get();
@@ -556,7 +556,7 @@ let inboxCount: number = 0;
               title: thread.title,
               color: thread.color,
               noteCount: await getNotesForThread(thread.id, userId).then(notes => notes.length),
-              backgroundGradient: `linear-gradient(180deg, var(--color-${thread.color}) 0%, var(--color-${thread.color}) 100%)`
+              backgroundGradient: getThreadGradientCSS(thread.color)
             };
           }
         } else {
@@ -567,7 +567,7 @@ let inboxCount: number = 0;
             title: 'Unorganized',
             color: null,
             noteCount: noteCount,
-            backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+            backgroundGradient: getThreadGradientCSS('paper')
           };
         }
 
@@ -647,7 +647,7 @@ let inboxCount: number = 0;
           title: spaceData.title,
           color: spaceData.color,
           totalItemCount: spaceData.totalItemCount,
-          backgroundGradient: `linear-gradient(180deg, var(--color-${spaceData.color}) 0%, var(--color-${spaceData.color}) 100%)`
+          backgroundGradient: getThreadGradientCSS(spaceData.color)
         };
         
         threads = spaceThreads;
@@ -700,7 +700,7 @@ if (!content) {
     data-parent-thread-id={isNote ? (currentThread?.id || 'thread_unorganized') : undefined}
     data-parent-thread-title={isNote ? (currentThread?.title || 'Unorganized') : undefined}
     data-parent-thread-count={isNote ? (currentThread?.noteCount || 0) : undefined}
-    data-parent-thread-background-gradient={isNote ? (currentThread?.backgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)') : undefined}
+    data-parent-thread-background-gradient={isNote ? (currentThread?.backgroundGradient || getThreadGradientCSS('blessed-blue')) : undefined}
   />
 
   <!-- Main Column -->
@@ -711,8 +711,8 @@ if (!content) {
               data-parent-thread-id={currentThread?.id || 'thread_unorganized'}
               data-parent-thread-title={currentThread?.title || 'Unorganized'}
               data-parent-thread-count={currentThread?.noteCount || 0}
-              data-parent-thread-background-gradient={currentThread?.backgroundGradient || 'linear-gradient(180deg, var(--color-blue) 0%, var(--color-blue-dark) 100%)'}
-              data-parent-thread-color={currentThread?.color || 'blue'}
+              data-parent-thread-background-gradient={currentThread?.backgroundGradient || getThreadGradientCSS('blessed-blue')}
+              data-parent-thread-color={currentThread?.color || 'blessed-blue'}
               data-selected-thread-id={currentThread?.id || 'thread_unorganized'}
               class="h-full"
             >
