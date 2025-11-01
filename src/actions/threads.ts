@@ -1,6 +1,6 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
-import { db, Threads, eq, and } from "astro:db";
+import { db, Threads, Notes, NoteThreads, eq, and } from "astro:db";
 import { THREAD_COLORS, getRandomThreadColor } from "@/utils/colors";
 import { generateThreadId } from "@/utils/ids";
 import { awardThreadCreatedXP } from "@/utils/xp-system";
@@ -104,16 +104,41 @@ export const threads = {
         throw new Error("Authentication required");
       }
       try {
+        // First get the current thread to compare values
+        const currentThread = await db.select()
+          .from(Threads)
+          .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
+          .limit(1)
+          .get();
+        
+        if (!currentThread) {
+          throw new Error("Thread not found or you don't have permission to modify it");
+        }
+        
         const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+        const normalizedSubtitle = subtitle || null;
+        
+        // Compare values to determine if only color changed
+        const titleChanged = currentThread.title !== capitalizedTitle;
+        const subtitleChanged = (currentThread.subtitle || null) !== normalizedSubtitle;
+        const isPublicChanged = currentThread.isPublic !== isPublic;
+        const onlyColorChanged = !titleChanged && !subtitleChanged && !isPublicChanged;
+        
+        // Build update object - always update color, conditionally update timestamp
+        const updateData: any = {
+          title: capitalizedTitle,
+          subtitle: normalizedSubtitle,
+          isPublic,
+          color
+        };
+        
+        // Only update timestamp if meaningful fields changed (not just color)
+        if (!onlyColorChanged) {
+          updateData.updatedAt = new Date();
+        }
         
         const updatedThread = await db.update(Threads)
-          .set({
-            title: capitalizedTitle,
-            subtitle: subtitle || null,
-            isPublic,
-            color,
-            updatedAt: new Date()
-          })
+          .set(updateData)
           .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
           .returning()  
 

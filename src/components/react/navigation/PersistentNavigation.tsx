@@ -131,6 +131,9 @@ const PersistentNavigation: React.FC = () => {
         .nav-item-container .badge-count:hover .badge-number {
           display: none !important;
         }
+        .nav-item-container .badge-count:hover {
+          background-color: transparent !important;
+        }
         .nav-item-container:has(.badge-count:hover) .close-icon {
           display: flex !important;
         }
