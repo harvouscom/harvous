@@ -37,28 +37,57 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     }
   ]);
 
+  // Track if we've already set thread from savedThreadId to prevent overriding
+  const [hasSetThreadFromSaved, setHasSetThreadFromSaved] = useState(false);
+
   // Load data from localStorage on mount
   useEffect(() => {
     const savedTitle = localStorage.getItem('newNoteTitle') || '';
     const savedContent = localStorage.getItem('newNoteContent') || '';
-    
-    // Clear any existing content to prevent interference with manual input
-    if (savedContent) {
-      console.log('NewNotePanel: Clearing saved content from localStorage:', savedContent);
-      localStorage.removeItem('newNoteContent');
-    }
-    
-    // Priority: currentThread prop (if in thread view) > default to "Unorganized"
-    let initialThread = 'Unorganized';
-    if (currentThread && currentThread.title) {
-      initialThread = currentThread.title;
-    }
+    const savedThreadId = localStorage.getItem('newNoteThread') || '';
     
     setTitle(savedTitle);
-    // Don't set content from localStorage to prevent overriding manual input
-    setContent('');
-    setSelectedThread(initialThread);
-  }, [currentThread]);
+    
+    // If we have saved content from selected text feature, use it
+    if (savedContent) {
+      console.log('NewNotePanel: Loading saved content from localStorage:', savedContent.substring(0, 50) + '...');
+      setContent(savedContent);
+      // Clear after loading to prevent re-loading on next open
+      localStorage.removeItem('newNoteContent');
+    } else {
+      setContent('');
+    }
+    
+    // Priority for thread selection:
+    // 1. savedThreadId from localStorage (from selected text feature) - HIGHEST PRIORITY
+    // 2. currentThread prop (if in thread view)
+    // 3. default to "Unorganized"
+    
+    // If we have a saved thread ID from selected text feature, try to match it
+    if (savedThreadId) {
+      // Wait for threads to be loaded if not already
+      if (threadOptions.length > 1 || savedThreadId === 'thread_unorganized') {
+        let matchedThread = 'Unorganized';
+        
+        if (savedThreadId === 'thread_unorganized') {
+          matchedThread = 'Unorganized';
+        } else {
+          const matchingThread = threadOptions.find(thread => thread.id === savedThreadId);
+          if (matchingThread) {
+            matchedThread = matchingThread.title;
+          }
+        }
+        
+        setSelectedThread(matchedThread);
+        setHasSetThreadFromSaved(true);
+        // Clear the saved thread ID after using it
+        localStorage.removeItem('newNoteThread');
+      }
+    } else if (currentThread && currentThread.title) {
+      // Only use currentThread if we don't have a saved thread ID
+      setSelectedThread(currentThread.title);
+    }
+  }, [currentThread, threadOptions]);
 
 
   // Save to localStorage when values change
@@ -71,18 +100,24 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   }, [content]);
 
   useEffect(() => {
-    localStorage.setItem('newNoteThread', selectedThread);
-  }, [selectedThread]);
+    // Only save to localStorage if not from savedThreadId (to avoid circular updates)
+    if (!hasSetThreadFromSaved) {
+      localStorage.setItem('newNoteThread', selectedThread);
+    }
+  }, [selectedThread, hasSetThreadFromSaved]);
 
   // Update selected thread when currentThread prop changes
+  // BUT only if we haven't already set it from savedThreadId
   useEffect(() => {
-    if (currentThread && currentThread.title) {
-      setSelectedThread(currentThread.title);
-    } else {
-      // If no currentThread, default to "Unorganized"
-      setSelectedThread('Unorganized');
+    if (!hasSetThreadFromSaved) {
+      if (currentThread && currentThread.title) {
+        setSelectedThread(currentThread.title);
+      } else {
+        // If no currentThread, default to "Unorganized"
+        setSelectedThread('Unorganized');
+      }
     }
-  }, [currentThread]);
+  }, [currentThread, hasSetThreadFromSaved]);
 
   // Load threads from API
   const loadThreads = async () => {
@@ -114,6 +149,26 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         }
         
         setThreadOptions(formattedThreads);
+        
+        // After threads are loaded, check if we have a saved thread ID to match
+        const savedThreadId = localStorage.getItem('newNoteThread');
+        if (savedThreadId && !hasSetThreadFromSaved) {
+          let matchedThread = 'Unorganized';
+          
+          if (savedThreadId === 'thread_unorganized') {
+            matchedThread = 'Unorganized';
+          } else {
+            const matchingThread = formattedThreads.find((thread: Thread) => thread.id === savedThreadId);
+            if (matchingThread) {
+              matchedThread = matchingThread.title;
+            }
+          }
+          
+          setSelectedThread(matchedThread);
+          setHasSetThreadFromSaved(true);
+          // Clear the saved thread ID after using it
+          localStorage.removeItem('newNoteThread');
+        }
       }
     } catch (error) {
       console.error('Error loading threads:', error);

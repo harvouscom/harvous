@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TiptapEditor from './TiptapEditor';
+import ButtonSmall from './ButtonSmall';
 
 interface CardFullEditableProps {
   title: string;
@@ -32,6 +33,7 @@ export default function CardFullEditable({
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const contentDisplayRef = useRef<HTMLDivElement>(null);
   const [scrollPosition, setScrollPosition] = useState(0);
+  const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
 
   // Initialize display content
   useEffect(() => {
@@ -43,6 +45,33 @@ export default function CardFullEditable({
   useEffect(() => {
     if (isEditing && titleInputRef.current) {
       titleInputRef.current.focus();
+    }
+  }, [isEditing]);
+
+  // Detect parent thread ID from DOM when editing starts
+  useEffect(() => {
+    if (isEditing) {
+      // Try to find parent thread ID from data attributes
+      // First, check if current element or parent has data-parent-thread-id
+      const cardElement = document.querySelector('[data-card-full-editable]');
+      let detectedThreadId: string | undefined;
+      
+      // Check parent elements for data-parent-thread-id
+      if (cardElement) {
+        const parentWithThreadId = cardElement.closest('[data-parent-thread-id]');
+        if (parentWithThreadId) {
+          detectedThreadId = (parentWithThreadId as HTMLElement).dataset.parentThreadId;
+        } else {
+          // Fallback: check for data-note-id element
+          const noteElement = document.querySelector('[data-note-id]');
+          if (noteElement && (noteElement as HTMLElement).dataset.parentThreadId) {
+            detectedThreadId = (noteElement as HTMLElement).dataset.parentThreadId;
+          }
+        }
+      }
+      
+      // Default to unorganized if not found
+      setParentThreadId(detectedThreadId || 'thread_unorganized');
     }
   }, [isEditing]);
 
@@ -262,35 +291,27 @@ export default function CardFullEditable({
                   minimalToolbar={false}
                   onContentChange={handleContentChange}
                   scrollPosition={scrollPosition}
+                  enableCreateNoteFromSelection={isEditing}
+                  parentThreadId={parentThreadId}
                 />
               </div>
               
               {/* Save/Cancel buttons */}
               <div className="flex justify-end gap-2 mt-4 shrink-0">
-                <button
+                <ButtonSmall
+                  state="Secondary"
                   onClick={cancelEdit}
                   disabled={isSaving}
-                  data-outer-shadow
-                  className="group relative rounded-2xl cursor-pointer transition-[scale,shadow] duration-300 pb-4 pt-3 px-4 flex items-center justify-center font-sans font-semibold text-[14px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[40px] shadow-[0px_2px_2px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: 'var(--color-stone-grey)' }}
                 >
-                  <div className="relative shrink-0 transition-transform duration-125">
-                    Cancel
-                  </div>
-                  <div className="absolute inset-0 pointer-events-none rounded-2xl transition-shadow duration-125 shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-1px_0px_0px_rgba(0,0,0,0.1)_inset]" />
-                </button>
-                <button
+                  Cancel
+                </ButtonSmall>
+                <ButtonSmall
+                  state="Default"
                   onClick={saveChanges}
                   disabled={!hasChanges || isSaving}
-                  data-outer-shadow
-                  className="group relative rounded-2xl cursor-pointer transition-[scale,shadow] duration-300 pb-4 pt-3 px-4 flex items-center justify-center font-sans font-semibold text-[14px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[40px] shadow-[0px_2px_2px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: 'var(--color-bold-blue)' }}
                 >
-                  <div className="relative shrink-0 transition-transform duration-125">
-                    {isSaving ? 'Saving...' : 'Save'}
-                  </div>
-                  <div className="absolute inset-0 pointer-events-none rounded-2xl transition-shadow duration-125 shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-1px_0px_0px_rgba(0,0,0,0.1)_inset]" />
-                </button>
+                  {isSaving ? 'Saving...' : 'Save'}
+                </ButtonSmall>
               </div>
             </div>
           )}

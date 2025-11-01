@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, type ThreadColor } from '@/utils/colors';
-import CardNote from '@/components/react/CardNote';
+// Tab navigation disabled for v1
+// import CardNote from '@/components/react/CardNote';
 import SquareButton from './SquareButton';
 import ChevronDownIcon from '@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg';
 
@@ -17,11 +18,12 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
-  const [activeTab, setActiveTab] = useState('recent');
+  // Tab navigation disabled for v1
+  // const [activeTab, setActiveTab] = useState('recent');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [recentNotes, setRecentNotes] = useState<any[]>([]);
-  const [isLoadingNotes, setIsLoadingNotes] = useState(false);
+  // const [recentNotes, setRecentNotes] = useState<any[]>([]);
+  // const [isLoadingNotes, setIsLoadingNotes] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   // Shared functionality disabled for now
   // const [isShared, setIsShared] = useState(false);
@@ -41,17 +43,19 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
       setTitle(initialTitle || '');
       setSelectedColor(initialColor || 'paper');
       setSelectedType('Private'); // Always private for now
-      setActiveTab('recent');
+      // Tab navigation disabled for v1
+      // setActiveTab('recent');
     } else {
       // Create mode: load from localStorage
       const savedTitle = localStorage.getItem('newThreadTitle') || '';
       const savedColor = localStorage.getItem('newThreadColor') || 'paper';
       const savedType = localStorage.getItem('newThreadType') || 'Private';
-      const savedTab = localStorage.getItem('newThreadActiveTab') || 'recent';
+      // Tab navigation disabled for v1
+      // const savedTab = localStorage.getItem('newThreadActiveTab') || 'recent';
       setTitle(savedTitle);
       setSelectedColor(savedColor);
       setSelectedType(savedType);
-      setActiveTab(savedTab);
+      // setActiveTab(savedTab);
     }
   }, [isEditMode, initialTitle, initialColor]);
 
@@ -75,18 +79,19 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
     }
   }, [selectedType, isEditMode]);
 
-  useEffect(() => {
-    if (!isEditMode) {
-      localStorage.setItem('newThreadActiveTab', activeTab);
-    }
-  }, [activeTab, isEditMode]);
+  // Tab navigation disabled for v1
+  // useEffect(() => {
+  //   if (!isEditMode) {
+  //     localStorage.setItem('newThreadActiveTab', activeTab);
+  //   }
+  // }, [activeTab, isEditMode]);
 
   // Fetch recent notes when component mounts or tab changes to recent
-  useEffect(() => {
-    if (activeTab === 'recent') {
-      fetchRecentNotes();
-    }
-  }, [activeTab]);
+  // useEffect(() => {
+  //   if (activeTab === 'recent') {
+  //     fetchRecentNotes();
+  //   }
+  // }, [activeTab]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -105,24 +110,25 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
     };
   }, [isDropdownOpen]);
 
-  const fetchRecentNotes = async () => {
-    setIsLoadingNotes(true);
-    try {
-      const response = await fetch('/api/notes/recent');
-      if (response.ok) {
-        const notes = await response.json();
-        setRecentNotes(notes);
-      } else {
-        console.error('Failed to fetch recent notes');
-        setRecentNotes([]);
-      }
-    } catch (error) {
-      console.error('Error fetching recent notes:', error);
-      setRecentNotes([]);
-    } finally {
-      setIsLoadingNotes(false);
-    }
-  };
+  // Tab navigation disabled for v1
+  // const fetchRecentNotes = async () => {
+  //   setIsLoadingNotes(true);
+  //   try {
+  //     const response = await fetch('/api/notes/recent');
+  //     if (response.ok) {
+  //       const notes = await response.json();
+  //       setRecentNotes(notes);
+  //     } else {
+  //       console.error('Failed to fetch recent notes');
+  //       setRecentNotes([]);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching recent notes:', error);
+  //     setRecentNotes([]);
+  //   } finally {
+  //     setIsLoadingNotes(false);
+  //   }
+  // };
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -218,11 +224,12 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
           setTitle('');
           setSelectedColor('paper');
           setSelectedType('Private');
-          setActiveTab('recent');
+          // Tab navigation disabled for v1
+          // setActiveTab('recent');
           localStorage.removeItem('newThreadTitle');
           localStorage.removeItem('newThreadColor');
           localStorage.removeItem('newThreadType');
-          localStorage.removeItem('newThreadActiveTab');
+          // localStorage.removeItem('newThreadActiveTab');
           
           // Dispatch event to notify other components
           console.log('NewThreadPanel: Dispatching threadCreated event with thread:', result.thread);
@@ -316,11 +323,12 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
     setTitle('');
     setSelectedColor('paper');
     setSelectedType('Private');
-    setActiveTab('recent');
+    // Tab navigation disabled for v1
+    // setActiveTab('recent');
     localStorage.removeItem('newThreadTitle');
     localStorage.removeItem('newThreadColor');
     localStorage.removeItem('newThreadType');
-    localStorage.removeItem('newThreadActiveTab');
+    // localStorage.removeItem('newThreadActiveTab');
     setShowUnsavedDialog(false);
     
     // Dispatch close event for event system
@@ -455,12 +463,10 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
                   </div>
                 </div>
 
-                
-                {/* Tab navigation */}
-                <div className="w-full">
+                {/* Tab navigation disabled for v1 */}
+                {/* <div className="w-full">
                   <div className="flex flex-col gap-3">
                     <div className="tab-nav-container">
-                      {/* Tab Navigation */}
                       <div className="flex items-center justify-start gap-0 pb-0 pt-1 px-1 relative w-full">
                         <button
                           type="button"
@@ -497,7 +503,6 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
                       </div>
                     </div>
                     
-                    {/* Tab content */}
                     <div className="tab-content">
                       {activeTab === 'recent' && (
                         <div className="space-y-4">
@@ -513,7 +518,6 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
                                   title={note.title}
                                   content={note.content}
                                   onClick={() => {
-                                    // Navigate to the note
                                     window.location.href = `/note_${note.id}`;
                                   }}
                                 />
@@ -533,7 +537,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
                       )}
                     </div>
                   </div>
-                </div>
+                </div> */}
               </div>
             </div>
           </div>

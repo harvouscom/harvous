@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
+import ButtonSmall from './ButtonSmall';
 
 interface TiptapEditorProps {
   content: string;
@@ -13,6 +15,8 @@ interface TiptapEditorProps {
   tabindex?: number;
   onContentChange?: (content: string) => void;
   scrollPosition?: number;
+  enableCreateNoteFromSelection?: boolean;
+  parentThreadId?: string;
 }
 
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
@@ -23,7 +27,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   minimalToolbar = false,
   tabindex,
   onContentChange,
-  scrollPosition
+  scrollPosition,
+  enableCreateNoteFromSelection = false,
+  parentThreadId
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -34,6 +40,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     orderedList: false,
     bulletList: false
   });
+  const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
 
   // Check if we're on the client side
@@ -123,6 +130,124 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     }
   }, [editor, id]);
+
+  // Helper function to detect if selection has formatting
+  const hasFormatting = (editor: any): boolean => {
+    if (!editor) return false;
+    
+    const { from, to } = editor.state.selection;
+    if (from === to) return false;
+    
+    let hasMarks = false;
+    let hasComplexNodes = false;
+    
+    editor.state.doc.nodesBetween(from, to, (node: any) => {
+      // Check for marks (bold, italic, underline, etc.)
+      if (node.marks && node.marks.length > 0) {
+        hasMarks = true;
+      }
+      // Check for non-paragraph nodes (lists, headings, etc.)
+      if (node.type.name !== 'paragraph' && node.type.name !== 'text') {
+        hasComplexNodes = true;
+      }
+    });
+    
+    return hasMarks || hasComplexNodes;
+  };
+
+  // Helper function to validate selection
+  const isValidSelection = (editor: any): boolean => {
+    if (!editor) return false;
+    
+    const { from, to } = editor.state.selection;
+    if (from === to) return false;
+    
+    const selectedText = editor.state.doc.textBetween(from, to);
+    const trimmedText = selectedText.trim();
+    
+    // Minimum 10 characters of actual content
+    return trimmedText.length >= 10;
+  };
+
+  // Selection detection for create note button
+  useEffect(() => {
+    if (!editor || !enableCreateNoteFromSelection) {
+      setShowCreateNoteButton(false);
+      return;
+    }
+
+    const updateSelection = () => {
+      if (isValidSelection(editor)) {
+        setShowCreateNoteButton(true);
+      } else {
+        setShowCreateNoteButton(false);
+      }
+    };
+
+    editor.on('selectionUpdate', updateSelection);
+
+    return () => {
+      editor.off('selectionUpdate', updateSelection);
+    };
+  }, [editor, enableCreateNoteFromSelection]);
+
+  // Handle create note from selection
+  const handleCreateNoteFromSelection = () => {
+    if (!editor) return;
+    
+    const { from, to } = editor.state.selection;
+    if (from === to) return;
+    
+    // Determine if we should preserve formatting
+    const preserveFormatting = hasFormatting(editor);
+    
+    // Extract content
+    let extractedContent: string;
+    
+    if (preserveFormatting) {
+      // For formatted content, extract HTML from DOM selection
+      const view = editor.view;
+      const startPos = view.domAtPos(from);
+      const endPos = view.domAtPos(to);
+      
+      // Get the DOM nodes in the selection
+      if (startPos.node && endPos.node) {
+        try {
+          const range = document.createRange();
+          range.setStart(startPos.node, startPos.offset);
+          range.setEnd(endPos.node, endPos.offset);
+          const htmlFragment = range.cloneContents();
+          const tempDiv = document.createElement('div');
+          tempDiv.appendChild(htmlFragment);
+          extractedContent = tempDiv.innerHTML;
+        } catch (e) {
+          // Fallback to plain text if DOM extraction fails
+          extractedContent = editor.state.doc.textBetween(from, to);
+        }
+      } else {
+        // Fallback to plain text
+        extractedContent = editor.state.doc.textBetween(from, to);
+      }
+    } else {
+      // Plain text - use textBetween
+      extractedContent = editor.state.doc.textBetween(from, to);
+    }
+    
+    // Store content in localStorage
+    localStorage.setItem('newNoteContent', extractedContent);
+    
+    // Store parent thread ID if provided
+    if (parentThreadId) {
+      localStorage.setItem('newNoteThread', parentThreadId);
+    }
+    
+    // Dispatch event to open NewNotePanel
+    window.dispatchEvent(new CustomEvent('openNewNotePanel'));
+    
+    // Clear selection
+    editor.commands.blur();
+    setShowCreateNoteButton(false);
+  };
 
   // Update active states when editor changes
   useEffect(() => {
@@ -314,6 +439,26 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }}
       >
         <EditorContent editor={editor} />
+        {enableCreateNoteFromSelection && (
+          <BubbleMenu
+            editor={editor}
+            shouldShow={({ editor }) => {
+              return isValidSelection(editor);
+            }}
+            tippyOptions={{ duration: 100 }}
+          >
+            <ButtonSmall
+              state="Default"
+              onClick={handleCreateNoteFromSelection}
+              type="button"
+            >
+              <div className="flex items-center gap-2">
+                <i className="fa-solid fa-plus" style={{ width: '14px', height: '14px', fontSize: '14px' }} />
+                <span>Create Note</span>
+              </div>
+            </ButtonSmall>
+          </BubbleMenu>
+        )}
       </div>
       
       {/* Custom SpaceButton-styled toolbar - positioned at bottom */}
