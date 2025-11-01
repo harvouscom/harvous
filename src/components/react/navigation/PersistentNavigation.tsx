@@ -3,7 +3,7 @@ import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 
 const PersistentNavigation: React.FC = () => {
-  const { navigationHistory, removeFromNavigationHistory } = useNavigation();
+  const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = useNavigation();
   const [isClient, setIsClient] = useState(false);
   const [currentItemId, setCurrentItemId] = useState('');
 
@@ -34,36 +34,8 @@ const PersistentNavigation: React.FC = () => {
     };
   }, [isClient]);
   
-  // Determine what the current active thread/space is - only on client
-  const getCurrentActiveItemId = () => {
-    if (!isClient) return '';
-    
-    let currentActiveItemId = currentItemId;
-    
-    // If we're on a note page, we need to determine the parent thread
-    if (currentItemId.startsWith('note_')) {
-      // First priority: try to get from navigation element (set by server-side)
-      const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
-      
-      if (navigationElement && navigationElement.dataset.parentThreadId) {
-        currentActiveItemId = navigationElement.dataset.parentThreadId;
-      } else {
-        // Fallback: try to get parent thread from note element
-        const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-        
-        if (noteElement && noteElement.dataset.parentThreadId) {
-          currentActiveItemId = noteElement.dataset.parentThreadId;
-        } else {
-          // Final fallback: assume unorganized thread
-          currentActiveItemId = 'thread_unorganized';
-        }
-      }
-    }
-    
-    return currentActiveItemId;
-  };
-
-  const currentActiveItemId = getCurrentActiveItemId();
+  // Use the context's getCurrentActiveItemId function for consistency
+  const currentActiveItemId = isClient ? getCurrentActiveItemId() : '';
   
   // Filter out items that shouldn't be shown in persistent navigation
   const getPersistentItems = () => {
@@ -129,25 +101,26 @@ const PersistentNavigation: React.FC = () => {
                 />
               </a>
               {/* Close icon positioned outside the link element, aligned with badge count center */}
-              {!isActive && (
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    console.log('🧭 React close icon clicked for item:', item.id);
-                    removeFromNavigationHistory(item.id);
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                  }}
-                  className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center"
-                  style={{ right: '16px' }} // Move 16px left to align with badge count center
-                  data-item-id={item.id}
-                >
-                  <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>
-                </div>
-              )}
+              {/* Show close icon for all items (active items can be closed too) */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  console.log('🧭 React close icon clicked for item:', item.id);
+                  console.log('🧭 Current active item ID (before removal):', currentActiveItemId);
+                  console.log('🧭 Item matches active?', item.id === currentActiveItemId);
+                  removeFromNavigationHistory(item.id);
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+                className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center"
+                style={{ right: '16px' }} // Move 16px left to align with badge count center
+                data-item-id={item.id}
+              >
+                <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>
+              </div>
             </div>
           </div>
         );
@@ -155,10 +128,10 @@ const PersistentNavigation: React.FC = () => {
       
       {/* Add CSS for hover states and active shadow */}
       <style jsx>{`
-        .nav-item-container:not(.active) .badge-count:hover .badge-number {
+        .nav-item-container .badge-count:hover .badge-number {
           display: none !important;
         }
-        .nav-item-container:not(.active) .badge-count:hover .close-icon {
+        .nav-item-container:has(.badge-count:hover) .close-icon {
           display: flex !important;
         }
         .close-icon {

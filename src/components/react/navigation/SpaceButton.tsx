@@ -136,7 +136,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
             </span>
           </div>
           <div className="p-[20px] flex-shrink-0">
-            <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
               <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
                 {count}
               </span>

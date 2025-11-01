@@ -17,6 +17,7 @@ interface NavigationContextType {
   removeFromNavigationHistory: (itemId: string) => void;
   trackNavigationAccess: () => void;
   refreshNavigation: () => void;
+  getCurrentActiveItemId: () => string;
 }
 
 // Create the context with default SSR-safe values
@@ -28,7 +29,8 @@ const defaultContextValue: NavigationContextType = {
   addToNavigationHistory: () => {},
   removeFromNavigationHistory: () => {},
   trackNavigationAccess: () => {},
-  refreshNavigation: () => {}
+  refreshNavigation: () => {},
+  getCurrentActiveItemId: () => ''
 };
 
 // Provider component
@@ -183,9 +185,124 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setNavigationHistory(limitedHistory);
   };
 
+  // Helper function to get the current active item ID
+  // Returns the active thread/space ID, handling note pages by returning their parent thread
+  const getCurrentActiveItemId = (): string => {
+    // Handle SSR - return empty string if not in browser
+    if (typeof window === 'undefined') {
+      return '';
+    }
+    
+    const currentPath = window.location.pathname;
+    let currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    
+    console.log('🧭 getCurrentActiveItemId: Starting with currentItemId:', currentItemId);
+    
+    // If we're on a note page, we need to determine the parent thread
+    if (currentItemId.startsWith('note_')) {
+      console.log('🧭 getCurrentActiveItemId: Detected note page, looking for parent thread...');
+      
+      // First priority: try to get parent thread from note element (most reliable)
+      const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+      console.log('🧭 getCurrentActiveItemId: noteElement found:', !!noteElement);
+      
+      if (noteElement) {
+        console.log('🧭 getCurrentActiveItemId: noteElement.dataset:', {
+          parentThreadId: noteElement.dataset.parentThreadId,
+          allAttributes: Array.from(noteElement.attributes).map(attr => ({ name: attr.name, value: attr.value }))
+        });
+      }
+      
+      if (noteElement && noteElement.dataset.parentThreadId) {
+        const parentThreadId = noteElement.dataset.parentThreadId;
+        console.log('🧭 getCurrentActiveItemId: Found parent thread from note element:', parentThreadId);
+        return parentThreadId;
+      }
+      
+      // Second priority: try to get from navigation element (set by server-side)
+      const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+      console.log('🧭 getCurrentActiveItemId: navigationElement found:', !!navigationElement);
+      
+      if (navigationElement) {
+        console.log('🧭 getCurrentActiveItemId: navigationElement.dataset:', {
+          parentThreadId: navigationElement.dataset.parentThreadId
+        });
+      }
+      
+      if (navigationElement && navigationElement.dataset.parentThreadId) {
+        const parentThreadId = navigationElement.dataset.parentThreadId;
+        console.log('🧭 getCurrentActiveItemId: Found parent thread from navigation element:', parentThreadId);
+        return parentThreadId;
+      }
+      
+      // Final fallback: assume unorganized thread
+      console.log('🧭 getCurrentActiveItemId: Using fallback thread_unorganized');
+      return 'thread_unorganized';
+    }
+    
+    console.log('🧭 getCurrentActiveItemId: Not a note page, returning:', currentItemId);
+    return currentItemId;
+  };
+
   // Remove item from navigation history
   const removeFromNavigationHistory = (itemId: string) => {
+    console.log('🧭 removeFromNavigationHistory CALLED with itemId:', itemId);
     const history = getNavigationHistory();
+    console.log('🧭 removeFromNavigationHistory: Current history:', history.map(h => ({ id: h.id, title: h.title })));
+    
+    // Check if the item being removed is currently active
+    const currentActiveItemId = getCurrentActiveItemId();
+    const isActive = itemId === currentActiveItemId;
+    
+    console.log('🧭 removeFromNavigationHistory:', {
+      itemId,
+      currentActiveItemId,
+      isActive,
+      currentPath: window.location.pathname,
+      comparison: `"${itemId}" === "${currentActiveItemId}" = ${itemId === currentActiveItemId}`
+    });
+    
+    // If removing an active item, navigate to the next available item first
+    if (isActive) {
+      console.log('🧭 isActive is TRUE - executing navigation logic');
+      
+      // Find the current index in the history (before filtering)
+      const currentIndex = history.findIndex((item) => item.id === itemId);
+      console.log('🧭 Current index in history:', currentIndex);
+      
+      // Find next item (try index + 1, then index - 1, else null)
+      const nextItem = currentIndex !== -1
+        ? (history[currentIndex + 1] || history[currentIndex - 1] || null)
+        : null;
+      
+      console.log('🧭 Next item found:', nextItem ? { id: nextItem.id, title: nextItem.title } : null);
+      
+      // Remove the item from history first
+      const filteredHistory = history.filter(item => item.id !== itemId);
+      
+      // Special handling for unorganized thread
+      if (itemId === 'thread_unorganized') {
+        localStorage.setItem('unorganized-thread-closed', 'true');
+      }
+      
+      // Save the updated history
+      saveNavigationHistory(filteredHistory);
+      setNavigationHistory(filteredHistory);
+      
+      // Navigate to next item or dashboard
+      const targetUrl = nextItem ? `/${nextItem.id}` : '/dashboard';
+      console.log('🧭 Navigating to:', targetUrl, 'from active item removal');
+      console.log('🧭 About to call window.location.replace...');
+      
+      // Use replace to avoid adding to browser history
+      window.location.replace(targetUrl);
+      console.log('🧭 window.location.replace called');
+      return; // Exit early since we're navigating
+    } else {
+      console.log('🧭 isActive is FALSE - NOT executing navigation logic');
+    }
+    
+    // Proceed with removal (for non-active items)
     const filteredHistory = history.filter(item => item.id !== itemId);
     
     // Special handling for unorganized thread
@@ -467,7 +584,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     addToNavigationHistory,
     removeFromNavigationHistory,
     trackNavigationAccess,
-    refreshNavigation
+    refreshNavigation,
+    getCurrentActiveItemId
   };
 
   // Use default value during SSR, real value during client-side

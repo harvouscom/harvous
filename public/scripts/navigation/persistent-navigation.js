@@ -194,47 +194,66 @@ function loadPersistentNavigation(retryCount) {
         const itemId = badgeCount.getAttribute('data-close-item');
         if (!itemId) return;
         
-        // Check if this is the current page (active item)
-        const isCurrentPage = itemId === currentItemId;
-        
-        if (isCurrentPage) {
-          // Find next item to navigate to (bottom to top)
-          const currentIndex = persistentItems.findIndex((item) => item.id === currentItemId);
-          const nextItem = persistentItems[currentIndex + 1] || persistentItems[currentIndex - 1] || null;
-          
-          // Navigate to next item or dashboard
-          if (nextItem) {
-            window.location.href = `/${nextItem.id}`;
+        // Determine the active item ID - handle note pages by checking parent thread
+        let activeItemId = currentItemId;
+        if (currentItemId.startsWith('note_')) {
+          // Try to get parent thread from note element (most reliable)
+          const noteElement = document.querySelector('[data-note-id]');
+          if (noteElement && noteElement.getAttribute('data-parent-thread-id')) {
+            activeItemId = noteElement.getAttribute('data-parent-thread-id');
           } else {
-            window.location.href = '/dashboard';
-          }
-        }
-        
-        // Use the global function from NavigationContext if available
-        if (window.removeFromNavigationHistory) {
-          window.removeFromNavigationHistory(itemId);
-        } else {
-          // Fallback to direct localStorage manipulation
-          try {
-            const navHistory = localStorage.getItem('harvous-navigation-history-v2');
-            if (navHistory) {
-              const history = JSON.parse(navHistory);
-              const filteredHistory = history.filter((item) => item.id !== itemId);
-              localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(filteredHistory));
+            // Fallback: try to get from navigation element
+            const navElement = document.querySelector('[slot="navigation"]');
+            if (navElement && navElement.getAttribute('data-parent-thread-id')) {
+              activeItemId = navElement.getAttribute('data-parent-thread-id');
+            } else {
+              // Final fallback: assume unorganized thread
+              activeItemId = 'thread_unorganized';
             }
-          } catch (error) {
-            console.error('Error removing item from navigation history:', error);
           }
         }
         
-        // Remove the item from DOM immediately for instant visual feedback
+        // Check if this is the current page (active item)
+        const isCurrentPage = itemId === activeItemId;
+        
+        // If active, find next item BEFORE removing (need persistentItems array which has original order)
+        let nextItem = null;
+        if (isCurrentPage) {
+          const currentIndex = persistentItems.findIndex((item) => item.id === activeItemId);
+          nextItem = currentIndex !== -1
+            ? (persistentItems[currentIndex + 1] || persistentItems[currentIndex - 1] || null)
+            : null;
+        }
+        
+        // ALWAYS remove from localStorage to ensure removal happens
+        try {
+          const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+          if (navHistory) {
+            const history = JSON.parse(navHistory);
+            const filteredHistory = history.filter((item) => item.id !== itemId);
+            localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(filteredHistory));
+          }
+        } catch (error) {
+          console.error('Error removing item from navigation history:', error);
+        }
+        
+        // Remove from DOM immediately for instant visual feedback
         const itemElement = document.querySelector(`[data-navigation-item="${itemId}"]`);
         if (itemElement && itemElement.parentNode) {
           itemElement.parentNode.removeChild(itemElement);
         }
         
-        // Also reload persistent navigation to ensure consistency
-        loadPersistentNavigation();
+        // If this is the active item, navigate to next available item
+        if (isCurrentPage) {
+          const targetUrl = nextItem ? `/${nextItem.id}` : '/dashboard';
+          window.location.replace(targetUrl);
+          return;
+        }
+        
+        // Also reload persistent navigation to ensure consistency (for non-active items)
+        if (!isCurrentPage) {
+          loadPersistentNavigation();
+        }
         
         // Return false to prevent any further event handling
         return false;
@@ -381,25 +400,83 @@ function addCloseFunctionality() {
     const itemId = closeIcon.getAttribute('data-close-item');
     if (!itemId) return;
     
-    // Use the global function from NavigationContext if available
-    if (window.removeFromNavigationHistory) {
-      window.removeFromNavigationHistory(itemId);
-    } else {
-      // Fallback to direct localStorage manipulation
-      try {
-        const navHistory = localStorage.getItem('harvous-navigation-history-v2');
-        if (navHistory) {
-          const history = JSON.parse(navHistory);
-          const filteredHistory = history.filter((item) => item.id !== itemId);
-          localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(filteredHistory));
+    // Get current path to determine if we're on a note page
+    const currentPath = window.location.pathname;
+    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    
+    // Determine the active item ID - handle note pages by checking parent thread
+    let activeItemId = currentItemId;
+    if (currentItemId.startsWith('note_')) {
+      // Try to get parent thread from note element (most reliable)
+      const noteElement = document.querySelector('[data-note-id]');
+      if (noteElement && noteElement.getAttribute('data-parent-thread-id')) {
+        activeItemId = noteElement.getAttribute('data-parent-thread-id');
+      } else {
+        // Fallback: try to get from navigation element
+        const navElement = document.querySelector('[slot="navigation"]');
+        if (navElement && navElement.getAttribute('data-parent-thread-id')) {
+          activeItemId = navElement.getAttribute('data-parent-thread-id');
+        } else {
+          // Final fallback: assume unorganized thread
+          activeItemId = 'thread_unorganized';
         }
-      } catch (error) {
-        console.error('Error removing item from navigation history:', error);
       }
     }
     
-    // Reload persistent navigation
-    loadPersistentNavigation();
+    // Check if this is the active item
+    const isActive = itemId === activeItemId;
+    
+    // If active, find next item BEFORE removing (need to read history first)
+    let nextItem = null;
+    if (isActive) {
+      try {
+        const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+        if (navHistory) {
+          const history = JSON.parse(navHistory).sort((a, b) => a.firstAccessed - b.firstAccessed);
+          const currentIndex = history.findIndex((item) => item.id === itemId);
+          nextItem = currentIndex !== -1
+            ? (history[currentIndex + 1] || history[currentIndex - 1] || null)
+            : null;
+        }
+      } catch (error) {
+        console.error('Error finding next item:', error);
+      }
+    }
+    
+    // ALWAYS remove from localStorage to ensure removal happens
+    try {
+      const navHistory = localStorage.getItem('harvous-navigation-history-v2');
+      if (navHistory) {
+        const history = JSON.parse(navHistory);
+        const filteredHistory = history.filter((item) => item.id !== itemId);
+        localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(filteredHistory));
+      }
+    } catch (error) {
+      console.error('Error removing item from navigation history:', error);
+    }
+    
+    // Remove from DOM
+    const itemElement = document.querySelector(`[data-navigation-item="${itemId}"]`);
+    if (itemElement && itemElement.parentNode) {
+      itemElement.parentNode.removeChild(itemElement);
+    }
+    
+    // If this is the active item, navigate to next available item
+    if (isActive) {
+      const targetUrl = nextItem ? `/${nextItem.id}` : '/dashboard';
+      window.location.replace(targetUrl);
+      return;
+    }
+    
+    // For non-active items, sync with context if available
+    if (!isActive && window.removeFromNavigationHistory) {
+      window.removeFromNavigationHistory(itemId);
+    }
+    
+    // Reload persistent navigation (for non-active items)
+    if (!isActive) {
+      loadPersistentNavigation();
+    }
     
     return false;
   }, true); // Use capture phase to catch the event before it bubbles
