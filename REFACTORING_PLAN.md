@@ -36,22 +36,42 @@ This document outlines a comprehensive refactoring plan for the Harvous Bible st
 ## Phase 1: Emergency Cleanup (Week 1)
 *Priority: Critical - Address immediate technical debt*
 
-### 1.1 Break Up Layout.astro (CURRENT: 2,097 lines → TARGET: <200 lines)
-**Goal:** Extract 1,900+ lines of JavaScript into separate, testable files
+### 1.1 Break Up Layout.astro (COMPLETED: 2,128 → 554 lines, NEXT: Alpine.js → React)
+**Goal:** Extract 1,900+ lines of JavaScript into separate, testable files ✅ **COMPLETED**
 
-**Current State Analysis:**
+**Original State (2,128 lines):**
 ```
-Layout.astro: 2,097 lines
+Layout.astro: 2,128 lines
 ├── HTML/Astro markup: ~350 lines (17%)
-├── Navigation system: ~1,054 lines (50%) ← BIGGEST PROBLEM
+├── Navigation system: ~1,054 lines (50%)
 ├── Tab functionality: ~186 lines (9%)
-├── Debugging/test code: ~169 lines (8%) ← DELETE THIS
-├── Alpine.js panels: ~126 lines (6%) ← CONVERT TO REACT
+├── Debugging/test code: ~169 lines (8%)
+├── Alpine.js panels: ~179 lines (8%) ← NEXT: CONVERT TO REACT
 ├── PWA/Service Worker: ~95 lines (5%)
 ├── Profile sync: ~62 lines (3%)
 ├── Toast handler: ~50 lines (2%)
 └── Dev environment fixes: ~28 lines (1%)
 ```
+
+**Current State (554 lines) - Script Extraction COMPLETED:**
+```
+Layout.astro: 554 lines ✅
+├── HTML/Astro markup: ~180 lines
+├── Alpine.js panels: ~179 lines (32%) ← NEXT: CONVERT TO REACT
+├── Styles/CSS: ~170 lines
+├── Dev environment fixes: ~28 lines (kept inline - Astro-specific)
+└── Meta/head tags: ~30 lines
+```
+
+**Scripts Successfully Extracted:**
+✅ Navigation history tracker → `public/scripts/navigation/history-tracker.js` (560 lines)
+✅ Persistent navigation renderer → `public/scripts/navigation/persistent-navigation.js` (464 lines)
+✅ Tab manager → `public/scripts/tabs/tab-manager.js` (186 lines)
+✅ Service worker manager → `public/scripts/service-worker-manager.js` (95 lines)
+✅ Profile sync → `public/scripts/profile-sync.js` (50 lines)
+✅ Toast handler → `public/scripts/toast-handler.js` (50 lines, + toast init fix)
+✅ Unorganized handler → `public/scripts/navigation/unorganized-handler.js` (16 lines)
+✅ Debug code → DELETED (168 lines)
 
 **Target State After Refactoring:**
 ```
@@ -580,98 +600,84 @@ This ensures you can test thoroughly without affecting real data.
 
 **⚠️ IMPORTANT: Complete the Pre-Refactoring Checklist above FIRST!**
 
-### Day 1-2: Layout.astro Quick Wins (4-6 hours)
-**Goal:** Get Layout.astro from 2,097 → ~900 lines**
+### Day 1-3: Layout.astro Script Extraction ✅ **COMPLETED**
+**Goal:** Extract all inline scripts to separate files
 
-**Morning (START HERE):**
-- [ ] **Delete debugging code** (30 min)
-  - Remove lines 1338-1507 (test functions, fallback handlers)
-  - Test that navigation close still works
-  - **Impact:** -169 lines ✅
+**Completed Tasks:**
+- ✅ **Delete debugging code** (168 lines removed)
+- ✅ **Extract navigation history tracker** → `public/scripts/navigation/history-tracker.js` (560 lines)
+- ✅ **Extract persistent navigation renderer** → `public/scripts/navigation/persistent-navigation.js` (464 lines)
+- ✅ **Extract unorganized handler** → `public/scripts/navigation/unorganized-handler.js` (16 lines)
+- ✅ **Extract tab manager** → `public/scripts/tabs/tab-manager.js` (186 lines)
+- ✅ **Extract PWA manager** → `public/scripts/service-worker-manager.js` (95 lines)
+- ✅ **Extract profile sync** → `public/scripts/profile-sync.js` (50 lines)
+- ✅ **Extract toast handler** → `public/scripts/toast-handler.js` (50 lines)
+- ✅ **Fix toast initialization** → Added `import "@/utils/toast"` in Layout.astro frontmatter
 
-**Afternoon:**
-- [ ] **Extract navigation history tracker** (2 hours)
-  - Create `src/scripts/navigation/history-tracker.js`
-  - Move lines 737-1317 (580 lines)
-  - Test navigation tracking still works
-  - **Impact:** -580 lines ✅
+**Result:** Layout.astro reduced from **2,128 → 554 lines (74% reduction)** ✅
 
-**Next Day:**
-- [ ] **Extract persistent navigation renderer** (2 hours)
-  - Create `src/scripts/navigation/persistent-navigation.js`
-  - Move lines 1638-2096 (458 lines)
-  - Test navigation display still works
-  - **Impact:** -458 lines ✅
-  
-- [ ] **Extract unorganized handler** (30 min)
-  - Create `src/scripts/navigation/unorganized-handler.js`
-  - Move lines 1320-1336 (16 lines)
-  - **Impact:** -16 lines ✅
+**Files Created:**
+- `public/scripts/navigation/history-tracker.js` (560 lines)
+- `public/scripts/navigation/persistent-navigation.js` (464 lines)
+- `public/scripts/navigation/unorganized-handler.js` (16 lines)
+- `public/scripts/tabs/tab-manager.js` (186 lines)
+- `public/scripts/service-worker-manager.js` (95 lines)
+- `public/scripts/profile-sync.js` (50 lines)
+- `public/scripts/toast-handler.js` (50 lines)
 
-**Day 1-2 Result:** Layout.astro now ~874 lines (58% reduction!)
+**All functionality tested and working** ✅
 
-### Day 3: External Scripts (3-4 hours)
-**Goal:** Extract all self-contained scripts**
+### Day 4-5: Alpine.js to React Migration (NEXT STEP - Use Feature Flag Approach)
+**Goal:** Replace Alpine.js panel management with React island (CURRENT: ~179 lines of Alpine.js)
 
-**Morning:**
-- [ ] **Extract tab manager** (1.5 hours)
-  - Create `src/scripts/tabs/tab-manager.js`
-  - Move lines 191-377 (186 lines)
-  - Test tab switching on thread pages
-  - **Impact:** -186 lines ✅
+**⚠️ CRITICAL SAFETY APPROACH:**
+This migration uses a **feature flag** to allow instant rollback if anything breaks. Both systems will work simultaneously until React version is proven stable.
 
-**Afternoon:**
-- [ ] **Extract PWA manager** (1 hour)
-  - Create `public/scripts/service-worker-manager.js`
-  - Move lines 589-684 (95 lines)
-  - Test service worker registration
-  - **Impact:** -95 lines ✅
-
-- [ ] **Extract profile sync** (45 min)
-  - Create `public/scripts/profile-sync.js`
-  - Move lines 94-156 (62 lines)
-  - Test profile updates after edit
-  - **Impact:** -62 lines ✅
-
-- [ ] **Extract toast handler** (45 min)
-  - Create `src/scripts/toast-handler.js`
-  - Move lines 686-735 (50 lines)
-  - Test toasts from redirects
-  - **Impact:** -50 lines ✅
-
-**Day 3 Result:** Layout.astro now ~481 lines (77% reduction!)
-
-### Day 4-5: Alpine.js to React Migration (6-8 hours)
-**Goal:** Replace Alpine.js panel management with React island**
-
-**Day 4:**
-- [ ] **Create DesktopPanelManager React component** (3 hours)
+**Day 4: Create React Component**
+- [ ] **Create DesktopPanelManager React component** (3-4 hours)
   - Create `src/components/react/DesktopPanelManager.tsx`
-  - Create PanelContext with useReducer
-  - Migrate panel state logic (showNewNote, showNewThread, showNoteDetails)
-  - Add TypeScript interfaces for panel state
+  - Use `useReducer` for panel state management
+  - Listen to same window events (openNewNotePanel, closeNewNotePanel, etc.)
+  - Preserve same localStorage keys (showNewNotePanel, showNewThreadPanel)
+  - Render SquareButtons and all 4 panels conditionally
+  - **Test in isolation** - verify component works standalone
 
-**Day 5:**
-- [ ] **Replace Alpine.js in Layout.astro** (2 hours)
-  - Remove `x-data`, `x-show`, `x-init` from lines 425-551
-  - Replace with `<DesktopPanelManager client:load>`
-  - Pass currentThread, currentSpace, currentNote as props
-  - **Impact:** -126 lines ✅
+**Day 5: Feature Flag Integration**
+- [ ] **Add feature flag to Layout.astro** (30 min)
+  - Add `const USE_REACT_PANELS = false;` at top
+  - Keep Alpine.js code intact
+  - Add conditional rendering: `{USE_REACT_PANELS ? <DesktopPanelManager /> : <Alpine.js code>}`
+  - **Impact:** +5 lines (temporary, until Alpine.js removed)
 
-- [ ] **Remove Alpine.js CDN** (15 min)
-  - Remove line 88: Alpine.js CDN script
-  - Remove lines 686-693: Alpine.js re-initialization
-  - Test that panels still work
-  - **Impact:** -8 lines ✅
+- [ ] **Test with feature flag OFF** (30 min)
+  - Verify Alpine.js still works (baseline)
+  - Test all panel interactions
 
-- [ ] **Test panel interactions** (1 hour)
-  - Test opening/closing NewNotePanel
-  - Test opening/closing NewThreadPanel
-  - Test opening/closing NoteDetailsPanel
-  - Test panel switching (one closes when another opens)
-  - Test localStorage persistence
+- [ ] **Switch feature flag to TRUE** (switch only, no code changes)
+  - Change `USE_REACT_PANELS = true`
+  - **Test extensively** (2-3 hours):
+    - ✅ Open/close NewNotePanel
+    - ✅ Open/close NewThreadPanel  
+    - ✅ Open/close NoteDetailsPanel (note pages)
+    - ✅ Open/close EditThreadPanel (thread pages)
+    - ✅ Panel switching (one closes when another opens)
+    - ✅ localStorage persistence
+    - ✅ Window events work from MoreMenu, ContextMoreMenu
+    - ✅ Mobile components still receive events
+    - ✅ View Transitions don't break panel state
+    - ✅ Page refresh preserves panel state
+    - ✅ Desktop only (min-[1160px]) behavior
+  - **If any issue**: Switch flag back to `false` immediately
 
-**Day 4-5 Result:** Layout.astro now ~347 lines (83% reduction!)
+- [ ] **Remove Alpine.js code** (only after 2-3 days of successful React usage)
+  - Remove Alpine.js x-data, x-show, x-init code (~155 lines)
+  - Remove Alpine.js CDN script (~1 line)
+  - Remove Alpine.js re-init script (~8 lines)
+  - Remove Alpine.js CSS overrides (~15 lines)
+  - Remove feature flag conditional
+  - **Impact:** -179 lines ✅
+
+**Day 4-5 Result:** Layout.astro ~375 lines (82% total reduction from 2,128)
 
 ### Day 6: Cleanup & Testing (2-3 hours)
 **Goal:** Polish and verify everything works**

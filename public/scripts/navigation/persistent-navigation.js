@@ -162,17 +162,23 @@ function loadPersistentNavigation(retryCount) {
       countSpan.style.display = 'block'; // Ensure it's visible initially
       
       // Close icon (×) - hidden by default, shown on hover
-      const closeIcon = document.createElement('i');
-      closeIcon.className = 'fa-solid fa-xmark close-icon';
+      // Using inline SVG instead of Font Awesome classes
+      const closeIcon = document.createElement('div');
+      closeIcon.className = 'close-icon';
       closeIcon.style.display = 'none';
       closeIcon.style.cursor = 'pointer';
       closeIcon.style.pointerEvents = 'auto';
-      closeIcon.style.fontSize = '16px';
-      closeIcon.style.color = 'var(--color-deep-grey)';
       closeIcon.style.position = 'absolute';
       closeIcon.style.top = '50%';
       closeIcon.style.left = '50%';
       closeIcon.style.transform = 'translate(-50%, -50%)';
+      closeIcon.style.width = '16px';
+      closeIcon.style.height = '16px';
+      closeIcon.innerHTML = `
+        <svg viewBox="0 0 384 512" style="width: 16px; height: 16px; fill: var(--color-deep-grey);">
+          <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+        </svg>
+      `;
       
       // Build structure - add both count and close icon to badge
       badgeCount.appendChild(countSpan);
@@ -336,6 +342,11 @@ function addPersistentNavigationStyles() {
       background-color: transparent !important;
     }
     
+    /* Ensure badge background is transparent when close icon is visible */
+    .badge-count .close-icon {
+      background-color: transparent;
+    }
+    
     /* Close icon styling - no opacity effects */
     .close-icon {
       transition: none;
@@ -343,6 +354,12 @@ function addPersistentNavigationStyles() {
     
     .close-icon:hover {
       opacity: 1 !important;
+    }
+    
+    .close-icon svg {
+      display: block;
+      width: 16px;
+      height: 16px;
     }
   `;
   document.head.appendChild(style);

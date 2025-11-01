@@ -127,14 +127,16 @@ const contentId = "profile";
   />
 
   <!-- Main Column -->
-  <div slot="main" class="h-full flex flex-col p-4 pb-6">
-    <CardStack 
-      title={displayName}
-      headerBgColor={`var(--color-${userColor})`}
-      centerTitle={true}
-      class="flex-1"
-      id="profile-cardstack"
-    >
+  <div slot="main" class="h-full">
+    <div class="flex flex-col h-full">
+      <div class="flex-1 min-h-0">
+        <CardStack 
+          title={displayName}
+          headerBgColor={`var(--color-${userColor})`}
+          centerTitle={true}
+          class="h-full"
+          id="profile-cardstack"
+        >
       <!-- Profile Content -->
       <div class="flex flex-col justify-between h-full w-full">
         <!-- Top Section -->
@@ -218,10 +220,11 @@ const contentId = "profile";
           </div>
         </div>
       </div>
-    </CardStack>
-    
-    <!-- Logout Button at Bottom -->
-    <div class="mt-4 mb-safe">
+        </CardStack>
+      </div>
+      
+      <!-- Logout Button at Bottom -->
+      <div class="mt-4 mb-safe">
       <button
         id="logout-button"
         type="button"
@@ -235,6 +238,7 @@ const contentId = "profile";
         </div>
         <div class="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
       </button>
+    </div>
     </div>
   </div>
 
