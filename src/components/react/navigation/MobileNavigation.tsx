@@ -3,7 +3,7 @@ import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import SquareButton from '../SquareButton';
 import Avatar from './Avatar';
-import { getThreadGradientCSS } from '@/utils/colors';
+import { getThreadGradientCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 
 interface Space {
   id: string;
@@ -43,6 +43,23 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [isClient, setIsClient] = useState(false);
   const [currentItemId, setCurrentItemId] = useState('');
   const { navigationHistory, removeFromNavigationHistory } = useNavigation();
+
+  // Helper to determine if background is colored (not paper or gray gradient)
+  const isColoredBackground = (gradient: string | undefined): boolean => {
+    if (!gradient || gradient === 'var(--color-gradient-gray)' || gradient === 'var(--color-paper)') {
+      return false;
+    }
+    const threadColors = THREAD_COLORS.filter(c => c !== 'paper');
+    return threadColors.some(color => gradient.includes(`--color-${color}`));
+  };
+
+  // Determine text color - white only when active AND background is colored
+  const getTextColor = (gradient: string | undefined, isActive: boolean): string => {
+    if (isActive && isColoredBackground(gradient)) {
+      return 'white';
+    }
+    return 'var(--color-deep-grey)';
+  };
 
   // Handle SSR - only run client-side code after hydration
   useEffect(() => {
@@ -264,14 +281,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         <a href={`/${space.id}`} className="block w-full" onClick={handleItemClick}>
                           <div 
                             className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
-                            style={{
+                            style={isActive ? {
                               backgroundImage: space.backgroundGradient?.includes('gradient') ? space.backgroundGradient : undefined,
                               backgroundColor: space.backgroundGradient?.includes('gradient') ? undefined : (space.backgroundGradient || undefined)
-                            }}
+                            } : {}}
                           >
                             <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                               <div className="flex-1 min-w-0 overflow-hidden text-left">
-                                <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                                <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(space.backgroundGradient, isActive) }}>
                                   {space.title}
                                 </span>
                               </div>
@@ -280,7 +297,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
                                   data-close-item={space.id}
                                 >
-                                  <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                                  <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, isActive) }}>
                                     {space.count || 0}
                                   </span>
                                 </div>
@@ -303,10 +320,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                             e.preventDefault();
                           }}
                           className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center"
-                          style={{ right: '16px' }}
+                          style={{ 
+                            right: '16px',
+                            color: getTextColor(space.backgroundGradient, isActive)
+                          }}
                           data-item-id={space.id}
                         >
-                          <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>
+                          <i className="fa-solid fa-xmark"></i>
                         </div>
                       </div>
                     );
@@ -321,14 +341,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         <a href={`/${thread.id}`} className="block w-full" onClick={handleItemClick}>
                           <div 
                             className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
-                            style={{
+                            style={isActive ? {
                               backgroundImage: thread.backgroundGradient?.includes('gradient') ? thread.backgroundGradient : undefined,
                               backgroundColor: thread.backgroundGradient?.includes('gradient') ? undefined : (thread.backgroundGradient || undefined)
-                            }}
+                            } : {}}
                           >
                             <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                               <div className="flex-1 min-w-0 overflow-hidden text-left">
-                                <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                                <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
                                   {thread.title}
                                 </span>
                               </div>
@@ -337,7 +357,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
                                   data-close-item={thread.id}
                                 >
-                                  <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                                  <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
                                     {thread.count || 0}
                                   </span>
                                 </div>
@@ -360,10 +380,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                             e.preventDefault();
                           }}
                           className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center"
-                          style={{ right: '16px' }}
+                          style={{ 
+                            right: '16px',
+                            color: getTextColor(thread.backgroundGradient, isActive)
+                          }}
                           data-item-id={thread.id}
                         >
-                          <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>
+                          <i className="fa-solid fa-xmark"></i>
                         </div>
                       </div>
                     );
@@ -381,20 +404,20 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       <a key={space.id} href={`/${space.id}`} className="block w-full" onClick={handleItemClick}>
                         <div 
                           className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
-                          style={{
+                          style={isSpaceActive ? {
                             backgroundImage: space.backgroundGradient?.includes('gradient') ? space.backgroundGradient : undefined,
                             backgroundColor: space.backgroundGradient?.includes('gradient') ? undefined : (space.backgroundGradient || undefined)
-                          }}
+                          } : {}}
                         >
                           <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                             <div className="flex-1 min-w-0 overflow-hidden text-left">
-                              <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                              <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(space.backgroundGradient, isSpaceActive) }}>
                                 {space.title}
                               </span>
                             </div>
                             <div className="p-[20px] flex-shrink-0">
                               <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                                <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, isSpaceActive) }}>
                                   {space.totalItemCount}
                                 </span>
                               </div>
@@ -424,13 +447,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     >
                       <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                         <div className="flex-1 min-w-0 overflow-hidden text-left">
-                          <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                          <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(currentThread.backgroundGradient, true) }}>
                             {currentThread.title}
                           </span>
                         </div>
                         <div className="p-[20px] flex-shrink-0">
                           <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                            <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                            <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(currentThread.backgroundGradient, true) }}>
                               {currentThread.noteCount}
                             </span>
                           </div>

@@ -326,6 +326,32 @@ button.space-button:not([style*="background-image"]):not([style*="background-col
   box-shadow: none !important;
 }
 
+/* White text for space-button with colored thread backgrounds */
+/* Match buttons with linear-gradient containing thread color variables */
+.space-button[style*="--color-blue"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]),
+.space-button[style*="--color-yellow"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]),
+.space-button[style*="--color-green"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]),
+.space-button[style*="--color-pink"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]),
+.space-button[style*="--color-orange"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]),
+.space-button[style*="--color-purple"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) {
+  color: white !important;
+}
+
+.space-button[style*="--color-blue"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) span,
+.space-button[style*="--color-yellow"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) span,
+.space-button[style*="--color-green"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) span,
+.space-button[style*="--color-pink"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) span,
+.space-button[style*="--color-orange"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) span,
+.space-button[style*="--color-purple"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) span,
+.space-button[style*="--color-blue"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) *,
+.space-button[style*="--color-yellow"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) *,
+.space-button[style*="--color-green"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) *,
+.space-button[style*="--color-pink"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) *,
+.space-button[style*="--color-orange"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) *,
+.space-button[style*="--color-purple"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) * {
+  color: white !important;
+}
+
 /* Fix TabNav bottom line */
 .tab-nav-container,
 .tab-nav-container > div {
