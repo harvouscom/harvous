@@ -218,6 +218,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           className="w-full min-w-0"
           backgroundGradient={currentThread?.backgroundGradient || getThreadGradientCSS('paper')}
           onClick={handleDropdownToggle}
+          hideDropdownIcon={true}
         />
         
         {/* Dropdown Menu */}

@@ -15,6 +15,7 @@ interface SpaceButtonProps {
   itemId?: string;
   onClick?: () => void;
   disabled?: boolean;
+  hideDropdownIcon?: boolean;
 }
 
 const SpaceButton: React.FC<SpaceButtonProps> = ({
@@ -28,6 +29,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   itemId,
   onClick,
   disabled = false,
+  hideDropdownIcon = false,
   ...props
 }) => {
   const { removeFromNavigationHistory } = useNavigation();
@@ -155,13 +157,13 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "DropdownTrigger") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${disabledStyle} ${className}`}
+        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 ${hideDropdownIcon ? 'pr-4' : 'pr-0'} ${disabledStyle} ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         {...props}
       >
-        <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+        <div className={`flex items-center relative w-full h-full pl-2 ${hideDropdownIcon ? 'pr-2' : 'pr-0'} transition-transform duration-125 min-w-0`}>
           <div className="flex-1 min-w-0 overflow-hidden text-left">
             <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`}>
               {text}
@@ -174,19 +176,21 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
               </span>
             </div>
           )}
-          <div className="flex items-center justify-center relative shrink-0">
-            <div className="flex-none scale-y-[-100%]">
-              <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                <div className="flex items-center justify-center relative shrink-0">
-                  <div className="flex-none scale-y-[-100%]">
-                    <div className="relative size-5">
-                      <img src={FaAngleDownIcon.src} alt="Dropdown" className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" />
+          {!hideDropdownIcon && (
+            <div className="flex items-center justify-center relative shrink-0">
+              <div className="flex-none scale-y-[-100%]">
+                <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                  <div className="flex items-center justify-center relative shrink-0">
+                    <div className="flex-none scale-y-[-100%]">
+                      <div className="relative size-5">
+                        <img src={FaAngleDownIcon.src} alt="Dropdown" className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" />
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </button>
     );
