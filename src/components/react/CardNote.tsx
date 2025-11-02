@@ -65,31 +65,19 @@ const CardNote: React.FC<CardNoteProps> = ({
     >
       {variant === "default" && (
         <div className="relative rounded-xl h-full">
-          {/* Type indicator badge */}
-          {noteType !== 'default' && (
-            <div className="absolute top-2 right-2 z-10">
-              <div className="bg-[var(--color-bold-blue)] text-white rounded-full p-1.5 shadow-sm">
-                {noteType === 'scripture' && (
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-                  </svg>
-                )}
-                {noteType === 'resource' && (
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M10.59 13.41c.41.39.41 1.03 0 1.42-.39.39-1.03.39-1.42 0a5.003 5.003 0 0 1 0-7.07l3.54-3.54a5.003 5.003 0 0 1 7.07 0 5.003 5.003 0 0 1 0 7.07l-1.49 1.49c.01-.82-.12-1.64-.4-2.42l.47-.48a2.982 2.982 0 0 0 0-4.24 2.982 2.982 0 0 0-4.24 0l-3.53 3.53a2.982 2.982 0 0 0 0 4.24zm2.82-4.24c.39-.39 1.03-.39 1.42 0a5.003 5.003 0 0 1 0 7.07l-3.54 3.54a5.003 5.003 0 0 1-7.07 0 5.003 5.003 0 0 1 0-7.07l1.49-1.49c-.01.82.12 1.64.4 2.42l-.47.48a2.982 2.982 0 0 0 0 4.24 2.982 2.982 0 0 0 4.24 0l3.53-3.53a2.982 2.982 0 0 0 0-4.24z"/>
-                  </svg>
-                )}
-              </div>
-            </div>
-          )}
-          
           <div className="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
-            {/* Left sidebar with bookmark icon */}
+            {/* Left sidebar with note type icon */}
             <div className="bg-[var(--color-light-paper)] box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" style={{ height: '68px' }}>
               <div className="relative shrink-0 size-5">
-                <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-                </svg>
+                {noteType === 'scripture' ? (
+                  <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] opacity-20 text-[20px]" />
+                ) : noteType === 'resource' ? (
+                  <i className="fa-solid fa-file-image text-[var(--color-deep-grey)] opacity-20 text-[20px]" />
+                ) : (
+                  <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                  </svg>
+                )}
               </div>
             </div>
             
@@ -119,11 +107,22 @@ const CardNote: React.FC<CardNoteProps> = ({
       {variant === "withImage" && (
         <div className="relative rounded-xl h-full">
           <div className="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
-            {/* Left sidebar with image background */}
+            {/* Left sidebar with image background and note type icon */}
             <div 
               className="bg-center bg-cover bg-no-repeat box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" 
               style={imageUrl ? { backgroundImage: `url('${imageUrl}')`, height: '68px' } : { backgroundColor: 'var(--color-aged-paper)', height: '68px' }}
             >
+              <div className="relative shrink-0 size-5">
+                {noteType === 'scripture' ? (
+                  <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] opacity-20 text-[20px]" />
+                ) : noteType === 'resource' ? (
+                  <i className="fa-solid fa-file-image text-[var(--color-deep-grey)] opacity-20 text-[20px]" />
+                ) : (
+                  <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                  </svg>
+                )}
+              </div>
             </div>
             
             {/* Right content area */}

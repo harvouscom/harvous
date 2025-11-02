@@ -4,6 +4,7 @@ export interface Props {
   title?: string;
   content?: string;
   imageUrl?: string;
+  noteType?: 'default' | 'scripture' | 'resource';
   class?: string;
 }
 
@@ -11,7 +12,8 @@ const {
   variant = "default", 
   title, 
   content, 
-  imageUrl, 
+  imageUrl,
+  noteType = 'default',
   class: className = "" 
 } = Astro.props;
 
@@ -59,12 +61,18 @@ function stripHtml(html: string): string {
   {variant === "default" && (
     <div class="relative rounded-xl h-full">
       <div class="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
-        <!-- Left sidebar with bookmark icon -->
+        <!-- Left sidebar with note type icon -->
         <div class="bg-[var(--color-light-paper)] box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" style="height: 68px;">
           <div class="relative shrink-0 size-5">
-                          <svg class="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-            </svg>
+            {noteType === 'scripture' ? (
+              <i class="fa-solid fa-scroll text-[var(--color-deep-grey)] opacity-20 text-[20px]"></i>
+            ) : noteType === 'resource' ? (
+              <i class="fa-solid fa-file-image text-[var(--color-deep-grey)] opacity-20 text-[20px]"></i>
+            ) : (
+              <svg class="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+              </svg>
+            )}
           </div>
         </div>
         
@@ -94,8 +102,19 @@ function stripHtml(html: string): string {
   {variant === "withImage" && (
     <div class="relative rounded-xl h-full">
       <div class="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
-        <!-- Left sidebar with image background -->
+        <!-- Left sidebar with image background and note type icon -->
         <div class="bg-center bg-cover bg-no-repeat box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" style={imageUrl ? `background-image: url('${imageUrl}'); height: 68px;` : 'background-color: var(--color-aged-paper); height: 68px;'}>
+          <div class="relative shrink-0 size-5">
+            {noteType === 'scripture' ? (
+              <i class="fa-solid fa-scroll text-[var(--color-deep-grey)] opacity-20 text-[20px]"></i>
+            ) : noteType === 'resource' ? (
+              <i class="fa-solid fa-file-image text-[var(--color-deep-grey)] opacity-20 text-[20px]"></i>
+            ) : (
+              <svg class="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+              </svg>
+            )}
+          </div>
         </div>
         
         <!-- Right content area -->

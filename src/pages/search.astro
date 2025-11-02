@@ -137,6 +137,7 @@ if (query.trim()) {
         threadId: Notes.threadId,
         spaceId: Notes.spaceId,
         simpleNoteId: Notes.simpleNoteId,
+        noteType: Notes.noteType,
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
         userId: Notes.userId,
@@ -169,6 +170,7 @@ if (query.trim()) {
         threadId: Notes.threadId,
         spaceId: Notes.spaceId,
         simpleNoteId: Notes.simpleNoteId,
+        noteType: Notes.noteType,
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
         userId: Notes.userId,
@@ -294,6 +296,7 @@ if (query.trim()) {
         noteId: note.id,
         threadId: note.threadId,
         spaceId: note.spaceId,
+        noteType: note.noteType || 'default',
         lastUpdated: note.updatedAt || note.createdAt,
         updatedAt: note.updatedAt || note.createdAt,
         tags: note.tags
@@ -478,6 +481,7 @@ if (query.trim()) {
                           <CardNote 
                             title={item.title}
                             content={item.content}
+                            noteType={item.noteType || 'default'}
                           />
                         ) : (
                           <CardThread 
@@ -517,6 +521,7 @@ if (query.trim()) {
                         <CardNote 
                           title={item.title}
                           content={item.content}
+                          noteType={item.noteType || 'default'}
                         />
                       </a>
                     </div>

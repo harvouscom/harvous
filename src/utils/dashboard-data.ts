@@ -316,6 +316,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         threadId: Notes.threadId,
         spaceId: Notes.spaceId,
         simpleNoteId: Notes.simpleNoteId,
+        noteType: Notes.noteType,
         isPublic: Notes.isPublic,
         isFeatured: Notes.isFeatured,
         createdAt: Notes.createdAt,
@@ -336,6 +337,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         threadId: Notes.threadId,
         spaceId: Notes.spaceId,
         simpleNoteId: Notes.simpleNoteId,
+        noteType: Notes.noteType,
         isPublic: Notes.isPublic,
         isFeatured: Notes.isFeatured,
         createdAt: Notes.createdAt,
@@ -379,6 +381,7 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
       threadId: Notes.threadId,
       spaceId: Notes.spaceId,
       simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
       isPublic: Notes.isPublic,
       isFeatured: Notes.isFeatured,
       createdAt: Notes.createdAt,
@@ -409,6 +412,7 @@ export async function getNotesForDashboard(userId: string, limit = 10) {
       threadId: Notes.threadId,
       spaceId: Notes.spaceId,
       simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
       isPublic: Notes.isPublic,
       isFeatured: Notes.isFeatured,
       createdAt: Notes.createdAt,
@@ -516,6 +520,7 @@ export async function getContentItems(userId: string, limit = 20) {
         noteId: note.id, // Full ID including prefix
         threadId: note.threadId,
         spaceId: note.spaceId,
+        noteType: note.noteType || 'default',
         lastUpdated: note.lastUpdated,
         updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
       };
@@ -531,6 +536,7 @@ export async function getContentItems(userId: string, limit = 20) {
         noteId: note.id, // Full ID including prefix
         threadId: note.threadId,
         spaceId: note.spaceId,
+        noteType: note.noteType || 'default',
         lastUpdated: note.lastUpdated,
         updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
       };
@@ -568,6 +574,7 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
       threadId: Notes.threadId,
       spaceId: Notes.spaceId,
       simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
       isPublic: Notes.isPublic,
       isFeatured: Notes.isFeatured,
       createdAt: Notes.createdAt,
@@ -604,6 +611,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
         threadId: Notes.threadId,
         spaceId: Notes.spaceId,
         simpleNoteId: Notes.simpleNoteId,
+        noteType: Notes.noteType,
         isPublic: Notes.isPublic,
         isFeatured: Notes.isFeatured,
         createdAt: Notes.createdAt,
@@ -627,6 +635,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       threadId: Notes.threadId,
       spaceId: Notes.spaceId,
       simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
       isPublic: Notes.isPublic,
       isFeatured: Notes.isFeatured,
       createdAt: Notes.createdAt,

@@ -373,7 +373,8 @@ let inboxCount: number = 0;
           threadId: note.threadId,
           createdAt: note.createdAt,
           noteId: note.simpleNoteId,
-          updatedAt: note.updatedAt
+          updatedAt: note.updatedAt,
+          noteType: note.noteType || 'default'
         };
 
         // Set page title for note
@@ -721,6 +722,7 @@ if (!content) {
                 content={content.content}
                 date={content.createdAt ? content.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Feb 7, 2025"}
                 noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : undefined}
+                noteType={content.noteType || 'default'}
                 className="h-full"
               />
             </div>
@@ -757,6 +759,7 @@ if (!content) {
                               const cleanContent = stripHtml(note.content);
                               return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
                             })()}
+                            noteType={note.noteType || 'default'}
                           />
                         </a>
                       </div>
@@ -796,6 +799,7 @@ if (!content) {
                               const cleanContent = stripHtml(note.content);
                               return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
                             })()}
+                            noteType={note.noteType || 'default'}
                           />
                         </a>
                       </div>

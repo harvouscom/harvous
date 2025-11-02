@@ -4,6 +4,7 @@ import TiptapEditor from './TiptapEditor';
 import ThreadCombobox from './ThreadCombobox';
 import SquareButton from './SquareButton';
 import ButtonSmall from './ButtonSmall';
+import { formatReferenceForAPI } from '@/utils/scripture-detector';
 
 interface Thread {
   id: string;
@@ -28,7 +29,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   // Force note type to 'default' until designs are ready
   const [noteType, setNoteType] = useState<'default' | 'scripture' | 'resource'>('default');
   const [scriptureReference, setScriptureReference] = useState('');
+  const [scriptureVersion, setScriptureVersion] = useState('NET'); // Default to NET Bible for MVP
   const [resourceUrl, setResourceUrl] = useState('');
+  const [isFetchingVerse, setIsFetchingVerse] = useState(false);
   const [threadOptions, setThreadOptions] = useState<Thread[]>([
     {
       id: 'thread_unorganized',
@@ -47,16 +50,42 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     const savedTitle = localStorage.getItem('newNoteTitle') || '';
     const savedContent = localStorage.getItem('newNoteContent') || '';
     const savedThreadId = localStorage.getItem('newNoteThread') || '';
+    const savedNoteType = localStorage.getItem('newNoteType') as 'default' | 'scripture' | 'resource' | null;
+    const savedScriptureRef = localStorage.getItem('newNoteScriptureReference') || '';
+    const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';
+    const savedScriptureText = localStorage.getItem('newNoteScriptureText') || '';
     
-    setTitle(savedTitle);
+    // Set note type if detected from selection
+    if (savedNoteType === 'scripture') {
+      setNoteType('scripture');
+      if (savedScriptureRef) {
+        // Keep original format (no divider in title)
+        setScriptureReference(savedScriptureRef);
+        setTitle(savedScriptureRef); // Reference becomes title
+      }
+      if (savedScriptureVersion) {
+        setScriptureVersion(savedScriptureVersion);
+      }
+      if (savedScriptureText) {
+        setContent(savedScriptureText); // Verse text becomes content
+      }
+      // Clear after loading
+      localStorage.removeItem('newNoteType');
+      localStorage.removeItem('newNoteScriptureReference');
+      localStorage.removeItem('newNoteScriptureVersion');
+      localStorage.removeItem('newNoteScriptureText');
+    } else {
+      // Use saved title if not scripture
+      setTitle(savedTitle);
+    }
     
-    // If we have saved content from selected text feature, use it
-    if (savedContent) {
+    // If we have saved content from selected text feature and it's not scripture, use it
+    if (savedContent && savedNoteType !== 'scripture') {
       console.log('NewNotePanel: Loading saved content from localStorage:', savedContent.substring(0, 50) + '...');
       setContent(savedContent);
       // Clear after loading to prevent re-loading on next open
       localStorage.removeItem('newNoteContent');
-    } else {
+    } else if (!savedScriptureText) {
       setContent('');
     }
     
@@ -120,6 +149,128 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       }
     }
   }, [currentThread, hasSetThreadFromSaved]);
+
+  // Auto-detection: Detect scripture references ONLY in title (not content)
+  // This allows users to type scripture references in content without triggering auto-detection
+  useEffect(() => {
+    // Only detect if note type is still default (don't override user's manual selection)
+    if (noteType !== 'default') return;
+
+    // Only check title field, not content
+    const titleToCheck = title.trim();
+    if (titleToCheck.length < 5) return; // Need at least a book name and reference
+
+    // Debounce detection (1 second after typing stops in title)
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await fetch('/api/scripture/detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: titleToCheck }),
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          const detection = await response.json();
+          
+          if (detection.isScripture && detection.confidence >= 0.7 && detection.primaryReference) {
+            console.log('Scripture detected in title:', detection.primaryReference);
+            
+            // Fetch verse text
+            setIsFetchingVerse(true);
+            try {
+              const verseResponse = await fetch('/api/scripture/fetch-verse', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference: detection.primaryReference }),
+                credentials: 'include'
+              });
+
+              if (verseResponse.ok) {
+                const verseData = await verseResponse.json();
+                
+                // Set note type to scripture
+                setNoteType('scripture');
+                // Set reference as title (keep original format, no divider)
+                setTitle(detection.primaryReference);
+                // Set verse text as content (only if content is empty or very short)
+                if (!content || content.trim().length < 10 || content === '<p></p>' || content === '<p><br></p>') {
+                  setContent(verseData.text);
+                }
+                // Set scripture reference (keep original format, no divider)
+                setScriptureReference(detection.primaryReference);
+                // Set version (NET for MVP)
+                setScriptureVersion('NET');
+                
+                // Show toast notification
+                if (window.toast && typeof window.toast.info === 'function') {
+                  window.toast.info('Made a scripture note for you');
+                } else {
+                  // Fallback: dispatch custom event (shouldn't be needed but keep as backup)
+                  window.dispatchEvent(new CustomEvent('toast', {
+                    detail: {
+                      message: 'Made a scripture note for you',
+                      type: 'info'
+                    }
+                  }));
+                }
+              }
+            } catch (verseError) {
+              console.error('Error fetching verse:', verseError);
+              // Silently fail - don't interrupt UX
+            } finally {
+              setIsFetchingVerse(false);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error detecting scripture:', error);
+        // Silently fail - don't interrupt UX
+      }
+    }, 1000); // 1 second debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [title, noteType]); // Removed content from dependencies - only detect in title
+
+  // Version change handler (for future - when multiple translations are supported)
+  // Note: Currently only NET is supported, but structure is in place for future translations
+  const versionChangeRef = useRef<string>(scriptureVersion);
+  useEffect(() => {
+    // Only re-fetch if note type is scripture, we have a reference, and version actually changed
+    if (noteType !== 'scripture' || !scriptureReference) return;
+    if (versionChangeRef.current === scriptureVersion) return; // Skip initial mount
+
+    const fetchNewVersion = async () => {
+      setIsFetchingVerse(true);
+      try {
+        // Convert display format to API format for the fetch
+        const apiReference = formatReferenceForAPI(scriptureReference);
+        const verseResponse = await fetch('/api/scripture/fetch-verse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reference: apiReference }),
+          credentials: 'include'
+        });
+
+        if (verseResponse.ok) {
+          const verseData = await verseResponse.json();
+          setContent(verseData.text);
+        }
+      } catch (error) {
+        console.error('Error fetching verse with new version:', error);
+      } finally {
+        setIsFetchingVerse(false);
+      }
+    };
+
+    // Debounce version change
+    const timeoutId = setTimeout(() => {
+      fetchNewVersion();
+      versionChangeRef.current = scriptureVersion;
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [scriptureVersion, scriptureReference, noteType]);
 
   // Load threads from API
   const loadThreads = async () => {
@@ -314,7 +465,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         return;
       }
     } else if (noteType === 'scripture') {
-      if (!trimmedScriptureRef) {
+      // Convert display format to API format for validation
+      const apiReference = formatReferenceForAPI(trimmedScriptureRef);
+      if (!apiReference.trim()) {
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
             message: 'Please add a scripture reference (e.g., John 3:16)',
@@ -373,7 +526,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       
       // Add type-specific metadata
       if (noteType === 'scripture') {
-        formData.set('scriptureReference', scriptureReference);
+        // Convert display format back to API format (commas for API)
+        const apiReference = formatReferenceForAPI(scriptureReference);
+        formData.set('scriptureReference', apiReference);
+        formData.set('scriptureVersion', scriptureVersion);
       } else if (noteType === 'resource') {
         formData.set('resourceUrl', resourceUrl);
       }
@@ -510,7 +666,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       
       // Add type-specific metadata
       if (noteType === 'scripture') {
-        formData.set('scriptureReference', scriptureReference);
+        // Convert display format back to API format (commas for API)
+        const apiReference = formatReferenceForAPI(scriptureReference);
+        formData.set('scriptureReference', apiReference);
+        formData.set('scriptureVersion', scriptureVersion);
       } else if (noteType === 'resource') {
         formData.set('resourceUrl', resourceUrl);
       }
@@ -552,9 +711,11 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     <>
     <form 
       onSubmit={handleSubmit}
-      className="new-note-panel h-full flex flex-col"
+      className="new-note-panel h-full flex flex-col overflow-hidden"
       style={{ 
-        minHeight: '100%',
+        height: '100%',
+        maxHeight: '100%',
+        minHeight: 0,
         paddingBottom: 'env(safe-area-inset-bottom, 0px)'
       }}
     >
@@ -571,7 +732,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       {/* Note Content - Type-specific layouts */}
       <div className="flex-1 flex flex-col min-h-0 mb-3.5">
         {noteType === 'default' && (
-          <div className="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+          <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
             {/* Default Note Layout */}
             <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
               <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
@@ -591,8 +752,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
               </div>
             </div>
             
-            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3">
+            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px', maxHeight: '100%' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
                 <TiptapEditor
                   content={content}
                   id="new-note-content"
@@ -619,9 +780,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           </div>
         )}
 
-        {/* Scripture note type - DISABLED until designs are ready */}
-        {false && noteType === 'scripture' && (
-          <div className="bg-white box-border flex flex-col h-full items-start justify-between overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
+        {/* Scripture note type */}
+        {noteType === 'scripture' && (
+          <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
             {/* Scripture Note Layout */}
             <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
               <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
@@ -639,8 +800,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
               </div>
             </div>
             
-            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3">
+            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px', maxHeight: '100%' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
                 <TiptapEditor
                   content={content}
                   id="new-note-content"
@@ -749,8 +910,18 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           paddingTop: 'max(1rem, env(safe-area-inset-top))',
           paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
         }}
+        onClick={(e) => {
+          // Close dialog if clicking on the overlay (but not the dialog content)
+          if (e.target === e.currentTarget) {
+            setShowUnsavedDialog(false);
+          }
+        }}
       >
-        <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg">
+        <div 
+          className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg"
+          onClick={(e) => e.stopPropagation()}
+          style={{ pointerEvents: 'auto' }}
+        >
           <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
             Unsaved Changes
           </h3>

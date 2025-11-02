@@ -251,8 +251,18 @@ export default function ContextMoreMenu({
             paddingTop: 'max(1rem, env(safe-area-inset-top))',
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}
+          onClick={(e) => {
+            // Close dialog if clicking on the overlay (but not the dialog content)
+            if (e.target === e.currentTarget) {
+              handleCancelErase();
+            }
+          }}
         >
-          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg">
+          <div 
+            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+            style={{ pointerEvents: 'auto' }}
+          >
             <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
               Are you sure?
             </h3>

@@ -7,6 +7,7 @@ interface CardFullEditableProps {
   content: string;
   date: string;
   noteId?: string;
+  noteType?: 'default' | 'scripture' | 'resource';
   className?: string;
   isEditable?: boolean;
   onSave?: (title: string, content: string) => Promise<any>;
@@ -16,7 +17,8 @@ export default function CardFullEditable({
   title, 
   content, 
   date, 
-  noteId, 
+  noteId,
+  noteType = 'default',
   className = '',
   isEditable = true,
   onSave 
@@ -40,6 +42,18 @@ export default function CardFullEditable({
     setDisplayTitle(title);
     setDisplayContent(content);
   }, [title, content]);
+
+  // Load Font Awesome for scripture/resource icons if needed
+  useEffect(() => {
+    if (noteType === 'scripture' || noteType === 'resource') {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
+      if (!document.querySelector(`link[href="${link.href}"]`)) {
+        document.head.appendChild(link);
+      }
+    }
+  }, [noteType]);
 
   // Focus input when editing starts
   useEffect(() => {
@@ -219,6 +233,19 @@ export default function CardFullEditable({
             margin-bottom: 0.5em !important;
             color: var(--color-deep-grey) !important;
           }
+
+          /* Paragraph spacing for display mode - match editor spacing */
+          .card-full-editable .flex-1.overflow-auto p {
+            margin: 0.75em 0 !important;
+          }
+
+          .card-full-editable .flex-1.overflow-auto p:first-child {
+            margin-top: 0 !important;
+          }
+
+          .card-full-editable .flex-1.overflow-auto p:last-child {
+            margin-bottom: 0 !important;
+          }
         `}
       </style>
       <div 
@@ -248,10 +275,16 @@ export default function CardFullEditable({
             />
           )}
         </div>
-        <div className="relative shrink-0 size-5">
-          <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-          </svg>
+        <div className="relative shrink-0 size-5" title={`${noteType === 'scripture' ? 'Scripture' : noteType === 'resource' ? 'Resource' : 'Note'} type`}>
+          {noteType === 'scripture' ? (
+            <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] text-[20px]" />
+          ) : noteType === 'resource' ? (
+            <i className="fa-solid fa-file-image text-[var(--color-deep-grey)] text-[20px]" />
+          ) : (
+            <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+            </svg>
+          )}
         </div>
       </div>
       

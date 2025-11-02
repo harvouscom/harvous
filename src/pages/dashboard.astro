@@ -242,6 +242,7 @@ try {
                                 <CardNote 
                                   title={item.title}
                                   content={item.content}
+                                  noteType={item.noteType || 'default'}
                                 />
                               ) : (
                                 <CardThread 
@@ -316,6 +317,7 @@ try {
                               <CardNote 
                                 title={item.title}
                                 content={item.content}
+                                noteType={item.noteType || 'default'}
                               />
                             </a>
                           </div>

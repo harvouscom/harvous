@@ -192,7 +192,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [editor, enableCreateNoteFromSelection]);
 
   // Handle create note from selection
-  const handleCreateNoteFromSelection = () => {
+  const handleCreateNoteFromSelection = async () => {
     if (!editor) return;
     
     const { from, to } = editor.state.selection;
@@ -233,8 +233,76 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       extractedContent = editor.state.doc.textBetween(from, to);
     }
     
-    // Store content in localStorage
-    localStorage.setItem('newNoteContent', extractedContent);
+    // Detect if this is scripture
+    try {
+      const plainText = extractedContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      if (plainText.length >= 5) {
+        const detectResponse = await fetch('/api/scripture/detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: plainText }),
+          credentials: 'include'
+        });
+
+        if (detectResponse.ok) {
+          const detection = await detectResponse.json();
+          
+          if (detection.isScripture && detection.confidence >= 0.7 && detection.primaryReference) {
+            // Fetch verse text
+            try {
+              const verseResponse = await fetch('/api/scripture/fetch-verse', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference: detection.primaryReference }),
+                credentials: 'include'
+              });
+
+              if (verseResponse.ok) {
+                const verseData = await verseResponse.json();
+                
+                // Store scripture detection metadata (keep original format, no divider)
+                localStorage.setItem('newNoteType', 'scripture');
+                localStorage.setItem('newNoteScriptureReference', detection.primaryReference);
+                localStorage.setItem('newNoteScriptureVersion', 'NET');
+                localStorage.setItem('newNoteScriptureText', verseData.text);
+                localStorage.setItem('newNoteTitle', detection.primaryReference); // Reference becomes title
+                localStorage.setItem('newNoteContent', verseData.text); // Verse text becomes content
+              } else {
+                // Detection succeeded but verse fetch failed - still mark as scripture
+                localStorage.setItem('newNoteType', 'scripture');
+                localStorage.setItem('newNoteScriptureReference', detection.primaryReference);
+                localStorage.setItem('newNoteScriptureVersion', 'NET');
+                localStorage.setItem('newNoteTitle', detection.primaryReference);
+                localStorage.setItem('newNoteContent', extractedContent); // Fallback to original content
+              }
+            } catch (verseError) {
+              console.error('Error fetching verse in selection:', verseError);
+              // Still mark as scripture even if verse fetch fails
+              localStorage.setItem('newNoteType', 'scripture');
+              localStorage.setItem('newNoteScriptureReference', detection.primaryReference);
+              localStorage.setItem('newNoteScriptureVersion', 'NET');
+              localStorage.setItem('newNoteTitle', detection.primaryReference);
+              localStorage.setItem('newNoteContent', extractedContent);
+            }
+          } else {
+            // Not scripture - clear any previous scripture metadata
+            localStorage.removeItem('newNoteType');
+            localStorage.removeItem('newNoteScriptureReference');
+            localStorage.removeItem('newNoteScriptureVersion');
+            localStorage.removeItem('newNoteScriptureText');
+            localStorage.setItem('newNoteContent', extractedContent);
+          }
+        }
+      } else {
+        // Too short to check - just store content
+        localStorage.setItem('newNoteContent', extractedContent);
+      }
+    } catch (error) {
+      console.error('Error detecting scripture in selection:', error);
+      // Continue anyway - don't block note creation
+      localStorage.setItem('newNoteContent', extractedContent);
+    }
     
     // Store parent thread ID if provided
     if (parentThreadId) {
@@ -418,7 +486,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   );
 
   return (
-    <div className="tiptap-editor-container flex flex-col h-full" style={{ height: '100%' }}>
+    <div className="tiptap-editor-container flex flex-col" style={{ height: '100%', minHeight: 0 }}>
       {/* Hidden input for form submission */}
       <input
         ref={hiddenInputRef}
@@ -431,6 +499,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       {/* Editor content area */}
       <div 
         className="tiptap-content flex-1 min-h-0 overflow-auto"
+        style={{ height: 0 }}
         onClick={() => {
           console.log('TiptapEditor: Clicked, focusing editor');
           if (editor) {
@@ -519,10 +588,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       <style>{`
         .tiptap-editor-container {
           height: 100% !important;
-          max-height: 100%;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
+          min-height: 0 !important;
+          max-height: 100% !important;
+          overflow: hidden !important;
+          display: flex !important;
+          flex-direction: column !important;
         }
         
         /* Placeholder styling */
@@ -535,11 +605,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }
         
         .tiptap-content {
-          flex: 1;
-          overflow: auto;
-          min-height: 0;
-          display: flex;
-          flex-direction: column;
+          flex: 1 1 0% !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          min-height: 0 !important;
+          max-height: 100% !important;
+          height: 0 !important;
+          width: 100% !important;
+          display: block !important;
+          position: relative !important;
+          contain: layout size style !important;
         }
         
         .tiptap-content :global(.ProseMirror) {
@@ -552,10 +627,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           background: white !important;
           outline: none !important;
           min-height: 100px !important;
-          max-height: none !important;
           height: auto !important;
+          max-width: 100% !important;
+          width: 100% !important;
           overflow: visible !important;
           border-radius: 8px !important;
+          box-sizing: border-box !important;
+          margin: 0 !important;
+          display: block !important;
+          word-wrap: break-word !important;
         }
         
         .tiptap-content :global(.ProseMirror:focus) {
@@ -568,6 +648,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           float: left !important;
           height: 0 !important;
           pointer-events: none !important;
+        }
+        
+        .tiptap-content :global(.ProseMirror p) {
+          margin: 0.75em 0 !important;
+        }
+        
+        .tiptap-content :global(.ProseMirror p:first-child) {
+          margin-top: 0 !important;
+        }
+        
+        .tiptap-content :global(.ProseMirror p:last-child) {
+          margin-bottom: 0 !important;
         }
         
         .tiptap-content :global(.ProseMirror ul) {

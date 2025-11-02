@@ -24,12 +24,11 @@ export default function ToastProvider() {
   return (
     <Toaster
       position="top-center"
-      icons={null}
       toastOptions={{
         duration: 5000,
-        icon: null,
         style: {
-          background: 'linear-gradient(168.707deg, rgba(255, 255, 255, 0.8) 11.711%, rgb(248, 248, 248) 71.325%)',
+          backgroundColor: 'rgb(255, 255, 255)',
+          background: 'linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%)',
           color: 'var(--color-deep-grey)',
           fontFamily: '"Reddit Sans", system-ui, -apple-system, sans-serif',
           fontSize: '16px',

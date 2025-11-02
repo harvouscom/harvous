@@ -193,3 +193,15 @@ document.addEventListener('astro:page-load', () => {
   console.log('[Toast Handler] astro:page-load event fired');
   checkAndShowToast();
 });
+
+// Listen for custom 'toast' events from anywhere in the app
+window.addEventListener('toast', (event) => {
+  const detail = event.detail || {};
+  const message = detail.message || 'Notification';
+  const type = detail.type || 'success';
+  
+  console.log('[Toast Handler] Custom toast event received:', { message, type });
+  
+  // Use the toast system to show the message
+  showToast(message, type);
+});

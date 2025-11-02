@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, UserMetadata, Tags, NoteTags, NoteThreads, eq, and, desc, isNotNull } from 'astro:db';
+import { db, Notes, Threads, UserMetadata, Tags, NoteTags, NoteThreads, ScriptureMetadata, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId } from '@/utils/ids';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
+import { parseScriptureReference } from '@/utils/scripture-detector';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -22,6 +23,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const title = formData.get('title') as string;
     const threadId = formData.get('threadId') as string;
     const noteType = formData.get('noteType') as string;
+    const scriptureReference = formData.get('scriptureReference') as string | null;
+    const scriptureVersion = formData.get('scriptureVersion') as string | null;
 
     console.log("Creating note with userId:", userId, "title:", title, "content:", content?.substring(0, 50), "noteType:", noteType);
 
@@ -181,6 +184,35 @@ export const POST: APIRoute = async ({ request, locals }) => {
     } catch (error: unknown) {
       // Don't fail note creation if auto-tagging fails
       console.error('Auto-tagging failed (non-critical):', error);
+    }
+
+    // Create ScriptureMetadata record if this is a scripture note
+    if (finalNoteType === 'scripture' && scriptureReference) {
+      try {
+        const parsed = parseScriptureReference(scriptureReference);
+        if (parsed) {
+          const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+          const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
+
+          await db.insert(ScriptureMetadata).values({
+            id: `scripture_${newNote.id}_${Date.now()}`,
+            noteId: newNote.id,
+            reference: scriptureReference,
+            book: parsed.book,
+            chapter: parsed.chapter,
+            verse: verseStart,
+            verseEnd: verseEnd || null,
+            translation: scriptureVersion || 'NET',
+            originalText: capitalizedContent,
+            createdAt: new Date()
+          });
+
+          console.log(`ScriptureMetadata created for note ${newNote.id}: ${scriptureReference}`);
+        }
+      } catch (error: any) {
+        // Don't fail note creation if ScriptureMetadata creation fails
+        console.error('Error creating ScriptureMetadata (non-critical):', error);
+      }
     }
 
     return new Response(JSON.stringify({ 

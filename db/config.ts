@@ -150,6 +150,22 @@ const NoteThreadAccess = defineTable({
   }
 })
 
+// Scripture metadata table for scripture note type
+const ScriptureMetadata = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    noteId: column.text(), // Foreign key to Notes
+    reference: column.text(), // e.g., "John 3:16"
+    book: column.text(), // e.g., "John"
+    chapter: column.number(), // e.g., 3
+    verse: column.number(), // e.g., 16 (or start of range)
+    verseEnd: column.number({ optional: true }), // End of range if applicable
+    translation: column.text(), // "NET" for MVP, extensible for future translations
+    originalText: column.text(), // Full verse text
+    createdAt: column.date(),
+  }
+})
+
 // https://astro.build/db/config
 export default defineDb({
   tables: {
@@ -163,6 +179,7 @@ export default defineDb({
     UserXP,
     Tags,
     NoteTags,
-    NoteThreadAccess
+    NoteThreadAccess,
+    ScriptureMetadata
   }
 });

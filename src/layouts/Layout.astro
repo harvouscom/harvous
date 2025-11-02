@@ -37,7 +37,7 @@ interface Props {
 const { classNames = '', title = 'Harvous', contentType = 'dashboard', contentId, currentThread, currentSpace, currentNote }: Props = Astro.props;
 
 // Determine if More button should be shown
-const showMoreButton = shouldShowMoreButton(contentType, contentId);
+const showMoreButton = shouldShowMoreButton(contentType);
 
 ---
 
@@ -94,6 +94,9 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     
     <!-- Alpine.js CDN for SquareButton menu functionality -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Font Awesome CSS for note type icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
     
     <!-- Avatar Manager Global Script -->
     <script is:inline src="/scripts/avatar-manager-global.js"></script>
@@ -370,7 +373,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
         </div>
         
         <!-- Main Column (Middle) -->
-        <div class="flex-1 min-h-0">
+        <div class="flex-1">
           <slot name="main" />
         </div>
         
@@ -554,6 +557,11 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     opacity: 1 !important;
     transition: none !important;
     animation: none !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
   
   .new-note-panel-container * {
