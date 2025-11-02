@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import TiptapEditor from './TiptapEditor';
 import ThreadCombobox from './ThreadCombobox';
 import SquareButton from './SquareButton';
+import ButtonSmall from './ButtonSmall';
 
 interface Thread {
   id: string;
@@ -439,6 +441,20 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     }
   };
 
+  // Prevent body scroll when dialog is open
+  useEffect(() => {
+    if (showUnsavedDialog) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showUnsavedDialog]);
+
   // Handle panel close
   const handleClose = () => {
     // Check for unsaved changes
@@ -725,10 +741,16 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       </div>
     </form>
 
-    {/* Unsaved Changes Dialog */}
-    {showUnsavedDialog && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-lg">
+    {/* Unsaved Changes Dialog - Rendered via Portal to ensure full viewport coverage */}
+    {showUnsavedDialog && typeof document !== 'undefined' && createPortal(
+      <div 
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
+        style={{
+          paddingTop: 'max(1rem, env(safe-area-inset-top))',
+          paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
+        }}
+      >
+        <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg">
           <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
             Unsaved Changes
           </h3>
@@ -736,30 +758,31 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
             You have unsaved changes. What would you like to do?
           </p>
           <div className="flex gap-3 justify-end">
-            <button
+            <ButtonSmall
               type="button"
               onClick={() => setShowUnsavedDialog(false)}
-              className="px-4 py-2 text-[var(--color-deep-grey)] hover:bg-gray-100 rounded-lg transition-colors"
+              state="Secondary"
             >
               Cancel
-            </button>
-            <button
+            </ButtonSmall>
+            <ButtonSmall
               type="button"
               onClick={handleDiscardChanges}
-              className="px-4 py-2 bg-[var(--color-stone-grey)] text-white rounded-lg hover:bg-opacity-90 transition-colors"
+              state="Delete"
             >
               Discard
-            </button>
-            <button
+            </ButtonSmall>
+            <ButtonSmall
               type="button"
               onClick={handleSaveAndClose}
-              className="px-4 py-2 bg-[var(--color-bold-blue)] text-white rounded-lg hover:bg-opacity-90 transition-colors"
+              state="Default"
             >
               Save & Close
-            </button>
+            </ButtonSmall>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
     </>
   );
