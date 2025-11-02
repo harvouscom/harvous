@@ -23,7 +23,7 @@ export default function ToastProvider() {
 
   return (
     <Toaster
-      position="top-right"
+      position="top-center"
       icons={null}
       toastOptions={{
         duration: 5000,

@@ -388,11 +388,10 @@ button.space-button:not([style*="background-image"]):not([style*="background-col
 }
 
 /* Sonner Toast Styles - Minimal overrides */
-/* Let Sonner handle most styling, we only ensure visibility and positioning */
+/* Let Sonner handle positioning via position prop, we only ensure visibility */
 [data-sonner-toaster] {
     position: fixed !important;
     top: 16px !important;
-    right: 16px !important;
     z-index: 999999 !important;
     pointer-events: none !important;
 }
@@ -405,11 +404,9 @@ button.space-button:not([style*="background-image"]):not([style*="background-col
     pointer-events: auto !important;
 }
 
-/* Mobile: Adjust positioning */
+/* Mobile: Ensure toast doesn't exceed viewport width */
 @media (max-width: 1159px) {
     [data-sonner-toaster] {
-        left: 16px !important;
-        right: 16px !important;
         max-width: calc(100% - 32px) !important;
     }
 }

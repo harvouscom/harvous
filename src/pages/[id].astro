@@ -704,7 +704,7 @@ if (!content) {
   />
 
   <!-- Main Column -->
-  <div slot="main" class="h-full" data-navigation-item={id} data-title={pageTitle} data-count={isNote ? 0 : (currentThread?.noteCount || currentSpace?.threadCount || 0)} data-background-gradient={isNote ? "var(--color-gradient-gray)" : (currentThread?.backgroundGradient || currentSpace?.backgroundGradient || "var(--color-gradient-gray)")}>
+  <div slot="main" class="h-full min-h-0" data-navigation-item={id} data-title={pageTitle} data-count={isNote ? 0 : (currentThread?.noteCount || currentSpace?.threadCount || 0)} data-background-gradient={isNote ? "var(--color-gradient-gray)" : (currentThread?.backgroundGradient || currentSpace?.backgroundGradient || "var(--color-gradient-gray)")}>
           {isNote && content ? (
             <div 
               data-note-id={content.id}
@@ -714,7 +714,7 @@ if (!content) {
               data-parent-thread-background-gradient={currentThread?.backgroundGradient || getThreadGradientCSS('blue')}
               data-parent-thread-color={currentThread?.color || 'blue'}
               data-selected-thread-id={currentThread?.id || 'thread_unorganized'}
-              class="h-full"
+              class="h-full min-h-0"
             >
               <CardFullEditableReact 
                 title={content.title || "Untitled Note"}

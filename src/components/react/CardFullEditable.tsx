@@ -222,7 +222,7 @@ export default function CardFullEditable({
         `}
       </style>
       <div 
-        className={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full card-full-editable max-h-[calc(100vh-10.75rem)] min-[1160px]:max-h-[calc(100vh-3rem)] ${className}`}
+        className={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] h-full w-full card-full-editable max-h-[calc(100vh-10.75rem)] min-[1160px]:max-h-[calc(100vh-3rem)] ${className}`}
         data-card-full-editable
       >
       {/* Header with title and bookmark icon */}
