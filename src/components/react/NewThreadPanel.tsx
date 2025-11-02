@@ -168,6 +168,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
         const response = await fetch('/api/threads/update', {
           method: 'POST',
           body: formData,
+          credentials: 'include'
         });
 
         console.log('NewThreadPanel: Response status:', response.status);
@@ -211,6 +212,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
         const response = await fetch('/api/threads/create', {
           method: 'POST',
           body: formData,
+          credentials: 'include'
         });
 
         console.log('NewThreadPanel: Response status:', response.status);
@@ -284,17 +286,27 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
             window.location.href = redirectUrl;
           }
         } else {
-          const errorText = await response.text();
-          console.error('NewThreadPanel: API error response:', errorText);
-          throw new Error(`Failed to create thread: ${response.status}`);
+          let errorMessage = `Failed to create thread: ${response.status}`;
+          try {
+            const errorText = await response.text();
+            console.error('NewThreadPanel: API error response:', errorText);
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.error || errorMessage;
+          } catch (e) {
+            // If response isn't JSON, use status text
+            console.error('NewThreadPanel: Could not parse error response');
+          }
+          throw new Error(errorMessage);
         }
       }
     } catch (error) {
       console.error('NewThreadPanel: Error:', error);
+      const errorMessage = error instanceof Error ? error.message : `Failed to ${isEditMode ? 'update' : 'create'} thread. Please try again.`;
+      console.error('NewThreadPanel: Error message:', errorMessage);
       if (window.toast) {
-        window.toast.error(`Failed to ${isEditMode ? 'update' : 'create'} thread. Please try again.`);
+        window.toast.error(errorMessage);
       } else {
-        alert(`Failed to ${isEditMode ? 'update' : 'create'} thread. Please try again.`);
+        alert(errorMessage);
       }
     } finally {
       console.log('NewThreadPanel: Submission finished, setting isSubmitting to false');

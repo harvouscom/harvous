@@ -3,10 +3,10 @@ export const THREAD_COLORS = [
   "paper",    // var(--color-paper)
   "blue",     // var(--color-blue)
   "yellow",   // var(--color-yellow)
-  "green",    // var(--color-green)
-  "pink",     // var(--color-pink)
   "orange",   // var(--color-orange)
-  "purple"    // var(--color-purple)
+  "pink",     // var(--color-pink)
+  "purple",   // var(--color-purple)
+  "green"     // var(--color-green)
 ] as const;
 
 export type ThreadColor = typeof THREAD_COLORS[number];
