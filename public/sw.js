@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Improves initial load and re-engagement performance
 
-const CACHE_NAME = 'harvous-cache-v1';
+const CACHE_NAME = 'harvous-cache-v2';
 const OFFLINE_URL = '/dashboard';
 
 // Resources to pre-cache for faster initial load
