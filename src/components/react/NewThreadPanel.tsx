@@ -46,14 +46,14 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
       // Tab navigation disabled for v1
       // setActiveTab('recent');
     } else {
-      // Create mode: load from localStorage
+      // Create mode: load from localStorage (except color, which always starts as 'paper')
       const savedTitle = localStorage.getItem('newThreadTitle') || '';
-      const savedColor = localStorage.getItem('newThreadColor') || 'paper';
+      // Always start with 'paper' color in create mode, don't load from localStorage
       const savedType = localStorage.getItem('newThreadType') || 'Private';
       // Tab navigation disabled for v1
       // const savedTab = localStorage.getItem('newThreadActiveTab') || 'recent';
       setTitle(savedTitle);
-      setSelectedColor(savedColor);
+      setSelectedColor('paper'); // Always start with 'paper' in create mode
       setSelectedType(savedType);
       // setActiveTab(savedTab);
     }
