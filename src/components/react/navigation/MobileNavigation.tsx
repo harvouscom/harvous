@@ -230,9 +230,22 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             <div className="p-2">
               {/* For You */}
               <a href="/dashboard" className="block w-full" onClick={handleItemClick}>
-                <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                  <span className="text-sm font-medium">For You</span>
-                  <span className="text-xs text-gray-500">{inboxCount}</span>
+                <div className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center" style={{ backgroundImage: !currentSpace && !currentThread && !currentItemId ? "var(--color-paper)" : undefined }}>
+                  <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                    <div className="flex-1 min-w-0 overflow-hidden text-left">
+                      <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">For You</span>
+                    </div>
+                    <div className="p-[20px] flex-shrink-0">
+                      <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                        <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                          {inboxCount}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {!currentSpace && !currentThread && !currentItemId && (
+                    <div className="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                  )}
                 </div>
               </a>
               
@@ -247,62 +260,54 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     const isActive = space.id === currentActiveItemId;
                     
                     return (
-                      <div key={space.id} className="relative group">
+                      <div key={space.id} className="relative group nav-item-container w-full">
                         <a href={`/${space.id}`} className="block w-full" onClick={handleItemClick}>
                           <div 
-                            className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 ${isActive ? 'bg-blue-50' : ''}`}
-                            style={isActive ? {
-                              background: space.backgroundGradient || 'var(--color-paper)',
-                              boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset'
-                            } : {}}
+                            className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                            style={{
+                              backgroundImage: space.backgroundGradient?.includes('gradient') ? space.backgroundGradient : undefined,
+                              backgroundColor: space.backgroundGradient?.includes('gradient') ? undefined : (space.backgroundGradient || undefined)
+                            }}
                           >
-                            <div className="flex items-center gap-2">
-                              <div className="w-1 h-4 bg-blue-500 rounded-full flex-shrink-0"></div>
-                              <span className="text-sm font-medium">{space.title}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div 
-                                className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer group/badge"
-                                data-close-item={space.id}
-                                onMouseEnter={(e) => {
-                                  const badgeCount = e.currentTarget;
-                                  const countSpan = badgeCount.querySelector('.badge-number');
-                                  const closeIcon = badgeCount.querySelector('.close-icon');
-                                  
-                                  if (countSpan && closeIcon) {
-                                    countSpan.style.display = 'none';
-                                    closeIcon.style.display = 'block';
-                                    badgeCount.style.backgroundColor = 'transparent';
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  const badgeCount = e.currentTarget;
-                                  const countSpan = badgeCount.querySelector('.badge-number');
-                                  const closeIcon = badgeCount.querySelector('.close-icon');
-                                  
-                                  if (countSpan && closeIcon) {
-                                    countSpan.style.display = 'block';
-                                    closeIcon.style.display = 'none';
-                                    badgeCount.style.backgroundColor = 'rgba(120,118,111,0.1)';
-                                  }
-                                }}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  removeFromNavigationHistory(space.id);
-                                }}
-                              >
-                                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                                  {space.count || 0}
+                            <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                              <div className="flex-1 min-w-0 overflow-hidden text-left">
+                                <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                                  {space.title}
                                 </span>
-                                <i 
-                                  className="fa-solid fa-xmark close-icon text-[var(--color-deep-grey)] text-xs"
-                                  style={{ display: 'none', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                                ></i>
+                              </div>
+                              <div className="p-[20px] flex-shrink-0">
+                                <div 
+                                  className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
+                                  data-close-item={space.id}
+                                >
+                                  <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                                    {space.count || 0}
+                                  </span>
+                                </div>
                               </div>
                             </div>
+                            {isActive && (
+                              <div className="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                            )}
                           </div>
                         </a>
+                        {/* Close icon positioned outside the link element, aligned with badge count center */}
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            removeFromNavigationHistory(space.id);
+                          }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                          }}
+                          className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center"
+                          style={{ right: '16px' }}
+                          data-item-id={space.id}
+                        >
+                          <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>
+                        </div>
                       </div>
                     );
                   })}
@@ -312,62 +317,54 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     const isActive = thread.id === currentActiveItemId;
                     
                     return (
-                      <div key={thread.id} className="relative group">
+                      <div key={thread.id} className="relative group nav-item-container w-full">
                         <a href={`/${thread.id}`} className="block w-full" onClick={handleItemClick}>
                           <div 
-                            className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 ${isActive ? 'bg-blue-50' : ''}`}
-                            style={isActive ? {
-                              background: thread.backgroundGradient || 'var(--color-paper)',
-                              boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset'
-                            } : {}}
+                            className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                            style={{
+                              backgroundImage: thread.backgroundGradient?.includes('gradient') ? thread.backgroundGradient : undefined,
+                              backgroundColor: thread.backgroundGradient?.includes('gradient') ? undefined : (thread.backgroundGradient || undefined)
+                            }}
                           >
-                            <div className="flex items-center gap-2">
-                              <div className="w-1 h-4 bg-gray-400 rounded-full flex-shrink-0 ml-2"></div>
-                              <span className="text-sm font-medium text-gray-600">{thread.title}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div 
-                                className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer group/badge"
-                                data-close-item={thread.id}
-                                onMouseEnter={(e) => {
-                                  const badgeCount = e.currentTarget;
-                                  const countSpan = badgeCount.querySelector('.badge-number');
-                                  const closeIcon = badgeCount.querySelector('.close-icon');
-                                  
-                                  if (countSpan && closeIcon) {
-                                    countSpan.style.display = 'none';
-                                    closeIcon.style.display = 'block';
-                                    badgeCount.style.backgroundColor = 'transparent';
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  const badgeCount = e.currentTarget;
-                                  const countSpan = badgeCount.querySelector('.badge-number');
-                                  const closeIcon = badgeCount.querySelector('.close-icon');
-                                  
-                                  if (countSpan && closeIcon) {
-                                    countSpan.style.display = 'block';
-                                    closeIcon.style.display = 'none';
-                                    badgeCount.style.backgroundColor = 'rgba(120,118,111,0.1)';
-                                  }
-                                }}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  removeFromNavigationHistory(thread.id);
-                                }}
-                              >
-                                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                                  {thread.count || 0}
+                            <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                              <div className="flex-1 min-w-0 overflow-hidden text-left">
+                                <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                                  {thread.title}
                                 </span>
-                                <i 
-                                  className="fa-solid fa-xmark close-icon text-[var(--color-deep-grey)] text-xs"
-                                  style={{ display: 'none', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                                ></i>
+                              </div>
+                              <div className="p-[20px] flex-shrink-0">
+                                <div 
+                                  className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
+                                  data-close-item={thread.id}
+                                >
+                                  <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                                    {thread.count || 0}
+                                  </span>
+                                </div>
                               </div>
                             </div>
+                            {isActive && (
+                              <div className="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                            )}
                           </div>
                         </a>
+                        {/* Close icon positioned outside the link element, aligned with badge count center */}
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            removeFromNavigationHistory(thread.id);
+                          }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                          }}
+                          className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center"
+                          style={{ right: '16px' }}
+                          data-item-id={thread.id}
+                        >
+                          <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>
+                        </div>
                       </div>
                     );
                   })}
@@ -378,14 +375,38 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               {spaces.length > 0 && (
                 <>
                   <div className="border-t border-gray-200 my-2"></div>
-                  {spaces.map(space => (
-                    <a key={space.id} href={`/${space.id}`} className="block w-full" onClick={handleItemClick}>
-                      <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                        <span className="text-sm font-medium">{space.title}</span>
-                        <span className="text-xs text-gray-500">{space.totalItemCount}</span>
-                      </div>
-                    </a>
-                  ))}
+                  {spaces.map(space => {
+                    const isSpaceActive = currentSpace?.id === space.id;
+                    return (
+                      <a key={space.id} href={`/${space.id}`} className="block w-full" onClick={handleItemClick}>
+                        <div 
+                          className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                          style={{
+                            backgroundImage: space.backgroundGradient?.includes('gradient') ? space.backgroundGradient : undefined,
+                            backgroundColor: space.backgroundGradient?.includes('gradient') ? undefined : (space.backgroundGradient || undefined)
+                          }}
+                        >
+                          <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                            <div className="flex-1 min-w-0 overflow-hidden text-left">
+                              <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                                {space.title}
+                              </span>
+                            </div>
+                            <div className="p-[20px] flex-shrink-0">
+                              <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                                  {space.totalItemCount}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          {isSpaceActive && (
+                            <div className="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                          )}
+                        </div>
+                      </a>
+                    );
+                  })}
                 </>
               )}
               
@@ -394,9 +415,28 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 <>
                   <div className="border-t border-gray-200 my-2"></div>
                   <a href={`/${currentThread.id}`} className="block w-full" onClick={handleItemClick}>
-                    <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50 bg-blue-50">
-                      <span className="text-sm font-medium">{currentThread.title}</span>
-                      <span className="text-xs text-blue-600">{currentThread.noteCount}</span>
+                    <div 
+                      className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                      style={{
+                        backgroundImage: currentThread.backgroundGradient?.includes('gradient') ? currentThread.backgroundGradient : undefined,
+                        backgroundColor: currentThread.backgroundGradient?.includes('gradient') ? undefined : (currentThread.backgroundGradient || undefined)
+                      }}
+                    >
+                      <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                        <div className="flex-1 min-w-0 overflow-hidden text-left">
+                          <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                            {currentThread.title}
+                          </span>
+                        </div>
+                        <div className="p-[20px] flex-shrink-0">
+                          <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                            <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                              {currentThread.noteCount}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
                     </div>
                   </a>
                 </>
@@ -406,8 +446,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               <div className="border-t border-gray-200 my-2"></div>
               <div className="block w-full cursor-not-allowed pointer-events-none">
                 <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                  <span className="text-sm font-medium text-blue-600 opacity-60">New Space</span>
-                  <svg className="w-4 h-4 text-blue-600 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <span className="text-sm font-medium text-[var(--color-deep-grey)] opacity-60">New Space</span>
+                  <svg className="w-4 h-4 text-[var(--color-deep-grey)] opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                   </svg>
                 </div>
@@ -431,6 +471,22 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           onClick={handleDropdownClose}
         />
       )}
+      
+      {/* Add CSS for hover states matching desktop pattern */}
+      <style jsx>{`
+        .nav-item-container .badge-count:hover .badge-number {
+          display: none !important;
+        }
+        .nav-item-container .badge-count:hover {
+          background-color: transparent !important;
+        }
+        .nav-item-container:has(.badge-count:hover) .close-icon {
+          display: flex !important;
+        }
+        .nav-item-container .close-icon {
+          display: none;
+        }
+      `}</style>
     </div>
   );
 };
