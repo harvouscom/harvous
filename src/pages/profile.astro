@@ -42,18 +42,27 @@ try {
   };
 }
 
-const { firstName, lastName, email, initials, displayName, userColor } = userData;
+const { firstName, lastName, email, initials, displayName, userColor, createdAt } = userData;
 
-// Extract and format join date (fallback to current date since we don't cache this)
-const currentDate = new Date();
-const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'short' });
-const currentYear = currentDate.getFullYear();
-const joinDate = `${currentMonth} ${currentYear}`;
+// Format join date from createdAt (fallback to current date if not available)
+let joinDate: string;
+if (createdAt) {
+  const joinDateObj = new Date(createdAt);
+  const month = joinDateObj.toLocaleDateString('en-US', { month: 'short' });
+  const year = joinDateObj.getFullYear();
+  joinDate = `${month} ${year}`;
+} else {
+  // Fallback to current date for backwards compatibility
+  const currentDate = new Date();
+  const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'short' });
+  const currentYear = currentDate.getFullYear();
+  joinDate = `${currentMonth} ${currentYear}`;
+}
 
-// User data is now cached and includes userColor, initials, and displayName
+// User data is now cached and includes userColor, initials, displayName, and createdAt
 
 // Debug: Show what we got
-console.log('Final values:', { firstName, lastName, email, initials, displayName, userColor, joinDate });
+console.log('Final values:', { firstName, lastName, email, initials, displayName, userColor, joinDate, createdAt });
 
 // Fetch navigation data for mobile components and XP data
 let spaces: any[] = [];

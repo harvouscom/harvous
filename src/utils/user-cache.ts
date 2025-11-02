@@ -8,6 +8,7 @@ export interface CachedUserData {
   initials: string;
   displayName: string;
   userColor: string;
+  createdAt?: Date;
 }
 
 /**
@@ -63,6 +64,7 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
         initials: generateInitials(userMetadata.firstName || '', userMetadata.lastName || ''),
         displayName: generateDisplayName(userMetadata.firstName || '', userMetadata.lastName || ''),
         userColor: userMetadata.userColor || 'paper',
+        createdAt: userMetadata.createdAt,
       };
     }
     
@@ -81,6 +83,7 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       initials: 'U',
       displayName: 'User',
       userColor: 'paper',
+      createdAt: undefined,
     };
   }
 }
@@ -133,6 +136,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
         initials: generateInitials(existingMetadata.firstName || '', existingMetadata.lastName || ''),
         displayName: generateDisplayName(existingMetadata.firstName || '', existingMetadata.lastName || ''),
         userColor: existingMetadata.userColor || 'paper',
+        createdAt: existingMetadata.createdAt,
       };
     }
     
@@ -171,7 +175,9 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
   }
 
   // Update database with fresh Clerk data (including metadata)
+  let userCreatedAt: Date | undefined;
   if (existingMetadata) {
+    userCreatedAt = existingMetadata.createdAt;
     await db.update(UserMetadata)
       .set({
         firstName,
@@ -185,6 +191,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       .where(eq(UserMetadata.userId, userId));
   } else {
     // Create new user record with Clerk data
+    userCreatedAt = new Date();
     await db.insert(UserMetadata).values({
       id: `user_metadata_${userId}`,
       userId: userId,
@@ -194,7 +201,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       profileImageUrl,
       userColor,  // From Clerk's public_metadata
       highestSimpleNoteId: 0,
-      createdAt: new Date(),
+      createdAt: userCreatedAt,
       updatedAt: new Date(),
       clerkDataUpdatedAt: new Date(),
     });
@@ -209,6 +216,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
     initials: generateInitials(firstName, lastName),
     displayName: generateDisplayName(firstName, lastName),
     userColor, // Use the color from Clerk's public_metadata
+    createdAt: userCreatedAt,
   };
   
   console.log('User cache - returning fresh Clerk data:', result);
