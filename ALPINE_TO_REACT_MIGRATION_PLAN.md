@@ -4,6 +4,106 @@
 
 This document outlines the plan to migrate remaining Alpine.js components to React islands, ultimately removing the Alpine.js dependency from the codebase.
 
+## Performance Benefits
+
+Migrating from Alpine.js to React islands will make the app **snappier and lighter**. Here's the breakdown:
+
+### Bundle Size Reduction
+
+**Current State:**
+- Alpine.js CDN: **~15-17KB gzipped** (loaded from unpkg on every page)
+- React runtime: Already loaded for React islands
+- **Total overhead**: Alpine.js is loaded even when only used for SquareButton menu toggles
+
+**After Migration:**
+- Alpine.js removed: **~15-17KB saved** on every page load
+- React runtime: Same (already loaded)
+- **Net savings**: ~15-17KB per page load
+
+### Network Performance
+
+**Current:**
+- Alpine.js loads from CDN (unpkg.com), requiring:
+  - DNS lookup
+  - TLS handshake  
+  - Network latency
+- One extra external dependency
+
+**After:**
+- Zero external CDN requests
+- All JavaScript bundled and optimized
+- Faster initial page load, especially on slow 3G/4G connections
+
+### Code Splitting & Progressive Loading
+
+React islands use Astro's client directives for optimal loading:
+
+- **`client:load`** - Critical components (navigation, buttons in view) - load immediately
+- **`client:visible`** - Below-the-fold components - load when scrolled into view  
+- **`client:idle`** - Non-critical features - load when browser is idle
+- **`client:only`** - Skip SSR if component relies on browser APIs
+
+**Benefits:**
+- Components load only when needed
+- Non-critical components don't block initial render
+- Smaller initial bundle = faster Time to Interactive (TTI)
+- Better Core Web Vitals scores
+
+### Runtime Performance
+
+**Current:**
+- Alpine.js: Global reactivity system watching DOM and managing state
+- React: Islands hydrate specific components
+- **Overhead**: Two frameworks running, potential conflicts
+
+**After:**
+- React only: Targeted hydration for specific components
+- **Result**: Less JavaScript executing globally, only where needed
+- No framework interop overhead
+
+### Architecture Simplification
+
+**Current:**
+- Two frameworks (Alpine.js + React)
+- Two different patterns to maintain
+- Potential conflicts and debugging complexity
+
+**After:**
+- One framework (React)
+- Consistent patterns throughout
+- Easier debugging with React DevTools
+- Better tree-shaking (single framework)
+
+### Performance Impact Summary
+
+| Metric | Current | After Migration | Improvement |
+|--------|---------|----------------|-------------|
+| **Initial Bundle** | Alpine.js (15-17KB) + React chunks | React chunks only | **~15-17KB saved** |
+| **Network Requests** | 1 CDN request for Alpine | 0 | **1 less request** |
+| **JavaScript Execution** | Alpine.js global + React islands | React islands only | **Less global JS** |
+| **Code Complexity** | Two frameworks | One framework | **Simpler architecture** |
+| **Time to Interactive** | Higher (more JS to parse) | Lower (less JS) | **Faster interactivity** |
+| **Mobile Performance** | Heavier bundle | Lighter bundle | **Better mobile UX** |
+
+### Real-World Impact
+
+- **Faster Initial Load**: Especially noticeable on slow 3G/4G connections
+- **Better Lighthouse Scores**: Smaller bundle and fewer requests improve performance scores
+- **Improved Mobile Experience**: Less JavaScript = better mobile performance
+- **Reduced Server Costs**: Smaller bundles = less bandwidth usage
+- **Better User Experience**: Faster load times = lower bounce rates
+
+### Why This Matters
+
+The biggest win is **removing the Alpine.js CDN dependency** - it's currently loaded on **every page** even though it's primarily used for SquareButton menu toggles. Once SquareButton is migrated, Alpine.js can be completely removed, delivering immediate performance benefits:
+
+1. **Immediate**: ~15-17KB bundle reduction on every page
+2. **Progressive**: Better code splitting opportunities with client directives
+3. **Runtime**: Less JavaScript executing globally
+4. **Architecture**: Simpler, easier to maintain codebase
+
+**Note**: React runtime is already loaded for your React islands, so removing Alpine.js doesn't add React—it just removes the Alpine.js overhead.
+
 ## Current State Analysis
 
 ### Components Already Migrated ✅
@@ -248,8 +348,14 @@ This document outlines the plan to migrate remaining Alpine.js components to Rea
 - ✅ Zero Alpine.js usage in codebase (or minimal acceptable usage)
 - ✅ No Alpine.js CDN script loaded
 - ✅ All interactive components use React islands
-- ✅ Bundle size reduced (Alpine.js CDN removed)
+- ✅ Bundle size reduced by ~15-17KB (Alpine.js CDN removed)
 - ✅ Consistent component architecture
+- ✅ Performance improvements:
+  - ✅ Faster initial page load (smaller bundle)
+  - ✅ No external CDN requests (Alpine.js removed)
+  - ✅ Better code splitting (React islands with client directives)
+  - ✅ Improved Lighthouse scores
+  - ✅ Better mobile performance
 
 ## Estimated Timeline
 
@@ -278,13 +384,28 @@ This document outlines the plan to migrate remaining Alpine.js components to Rea
 
 **Total Estimated Time**: 11-18 hours
 
+## Performance Monitoring
+
+After migration, measure and verify improvements:
+
+- [ ] **Bundle Size**: Check build output size reduction (~15-17KB expected)
+- [ ] **Network Requests**: Verify Alpine.js CDN is no longer requested
+- [ ] **Lighthouse Scores**: Run Lighthouse audit to measure:
+  - Performance score improvement
+  - Time to Interactive (TTI) improvement
+  - Total Blocking Time (TBT) reduction
+- [ ] **Load Time**: Measure initial page load time (especially on slow 3G)
+- [ ] **Mobile Performance**: Test on real mobile devices
+- [ ] **Core Web Vitals**: Monitor Largest Contentful Paint (LCP) and TTI
+
 ## Notes
 
 - Alpine.js CDN is currently loaded primarily for SquareButton menu functionality
-- Removing Alpine.js will reduce bundle size and simplify the architecture
+- Removing Alpine.js will reduce bundle size by ~15-17KB and simplify the architecture
 - React versions already exist for most components - mainly need import updates
 - Test thoroughly after each phase before moving to next
 - Keep Alpine.js versions archived in `_legacy/` folder for reference
+- **Performance is a key benefit**: This migration will make the app snappier and lighter
 
 ## Related Documentation
 
