@@ -3,6 +3,7 @@ import FaAngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down
 import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 import FaAngleRightIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-right.svg";
 import { useNavigation } from './NavigationContext';
+import { getThreadTextColorCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 
 interface SpaceButtonProps {
   className?: string;
@@ -101,6 +102,20 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   
   const disabledStyle = disabled ? 'cursor-not-allowed pointer-events-none' : '';
   const textStyle = disabled ? 'opacity-60' : '';
+  
+  // Helper to determine if background is colored (not paper or gray gradient)
+  const isColoredBackground = (gradient: string | undefined): boolean => {
+    if (!gradient || gradient === 'var(--color-gradient-gray)' || gradient === 'var(--color-paper)') {
+      return false;
+    }
+    const threadColors = THREAD_COLORS.filter(c => c !== 'paper');
+    return threadColors.some(color => gradient.includes(`--color-${color}`));
+  };
+  
+  // Determine close icon color - white only when active AND background is colored
+  const closeIconColor = (isActive && isColoredBackground(backgroundGradient)) 
+    ? 'white' 
+    : 'var(--color-deep-grey)';
 
   if (state === "Default") {
     return (
@@ -270,7 +285,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
             className="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
             data-item-id={itemId}
           >
-            <img src={FaXmarkIcon.src} alt="Close" className="w-4 h-4" style={{color: 'var(--color-deep-grey)'}} />
+            <img src={FaXmarkIcon.src} alt="Close" className="w-4 h-4" style={{color: closeIconColor}} />
           </div>
         )}
       </div>
@@ -301,7 +316,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
           className="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
           data-item-id={itemId}
         >
-          <img src={FaXmarkIcon.src} alt="Close" className="w-4 h-4" style={{color: 'var(--color-deep-grey)'}} />
+          <img src={FaXmarkIcon.src} alt="Close" className="w-4 h-4" style={{color: closeIconColor}} />
         </div>
       </div>
     );

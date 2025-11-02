@@ -472,15 +472,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         />
       )}
       
-      {/* Add CSS for hover states matching desktop pattern */}
+      {/* Add CSS for hover states matching desktop pattern - only when close icon exists */}
       <style jsx>{`
-        .nav-item-container .badge-count:hover .badge-number {
+        .nav-item-container:has(.close-icon) .badge-count:hover .badge-number {
           display: none !important;
         }
-        .nav-item-container .badge-count:hover {
+        .nav-item-container:has(.close-icon) .badge-count:hover {
           background-color: transparent !important;
         }
-        .nav-item-container:has(.badge-count:hover) .close-icon {
+        .nav-item-container:has(.close-icon) .badge-count:hover .close-icon {
           display: flex !important;
         }
         .nav-item-container .close-icon {

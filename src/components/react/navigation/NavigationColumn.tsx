@@ -216,11 +216,11 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           transform: scale(0.95);
         }
 
-        /* Close icon hover states - only for inactive items */
-        .nav-item-container:not(.active) .badge-count:hover .badge-number {
+        /* Close icon hover states - only for inactive items that have a close icon (itemId) */
+        .nav-item-container:not(.active):has(.close-icon) .badge-count:hover .badge-number {
           display: none !important;
         }
-        .nav-item-container:not(.active) .badge-count:hover .close-icon {
+        .nav-item-container:not(.active):has(.close-icon) .badge-count:hover .close-icon {
           display: flex !important;
         }
         .close-icon {

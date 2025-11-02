@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, type ThreadColor } from '@/utils/colors';
+import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 // Tab navigation disabled for v1
 // import CardNote from '@/components/react/CardNote';
 import SquareButton from './SquareButton';
@@ -358,8 +358,11 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
           <div className="bg-white box-border flex flex-col min-h-0 flex-1 items-start justify-between overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full h-full mb-3.5">
             {/* Header section with thread name input */}
             <div 
-              className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full"
-              style={{ backgroundColor: getThreadColorCSS(selectedColor) }}
+              className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full"
+              style={{ 
+                backgroundColor: getThreadColorCSS(selectedColor),
+                color: getThreadTextColorCSS(selectedColor)
+              }}
             >
               <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px]">
                 <input 
@@ -367,7 +370,14 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Thread name"
-                  className="w-full bg-transparent border-none text-[24px] font-bold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)] text-center"
+                  className={`w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center ${
+                    selectedColor === 'paper' 
+                      ? 'placeholder:text-[var(--color-pebble-grey)]' 
+                      : 'placeholder:text-white/70'
+                  }`}
+                  style={{ 
+                    color: getThreadTextColorCSS(selectedColor)
+                  }}
                 />
               </div>
             </div>
@@ -391,7 +401,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
                       {/* Check icon for selected color */}
                       {selectedColor === color && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <svg className="size-5 text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
+                          <svg className="size-5" style={{ color: getThreadTextColorCSS(color) }} fill="currentColor" viewBox="0 0 24 24">
                             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                           </svg>
                         </div>

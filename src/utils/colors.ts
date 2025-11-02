@@ -28,6 +28,18 @@ export function getThreadColorCSS(color: ThreadColor | string | null | undefined
   return colorMap[color] || "var(--color-paper)";
 }
 
+// Get appropriate text color for thread color backgrounds
+// Returns white for thread colors (blue, yellow, green, pink, orange, purple)
+// Returns dark grey for paper color
+export function getThreadTextColorCSS(color: ThreadColor | string | null | undefined): string {
+  if (!color || color === "paper") {
+    return "var(--color-deep-grey)";
+  }
+  
+  // All other thread colors should have white text
+  return "white";
+}
+
 // Convert thread color name to gradient for SpaceButton
 export function getThreadGradientCSS(color: ThreadColor | string | null | undefined): string {
   const baseColor = getThreadColorCSS(color);

@@ -127,14 +127,14 @@ const PersistentNavigation: React.FC = () => {
       })}
       
       {/* Add CSS for hover states and active shadow */}
-      <style jsx>{`
-        .nav-item-container .badge-count:hover .badge-number {
+      <style>{`
+        .nav-item-container:has(.close-icon) .badge-count:hover .badge-number {
           display: none !important;
         }
-        .nav-item-container .badge-count:hover {
+        .nav-item-container:has(.close-icon) .badge-count:hover {
           background-color: transparent !important;
         }
-        .nav-item-container:has(.badge-count:hover) .close-icon {
+        .nav-item-container:has(.close-icon) .badge-count:hover .close-icon {
           display: flex !important;
         }
         .close-icon {

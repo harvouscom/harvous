@@ -114,25 +114,50 @@ function loadPersistentNavigation(retryCount) {
       link.href = `/${item.id}`;
       link.className = 'w-full relative block';
       
+      // Helper function to determine if background is a colored thread background
+      function isColoredBackground(gradient) {
+        if (!gradient || gradient === 'var(--color-gradient-gray)' || gradient === 'var(--color-paper)') {
+          return false;
+        }
+        // Check if gradient contains any thread color CSS variable (excluding paper)
+        const threadColors = ['blue', 'yellow', 'green', 'pink', 'orange', 'purple'];
+        return threadColors.some(color => gradient.includes(`--color-${color}`));
+      }
+      
+      // Determine text color based on background
+      function getTextColor(gradient) {
+        return isColoredBackground(gradient) ? 'white' : 'var(--color-deep-grey)';
+      }
+      
       // Create SpaceButton element using Tailwind classes like the actual component
       const button = document.createElement('button');
       button.className = 'space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full';
-      button.style.color = 'var(--color-deep-grey)';
+      
+      // Determine background and text color
+      let backgroundGradient = item.backgroundGradient;
+      let buttonTextColor = 'var(--color-deep-grey)';
       
       // Apply active styling if this is the current page
       if (isCurrentPage) {
         // Use thread's background color or paper color for spaces
         if (item.id.startsWith('space_')) {
           button.style.background = 'var(--color-paper)';
+          backgroundGradient = 'var(--color-paper)';
         } else {
           // Apply thread's background gradient
           button.style.background = item.backgroundGradient;
           button.style.backgroundImage = item.backgroundGradient;
+          backgroundGradient = item.backgroundGradient;
         }
-        button.style.color = 'var(--color-deep-grey)';
         button.style.boxShadow = '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset';
         button.classList.add('active-state');
+        
+        // Set text color - only white if active AND background is colored
+        buttonTextColor = getTextColor(backgroundGradient);
       }
+      // If not active, keep default dark grey color
+      
+      button.style.color = buttonTextColor;
       
       // Inner structure matching SpaceButton "WithCount" state exactly
       const innerDiv = document.createElement('div');
@@ -144,7 +169,8 @@ function loadPersistentNavigation(retryCount) {
       
       const title = document.createElement('span');
       title.textContent = item.title;
-      title.className = 'text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left';
+      title.className = 'font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left';
+      title.style.color = buttonTextColor;
       
       // Badge container
       const badgeContainer = document.createElement('div');
@@ -158,7 +184,8 @@ function loadPersistentNavigation(retryCount) {
       
       const countSpan = document.createElement('span');
       countSpan.textContent = item.count || 0;
-      countSpan.className = 'text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number';
+      countSpan.className = 'text-[14px] font-sans font-semibold leading-[0] badge-number';
+      countSpan.style.color = buttonTextColor;
       countSpan.style.display = 'block'; // Ensure it's visible initially
       
       // Close icon (×) - hidden by default, shown on hover
@@ -174,8 +201,13 @@ function loadPersistentNavigation(retryCount) {
       closeIcon.style.transform = 'translate(-50%, -50%)';
       closeIcon.style.width = '16px';
       closeIcon.style.height = '16px';
+      // Determine close icon color - white only when active AND background is colored
+      const closeIconColor = (isCurrentPage && isColoredBackground(backgroundGradient))
+        ? 'white'
+        : 'var(--color-deep-grey)';
+      
       closeIcon.innerHTML = `
-        <svg viewBox="0 0 384 512" style="width: 16px; height: 16px; fill: var(--color-deep-grey);">
+        <svg viewBox="0 0 384 512" style="width: 16px; height: 16px; fill: ${closeIconColor};">
           <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
         </svg>
       `;
@@ -356,9 +388,19 @@ window.loadPersistentNavigation = loadPersistentNavigation;
 function addPersistentNavigationStyles() {
   const style = document.createElement('style');
   style.textContent = `
-    /* Badge count hover effect - remove background when close icon is visible */
-    .badge-count:hover {
+    /* Badge count hover effect - remove background when close icon is visible (only for badges with close icons) */
+    .badge-count:has(.close-icon):hover {
       background-color: transparent !important;
+    }
+    
+    /* Hide badge number on hover when close icon is present */
+    .badge-count:has(.close-icon):hover .badge-number {
+      display: none !important;
+    }
+    
+    /* Show close icon on hover when present */
+    .badge-count:has(.close-icon):hover .close-icon {
+      display: flex !important;
     }
     
     /* Ensure badge background is transparent when close icon is visible */
@@ -369,6 +411,7 @@ function addPersistentNavigationStyles() {
     /* Close icon styling - no opacity effects */
     .close-icon {
       transition: none;
+      display: none;
     }
     
     .close-icon:hover {

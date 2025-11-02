@@ -75,6 +75,12 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
       };
       return colorMap[color] || 'var(--color-paper)';
     },
+    getThreadTextColorCSS(color) {
+      if (!color || color === 'paper') {
+        return 'var(--color-deep-grey)';
+      }
+      return 'white';
+    },
     async updateProfile() {
       try {
         console.log('updateProfile called with:', {
@@ -166,7 +172,7 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
   <!-- Compact CardStack structure -->
   <div class="bg-white rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full">
     <!-- Header section with dynamic background -->
-    <div class="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full rounded-t-3xl" x-bind:style="`background-color: ${getThreadColorCSS(selectedColor)}`">
+    <div class="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full rounded-t-3xl" x-bind:style="`background-color: ${getThreadColorCSS(selectedColor)}; color: ${getThreadTextColorCSS(selectedColor)}`">
       <div class="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
         <p class="leading-[normal]">Edit Name & Color</p>
       </div>
@@ -207,7 +213,7 @@ const componentId = `edit-panel-${Math.random().toString(36).substr(2, 9)}`;
           >
             <!-- Check icon for selected color -->
             <div x-show="selectedColor === color" class="absolute inset-0 flex items-center justify-center">
-              <svg class="size-5 text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
+              <svg class="size-5" x-bind:style="`color: ${getThreadTextColorCSS(color)}`" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
               </svg>
             </div>

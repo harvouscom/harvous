@@ -1,4 +1,6 @@
 ---
+import { getThreadTextColorCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
+
 interface Props {
     className?: string;
     text?: string;
@@ -21,6 +23,28 @@ const {
     itemId,
     ...props 
 } = Astro.props;
+
+// Determine if this is a colored background (not paper or gray gradient)
+// Check if backgroundGradient contains any thread color CSS variable
+function isColoredBackground(gradient: string): boolean {
+    if (!gradient || gradient === "var(--color-gradient-gray)" || gradient === "var(--color-paper)") {
+        return false;
+    }
+    // Check if gradient contains any thread color CSS variable (excluding paper)
+    const threadColors = THREAD_COLORS.filter(c => c !== 'paper');
+    return threadColors.some(color => gradient.includes(`--color-${color}`));
+}
+
+// Determine text color based on background
+// Only use white text when active AND background is colored
+function getTextColor(gradient: string, active: boolean): string {
+    if (active && isColoredBackground(gradient)) {
+        return "white";
+    }
+    return "var(--color-deep-grey)";
+}
+
+const textColor = getTextColor(backgroundGradient, isActive);
 ---
 
 {state === "WithArrow" ? (
@@ -29,12 +53,12 @@ const {
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
-        <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-            <div class="flex-1 min-w-0 overflow-hidden">
-                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block">
-                    {text}
-                </span>
-            </div>
+            <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                <div class="flex-1 min-w-0 overflow-hidden">
+                    <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={`color: ${textColor}`}>
+                        {text}
+                    </span>
+                </div>
             <div class="flex items-center justify-center relative shrink-0">
                 <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
                     <div class="flex items-center justify-center relative shrink-0">
@@ -56,7 +80,7 @@ const {
     >
         <div class="flex items-center justify-start relative w-full h-full pl-2 pr-2 transition-transform duration-125 min-w-0">
                 <div class="flex-1 min-w-0 overflow-hidden text-left">
-                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style="text-align: left !important;">
+                <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={`color: ${textColor}; text-align: left !important;`}>
                         {text}
                     </span>
             </div>
