@@ -716,7 +716,7 @@ if (!content) {
   />
 
   <!-- Main Column -->
-  <div slot="main" class="h-full min-h-0" data-navigation-item={id} data-title={pageTitle} data-count={isNote ? 0 : (currentThread?.noteCount || currentSpace?.threadCount || 0)} data-background-gradient={isNote ? "var(--color-gradient-gray)" : (currentThread?.backgroundGradient || currentSpace?.backgroundGradient || "var(--color-gradient-gray)")}>
+  <div slot="main" class="h-full min-h-0 overflow-hidden" data-navigation-item={id} data-title={pageTitle} data-count={isNote ? 0 : (currentThread?.noteCount || currentSpace?.threadCount || 0)} data-background-gradient={isNote ? "var(--color-gradient-gray)" : (currentThread?.backgroundGradient || currentSpace?.backgroundGradient || "var(--color-gradient-gray)")}>
           {isNote && content ? (
             <div 
               data-note-id={content.id}
@@ -726,7 +726,8 @@ if (!content) {
               data-parent-thread-background-gradient={currentThread?.backgroundGradient || getThreadGradientCSS('blue')}
               data-parent-thread-color={currentThread?.color || 'blue'}
               data-selected-thread-id={currentThread?.id || 'thread_unorganized'}
-              class="h-full min-h-0"
+              class="h-full min-h-0 overflow-hidden flex flex-col"
+              style={{ maxHeight: '100%' }}
             >
               <CardFullEditableReact 
                 title={content.title || "Untitled Note"}
@@ -735,7 +736,7 @@ if (!content) {
                 noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : undefined}
                 noteType={content.noteType || 'default'}
                 version={content.version}
-                className="h-full"
+                className="h-full flex-1 min-h-0"
               />
             </div>
           ) : !content ? (

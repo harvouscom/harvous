@@ -251,7 +251,8 @@ export default function CardFullEditable({
         `}
       </style>
       <div 
-        className={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] h-full w-full card-full-editable max-h-[calc(100vh-10.75rem)] min-[1160px]:max-h-[calc(100vh-3rem)] ${className}`}
+        className={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] h-full w-full card-full-editable flex-1 min-h-0 ${className}`}
+        style={{ maxHeight: '100%' }}
         data-card-full-editable
       >
       {/* Header with title, version (scripture only), and bookmark icon */}
@@ -297,7 +298,7 @@ export default function CardFullEditable({
       </div>
       
       {/* Content */}
-      <div className="flex-1 flex flex-col min-h-0 w-full">
+      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden' }}>
         <div className="flex-1 flex flex-col font-sans font-normal min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
           {/* Display mode */}
           {!isEditing ? (
@@ -309,8 +310,8 @@ export default function CardFullEditable({
               dangerouslySetInnerHTML={{ __html: displayContent }}
             />
           ) : (
-            <div className="flex-1 flex flex-col min-h-0">
-              <div className="flex-1 flex flex-col min-h-0 px-3">
+            <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
                 <TiptapEditor
                   content={editContent}
                   id="edit-note-content"

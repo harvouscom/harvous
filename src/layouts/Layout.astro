@@ -148,8 +148,8 @@ const showMoreButton = shouldShowMoreButton(contentType);
 
     <div class="h-[100svh] p-3 min-[1160px]:p-6" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->
-      <div class="hidden min-[1160px]:grid min-[1160px]:grid-cols-[minmax(280px,clamp(280px,20vw,300px))_minmax(380px,640px)_minmax(380px,640px)] min-[1160px]:gap-6 min-[1160px]:h-full">        <!-- Navigation Column -->
-        <section class="h-full">
+      <div class="hidden min-[1160px]:grid min-[1160px]:grid-cols-[minmax(280px,clamp(280px,20vw,300px))_minmax(380px,640px)_minmax(380px,640px)] min-[1160px]:gap-6 min-[1160px]:h-full min-[1160px]:min-h-0">        <!-- Navigation Column -->
+        <section class="h-full min-h-0">
           <div 
             slot="navigation" 
             class="h-full"
@@ -176,8 +176,8 @@ const showMoreButton = shouldShowMoreButton(contentType);
         </section>
 
         <!-- Main Column -->
-        <section class="h-full">
-          <div class="h-full">
+        <section class="h-full min-h-0 overflow-hidden">
+          <div class="h-full min-h-0 overflow-hidden">
             <slot name="main" />
           </div>
         </section>
@@ -366,19 +366,19 @@ const showMoreButton = shouldShowMoreButton(contentType);
       </div>
 
       <!-- Mobile/Tablet Layout (below 1160px) -->
-      <div class="min-[1160px]:hidden flex flex-col gap-3 h-full">
+      <div class="min-[1160px]:hidden flex flex-col gap-3 h-full min-h-0 overflow-hidden">
         <!-- Navigation Column (Top) -->
-        <div class="w-full">
+        <div class="w-full shrink-0">
           <slot name="mobile-navigation" />
         </div>
         
         <!-- Main Column (Middle) -->
-        <div class="flex-1">
+        <div class="flex-1 min-h-0 overflow-hidden">
           <slot name="main" />
         </div>
         
         <!-- Additional Column (Bottom) -->
-        <div class="px-3">
+        <div class="px-3 shrink-0">
           <slot name="mobile-additional" />
         </div>
       </div>
