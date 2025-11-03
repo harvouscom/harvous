@@ -369,11 +369,27 @@ let inboxCount: number = 0;
         // Fetch scripture metadata if this is a scripture note
         let version: string | undefined;
         if (note.noteType === 'scripture') {
-          const scriptureMeta = await db.select()
-            .from(ScriptureMetadata)
-            .where(eq(ScriptureMetadata.noteId, note.id))
-            .get();
-          version = scriptureMeta?.translation;
+          try {
+            const scriptureMeta = await db.select()
+              .from(ScriptureMetadata)
+              .where(eq(ScriptureMetadata.noteId, note.id))
+              .get();
+            version = scriptureMeta?.translation;
+            
+            // Log for debugging (only in development or when debugging is needed)
+            if (scriptureMeta) {
+              console.log(`[id].astro] ScriptureMetadata found for note ${note.id}: version=${version}`);
+            } else {
+              console.log(`[id].astro] ScriptureMetadata not found for scripture note ${note.id}`);
+            }
+          } catch (error: any) {
+            // Log error but don't fail page load - version will remain undefined
+            console.error(`[id].astro] Error fetching ScriptureMetadata for note ${note.id}:`, error.message || error);
+            // Check if it's a "table doesn't exist" error which indicates schema mismatch
+            if (error.message?.includes('no such table') || error.message?.includes('SQLITE_ERROR')) {
+              console.error(`[id].astro] ⚠️ CRITICAL: ScriptureMetadata table may not exist in production database. Run 'npm run db:push' to sync schema.`);
+            }
+          }
         }
 
         content = {
