@@ -7,10 +7,11 @@ export interface Props {
   date: string;
   noteId?: string;
   noteType?: 'default' | 'scripture' | 'resource';
+  version?: string;
   className?: string;
 }
 
-const { title, content, date, noteId, noteType = 'default', className } = Astro.props;
+const { title, content, date, noteId, noteType = 'default', version, className } = Astro.props;
 ---
 
 <!-- React version of CardFullEditable -->
@@ -20,6 +21,7 @@ const { title, content, date, noteId, noteType = 'default', className } = Astro.
   date={date}
   noteId={noteId}
   noteType={noteType}
+  version={version}
   className={className}
   client:load 
 />

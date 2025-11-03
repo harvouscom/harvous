@@ -10,7 +10,7 @@ import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
-import { db, Threads, Notes, Spaces, NoteThreads, NoteThreadAccess, eq, and, desc, count, ne } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, NoteThreadAccess, ScriptureMetadata, eq, and, desc, count, ne } from "astro:db";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount } from "@/utils/dashboard-data";
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
@@ -366,6 +366,16 @@ let inboxCount: number = 0;
       const note = await db.select().from(Notes).where(eq(Notes.id, id!)).get();
       
       if (note) {
+        // Fetch scripture metadata if this is a scripture note
+        let version: string | undefined;
+        if (note.noteType === 'scripture') {
+          const scriptureMeta = await db.select()
+            .from(ScriptureMetadata)
+            .where(eq(ScriptureMetadata.noteId, note.id))
+            .get();
+          version = scriptureMeta?.translation;
+        }
+
         content = {
           id: note.id,
           title: note.title,
@@ -374,7 +384,8 @@ let inboxCount: number = 0;
           createdAt: note.createdAt,
           noteId: note.simpleNoteId,
           updatedAt: note.updatedAt,
-          noteType: note.noteType || 'default'
+          noteType: note.noteType || 'default',
+          version
         };
 
         // Set page title for note
@@ -723,6 +734,7 @@ if (!content) {
                 date={content.createdAt ? content.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Feb 7, 2025"}
                 noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : undefined}
                 noteType={content.noteType || 'default'}
+                version={content.version}
                 className="h-full"
               />
             </div>

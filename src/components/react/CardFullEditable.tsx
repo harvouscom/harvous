@@ -8,6 +8,7 @@ interface CardFullEditableProps {
   date: string;
   noteId?: string;
   noteType?: 'default' | 'scripture' | 'resource';
+  version?: string;
   className?: string;
   isEditable?: boolean;
   onSave?: (title: string, content: string) => Promise<any>;
@@ -19,6 +20,7 @@ export default function CardFullEditable({
   date, 
   noteId,
   noteType = 'default',
+  version,
   className = '',
   isEditable = true,
   onSave 
@@ -252,8 +254,8 @@ export default function CardFullEditable({
         className={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-clip pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] h-full w-full card-full-editable max-h-[calc(100vh-10.75rem)] min-[1160px]:max-h-[calc(100vh-3rem)] ${className}`}
         data-card-full-editable
       >
-      {/* Header with title and bookmark icon */}
-      <div className="box-border content-stretch flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
+      {/* Header with title, version (scripture only), and bookmark icon */}
+      <div className="box-border content-stretch flex gap-3 items-center px-3 py-0 relative shrink-0 w-full">
         <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
           {/* Display mode */}
           {!isEditing ? (
@@ -275,6 +277,12 @@ export default function CardFullEditable({
             />
           )}
         </div>
+        {/* Version (scripture notes only) */}
+        {noteType === 'scripture' && version && (
+          <div className="relative shrink-0">
+            <p className="leading-[normal] text-nowrap whitespace-pre font-sans font-normal text-[var(--color-stone-grey)] text-[12px]">{version}</p>
+          </div>
+        )}
         <div className="relative shrink-0 size-5" title={`${noteType === 'scripture' ? 'Scripture' : noteType === 'resource' ? 'Resource' : 'Note'} type`}>
           {noteType === 'scripture' ? (
             <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] text-[20px]" />
@@ -286,18 +294,6 @@ export default function CardFullEditable({
             </svg>
           )}
         </div>
-      </div>
-      
-      {/* Date and Note ID */}
-      <div className={`box-border content-stretch flex font-sans font-normal items-center leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full ${noteId ? 'justify-between' : 'justify-start'}`}>
-        <div className="relative shrink-0">
-          <p className="leading-[normal] text-nowrap whitespace-pre">{date}</p>
-        </div>
-        {noteId && (
-          <div className="relative shrink-0">
-            <p className="leading-[normal] text-nowrap whitespace-pre">#{noteId}</p>
-          </div>
-        )}
       </div>
       
       {/* Content */}
@@ -349,6 +345,18 @@ export default function CardFullEditable({
             </div>
           )}
         </div>
+      </div>
+      
+      {/* Date and Note ID */}
+      <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full">
+        <div className="relative shrink-0">
+          <p className="leading-[normal] text-nowrap whitespace-pre">{date}</p>
+        </div>
+        {noteId && (
+          <div className="relative shrink-0">
+            <p className="leading-[normal] text-nowrap whitespace-pre">#{noteId}</p>
+          </div>
+        )}
       </div>
       </div>
     </>
