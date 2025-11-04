@@ -85,9 +85,25 @@ export default function SquareButton({
     if (!withMenu || !isOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+      const target = event.target as Node;
+      
+      // Don't close if click is inside the container
+      if (containerRef.current && containerRef.current.contains(target)) {
+        return;
       }
+      
+      // Don't close if click is on a confirmation dialog or its overlay
+      const clickedElement = target as HTMLElement;
+      const isDialogClick = clickedElement.closest?.('.fixed.inset-0') || 
+                           clickedElement.closest?.('[role="dialog"]') ||
+                           clickedElement.closest?.('.bg-white.rounded-xl.p-6');
+      
+      if (isDialogClick) {
+        return;
+      }
+      
+      // Otherwise, close the menu
+      setIsOpen(false);
     };
 
     document.addEventListener('mousedown', handleClickOutside);

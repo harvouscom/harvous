@@ -49,23 +49,21 @@ export default function Menu({
   };
 
   const handleAction = async (action: string, label: string) => {
-    console.log('Menu:', label, 'button clicked');
-    
-    // Close the menu when any option is selected
-    closeMenu();
-    
-    // Handle delete actions
+    // Handle delete actions - show confirmation dialog first
     if (action.includes('erase')) {
       if (!contentId || !contentType) {
         console.error('No content ID or type provided for delete action');
         return;
       }
       
-      // Show confirmation dialog
+      // Show confirmation dialog (don't close menu yet)
       setPendingAction(action);
       setShowConfirmDialog(true);
       return;
     }
+    
+    // Close the menu for non-erase actions
+    closeMenu();
     
     // Handle other actions
     await executeAction(action);
@@ -115,15 +113,17 @@ export default function Menu({
       } catch (error) {
         console.error('Error dispatching openNewNotePanel event:', error);
       }
-    } else {
-      // Handle other actions (like edit)
-      console.log('Other action:', action);
     }
   };
 
   const performErase = async () => {
     if (!contentId || !contentType) {
       console.error('No content ID or type provided for erase');
+      if ((window as any).toast) {
+        (window as any).toast.error('Cannot erase: Missing content ID or type.');
+      } else {
+        alert('Error: No content ID or type provided');
+      }
       return;
     }
 
@@ -147,6 +147,11 @@ export default function Menu({
         break;
       default:
         console.error('Unknown content type for delete:', contentType);
+        if ((window as any).toast) {
+          (window as any).toast.error('Unknown content type for erase.');
+        } else {
+          alert('Unknown content type for erase.');
+        }
         return;
     }
     
@@ -156,12 +161,25 @@ export default function Menu({
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        credentials: 'include'
       });
       
       const data = await response.json();
       
-      if (data.success) {
+      if (!response.ok) {
+        console.error('Delete failed:', data);
+        const errorMessage = data.error || 'Failed to erase item';
+        
+        if ((window as any).toast) {
+          (window as any).toast.error(errorMessage);
+        } else {
+          alert('Failed to erase item: ' + errorMessage);
+        }
+        return;
+      }
+      
+      if (data.success || response.status === 200) {
         // Dispatch appropriate deletion event for navigation updates
         if (contentType === 'thread') {
           window.dispatchEvent(new CustomEvent('threadDeleted', {
@@ -182,29 +200,45 @@ export default function Menu({
         window.location.href = redirectUrl;
       } else {
         // Show error toast immediately (no redirect on error)
+        console.error('Delete failed:', data.error);
         if ((window as any).toast) {
           (window as any).toast.error(data.error || 'Failed to erase item');
+        } else {
+          alert('Failed to erase item: ' + (data.error || 'Unknown error'));
         }
       }
     } catch (error) {
       console.error('Error deleting item:', error);
       if ((window as any).toast) {
         (window as any).toast.error('Failed to erase item');
+      } else {
+        alert('Failed to erase item. Please check the console for details.');
       }
     }
   };
 
-  const handleConfirmErase = () => {
+  const handleConfirmErase = async () => {
     setShowConfirmDialog(false);
+    
+    // Execute action BEFORE closing menu to ensure component stays mounted
     if (pendingAction) {
-      executeAction(pendingAction);
+      const actionToExecute = pendingAction;
+      setPendingAction(null);
+      try {
+        await executeAction(actionToExecute);
+      } catch (error) {
+        console.error('Error executing action:', error);
+      }
     }
-    setPendingAction(null);
+    
+    // Close menu after action completes
+    closeMenu();
   };
 
   const handleCancelErase = () => {
     setShowConfirmDialog(false);
     setPendingAction(null);
+    // Keep menu open if user cancels
   };
 
   if (options.length === 0) {
@@ -242,6 +276,8 @@ export default function Menu({
       {showConfirmDialog && contentType && typeof document !== 'undefined' && createPortal(
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
+          role="dialog"
+          aria-modal="true"
           style={{
             paddingTop: 'max(1rem, env(safe-area-inset-top))',
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
