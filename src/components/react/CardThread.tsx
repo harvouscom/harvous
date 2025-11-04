@@ -119,7 +119,7 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
           </div>
           
           {/* Text content */}
-          <div className="basis-0 flex flex-col gap-2 grow items-center justify-center min-h-px min-w-px relative shrink-0 text-nowrap">
+          <div className="basis-0 flex flex-col gap-1 grow items-center justify-center min-h-px min-w-px relative shrink-0 text-nowrap">
             {/* Title */}
             <div className="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] w-full">
               <p className="leading-tight overflow-hidden text-ellipsis whitespace-nowrap">
