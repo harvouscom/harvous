@@ -125,8 +125,10 @@ function loadPersistentNavigation(retryCount) {
       }
       
       // Determine text color based on background
+      // Pastel colors use dark text for visibility
       function getTextColor(gradient) {
-        return isColoredBackground(gradient) ? 'white' : 'var(--color-deep-grey)';
+        // All thread colors use dark text (pastel colors)
+        return 'var(--color-deep-grey)';
       }
       
       // Create SpaceButton element using Tailwind classes like the actual component
@@ -201,10 +203,8 @@ function loadPersistentNavigation(retryCount) {
       closeIcon.style.transform = 'translate(-50%, -50%)';
       closeIcon.style.width = '16px';
       closeIcon.style.height = '16px';
-      // Determine close icon color - white only when active AND background is colored
-      const closeIconColor = (isCurrentPage && isColoredBackground(backgroundGradient))
-        ? 'white'
-        : 'var(--color-deep-grey)';
+      // Determine close icon color - pastel colors use dark text
+      const closeIconColor = 'var(--color-deep-grey)';
       
       closeIcon.innerHTML = `
         <svg viewBox="0 0 384 512" style="width: 16px; height: 16px; fill: ${closeIconColor};">

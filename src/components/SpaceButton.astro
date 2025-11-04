@@ -36,11 +36,9 @@ function isColoredBackground(gradient: string): boolean {
 }
 
 // Determine text color based on background
-// Only use white text when active AND background is colored
+// Pastel colors use dark text for visibility
 function getTextColor(gradient: string, active: boolean): string {
-    if (active && isColoredBackground(gradient)) {
-        return "white";
-    }
+    // All thread colors use dark text (pastel colors)
     return "var(--color-deep-grey)";
 }
 

@@ -33,12 +33,12 @@
     --color-snow-white: #FAFAFA;
     --color-fog-white: #F7F7F6;
     --color-gray: #E9E9E9;
-    --color-blue: #20a9ff;
-    --color-yellow: #f5a824;
-    --color-green: #44a024;
-    --color-pink: #ff279e;
-    --color-orange: #ff5c26;
-    --color-purple: #ba27ff;
+    --color-blue: #C3E4FF;
+    --color-yellow: #F9DE78;
+    --color-green: #C7ECBB;
+    --color-pink: #F7CEEE;
+    --color-orange: #FCD8A0;
+    --color-purple: #E8C9FF;
     --color-highlighter: #FFEB3B;
     --surface-primary: var(--color-soft-paper);
     --shadow-primary: 0px 6px 0px 0px #D3D0C5;
@@ -342,8 +342,9 @@ button.space-button:not([style*="background-image"]):not([style*="background-col
   box-shadow: none !important;
 }
 
-/* White text for space-button with colored thread backgrounds */
-/* Match buttons with linear-gradient containing thread color variables */
+/* Dark text for space-button with colored thread backgrounds (pastel colors) */
+/* Removed white text rules - pastel colors need dark text for visibility */
+/* If restoring vibrant colors, uncomment these rules:
 .space-button[style*="--color-blue"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]),
 .space-button[style*="--color-yellow"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]),
 .space-button[style*="--color-green"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]),
@@ -367,6 +368,7 @@ button.space-button:not([style*="background-image"]):not([style*="background-col
 .space-button[style*="--color-purple"]:not([style*="var(--color-gradient-gray)"]):not([style*="var(--color-paper)"]) * {
   color: white !important;
 }
+*/
 
 /* Fix TabNav bottom line */
 .tab-nav-container,

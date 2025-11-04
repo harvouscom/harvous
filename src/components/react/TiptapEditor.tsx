@@ -160,13 +160,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (!editor) return false;
     
     const { from, to } = editor.state.selection;
-    if (from === to) return false;
-    
-    const selectedText = editor.state.doc.textBetween(from, to);
-    const trimmedText = selectedText.trim();
-    
-    // Minimum 10 characters of actual content
-    return trimmedText.length >= 10;
+    // Return true for any non-empty selection (no minimum length required)
+    return from !== to;
   };
 
   // Selection detection for create note button

@@ -347,18 +347,6 @@ export default function CardFullEditable({
           )}
         </div>
       </div>
-      
-      {/* Date and Note ID */}
-      <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full">
-        <div className="relative shrink-0">
-          <p className="leading-[normal] text-nowrap whitespace-pre">{date}</p>
-        </div>
-        {noteId && (
-          <div className="relative shrink-0">
-            <p className="leading-[normal] text-nowrap whitespace-pre">#{noteId}</p>
-          </div>
-        )}
-      </div>
       </div>
     </>
   );

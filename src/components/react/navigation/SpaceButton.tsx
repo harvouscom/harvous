@@ -112,10 +112,8 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     return threadColors.some(color => gradient.includes(`--color-${color}`));
   };
   
-  // Determine close icon color - white only when active AND background is colored
-  const closeIconColor = (isActive && isColoredBackground(backgroundGradient)) 
-    ? 'white' 
-    : 'var(--color-deep-grey)';
+  // Determine close icon color - pastel colors use dark text
+  const closeIconColor = 'var(--color-deep-grey)';
 
   if (state === "Default") {
     return (

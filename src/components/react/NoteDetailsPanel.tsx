@@ -54,6 +54,9 @@ export default function NoteDetailsPanel({
   const [isMovingThread, setIsMovingThread] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [threadToRemove, setThreadToRemove] = useState<string | null>(null);
+  const [noteCreatedAt, setNoteCreatedAt] = useState<Date | null>(null);
+  const [noteSimpleId, setNoteSimpleId] = useState<number | null>(null);
+  const [noteVersion, setNoteVersion] = useState<string | null>(null);
 
   // Fetch data when component mounts
   useEffect(() => {
@@ -77,6 +80,12 @@ export default function NoteDetailsPanel({
         setLocalAllUserThreads(data.allUserThreads || []);
         setLocalComments(data.comments || []);
         setLocalTags(data.tags || []);
+        // Store note metadata
+        if (data.note) {
+          setNoteCreatedAt(data.note.createdAt ? new Date(data.note.createdAt) : null);
+          setNoteSimpleId(data.note.simpleNoteId || null);
+          setNoteVersion(data.note.version || null);
+        }
         console.log('NoteDetailsPanel: Updated local threads to:', data.threads?.length || 0);
         console.log('NoteDetailsPanel: Thread titles from API:', data.threads?.map(t => t.title) || []);
         console.log('NoteDetailsPanel: Thread objects with counts:', data.threads?.map(t => ({ title: t.title, count: t.count })) || []);
@@ -382,6 +391,26 @@ export default function NoteDetailsPanel({
           <div className="basis-0 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-px min-w-px overflow-clip relative shrink-0 w-full">
             <div className="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
               <div className="basis-0 grow min-h-px min-w-px shrink-0 w-full">
+
+                {/* Note Metadata - Date, ID, and Version */}
+                {(noteCreatedAt || noteSimpleId || noteVersion) && (
+                  <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full mb-2">
+                    <div className="relative shrink-0">
+                      <p className="leading-[normal] text-nowrap whitespace-pre">
+                        {noteCreatedAt ? noteCreatedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                        {noteCreatedAt && noteSimpleId ? ' ' : ''}
+                        {noteSimpleId ? `#N${noteSimpleId.toString().padStart(3, '0')}` : ''}
+                      </p>
+                    </div>
+                    {noteVersion && (
+                      <div className="relative shrink-0">
+                        <p className="leading-[normal] text-nowrap whitespace-pre font-sans font-normal text-[var(--color-stone-grey)] text-[12px]">
+                          {noteVersion}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Tab navigation */}
                 <div className="w-full">

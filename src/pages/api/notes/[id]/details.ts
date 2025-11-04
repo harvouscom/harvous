@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, eq, and, count } from 'astro:db';
+import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, eq, and, count } from 'astro:db';
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
@@ -38,6 +38,21 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
     console.log("Note ID:", noteId);
     console.log("Note threadId:", note.threadId);
+
+    // Fetch scripture metadata if this is a scripture note
+    let version: string | undefined;
+    if (note.noteType === 'scripture') {
+      try {
+        const scriptureMeta = await db.select()
+          .from(ScriptureMetadata)
+          .where(eq(ScriptureMetadata.noteId, noteId))
+          .get();
+        version = scriptureMeta?.translation;
+      } catch (error: any) {
+        console.log("Error querying ScriptureMetadata:", error);
+        version = undefined;
+      }
+    }
 
     // Get all user threads first
     const allUserThreads = await db.select({
@@ -215,10 +230,12 @@ export const GET: APIRoute = async ({ params, locals }) => {
         threadId: note.threadId,
         spaceId: note.spaceId,
         simpleNoteId: note.simpleNoteId,
+        noteType: note.noteType || 'default',
         isPublic: note.isPublic,
         isFeatured: note.isFeatured,
         createdAt: note.createdAt,
-        updatedAt: note.updatedAt
+        updatedAt: note.updatedAt,
+        version: version
       },
       threads: formattedThreads,
       allUserThreads: allUserThreads.map(thread => ({
