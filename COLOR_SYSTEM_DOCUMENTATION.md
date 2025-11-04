@@ -218,6 +218,48 @@ const closeIconColor = (isActive && isColoredBackground(backgroundGradient))
   : 'var(--color-deep-grey)';
 ```
 
+#### 8. Update `getTextColor()` in `src/components/react/navigation/MobileNavigation.tsx`
+
+**Location**: Lines 56-62
+
+**Change from:**
+```typescript
+// Determine text color - pastel colors use dark text for visibility
+const getTextColor = (gradient: string | undefined, isActive: boolean): string => {
+  // All thread colors use dark text (pastel colors)
+  return 'var(--color-deep-grey)';
+};
+```
+
+**Change to:**
+```typescript
+// Determine text color - white only when active AND background is colored
+const getTextColor = (gradient: string | undefined, isActive: boolean): string => {
+  if (isActive && isColoredBackground(gradient)) {
+    return 'white';
+  }
+  return 'var(--color-deep-grey)';
+};
+```
+
+#### 9. Update Placeholder Text Color in `src/components/react/NewThreadPanel.tsx`
+
+**Location**: Lines 385-389
+
+**Change from:**
+```typescript
+className="w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center placeholder:text-[var(--color-pebble-grey)]"
+```
+
+**Change to:**
+```typescript
+className={`w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center ${
+  selectedColor === 'paper' 
+    ? 'placeholder:text-[var(--color-pebble-grey)]' 
+    : 'placeholder:text-white/70'
+}`}
+```
+
 ### To Switch from Vibrant to Pastel Colors
 
 Reverse all the above steps:
@@ -225,8 +267,9 @@ Reverse all the above steps:
 1. Update color variables in `src/styles/global.css` to pastel values
 2. Comment out white text CSS rules in `src/styles/global.css`
 3. Update `getThreadTextColorCSS()` to return dark grey for all colors
-4. Update `getTextColor()` functions to return dark grey
-5. Update close icon color logic to use dark grey
+4. Update `getTextColor()` functions to return dark grey (in SpaceButton.astro, MobileNavigation.tsx, and persistent-navigation.js)
+5. Update close icon color logic to use dark grey (in SpaceButton.tsx and persistent-navigation.js)
+6. Update placeholder text color in NewThreadPanel.tsx to use pebble grey for all colors
 
 ## Files That Need Updates
 
@@ -237,7 +280,9 @@ Reverse all the above steps:
 ### Component Text Color Logic
 - ✅ `src/components/SpaceButton.astro` - `getTextColor()` function
 - ✅ `src/components/react/navigation/SpaceButton.tsx` - Close icon color
+- ✅ `src/components/react/navigation/MobileNavigation.tsx` - `getTextColor()` function for mobile dropdown
 - ✅ `public/scripts/navigation/persistent-navigation.js` - `getTextColor()` and close icon color
+- ✅ `src/components/react/NewThreadPanel.tsx` - Placeholder text color
 
 ### Components That Auto-Update (via `getThreadTextColorCSS()`)
 

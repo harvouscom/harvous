@@ -382,11 +382,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Thread name"
-                  className={`w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center ${
-                    selectedColor === 'paper' 
-                      ? 'placeholder:text-[var(--color-pebble-grey)]' 
-                      : 'placeholder:text-white/70'
-                  }`}
+                  className="w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center placeholder:text-[var(--color-pebble-grey)]"
                   style={{ 
                     color: getThreadTextColorCSS(selectedColor)
                   }}

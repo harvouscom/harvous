@@ -53,11 +53,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return threadColors.some(color => gradient.includes(`--color-${color}`));
   };
 
-  // Determine text color - white only when active AND background is colored
+  // Determine text color - pastel colors use dark text for visibility
   const getTextColor = (gradient: string | undefined, isActive: boolean): string => {
-    if (isActive && isColoredBackground(gradient)) {
-      return 'white';
-    }
+    // All thread colors use dark text (pastel colors)
     return 'var(--color-deep-grey)';
   };
 
