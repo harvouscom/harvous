@@ -17,6 +17,7 @@ interface TiptapEditorProps {
   scrollPosition?: number;
   enableCreateNoteFromSelection?: boolean;
   parentThreadId?: string;
+  onEditorReady?: (editor: any) => void;
 }
 
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
@@ -29,7 +30,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   onContentChange,
   scrollPosition,
   enableCreateNoteFromSelection = false,
-  parentThreadId
+  parentThreadId,
+  onEditorReady
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -42,6 +44,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   });
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<any>(null);
 
   // Check if we're on the client side
   useEffect(() => {
@@ -79,6 +82,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }),
     ],
     content: content || '',
+    onCreate: ({ editor }) => {
+      // Notify parent when editor is ready
+      if (onEditorReady) {
+        onEditorReady(editor);
+      }
+    },
     onUpdate: ({ editor }) => {
       console.log('TiptapEditor: Editor updated');
       const htmlContent = editor.getHTML();
@@ -101,10 +110,53 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         style: 'font-family: var(--font-sans); font-size: 16px; line-height: 1.6; color: var(--color-deep-grey); min-height: 200px;',
         tabindex: tabindex || 0,
       },
+      handleKeyDown: (view, event) => {
+        const editor = editorRef.current;
+        if (!editor) return false;
+        
+        // Handle Select All (Cmd+A on Mac, Ctrl+A on Windows/Linux)
+        if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
+          event.preventDefault();
+          editor.commands.selectAll();
+          return true;
+        }
+        
+        // Handle Auto-Capitalize First Line
+        // Check if cursor is at the very start of the document
+        const { from, to } = view.state.selection;
+        
+        // Check if cursor is at the start of the first paragraph
+        // In ProseMirror, position 1 is the start of content for empty documents
+        // For documents with content, we check if we're at the start of the first block
+        const $from = view.state.selection.$from;
+        const isAtDocumentStart = from === to && (
+          from === 1 || // Empty document or at very start
+          ($from.depth === 1 && $from.parentOffset === 0 && $from.parent.type.name === 'paragraph') // Start of first paragraph
+        );
+        
+        if (isAtDocumentStart) {
+          // Check if a single lowercase letter is being typed (but not during paste or other shortcuts)
+          if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key.length === 1 && /^[a-z]$/.test(event.key)) {
+            event.preventDefault();
+            // Insert the uppercase version instead
+            editor.commands.insertContent(event.key.toUpperCase());
+            return true;
+          }
+        }
+        
+        return false;
+      },
     },
     // Fix SSR issues
     immediatelyRender: false,
   });
+
+  // Store editor in ref for handleKeyDown access
+  useEffect(() => {
+    if (editor) {
+      editorRef.current = editor;
+    }
+  }, [editor]);
 
   useEffect(() => {
     if (editor && content && !editor.isFocused) {

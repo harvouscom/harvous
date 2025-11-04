@@ -36,6 +36,8 @@ export default function CardFullEditable({
   const titleInputRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const contentDisplayRef = useRef<HTMLDivElement>(null);
+  const editorInstanceRef = useRef<any>(null);
+  const shouldFocusEditorRef = useRef(false);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
 
@@ -57,10 +59,26 @@ export default function CardFullEditable({
     }
   }, [noteType]);
 
-  // Focus input when editing starts
+  // Focus handling is now done directly in startEditing
+  // This useEffect is kept for backward compatibility but focusTarget is no longer used
+
+  // Debug: Measure actual heights when switching modes
   useEffect(() => {
-    if (isEditing && titleInputRef.current) {
-      titleInputRef.current.focus();
+    if (isEditing) {
+      // Measure toolbar and buttons heights
+      const toolbar = document.querySelector('.tiptap-toolbar');
+      const buttonsContainer = document.querySelector('.card-full-editable .flex.justify-end.gap-2.mt-4');
+      if (toolbar && buttonsContainer) {
+        const toolbarHeight = toolbar.getBoundingClientRect().height;
+        const toolbarMarginTop = parseInt(window.getComputedStyle(toolbar).marginTop);
+        const buttonsHeight = buttonsContainer.getBoundingClientRect().height;
+        const buttonsMarginTop = parseInt(window.getComputedStyle(buttonsContainer).marginTop);
+        console.log('Edit mode heights:', {
+          toolbar: { height: toolbarHeight, marginTop: toolbarMarginTop, total: toolbarHeight + toolbarMarginTop },
+          buttons: { height: buttonsHeight, marginTop: buttonsMarginTop, total: buttonsHeight + buttonsMarginTop },
+          combined: toolbarHeight + toolbarMarginTop + buttonsHeight + buttonsMarginTop
+        });
+      }
     }
   }, [isEditing]);
 
@@ -92,7 +110,7 @@ export default function CardFullEditable({
   }, [isEditing]);
 
 
-  const startEditing = () => {
+  const startEditing = (focus: 'title' | 'content' = 'title') => {
     // Save current scroll position
     if (contentDisplayRef.current) {
       const currentScroll = contentDisplayRef.current.scrollTop;
@@ -104,6 +122,35 @@ export default function CardFullEditable({
     setEditContent(displayContent);
     setIsEditing(true);
     setHasChanges(false);
+    
+    // Set flag to focus editor when it's ready
+    if (focus === 'content') {
+      shouldFocusEditorRef.current = true;
+    }
+    
+    // Focus immediately after state update
+    if (focus === 'title') {
+      // Use requestAnimationFrame to ensure input is rendered
+      requestAnimationFrame(() => {
+        if (titleInputRef.current) {
+          titleInputRef.current.focus();
+        }
+      });
+    }
+  };
+
+  // Handle editor ready callback
+  const handleEditorReady = (editor: any) => {
+    editorInstanceRef.current = editor;
+    // Focus if we should focus the editor
+    if (shouldFocusEditorRef.current) {
+      shouldFocusEditorRef.current = false;
+      requestAnimationFrame(() => {
+        if (editor) {
+          editor.commands.focus();
+        }
+      });
+    }
   };
 
   const cancelEdit = () => {
@@ -163,6 +210,39 @@ export default function CardFullEditable({
       cancelEdit();
     } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       saveChanges();
+    } else {
+      // Handle Select All for title input (Cmd+A on Mac, Ctrl+A on Windows/Linux)
+      const target = e.target as HTMLInputElement;
+      if (target === titleInputRef.current) {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+          e.preventDefault();
+          target.select();
+          return;
+        }
+        
+        // Auto-capitalize first letter for title input
+        // Check if cursor is at the start of the title input
+        if (target.selectionStart === 0 && target.selectionEnd === 0) {
+          // Cursor is at the start
+          if (e.key.length === 1 && /^[a-z]$/.test(e.key)) {
+            e.preventDefault();
+            const capitalized = e.key.toUpperCase();
+            // If title is empty, set it to the capitalized letter
+            // Otherwise, insert the capitalized letter at the start
+            if (editTitle.length === 0) {
+              setEditTitle(capitalized);
+            } else {
+              setEditTitle(capitalized + editTitle);
+            }
+            // Set cursor position after the capitalized letter
+            setTimeout(() => {
+              if (titleInputRef.current) {
+                titleInputRef.current.setSelectionRange(1, 1);
+              }
+            }, 0);
+          }
+        }
+      }
     }
   };
 
@@ -261,8 +341,23 @@ export default function CardFullEditable({
           {/* Display mode */}
           {!isEditing ? (
             <p 
-              className="leading-[normal] cursor-pointer rounded px-2 py-1 -mx-2 -my-1"
-              onClick={startEditing}
+              className="cursor-pointer rounded"
+              style={{
+                lineHeight: '1.2',
+                margin: '-4px -8px',
+                padding: '4px 8px',
+                display: 'block',
+                width: '100%',
+                fontSize: '24px',
+                fontWeight: '600',
+                fontFamily: 'var(--font-sans)',
+                color: 'var(--color-deep-grey)',
+                boxSizing: 'border-box',
+                minHeight: '28.8px',
+                height: 'auto',
+                verticalAlign: 'middle'
+              }}
+              onClick={() => startEditing('title')}
             >
               {displayTitle}
             </p>
@@ -272,7 +367,20 @@ export default function CardFullEditable({
               value={editTitle}
               onChange={handleTitleChange}
               type="text"
-              className="w-full bg-transparent border-0 rounded px-2 py-1 -mx-2 -my-1 text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none"
+              className="w-full bg-transparent border-0 rounded focus:outline-none"
+              style={{
+                lineHeight: '1.2',
+                margin: '-4px -8px',
+                padding: '4px 8px',
+                fontSize: '24px',
+                fontWeight: '600',
+                fontFamily: 'var(--font-sans)',
+                color: 'var(--color-deep-grey)',
+                boxSizing: 'border-box',
+                minHeight: '28.8px',
+                height: 'auto',
+                verticalAlign: 'middle'
+              }}
               placeholder="Note title"
               onKeyDown={handleKeyDown}
             />
@@ -302,13 +410,26 @@ export default function CardFullEditable({
         <div className="flex-1 flex flex-col font-sans font-normal min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
           {/* Display mode */}
           {!isEditing ? (
-            <div 
-              ref={contentDisplayRef}
-              className="flex-1 overflow-auto cursor-pointer rounded px-2 py-1 px-3"
-              style={{ lineHeight: '1.6' }}
-              onClick={startEditing}
-              dangerouslySetInnerHTML={{ __html: displayContent }}
-            />
+            <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+                <div 
+                  ref={contentDisplayRef}
+                  className="flex-1 overflow-auto cursor-pointer rounded"
+                  style={{ lineHeight: '1.6', minHeight: 0 }}
+                  onClick={() => startEditing('content')}
+                  dangerouslySetInnerHTML={{ __html: displayContent }}
+                />
+              </div>
+              {/* Invisible spacer to match toolbar + Save/Cancel buttons height in edit mode */}
+              {/* Toolbar: mt-2 (8px) + border (2px) + padding (8px) + button (40px) = 58px */}
+              <div className="shrink-0" style={{ height: '58px', marginTop: '8px', visibility: 'hidden' }} aria-hidden="true">
+                {/* Toolbar spacer */}
+              </div>
+              {/* Save/Cancel: mt-4 (16px) + button (40px) = 56px */}
+              <div className="flex justify-end gap-2 shrink-0" style={{ height: '40px', marginTop: '16px', visibility: 'hidden' }} aria-hidden="true">
+                {/* Save/Cancel buttons spacer */}
+              </div>
+            </div>
           ) : (
             <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
@@ -323,6 +444,7 @@ export default function CardFullEditable({
                   scrollPosition={scrollPosition}
                   enableCreateNoteFromSelection={isEditing}
                   parentThreadId={parentThreadId}
+                  onEditorReady={handleEditorReady}
                 />
               </div>
               

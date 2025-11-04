@@ -14,21 +14,67 @@ interface CardNoteProps {
 function stripHtml(html: string): string {
   if (!html) return '';
   
+  // Use a temporary DOM element to parse HTML and extract text with proper spacing
+  if (typeof document !== 'undefined') {
+    // Insert spaces between block elements before parsing
+    let processedHtml = html
+      // Convert newlines to spaces
+      .replace(/\n/g, ' ')
+      .replace(/\r/g, ' ')
+      // Ensure space between adjacent block tags
+      .replace(/(<\/p>)(<p[^>]*>)/gi, '$1 $2')
+      .replace(/(<\/p>)(<div[^>]*>)/gi, '$1 $2')
+      .replace(/(<\/div>)(<p[^>]*>)/gi, '$1 $2')
+      .replace(/(<\/div>)(<div[^>]*>)/gi, '$1 $2')
+      .replace(/(<\/h[1-6]>)(<p[^>]*>)/gi, '$1 $2')
+      .replace(/(<\/h[1-6]>)(<div[^>]*>)/gi, '$1 $2')
+      .replace(/(<\/p>)(<h[1-6][^>]*>)/gi, '$1 $2')
+      .replace(/(<\/div>)(<h[1-6][^>]*>)/gi, '$1 $2')
+      // Convert br to space
+      .replace(/<br\s*\/?>/gi, ' ');
+    
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = processedHtml;
+    
+    // Use innerText which preserves block element spacing better than textContent
+    let text = (tempDiv as HTMLElement).innerText || tempDiv.textContent || '';
+    
+    // Clean up multiple spaces and trim
+    text = text.replace(/\s+/g, ' ').trim();
+    
+    return text;
+  }
+  
+  // Fallback to regex-based approach for SSR
   let text = html
     // Remove script and style tags completely (including their content)
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    // Convert line breaks and newlines to spaces FIRST (before removing tags)
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, ' ')
+    // Insert space between closing and opening block tags (ensure space is always present)
+    .replace(/<\/p><p/gi, '</p> <p')
+    .replace(/<\/p><div/gi, '</p> <div')
+    .replace(/<\/div><p/gi, '</div> <p')
+    .replace(/<\/div><div/gi, '</div> <div')
+    // Convert block-level closing tags to placeholder (preserves word boundaries)
+    .replace(/<\/p>/gi, ' __SPACE__ ')
+    .replace(/<\/div>/gi, ' __SPACE__ ')
+    .replace(/<\/li>/gi, ' __SPACE__ ')
+    .replace(/<\/h[1-6]>/gi, ' __SPACE__ ')
     // Convert ordered lists to numbered format
     .replace(/<ol[^>]*>/gi, '')
-    .replace(/<\/ol>/gi, '')
+    .replace(/<\/ol>/gi, ' __SPACE__ ')
     .replace(/<li[^>]*>/gi, '• ')
     // Convert unordered lists to bullet format
     .replace(/<ul[^>]*>/gi, '')
-    .replace(/<\/ul>/gi, '')
-    // Handle line breaks and paragraphs
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<\/p>/gi, ' ')
+    .replace(/<\/ul>/gi, ' __SPACE__ ')
+    // Remove opening tags (after we've handled line breaks)
     .replace(/<p[^>]*>/gi, '')
+    .replace(/<div[^>]*>/gi, '')
+    .replace(/<h[1-6][^>]*>/gi, '')
     // Remove other HTML tags
     .replace(/<[^>]*>/g, '')
     // Decode HTML entities
@@ -42,7 +88,9 @@ function stripHtml(html: string): string {
     .replace(/&#x2F;/g, '/')
     .replace(/&#x60;/g, '`')
     .replace(/&#x3D;/g, '=')
-    // Clean up whitespace
+    // Replace placeholder with actual space (ensure it's always a space)
+    .replace(/__SPACE__/g, ' ')
+    // Clean up multiple spaces to single space
     .replace(/\s+/g, ' ')
     .trim();
     

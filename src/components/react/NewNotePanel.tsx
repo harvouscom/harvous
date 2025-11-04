@@ -711,7 +711,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     <>
     <form 
       onSubmit={handleSubmit}
-      className="new-note-panel h-full flex flex-col overflow-hidden"
+      className="new-note-panel h-full flex flex-col"
       style={{ 
         height: '100%',
         maxHeight: '100%',
@@ -730,7 +730,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       </div>
 
       {/* Note Content - Type-specific layouts */}
-      <div className="flex-1 flex flex-col min-h-0 mb-3.5">
+      <div className="flex-1 flex flex-col min-h-0 mb-3.5 overflow-hidden">
         {noteType === 'default' && (
           <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
             {/* Default Note Layout */}
@@ -740,6 +740,35 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Handle Select All (Cmd+A on Mac, Ctrl+A on Windows/Linux)
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+                      e.preventDefault();
+                      e.currentTarget.select();
+                      return;
+                    }
+                    
+                    // Auto-capitalize first letter
+                    const input = e.currentTarget;
+                    if (input.selectionStart === 0 && input.selectionEnd === 0) {
+                      // Cursor is at the start
+                      if (e.key.length === 1 && /^[a-z]$/.test(e.key)) {
+                        e.preventDefault();
+                        const capitalized = e.key.toUpperCase();
+                        // If title is empty, set it to the capitalized letter
+                        // Otherwise, insert the capitalized letter at the start
+                        if (title.length === 0) {
+                          setTitle(capitalized);
+                        } else {
+                          setTitle(capitalized + title);
+                        }
+                        // Set cursor position after the capitalized letter
+                        setTimeout(() => {
+                          input.setSelectionRange(1, 1);
+                        }, 0);
+                      }
+                    }
+                  }}
                   placeholder="Note title"
                   tabIndex={1}
                   className="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
