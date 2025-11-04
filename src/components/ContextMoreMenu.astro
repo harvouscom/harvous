@@ -1,5 +1,9 @@
 ---
-import ContextMoreMenu from "./react/ContextMoreMenu";
+import Menu from "./react/Menu";
+import EditIcon from "@fortawesome/fontawesome-free/svgs/solid/pen-to-square.svg";
+import EraseIcon from "@fortawesome/fontawesome-free/svgs/solid/eraser.svg";
+import CircleInfoIcon from "@fortawesome/fontawesome-free/svgs/solid/circle-info.svg";
+import { getMenuOptions } from "@/utils/menu-options";
 
 export interface Props {
   contentType: "thread" | "note" | "space" | "dashboard" | "profile";
@@ -7,9 +11,32 @@ export interface Props {
 }
 
 const { contentType = "dashboard", contentId } = Astro.props;
+
+const menuOptionsData = getMenuOptions(contentType, contentId);
+const menuOptions = menuOptionsData.map(option => {
+  let icon;
+  switch (option.action) {
+    case "editThread":
+    case "editSpace":
+      icon = EditIcon;
+      break;
+    case "eraseThread":
+    case "eraseNote":
+    case "eraseSpace":
+      icon = EraseIcon;
+      break;
+    case "seeDetails":
+      icon = CircleInfoIcon;
+      break;
+    default:
+      icon = EditIcon;
+  }
+  return { ...option, icon };
+});
 ---
 
-<ContextMoreMenu
+<Menu
+  options={menuOptions}
   contentType={contentType}
   contentId={contentId}
   client:load

@@ -239,6 +239,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   showNewNotePanel = false;
                   showNewThreadPanel = false;
                   showEditThreadPanel = false;
+                  window.dispatchEvent(new CustomEvent('closeMoreMenu'));
                 });
                 window.addEventListener('closeNoteDetailsPanel', () => {
                   showNoteDetailsPanel = false;
@@ -250,6 +251,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   showNoteDetailsPanel = false;
                   showNewNotePanel = false;
                   showNewThreadPanel = false;
+                  window.dispatchEvent(new CustomEvent('closeMoreMenu'));
                 });
                 window.addEventListener('closeEditThreadPanel', () => {
                   showEditThreadPanel = false;
@@ -263,6 +265,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   showEditThreadPanel = false;
                   localStorage.setItem('showNewNotePanel', 'true');
                   localStorage.setItem('showNewThreadPanel', 'false');
+                  window.dispatchEvent(new CustomEvent('closeMoreMenu'));
                 });
                 window.addEventListener('closeNewNotePanel', () => {
                   showNewNotePanel = false;
@@ -277,6 +280,7 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   showEditThreadPanel = false;
                   localStorage.setItem('showNewThreadPanel', 'true');
                   localStorage.setItem('showNewNotePanel', 'false');
+                  window.dispatchEvent(new CustomEvent('closeMoreMenu'));
                 });
                 window.addEventListener('closeNewThreadPanel', () => {
                   showNewThreadPanel = false;

@@ -36,12 +36,18 @@ const textColor = getThreadTextColorCSS(colorName);
 <div class={`box-border content-stretch flex flex-col items-start justify-start overflow-clip pb-6 pt-0 px-0 relative rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full ${className}`} {...(id ? { id } : {})}>
   <!-- Header section with dynamic background -->
   <div class="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full" style={`background-color: ${headerBgColor}; color: ${textColor}`}>
-    <div class={`basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] ${centerTitle ? 'text-center' : ''}`}>
-      <p class="leading-[normal]">{title}</p>
-    </div>
-    {subtitle && (
-      <div class="font-sans font-semibold relative shrink-0 text-[14px] text-nowrap">
-        <p class="leading-[normal] whitespace-pre">{subtitle}</p>
+    {subtitle ? (
+      <>
+        <div class={`basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] ${centerTitle ? 'text-center' : ''}`}>
+          <p class="leading-[normal]">{title}</p>
+        </div>
+        <div class="font-sans font-semibold relative shrink-0 text-[14px] text-nowrap">
+          <p class="leading-[normal] whitespace-pre">{subtitle}</p>
+        </div>
+      </>
+    ) : (
+      <div class="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
+        <p class="leading-[normal]">{title}</p>
       </div>
     )}
   </div>

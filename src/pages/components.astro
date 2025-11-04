@@ -13,7 +13,9 @@ import Avatar from "@/components/Avatar.astro";
 import SearchInput from "@/components/SearchInput.astro";
 import TitleInput from "@/components/TitleInput.astro";
 import TabNav from "@/components/TabNav.astro";
-import MoreMenu from "@/components/MoreMenu.astro";
+import Menu from "@/components/react/Menu";
+import ThreadIcon from "@fortawesome/fontawesome-free/svgs/solid/layer-group.svg";
+import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky.svg";
 import Drawer from "@/components/Drawer.astro";
 import OverlappingNotes from "@/components/OverlappingNotes.astro";
 
@@ -211,10 +213,16 @@ import Welcome from "@/components/Welcome.astro";
             </div>
           </div>
 
-          <!-- MoreMenu Component -->
+          <!-- Menu Component -->
           <div class="bg-white rounded-2xl p-6 shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]">
-            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">MoreMenu</h3>
-            <MoreMenu />
+            <h3 class="text-lg font-semibold text-[var(--color-deep-grey)] mb-4">Menu</h3>
+            <Menu 
+              client:load 
+              options={[
+                { action: "openNewThreadPanel", label: "New Thread", icon: ThreadIcon },
+                { action: "openNewNotePanel", label: "New Note", icon: NoteStickyIcon }
+              ]}
+            />
           </div>
 
           <!-- Drawer Component -->

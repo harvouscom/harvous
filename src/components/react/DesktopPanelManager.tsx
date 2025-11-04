@@ -104,6 +104,7 @@ export default function DesktopPanelManager({
   useEffect(() => {
     const handleOpenNewNote = () => {
       dispatch({ type: 'OPEN_NEW_NOTE' });
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
     
     const handleCloseNewNote = () => {
@@ -112,6 +113,7 @@ export default function DesktopPanelManager({
     
     const handleOpenNewThread = () => {
       dispatch({ type: 'OPEN_NEW_THREAD' });
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
     
     const handleCloseNewThread = () => {
@@ -120,6 +122,7 @@ export default function DesktopPanelManager({
     
     const handleOpenNoteDetails = () => {
       dispatch({ type: 'OPEN_NOTE_DETAILS' });
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
     
     const handleCloseNoteDetails = () => {
@@ -128,6 +131,7 @@ export default function DesktopPanelManager({
     
     const handleOpenEditThread = () => {
       dispatch({ type: 'OPEN_EDIT_THREAD' });
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
     
     const handleCloseEditThread = () => {

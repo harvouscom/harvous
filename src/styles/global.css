@@ -309,6 +309,47 @@ button:active[class*="bg-[var(--color-stone-grey)]"] {
     0px 4px 0px 0px #00000040 inset;
 }
 
+/* SquareButton menu positioning - must be global for React components */
+.square-button-container {
+  position: relative;
+  display: inline-block;
+}
+
+.more-menu-container {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  z-index: 20;
+}
+
+/* Mobile layout - force right alignment for Add button menu */
+@media (max-width: 1159px) {
+  .more-menu-container {
+    right: 0;
+    left: auto;
+  }
+}
+
+.more-menu-container.right-positioned {
+  position: absolute;
+  left: 76px; /* 64px button width + 12px gap */
+  top: 0;
+  bottom: auto;
+  z-index: 20;
+}
+
+/* Mobile layout - align menu to the right since buttons are on the right */
+@media (max-width: 1159px) {
+  .more-menu-container.right-positioned {
+    position: absolute;
+    right: 0;
+    left: auto;
+    bottom: calc(100% + 12px);
+    top: auto;
+    z-index: 20;
+    transform: translateX(calc(100% - 64px)); /* Align menu right edge with button right edge */
+  }
+}
+
 /* Common input and color selection styles */
 .search-input {
   background: var(--color-gradient-gray);

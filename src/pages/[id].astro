@@ -769,8 +769,9 @@ if (!content) {
           ) : (
             <CardStack 
               title={pageTitle} 
-              subtitle={pageContent} 
+              subtitle={isThread ? undefined : pageContent} 
               headerBgColor={isThread && currentThread?.color ? `var(--color-${currentThread.color})` : "var(--color-paper)"}
+              centerTitle={isThread}
             >
               <div class="flex flex-col gap-6">
                 

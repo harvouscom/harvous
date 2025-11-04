@@ -24,6 +24,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
       window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
         detail: { type: 'note' } 
       }));
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     });
     
     window.addEventListener('openNewThreadPanel', () => {
@@ -32,6 +33,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
       window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
         detail: { type: 'thread' } 
       }));
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     });
     
     window.addEventListener('openNoteDetailsPanel', () => {
@@ -39,6 +41,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
       window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
         detail: { type: 'noteDetails' } 
       }));
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     });
     
     window.addEventListener('openProfilePanel', (event) => {

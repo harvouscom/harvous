@@ -67,13 +67,8 @@ export default function ContextMoreMenu({
 
   // Close the parent menu container (SquareButton)
   const closeParentMenu = () => {
-    const parentContainer = document.querySelector('.square-button-container');
-    if (parentContainer && (window as any).Alpine) {
-      const alpineData = (window as any).Alpine.$data(parentContainer);
-      if (alpineData) {
-        alpineData.isOpen = false;
-      }
-    }
+    // Dispatch the closeMoreMenu event that SquareButton listens for
+    window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     // Also call onClose if provided
     if (onClose) {
       onClose();
@@ -224,22 +219,26 @@ export default function ContextMoreMenu({
     <>
       <div className="context-more-menu bg-white rounded-xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] overflow-hidden">
         {menuOptions.map((option, index) => (
-          <button
-            key={index}
-            onClick={() => handleAction(option.action, option.label)}
-            className="context-more-menu-item flex items-center gap-3 py-[18px] px-4 pb-5 hover:bg-gray-50 transition-colors duration-150 cursor-pointer w-full text-left"
-          >
-            <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
-              <img
-                src={option.icon.src}
-                alt=""
-                className="block max-w-none w-full h-full"
-              />
-            </div>
-            <span className="text-subtitle text-[var(--color-deep-grey)] whitespace-nowrap">
-              {option.label}
-            </span>
-          </button>
+          <React.Fragment key={index}>
+            {index > 0 && (
+              <div className="context-more-menu-separator border-t border-gray-50" />
+            )}
+            <button
+              onClick={() => handleAction(option.action, option.label)}
+              className="context-more-menu-item flex items-center gap-3 py-[18px] px-4 pb-5 hover:bg-gray-50 transition-colors duration-150 cursor-pointer w-full text-left"
+            >
+              <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
+                <img
+                  src={option.icon.src}
+                  alt=""
+                  className="block max-w-none w-full h-full"
+                />
+              </div>
+              <span className="text-subtitle text-[var(--color-deep-grey)] whitespace-nowrap">
+                {option.label}
+              </span>
+            </button>
+          </React.Fragment>
         ))}
       </div>
 
