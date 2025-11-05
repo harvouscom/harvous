@@ -83,6 +83,10 @@ export const DELETE: APIRoute = async ({ locals }) => {
       
       if (!clerkSecretKey) {
         console.warn('CLERK_SECRET_KEY not found, skipping Clerk user deletion');
+        // In production, this should be set, but we'll continue with database deletion
+        if (import.meta.env.PROD) {
+          console.error('⚠️ WARNING: CLERK_SECRET_KEY not found in production environment');
+        }
       } else {
         // Use Clerk REST API to delete user
         const clerkApiUrl = `https://api.clerk.com/v1/users/${userId}`;
@@ -95,15 +99,39 @@ export const DELETE: APIRoute = async ({ locals }) => {
         });
 
         if (!response.ok) {
-          throw new Error(`Clerk API error: ${response.statusText}`);
+          const errorText = await response.text();
+          console.error('❌ Clerk API error during user deletion:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText,
+            userId: userId,
+            environment: import.meta.env.MODE,
+            isProduction: import.meta.env.PROD
+          });
+          
+          // In production, log but don't throw - database is already cleaned
+          // This ensures the user sees success even if Clerk deletion fails
+          // The error is logged for monitoring
+          if (import.meta.env.PROD) {
+            console.error('⚠️ WARNING: Clerk user deletion failed, but database deletion succeeded');
+          }
+        } else {
+          console.log(`✅ Deleted Clerk user ${userId}`);
         }
-
-        console.log(`Deleted Clerk user ${userId}`);
       }
     } catch (clerkError: any) {
-      console.error('Error deleting Clerk user:', clerkError);
+      console.error('❌ Error deleting Clerk user:', {
+        error: clerkError.message,
+        stack: clerkError.stack,
+        userId: userId,
+        environment: import.meta.env.MODE,
+        isProduction: import.meta.env.PROD
+      });
       // Continue even if Clerk deletion fails - database is already cleaned
-      // Return success but log the error
+      // Return success but log the error for monitoring
+      if (import.meta.env.PROD) {
+        console.error('⚠️ WARNING: Exception during Clerk user deletion, but database deletion succeeded');
+      }
     }
 
     return new Response(JSON.stringify({ 
