@@ -406,7 +406,7 @@ export default function CardFullEditable({
       </div>
       
       {/* Content */}
-      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden' }}>
+      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px' }}>
         <div className="flex-1 flex flex-col font-sans font-normal min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
           {/* Display mode */}
           {!isEditing ? (
@@ -415,19 +415,10 @@ export default function CardFullEditable({
                 <div 
                   ref={contentDisplayRef}
                   className="flex-1 overflow-auto cursor-pointer rounded"
-                  style={{ lineHeight: '1.6', minHeight: 0 }}
+                  style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
                   onClick={() => startEditing('content')}
                   dangerouslySetInnerHTML={{ __html: displayContent }}
                 />
-              </div>
-              {/* Invisible spacer to match toolbar + Save/Cancel buttons height in edit mode */}
-              {/* Toolbar: mt-2 (8px) + border (2px) + padding (8px) + button (40px) = 58px */}
-              <div className="shrink-0" style={{ height: '58px', marginTop: '8px', visibility: 'hidden' }} aria-hidden="true">
-                {/* Toolbar spacer */}
-              </div>
-              {/* Save/Cancel: mt-4 (16px) + button (40px) = 56px */}
-              <div className="flex justify-end gap-2 shrink-0" style={{ height: '40px', marginTop: '16px', visibility: 'hidden' }} aria-hidden="true">
-                {/* Save/Cancel buttons spacer */}
               </div>
             </div>
           ) : (
@@ -449,7 +440,7 @@ export default function CardFullEditable({
               </div>
               
               {/* Save/Cancel buttons */}
-              <div className="flex justify-end gap-2 mt-4 shrink-0">
+              <div className="flex justify-end gap-2 mt-4 mb-3 shrink-0">
                 <ButtonSmall
                   state="Secondary"
                   onClick={cancelEdit}
