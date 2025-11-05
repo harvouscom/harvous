@@ -48,6 +48,18 @@ The database structure has been refined and optimized:
 - Enhanced dependency management with specific versioning
 - Added new utilities like `isomorphic-dompurify` for security
 
+**Automatic Version Bumping System:**
+- ✅ **Version Management**: Automatic version bumping based on conventional commit messages
+- ✅ **Current Version**: 0.10.0 (displays in Get Support panel)
+- ✅ **Git Hook**: Post-commit hook automatically bumps version after commits
+- ✅ **Conventional Commits**: 
+  - `feat:` → minor bump (0.10.0 → 0.11.0)
+  - `fix:` → patch bump (0.10.0 → 0.10.1)
+  - `BREAKING CHANGE` or `!` → major bump (0.10.0 → 1.0.0)
+- ✅ **Scripts**: `npm run version:bump` (manual), `npm run version:check` (check version)
+- **Setup Required**: Git hook at `.git/hooks/post-commit` needs to be set up manually (not tracked by git)
+- **Files**: `scripts/bump-version.js` - Version bumping logic
+
 ## Core Functionality Improvements
 
 ### 3. Data Management System
@@ -420,6 +432,42 @@ The app is now in a **MUCH MORE ADVANCED** state than before. We've achieved:
 **The foundation is SOLID and we're 85% to V1 release!** 🚀
 
 ## 🎯 **CURRENT PRIORITIES FOR CAM**
+
+### **⚙️ SETUP REQUIRED: Version Bumping System**
+
+**Git Hook Setup** (One-time setup):
+Since `.git/hooks/` is not tracked by git, you need to set up the post-commit hook manually:
+
+1. **Copy the hook file** (if not already present):
+   ```bash
+   # Check if hook exists
+   ls -la .git/hooks/post-commit
+   
+   # If missing, create it:
+   cat > .git/hooks/post-commit << 'EOF'
+   #!/bin/sh
+   node scripts/bump-version.js
+   EOF
+   chmod +x .git/hooks/post-commit
+   ```
+
+2. **Test the system**:
+   ```bash
+   # Check current version
+   npm run version:check
+   
+   # Make a test commit with conventional commit message
+   git commit -m "feat: test feature" --allow-empty
+   # Version should auto-bump from 0.10.0 → 0.11.0
+   ```
+
+3. **How it works**:
+   - After each commit, the hook runs `scripts/bump-version.js`
+   - Script reads your commit message and determines bump type
+   - Updates `package.json` automatically
+   - Stages `package.json` for you to include in commit (amend or new commit)
+
+**Important**: The hook skips version bump commits (starts with "chore: bump version") to avoid recursion.
 
 ### **🚨 IMMEDIATE FOCUS (Week 2): CRITICAL ISSUES FIX**
 **These issues are BLOCKING V1 release and must be fixed first:**

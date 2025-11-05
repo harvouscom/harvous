@@ -1,7 +1,7 @@
 {
   "name": "harvous",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.10.0",
   "engines": {
     "node": ">=20.6.1"
   },
@@ -15,7 +15,9 @@
     "db:check": "node scripts/db-sync.js",
     "predeploy": "npm run db:push",
     "deploy": "npm run build",
-    "precommit": "npm run db:check"
+    "precommit": "npm run db:check",
+    "version:bump": "node scripts/bump-version.js",
+    "version:check": "node -e \"console.log(require('./package.json').version)\""
   },
   "dependencies": {
     "@alpinejs/collapse": "^3.14.9",

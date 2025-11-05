@@ -1,0 +1,18 @@
+---
+import GetSupportPanel from './react/GetSupportPanel';
+import packageJson from '../../package.json';
+
+interface Props {
+  // No props needed for this component
+}
+
+const { } = Astro.props;
+---
+
+<div class="get-support-panel">
+  <GetSupportPanel 
+    client:only="react"
+    version={packageJson.version}
+  />
+</div>
+

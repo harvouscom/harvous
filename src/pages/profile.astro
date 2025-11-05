@@ -16,6 +16,7 @@ import EditNameColorPanel from "@/components/EditNameColorPanelReact.astro";
 import EmailPasswordPanel from "@/components/EmailPasswordPanelReact.astro";
 import MyDataPanel from "@/components/MyDataPanelReact.astro";
 import MyChurchPanel from "@/components/MyChurchPanelReact.astro";
+import GetSupportPanel from "@/components/GetSupportPanelReact.astro";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -291,10 +292,8 @@ const contentId = "profile";
       <MyDataPanel />
     </div>
     
-    <div id="getSupport-panel" style="display: none;">
-      <div class="text-center text-[var(--color-deep-grey)] p-8">
-        <p>Get Support panel coming soon...</p>
-      </div>
+    <div id="getSupport-panel" class="h-full" style="display: none;">
+      <GetSupportPanel />
     </div>
   </div>
 
