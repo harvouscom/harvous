@@ -7,7 +7,8 @@ import "@fontsource/reddit-mono/500.css";
 import "@fontsource/reddit-mono/600.css";
 import "trix/dist/trix.css";
 import "sonner/dist/styles.css";
-import ToastProvider from "@/components/react/ToastProvider.tsx";
+// Temporarily disabled while exploring better Harvous approach
+// import ToastProvider from "@/components/react/ToastProvider.tsx";
 import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanelSimple from "@/components/NewNotePanelSimple.astro";
 import NewThreadPanelReact from "@/components/react/NewThreadPanel.tsx";
@@ -144,7 +145,8 @@ const showMoreButton = shouldShowMoreButton(contentType);
   <body 
     class={`font-sans bg-[var(--color-light-paper)] ${classNames}`}
   >
-    <ToastProvider client:load />
+    <!-- Temporarily disabled while exploring better Harvous approach -->
+    <!-- <ToastProvider client:load /> -->
 
     <div class="h-[100svh] p-3 min-[1160px]:p-6" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->
