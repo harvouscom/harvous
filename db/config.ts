@@ -94,6 +94,10 @@ const UserMetadata = defineTable({
     email: column.text({ optional: true }),
     profileImageUrl: column.text({ optional: true }),
     clerkDataUpdatedAt: column.date({ optional: true }), // When we last fetched from Clerk
+    // Church information
+    churchName: column.text({ optional: true }),
+    churchCity: column.text({ optional: true }),
+    churchState: column.text({ optional: true }),
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
   }

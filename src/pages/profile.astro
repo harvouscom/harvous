@@ -14,6 +14,8 @@ import { getThreadGradientCSS } from "@/utils/colors";
 import FaBoltIcon from "@fortawesome/fontawesome-free/svgs/solid/bolt.svg";
 import EditNameColorPanel from "@/components/EditNameColorPanelReact.astro";
 import EmailPasswordPanel from "@/components/EmailPasswordPanelReact.astro";
+import MyDataPanel from "@/components/MyDataPanelReact.astro";
+import MyChurchPanel from "@/components/MyChurchPanelReact.astro";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -281,16 +283,12 @@ const contentId = "profile";
       <EmailPasswordPanel />
     </div>
     
-    <div id="myChurch-panel" style="display: none;">
-      <div class="text-center text-[var(--color-deep-grey)] p-8">
-        <p>My Church panel coming soon...</p>
-      </div>
+    <div id="myChurch-panel" class="h-full" style="display: none;">
+      <MyChurchPanel />
     </div>
     
-    <div id="myData-panel" style="display: none;">
-      <div class="text-center text-[var(--color-deep-grey)] p-8">
-        <p>My Data panel coming soon...</p>
-      </div>
+    <div id="myData-panel" class="h-full flex flex-col" style="display: none;">
+      <MyDataPanel />
     </div>
     
     <div id="getSupport-panel" style="display: none;">
@@ -572,10 +570,21 @@ const contentId = "profile";
       (panel as HTMLElement).style.display = 'none';
     });
     
+    // Hide default panel
+    const defaultPanel = document.getElementById('default-panel') as HTMLElement | null;
+    if (defaultPanel) {
+      defaultPanel.style.display = 'none';
+    }
+    
     // Show the requested panel
     const targetPanel = document.getElementById(`${panelName}-panel`) as HTMLElement | null;
     if (targetPanel) {
-      targetPanel.style.display = 'block';
+      // Use flex for panels that need it (like myData-panel)
+      if (panelName === 'myData') {
+        targetPanel.style.display = 'flex';
+      } else {
+        targetPanel.style.display = 'block';
+      }
     }
   }
   

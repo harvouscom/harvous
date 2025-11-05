@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getCachedUserData } from '@/utils/user-cache';
+import { db, UserMetadata, eq } from 'astro:db';
 
 export const GET: APIRoute = async ({ locals }) => {
   console.log('🚀 GET-PROFILE API CALLED - Server-side debug started');
@@ -29,6 +30,31 @@ export const GET: APIRoute = async ({ locals }) => {
     
     console.log('get-profile API - userData:', userData);
     
+    // Get church data from UserMetadata table
+    let churchData = {
+      churchName: null as string | null,
+      churchCity: null as string | null,
+      churchState: null as string | null
+    };
+    
+    try {
+      const userMetadata = await db.select()
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, userId))
+        .get();
+      
+      if (userMetadata) {
+        churchData = {
+          churchName: userMetadata.churchName || null,
+          churchCity: userMetadata.churchCity || null,
+          churchState: userMetadata.churchState || null
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching church data from database:', error);
+      // Don't fail the request if church data fetch fails
+    }
+    
     // Get user email verification status from Clerk API
     let emailVerified = false;
     
@@ -56,7 +82,10 @@ export const GET: APIRoute = async ({ locals }) => {
       lastName: userData.lastName, 
       userColor: userData.userColor, 
       email: userData.email, 
-      emailVerified 
+      emailVerified,
+      churchName: churchData.churchName,
+      churchCity: churchData.churchCity,
+      churchState: churchData.churchState
     });
 
     return new Response(JSON.stringify({ 
@@ -64,7 +93,10 @@ export const GET: APIRoute = async ({ locals }) => {
       lastName: userData.lastName,
       userColor: userData.userColor,
       email: userData.email,
-      emailVerified
+      emailVerified,
+      churchName: churchData.churchName,
+      churchCity: churchData.churchCity,
+      churchState: churchData.churchState
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

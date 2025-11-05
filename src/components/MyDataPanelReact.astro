@@ -1,0 +1,16 @@
+---
+import MyDataPanel from './react/MyDataPanel';
+
+interface Props {
+  // No props needed for now
+}
+
+const {} = Astro.props;
+---
+
+<div class="my-data-panel h-full w-full">
+  <MyDataPanel 
+    client:only="react"
+  />
+</div>
+
