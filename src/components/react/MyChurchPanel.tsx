@@ -6,13 +6,14 @@ interface MyChurchPanelProps {
   onClose?: () => void;
 }
 
+
 export default function MyChurchPanel({ 
   onClose 
 }: MyChurchPanelProps) {
   const [formData, setFormData] = useState({
     churchName: '',
     churchCity: '',
-    churchState: ''
+    churchState: '' // State/Province/Region (full name, not abbreviation)
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -65,12 +66,7 @@ export default function MyChurchPanel({
   // Validate form data (all fields optional)
   const validateForm = () => {
     const errors: Record<string, string> = {};
-    
-    // Optional validation: if state is provided, it should be 2 characters (abbreviation)
-    if (formData.churchState.trim() && formData.churchState.trim().length !== 2) {
-      errors.churchState = 'State should be a 2-letter abbreviation';
-    }
-    
+    // All fields are optional, no validation needed
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -90,7 +86,7 @@ export default function MyChurchPanel({
       console.log('📤 MyChurchPanel: Data being sent:', {
         churchName: formData.churchName.trim(),
         churchCity: formData.churchCity.trim(),
-        churchState: formData.churchState.trim().toUpperCase()
+        churchState: formData.churchState.trim()
       });
       
       const response = await fetch('/api/user/update-church', {
@@ -101,7 +97,7 @@ export default function MyChurchPanel({
         body: JSON.stringify({
           churchName: formData.churchName.trim(),
           churchCity: formData.churchCity.trim(),
-          churchState: formData.churchState.trim().toUpperCase()
+          churchState: formData.churchState.trim()
         })
       });
 
@@ -393,10 +389,10 @@ export default function MyChurchPanel({
                   )}
                 </div>
                 
-                {/* City and State Inputs - Side by Side */}
-                <div className="flex gap-3 items-start w-full">
-                  {/* City Input - 300px width */}
-                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-[300px]">
+                {/* City and State/Province/Region Inputs - Side by Side with wrapping */}
+                <div className="flex flex-wrap gap-3 items-start w-full">
+                  {/* City Input - Flex grow with min-width */}
+                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] flex-1 min-w-[230px]">
                     <input 
                       type="text"
                       value={formData.churchCity}
@@ -411,14 +407,13 @@ export default function MyChurchPanel({
                     )}
                   </div>
                   
-                  {/* State Input - Flex grow */}
-                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] flex-1">
+                  {/* State/Province/Region Input - Flex grow with min-width */}
+                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] flex-1 min-w-[230px]">
                     <input 
                       type="text"
                       value={formData.churchState}
-                      onChange={(e) => handleInputChange('churchState', e.target.value.toUpperCase())}
-                      placeholder="State"
-                      maxLength={2}
+                      onChange={(e) => handleInputChange('churchState', e.target.value)}
+                      placeholder="State/Province/Region"
                       className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
                     />
                     {validationErrors.churchState && (

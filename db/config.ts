@@ -97,7 +97,8 @@ const UserMetadata = defineTable({
     // Church information
     churchName: column.text({ optional: true }),
     churchCity: column.text({ optional: true }),
-    churchState: column.text({ optional: true }),
+    churchState: column.text({ optional: true }), // State/Province/Region (full name, not abbreviation)
+    churchCountry: column.text({ optional: true }), // ISO 3-letter country code (e.g., 'USA', 'CAN')
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
   }
