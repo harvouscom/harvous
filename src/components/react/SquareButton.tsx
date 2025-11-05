@@ -7,6 +7,7 @@ import CircleInfoIcon from "@fortawesome/fontawesome-free/svgs/solid/circle-info
 import XmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 import PlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
 import AngleLeftIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-left.svg";
+import AngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down.svg";
 import EllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
 import MagnifyingGlassIcon from "@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg";
 import Menu from './Menu';
@@ -20,6 +21,7 @@ interface SquareButtonProps {
   withMenu?: boolean;
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
   contentId?: string;
+  inBottomSheet?: boolean;
 }
 
 export default function SquareButton({
@@ -29,7 +31,8 @@ export default function SquareButton({
   type = "button",
   withMenu = false,
   contentType = "dashboard",
-  contentId
+  contentId,
+  inBottomSheet = false
 }: SquareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -175,7 +178,7 @@ export default function SquareButton({
       case "Back":
         return (
           <img
-            src={AngleLeftIcon.src}
+            src={inBottomSheet ? AngleDownIcon.src : AngleLeftIcon.src}
             alt="Back"
             className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125"
           />

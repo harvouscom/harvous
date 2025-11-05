@@ -4,11 +4,13 @@ import ChurchIcon from "@fortawesome/fontawesome-free/svgs/solid/church.svg";
 
 interface MyChurchPanelProps {
   onClose?: () => void;
+  inBottomSheet?: boolean;
 }
 
 
 export default function MyChurchPanel({ 
-  onClose 
+  onClose,
+  inBottomSheet = false
 }: MyChurchPanelProps) {
   const [formData, setFormData] = useState({
     churchName: '',
@@ -345,6 +347,7 @@ export default function MyChurchPanel({
           <SquareButton 
             variant="Back"
             onClick={handleClose}
+            inBottomSheet={inBottomSheet}
           />
         </div>
       </div>
@@ -434,6 +437,7 @@ export default function MyChurchPanel({
           <SquareButton 
             variant="Back"
             onClick={handleClose}
+            inBottomSheet={inBottomSheet}
           />
           
           {/* Add Church / Save Changes button - Button Default variant */}

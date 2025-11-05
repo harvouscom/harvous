@@ -10,6 +10,7 @@ import SquareButton from "@/components/SquareButton.astro";
 import Avatar from "@/components/Avatar.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
+import RecentSearches from "@/components/react/RecentSearches";
 import { db, Notes, Threads, Tags, NoteTags, eq, and, or, like, desc, count } from "astro:db";
 import { getThreadColorCSS } from "@/utils/colors";
 
@@ -580,53 +581,7 @@ if (query.trim()) {
             <div class="flex flex-col gap-6">
 
               <!-- Recent Searches -->
-              <div class="flex flex-col gap-3" x-data="{ recentSearches: [] }" x-init="
-                const updateRecentSearches = () => {
-                  const stored = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
-                  // Handle both old format (strings) and new format (objects)
-                  recentSearches = stored.map(item => {
-                    if (typeof item === 'string') {
-                      return { term: item, count: 0 };
-                    }
-                    return item;
-                  }).slice(0, 5);
-                };
-                updateRecentSearches();
-                
-                // Listen for updates when items are removed or counts are updated
-                window.addEventListener('recent-searches-updated', updateRecentSearches);
-              ">
-                <div x-show="recentSearches.length > 0" class="flex flex-col gap-3">
-                  <div class="font-sans font-semibold text-[#4a473d] text-[16px] leading-[1.2]">
-                    <p>Recent searches</p>
-                  </div>
-                  <div class="flex flex-col gap-2">
-                    <template x-for="search in recentSearches" :key="search.term">
-                      <div class="recent-search-item">
-                        <div class="relative nav-item-container">
-                          <a :href="`/search?q=${encodeURIComponent(search.term)}`" class="block">
-                            <button class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
-                              <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                                <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap" x-text="search.term"></span>
-                                <div class="flex items-center justify-center p-[20px]">
-                                  <div class="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                                    <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number" x-text="search.count"></span>
-                                  </div>
-                                </div>
-                              </div>
-                            </button>
-                          </a>
-                          <div onclick="handleCloseClick(event, this)" class="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer" :data-item-id="search.term">
-                            <svg class="w-4 h-4 fill-current" style="color: var(--color-deep-grey);" viewBox="0 0 384 512">
-                              <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </div>
+              <RecentSearches client:load="react" />
             </div>
           )}
         </div>
@@ -676,16 +631,7 @@ if (query.trim()) {
     transform: scale(0.98);
   }
 
-  /* Close icon hover states for recent searches */
-  .nav-item-container:hover .badge-count {
-    display: none !important;
-  }
-  .nav-item-container:hover .close-icon {
-    display: flex !important;
-  }
-  .close-icon {
-    display: none;
-  }
+  /* Close icon hover states handled by RecentSearches React component */
 </style>
 
 <script>
@@ -706,7 +652,8 @@ if (query.trim()) {
     });
   });
 
-  // Function to remove a search term from recent searches
+  // Recent searches functionality is now handled by RecentSearches React component
+  // Keep removeFromRecentSearches globally available for updateCurrentSearchCount compatibility
   function removeFromRecentSearches(searchTerm: string) {
     const recentSearches = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
     const updatedSearches = recentSearches.filter((search: any) => {
@@ -716,11 +663,11 @@ if (query.trim()) {
     });
     localStorage.setItem('harvous-recent-searches', JSON.stringify(updatedSearches));
     
-    // Trigger Alpine.js reactivity by dispatching a custom event
+    // Trigger reactivity by dispatching a custom event
     window.dispatchEvent(new CustomEvent('recent-searches-updated'));
   }
 
-  // Make function globally available
+  // Make function globally available for compatibility
   (window as any).removeFromRecentSearches = removeFromRecentSearches;
 
   // Update result count for current search

@@ -7,13 +7,15 @@ interface EditNameColorPanelProps {
   lastName?: string;
   selectedColor?: ThreadColor;
   onClose?: () => void;
+  inBottomSheet?: boolean;
 }
 
 export default function EditNameColorPanel({ 
   firstName = '', 
   lastName = '', 
   selectedColor = 'paper',
-  onClose 
+  onClose,
+  inBottomSheet = false
 }: EditNameColorPanelProps) {
   const [formData, setFormData] = useState({
     firstName: firstName,
@@ -337,6 +339,7 @@ export default function EditNameColorPanel({
           <SquareButton 
             variant="Back"
             onClick={handleClose}
+            inBottomSheet={inBottomSheet}
           />
           
           {/* Save Changes button - Button Default variant */}

@@ -8,13 +8,15 @@ interface EditThreadPanelProps {
   initialTitle?: string;
   initialColor?: ThreadColor;
   onClose?: () => void;
+  inBottomSheet?: boolean;
 }
 
 export default function EditThreadPanel({ 
   threadId,
   initialTitle = '', 
   initialColor = 'paper',
-  onClose 
+  onClose,
+  inBottomSheet = false
 }: EditThreadPanelProps) {
   const [formData, setFormData] = useState({
     title: initialTitle,
@@ -309,6 +311,7 @@ export default function EditThreadPanel({
           <SquareButton 
             variant="Back"
             onClick={handleClose}
+            inBottomSheet={inBottomSheet}
           />
           
           {/* Save Changes button - Button Default variant */}

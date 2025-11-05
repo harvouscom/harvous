@@ -8,6 +8,7 @@ interface GetSupportPanelProps {
   helpCenterUrl?: string;
   supportUrl?: string;
   feedbackUrl?: string;
+  inBottomSheet?: boolean;
 }
 
 export default function GetSupportPanel({ 
@@ -15,7 +16,8 @@ export default function GetSupportPanel({
   version = '0.10.0',
   helpCenterUrl = 'https://help.harvous.com',
   supportUrl = 'https://support.harvous.com',
-  feedbackUrl = 'https://feedback.harvous.com'
+  feedbackUrl = 'https://feedback.harvous.com',
+  inBottomSheet = false
 }: GetSupportPanelProps) {
   // Handle close
   const handleClose = () => {
@@ -165,6 +167,7 @@ export default function GetSupportPanel({
         <SquareButton 
           variant="Back"
           onClick={handleClose}
+          inBottomSheet={inBottomSheet}
         />
       </div>
     </div>

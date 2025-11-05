@@ -3,10 +3,12 @@ import SquareButton from './SquareButton';
 
 interface EmailPasswordPanelProps {
   onClose?: () => void;
+  inBottomSheet?: boolean;
 }
 
 export default function EmailPasswordPanel({ 
-  onClose 
+  onClose,
+  inBottomSheet = false
 }: EmailPasswordPanelProps) {
   const [formData, setFormData] = useState({
     newEmail: '',
@@ -285,6 +287,7 @@ export default function EmailPasswordPanel({
           <SquareButton 
             variant="Back"
             onClick={handleClose}
+            inBottomSheet={inBottomSheet}
           />
           
           {/* Save Changes button - Button Default variant */}

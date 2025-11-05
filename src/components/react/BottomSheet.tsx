@@ -11,6 +11,10 @@ import NewThreadPanel from './NewThreadPanel';
 import NoteDetailsPanel from './NoteDetailsPanel';
 import EditNameColorPanel from './EditNameColorPanel';
 import EditThreadPanel from './EditThreadPanel';
+import EmailPasswordPanel from './EmailPasswordPanel';
+import MyChurchPanel from './MyChurchPanel';
+import MyDataPanel from './MyDataPanel';
+import GetSupportPanel from './GetSupportPanel';
 
 // Extend the Window interface to include custom functions
 declare global {
@@ -168,6 +172,19 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, [isOpen, openBottomSheet, isVisible]);
 
+  // Prevent background scrolling when bottom sheet is open
+  useEffect(() => {
+    if (isVisible) {
+      document.body.classList.add('bottom-sheet-open');
+    } else {
+      document.body.classList.remove('bottom-sheet-open');
+    }
+    
+    return () => {
+      document.body.classList.remove('bottom-sheet-open');
+    };
+  }, [isVisible]);
+
   // Handle animation when sheet opens/closes
   useEffect(() => {
     if (isVisible) {
@@ -196,7 +213,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }}>
       <SheetContent 
         side="bottom" 
-        className="h-[90vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content"
+        className="h-[90vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
         style={{ 
           paddingBottom: '12px',
           paddingTop: '20px',
@@ -255,6 +272,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}
+                inBottomSheet={true}
               />
             </div>
           )}
@@ -270,6 +288,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   onClose={() => {
                     window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
                   }}
+                  inBottomSheet={true}
                 />
               )}
             </div>
@@ -278,36 +297,48 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* Get Support Panel */}
           {drawerType === 'getSupport' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              <div className="text-center text-[var(--color-deep-grey)] p-8">
-                <p>Get Support panel coming soon...</p>
-              </div>
+              <GetSupportPanel 
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+                inBottomSheet={true}
+              />
             </div>
           )}
           
           {/* Email & Password Panel */}
           {drawerType === 'emailPassword' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              <div className="text-center text-[var(--color-deep-grey)] p-8">
-                <p>Email & Password panel coming soon...</p>
-              </div>
+              <EmailPasswordPanel 
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+                inBottomSheet={true}
+              />
             </div>
           )}
           
           {/* My Church Panel */}
           {drawerType === 'myChurch' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              <div className="text-center text-[var(--color-deep-grey)] p-8">
-                <p>My Church panel coming soon...</p>
-              </div>
+              <MyChurchPanel 
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+                inBottomSheet={true}
+              />
             </div>
           )}
           
           {/* My Data Panel */}
           {drawerType === 'myData' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              <div className="text-center text-[var(--color-deep-grey)] p-8">
-                <p>My Data panel coming soon...</p>
-              </div>
+              <MyDataPanel 
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+                inBottomSheet={true}
+              />
             </div>
           )}
         </div>
