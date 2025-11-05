@@ -71,12 +71,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const pendingThreadStr = sessionStorage.getItem('harvous-pending-thread');
         if (pendingThreadStr) {
           const pendingThread = JSON.parse(pendingThreadStr);
-          console.log('NavigationContext: Found pending thread in sessionStorage:', pendingThread.id);
           
           // Check if thread is already in history
           const exists = parsed.some((item: NavigationItem) => item.id === pendingThread.id);
           if (!exists) {
-            console.log('NavigationContext: Adding pending thread to history');
             parsed.push(pendingThread);
             // Update localStorage immediately
             storage.setItem('harvous-navigation-history-v2', JSON.stringify(parsed));
@@ -91,7 +89,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Filter out test items
       const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
       const filtered = parsed.filter((item: NavigationItem) => !testItemTitles.includes(item.title));
-      console.log('NavigationContext: getInitialHistory - read from', storage === localStorage ? 'localStorage' : 'sessionStorage', '-', filtered.length, 'items');
       return filtered;
     } catch (error) {
       console.error('Error getting initial navigation history:', error);
@@ -101,13 +98,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   
   const [navigationHistory, setNavigationHistory] = useState<NavigationItem[]>(getInitialHistory);
   
-  // Debug: Log when navigationHistory state changes
-  useEffect(() => {
-    console.log('NavigationContext: navigationHistory state changed!', navigationHistory.length, 'items');
-    console.log('NavigationContext: navigationHistory reference:', navigationHistory);
-    console.log('NavigationContext: State items:', JSON.stringify(navigationHistory.map(item => ({ id: item.id, title: item.title, count: item.count })), null, 2));
-    console.log('NavigationContext: State change should trigger context value update and re-renders');
-  }, [navigationHistory]);
 
   // Get navigation history from storage
   const getNavigationHistory = (): NavigationItem[] => {
@@ -176,17 +166,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Add item to navigation history
   const addToNavigationHistory = (item: Omit<NavigationItem, 'firstAccessed' | 'lastAccessed'>) => {
-    console.log('NavigationContext: addToNavigationHistory called with:', item);
     
     // Skip specific test items (exact title matches only)
     const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
     if (testItemTitles.includes(item.title)) {
-      console.log('NavigationContext: Skipping test item:', item.title);
       return;
     }
     
     const history = getNavigationHistory();
-    console.log('NavigationContext: Current history before add:', history.length, 'items');
     
     // Check if item already exists - use strict equality check
     const existingIndex = history.findIndex(h => h.id === item.id);
@@ -240,15 +227,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     saveNavigationHistory(limitedHistory);
     setNavigationHistory(limitedHistory);
-    
-    console.log('NavigationContext: Added item to navigation history. New history length:', limitedHistory.length);
-    console.log('NavigationContext: History items:', JSON.stringify(limitedHistory.map(h => ({ id: h.id, title: h.title, count: h.count })), null, 2));
-    
-    // Verify the save worked by reading it back
-    const verification = getNavigationHistory();
-    const itemExists = verification.some(h => h.id === item.id);
-    console.log('NavigationContext: Verification - item exists in localStorage:', itemExists);
-    console.log('NavigationContext: Verification - full history:', JSON.stringify(verification.map(h => ({ id: h.id, title: h.title, count: h.count })), null, 2));
   };
 
   // Helper function to get the current active item ID
@@ -262,86 +240,47 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const currentPath = window.location.pathname;
     let currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
     
-    console.log('🧭 getCurrentActiveItemId: Starting with currentItemId:', currentItemId);
-    
     // If we're on a note page, we need to determine the parent thread
     if (currentItemId.startsWith('note_')) {
-      console.log('🧭 getCurrentActiveItemId: Detected note page, looking for parent thread...');
-      
       // First priority: try to get parent thread from note element (most reliable)
       const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-      console.log('🧭 getCurrentActiveItemId: noteElement found:', !!noteElement);
-      
-      if (noteElement) {
-        console.log('🧭 getCurrentActiveItemId: noteElement.dataset:', {
-          parentThreadId: noteElement.dataset.parentThreadId,
-          allAttributes: Array.from(noteElement.attributes).map(attr => ({ name: attr.name, value: attr.value }))
-        });
-      }
       
       if (noteElement && noteElement.dataset.parentThreadId) {
-        const parentThreadId = noteElement.dataset.parentThreadId;
-        console.log('🧭 getCurrentActiveItemId: Found parent thread from note element:', parentThreadId);
-        return parentThreadId;
+        return noteElement.dataset.parentThreadId;
       }
       
       // Second priority: try to get from navigation element (set by server-side)
       const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
-      console.log('🧭 getCurrentActiveItemId: navigationElement found:', !!navigationElement);
-      
-      if (navigationElement) {
-        console.log('🧭 getCurrentActiveItemId: navigationElement.dataset:', {
-          parentThreadId: navigationElement.dataset.parentThreadId
-        });
-      }
       
       if (navigationElement && navigationElement.dataset.parentThreadId) {
-        const parentThreadId = navigationElement.dataset.parentThreadId;
-        console.log('🧭 getCurrentActiveItemId: Found parent thread from navigation element:', parentThreadId);
-        return parentThreadId;
+        return navigationElement.dataset.parentThreadId;
       }
       
       // Final fallback: assume unorganized thread
-      console.log('🧭 getCurrentActiveItemId: Using fallback thread_unorganized');
       return 'thread_unorganized';
     }
     
-    console.log('🧭 getCurrentActiveItemId: Not a note page, returning:', currentItemId);
     return currentItemId;
   };
 
   // Remove item from navigation history
   const removeFromNavigationHistory = (itemId: string) => {
-    console.log('🧭 removeFromNavigationHistory CALLED with itemId:', itemId);
     const history = getNavigationHistory();
-    console.log('🧭 removeFromNavigationHistory: Current history:', history.map(h => ({ id: h.id, title: h.title })));
     
     // Check if the item being removed is currently active
     const currentActiveItemId = getCurrentActiveItemId();
     const isActive = itemId === currentActiveItemId;
     
-    console.log('🧭 removeFromNavigationHistory:', {
-      itemId,
-      currentActiveItemId,
-      isActive,
-      currentPath: window.location.pathname,
-      comparison: `"${itemId}" === "${currentActiveItemId}" = ${itemId === currentActiveItemId}`
-    });
-    
     // If removing an active item, navigate to the next available item first
     if (isActive) {
-      console.log('🧭 isActive is TRUE - executing navigation logic');
       
       // Find the current index in the history (before filtering)
       const currentIndex = history.findIndex((item) => item.id === itemId);
-      console.log('🧭 Current index in history:', currentIndex);
       
       // Find next item (try index + 1, then index - 1, else null)
       const nextItem = currentIndex !== -1
         ? (history[currentIndex + 1] || history[currentIndex - 1] || null)
         : null;
-      
-      console.log('🧭 Next item found:', nextItem ? { id: nextItem.id, title: nextItem.title } : null);
       
       // Remove the item from history first
       const filteredHistory = history.filter(item => item.id !== itemId);
@@ -357,15 +296,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Navigate to next item or dashboard
       const targetUrl = nextItem ? `/${nextItem.id}` : '/dashboard';
-      console.log('🧭 Navigating to:', targetUrl, 'from active item removal');
-      console.log('🧭 About to call window.location.replace...');
       
       // Use replace to avoid adding to browser history
       window.location.replace(targetUrl);
-      console.log('🧭 window.location.replace called');
       return; // Exit early since we're navigating
-    } else {
-      console.log('🧭 isActive is FALSE - NOT executing navigation logic');
     }
     
     // Proceed with removal (for non-active items)
@@ -490,7 +424,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const maxRetries = 3;
       const retryDelay = 100 * (retryCount + 1); // 100ms, 200ms, 300ms
       
-      console.log(`NavigationContext: Navigation element not found, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
       
       setTimeout(() => {
         trackNavigationAccess(retryCount + 1);
@@ -577,7 +510,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           // Always update count (even if same) to ensure accuracy
           // This handles cases where the count was stale
           if (item.count !== newCount) {
-            console.log(`NavigationContext: Updating count for ${item.id}: ${item.count} → ${newCount}`);
             return { ...item, count: newCount };
           }
           return item; // No change needed
@@ -588,18 +520,15 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (unorganizedThread) {
             const newCount = unorganizedThread.noteCount || 0;
             if (item.count !== newCount) {
-              console.log(`NavigationContext: Updating count for unorganized: ${item.count} → ${newCount}`);
               return { ...item, count: newCount };
             }
           } else {
             // Unorganized thread not in API response - API should include it now, but fallback
             // Keep current count if API doesn't have it (shouldn't happen with new API fix)
-            console.log(`NavigationContext: Unorganized thread not found in API response, keeping current count: ${item.count}`);
           }
           return item; // No change needed
         } else {
           // Item not found in API - might be a space or deleted thread
-          console.log(`NavigationContext: Item ${item.id} not found in API response (might be space or deleted thread)`);
           return item; // Keep as is
         }
       });
@@ -611,9 +540,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (hasChanges) {
         saveNavigationHistory(updatedHistory);
         setNavigationHistory(updatedHistory);
-        console.log('NavigationContext: Thread counts refreshed successfully');
-      } else {
-        console.log('NavigationContext: No count changes detected');
       }
     } catch (error) {
       console.error('NavigationContext: Error refreshing thread counts:', error);
@@ -623,14 +549,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Initialize navigation history on mount and refresh it
   // This ensures we have the latest data even if localStorage was updated right before navigation
   useEffect(() => {
-    // Refresh from localStorage to ensure we have the latest data
-    // (especially important after navigation when localStorage might have been updated)
-    const refreshHistory = () => {
-      const history = getNavigationHistory();
-      console.log('NavigationContext: Refreshing navigation history on mount:', history.length, 'items');
-      console.log('NavigationContext: History items:', JSON.stringify(history.map(item => ({ id: item.id, title: item.title, count: item.count })), null, 2));
-      setNavigationHistory(history);
-    };
+      // Refresh from localStorage to ensure we have the latest data
+      // (especially important after navigation when localStorage might have been updated)
+      const refreshHistory = () => {
+        const history = getNavigationHistory();
+        setNavigationHistory(history);
+      };
     
     // Refresh immediately
     refreshHistory();
@@ -702,25 +626,16 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Listen for note creation events to update thread counts
     const handleNoteCreated = async (event: CustomEvent) => {
       const note = event.detail?.note;
-      console.log('NavigationContext: handleNoteCreated - Event received, note:', note);
-      console.log('NavigationContext: handleNoteCreated - note.threadId:', note?.threadId);
       if (note && note.threadId) {
-        console.log('NavigationContext: handleNoteCreated - Processing note with threadId:', note.threadId);
-        
         // Use current React state to check if thread exists and update/add it
         setNavigationHistory(currentHistory => {
-          console.log('NavigationContext: handleNoteCreated - setNavigationHistory callback called');
-          console.log('NavigationContext: handleNoteCreated - currentHistory reference:', currentHistory);
-          console.log('NavigationContext: handleNoteCreated - currentHistory length:', currentHistory.length);
           const threadIndex = currentHistory.findIndex((item: any) => item.id === note.threadId);
-          console.log('NavigationContext: handleNoteCreated - threadIndex:', threadIndex);
           
           if (threadIndex !== -1) {
             // Thread exists in history - just update the count immediately for UI responsiveness
             // Use immutable updates to ensure React detects the change
             const oldCount = currentHistory[threadIndex].count || 0;
             const newCount = oldCount + 1;
-            console.log(`NavigationContext: handleNoteCreated - Updating count for ${note.threadId}: ${oldCount} → ${newCount}`);
             
             const updatedHistory = currentHistory.map((item, index) => 
               index === threadIndex 
@@ -728,16 +643,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 : item
             );
             
-            console.log('NavigationContext: handleNoteCreated - Saving updated history:', updatedHistory);
             saveNavigationHistory(updatedHistory);
-            console.log('NavigationContext: handleNoteCreated - Returning updated history with count:', updatedHistory[threadIndex].count);
             return updatedHistory;
           }
           
           // Thread not in history - we need to fetch it and add it
           // Return current state for now, then fetch and add asynchronously
-          console.log('NavigationContext: handleNoteCreated - Thread not in history, will fetch and add');
-          
           // Fetch thread data asynchronously and add it
           fetch('/api/threads/list', {
             credentials: 'include'
@@ -760,7 +671,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   count: threadData.noteCount || 1, // Use fetched count or at least 1 (the new note)
                   backgroundGradient: threadData.backgroundGradient || 'var(--color-gradient-gray)'
                 });
-                console.log('NavigationContext: Added thread to navigation history:', threadData.id);
               } else if (note.threadId === 'thread_unorganized') {
                 // Special handling for unorganized thread
                 addToNavigationHistory({
@@ -769,7 +679,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   count: 1, // At least 1 (the new note)
                   backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
                 });
-                console.log('NavigationContext: Added unorganized thread to navigation history');
               }
             })
             .catch(error => {
@@ -808,7 +717,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             // Use immutable updates to ensure React detects the change
             const oldCount = currentHistory[threadIndex].count || 0;
             const newCount = Math.max(0, oldCount - 1);
-            console.log(`NavigationContext: handleNoteRemovedFromThread - Updating count for ${threadId}: ${oldCount} → ${newCount}`);
             
             const updatedHistory = currentHistory.map((item, index) => 
               index === threadIndex 
@@ -840,7 +748,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             // Use immutable updates to ensure React detects the change
             const oldCount = currentHistory[threadIndex].count || 0;
             const newCount = oldCount + 1;
-            console.log(`NavigationContext: handleNoteAddedToThread - Updating count for ${threadId}: ${oldCount} → ${newCount}`);
             
             const updatedHistory = currentHistory.map((item, index) => 
               index === threadIndex 
@@ -873,21 +780,15 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Listen for note deletion events
     const handleNoteDeleted = (event: CustomEvent) => {
       const note = event.detail?.note;
-      console.log('NavigationContext: handleNoteDeleted - Event received, note:', note);
       if (note && note.threadId) {
-        console.log('NavigationContext: handleNoteDeleted - Processing note with threadId:', note.threadId);
         // Use current React state instead of reading from localStorage
         setNavigationHistory(currentHistory => {
-          console.log('NavigationContext: handleNoteDeleted - setNavigationHistory callback called');
-          console.log('NavigationContext: handleNoteDeleted - currentHistory reference:', currentHistory);
           const threadIndex = currentHistory.findIndex((item: any) => item.id === note.threadId);
-          console.log('NavigationContext: handleNoteDeleted - threadIndex:', threadIndex);
           if (threadIndex !== -1) {
             // Update count immediately for UI responsiveness
             // Use immutable updates to ensure React detects the change
             const oldCount = currentHistory[threadIndex].count || 0;
             const newCount = Math.max(0, oldCount - 1);
-            console.log(`NavigationContext: handleNoteDeleted - Updating count for ${note.threadId}: ${oldCount} → ${newCount}`);
             
             const updatedHistory = currentHistory.map((item, index) => 
               index === threadIndex 
@@ -942,9 +843,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Memoize context value to ensure React detects changes properly
   // The value object reference changes when navigationHistory changes, triggering re-renders
   const value: NavigationContextType = useMemo(() => {
-    console.log('NavigationContext: Creating new context value, navigationHistory length:', navigationHistory.length);
-    console.log('NavigationContext: navigationHistory reference:', navigationHistory);
-    console.log('NavigationContext: navigationHistory counts:', navigationHistory.map(item => ({ id: item.id, count: item.count })));
     const newValue = {
       navigationHistory,
       addToNavigationHistory,
@@ -953,8 +851,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       refreshNavigation,
       getCurrentActiveItemId
     };
-    console.log('NavigationContext: New context value object:', newValue);
-    console.log('NavigationContext: Context value reference:', newValue);
     return newValue;
   }, [navigationHistory]);
 

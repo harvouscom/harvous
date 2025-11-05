@@ -85,7 +85,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     
     // If we have saved content from selected text feature and it's not scripture, use it
     if (savedContent && savedNoteType !== 'scripture') {
-      console.log('NewNotePanel: Loading saved content from localStorage:', savedContent.substring(0, 50) + '...');
       setContent(savedContent);
       // Clear after loading to prevent re-loading on next open
       localStorage.removeItem('newNoteContent');
@@ -178,7 +177,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           const detection = await response.json();
           
           if (detection.isScripture && detection.confidence >= 0.7 && detection.primaryReference) {
-            console.log('Scripture detected in title:', detection.primaryReference);
             
             // Fetch verse text
             setIsFetchingVerse(true);
@@ -279,14 +277,12 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   // Load threads from API
   const loadThreads = async () => {
     try {
-      console.log('NewNotePanel: Loading threads from API...');
       const response = await fetch('/api/threads/list', {
         credentials: 'include'
       });
       
       if (response.ok) {
         const threads = await response.json();
-        console.log('NewNotePanel: Received threads from API:', threads.length);
         const formattedThreads = threads.map((thread: any) => ({
           id: thread.id,
           title: thread.title,
@@ -301,7 +297,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         );
         
         if (!hasUnorganizedThread) {
-          console.log('NewNotePanel: Unorganized thread not in API response, adding with count 0');
           formattedThreads.unshift({
             id: 'thread_unorganized',
             title: 'Unorganized',
@@ -315,11 +310,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
             thread.title === 'Unorganized' || thread.id === 'thread_unorganized'
           );
           if (unorganizedThread) {
-            console.log('NewNotePanel: Found unorganized thread with count:', unorganizedThread.noteCount);
           }
         }
         
-        console.log('NewNotePanel: Setting thread options with', formattedThreads.length, 'threads');
         setThreadOptions(formattedThreads);
         
         // After threads are loaded, check if we have a saved thread ID to match
@@ -376,7 +369,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       const note = customEvent.detail?.note;
       const threadId = note?.threadId;
       
-      console.log('NewNotePanel: noteCreated event received, threadId:', threadId);
       
       // Optimistically update thread count immediately
       if (threadId) {
@@ -398,7 +390,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       const note = customEvent.detail?.note;
       const threadId = note?.threadId;
       
-      console.log('NewNotePanel: noteDeleted event received, threadId:', threadId);
       
       // Optimistically update thread count immediately
       if (threadId) {
@@ -419,7 +410,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       const customEvent = event as CustomEvent;
       const { threadId } = customEvent.detail || {};
       
-      console.log('NewNotePanel: noteRemovedFromThread event received, threadId:', threadId);
       
       // Optimistically update thread count immediately
       if (threadId) {
@@ -440,7 +430,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       const customEvent = event as CustomEvent;
       const { threadId } = customEvent.detail || {};
       
-      console.log('NewNotePanel: noteAddedToThread event received, threadId:', threadId);
       
       // Optimistically update thread count immediately
       if (threadId) {
@@ -503,7 +492,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   // Cycle through note types - DISABLED until designs are ready
   const cycleNoteType = () => {
     // Note type switching is disabled until designs are ready
-    console.log('Note type switching is disabled until designs are ready');
     return;
   };
 
@@ -539,7 +527,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       const hiddenInput = document.querySelector('#new-note-content') as HTMLInputElement;
       if (hiddenInput && hiddenInput.value && hiddenInput.value.trim() !== '' && hiddenInput.value !== '<p></p>') {
         editorContent = hiddenInput.value;
-        console.log('Content from hidden input (fallback):', editorContent.substring(0, 50) + '...');
       }
       
       // Method 3: Try to get from TiptapEditor DOM as last resort
@@ -547,21 +534,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         const tiptapEditor = document.querySelector('.ProseMirror');
         if (tiptapEditor) {
           editorContent = tiptapEditor.innerHTML;
-          console.log('Content from TiptapEditor DOM (last resort):', editorContent.substring(0, 50) + '...');
         }
       }
     }
 
-    console.log('Using React state as primary source:', editorContent.substring(0, 50) + '...');
-    
-    // Final content validation and logging
-    console.log('Final editorContent for submission:', {
-      content: editorContent,
-      contentLength: editorContent.length,
-      contentTrimmed: editorContent.trim(),
-      contentTrimmedLength: editorContent.trim().length,
-      isEmpty: !editorContent || editorContent.trim() === '' || editorContent.trim() === '<p></p>' || editorContent.trim() === '<p><br></p>'
-    });
     
     // Check for meaningful content based on note type
     const trimmedTitle = title.trim();
@@ -669,12 +645,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         // Always add it synchronously using thread data we already have - don't rely on async fetch
         // Only if NavigationProvider is available (addToNavigationHistory is not a no-op)
         // Use result.note.threadId to ensure we're adding the exact thread the note was created in
-        console.log('NewNotePanel: Checking if thread should be added:', {
-          hasNote: !!result.note,
-          hasThreadId: !!result.note?.threadId,
-          threadId: result.note?.threadId,
-          hasAddFunction: !!addToNavigationHistory
-        });
         if (result.note && result.note.threadId && addToNavigationHistory) {
           // Try to get thread data from selected thread or thread options
           const selectedThreadData = getSelectedThread();
@@ -683,8 +653,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
             : threadOptions.find(thread => thread.id === result.note.threadId);
           
           if (threadData) {
-            console.log('NewNotePanel: Adding thread to navigation history before navigation:', threadData.id);
-            
             // Directly write to localStorage synchronously BEFORE calling addToNavigationHistory
             // This ensures localStorage is updated immediately, even if React state update is delayed
             try {
@@ -710,11 +678,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
               
               // Write synchronously
               localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
-              console.log('NewNotePanel: Directly wrote thread to localStorage:', threadData.id);
               
               // Also store in sessionStorage as backup
               sessionStorage.setItem('harvous-pending-thread', JSON.stringify(threadItem));
-              console.log('NewNotePanel: Stored thread in sessionStorage as backup:', threadData.id);
               
               // Now call addToNavigationHistory to update React state (if available)
               // This will update the state, but localStorage is already written
@@ -735,7 +701,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
             }
           } else if (result.note.threadId === 'thread_unorganized') {
             // Fallback for unorganized thread
-            console.log('NewNotePanel: Adding unorganized thread to navigation history');
             addToNavigationHistory({
               id: 'thread_unorganized',
               title: 'Unorganized',
@@ -781,8 +746,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
 
           if (!verifyThreadInStorage()) {
             console.warn('NewNotePanel: Thread not found in localStorage after adding, but proceeding with navigation');
-          } else {
-            console.log('NewNotePanel: Verified thread in localStorage before navigation');
           }
         }
 
@@ -792,34 +755,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
 
         // Navigate to the newly created note with toast parameter
         if (result.note && result.note.id) {
-          console.log('NewNotePanel: Redirecting to note:', result.note.id);
-          
-          // Final verification that thread is in localStorage before navigation
-          // Also store thread info in sessionStorage as a backup for immediate access on new page
-          if (result.note.threadId) {
-            try {
-              const stored = localStorage.getItem('harvous-navigation-history-v2');
-              if (stored) {
-                const history = JSON.parse(stored);
-                const threadExists = history.some((item: any) => item.id === result.note.threadId);
-                console.log('NewNotePanel: Final verification before navigation - thread in localStorage:', threadExists);
-                
-                // Store thread info in sessionStorage as backup for immediate access on new page
-                if (threadExists) {
-                  const threadItem = history.find((item: any) => item.id === result.note.threadId);
-                  if (threadItem) {
-                    sessionStorage.setItem('harvous-pending-thread', JSON.stringify(threadItem));
-                    console.log('NewNotePanel: Stored thread in sessionStorage as backup:', threadItem.id);
-                  }
-                } else {
-                  console.error('NewNotePanel: CRITICAL - Thread missing from localStorage right before navigation!');
-                }
-              }
-            } catch (error) {
-              console.error('NewNotePanel: Error in final verification:', error);
-            }
-          }
-          
           const redirectUrl = `/${result.note.id}?toast=success&message=${encodeURIComponent(result.success || 'Note created successfully!')}`;
           window.location.href = redirectUrl;
         }
@@ -962,7 +897,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
 
         // Navigate to the newly created note
         if (result.note && result.note.id) {
-          console.log('NewNotePanel: Redirecting to note:', result.note.id);
           setTimeout(() => {
             window.location.href = `/${result.note.id}`;
           }, 100);
@@ -1108,7 +1042,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   tabindex={2}
                   minimalToolbar={false}
                   onContentChange={(newContent) => {
-                    console.log('TiptapEditor content changed (scripture):', newContent.substring(0, 50) + '...');
                     setContent(newContent);
                   }}
                 />
@@ -1156,7 +1089,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   tabindex={2}
                   minimalToolbar={false}
                   onContentChange={(newContent) => {
-                    console.log('TiptapEditor content changed (resource):', newContent.substring(0, 50) + '...');
                     setContent(newContent);
                   }}
                 />

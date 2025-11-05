@@ -180,6 +180,9 @@ When converting Alpine.js to React:
 - **Avoid console.log in production code** - Use proper logging or remove before deployment
 - **Debugging**: Remove console.log statements after debugging is complete
 - **Development**: Console.log acceptable for temporary debugging, but clean up before commits
+- **After fixing issues**: ALWAYS clean up verbose console.log statements added during debugging once the fix is confirmed working
+- **Keep only essential logs**: Remove debug logs, keep only error logs (console.error) and critical operation logs that are useful for production debugging
+- **Systematic cleanup**: When cleaning up, search for all console.log statements in files you modified and remove verbose debugging logs
 
 ### Script Extraction Patterns
 - Complex JavaScript logic should be extracted to `src/scripts/` directory

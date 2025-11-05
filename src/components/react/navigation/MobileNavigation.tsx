@@ -44,6 +44,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [currentItemId, setCurrentItemId] = useState('');
   const { navigationHistory, removeFromNavigationHistory } = useNavigation();
   const [updatedCurrentThread, setUpdatedCurrentThread] = useState(currentThread);
+  // Track which items are in "close mode" (showing close icon instead of badge)
+  const [itemsInCloseMode, setItemsInCloseMode] = useState<Set<string>>(new Set());
 
   // Sync updatedCurrentThread when currentThread prop changes
   useEffect(() => {
@@ -268,10 +270,46 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const handleDropdownClose = () => {
     setIsDropdownOpen(false);
+    // Exit close mode for all items when dropdown closes
+    setItemsInCloseMode(new Set());
   };
 
-  const handleItemClick = () => {
+  const handleItemClick = (itemId?: string) => {
     handleDropdownClose();
+    // If clicking on a specific item, exit its close mode
+    if (itemId) {
+      setItemsInCloseMode(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(itemId);
+        return newSet;
+      });
+    }
+  };
+
+  // Toggle close mode for an item (show close icon instead of badge)
+  const toggleCloseMode = (itemId: string) => {
+    setItemsInCloseMode(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle close icon click - remove item and exit close mode
+  const handleCloseClick = (itemId: string, e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    removeFromNavigationHistory(itemId);
+    // Exit close mode after closing
+    setItemsInCloseMode(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(itemId);
+      return newSet;
+    });
   };
 
   return (
@@ -352,7 +390,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     
                     return (
                       <div key={space.id} className="relative group nav-item-container w-full">
-                        <a href={`/${space.id}`} className="block w-full" onClick={handleItemClick}>
+                        <a href={`/${space.id}`} className="block w-full" onClick={() => handleItemClick(space.id)}>
                           <div 
                             className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
                             style={isActive ? {
@@ -370,10 +408,25 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 <div 
                                   className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
                                   data-close-item={space.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    if (itemsInCloseMode.has(space.id)) {
+                                      // Already in close mode - close the item
+                                      handleCloseClick(space.id, e);
+                                    } else {
+                                      // Not in close mode - toggle to show close icon
+                                      toggleCloseMode(space.id);
+                                    }
+                                  }}
                                 >
-                                  <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, isActive) }}>
-                                    {space.count || 0}
-                                  </span>
+                                  {itemsInCloseMode.has(space.id) ? (
+                                    <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(space.backgroundGradient, isActive) }}></i>
+                                  ) : (
+                                    <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, isActive) }}>
+                                      {space.count || 0}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -382,26 +435,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                             )}
                           </div>
                         </a>
-                        {/* Close icon positioned outside the link element, aligned with badge count center */}
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            removeFromNavigationHistory(space.id);
-                          }}
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                          }}
-                          className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center"
-                          style={{ 
-                            right: '16px',
-                            color: getTextColor(space.backgroundGradient, isActive)
-                          }}
-                          data-item-id={space.id}
-                        >
-                          <i className="fa-solid fa-xmark"></i>
-                        </div>
                       </div>
                     );
                   })}
@@ -412,7 +445,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     
                     return (
                       <div key={thread.id} className="relative group nav-item-container w-full">
-                        <a href={`/${thread.id}`} className="block w-full" onClick={handleItemClick}>
+                        <a href={`/${thread.id}`} className="block w-full" onClick={() => handleItemClick(thread.id)}>
                           <div 
                             className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
                             style={isActive ? {
@@ -430,10 +463,25 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 <div 
                                   className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
                                   data-close-item={thread.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    if (itemsInCloseMode.has(thread.id)) {
+                                      // Already in close mode - close the item
+                                      handleCloseClick(thread.id, e);
+                                    } else {
+                                      // Not in close mode - toggle to show close icon
+                                      toggleCloseMode(thread.id);
+                                    }
+                                  }}
                                 >
-                                  <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
-                                    {thread.count || 0}
-                                  </span>
+                                  {itemsInCloseMode.has(thread.id) ? (
+                                    <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}></i>
+                                  ) : (
+                                    <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
+                                      {thread.count || 0}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -442,26 +490,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                             )}
                           </div>
                         </a>
-                        {/* Close icon positioned outside the link element, aligned with badge count center */}
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            removeFromNavigationHistory(thread.id);
-                          }}
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                          }}
-                          className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center"
-                          style={{ 
-                            right: '16px',
-                            color: getTextColor(thread.backgroundGradient, isActive)
-                          }}
-                          data-item-id={thread.id}
-                        >
-                          <i className="fa-solid fa-xmark"></i>
-                        </div>
                       </div>
                     );
                   })}
@@ -569,19 +597,18 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         />
       )}
       
-      {/* Add CSS for hover states matching desktop pattern - only when close icon exists */}
+      {/* Mobile navigation uses touch-based interaction, not hover */}
+      {/* Badge count and close icon are conditionally rendered based on state */}
       <style jsx>{`
-        .nav-item-container:has(.close-icon) .badge-count:hover .badge-number {
-          display: none !important;
+        /* Ensure badge count area is properly sized and positioned */
+        .badge-count {
+          position: relative;
         }
-        .nav-item-container:has(.close-icon) .badge-count:hover {
-          background-color: transparent !important;
-        }
-        .nav-item-container:has(.close-icon) .badge-count:hover .close-icon {
-          display: flex !important;
-        }
-        .nav-item-container .close-icon {
-          display: none;
+        /* Ensure close icon is properly centered */
+        .badge-count i.fa-xmark {
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
       `}</style>
     </div>

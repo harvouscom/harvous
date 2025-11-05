@@ -3,27 +3,14 @@ import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 
 const PersistentNavigation: React.FC = () => {
-  console.log('🧭 PersistentNavigation: Component function called - START');
   const contextValue = useNavigation();
   const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
   const [isClient, setIsClient] = useState(false);
   const [currentItemId, setCurrentItemId] = useState('');
   const [renderKey, setRenderKey] = useState(0);
-
-  console.log('🧭 PersistentNavigation: Component function called - AFTER HOOKS');
-  console.log('🧭 PersistentNavigation: Full context value:', contextValue);
-  console.log('🧭 PersistentNavigation: navigationHistory:', navigationHistory);
-  console.log('🧭 PersistentNavigation: navigationHistory length:', navigationHistory.length);
-  console.log('🧭 PersistentNavigation: navigationHistory reference:', navigationHistory);
-  console.log('🧭 PersistentNavigation: isClient:', isClient);
-  console.log('🧭 PersistentNavigation: renderKey:', renderKey);
   
-  // Debug: Log when navigationHistory changes and force re-render
+  // Force re-render when navigationHistory changes
   useEffect(() => {
-    console.log('🧭 PersistentNavigation: navigationHistory changed!', navigationHistory.length, 'items');
-    console.log('🧭 PersistentNavigation: Items:', JSON.stringify(navigationHistory.map(item => ({ id: item.id, title: item.title, count: item.count })), null, 2));
-    console.log('🧭 PersistentNavigation: Forcing re-render with new key');
-    // Force re-render by updating a state variable
     setRenderKey(prev => prev + 1);
   }, [navigationHistory]);
 
@@ -31,7 +18,6 @@ const PersistentNavigation: React.FC = () => {
   useEffect(() => {
     setIsClient(true);
     setCurrentItemId(window.location.pathname.substring(1));
-    console.log('🧭 PersistentNavigation: Client-side hydration complete');
   }, []);
 
   // Listen for page changes to update current item
@@ -90,13 +76,9 @@ const PersistentNavigation: React.FC = () => {
   };
 
   const persistentItems = getPersistentItems();
-  
-  console.log('🧭 PersistentNavigation: Rendering with', persistentItems.length, 'persistent items');
-  console.log('🧭 PersistentNavigation: Persistent items:', JSON.stringify(persistentItems.map(item => ({ id: item.id, title: item.title, count: item.count })), null, 2));
 
   // Don't render anything during SSR or if no items to show
   if (!isClient || persistentItems.length === 0) {
-    console.log('🧭 PersistentNavigation: Not rendering - isClient:', isClient, 'persistentItems.length:', persistentItems.length);
     return null;
   }
 
@@ -126,9 +108,6 @@ const PersistentNavigation: React.FC = () => {
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
-                  console.log('🧭 React close icon clicked for item:', item.id);
-                  console.log('🧭 Current active item ID (before removal):', currentActiveItemId);
-                  console.log('🧭 Item matches active?', item.id === currentActiveItemId);
                   removeFromNavigationHistory(item.id);
                 }}
                 onMouseDown={(e) => {
