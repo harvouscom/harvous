@@ -35,6 +35,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [isEditorFocused, setIsEditorFocused] = useState(false);
   const [activeStates, setActiveStates] = useState({
     bold: false,
     italic: false,
@@ -364,6 +365,30 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     setShowCreateNoteButton(false);
   };
 
+  // Track editor focus state
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleFocus = () => {
+      setIsEditorFocused(true);
+    };
+
+    const handleBlur = () => {
+      setIsEditorFocused(false);
+    };
+
+    editor.on('focus', handleFocus);
+    editor.on('blur', handleBlur);
+
+    // Set initial focus state
+    setIsEditorFocused(editor.isFocused);
+
+    return () => {
+      editor.off('focus', handleFocus);
+      editor.off('blur', handleBlur);
+    };
+  }, [editor]);
+
   // Update active states when editor changes
   useEffect(() => {
     if (!editor) {
@@ -578,7 +603,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       </div>
       
       {/* Custom SpaceButton-styled toolbar - positioned at bottom */}
-        {!minimalToolbar && (
+        {!minimalToolbar && isEditorFocused && (
           <div 
             className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] mt-2 shrink-0"
           >
