@@ -128,11 +128,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
     if (format === 'csv-threads') {
       // CSV format: Thread-based export
       const rows: string[][] = [];
-      rows.push(['Thread Title', 'Thread Color', 'Space', 'Note Title', 'Note Content', 'Created Date', 'Tags']);
+      rows.push(['Thread Title', 'Note Title', 'Note Content', 'Created Date', 'Tags']);
       
       for (const note of allNotes) {
         const thread = threadMap.get(note.threadId);
-        const space = note.spaceId ? spaceMap.get(note.spaceId) : null;
         const tags = noteTagsMap.get(note.id) || [];
         const tagNames = tags.map(t => t.name).join(', ');
         
@@ -147,8 +146,6 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
         rows.push([
           escapeCSV(thread?.title || 'Unorganized'),
-          escapeCSV(thread?.color || ''),
-          escapeCSV(space?.title || ''),
           escapeCSV(note.title || 'Untitled'),
           escapeCSV(plainContent),
           escapeCSV(note.createdAt.toISOString()),
@@ -165,7 +162,6 @@ export const GET: APIRoute = async ({ request, locals }) => {
       
       for (const note of allNotes) {
         const thread = threadMap.get(note.threadId);
-        const space = note.spaceId ? spaceMap.get(note.spaceId) : null;
         const tags = noteTagsMap.get(note.id) || [];
         const scripture = scriptureMap.get(note.id);
 
@@ -188,9 +184,6 @@ export const GET: APIRoute = async ({ request, locals }) => {
         }
         if (thread) {
           markdownLines.push(`**Thread:** ${thread.title}`);
-        }
-        if (space) {
-          markdownLines.push(`**Space:** ${space.title}`);
         }
         if (tags.length > 0) {
           markdownLines.push(`**Tags:** ${tags.map(t => t.name).join(', ')}`);
