@@ -194,9 +194,8 @@ export default function EmailPasswordPanel({
               <div className="flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full">
                 
                 {/* Current Email Display */}
-                <div className="w-full">
-                  <div className="text-sm text-[var(--color-pebble-grey)] mb-2">Current Email</div>
-                  <div className="flex items-center gap-2">
+                <div className="w-full py-5">
+                  <div className="flex items-center justify-center gap-2">
                     <div className="text-[18px] font-semibold text-[var(--color-deep-grey)]">
                       {currentEmail}
                     </div>
