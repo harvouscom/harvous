@@ -42,10 +42,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
     const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
     
-    // Pure junction table approach: Always create note in unorganized, then add to specific thread via junction table
+    // Always create note in unorganized as primary threadId
+    // If a specific thread is selected, add it to that thread via junction table and update primary threadId
     const { ensureUnorganizedThread } = await import('@/utils/unorganized-thread');
     await ensureUnorganizedThread(userId);
-    const finalThreadId = 'thread_unorganized'; // Always use unorganized as primary
+    
+    // Always start with unorganized as primary
+    const finalThreadId = 'thread_unorganized';
     
     // Get or create user metadata to track highest simpleNoteId used
     let userMetadata = await db.select()
@@ -119,12 +122,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       })
       .where(eq(UserMetadata.userId, userId));
 
-    // Update the thread's updatedAt timestamp
+    // Update the thread's updatedAt timestamp (unorganized thread)
     await db.update(Threads)
       .set({ updatedAt: new Date() })
       .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
-
-    // If a specific thread was requested (not unorganized), add the note to that thread via junction table
+    
+    // If a specific thread was requested (not unorganized), add the note to that thread
+    // This will make it appear in that thread (via junction table query) and remove it from unorganized
     if (threadId && threadId !== 'thread_unorganized') {
       try {
         // Verify the target thread exists and belongs to the user
@@ -142,21 +146,40 @@ export const POST: APIRoute = async ({ request, locals }) => {
             createdAt: new Date()
           });
           
+          // Update the primary threadId to remove it from unorganized
+          await db.update(Notes)
+            .set({ threadId: threadId })
+            .where(eq(Notes.id, newNote.id));
+          
           // Update the target thread's timestamp
           await db.update(Threads)
             .set({ updatedAt: new Date() })
             .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
           
-          console.log(`Note ${newNote.id} added to thread ${threadId} via junction table`);
+          console.log(`Note ${newNote.id} added to thread ${threadId} via junction table and moved from unorganized`);
         }
       } catch (error) {
         console.error('Error adding note to specific thread:', error);
         // Don't fail the note creation if junction table insertion fails
       }
+    } else {
+      console.log(`Note ${newNote.id} created in unorganized thread`);
     }
 
     // Award XP for note creation
     await awardNoteCreatedXP(userId, newNote.id);
+    
+    // Reload the note from database to ensure we return the correct threadId
+    // This is important if the note was moved from unorganized to a specific thread
+    const finalNote = await db.select()
+      .from(Notes)
+      .where(eq(Notes.id, newNote.id))
+      .get();
+    
+    if (finalNote) {
+      // Use the reloaded note for the response
+      Object.assign(newNote, finalNote);
+    }
 
     // Auto-generate and apply tags based on note content
     try {

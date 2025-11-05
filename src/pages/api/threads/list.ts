@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getAllThreadsWithCounts } from '@/utils/dashboard-data';
 import { getThreadGradientCSS } from '@/utils/colors';
+import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
@@ -26,16 +27,30 @@ export const GET: APIRoute = async ({ locals }) => {
       backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
     }));
     
-    // Ensure "Unorganized" thread exists
-    const hasUnorganizedThread = threadOptions.some(thread => thread.title === "Unorganized");
+    // Ensure "Unorganized" thread exists with actual count
+    const hasUnorganizedThread = threadOptions.some(thread => 
+      thread.title === "Unorganized" || thread.id === 'thread_unorganized'
+    );
+    
     if (!hasUnorganizedThread) {
+      // Fetch actual unorganized thread data with real count
+      const unorganizedThreadData = await ensureUnorganizedThread(userId);
       threadOptions.unshift({
         id: 'thread_unorganized',
         title: 'Unorganized',
         color: null,
-        noteCount: 0,
+        noteCount: unorganizedThreadData.noteCount || 0,
         backgroundGradient: getThreadGradientCSS('paper')
       });
+    } else {
+      // Update existing unorganized thread with actual count
+      const unorganizedIndex = threadOptions.findIndex(thread => 
+        thread.title === "Unorganized" || thread.id === 'thread_unorganized'
+      );
+      if (unorganizedIndex !== -1) {
+        const unorganizedThreadData = await ensureUnorganizedThread(userId);
+        threadOptions[unorganizedIndex].noteCount = unorganizedThreadData.noteCount || 0;
+      }
     }
 
     return new Response(JSON.stringify(threadOptions), {

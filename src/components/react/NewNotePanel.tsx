@@ -5,6 +5,7 @@ import ThreadCombobox from './ThreadCombobox';
 import SquareButton from './SquareButton';
 import ButtonSmall from './ButtonSmall';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
+import { useNavigation } from './navigation/NavigationContext';
 
 interface Thread {
   id: string;
@@ -20,6 +21,9 @@ interface NewNotePanelProps {
 }
 
 export default function NewNotePanel({ currentThread, onClose }: NewNotePanelProps) {
+  // Get navigation context - will use default (no-op) values if NavigationProvider not available
+  const navigation = useNavigation();
+  const { addToNavigationHistory, navigationHistory } = navigation;
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [selectedThread, setSelectedThread] = useState('Unorganized');
@@ -275,23 +279,29 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   // Load threads from API
   const loadThreads = async () => {
     try {
+      console.log('NewNotePanel: Loading threads from API...');
       const response = await fetch('/api/threads/list', {
         credentials: 'include'
       });
       
       if (response.ok) {
         const threads = await response.json();
+        console.log('NewNotePanel: Received threads from API:', threads.length);
         const formattedThreads = threads.map((thread: any) => ({
           id: thread.id,
           title: thread.title,
           color: thread.color,
-          noteCount: thread.noteCount,
+          noteCount: thread.noteCount || 0,
           backgroundGradient: thread.backgroundGradient
         }));
         
-        // Ensure 'Unorganized' thread exists
-        const hasUnorganizedThread = formattedThreads.some((thread: Thread) => thread.title === 'Unorganized');
+        // Ensure 'Unorganized' thread exists - check by both title and ID
+        const hasUnorganizedThread = formattedThreads.some((thread: Thread) => 
+          thread.title === 'Unorganized' || thread.id === 'thread_unorganized'
+        );
+        
         if (!hasUnorganizedThread) {
+          console.log('NewNotePanel: Unorganized thread not in API response, adding with count 0');
           formattedThreads.unshift({
             id: 'thread_unorganized',
             title: 'Unorganized',
@@ -299,8 +309,17 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
             noteCount: 0,
             backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
           });
+        } else {
+          // Find and log the unorganized thread to verify its count
+          const unorganizedThread = formattedThreads.find((thread: Thread) => 
+            thread.title === 'Unorganized' || thread.id === 'thread_unorganized'
+          );
+          if (unorganizedThread) {
+            console.log('NewNotePanel: Found unorganized thread with count:', unorganizedThread.noteCount);
+          }
         }
         
+        console.log('NewNotePanel: Setting thread options with', formattedThreads.length, 'threads');
         setThreadOptions(formattedThreads);
         
         // After threads are loaded, check if we have a saved thread ID to match
@@ -349,6 +368,109 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     loadThreads();
     loadNextNoteId();
   }, []);
+
+  // Listen for note count changes to refresh thread options
+  useEffect(() => {
+    const handleNoteCreated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const note = customEvent.detail?.note;
+      const threadId = note?.threadId;
+      
+      console.log('NewNotePanel: noteCreated event received, threadId:', threadId);
+      
+      // Optimistically update thread count immediately
+      if (threadId) {
+        setThreadOptions(prev => prev.map(thread => 
+          thread.id === threadId 
+            ? { ...thread, noteCount: (thread.noteCount || 0) + 1 }
+            : thread
+        ));
+      }
+      
+      // Refresh thread counts after a delay to ensure database is committed
+      setTimeout(() => {
+        loadThreads();
+      }, 300);
+    };
+
+    const handleNoteDeleted = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const note = customEvent.detail?.note;
+      const threadId = note?.threadId;
+      
+      console.log('NewNotePanel: noteDeleted event received, threadId:', threadId);
+      
+      // Optimistically update thread count immediately
+      if (threadId) {
+        setThreadOptions(prev => prev.map(thread => 
+          thread.id === threadId 
+            ? { ...thread, noteCount: Math.max(0, (thread.noteCount || 0) - 1) }
+            : thread
+        ));
+      }
+      
+      // Refresh thread counts after a delay to ensure database is committed
+      setTimeout(() => {
+        loadThreads();
+      }, 300);
+    };
+
+    const handleNoteRemovedFromThread = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { threadId } = customEvent.detail || {};
+      
+      console.log('NewNotePanel: noteRemovedFromThread event received, threadId:', threadId);
+      
+      // Optimistically update thread count immediately
+      if (threadId) {
+        setThreadOptions(prev => prev.map(thread => 
+          thread.id === threadId 
+            ? { ...thread, noteCount: Math.max(0, (thread.noteCount || 0) - 1) }
+            : thread
+        ));
+      }
+      
+      // Refresh thread counts after a delay to ensure database is committed
+      setTimeout(() => {
+        loadThreads();
+      }, 300);
+    };
+
+    const handleNoteAddedToThread = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { threadId } = customEvent.detail || {};
+      
+      console.log('NewNotePanel: noteAddedToThread event received, threadId:', threadId);
+      
+      // Optimistically update thread count immediately
+      if (threadId) {
+        setThreadOptions(prev => prev.map(thread => 
+          thread.id === threadId 
+            ? { ...thread, noteCount: (thread.noteCount || 0) + 1 }
+            : thread
+        ));
+      }
+      
+      // Refresh thread counts after a delay to ensure database is committed
+      setTimeout(() => {
+        loadThreads();
+      }, 300);
+    };
+
+    // Register event listeners
+    window.addEventListener('noteCreated', handleNoteCreated);
+    window.addEventListener('noteDeleted', handleNoteDeleted);
+    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('noteCreated', handleNoteCreated);
+      window.removeEventListener('noteDeleted', handleNoteDeleted);
+      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread);
+    };
+  }, []); // Empty deps - loadThreads is stable
 
   // Load Font Awesome for icons
   useEffect(() => {
@@ -543,14 +665,161 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       if (response.ok) {
         const result = await response.json();
         
+        // Add thread to navigation history before navigating (if not already present)
+        // Always add it synchronously using thread data we already have - don't rely on async fetch
+        // Only if NavigationProvider is available (addToNavigationHistory is not a no-op)
+        // Use result.note.threadId to ensure we're adding the exact thread the note was created in
+        console.log('NewNotePanel: Checking if thread should be added:', {
+          hasNote: !!result.note,
+          hasThreadId: !!result.note?.threadId,
+          threadId: result.note?.threadId,
+          hasAddFunction: !!addToNavigationHistory
+        });
+        if (result.note && result.note.threadId && addToNavigationHistory) {
+          // Try to get thread data from selected thread or thread options
+          const selectedThreadData = getSelectedThread();
+          const threadData = selectedThreadData && selectedThreadData.id === result.note.threadId 
+            ? selectedThreadData 
+            : threadOptions.find(thread => thread.id === result.note.threadId);
+          
+          if (threadData) {
+            console.log('NewNotePanel: Adding thread to navigation history before navigation:', threadData.id);
+            
+            // Directly write to localStorage synchronously BEFORE calling addToNavigationHistory
+            // This ensures localStorage is updated immediately, even if React state update is delayed
+            try {
+              const threadItem = {
+                id: threadData.id,
+                title: threadData.title,
+                count: (threadData.noteCount || 0) + 1,
+                backgroundGradient: threadData.backgroundGradient,
+                lastAccessed: Date.now()
+              };
+              
+              const stored = localStorage.getItem('harvous-navigation-history-v2');
+              let history = stored ? JSON.parse(stored) : [];
+              
+              // Remove if already exists (to avoid duplicates)
+              history = history.filter((item: any) => item.id !== threadData.id);
+              
+              // Add to beginning
+              history.unshift(threadItem);
+              
+              // Limit to 10 items
+              history = history.slice(0, 10);
+              
+              // Write synchronously
+              localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
+              console.log('NewNotePanel: Directly wrote thread to localStorage:', threadData.id);
+              
+              // Also store in sessionStorage as backup
+              sessionStorage.setItem('harvous-pending-thread', JSON.stringify(threadItem));
+              console.log('NewNotePanel: Stored thread in sessionStorage as backup:', threadData.id);
+              
+              // Now call addToNavigationHistory to update React state (if available)
+              // This will update the state, but localStorage is already written
+              if (addToNavigationHistory) {
+                addToNavigationHistory(threadItem);
+              }
+            } catch (error) {
+              console.error('NewNotePanel: Error writing to localStorage:', error);
+              // Fallback to just calling addToNavigationHistory
+              if (addToNavigationHistory) {
+                addToNavigationHistory({
+                  id: threadData.id,
+                  title: threadData.title,
+                  count: (threadData.noteCount || 0) + 1,
+                  backgroundGradient: threadData.backgroundGradient
+                });
+              }
+            }
+          } else if (result.note.threadId === 'thread_unorganized') {
+            // Fallback for unorganized thread
+            console.log('NewNotePanel: Adding unorganized thread to navigation history');
+            addToNavigationHistory({
+              id: 'thread_unorganized',
+              title: 'Unorganized',
+              count: 1, // At least 1 (the new note)
+              backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+            });
+          } else {
+            // Thread not found in threadOptions - this shouldn't happen, but log it
+            console.warn('NewNotePanel: Thread not found in threadOptions:', result.note.threadId);
+          }
+        }
+        
         // Dispatch note created event
         window.dispatchEvent(new CustomEvent('noteCreated', {
           detail: { note: result.note }
         }));
 
+        // Ensure localStorage is updated before navigation
+        // Check that the thread was added to localStorage
+        if (result.note && result.note.threadId) {
+          const verifyThreadInStorage = () => {
+            try {
+              const stored = localStorage.getItem('harvous-navigation-history-v2');
+              if (stored) {
+                const history = JSON.parse(stored);
+                const threadExists = history.some((item: any) => item.id === result.note.threadId);
+                return threadExists;
+              }
+              return false;
+            } catch (error) {
+              console.error('Error verifying thread in storage:', error);
+              return false;
+            }
+          };
+
+          // Wait for localStorage to be updated (with timeout)
+          let attempts = 0;
+          const maxAttempts = 10;
+          while (!verifyThreadInStorage() && attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+            attempts++;
+          }
+
+          if (!verifyThreadInStorage()) {
+            console.warn('NewNotePanel: Thread not found in localStorage after adding, but proceeding with navigation');
+          } else {
+            console.log('NewNotePanel: Verified thread in localStorage before navigation');
+          }
+        }
+
+        // Wait longer to ensure localStorage write is complete and persisted
+        // This is critical for full page reloads where the new page needs to read from localStorage immediately
+        await new Promise(resolve => setTimeout(resolve, 200));
+
         // Navigate to the newly created note with toast parameter
         if (result.note && result.note.id) {
           console.log('NewNotePanel: Redirecting to note:', result.note.id);
+          
+          // Final verification that thread is in localStorage before navigation
+          // Also store thread info in sessionStorage as a backup for immediate access on new page
+          if (result.note.threadId) {
+            try {
+              const stored = localStorage.getItem('harvous-navigation-history-v2');
+              if (stored) {
+                const history = JSON.parse(stored);
+                const threadExists = history.some((item: any) => item.id === result.note.threadId);
+                console.log('NewNotePanel: Final verification before navigation - thread in localStorage:', threadExists);
+                
+                // Store thread info in sessionStorage as backup for immediate access on new page
+                if (threadExists) {
+                  const threadItem = history.find((item: any) => item.id === result.note.threadId);
+                  if (threadItem) {
+                    sessionStorage.setItem('harvous-pending-thread', JSON.stringify(threadItem));
+                    console.log('NewNotePanel: Stored thread in sessionStorage as backup:', threadItem.id);
+                  }
+                } else {
+                  console.error('NewNotePanel: CRITICAL - Thread missing from localStorage right before navigation!');
+                }
+              }
+            } catch (error) {
+              console.error('NewNotePanel: Error in final verification:', error);
+            }
+          }
+          
           const redirectUrl = `/${result.note.id}?toast=success&message=${encodeURIComponent(result.success || 'Note created successfully!')}`;
           window.location.href = redirectUrl;
         }

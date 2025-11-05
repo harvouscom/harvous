@@ -3,13 +3,29 @@ import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 
 const PersistentNavigation: React.FC = () => {
-  const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = useNavigation();
+  console.log('🧭 PersistentNavigation: Component function called - START');
+  const contextValue = useNavigation();
+  const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
   const [isClient, setIsClient] = useState(false);
   const [currentItemId, setCurrentItemId] = useState('');
+  const [renderKey, setRenderKey] = useState(0);
 
-  console.log('🧭 PersistentNavigation: Component function called');
+  console.log('🧭 PersistentNavigation: Component function called - AFTER HOOKS');
+  console.log('🧭 PersistentNavigation: Full context value:', contextValue);
   console.log('🧭 PersistentNavigation: navigationHistory:', navigationHistory);
+  console.log('🧭 PersistentNavigation: navigationHistory length:', navigationHistory.length);
+  console.log('🧭 PersistentNavigation: navigationHistory reference:', navigationHistory);
   console.log('🧭 PersistentNavigation: isClient:', isClient);
+  console.log('🧭 PersistentNavigation: renderKey:', renderKey);
+  
+  // Debug: Log when navigationHistory changes and force re-render
+  useEffect(() => {
+    console.log('🧭 PersistentNavigation: navigationHistory changed!', navigationHistory.length, 'items');
+    console.log('🧭 PersistentNavigation: Items:', JSON.stringify(navigationHistory.map(item => ({ id: item.id, title: item.title, count: item.count })), null, 2));
+    console.log('🧭 PersistentNavigation: Forcing re-render with new key');
+    // Force re-render by updating a state variable
+    setRenderKey(prev => prev + 1);
+  }, [navigationHistory]);
 
   // Handle SSR - only run client-side code after hydration
   useEffect(() => {
@@ -74,14 +90,18 @@ const PersistentNavigation: React.FC = () => {
   };
 
   const persistentItems = getPersistentItems();
+  
+  console.log('🧭 PersistentNavigation: Rendering with', persistentItems.length, 'persistent items');
+  console.log('🧭 PersistentNavigation: Persistent items:', JSON.stringify(persistentItems.map(item => ({ id: item.id, title: item.title, count: item.count })), null, 2));
 
   // Don't render anything during SSR or if no items to show
   if (!isClient || persistentItems.length === 0) {
+    console.log('🧭 PersistentNavigation: Not rendering - isClient:', isClient, 'persistentItems.length:', persistentItems.length);
     return null;
   }
 
   return (
-    <div id="persistent-navigation" className="flex flex-col items-start justify-start w-full">
+    <div id="persistent-navigation" key={renderKey} className="flex flex-col items-start justify-start w-full">
       {persistentItems.map((item) => {
         // Check if this item is currently active (either directly or as parent of a note)
         const isActive = item.id === currentActiveItemId;

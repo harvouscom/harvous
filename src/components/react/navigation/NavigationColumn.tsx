@@ -47,6 +47,12 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
 }) => {
   const [showActiveThread, setShowActiveThread] = useState(false);
   const [currentItemId, setCurrentItemId] = useState('');
+  const [updatedActiveThread, setUpdatedActiveThread] = useState<ActiveThread | null>(activeThread);
+
+  // Sync updatedActiveThread when activeThread prop changes
+  useEffect(() => {
+    setUpdatedActiveThread(activeThread);
+  }, [activeThread]);
   
   // Initialize current item ID and listen for page changes
   useEffect(() => {
@@ -87,6 +93,76 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       }
     }
   }, [activeThread, isNote, currentItemId]);
+
+  // Listen for note count changes to refresh activeThread count
+  useEffect(() => {
+    if (!activeThread) return;
+
+    const refreshActiveThreadCount = async () => {
+      try {
+        // Fetch current thread data from API
+        const response = await fetch('/api/threads/list', {
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          const threads = await response.json();
+          const threadData = threads.find((t: any) => t.id === activeThread.id);
+          
+          if (threadData) {
+            setUpdatedActiveThread((prev) => {
+              // Only update if count actually changed
+              if (prev && prev.noteCount === threadData.noteCount) {
+                return prev;
+              }
+              return {
+                ...activeThread,
+                noteCount: threadData.noteCount
+              };
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error refreshing active thread count:', error);
+      }
+    };
+
+    const handleNoteCreated = () => {
+      setTimeout(() => refreshActiveThreadCount(), 300);
+    };
+
+    const handleNoteDeleted = () => {
+      setTimeout(() => refreshActiveThreadCount(), 300);
+    };
+
+    const handleNoteRemovedFromThread = (event: CustomEvent) => {
+      const { threadId } = event.detail;
+      if (threadId === activeThread.id) {
+        setTimeout(() => refreshActiveThreadCount(), 300);
+      }
+    };
+
+    const handleNoteAddedToThread = (event: CustomEvent) => {
+      const { threadId } = event.detail;
+      if (threadId === activeThread.id) {
+        setTimeout(() => refreshActiveThreadCount(), 300);
+      }
+    };
+
+    // Register event listeners
+    window.addEventListener('noteCreated', handleNoteCreated);
+    window.addEventListener('noteDeleted', handleNoteDeleted);
+    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('noteCreated', handleNoteCreated);
+      window.removeEventListener('noteDeleted', handleNoteDeleted);
+      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+    };
+  }, [activeThread]);
   return (
     <div className="h-full">
       <div className="flex flex-col items-start justify-between relative h-full">
@@ -106,8 +182,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             </a>
             
             {/* Persistent Navigation - shows recently accessed items */}
-            {/* Disabled - using JavaScript-based system in Layout.astro instead */}
-            {/* <PersistentNavigation /> */}
+            <PersistentNavigation />
             
             {/* Show created spaces */}
             {spaces.map(space => (
@@ -127,16 +202,16 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             ))}
             
             {/* Show active thread if any - but only if it's not already in persistent navigation */}
-            {activeThread && showActiveThread ? (
-              <a href={`/${activeThread.id}`} className="w-full">
+            {(updatedActiveThread || activeThread) && showActiveThread ? (
+              <a href={`/${(updatedActiveThread || activeThread)!.id}`} className="w-full">
                 <SpaceButton 
-                  text={activeThread.title} 
-                  count={activeThread.noteCount} 
+                  text={(updatedActiveThread || activeThread)!.title} 
+                  count={(updatedActiveThread || activeThread)!.noteCount} 
                   state="Close" 
                   className="w-full" 
-                  backgroundGradient={activeThread.backgroundGradient}
-                  isActive={isNote || activeThread.id === currentItemId}
-                  itemId={activeThread.id}
+                  backgroundGradient={(updatedActiveThread || activeThread)!.backgroundGradient}
+                  isActive={isNote || (updatedActiveThread || activeThread)!.id === currentItemId}
+                  itemId={(updatedActiveThread || activeThread)!.id}
                 />
               </a>
             ) : null}

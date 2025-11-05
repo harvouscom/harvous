@@ -43,6 +43,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [isClient, setIsClient] = useState(false);
   const [currentItemId, setCurrentItemId] = useState('');
   const { navigationHistory, removeFromNavigationHistory } = useNavigation();
+  const [updatedCurrentThread, setUpdatedCurrentThread] = useState(currentThread);
+
+  // Sync updatedCurrentThread when currentThread prop changes
+  useEffect(() => {
+    setUpdatedCurrentThread(currentThread);
+  }, [currentThread]);
 
   // Helper to determine if background is colored (not paper or gray gradient)
   const isColoredBackground = (gradient: string | undefined): boolean => {
@@ -82,6 +88,76 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       document.removeEventListener('astro:page-load', handlePageLoad);
     };
   }, [isClient]);
+
+  // Listen for note count changes to refresh currentThread count
+  useEffect(() => {
+    if (!currentThread || !isClient) return;
+
+    const refreshCurrentThreadCount = async () => {
+      try {
+        // Fetch current thread data from API
+        const response = await fetch('/api/threads/list', {
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          const threads = await response.json();
+          const threadData = threads.find((t: any) => t.id === currentThread.id);
+          
+          if (threadData) {
+            setUpdatedCurrentThread((prev) => {
+              // Only update if count actually changed
+              if (prev && prev.noteCount === threadData.noteCount) {
+                return prev;
+              }
+              return {
+                ...currentThread,
+                noteCount: threadData.noteCount
+              };
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error refreshing current thread count:', error);
+      }
+    };
+
+    const handleNoteCreated = () => {
+      setTimeout(() => refreshCurrentThreadCount(), 300);
+    };
+
+    const handleNoteDeleted = () => {
+      setTimeout(() => refreshCurrentThreadCount(), 300);
+    };
+
+    const handleNoteRemovedFromThread = (event: CustomEvent) => {
+      const { threadId } = event.detail;
+      if (threadId === currentThread.id) {
+        setTimeout(() => refreshCurrentThreadCount(), 300);
+      }
+    };
+
+    const handleNoteAddedToThread = (event: CustomEvent) => {
+      const { threadId } = event.detail;
+      if (threadId === currentThread.id) {
+        setTimeout(() => refreshCurrentThreadCount(), 300);
+      }
+    };
+
+    // Register event listeners
+    window.addEventListener('noteCreated', handleNoteCreated);
+    window.addEventListener('noteDeleted', handleNoteDeleted);
+    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('noteCreated', handleNoteCreated);
+      window.removeEventListener('noteDeleted', handleNoteDeleted);
+      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+    };
+  }, [currentThread, isClient]);
   
   // Determine what the current active thread/space is - only on client
   const getCurrentActiveItemId = () => {
@@ -228,7 +304,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       <div className="relative min-w-0 h-[64px] flex items-center">
         <SpaceButton 
           text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "For You"}
-          count={currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
+          count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
           state="DropdownTrigger"
           className="w-full min-w-0"
           backgroundGradient={currentThread?.backgroundGradient || getThreadGradientCSS('paper')}
@@ -432,27 +508,27 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               )}
               
               {/* Active Thread (if not in persistent navigation) */}
-              {currentThread && !persistentItems.some(item => item.id === currentThread.id) && (
+              {(updatedCurrentThread || currentThread) && !persistentItems.some(item => item.id === (updatedCurrentThread || currentThread)!.id) && (
                 <>
                   <div className="border-t border-gray-200 my-2"></div>
-                  <a href={`/${currentThread.id}`} className="block w-full" onClick={handleItemClick}>
+                  <a href={`/${(updatedCurrentThread || currentThread)!.id}`} className="block w-full" onClick={handleItemClick}>
                     <div 
                       className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
                       style={{
-                        backgroundImage: currentThread.backgroundGradient?.includes('gradient') ? currentThread.backgroundGradient : undefined,
-                        backgroundColor: currentThread.backgroundGradient?.includes('gradient') ? undefined : (currentThread.backgroundGradient || undefined)
+                        backgroundImage: (updatedCurrentThread || currentThread)!.backgroundGradient?.includes('gradient') ? (updatedCurrentThread || currentThread)!.backgroundGradient : undefined,
+                        backgroundColor: (updatedCurrentThread || currentThread)!.backgroundGradient?.includes('gradient') ? undefined : ((updatedCurrentThread || currentThread)!.backgroundGradient || undefined)
                       }}
                     >
                       <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                         <div className="flex-1 min-w-0 overflow-hidden text-left">
-                          <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(currentThread.backgroundGradient, true) }}>
-                            {currentThread.title}
+                          <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor((updatedCurrentThread || currentThread)!.backgroundGradient, true) }}>
+                            {(updatedCurrentThread || currentThread)!.title}
                           </span>
                         </div>
                         <div className="p-[20px] flex-shrink-0">
                           <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                            <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(currentThread.backgroundGradient, true) }}>
-                              {currentThread.noteCount}
+                            <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor((updatedCurrentThread || currentThread)!.backgroundGradient, true) }}>
+                              {(updatedCurrentThread || currentThread)!.noteCount}
                             </span>
                           </div>
                         </div>
