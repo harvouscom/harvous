@@ -34,6 +34,30 @@ function getCommitMessage() {
   }
 }
 
+// Check if package.json was modified in the last commit
+function wasPackageJsonModifiedInLastCommit() {
+  try {
+    // Check if package.json is in the list of files changed in HEAD
+    const changedFiles = execSync('git diff-tree --no-commit-id --name-only -r HEAD', { encoding: 'utf-8' }).trim();
+    return changedFiles.includes('package.json');
+  } catch (error) {
+    // If we can't check (e.g., no commits yet), assume false
+    return false;
+  }
+}
+
+// Check if package.json has uncommitted changes
+function hasUncommittedChanges() {
+  try {
+    // Check if package.json has uncommitted changes (staged or unstaged)
+    const status = execSync('git status --porcelain package.json', { encoding: 'utf-8' }).trim();
+    return status.length > 0;
+  } catch (error) {
+    // If we can't check, assume false
+    return false;
+  }
+}
+
 // Determine bump type based on commit message
 function determineBumpType(commitMessage) {
   if (!commitMessage) {
@@ -110,6 +134,42 @@ try {
   const packageJsonPath = join(__dirname, '..', 'package.json');
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
   const currentVersion = packageJson.version;
+
+  // SAFEGUARD 1: Skip if package.json was modified in the last commit
+  // This means the version was already bumped and committed
+  if (wasPackageJsonModifiedInLastCommit()) {
+    console.log('ℹ️  package.json was modified in the last commit. Skipping to avoid recursion.');
+    process.exit(0);
+  }
+
+  // SAFEGUARD 2: Skip if current version already matches expected version from last commit
+  // This means the version was already bumped to the correct value
+  try {
+    // Try to get the version from the parent commit to calculate expected
+    const parentPackageJson = execSync('git show HEAD~1:package.json 2>/dev/null', { encoding: 'utf-8' });
+    const parentPackage = JSON.parse(parentPackageJson);
+    const parentVersion = parentPackage.version;
+    
+    // Calculate what the version should be based on the last commit
+    const bumpType = determineBumpType(commitMessage);
+    const expectedVersion = bumpVersion(parentVersion, bumpType);
+    
+    // If current version matches expected, it was already bumped correctly
+    if (expectedVersion === currentVersion) {
+      console.log('ℹ️  Version already matches expected value from last commit. Skipping.');
+      process.exit(0);
+    }
+  } catch (error) {
+    // Can't get parent commit (e.g., first commit or no parent), so continue
+    // This is expected in some cases, so we don't treat it as an error
+  }
+
+  // SAFEGUARD 3: Skip if package.json has uncommitted changes
+  // This means user is mid-process (either staging or has unstaged changes)
+  if (hasUncommittedChanges()) {
+    console.log('ℹ️  package.json has uncommitted changes. Skipping to avoid conflicts.');
+    process.exit(0);
+  }
 
   console.log(`🔄 Current version: ${currentVersion}`);
 
