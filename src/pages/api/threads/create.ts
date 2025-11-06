@@ -25,12 +25,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     console.log("Creating thread with userId:", userId, "title:", title, "color:", color, "isPublic:", isPublic, "spaceId:", spaceId);
 
-    if (!title || !title.trim()) {
-      return new Response(JSON.stringify({ error: 'Title is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    // Default to "Untitled Thread" if title is empty or whitespace
+    const finalTitle = (!title || !title.trim()) ? 'Untitled Thread' : title.trim();
 
     // Make spaceId optional - if not provided or is 'default_space', set to null
     let finalSpaceId = null;
@@ -47,7 +43,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       threadColor = getRandomThreadColor();
     }
 
-    const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+    const capitalizedTitle = finalTitle.charAt(0).toUpperCase() + finalTitle.slice(1);
     
     const newThread = await db.insert(Threads)
       .values({

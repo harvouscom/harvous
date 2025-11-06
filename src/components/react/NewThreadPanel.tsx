@@ -139,11 +139,6 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
     console.log('Selected color:', selectedColor);
     console.log('Selected type:', selectedType);
     console.log('Is edit mode:', isEditMode);
-    
-    if (!title.trim()) {
-      console.log('NewThreadPanel: No title provided, returning');
-      return;
-    }
 
     console.log('NewThreadPanel: Starting submission');
     setIsSubmitting(true);
