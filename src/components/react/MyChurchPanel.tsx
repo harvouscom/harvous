@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import SquareButton from './SquareButton';
+import ButtonSmall from './ButtonSmall';
 import ChurchIcon from "@fortawesome/fontawesome-free/svgs/solid/church.svg";
 
 interface MyChurchPanelProps {
@@ -17,17 +19,37 @@ export default function MyChurchPanel({
     churchCity: '',
     churchState: '' // State/Province/Region (full name, not abbreviation)
   });
+  const [originalFormData, setOriginalFormData] = useState({
+    churchName: '',
+    churchCity: '',
+    churchState: ''
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [hasExistingData, setHasExistingData] = useState(false);
   const [viewMode, setViewMode] = useState<'view' | 'edit'>('edit');
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
   // Load existing church data when component mounts
   useEffect(() => {
     console.log('🔄 MyChurchPanel: useEffect triggered, loading church data');
     loadChurchData();
   }, []);
+
+  // Prevent body scroll when dialog is open
+  useEffect(() => {
+    if (showUnsavedDialog) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showUnsavedDialog]);
 
   const loadChurchData = async () => {
     console.log('📥 MyChurchPanel: loadChurchData called');
@@ -43,11 +65,15 @@ export default function MyChurchPanel({
         const churchCity = data.churchCity || '';
         const churchState = data.churchState || '';
         
-        setFormData({
+        const loadedData = {
           churchName,
           churchCity,
           churchState
-        });
+        };
+        
+        setFormData(loadedData);
+        // Store original data for unsaved changes detection
+        setOriginalFormData(loadedData);
         
         // Check if any church data exists
         const hasData = !!(churchName || churchCity || churchState);
@@ -65,10 +91,40 @@ export default function MyChurchPanel({
     }
   };
 
-  // Validate form data (all fields optional)
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = () => {
+    const currentTrimmed = {
+      churchName: formData.churchName.trim(),
+      churchCity: formData.churchCity.trim(),
+      churchState: formData.churchState.trim()
+    };
+    const originalTrimmed = {
+      churchName: originalFormData.churchName.trim(),
+      churchCity: originalFormData.churchCity.trim(),
+      churchState: originalFormData.churchState.trim()
+    };
+    
+    return (
+      currentTrimmed.churchName !== originalTrimmed.churchName ||
+      currentTrimmed.churchCity !== originalTrimmed.churchCity ||
+      currentTrimmed.churchState !== originalTrimmed.churchState
+    );
+  };
+
+  // Validate form data (all fields required)
   const validateForm = () => {
     const errors: Record<string, string> = {};
-    // All fields are optional, no validation needed
+    
+    if (!formData.churchName.trim()) {
+      errors.churchName = 'Church name is required';
+    }
+    if (!formData.churchCity.trim()) {
+      errors.churchCity = 'City is required';
+    }
+    if (!formData.churchState.trim()) {
+      errors.churchState = 'State/Province/Region is required';
+    }
+    
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -113,6 +169,14 @@ export default function MyChurchPanel({
         // Update hasExistingData flag
         const hasData = !!(formData.churchName.trim() || formData.churchCity.trim() || formData.churchState.trim());
         setHasExistingData(hasData);
+        
+        // Update originalFormData to match saved data
+        setOriginalFormData({
+          churchName: formData.churchName.trim(),
+          churchCity: formData.churchCity.trim(),
+          churchState: formData.churchState.trim()
+        });
+        
         // Switch to view mode after successful save (panel stays open)
         setViewMode('view');
         
@@ -166,6 +230,29 @@ export default function MyChurchPanel({
 
   // Handle close
   const handleClose = () => {
+    // Don't close if dialog is open
+    if (showUnsavedDialog) {
+      return;
+    }
+    
+    // If in edit mode, check for unsaved changes
+    if (viewMode === 'edit') {
+      if (hasUnsavedChanges()) {
+        // Show confirmation dialog
+        setShowUnsavedDialog(true);
+        return;
+      } else {
+        // No unsaved changes - revert to view mode if hasExistingData, otherwise close
+        if (hasExistingData) {
+          setViewMode('view');
+          // Reset formData to original values in case they were modified
+          setFormData(originalFormData);
+          return;
+        }
+      }
+    }
+    
+    // Close panel normally (in view mode or no existing data)
     if (onClose) {
       onClose();
     } else {
@@ -176,6 +263,102 @@ export default function MyChurchPanel({
   // Switch to edit mode
   const switchToEditMode = () => {
     setViewMode('edit');
+  };
+
+  // Handle unsaved changes dialog actions
+  const handleDiscardChanges = () => {
+    // Reset formData to original values
+    setFormData(originalFormData);
+    setShowUnsavedDialog(false);
+    
+    // Revert to view mode if hasExistingData, otherwise stay in edit mode
+    if (hasExistingData) {
+      setViewMode('view');
+    }
+  };
+
+  const handleSaveAndClose = async () => {
+    // Close dialog first
+    setShowUnsavedDialog(false);
+    
+    // Try to save the church data first
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      console.log('📤 MyChurchPanel: Making API call to update church (from Save & Close)');
+      
+      const response = await fetch('/api/user/update-church', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          churchName: formData.churchName.trim(),
+          churchCity: formData.churchCity.trim(),
+          churchState: formData.churchState.trim()
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log('✅ MyChurchPanel: Church data updated successfully (from Save & Close)');
+        
+        // Update hasExistingData flag
+        const hasData = !!(formData.churchName.trim() || formData.churchCity.trim() || formData.churchState.trim());
+        setHasExistingData(hasData);
+        
+        // Update originalFormData to match saved data
+        setOriginalFormData({
+          churchName: formData.churchName.trim(),
+          churchCity: formData.churchCity.trim(),
+          churchState: formData.churchState.trim()
+        });
+        
+        // Switch to view mode
+        setViewMode('view');
+        
+        // Show success toast
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Church information saved successfully!',
+            type: 'success'
+          }
+        }));
+
+        // Close panel after successful save
+        if (onClose) {
+          onClose();
+        } else {
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+        }
+      } else {
+        console.error('❌ MyChurchPanel: Church update failed (from Save & Close):', data);
+        
+        // Show error toast
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: data.error || 'Failed to save church information. Please try again.',
+            type: 'error'
+          }
+        }));
+      }
+
+    } catch (error) {
+      console.error('❌ MyChurchPanel: Error updating church (from Save & Close):', error);
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Error saving church information. Please try again.',
+          type: 'error'
+        }
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle remove church
@@ -205,11 +388,14 @@ export default function MyChurchPanel({
         console.log('✅ MyChurchPanel: Church data removed successfully');
         
         // Clear form data
-        setFormData({
+        const emptyData = {
           churchName: '',
           churchCity: '',
           churchState: ''
-        });
+        };
+        setFormData(emptyData);
+        // Update originalFormData as well
+        setOriginalFormData(emptyData);
         
         // Update state
         setHasExistingData(false);
@@ -377,14 +563,16 @@ export default function MyChurchPanel({
               <div className="flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full">
                 
                 {/* Church Name Input - Full Width */}
-                <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                  <input 
-                    type="text"
-                    value={formData.churchName}
-                    onChange={(e) => handleInputChange('churchName', e.target.value)}
-                    placeholder="Name of church"
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
-                  />
+                <div className="w-full">
+                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                    <input 
+                      type="text"
+                      value={formData.churchName}
+                      onChange={(e) => handleInputChange('churchName', e.target.value)}
+                      placeholder="Name of church"
+                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
+                    />
+                  </div>
                   {validationErrors.churchName && (
                     <div className="text-red-500 text-sm mt-1 text-center">
                       {validationErrors.churchName}
@@ -395,14 +583,16 @@ export default function MyChurchPanel({
                 {/* City and State/Province/Region Inputs - Side by Side with wrapping */}
                 <div className="flex flex-wrap gap-3 items-start w-full">
                   {/* City Input - Flex grow with min-width */}
-                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] flex-1 min-w-[230px]">
-                    <input 
-                      type="text"
-                      value={formData.churchCity}
-                      onChange={(e) => handleInputChange('churchCity', e.target.value)}
-                      placeholder="City"
-                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
-                    />
+                  <div className="flex-1 min-w-[230px]">
+                    <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                      <input 
+                        type="text"
+                        value={formData.churchCity}
+                        onChange={(e) => handleInputChange('churchCity', e.target.value)}
+                        placeholder="City"
+                        className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
+                      />
+                    </div>
                     {validationErrors.churchCity && (
                       <div className="text-red-500 text-sm mt-1 text-center">
                         {validationErrors.churchCity}
@@ -411,14 +601,16 @@ export default function MyChurchPanel({
                   </div>
                   
                   {/* State/Province/Region Input - Flex grow with min-width */}
-                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] flex-1 min-w-[230px]">
-                    <input 
-                      type="text"
-                      value={formData.churchState}
-                      onChange={(e) => handleInputChange('churchState', e.target.value)}
-                      placeholder="State/Province/Region"
-                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
-                    />
+                  <div className="flex-1 min-w-[230px]">
+                    <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                      <input 
+                        type="text"
+                        value={formData.churchState}
+                        onChange={(e) => handleInputChange('churchState', e.target.value)}
+                        placeholder="State/Province/Region"
+                        className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
+                      />
+                    </div>
                     {validationErrors.churchState && (
                       <div className="text-red-500 text-sm mt-1 text-center">
                         {validationErrors.churchState}
@@ -456,6 +648,60 @@ export default function MyChurchPanel({
           </button>
         </div>
       </form>
+
+      {/* Unsaved Changes Dialog - Rendered via Portal to ensure full viewport coverage */}
+      {showUnsavedDialog && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
+          style={{
+            paddingTop: 'max(1rem, env(safe-area-inset-top))',
+            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
+          }}
+          onClick={(e) => {
+            // Close dialog if clicking on the overlay (but not the dialog content)
+            if (e.target === e.currentTarget) {
+              setShowUnsavedDialog(false);
+            }
+          }}
+        >
+          <div 
+            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+            style={{ pointerEvents: 'auto' }}
+          >
+            <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
+              Unsaved Changes
+            </h3>
+            <p className="text-[var(--color-pebble-grey)] mb-6">
+              You have unsaved changes. What would you like to do?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <ButtonSmall
+                type="button"
+                onClick={() => setShowUnsavedDialog(false)}
+                state="Secondary"
+              >
+                Cancel
+              </ButtonSmall>
+              <ButtonSmall
+                type="button"
+                onClick={handleDiscardChanges}
+                state="Delete"
+              >
+                Discard
+              </ButtonSmall>
+              <ButtonSmall
+                type="button"
+                onClick={handleSaveAndClose}
+                state="Default"
+              >
+                Save & Close
+              </ButtonSmall>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
