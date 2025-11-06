@@ -14,7 +14,13 @@ function loadPersistentNavigation(retryCount) {
     const history = JSON.parse(navHistory);
     
     // Sort by firstAccessed (chronological order - maintain original order)
-    const sortedHistory = history.sort((a, b) => a.firstAccessed - b.firstAccessed);
+    // Defensive: handle missing firstAccessed by treating as oldest (very large number)
+    // Check for undefined/null specifically, not falsy (0 is a valid timestamp)
+    const sortedHistory = history.sort((a, b) => {
+      const aFirst = (a.firstAccessed != null) ? a.firstAccessed : Number.MAX_SAFE_INTEGER;
+      const bFirst = (b.firstAccessed != null) ? b.firstAccessed : Number.MAX_SAFE_INTEGER;
+      return aFirst - bFirst;
+    });
     
     // Filter out items that shouldn't be shown
     const currentPath = window.location.pathname;

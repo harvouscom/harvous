@@ -180,9 +180,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     if (existingIndex !== -1) {
       // Item already exists - update lastAccessed time but keep position
+      const existingItem = history[existingIndex];
+      // Defensive: ensure firstAccessed is preserved, use current time if missing (shouldn't happen)
+      // Check for undefined/null specifically, not falsy (0 is a valid timestamp)
+      const preservedFirstAccessed = (existingItem.firstAccessed != null) ? existingItem.firstAccessed : Date.now();
       history[existingIndex] = {
-        ...history[existingIndex],
+        ...existingItem,
         ...item,
+        firstAccessed: preservedFirstAccessed,
         lastAccessed: Date.now()
       };
     } else {
@@ -199,7 +204,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     // Sort by firstAccessed to maintain chronological order
     // This ensures the order is consistent between React and Astro
-    history.sort((a, b) => a.firstAccessed - b.firstAccessed);
+    // Defensive: handle missing firstAccessed by treating as oldest (very large number)
+    // Check for undefined/null specifically, not falsy (0 is a valid timestamp)
+    history.sort((a, b) => {
+      const aFirst = (a.firstAccessed != null) ? a.firstAccessed : Number.MAX_SAFE_INTEGER;
+      const bFirst = (b.firstAccessed != null) ? b.firstAccessed : Number.MAX_SAFE_INTEGER;
+      return aFirst - bFirst;
+    });
     
     // Remove any duplicates by ID (defensive programming)
     const uniqueHistory = history.reduce((acc, current) => {
@@ -217,7 +228,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }, [] as NavigationItem[]);
     
     // Sort again after deduplication to maintain chronological order
-    uniqueHistory.sort((a, b) => a.firstAccessed - b.firstAccessed);
+    // Defensive: handle missing firstAccessed by treating as oldest (very large number)
+    // Check for undefined/null specifically, not falsy (0 is a valid timestamp)
+    uniqueHistory.sort((a, b) => {
+      const aFirst = (a.firstAccessed != null) ? a.firstAccessed : Number.MAX_SAFE_INTEGER;
+      const bFirst = (b.firstAccessed != null) ? b.firstAccessed : Number.MAX_SAFE_INTEGER;
+      return aFirst - bFirst;
+    });
     
     // Limit to 10 items, keeping the most recently accessed
     let limitedHistory = uniqueHistory;

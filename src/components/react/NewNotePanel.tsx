@@ -656,25 +656,47 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
             // Directly write to localStorage synchronously BEFORE calling addToNavigationHistory
             // This ensures localStorage is updated immediately, even if React state update is delayed
             try {
-              const threadItem = {
-                id: threadData.id,
-                title: threadData.title,
-                count: (threadData.noteCount || 0) + 1,
-                backgroundGradient: threadData.backgroundGradient,
-                lastAccessed: Date.now()
-              };
-              
               const stored = localStorage.getItem('harvous-navigation-history-v2');
               let history = stored ? JSON.parse(stored) : [];
               
-              // Remove if already exists (to avoid duplicates)
-              history = history.filter((item: any) => item.id !== threadData.id);
+              // Find existing thread in history to preserve firstAccessed timestamp
+              const existingIndex = history.findIndex((item: any) => item.id === threadData.id);
               
-              // Add to beginning
-              history.unshift(threadItem);
+              let threadItem: any;
+              if (existingIndex !== -1) {
+                // Thread exists - update in place, preserving firstAccessed
+                const existingItem = history[existingIndex];
+                threadItem = {
+                  ...existingItem,
+                  id: threadData.id,
+                  title: threadData.title,
+                  count: (threadData.noteCount || 0) + 1,
+                  backgroundGradient: threadData.backgroundGradient,
+                  lastAccessed: Date.now()
+                  // firstAccessed is preserved from existingItem via spread operator
+                };
+                // Update in place
+                history[existingIndex] = threadItem;
+              } else {
+                // Thread doesn't exist - add new with firstAccessed timestamp
+                threadItem = {
+                  id: threadData.id,
+                  title: threadData.title,
+                  count: (threadData.noteCount || 0) + 1,
+                  backgroundGradient: threadData.backgroundGradient,
+                  firstAccessed: Date.now(),
+                  lastAccessed: Date.now()
+                };
+                history.push(threadItem);
+              }
               
-              // Limit to 10 items
-              history = history.slice(0, 10);
+              // Sort by firstAccessed to maintain chronological order
+              history.sort((a: any, b: any) => a.firstAccessed - b.firstAccessed);
+              
+              // Limit to 10 items (keep oldest items based on firstAccessed)
+              if (history.length > 10) {
+                history = history.slice(0, 10);
+              }
               
               // Write synchronously
               localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
@@ -685,7 +707,13 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
               // Now call addToNavigationHistory to update React state (if available)
               // This will update the state, but localStorage is already written
               if (addToNavigationHistory) {
-                addToNavigationHistory(threadItem);
+                // Pass item without firstAccessed/lastAccessed (addToNavigationHistory will handle those)
+                addToNavigationHistory({
+                  id: threadData.id,
+                  title: threadData.title,
+                  count: (threadData.noteCount || 0) + 1,
+                  backgroundGradient: threadData.backgroundGradient
+                });
               }
             } catch (error) {
               console.error('NewNotePanel: Error writing to localStorage:', error);
