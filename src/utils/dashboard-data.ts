@@ -1,5 +1,6 @@
 import { db, Threads, Notes, Spaces, NoteThreads, eq, and, desc, count, or, ne, isNull, isNotNull } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
+import { getInboxItems, getInboxCount as getInboxCountUtil } from "./inbox-data";
 
 // Helper function to strip HTML tags and decode entities
 function stripHtml(html: string): string {
@@ -440,9 +441,8 @@ export async function getInboxCount(userId: string) {
     // User-generated notes and threads should NEVER appear in the inbox
     // This includes individual notes in unorganized thread
     
-    // For now, return 0 since we don't have external content yet
-    // In the future, this will count external content items
-    return 0;
+    // Use the inbox data utility to get actual count
+    return await getInboxCountUtil(userId);
   } catch (error) {
     console.error("Error fetching inbox count:", error);
     return 0;
@@ -473,14 +473,27 @@ export async function getFeaturedContent(userId: string) {
     // - Pinned threads
     // - Any other user-created content
     
-    // For now, return empty array since we don't have external content yet
-    // In the future, this will fetch content from:
-    // - Harvous team recommendations
-    // - Shared content from other users
-    // - Curated Bible study materials
-    // - Community highlights
+    // Fetch inbox items from Harvous team (synced from Webflow CMS)
+    const inboxItems = await getInboxItems(userId);
     
-    return [];
+    // Map inbox items to CardFeat format
+    return inboxItems.map(item => {
+      const cleanContent = stripHtml(item.content || '');
+      return {
+        id: item.id,
+        type: item.contentType === 'thread' ? 'thread' : 'note',
+        title: item.title,
+        content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        imageUrl: item.imageUrl,
+        variant: item.contentType === 'thread' ? 'Thread' : (item.imageUrl ? 'NoteImage' : 'Note'),
+        lastUpdated: item.updatedAt ? new Date(item.updatedAt).toISOString() : new Date(item.createdAt).toISOString(),
+        isPrivate: true, // Inbox items are always private to the user
+        threadId: item.contentType === 'thread' ? item.id : undefined,
+        noteId: item.contentType === 'note' ? item.id : undefined,
+        color: item.color,
+        subtitle: item.subtitle,
+      };
+    });
   } catch (error) {
     console.error("Error fetching featured content:", error);
     return [];

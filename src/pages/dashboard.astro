@@ -11,6 +11,8 @@ import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
+import { getArchivedItems } from "@/utils/inbox-data";
+import InboxItemsList from "@/components/react/InboxItemsList";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import { getThreadGradientCSS } from "@/utils/colors";
@@ -95,13 +97,37 @@ try {
 }
 
 // Combine all content for the main content section
-// Inbox shows only individual notes (threads should never appear in inbox)
-const inboxContent = featuredContent.filter(item => item.type === 'note');
+// Inbox shows inbox items from Harvous team (both threads and notes)
+const inboxContent = featuredContent; // Now includes both threads and notes from inbox
 // Organized content should only include contentItems, not featuredContent notes
 // to avoid duplication of unorganized notes
 const organizedContent = contentItems;
 // Use the actual count of items displayed in inbox, not the total inbox count
 const inboxItemCount = inboxContent.length;
+
+// Get archived items
+let archivedItems: any[] = [];
+try {
+  const archived = await getArchivedItems(userId);
+  archivedItems = archived.map(item => {
+    const cleanContent = item.content ? item.content.replace(/<[^>]*>/g, '').substring(0, 150) + (item.content.length > 150 ? "..." : "") : '';
+    return {
+      id: item.id,
+      type: item.contentType === 'thread' ? 'thread' : 'note',
+      title: item.title,
+      content: cleanContent,
+      imageUrl: item.imageUrl,
+      variant: item.contentType === 'thread' ? 'Thread' : (item.imageUrl ? 'NoteImage' : 'Note'),
+      threadId: item.contentType === 'thread' ? item.id : undefined,
+      noteId: item.contentType === 'note' ? item.id : undefined,
+      color: item.color,
+      subtitle: item.subtitle,
+    };
+  });
+} catch (error) {
+  console.error("Error fetching archived items:", error);
+  archivedItems = [];
+}
 
 // Get active thread context for navigation
 const activeThread = await detectActiveThreadFromPath(Astro.url.pathname, userId);
@@ -181,23 +207,10 @@ try {
                     <!-- Inbox Content (reserved for external content only) -->
                     <div class="inbox-content" data-tab-content="inbox">
                       {inboxContent.length > 0 ? (
-                        <div class="flex gap-3 overflow-auto">
-                          {inboxContent.map(item => (
-                            <a 
-                              href={item.type === 'thread' ? `/${item.threadId}` : `/${item.id}`}
-                              class="block transition-transform duration-200 hover:scale-[1.002]"
-                            >
-                              <CardFeat 
-                                variant={item.variant}
-                                title={item.title}
-                                content={item.content}
-                                imageUrl={(item as any).imageUrl}
-                                lastUpdated={item.lastUpdated}
-                                isPrivate={(item as any).isPrivate}
-                              />
-                            </a>
-                          ))}
-                        </div>
+                        <InboxItemsList 
+                          client:load
+                          items={inboxContent}
+                        />
                       ) : (
                         <div class="flex flex-col items-center justify-center min-h-[200px] w-full text-center">
                           <div class="flex flex-col gap-2 items-center justify-center">
@@ -211,13 +224,20 @@ try {
                     
                     <!-- Archive Content (dismissed items) -->
                     <div class="archive-content hidden" data-tab-content="archive">
-                      <div class="flex flex-col items-center justify-center min-h-[200px] w-full text-center">
-                        <div class="flex flex-col gap-2 items-center justify-center">
-                          <div class="font-sans font-semibold text-[#4a473d] text-[18px] leading-[1.2]">
-                            <p>No archived items</p>
+                      {archivedItems.length > 0 ? (
+                        <InboxItemsList 
+                          client:load
+                          items={archivedItems}
+                        />
+                      ) : (
+                        <div class="flex flex-col items-center justify-center min-h-[200px] w-full text-center">
+                          <div class="flex flex-col gap-2 items-center justify-center">
+                            <div class="font-sans font-semibold text-[#4a473d] text-[18px] leading-[1.2]">
+                              <p>No archived items</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                   

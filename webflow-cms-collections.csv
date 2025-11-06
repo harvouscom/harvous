@@ -1,0 +1,15 @@
+Collection Name,Field Name,Field Type,Required,Multiple,Options/Notes
+Harvous Inbox Items,Content Type,Option,Yes,No,"thread, note"
+Harvous Inbox Items,Title,Plain Text,Yes,No,
+Harvous Inbox Items,Subtitle,Plain Text,No,No,"Only for threads"
+Harvous Inbox Items,Content,Rich Text,Yes,No,"Required for notes, optional for threads"
+Harvous Inbox Items,Image URL,Image,No,No,"Or use Plain Text if external URLs"
+Harvous Inbox Items,Color,Option,No,No,"blessed-blue, graceful-gold, caring-coral, lovely-lavender, mindful-mint (only for threads)"
+Harvous Inbox Items,Target Audience,Option,Yes,No,"all-new-users, all-users, specific-users"
+Harvous Inbox Items,Is Active,Toggle,Yes,No,"Default: true"
+Harvous Inbox Items,Thread Notes,Reference,No,Yes,"Reference to 'Inbox Item Notes' collection (only for threads)"
+Inbox Item Notes,Parent Inbox Item,Reference,Yes,No,"Reference to 'Harvous Inbox Items' collection"
+Inbox Item Notes,Title,Plain Text,No,No,
+Inbox Item Notes,Content,Rich Text,Yes,No,
+Inbox Item Notes,Order,Number,Yes,No,"Default: 0 (for display order in thread)"
+

@@ -205,6 +205,51 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       updatedAt: new Date(),
       clerkDataUpdatedAt: new Date(),
     });
+
+    // Auto-assign inbox items for new users
+    try {
+      const { addInboxItemToUser } = await import('@/utils/inbox-data');
+      const { db: dbImport, InboxItems, UserInboxItems, eq, and } = await import('astro:db');
+      
+      // Find all active inbox items targeted to new users
+      const newUserInboxItems = await dbImport
+        .select()
+        .from(InboxItems)
+        .where(
+          and(
+            eq(InboxItems.targetAudience, 'all_new_users'),
+            eq(InboxItems.isActive, true)
+          )
+        );
+
+      // Create UserInboxItems for each item
+      for (const inboxItem of newUserInboxItems) {
+        // Check if already exists (shouldn't, but just in case)
+        const existing = await dbImport
+          .select()
+          .from(UserInboxItems)
+          .where(
+            and(
+              eq(UserInboxItems.userId, userId),
+              eq(UserInboxItems.inboxItemId, inboxItem.id)
+            )
+          )
+          .get();
+
+        if (!existing) {
+          await dbImport.insert(UserInboxItems).values({
+            id: `user_inbox_${userId}_${inboxItem.id}_${Date.now()}`,
+            userId: userId,
+            inboxItemId: inboxItem.id,
+            status: 'inbox',
+            createdAt: new Date(),
+          });
+        }
+      }
+    } catch (error) {
+      // Don't fail user creation if inbox assignment fails
+      console.error('Error assigning inbox items to new user:', error);
+    }
   }
 
   // Return the Clerk values (our source of truth)

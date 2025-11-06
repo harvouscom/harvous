@@ -171,6 +171,49 @@ const ScriptureMetadata = defineTable({
   }
 })
 
+// Inbox items from Harvous team (synced from Webflow CMS)
+const InboxItems = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    webflowItemId: column.text({ unique: true }), // Unique ID from Webflow CMS
+    contentType: column.text(), // 'thread' | 'note'
+    title: column.text(),
+    subtitle: column.text({ optional: true }), // Optional, for threads
+    content: column.text({ optional: true }), // For notes, optional for threads
+    imageUrl: column.text({ optional: true }),
+    color: column.text({ optional: true }), // Thread color (optional)
+    targetAudience: column.text(), // 'all_new_users' | 'all_users' | 'specific_users'
+    isActive: column.boolean({ default: true }),
+    createdAt: column.date(),
+    updatedAt: column.date({ optional: true }),
+  }
+})
+
+// Notes within inbox threads (for threads containing multiple notes)
+const InboxItemNotes = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    inboxItemId: column.text(), // Foreign key to InboxItems
+    title: column.text({ optional: true }),
+    content: column.text(),
+    order: column.number({ default: 0 }), // Display order
+    createdAt: column.date(),
+  }
+})
+
+// Tracks user's inbox items and their status
+const UserInboxItems = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    userId: column.text(), // Clerk user ID
+    inboxItemId: column.text(), // Foreign key to InboxItems
+    status: column.text(), // 'inbox' | 'archived' | 'added'
+    addedAt: column.date({ optional: true }), // When added to user's Harvous
+    archivedAt: column.date({ optional: true }), // When archived
+    createdAt: column.date(), // When item appeared in user's inbox
+  }
+})
+
 // https://astro.build/db/config
 export default defineDb({
   tables: {
@@ -185,6 +228,9 @@ export default defineDb({
     Tags,
     NoteTags,
     NoteThreadAccess,
-    ScriptureMetadata
+    ScriptureMetadata,
+    InboxItems,
+    InboxItemNotes,
+    UserInboxItems
   }
 });
