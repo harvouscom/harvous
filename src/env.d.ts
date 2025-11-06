@@ -93,6 +93,9 @@ interface ImportMetaEnv {
   readonly CLERK_SECRET_KEY: string;
   readonly PUBLIC_CLERK_SIGN_IN_URL?: string;
   readonly PUBLIC_CLERK_SIGN_UP_URL?: string;
+  
+  // Webflow CMS API token for syncing inbox items
+  readonly WEBFLOW_API_TOKEN?: string;
 }
 
 interface ImportMeta {
