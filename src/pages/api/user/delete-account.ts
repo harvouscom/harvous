@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata, UserXP, Comments, ScriptureMetadata, NoteThreadAccess, Members, eq } from 'astro:db';
+import { db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata, UserXP, Comments, ScriptureMetadata, Members, eq } from 'astro:db';
 
 export const DELETE: APIRoute = async ({ locals }) => {
   try {
@@ -40,11 +40,6 @@ export const DELETE: APIRoute = async ({ locals }) => {
       // Delete ScriptureMetadata
       for (const noteId of noteIds) {
         await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
-      }
-      
-      // Delete NoteThreadAccess
-      for (const noteId of noteIds) {
-        await db.delete(NoteThreadAccess).where(eq(NoteThreadAccess.noteId, noteId));
       }
     }
 
