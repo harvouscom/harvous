@@ -1,41 +1,23 @@
 ---
-import FaSearchIcon from "@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg";
-import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import SearchInputReact from "./react/SearchInput";
 
 interface Props {
     className?: string;
     placeholder?: string;
+    value?: string;
+    onChange?: (value: string) => void;
+    onClear?: () => void;
 }
 
-const { className = "", placeholder = "Search", ...props } = Astro.props;
+const { className = "", placeholder = "Search", value, onChange, onClear, ...props } = Astro.props;
 ---
 
-<div x-data="{ query: '' }" class={`w-full ${className} search-input rounded-3xl grid items-center grid-cols-[auto_1fr_auto] py-5 px-4 gap-3 min-h-[64px]`}>
-    <FaSearchIcon width="20" height="20" class="fill-[var(--color-pebble-grey)]" />
-    <input 
-        {...props}
-        x-model="query"
-        type="text" 
-        role="searchbox"
-        aria-label="Search"
-        class="outline-none bg-transparent text-subtitle text-[var(--color-deep-grey)] placeholder:text-[var(--color-pebble-grey)]" 
-        placeholder={placeholder}
-    />
-    <FaXmarkIcon 
-        role="button"
-        aria-label="Clear search"
-        x-cloak
-        x-show="Boolean(query)" 
-        x-on:click="query = ''"
-        width="20" 
-        height="20"
-        class="fill-[var(--color-deep-grey)]" 
-    />
-</div>
-
-<style>
-    .search-input {
-        background: var(--color-gradient-gray);
-        box-shadow: var(--shadow-small);
-    }
-</style>
+<SearchInputReact
+    className={className}
+    placeholder={placeholder}
+    value={value}
+    onChange={onChange}
+    onClear={onClear}
+    client:only="react"
+    {...props}
+/>

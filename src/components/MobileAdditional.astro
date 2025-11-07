@@ -1,6 +1,5 @@
 ---
-import SquareButton from "@/components/SquareButton.astro";
-import { shouldShowMoreButton } from "@/utils/menu-options";
+import MobileAdditionalReact from "./react/MobileAdditional";
 
 export interface Props {
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
@@ -10,80 +9,12 @@ export interface Props {
 }
 
 const { contentType = "dashboard", contentId, currentThread, currentSpace } = Astro.props;
-const showMoreButton = shouldShowMoreButton(contentType, contentId);
 ---
 
-<div 
-  class="flex items-center justify-center gap-4"
-  x-data="{}"
-  x-init="
-    // Listen for panel events and trigger mobile drawer
-    window.addEventListener('openNewNotePanel', () => {
-      console.log('MobileAdditional: openNewNotePanel received');
-      // Dispatch event to open mobile drawer
-      window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
-        detail: { type: 'note' } 
-      }));
-      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
-    });
-    
-    window.addEventListener('openNewThreadPanel', () => {
-      console.log('MobileAdditional: openNewThreadPanel received');
-      // Dispatch event to open mobile drawer
-      window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
-        detail: { type: 'thread' } 
-      }));
-      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
-    });
-    
-    window.addEventListener('openNoteDetailsPanel', () => {
-      // Dispatch event to open mobile drawer
-      window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
-        detail: { type: 'noteDetails' } 
-      }));
-      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
-    });
-    
-    window.addEventListener('openProfilePanel', (event) => {
-      console.log('MobileAdditional: openProfilePanel received', event.detail);
-      const panelName = event.detail?.panelName;
-      console.log('MobileAdditional: Panel name:', panelName);
-      
-      // Only handle on mobile (screen width < 1160px)
-      if (window.innerWidth < 1160) {
-        console.log('MobileAdditional: On mobile, opening drawer');
-        
-        // Map panel names to drawer types
-        const panelMap = {
-          'editNameColor': 'editNameColor',
-          'getSupport': 'getSupport',
-          'emailPassword': 'emailPassword',
-          'myChurch': 'myChurch',
-          'myData': 'myData'
-        };
-        
-        const drawerType = panelMap[panelName];
-        if (drawerType) {
-          console.log('MobileAdditional: Opening drawer for:', drawerType);
-          window.dispatchEvent(new CustomEvent('openMobileDrawer', { 
-            detail: { drawerType: drawerType } 
-          }));
-        } else {
-          console.log('MobileAdditional: Unknown panel name:', panelName);
-        }
-      } else {
-        console.log('MobileAdditional: On desktop, letting profile page handle it');
-      }
-    });
-  "
->
-  <!-- Default state: SquareButtons in horizontal layout -->
-  <div class={`w-full flex ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
-    {showMoreButton && (
-      <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
-    )}
-    {contentType !== 'profile' && (
-      <SquareButton variant="Add" withMenu={true} />
-    )}
-  </div>
-</div>
+<MobileAdditionalReact
+  contentType={contentType}
+  contentId={contentId}
+  currentThread={currentThread}
+  currentSpace={currentSpace}
+  client:only="react"
+/>

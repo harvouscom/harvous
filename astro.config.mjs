@@ -3,7 +3,6 @@ import { defineConfig } from 'astro/config';
 import db from '@astrojs/db';
 import clerk from '@clerk/astro';
 import tailwind from '@astrojs/tailwind';
-import alpinejs from '@astrojs/alpinejs';
 import react from '@astrojs/react';
 
 import netlify from '@astrojs/netlify';
@@ -43,8 +42,7 @@ export default defineConfig({
         output: {
           // Improve chunk splitting for better caching
           manualChunks: {
-            alpinejs: ['alpinejs', '@alpinejs/collapse', '@alpinejs/focus'],
-            editor: ['trix', 'isomorphic-dompurify']
+            editor: ['isomorphic-dompurify']
           }
         }
       }
@@ -52,7 +50,7 @@ export default defineConfig({
     // Add performance optimizations to Vite dev server
     optimizeDeps: {
       exclude: [],
-      include: ['alpinejs', 'trix', '@clerk/astro/client']
+      include: ['@clerk/astro/client']
     },
     // Fix MIME type issues in development
     define: {
@@ -73,7 +71,6 @@ export default defineConfig({
       enableEnvSchema: true
     }),
     tailwind(),
-    alpinejs(),
     react(),
   ],
 
