@@ -10,7 +10,7 @@ import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
-import { db, Threads, Notes, Spaces, NoteThreads, NoteThreadAccess, ScriptureMetadata, eq, and, desc, count, ne } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, eq, and, desc, count, ne } from "astro:db";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount } from "@/utils/dashboard-data";
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
@@ -491,31 +491,8 @@ let inboxCount: number = 0;
                 console.log('🔗 Server-side: No referrer available');
               }
               
-              // 2. NEW: Check last accessed thread for this specific note
-              if (!navigationHistoryThreadId) {
-                console.log('🔍 Checking last accessed thread for this note...');
-                try {
-                  const lastAccess = await db.select()
-                    .from(NoteThreadAccess)
-                    .where(and(
-                      eq(NoteThreadAccess.userId, userId),
-                      eq(NoteThreadAccess.noteId, note.id)
-                    ))
-                    .orderBy(desc(NoteThreadAccess.lastAccessed))
-                    .limit(1)
-                    .get();
-                  
-                  if (lastAccess && uniqueThreadIds.includes(lastAccess.threadId)) {
-                    navigationHistoryThreadId = lastAccess.threadId;
-                    console.log('🔗 Using last accessed thread for this note:', navigationHistoryThreadId);
-                  } else {
-                    console.log('🔗 No valid last accessed thread found for this note');
-                  }
-                } catch (accessError) {
-                  console.log('🔗 Could not query last accessed thread:', accessError);
-                }
-              }
-              
+              // 2. Removed: NoteThreadAccess table tracking (complexity reduction)
+
               // 3. Fallback: Use the most recently updated thread
               if (!navigationHistoryThreadId) {
                 console.log('🔗 Server-side: No referrer or access context, using fallback logic');
@@ -599,59 +576,7 @@ let inboxCount: number = 0;
           };
         }
 
-        // Track note-thread access for multi-thread navigation
-        if (isNote && selectedThreadId && selectedThreadId !== 'thread_unorganized') {
-          try {
-            // Check if this note belongs to multiple threads (optimization)
-            const noteThreads = await db.select()
-              .from(NoteThreads)
-              .where(eq(NoteThreads.noteId, note.id))
-              .all();
-            
-            const allThreadIds = [...noteThreads.map(nt => nt.threadId)];
-            if (note.threadId === 'thread_unorganized') {
-              allThreadIds.push('thread_unorganized');
-            }
-            const uniqueThreadIds = [...new Set(allThreadIds)];
-            
-            // Only track if note belongs to multiple threads
-            if (uniqueThreadIds.length > 1) {
-              // Check if access record already exists
-              const existingAccess = await db.select()
-                .from(NoteThreadAccess)
-                .where(and(
-                  eq(NoteThreadAccess.userId, userId),
-                  eq(NoteThreadAccess.noteId, note.id),
-                  eq(NoteThreadAccess.threadId, selectedThreadId)
-                ))
-                .get();
-              
-              if (existingAccess) {
-                // Update existing record
-                await db.update(NoteThreadAccess)
-                  .set({
-                    lastAccessed: new Date(),
-                    accessCount: existingAccess.accessCount + 1
-                  })
-                  .where(eq(NoteThreadAccess.id, existingAccess.id));
-                console.log('📊 Updated note-thread access record');
-              } else {
-                // Create new record
-                await db.insert(NoteThreadAccess).values({
-                  id: `nta_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                  userId: userId,
-                  noteId: note.id,
-                  threadId: selectedThreadId,
-                  lastAccessed: new Date(),
-                  accessCount: 1
-                });
-                console.log('📊 Created new note-thread access record');
-              }
-            }
-          } catch (trackingError) {
-            console.log('Could not track note-thread access:', trackingError);
-          }
-        }
+        // Removed: NoteThreadAccess tracking (complexity reduction)
       }
     } else if (isSpace) {
       // Fetch space, its threads, and standalone notes from database

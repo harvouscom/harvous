@@ -143,18 +143,6 @@ const NoteTags = defineTable({
   }
 })
 
-// Track which thread a user last accessed each note from (for multi-thread navigation)
-const NoteThreadAccess = defineTable({
-  columns: {
-    id: column.text({ primaryKey: true }),
-    userId: column.text(), // Clerk user id
-    noteId: column.text(), // Reference to note
-    threadId: column.text(), // Reference to thread
-    lastAccessed: column.date(),
-    accessCount: column.number({ default: 1 })
-  }
-})
-
 // Scripture metadata table for scripture note type
 const ScriptureMetadata = defineTable({
   columns: {
@@ -227,7 +215,6 @@ export default defineDb({
     UserXP,
     Tags,
     NoteTags,
-    NoteThreadAccess,
     ScriptureMetadata,
     InboxItems,
     InboxItemNotes,
