@@ -309,7 +309,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Save the updated history
       saveNavigationHistory(filteredHistory);
-      setNavigationHistory(filteredHistory);
+      // Use spread operator to create new array reference for React
+      setNavigationHistory([...filteredHistory]);
       
       // Navigate to next item or dashboard
       const targetUrl = nextItem ? `/${nextItem.id}` : '/dashboard';
@@ -328,7 +329,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     saveNavigationHistory(filteredHistory);
-    setNavigationHistory(filteredHistory);
+    // Use spread operator to create new array reference for React
+    setNavigationHistory([...filteredHistory]);
   };
 
   // Extract item data from page
@@ -496,99 +498,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setNavigationHistory(history);
   };
 
-  // Validate navigation history and remove deleted threads
-  const validateNavigationHistory = async () => {
-    // Handle SSR - do nothing if not in browser
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    try {
-      console.log('NavigationContext: Starting validation of navigation history...');
-      
-      // Fetch current threads from API
-      const response = await fetch('/api/threads/list', {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        console.error('NavigationContext: API call failed with status:', response.status);
-        // If API call fails, don't remove anything (fail gracefully)
-        return;
-      }
-
-      const threads = await response.json();
-      console.log('NavigationContext: Fetched threads from API:', threads.length, 'threads');
-      console.log('NavigationContext: Thread IDs from API:', threads.map((t: any) => t.id));
-      
-      // Get set of existing thread IDs from API response
-      const existingThreadIds = new Set(threads.map((t: any) => t.id));
-      
-      // Always read from storage to get the latest navigation history
-      // Don't rely on React state which might be empty or stale
-      const history = getNavigationHistory();
-      console.log('NavigationContext: Current navigation history from storage:', history.length, 'items');
-      console.log('NavigationContext: History item IDs:', history.map((i: NavigationItem) => i.id));
-      
-      // Filter out deleted threads, preserving thread_unorganized and spaces
-      const validatedHistory = history.filter((item) => {
-        // Always preserve thread_unorganized (may not be in API response)
-        if (item.id === 'thread_unorganized') {
-          return true;
-        }
-        
-        // Always preserve spaces (they have IDs like space_*)
-        if (item.id.startsWith('space_')) {
-          return true;
-        }
-        
-        // Only validate items with IDs starting with thread_ (excluding thread_unorganized)
-        if (item.id.startsWith('thread_')) {
-          // Check if thread exists in API response
-          const exists = existingThreadIds.has(item.id);
-          if (!exists) {
-            // Thread doesn't exist - remove it
-            console.log('NavigationContext: Thread not found in API, will remove:', item.id);
-            return false;
-          }
-          return true;
-        }
-        
-        // For any other items, keep them (unknown type, don't remove)
-        return true;
-      });
-
-      console.log('NavigationContext: Validated history:', validatedHistory.length, 'items');
-      
-      // Always update state to ensure React re-renders, even if length is the same
-      // (items might have been removed but count stayed the same if something else was added)
-      const removedItems = history.filter(item => !validatedHistory.some(v => v.id === item.id));
-      if (removedItems.length > 0 || validatedHistory.length !== history.length) {
-        // Debug: log removed items
-        if (removedItems.length > 0) {
-          console.log('NavigationContext: Removed deleted threads from navigation:', removedItems.map(i => i.id));
-        }
-        // Create a new array reference to ensure React detects the change
-        const newHistory = [...validatedHistory];
-        saveNavigationHistory(newHistory);
-        setNavigationHistory(newHistory);
-        console.log('NavigationContext: State updated, navigationHistory should now be:', newHistory.length, 'items');
-        
-        // Dispatch a custom event to force components to refresh
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('navigationHistoryValidated', {
-            detail: { removedItems: removedItems.map(i => i.id) }
-          }));
-        }
-      } else {
-        console.log('NavigationContext: No changes needed, all threads are valid');
-      }
-    } catch (error) {
-      // If validation fails, don't remove anything (fail gracefully)
-      console.error('NavigationContext: Error validating navigation history:', error);
-    }
-  };
-
   // Refresh thread counts from API to ensure accuracy
   const refreshThreadCounts = async () => {
     // Handle SSR - do nothing if not in browser
@@ -656,6 +565,53 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  // Function to validate navigation history and remove deleted threads
+  const validateNavigationHistory = async () => {
+    try {
+      // Fetch current threads from API
+      const response = await fetch('/api/threads/list', {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) return;
+      
+      const threads = await response.json();
+      const threadIds = new Set(threads.map((t: any) => t.id));
+      
+      // Get current history from localStorage (source of truth)
+      const history = getNavigationHistory();
+      
+      // Filter out deleted threads (keep spaces and thread_unorganized)
+      const validatedHistory = history.filter((item: NavigationItem) => {
+        // Keep spaces (they're not validated against threads API)
+        if (item.id.startsWith('space_')) return true;
+        
+        // Keep special unorganized thread
+        if (item.id === 'thread_unorganized') return true;
+        
+        // For regular threads, check if they still exist
+        if (item.id.startsWith('thread_')) {
+          return threadIds.has(item.id);
+        }
+        
+        // Keep other items by default
+        return true;
+      });
+      
+      // Only update if something was removed
+      if (validatedHistory.length < history.length) {
+        saveNavigationHistory(validatedHistory);
+        
+        // Force page reload to update UI
+        // This is the most reliable way to ensure React components re-render with the new data
+        window.location.reload();
+      }
+    } catch (error) {
+      // Silently fail - validation is not critical
+      console.error('Error validating navigation history:', error);
+    }
+  };
+
   // Initialize navigation history on mount and refresh it
   // This ensures we have the latest data even if localStorage was updated right before navigation
   useEffect(() => {
@@ -686,17 +642,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Track current page access
     trackNavigationAccess();
     
-    // Validate navigation history on initial mount to catch stale threads
-    // Use a longer delay to ensure the page is fully loaded and API is ready
-    setTimeout(() => {
-      validateNavigationHistory();
-    }, 500);
+    // Validate navigation history to remove deleted threads immediately
+    // Run without delay for instant feedback
+    validateNavigationHistory();
     
-    // Set up periodic validation as a safety net (every 30 seconds)
-    // This catches deleted threads even if events don't fire properly
-    const validationInterval = setInterval(() => {
+    // Also run again after a short delay as a safety net
+    const validationTimeoutId = setTimeout(() => {
       validateNavigationHistory();
-    }, 30000);
+    }, 300);
     
     // Listen for View Transitions and page loads
     const handlePageLoad = () => {
@@ -704,11 +657,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // This ensures we have the latest data after navigation
       refreshHistory();
       trackNavigationAccess();
-      // Validate navigation history to remove deleted threads
-      // Add a small delay to ensure page is fully loaded and state is updated
+      
+      // Validate to remove deleted threads immediately on page load
+      validateNavigationHistory();
+      
+      // Also run again after a short delay as a safety net
       setTimeout(() => {
         validateNavigationHistory();
-      }, 100);
+      }, 200);
     };
     
     // Listen for space creation events
@@ -745,14 +701,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const handleThreadDeleted = (event: CustomEvent) => {
       const threadId = event.detail?.threadId;
       if (threadId) {
-        // Remove the thread from navigation history
+        // Remove the thread from navigation history immediately
         removeFromNavigationHistory(threadId);
-        // Also validate navigation history after a delay to catch any other deleted threads
-        // This ensures we clean up even if the page doesn't fully reload
-        // Use a longer delay to ensure the API has processed the deletion
-        setTimeout(() => {
-          validateNavigationHistory();
-        }, 1000);
+        
+        // Also validate the entire history to catch any edge cases
+        // Run immediately since the thread is already deleted
+        validateNavigationHistory();
       }
     };
 
@@ -961,7 +915,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       clearTimeout(timeoutId1);
       clearTimeout(timeoutId2);
       clearTimeout(timeoutId3);
-      clearInterval(validationInterval);
+      clearTimeout(validationTimeoutId);
       document.removeEventListener('astro:page-load', handlePageLoad);
       document.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
       document.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
