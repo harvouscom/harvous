@@ -78,7 +78,6 @@ graph TB
     subgraph "Client Browser"
         UI[User Interface]
         React[React Islands]
-        Alpine[Alpine.js - Legacy]
         Events[CustomEvents]
         LocalStorage[localStorage]
     end
@@ -98,7 +97,6 @@ graph TB
 
     UI --> Pages
     React --> API
-    Alpine --> API
     Events --> React
     React --> LocalStorage
 
@@ -181,7 +179,6 @@ erDiagram
     NOTES ||--o{ NOTETAGS : has
     NOTES ||--o{ COMMENTS : has
     NOTES ||--o| SCRIPTUREMETADATA : "may have"
-    NOTES ||--o{ NOTETHREADACCESS : tracks
 
     TAGS ||--o{ NOTETAGS : "via junction"
 
@@ -304,7 +301,7 @@ erDiagram
 #### 3. Multi-Thread Support
 - Notes have a primary `threadId` (required)
 - Can belong to additional threads via `NoteThreads` junction table
-- `NoteThreadAccess` tracks which thread user last viewed note from
+- Navigation falls back to most recently updated thread
 
 ---
 
@@ -623,7 +620,7 @@ graph LR
 ### 6. Multi-Thread Support
 - Notes can belong to multiple threads
 - `NoteThreads` junction table (many-to-many)
-- `NoteThreadAccess` tracks last accessed thread per note
+- Navigation falls back to most recently updated thread
 - Smart context detection on note open
 
 ### 7. Rich Text Editing (Tiptap)
@@ -677,7 +674,6 @@ harvous/
 │   │   │   ├── NoteDetailsPanel.tsx
 │   │   │   └── BottomSheet.tsx
 │   │   ├── ui/             # Radix UI components
-│   │   ├── _legacy/        # Alpine.js components (being replaced)
 │   │   └── *.astro         # Astro components
 │   │
 │   ├── layouts/            # Page layouts
@@ -829,10 +825,11 @@ npm or pnpm
 - Loosely coupled architecture
 - Easy to extend and debug
 
-#### Gradual Migration (Alpine → React)
-- Keep Alpine code until React proven
-- Both implementations side-by-side
-- Feature flag: `USE_REACT_PANELS`
+#### Alpine → React Migration
+- Migration 90% complete (Jan 2025)
+- Legacy Alpine components removed from codebase
+- Remaining Alpine components to be migrated in future iterations
+- React Islands pattern established as primary architecture
 
 ---
 
@@ -889,7 +886,8 @@ npm or pnpm
 - Multi-thread support
 - Scripture detection
 - Mobile bottom sheet system
-- React Islands architecture (80% migrated)
+- React Islands architecture (90% migrated)
+- Architecture simplification (removed _legacy components)
 
 🔄 **In Progress:**
 - Profile system refactor (CRITICAL)
