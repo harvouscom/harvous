@@ -15,6 +15,7 @@ type PanelType = 'newNote' | 'newThread' | 'noteDetails' | 'editThread' | null;
 
 interface PanelState {
   activePanel: PanelType;
+  panelKey: number; // Used to force remount of panels
 }
 
 type PanelAction =
@@ -32,50 +33,52 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
   switch (action.type) {
     case 'OPEN_NEW_NOTE':
       // Close all other panels and open NewNote
+      // Increment panelKey to force remount and re-read localStorage
       localStorage.setItem('showNewNotePanel', 'true');
       localStorage.setItem('showNewThreadPanel', 'false');
-      return { activePanel: 'newNote' };
+      return { activePanel: 'newNote', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_NEW_NOTE':
       localStorage.setItem('showNewNotePanel', 'false');
-      return { activePanel: null };
+      return { activePanel: null, panelKey: state.panelKey };
     
     case 'OPEN_NEW_THREAD':
       // Close all other panels and open NewThread
+      // Increment panelKey to force remount and re-read localStorage
       localStorage.setItem('showNewThreadPanel', 'true');
       localStorage.setItem('showNewNotePanel', 'false');
-      return { activePanel: 'newThread' };
+      return { activePanel: 'newThread', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_NEW_THREAD':
       localStorage.setItem('showNewThreadPanel', 'false');
-      return { activePanel: null };
+      return { activePanel: null, panelKey: state.panelKey };
     
     case 'OPEN_NOTE_DETAILS':
       // Close all other panels and open NoteDetails
-      return { activePanel: 'noteDetails' };
+      return { activePanel: 'noteDetails', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_NOTE_DETAILS':
-      return { activePanel: null };
+      return { activePanel: null, panelKey: state.panelKey };
     
     case 'OPEN_EDIT_THREAD':
       // Close all other panels and open EditThread
-      return { activePanel: 'editThread' };
+      return { activePanel: 'editThread', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_EDIT_THREAD':
-      return { activePanel: null };
+      return { activePanel: null, panelKey: state.panelKey };
     
     case 'LOAD_FROM_STORAGE':
       // Check localStorage for saved panel state
       const savedNotePanel = localStorage.getItem('showNewNotePanel');
       const savedThreadPanel = localStorage.getItem('showNewThreadPanel');
-      
+
       if (savedNotePanel === 'true') {
-        return { activePanel: 'newNote' };
+        return { activePanel: 'newNote', panelKey: 0 };
       }
       if (savedThreadPanel === 'true') {
-        return { activePanel: 'newThread' };
+        return { activePanel: 'newThread', panelKey: 0 };
       }
-      return { activePanel: null };
+      return { activePanel: null, panelKey: 0 };
     
     default:
       return state;
@@ -88,7 +91,7 @@ export default function DesktopPanelManager({
   currentNote,
   contentType = 'dashboard'
 }: DesktopPanelManagerProps) {
-  const [state, dispatch] = useReducer(panelReducer, { activePanel: null });
+  const [state, dispatch] = useReducer(panelReducer, { activePanel: null, panelKey: 0 });
 
   // Load panel state from localStorage on mount
   useEffect(() => {
@@ -203,8 +206,9 @@ export default function DesktopPanelManager({
       {/* New Note Panel - Desktop Only */}
       {state.activePanel === 'newNote' && (
         <div className="h-full new-note-panel-container hidden min-[1160px]:block">
-          <NewNotePanel 
-            currentThread={currentThread} 
+          <NewNotePanel
+            key={`new-note-${state.panelKey}`}
+            currentThread={currentThread}
             onClose={handleCloseNewNote}
           />
         </div>
@@ -213,8 +217,9 @@ export default function DesktopPanelManager({
       {/* New Thread Panel - Desktop Only */}
       {state.activePanel === 'newThread' && (
         <div className="h-full hidden min-[1160px]:block">
-          <NewThreadPanel 
-            currentSpace={currentSpace} 
+          <NewThreadPanel
+            key={`new-thread-${state.panelKey}`}
+            currentSpace={currentSpace}
             onClose={handleCloseNewThread}
           />
         </div>

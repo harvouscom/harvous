@@ -50,6 +50,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [drawerType, setDrawerType] = useState<DrawerType>('note');
   const [isVisible, setIsVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [panelKey, setPanelKey] = useState(0); // Force remount when panel opens
 
   // Check if we're on mobile
   const checkMobile = useCallback(() => {
@@ -75,10 +76,12 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       console.log('BottomSheet: Not opening on desktop');
       return;
     }
-    
+
     console.log('BottomSheet: Opening with type:', type);
     setDrawerType(type);
     setIsVisible(true);
+    // Increment panelKey to force remount and re-read localStorage
+    setPanelKey(prev => prev + 1);
     
     // Initialize form handlers for the specific panel type
     if (type === 'thread') {
@@ -228,7 +231,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* New Note Panel */}
           {drawerType === 'note' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              <NewNotePanel 
+              <NewNotePanel
+                key={`mobile-note-${panelKey}`}
                 currentThread={currentThread}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
@@ -240,7 +244,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* New Thread Panel */}
           {drawerType === 'thread' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              <NewThreadPanel 
+              <NewThreadPanel
+                key={`mobile-thread-${panelKey}`}
                 currentSpace={currentSpace}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
