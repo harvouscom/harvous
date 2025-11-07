@@ -32,6 +32,7 @@ export interface BottomSheetProps {
   currentSpace?: any;
   currentNote?: any;
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
+  version?: string;
 }
 
 type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'editThread' | 'getSupport' | 'emailPassword' | 'myChurch' | 'myData';
@@ -43,7 +44,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   currentThread,
   currentSpace,
   currentNote,
-  contentType = "dashboard"
+  contentType = "dashboard",
+  version = '0.10.0'
 }) => {
   const [drawerType, setDrawerType] = useState<DrawerType>('note');
   const [isVisible, setIsVisible] = useState(false);
@@ -213,7 +215,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }}>
       <SheetContent 
         side="bottom" 
-        className="h-[90vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
+        className="h-[89vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
         style={{ 
           paddingBottom: '12px',
           paddingTop: '20px',
@@ -301,6 +303,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}
+                version={version}
                 inBottomSheet={true}
               />
             </div>

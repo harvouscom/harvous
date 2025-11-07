@@ -1,5 +1,6 @@
 ---
 import BottomSheet from './react/BottomSheet';
+import packageJson from '../../package.json';
 
 export interface Props {
   isOpen?: boolean;
@@ -31,6 +32,7 @@ const {
     currentSpace={currentSpace}
     currentNote={currentNote}
     contentType={contentType}
+    version={packageJson.version}
     client:only="react"
   />
 </div>
@@ -90,14 +92,57 @@ const {
   /* Mobile viewport handling for better button visibility */
   @supports (height: 100dvh) {
     .bottom-sheet .drawer-panel {
-      height: 90dvh !important;
+      height: 89dvh !important;
     }
   }
   
   /* Fallback for browsers that don't support dvh */
   @supports not (height: 100dvh) {
     .bottom-sheet .drawer-panel {
-      height: calc(90vh - env(safe-area-inset-bottom, 0px)) !important;
+      height: calc(89vh - env(safe-area-inset-bottom, 0px)) !important;
+    }
+  }
+  
+  /* Remove all focus outlines and blue borders from bottom sheet */
+  @media (max-width: 1159px) {
+    /* Remove focus outline from SheetContent itself */
+    [data-radix-dialog-content] {
+      outline: none !important;
+    }
+    
+    /* Remove focus outlines from all elements inside bottom sheet */
+    [data-radix-dialog-content] *:focus,
+    [data-radix-dialog-content] *:focus-visible,
+    [data-radix-dialog-content] *:focus-within {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+    
+    /* Remove focus ring styles that might show blue borders */
+    [data-radix-dialog-content] *:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+    
+    /* Ensure no focus styles on interactive elements */
+    [data-radix-dialog-content] button:focus,
+    [data-radix-dialog-content] button:focus-visible,
+    [data-radix-dialog-content] input:focus,
+    [data-radix-dialog-content] input:focus-visible,
+    [data-radix-dialog-content] textarea:focus,
+    [data-radix-dialog-content] textarea:focus-visible,
+    [data-radix-dialog-content] select:focus,
+    [data-radix-dialog-content] select:focus-visible,
+    [data-radix-dialog-content] [contenteditable]:focus,
+    [data-radix-dialog-content] [contenteditable]:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+    
+    /* Remove any blue focus borders from Radix UI */
+    [data-radix-dialog-content][data-focus-visible-added] {
+      outline: none !important;
+      box-shadow: none !important;
     }
   }
 </style>

@@ -230,14 +230,19 @@ export default function EmailPasswordPanel({
                 </div>
                 
                 {/* Current Password Input */}
-                <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                  <input 
-                    type="password"
-                    value={formData.currentPassword}
-                    onChange={(e) => handleInputChange('currentPassword', e.target.value)}
-                    placeholder="Current Password (required for changes)"
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-                  />
+                <div className="w-full">
+                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                    <input 
+                      type="password"
+                      value={formData.currentPassword}
+                      onChange={(e) => handleInputChange('currentPassword', e.target.value)}
+                      placeholder="Current Password"
+                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+                    />
+                  </div>
+                  <div className="text-[var(--color-stone-grey)] text-sm mt-1 text-center">
+                    Required for changes
+                  </div>
                   {validationErrors.currentPassword && (
                     <div className="text-red-500 text-sm mt-1 text-center">
                       {validationErrors.currentPassword}
