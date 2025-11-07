@@ -92,14 +92,14 @@ const {
   /* Mobile viewport handling for better button visibility */
   @supports (height: 100dvh) {
     .bottom-sheet .drawer-panel {
-      height: 89dvh !important;
+      height: 90dvh !important;
     }
   }
   
   /* Fallback for browsers that don't support dvh */
   @supports not (height: 100dvh) {
     .bottom-sheet .drawer-panel {
-      height: calc(89vh - env(safe-area-inset-bottom, 0px)) !important;
+      height: calc(90vh - env(safe-area-inset-bottom, 0px)) !important;
     }
   }
   

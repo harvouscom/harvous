@@ -4,7 +4,7 @@ import SpaceButton from './SpaceButton';
 
 const PersistentNavigation: React.FC = () => {
   const contextValue = useNavigation();
-  const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
+  const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId, refreshNavigation } = contextValue;
   const [isClient, setIsClient] = useState(false);
   const [currentItemId, setCurrentItemId] = useState('');
   const [renderKey, setRenderKey] = useState(0);
@@ -13,6 +13,24 @@ const PersistentNavigation: React.FC = () => {
   useEffect(() => {
     setRenderKey(prev => prev + 1);
   }, [navigationHistory]);
+  
+  // Listen for validation events to force refresh
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const handleValidation = () => {
+      // Refresh navigation from storage to get the latest data
+      refreshNavigation();
+      // Force a re-render by updating the render key
+      setRenderKey(prev => prev + 1);
+    };
+    
+    window.addEventListener('navigationHistoryValidated', handleValidation);
+    
+    return () => {
+      window.removeEventListener('navigationHistoryValidated', handleValidation);
+    };
+  }, [isClient, refreshNavigation]);
 
   // Handle SSR - only run client-side code after hydration
   useEffect(() => {
