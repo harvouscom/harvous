@@ -81,7 +81,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     setDrawerType(type);
     setIsVisible(true);
     // Increment panelKey to force remount and re-read localStorage
-    setPanelKey(prev => prev + 1);
+    setPanelKey(prev => {
+      const newKey = prev + 1;
+      console.log('BottomSheet: Incrementing panelKey from', prev, 'to', newKey);
+      return newKey;
+    });
     
     // Initialize form handlers for the specific panel type
     if (type === 'thread') {
@@ -125,7 +129,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   // Set up event listeners
   useEffect(() => {
     const handleOpenBottomSheet = (event: CustomEvent) => {
-      console.log('BottomSheet: openBottomSheet received:', event.detail);
+      console.log('BottomSheet: openMobileDrawer event received:', event.detail);
       const type = (event.detail && (event.detail.type || event.detail.drawerType)) || 'note';
       console.log('BottomSheet: Opening with type:', type);
       openBottomSheet(type as DrawerType);
@@ -204,6 +208,13 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       return () => clearTimeout(timer);
     }
   }, [isVisible]);
+
+  // Log when NewNotePanel is rendered with a new key
+  useEffect(() => {
+    if (drawerType === 'note' && isVisible) {
+      console.log('BottomSheet: Rendering NewNotePanel with key:', `mobile-note-${panelKey}`);
+    }
+  }, [drawerType, isVisible, panelKey]);
 
   // Don't render on desktop
   if (!isMobile) {

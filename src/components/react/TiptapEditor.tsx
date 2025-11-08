@@ -357,6 +357,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       localStorage.setItem('newNoteThread', parentThreadId);
     }
     
+    // Set localStorage first (as backup in case event listener isn't ready yet)
+    localStorage.setItem('showNewNotePanel', 'true');
+    localStorage.setItem('showNewThreadPanel', 'false');
+    
     // Dispatch event to open NewNotePanel
     window.dispatchEvent(new CustomEvent('openNewNotePanel'));
     
@@ -583,21 +587,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         {enableCreateNoteFromSelection && (
           <BubbleMenu
             editor={editor}
-            shouldShow={({ editor }) => {
-              return isValidSelection(editor);
-            }}
-            tippyOptions={{ duration: 100 }}
+            shouldShow={({ editor }) => isValidSelection(editor)}
+            tippyOptions={{ duration: 100, zIndex: 99999 }}
           >
-            <ButtonSmall
-              state="Default"
-              onClick={handleCreateNoteFromSelection}
-              type="button"
-            >
-              <div className="flex items-center gap-2">
-                <i className="fa-solid fa-plus" style={{ width: '14px', height: '14px', fontSize: '14px' }} />
+            <div style={{ zIndex: 99999, pointerEvents: 'auto', display: 'inline-block' }}>
+              <ButtonSmall
+                state="Default"
+                onMouseDown={(e: React.MouseEvent) => {
+                  // Use onMouseDown for better reliability in Floating UI portals
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCreateNoteFromSelection();
+                }}
+                type="button"
+              >
+                <i className="fa-solid fa-plus" style={{ width: '14px', height: '14px', fontSize: '14px', display: 'inline-block', marginRight: '8px' }} />
                 <span>Create Note</span>
-              </div>
-            </ButtonSmall>
+              </ButtonSmall>
+            </div>
           </BubbleMenu>
         )}
       </div>

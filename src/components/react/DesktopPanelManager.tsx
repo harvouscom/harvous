@@ -73,7 +73,13 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       const savedThreadPanel = localStorage.getItem('showNewThreadPanel');
 
       if (savedNotePanel === 'true') {
-        return { activePanel: 'newNote', panelKey: 0 };
+        // Check if there's new content from text selection - if so, increment panelKey to force remount
+        const hasNewContent = !!(localStorage.getItem('newNoteContent') || 
+                                 localStorage.getItem('newNoteType') ||
+                                 localStorage.getItem('newNoteScriptureReference'));
+        // Increment panelKey if there's new content to force remount and read from localStorage
+        const panelKey = hasNewContent ? 1 : 0;
+        return { activePanel: 'newNote', panelKey };
       }
       if (savedThreadPanel === 'true') {
         return { activePanel: 'newThread', panelKey: 0 };
@@ -95,13 +101,35 @@ export default function DesktopPanelManager({
 
   // Load panel state from localStorage on mount
   useEffect(() => {
-    // Force panels closed on initialization (matches Alpine.js behavior)
-    localStorage.removeItem('showNewNotePanel');
-    localStorage.removeItem('showNewThreadPanel');
+    // Check if there's a pending panel open request BEFORE clearing
+    const pendingNotePanel = localStorage.getItem('showNewNotePanel');
+    const pendingThreadPanel = localStorage.getItem('showNewThreadPanel');
     
-    // Then load any saved state
+    // Only clear if there's no pending request (to avoid clearing requests made before component loaded)
+    if (pendingNotePanel !== 'true' && pendingThreadPanel !== 'true') {
+      // No pending requests - safe to clear (matches Alpine.js behavior)
+      localStorage.removeItem('showNewNotePanel');
+      localStorage.removeItem('showNewThreadPanel');
+    }
+    
+    // Then load any saved state (this will honor pending requests)
     dispatch({ type: 'LOAD_FROM_STORAGE' });
   }, []);
+  
+  // Check localStorage whenever state changes - this catches requests that come in after mount
+  useEffect(() => {
+    // Only check if no panel is currently open
+    if (state.activePanel === null) {
+      const pendingNotePanel = localStorage.getItem('showNewNotePanel');
+      const pendingThreadPanel = localStorage.getItem('showNewThreadPanel');
+      
+      if (pendingNotePanel === 'true') {
+        dispatch({ type: 'OPEN_NEW_NOTE' });
+      } else if (pendingThreadPanel === 'true') {
+        dispatch({ type: 'OPEN_NEW_THREAD' });
+      }
+    }
+  }, [state.activePanel]);
 
   // Listen to window events for panel management
   useEffect(() => {
@@ -200,6 +228,7 @@ export default function DesktopPanelManager({
 
   // Determine if any panel is open
   const isAnyPanelOpen = state.activePanel !== null;
+  
 
   return (
     <div className="flex flex-col items-left justify-between h-full">
