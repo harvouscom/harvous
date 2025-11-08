@@ -49,6 +49,28 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   // Track if we've already set thread from savedThreadId to prevent overriding
   const [hasSetThreadFromSaved, setHasSetThreadFromSaved] = useState(false);
 
+  // Ref to store the TiptapEditor instance for focusing
+  const editorRef = useRef<any>(null);
+
+  // Handle editor ready callback - focus the editor when it's initialized
+  const handleEditorReady = (editor: any) => {
+    editorRef.current = editor;
+    // Focus the editor and position cursor at the start
+    // Use a small delay to ensure the editor is fully rendered
+    setTimeout(() => {
+      if (editor && !editor.isDestroyed) {
+        editor.commands.focus();
+        // Position cursor at the start of the document
+        try {
+          editor.commands.setTextSelection(0);
+        } catch (e) {
+          // If setTextSelection fails, just focus (cursor will be at start by default)
+          console.log('Could not set text selection, focusing only');
+        }
+      }
+    }, 50);
+  };
+
   // Load data from localStorage on mount - runs only once per mount
   // When component remounts with new key (from panelKey), this will run again
   useEffect(() => {
@@ -487,19 +509,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     if (!document.querySelector(`link[href="${link.href}"]`)) {
       document.head.appendChild(link);
     }
-  }, []);
-
-  // Auto-focus content area when component mounts
-  useEffect(() => {
-    // Small delay to ensure TiptapEditor is fully rendered
-    const timer = setTimeout(() => {
-      const editorElement = document.querySelector('#new-note-content .ProseMirror');
-      if (editorElement) {
-        (editorElement as HTMLElement).focus();
-      }
-    }, 100);
-    
-    return () => clearTimeout(timer);
   }, []);
 
   // Get selected thread object
@@ -1039,6 +1048,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   placeholder="Type your note..."
                   tabindex={2}
                   minimalToolbar={false}
+                  onEditorReady={handleEditorReady}
                   onContentChange={(newContent) => {
                     console.log('TiptapEditor content changed:', newContent.substring(0, 50) + '...');
                     setContent(newContent);
@@ -1087,6 +1097,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   placeholder="Share your thoughts about this scripture..."
                   tabindex={2}
                   minimalToolbar={false}
+                  onEditorReady={handleEditorReady}
                   onContentChange={(newContent) => {
                     setContent(newContent);
                   }}
