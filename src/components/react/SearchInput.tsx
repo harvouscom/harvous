@@ -10,7 +10,7 @@ interface SearchInputProps {
 
 export default function SearchInput({
   className = "",
-  placeholder = "Search",
+  placeholder = "Find",
   value = "",
   onChange,
   onClear
@@ -40,7 +40,7 @@ export default function SearchInput({
       <input 
         type="text" 
         role="searchbox"
-        aria-label="Search"
+        aria-label="Find"
         className="outline-none bg-transparent text-subtitle text-[var(--color-deep-grey)] placeholder:text-[var(--color-pebble-grey)]" 
         placeholder={placeholder}
         value={query}
@@ -51,7 +51,7 @@ export default function SearchInput({
       {query && (
         <svg 
           role="button"
-          aria-label="Clear search"
+          aria-label="Clear find"
           onClick={handleClear}
           width="20" 
           height="20"

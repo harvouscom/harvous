@@ -82,6 +82,32 @@ export default function CardFullEditable({
     }
   }, [isEditing]);
 
+  // Listen for keyboard shortcut to start editing
+  useEffect(() => {
+    const handleEditNote = () => {
+      if (!isEditing && isEditable) {
+        // Save current scroll position
+        if (contentDisplayRef.current) {
+          const currentScroll = contentDisplayRef.current.scrollTop;
+          setScrollPosition(currentScroll);
+        }
+        
+        setEditTitle(displayTitle);
+        setEditContent(displayContent);
+        setIsEditing(true);
+        setHasChanges(false);
+        
+        // Focus editor when it's ready
+        shouldFocusEditorRef.current = true;
+      }
+    };
+    
+    window.addEventListener('editNote', handleEditNote);
+    return () => {
+      window.removeEventListener('editNote', handleEditNote);
+    };
+  }, [isEditing, isEditable, displayTitle, displayContent]);
+
   // Detect parent thread ID from DOM when editing starts
   useEffect(() => {
     if (isEditing) {

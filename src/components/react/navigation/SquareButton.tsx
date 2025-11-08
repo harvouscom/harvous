@@ -1,14 +1,14 @@
 import React from 'react';
 
 interface SquareButtonProps {
-  variant: 'Search' | 'Back';
+  variant: 'Find' | 'Back';
   onClick?: () => void;
 }
 
 const SquareButton: React.FC<SquareButtonProps> = ({ variant, onClick }) => {
   // Import SVG icons based on variant
   const getIcon = () => {
-    if (variant === 'Search') {
+    if (variant === 'Find') {
       // Magnifying glass icon path (from FontAwesome)
       return (
         <svg className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none transition-transform duration-125" style={{ width: '20px', height: '20px' }} viewBox="0 0 512 512">

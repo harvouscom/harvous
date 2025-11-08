@@ -227,7 +227,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             <SpaceButton text="New Space" className="w-full" disabled={true} />
           </div>
           <a href="/search">
-            <SquareButton variant="Search" />
+            <SquareButton variant="Find" />
           </a>
           {showProfile ? (
             <a href="/dashboard">

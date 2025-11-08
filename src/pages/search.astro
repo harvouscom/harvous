@@ -367,7 +367,7 @@ if (query.trim()) {
 // Note: Tab filtering is now handled by the TabNav component with data-tab-content attributes
 ---
 
-<Layout title="Search - Harvous" contentType="dashboard" currentThread={null} currentSpace={null}>
+<Layout title="Find - Harvous" contentType="dashboard" currentThread={null} currentSpace={null}>
   <!-- Navigation Column -->
   <NavigationColumnReact 
     slot="navigation"
@@ -385,7 +385,7 @@ if (query.trim()) {
   <!-- Main Column -->
   <div slot="main" class="h-full">
     <div class="flex flex-col h-full">
-      <CardStack title="Search" headerBgColor="var(--color-paper)">
+      <CardStack title="Find" headerBgColor="var(--color-paper)">
         <div class="flex flex-col gap-6">
           <!-- Search Input -->
           <div class="w-full" x-data="{ 
@@ -423,16 +423,16 @@ if (query.trim()) {
                   name="q"
                   x-model="searchQuery"
                   role="searchbox"
-                  aria-label="Search"
+                  aria-label="Find"
                   class="outline-none bg-transparent text-subtitle text-[var(--color-deep-grey)] placeholder:text-[var(--color-pebble-grey)]" 
-                  placeholder="Search notes and threads..."
+                  placeholder="Find notes and threads..."
                 />
                 <svg 
                   x-show="Boolean(searchQuery)" 
                   x-cloak
                   x-on:click="searchQuery = ''; window.location.href = '/search';"
                   role="button"
-                  aria-label="Clear search"
+                  aria-label="Clear find"
                   width="20" 
                   height="20"
                   class="fill-[var(--color-deep-grey)] cursor-pointer" 

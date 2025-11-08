@@ -244,6 +244,30 @@ const showMoreButton = shouldShowMoreButton(contentType);
   });
 </script>
 
+<!-- Keyboard Shortcuts Initialization -->
+<script>
+  // Expose Astro's navigate function for keyboard shortcuts
+  import { navigate } from 'astro:transitions/client';
+  (window as any).astroNavigate = navigate;
+  
+  // Initialize keyboard shortcuts
+  import { initKeyboardShortcuts, cleanupKeyboardShortcuts } from '@/utils/keyboard-shortcuts';
+  
+  // Initialize on page load
+  if (typeof window !== 'undefined') {
+    // Clean up any existing shortcuts first
+    cleanupKeyboardShortcuts();
+    // Initialize new shortcuts
+    initKeyboardShortcuts();
+    
+    // Re-initialize after View Transitions
+    document.addEventListener('astro:page-load', () => {
+      cleanupKeyboardShortcuts();
+      initKeyboardShortcuts();
+    });
+  }
+</script>
+
 <!-- Toast Initialization (ensure window.toast is available on client) -->
 <script>
   // Initialize toast utility on client side

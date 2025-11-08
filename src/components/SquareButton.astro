@@ -2,7 +2,7 @@
 import SquareButtonReact from "./react/SquareButton";
 
 export interface Props {
-  variant?: "Add" | "Close" | "More" | "Back" | "Search";
+  variant?: "Add" | "Close" | "More" | "Back" | "Find";
   withMenu?: boolean;
   type?: "button" | "submit" | "reset";
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
@@ -13,11 +13,11 @@ export interface Props {
 
 const { variant = "More", withMenu = false, type = "button", contentType = "dashboard", contentId, onClick, className } = Astro.props;
 
-// For Search variant, wrap in anchor tag (backward compatibility)
+// For Find variant, wrap in anchor tag (backward compatibility)
 // For all other variants, use React SquareButton directly
 ---
 
-{variant === "Search" ? (
+{variant === "Find" ? (
   <a href="/search" class="block">
     <SquareButtonReact
       variant={variant}

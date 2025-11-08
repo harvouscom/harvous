@@ -14,7 +14,7 @@ import Menu from './Menu';
 import { getMenuOptions } from "@/utils/menu-options";
 
 interface SquareButtonProps {
-  variant?: "Add" | "Close" | "More" | "Back" | "Search";
+  variant?: "Add" | "Close" | "More" | "Back" | "Find";
   onClick?: () => void;
   className?: string;
   type?: "button" | "submit" | "reset";
@@ -203,11 +203,11 @@ export default function SquareButton({
             <path d="M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z"/>
           </svg>
         );
-      case "Search":
+      case "Find":
         return (
           <img
             src={MagnifyingGlassIcon.src}
-            alt="Search"
+            alt="Find"
             className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none transition-transform duration-125"
             style={{ width: '20px', height: '20px' }}
           />
@@ -267,7 +267,7 @@ export default function SquareButton({
     if (shouldShowIconWrapper()) {
       return "flex h-[42.426px] w-[42.426px]";
     }
-    if (variant === "Search") {
+    if (variant === "Find") {
       return "w-5 h-5";
     }
     return "w-6 h-6";
