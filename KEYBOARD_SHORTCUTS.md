@@ -12,8 +12,8 @@ The keyboard shortcuts system provides quick access to common actions throughout
 
 | Shortcut | Action | Description |
 |----------|--------|-------------|
-| **Cmd/Ctrl + N** | Create New Note | Opens the NewNotePanel to create a new note |
-| **Cmd/Ctrl + T** | Create New Thread | Opens the NewThreadPanel to create a new thread |
+| **Cmd/Ctrl + N** | Create New Note | Opens the NewNotePanel to create a new note<br>**Context-aware**: Only works when app is focused (browser "New Window" works when address bar is focused) |
+| **Cmd/Ctrl + Shift + N** | Create New Thread | Opens the NewThreadPanel to create a new thread<br>**Note**: Changed from Cmd/Ctrl + T to avoid conflict with browser's "New Tab" |
 | **Cmd/Ctrl + F** | Find | Navigates to the Find page, or focuses the Find input if already on the Find page |
 | **Esc** | Close Panel | Closes any currently open panel (NewNotePanel, NewThreadPanel, NoteDetailsPanel, EditThreadPanel) |
 
@@ -57,6 +57,15 @@ The system intelligently detects the current page context:
 
 This allows context-aware shortcuts like **Cmd/Ctrl + I** to open the correct panel based on what you're viewing.
 
+### App Focus Detection
+
+The system also detects whether the app is focused (vs. browser chrome like the address bar):
+
+- **App focused**: When you're interacting with the app content, shortcuts like `Cmd/Ctrl + N` create a new note
+- **Browser chrome focused**: When the address bar or browser UI is focused, browser shortcuts work normally (e.g., `Cmd/Ctrl + N` opens a new browser window)
+
+This context-aware behavior follows the pattern used by Notion and Obsidian, allowing both browser and app shortcuts to work appropriately.
+
 ## Technical Implementation
 
 ### File Structure
@@ -74,6 +83,9 @@ Checks if the user is currently typing in an input field. Returns `true` if the 
 
 #### `isModifierPressed(event)`
 Checks if the appropriate modifier key is pressed (Cmd on Mac, Ctrl on Windows/Linux).
+
+#### `isAppFocused()`
+Checks if the app is currently focused (not browser chrome like address bar). This allows context-aware shortcuts like `Cmd/Ctrl + N` to only override browser behavior when the app is focused.
 
 #### `getPageContext()`
 Detects the current page context (note, thread, or space) based on the URL pathname.
@@ -112,9 +124,15 @@ The keyboard shortcuts system is fully compatible with Astro's View Transitions:
 ## Usage Examples
 
 ### Creating a New Note
-1. Press **Cmd/Ctrl + N** from anywhere in the app
+1. Press **Cmd/Ctrl + N** from anywhere in the app (when app is focused)
 2. The NewNotePanel opens
 3. Type your note content
+4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel
+
+### Creating a New Thread
+1. Press **Cmd/Ctrl + Shift + N** from anywhere in the app
+2. The NewThreadPanel opens
+3. Enter thread details
 4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel
 
 ### Quick Navigation

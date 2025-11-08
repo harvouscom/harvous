@@ -40,6 +40,38 @@ function isModifierPressed(event: KeyboardEvent): boolean {
 }
 
 /**
+ * Check if the app is focused (not browser chrome like address bar)
+ * This allows browser shortcuts to work when browser chrome is focused,
+ * but app shortcuts to work when app content is focused.
+ */
+function isAppFocused(): boolean {
+  if (typeof document === 'undefined') return false;
+  
+  const activeElement = document.activeElement;
+  if (!activeElement) return true; // Assume app focused if no active element
+  
+  // If activeElement is body, app is focused
+  if (activeElement === document.body) return true;
+  
+  // Check if focus is in browser chrome (address bar, etc.)
+  // Browser chrome elements are typically outside the body or have specific tags
+  const tagName = activeElement.tagName.toLowerCase();
+  
+  // If it's an input/textarea but not in our app container, likely browser chrome
+  // Check if the element is within the body (our app is always in body)
+  if ((tagName === 'input' || tagName === 'textarea')) {
+    // If the element is not within body, it's likely browser chrome
+    if (!activeElement.closest('body')) {
+      return false;
+    }
+  }
+  
+  // Check if element is within the app (has a parent in body)
+  // All app content should be within body
+  return activeElement.closest('body') !== null;
+}
+
+/**
  * Get current page context from URL
  */
 function getPageContext(): { isNote: boolean; isThread: boolean; isSpace: boolean; path: string } {
@@ -111,15 +143,19 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   const key = event.key.toLowerCase();
   const code = event.code;
   
-  // Cmd/Ctrl + N - Create new note
-  if (modifier && key === 'n') {
-    event.preventDefault();
-    window.dispatchEvent(new CustomEvent('openNewNotePanel'));
+  // Cmd/Ctrl + N - Create new note (context-aware: only when app is focused)
+  if (modifier && key === 'n' && !event.shiftKey) {
+    // Only prevent default browser behavior when app is focused
+    // This allows browser's "New Window" to work when address bar is focused
+    if (isAppFocused()) {
+      event.preventDefault();
+      window.dispatchEvent(new CustomEvent('openNewNotePanel'));
+    }
     return;
   }
   
-  // Cmd/Ctrl + T - Create new thread
-  if (modifier && key === 't') {
+  // Cmd/Ctrl + Shift + N - Create new thread (replaces Cmd/Ctrl + T to avoid browser conflict)
+  if (modifier && key === 'n' && event.shiftKey) {
     event.preventDefault();
     window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
     return;
