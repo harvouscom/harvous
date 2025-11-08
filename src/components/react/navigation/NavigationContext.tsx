@@ -54,6 +54,62 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  // Helper functions for closed items tracking
+  const getClosedItems = (): string[] => {
+    if (typeof window === 'undefined') {
+      return [];
+    }
+    try {
+      const storage = getStorage();
+      const stored = storage.getItem('harvous-closed-navigation-items');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Error getting closed items:', error);
+      return [];
+    }
+  };
+
+  const addToClosedItems = (itemId: string) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const storage = getStorage();
+      const closedItems = getClosedItems();
+      if (!closedItems.includes(itemId)) {
+        closedItems.push(itemId);
+        storage.setItem('harvous-closed-navigation-items', JSON.stringify(closedItems));
+      }
+    } catch (error) {
+      console.error('Error adding to closed items:', error);
+    }
+  };
+
+  const removeFromClosedItems = (itemId: string) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const storage = getStorage();
+      const closedItems = getClosedItems();
+      const filtered = closedItems.filter(id => id !== itemId);
+      storage.setItem('harvous-closed-navigation-items', JSON.stringify(filtered));
+    } catch (error) {
+      console.error('Error removing from closed items:', error);
+    }
+  };
+
+  const isItemClosed = (itemId: string): boolean => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    // Special handling for unorganized thread - check the legacy flag too
+    if (itemId === 'thread_unorganized') {
+      return localStorage.getItem('unorganized-thread-closed') === 'true' || getClosedItems().includes(itemId);
+    }
+    return getClosedItems().includes(itemId);
+  };
+
   // Initialize state directly from the same storage that addToNavigationHistory uses
   // This ensures we read from the same place we write to
   const getInitialHistory = (): NavigationItem[] => {
@@ -172,6 +228,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (testItemTitles.includes(item.title)) {
       return;
     }
+    
+    // Remove from closed items list if it was previously closed
+    // This handles the case where user explicitly navigates to a closed item
+    removeFromClosedItems(item.id);
     
     const history = getNavigationHistory();
     
@@ -302,6 +362,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Remove the item from history first
       const filteredHistory = history.filter(item => item.id !== itemId);
       
+      // Add to closed items list
+      addToClosedItems(itemId);
+      
       // Special handling for unorganized thread
       if (itemId === 'thread_unorganized') {
         localStorage.setItem('unorganized-thread-closed', 'true');
@@ -322,6 +385,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     // Proceed with removal (for non-active items)
     const filteredHistory = history.filter(item => item.id !== itemId);
+    
+    // Add to closed items list
+    addToClosedItems(itemId);
     
     // Special handling for unorganized thread
     if (itemId === 'thread_unorganized') {
@@ -454,21 +520,52 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Special handling for unorganized thread
       if (currentItemId === 'thread_unorganized' || itemData.id === 'thread_unorganized') {
         localStorage.removeItem('unorganized-thread-closed');
+        // Also remove from closed items list if it was there
+        removeFromClosedItems('thread_unorganized');
       }
       
       // Check if this is a new item (not in history yet)
       const history = getNavigationHistory();
       const existingItem = history.find(h => h.id === itemData.id);
       
+      // Get current active item ID to check if user explicitly navigated to this item
+      const currentActiveItemId = getCurrentActiveItemId();
+      const isCurrentlyActive = itemData.id === currentActiveItemId;
+      
       if (!existingItem) {
-        // Only add new items to history - this preserves the order
-        addToNavigationHistory(itemData);
-        
-        // Refresh counts from API after adding new item to ensure accuracy
-        setTimeout(() => {
-          refreshThreadCounts();
-        }, 300);
+        // Item doesn't exist in history - check if it was closed
+        if (isItemClosed(itemData.id)) {
+          // Item was previously closed
+          if (isCurrentlyActive) {
+            // User explicitly navigated to this closed item - restore it
+            removeFromClosedItems(itemData.id);
+            addToNavigationHistory(itemData);
+            
+            // Refresh counts from API after adding new item to ensure accuracy
+            setTimeout(() => {
+              refreshThreadCounts();
+            }, 300);
+          } else {
+            // Item is closed and user didn't explicitly navigate to it - don't add it back
+            // This prevents closed items from reappearing when navigating to other items
+            return;
+          }
+        } else {
+          // Item is not closed - add it to history (first time opening)
+          addToNavigationHistory(itemData);
+          
+          // Refresh counts from API after adding new item to ensure accuracy
+          setTimeout(() => {
+            refreshThreadCounts();
+          }, 300);
+        }
       } else {
+        // Item exists in history - update it
+        // If it was closed but user is now viewing it, remove from closed list
+        if (isItemClosed(itemData.id) && isCurrentlyActive) {
+          removeFromClosedItems(itemData.id);
+        }
+        
         // Update the item data but DON'T change its position
         const existingIndex = history.findIndex(h => h.id === itemData.id);
         history[existingIndex] = {
