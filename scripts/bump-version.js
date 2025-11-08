@@ -113,6 +113,27 @@ function updatePackageJson(newVersion) {
   );
 }
 
+// Update README.md version
+function updateReadme(newVersion) {
+  const readmePath = join(__dirname, '..', 'README.md');
+  try {
+    let readmeContent = readFileSync(readmePath, 'utf-8');
+    
+    // Update version in README.md (format: **Version:** X.Y.Z)
+    const versionPattern = /\*\*Version:\*\*\s+[\d.]+/g;
+    const updatedContent = readmeContent.replace(versionPattern, `**Version:** ${newVersion}`);
+    
+    if (updatedContent !== readmeContent) {
+      writeFileSync(readmePath, updatedContent, 'utf-8');
+      console.log(`✅ README.md version updated to ${newVersion}`);
+    } else {
+      console.warn('⚠️  Could not find version pattern in README.md');
+    }
+  } catch (error) {
+    console.warn(`⚠️  Could not update README.md: ${error.message}`);
+  }
+}
+
 // Main execution
 try {
   // Check if we're in a git repository
@@ -190,11 +211,14 @@ try {
   updatePackageJson(newVersion);
   console.log(`✅ Version bumped: ${currentVersion} → ${newVersion}`);
 
-  // Stage the updated package.json
+  // Update README.md
+  updateReadme(newVersion);
+
+  // Stage the updated files
   try {
-    execSync('git add package.json', { stdio: 'ignore' });
+    execSync('git add package.json README.md', { stdio: 'ignore' });
   } catch (error) {
-    console.warn('⚠️  Could not stage package.json. You may need to stage it manually.');
+    console.warn('⚠️  Could not stage package.json and README.md. You may need to stage them manually.');
   }
 
   console.log(`\n💡 Next step: Run 'git commit --amend --no-edit' to include version bump in your commit,`);
