@@ -316,7 +316,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 w-full min-w-0 h-[64px]">
       {/* Search Icon Button (Column 1: auto) */}
       <div className="flex items-center justify-center h-[64px]">
-        <a href="/search" className="block">
+        <a href="/find" className="block">
           <button
             className="[&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
             style={{ backgroundImage: 'var(--color-gradient-gray)' }}

@@ -171,7 +171,7 @@ self.addEventListener('message', (event) => {
       // Then schedule less critical pre-fetches
       setTimeout(() => {
         cache.addAll([
-          '/dashboard/search',
+          '/dashboard/find',
           '/dashboard/profile'
         ]).catch(() => {});
       }, 1000);

@@ -128,8 +128,35 @@ if (query.trim()) {
       `%${query.trim().split(' ').join('%')}%`, // word boundary match
     ];
     
+    // Check if query is numeric or has "N" prefix (for note ID search)
+    const queryTrimmed = query.trim();
+    // Check for "N" prefix (case-insensitive) followed by digits
+    const nPrefixMatch = queryTrimmed.match(/^[nN](\d+)$/);
+    // Check if query is purely numeric
+    const isNumericQuery = /^\d+$/.test(queryTrimmed);
+    // Extract numeric note ID from either pattern
+    const numericNoteId = nPrefixMatch 
+      ? parseInt(nPrefixMatch[1], 10) 
+      : (isNumericQuery ? parseInt(queryTrimmed, 10) : null);
+    const hasNoteIdSearch = numericNoteId !== null;
+    
+    // Build search conditions for notes
+    const noteSearchConditions = [
+      like(Notes.title, searchPatterns[0]),
+      like(Notes.content, searchPatterns[0]),
+      like(Notes.title, searchPatterns[1]),
+      like(Notes.content, searchPatterns[1]),
+      like(Notes.title, searchPatterns[2]),
+      like(Notes.content, searchPatterns[2])
+    ];
+    
+    // Add note ID search if query is numeric or has "N" prefix
+    if (hasNoteIdSearch && numericNoteId !== null) {
+      noteSearchConditions.push(eq(Notes.simpleNoteId, numericNoteId));
+    }
+    
     // Search notes with enhanced matching (including tags)
-    // First, get notes that match title/content
+    // First, get notes that match title/content/ID
     const notesByContent = await db
       .select({
         id: Notes.id,
@@ -150,14 +177,7 @@ if (query.trim()) {
       .where(
         and(
           eq(Notes.userId, userId),
-          or(
-            like(Notes.title, searchPatterns[0]),
-            like(Notes.content, searchPatterns[0]),
-            like(Notes.title, searchPatterns[1]),
-            like(Notes.content, searchPatterns[1]),
-            like(Notes.title, searchPatterns[2]),
-            like(Notes.content, searchPatterns[2])
-          )
+          or(...noteSearchConditions)
         )
       )
       .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt));
@@ -224,11 +244,17 @@ if (query.trim()) {
     // Helper function to calculate relevance score
     function calculateRelevanceScore(item: any, query: string): number {
       const queryLower = query.toLowerCase();
+      const queryTrimmed = query.trim();
       const titleLower = (item.title || '').toLowerCase();
       const contentLower = (item.content || '').toLowerCase();
       const tagsLower = (item.tags || []).map((tag: any) => tag.name.toLowerCase()).join(' ');
       
       let score = 0;
+      
+      // Note ID matches get highest score (highest priority)
+      if (hasNoteIdSearch && item.simpleNoteId && item.simpleNoteId === numericNoteId) {
+        score += 200; // Highest priority for exact ID match
+      }
       
       // Title matches get highest score
       if (titleLower.includes(queryLower)) {
@@ -401,7 +427,7 @@ if (query.trim()) {
               window.addEventListener('popstate', updateSearchQuery);
               document.addEventListener('astro:page-load', updateSearchQuery);
             ">
-            <form method="GET" action="/search" class="w-full relative" x-on:submit="
+            <form method="GET" action="/find" class="w-full relative" x-on:submit="
               if (!searchQuery.trim()) { 
                 $event.preventDefault(); 
               } else {
@@ -430,7 +456,7 @@ if (query.trim()) {
                 <svg 
                   x-show="Boolean(searchQuery)" 
                   x-cloak
-                  x-on:click="searchQuery = ''; window.location.href = '/search';"
+                  x-on:click="searchQuery = ''; window.location.href = '/find';"
                   role="button"
                   aria-label="Clear find"
                   width="20" 
@@ -729,3 +755,4 @@ if (query.trim()) {
     setTimeout(updateCurrentSearchCount, 200);
   });
 </script>
+

@@ -78,7 +78,7 @@ function prefetchCriticalRoutes() {
  * Prefetch less critical routes when idle
  */
 function prefetchLowPriorityRoutes() {
-  const routes = ['/dashboard/search', '/dashboard/profile'];
+  const routes = ['/dashboard/find', '/dashboard/profile'];
   
   routes.forEach(route => {
     try {

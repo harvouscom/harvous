@@ -72,7 +72,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     }
     
     // Check if this is a recent search item (on search page)
-    const isRecentSearch = window.location.pathname === '/search' && 
+    const isRecentSearch = window.location.pathname === '/find' && 
                           (event.target as HTMLElement).closest('.recent-search-item');
     
     if (isRecentSearch) {
