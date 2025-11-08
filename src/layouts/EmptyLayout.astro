@@ -5,8 +5,8 @@ import "@fontsource/reddit-sans/500.css";
 import "@fontsource/reddit-sans/600.css";
 import "@fontsource/reddit-mono/500.css";
 import "@fontsource/reddit-mono/600.css";
-import "trix/dist/trix.css";
-import Toast from "@/components/Toast-v2.astro";
+import "sonner/dist/styles.css";
+import ToastProvider from "@/components/react/ToastProvider.tsx";
 
 interface Props {
   classNames?: string;
@@ -40,14 +40,11 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
     
     <!-- Special tab interaction handler for first-touch optimization -->
     <script is:inline src="/scripts/tab-interaction-handler.js"></script>
-    
-    <!-- Alpine.js CDN for SquareButton menu functionality -->
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   </head>
-  <body 
+  <body
     class={`font-sans bg-[var(--color-light-paper)] min-h-screen ${classNames}`}
   >
-    <Toast />
+    <ToastProvider client:load />
 
     <slot />
   </body>

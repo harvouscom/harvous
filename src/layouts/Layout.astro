@@ -5,10 +5,8 @@ import "@fontsource/reddit-sans/500.css";
 import "@fontsource/reddit-sans/600.css";
 import "@fontsource/reddit-mono/500.css";
 import "@fontsource/reddit-mono/600.css";
-import "trix/dist/trix.css";
 import "sonner/dist/styles.css";
-// Temporarily disabled while exploring better Harvous approach
-// import ToastProvider from "@/components/react/ToastProvider.tsx";
+import ToastProvider from "@/components/react/ToastProvider.tsx";
 import SquareButton from "@/components/SquareButton.astro";
 import NewNotePanelSimple from "@/components/NewNotePanelSimple.astro";
 import NewThreadPanelReact from "@/components/react/NewThreadPanel.tsx";
@@ -20,10 +18,6 @@ import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 // Initialize toast utility globally
 import "@/utils/toast";
-
-// Feature flag: Set to true to use React panel management, false to use Alpine.js
-// ⚠️ Keep Alpine.js code until React version is fully tested (2-3 days of usage)
-const USE_REACT_PANELS = true;
 
 interface Props {
   classNames?: string;
@@ -77,11 +71,6 @@ const showMoreButton = shouldShowMoreButton(contentType);
         contain: content;
         touch-action: manipulation;
       }
-      /* Critical UI elements */
-      trix-editor {
-        contain: content;
-      }
-
     </style>
     
     <!-- Preload critical resources -->
@@ -142,11 +131,10 @@ const showMoreButton = shouldShowMoreButton(contentType);
     
 
   </head>
-  <body 
+  <body
     class={`font-sans bg-[var(--color-light-paper)] ${classNames}`}
   >
-    <!-- Temporarily disabled while exploring better Harvous approach -->
-    <!-- <ToastProvider client:load /> -->
+    <ToastProvider client:load />
 
     <div class="h-[100svh] p-3 min-[1160px]:p-6" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->
@@ -187,111 +175,10 @@ const showMoreButton = shouldShowMoreButton(contentType);
         <!-- Additional Column -->
         <section class="h-full desktop-additional-column">
           <slot name="additional">
-            {USE_REACT_PANELS ? (
-              <!-- React Panel Management -->
-              <div class="flex flex-col items-left justify-between h-full">
-                <!-- SquareButtons (shown when no panel is open) -->
-                <div id="square-buttons-container" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
-                  {showMoreButton && (
-                    <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
-                  )}
-                  {contentType !== 'profile' && (
-                    <SquareButton variant="Add" withMenu={true} />
-                  )}
-                </div>
-                <!-- React Panel Manager -->
-                <DesktopPanelManager 
-                  currentThread={currentThread}
-                  currentSpace={currentSpace}
-                  currentNote={currentNote}
-                  contentType={contentType}
-                  client:load
-                />
-              </div>
-            ) : (
-              <!-- Alpine.js Panel Management (original) -->
-              <div 
-                class="flex flex-col items-left justify-between h-full"
-                x-data="{ showNewNotePanel: false, showNewThreadPanel: false, showNoteDetailsPanel: false, showEditThreadPanel: false }"
-              x-init="
-                // Initialize panels as closed by default
-                showNewNotePanel = false;
-                showNewThreadPanel = false;
-                showNoteDetailsPanel = false;
-                showEditThreadPanel = false;
-                
-                // Force panels closed on initialization
-                localStorage.removeItem('showNewNotePanel');
-                localStorage.removeItem('showNewThreadPanel');
-                
-                // Check localStorage for panel state
-                const savedNotePanel = localStorage.getItem('showNewNotePanel');
-                const savedThreadPanel = localStorage.getItem('showNewThreadPanel');
-                
-                if (savedNotePanel === 'true') {
-                  showNewNotePanel = true;
-                }
-                if (savedThreadPanel === 'true') {
-                  showNewThreadPanel = true;
-                }
-                
-                // Listen for NoteDetailsPanel events (notes only)
-                window.addEventListener('openNoteDetailsPanel', () => {
-                  showNoteDetailsPanel = true;
-                  showNewNotePanel = false;
-                  showNewThreadPanel = false;
-                  showEditThreadPanel = false;
-                  window.dispatchEvent(new CustomEvent('closeMoreMenu'));
-                });
-                window.addEventListener('closeNoteDetailsPanel', () => {
-                  showNoteDetailsPanel = false;
-                });
-                
-                // Listen for EditThreadPanel events (threads only)
-                window.addEventListener('openEditThreadPanel', () => {
-                  showEditThreadPanel = true;
-                  showNoteDetailsPanel = false;
-                  showNewNotePanel = false;
-                  showNewThreadPanel = false;
-                  window.dispatchEvent(new CustomEvent('closeMoreMenu'));
-                });
-                window.addEventListener('closeEditThreadPanel', () => {
-                  showEditThreadPanel = false;
-                });
-                
-                // Listen for NewNotePanel events
-                window.addEventListener('openNewNotePanel', () => {
-                  showNewNotePanel = true;
-                  showNoteDetailsPanel = false;
-                  showNewThreadPanel = false;
-                  showEditThreadPanel = false;
-                  localStorage.setItem('showNewNotePanel', 'true');
-                  localStorage.setItem('showNewThreadPanel', 'false');
-                  window.dispatchEvent(new CustomEvent('closeMoreMenu'));
-                });
-                window.addEventListener('closeNewNotePanel', () => {
-                  showNewNotePanel = false;
-                  localStorage.setItem('showNewNotePanel', 'false');
-                });
-                
-                // Listen for NewThreadPanel events
-                window.addEventListener('openNewThreadPanel', () => {
-                  showNewThreadPanel = true;
-                  showNoteDetailsPanel = false;
-                  showNewNotePanel = false;
-                  showEditThreadPanel = false;
-                  localStorage.setItem('showNewThreadPanel', 'true');
-                  localStorage.setItem('showNewNotePanel', 'false');
-                  window.dispatchEvent(new CustomEvent('closeMoreMenu'));
-                });
-                window.addEventListener('closeNewThreadPanel', () => {
-                  showNewThreadPanel = false;
-                  localStorage.setItem('showNewThreadPanel', 'false');
-                });
-              "
-            >
-              <!-- Default state: SquareButtons -->
-              <div x-show="!showNoteDetailsPanel && !showNewNotePanel && !showNewThreadPanel && !showEditThreadPanel" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
+            <!-- React Panel Management -->
+            <div class="flex flex-col items-left justify-between h-full">
+              <!-- SquareButtons (shown when no panel is open) -->
+              <div id="square-buttons-container" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
                 {showMoreButton && (
                   <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
                 )}
@@ -299,74 +186,15 @@ const showMoreButton = shouldShowMoreButton(contentType);
                   <SquareButton variant="Add" withMenu={true} />
                 )}
               </div>
-              
-              <!-- New Note Panel - Desktop Only -->
-              <div 
-                x-show="showNewNotePanel" 
-                x-transition:enter=""
-                x-transition:enter-start=""
-                x-transition:enter-end=""
-                x-transition:leave=""
-                x-transition:leave-start=""
-                x-transition:leave-end=""
-                class="h-full new-note-panel-container hidden min-[1160px]:block"
-              >
-                <NewNotePanelSimple 
-                  currentThread={currentThread} 
-                  onClose={() => {
-                    // Close the panel when NewNotePanel requests to close
-                    window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
-                  }}
-                />
-              </div>
-              
-              <!-- New Thread Panel - Desktop Only -->
-              <div x-show="showNewThreadPanel" class="h-full hidden min-[1160px]:block">
-                <NewThreadPanelReact 
-                  currentSpace={currentSpace} 
-                  onClose={() => {
-                    // Close the panel when NewThreadPanel requests to close
-                    window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
-                  }}
-                  client:only="react"
-                />
-              </div>
-              
-              <!-- Note Details Panel (notes only) - Desktop Only -->
-              {contentType === 'note' && currentNote && (
-                <div x-show="showNoteDetailsPanel" class="h-full hidden min-[1160px]:block">
-                  <NoteDetailsPanel 
-                    noteId={currentNote.id} 
-                    noteTitle={currentNote.title || "Note Details"}
-                    threads={[]}
-                    comments={[]}
-                    tags={[]}
-                    onClose={() => {
-                      // Close the panel when NoteDetailsPanel requests to close
-                      window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
-                    }}
-                    client:only="react"
-                  />
-                </div>
-              )}
-              
-              <!-- Edit Thread Panel (threads only) - Desktop Only -->
-              {contentType === 'thread' && currentThread && (
-                <div x-show="showEditThreadPanel" class="h-full hidden min-[1160px]:block">
-                  <EditThreadPanel 
-                    threadId={currentThread.id}
-                    initialTitle={currentThread.title}
-                    initialColor={currentThread.color}
-                    onClose={() => {
-                      window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
-                    }}
-                    client:only="react"
-                  />
-                </div>
-              )}
-              
-              </div>
-            )}
+              <!-- React Panel Manager -->
+              <DesktopPanelManager
+                currentThread={currentThread}
+                currentSpace={currentSpace}
+                currentNote={currentNote}
+                contentType={contentType}
+                client:load
+              />
+            </div>
           </slot>
         </section>
       </div>

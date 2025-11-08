@@ -15,6 +15,7 @@ type PanelType = 'newNote' | 'newThread' | 'noteDetails' | 'editThread' | null;
 
 interface PanelState {
   activePanel: PanelType;
+  panelKey: number; // Used to force remount of panels
 }
 
 type PanelAction =
@@ -32,50 +33,58 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
   switch (action.type) {
     case 'OPEN_NEW_NOTE':
       // Close all other panels and open NewNote
+      // Increment panelKey to force remount and re-read localStorage
       localStorage.setItem('showNewNotePanel', 'true');
       localStorage.setItem('showNewThreadPanel', 'false');
-      return { activePanel: 'newNote' };
+      return { activePanel: 'newNote', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_NEW_NOTE':
       localStorage.setItem('showNewNotePanel', 'false');
-      return { activePanel: null };
+      return { activePanel: null, panelKey: state.panelKey };
     
     case 'OPEN_NEW_THREAD':
       // Close all other panels and open NewThread
+      // Increment panelKey to force remount and re-read localStorage
       localStorage.setItem('showNewThreadPanel', 'true');
       localStorage.setItem('showNewNotePanel', 'false');
-      return { activePanel: 'newThread' };
+      return { activePanel: 'newThread', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_NEW_THREAD':
       localStorage.setItem('showNewThreadPanel', 'false');
-      return { activePanel: null };
+      return { activePanel: null, panelKey: state.panelKey };
     
     case 'OPEN_NOTE_DETAILS':
       // Close all other panels and open NoteDetails
-      return { activePanel: 'noteDetails' };
+      return { activePanel: 'noteDetails', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_NOTE_DETAILS':
-      return { activePanel: null };
+      return { activePanel: null, panelKey: state.panelKey };
     
     case 'OPEN_EDIT_THREAD':
       // Close all other panels and open EditThread
-      return { activePanel: 'editThread' };
+      return { activePanel: 'editThread', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_EDIT_THREAD':
-      return { activePanel: null };
+      return { activePanel: null, panelKey: state.panelKey };
     
     case 'LOAD_FROM_STORAGE':
       // Check localStorage for saved panel state
       const savedNotePanel = localStorage.getItem('showNewNotePanel');
       const savedThreadPanel = localStorage.getItem('showNewThreadPanel');
-      
+
       if (savedNotePanel === 'true') {
-        return { activePanel: 'newNote' };
+        // Check if there's new content from text selection - if so, increment panelKey to force remount
+        const hasNewContent = !!(localStorage.getItem('newNoteContent') || 
+                                 localStorage.getItem('newNoteType') ||
+                                 localStorage.getItem('newNoteScriptureReference'));
+        // Increment panelKey if there's new content to force remount and read from localStorage
+        const panelKey = hasNewContent ? 1 : 0;
+        return { activePanel: 'newNote', panelKey };
       }
       if (savedThreadPanel === 'true') {
-        return { activePanel: 'newThread' };
+        return { activePanel: 'newThread', panelKey: 0 };
       }
-      return { activePanel: null };
+      return { activePanel: null, panelKey: 0 };
     
     default:
       return state;
@@ -88,17 +97,39 @@ export default function DesktopPanelManager({
   currentNote,
   contentType = 'dashboard'
 }: DesktopPanelManagerProps) {
-  const [state, dispatch] = useReducer(panelReducer, { activePanel: null });
+  const [state, dispatch] = useReducer(panelReducer, { activePanel: null, panelKey: 0 });
 
   // Load panel state from localStorage on mount
   useEffect(() => {
-    // Force panels closed on initialization (matches Alpine.js behavior)
-    localStorage.removeItem('showNewNotePanel');
-    localStorage.removeItem('showNewThreadPanel');
+    // Check if there's a pending panel open request BEFORE clearing
+    const pendingNotePanel = localStorage.getItem('showNewNotePanel');
+    const pendingThreadPanel = localStorage.getItem('showNewThreadPanel');
     
-    // Then load any saved state
+    // Only clear if there's no pending request (to avoid clearing requests made before component loaded)
+    if (pendingNotePanel !== 'true' && pendingThreadPanel !== 'true') {
+      // No pending requests - safe to clear (matches Alpine.js behavior)
+      localStorage.removeItem('showNewNotePanel');
+      localStorage.removeItem('showNewThreadPanel');
+    }
+    
+    // Then load any saved state (this will honor pending requests)
     dispatch({ type: 'LOAD_FROM_STORAGE' });
   }, []);
+  
+  // Check localStorage whenever state changes - this catches requests that come in after mount
+  useEffect(() => {
+    // Only check if no panel is currently open
+    if (state.activePanel === null) {
+      const pendingNotePanel = localStorage.getItem('showNewNotePanel');
+      const pendingThreadPanel = localStorage.getItem('showNewThreadPanel');
+      
+      if (pendingNotePanel === 'true') {
+        dispatch({ type: 'OPEN_NEW_NOTE' });
+      } else if (pendingThreadPanel === 'true') {
+        dispatch({ type: 'OPEN_NEW_THREAD' });
+      }
+    }
+  }, [state.activePanel]);
 
   // Listen to window events for panel management
   useEffect(() => {
@@ -197,14 +228,16 @@ export default function DesktopPanelManager({
 
   // Determine if any panel is open
   const isAnyPanelOpen = state.activePanel !== null;
+  
 
   return (
     <div className="flex flex-col items-left justify-between h-full">
       {/* New Note Panel - Desktop Only */}
       {state.activePanel === 'newNote' && (
         <div className="h-full new-note-panel-container hidden min-[1160px]:block">
-          <NewNotePanel 
-            currentThread={currentThread} 
+          <NewNotePanel
+            key={`new-note-${state.panelKey}`}
+            currentThread={currentThread}
             onClose={handleCloseNewNote}
           />
         </div>
@@ -213,8 +246,9 @@ export default function DesktopPanelManager({
       {/* New Thread Panel - Desktop Only */}
       {state.activePanel === 'newThread' && (
         <div className="h-full hidden min-[1160px]:block">
-          <NewThreadPanel 
-            currentSpace={currentSpace} 
+          <NewThreadPanel
+            key={`new-thread-${state.panelKey}`}
+            currentSpace={currentSpace}
             onClose={handleCloseNewThread}
           />
         </div>

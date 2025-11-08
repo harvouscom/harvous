@@ -49,7 +49,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   // Track if we've already set thread from savedThreadId to prevent overriding
   const [hasSetThreadFromSaved, setHasSetThreadFromSaved] = useState(false);
 
-  // Load data from localStorage on mount
+  // Load data from localStorage on mount - runs only once per mount
+  // When component remounts with new key (from panelKey), this will run again
   useEffect(() => {
     const savedTitle = localStorage.getItem('newNoteTitle') || '';
     const savedContent = localStorage.getItem('newNoteContent') || '';
@@ -80,24 +81,40 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       localStorage.removeItem('newNoteScriptureText');
     } else {
       // Use saved title if not scripture
-      setTitle(savedTitle);
+      if (savedTitle) {
+        setTitle(savedTitle);
+      }
     }
     
+    // Handle content setting for non-scripture notes
     // If we have saved content from selected text feature and it's not scripture, use it
-    if (savedContent && savedNoteType !== 'scripture') {
-      setContent(savedContent);
-      // Clear after loading to prevent re-loading on next open
-      localStorage.removeItem('newNoteContent');
-    } else if (!savedScriptureText) {
-      setContent('');
+    // Check savedNoteType (not the state) since we read it from localStorage
+    if (savedNoteType !== 'scripture') {
+      // Not scripture - check if we have saved content from selection
+      if (savedContent) {
+        setContent(savedContent);
+        // Clear after loading to prevent re-loading on next open
+        localStorage.removeItem('newNoteContent');
+      } else {
+        // No saved content - clear content field
+        setContent('');
+      }
     }
+    // If it's scripture, content was already set above from savedScriptureText
     
-    // Priority for thread selection:
-    // 1. savedThreadId from localStorage (from selected text feature) - HIGHEST PRIORITY
-    // 2. currentThread prop (if in thread view)
-    // 3. default to "Unorganized"
+    // Handle thread selection separately (depends on threadOptions being loaded)
+    // Store savedThreadId in a way that the thread selection effect can use it
+    if (savedThreadId) {
+      // Store in a way that persists until threads are loaded
+      localStorage.setItem('newNoteThreadPending', savedThreadId);
+      localStorage.removeItem('newNoteThread');
+    }
+  }, []); // Empty deps - only run on mount
+
+  // Handle thread selection when threadOptions are loaded
+  useEffect(() => {
+    const savedThreadId = localStorage.getItem('newNoteThreadPending') || localStorage.getItem('newNoteThread') || '';
     
-    // If we have a saved thread ID from selected text feature, try to match it
     if (savedThreadId) {
       // Wait for threads to be loaded if not already
       if (threadOptions.length > 1 || savedThreadId === 'thread_unorganized') {
@@ -114,14 +131,15 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         
         setSelectedThread(matchedThread);
         setHasSetThreadFromSaved(true);
-        // Clear the saved thread ID after using it
+        // Clear the saved thread IDs after using them
         localStorage.removeItem('newNoteThread');
+        localStorage.removeItem('newNoteThreadPending');
       }
-    } else if (currentThread && currentThread.title) {
+    } else if (currentThread && currentThread.title && !hasSetThreadFromSaved) {
       // Only use currentThread if we don't have a saved thread ID
       setSelectedThread(currentThread.title);
     }
-  }, [currentThread, threadOptions]);
+  }, [currentThread, threadOptions, hasSetThreadFromSaved]);
 
 
   // Save to localStorage when values change

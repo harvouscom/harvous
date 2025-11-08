@@ -1,63 +1,24 @@
 ---
+import DrawerReact from "./react/Drawer";
+
 interface Props {
   id?: string;
   title?: string;
   class?: string;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-const { id = "drawer", title = "Drawer", class: className = "" } = Astro.props;
+const { id = "drawer", title = "Drawer", class: className = "", isOpen, onClose } = Astro.props;
 ---
 
-<div
+<DrawerReact
   id={id}
-  x-data="{ isOpen: false }"
-  x-show="isOpen"
-  x-transition:enter="transition ease-out duration-300"
-  x-transition:enter-start="opacity-0"
-  x-transition:enter-end="opacity-100"
-  x-transition:leave="transition ease-in duration-200"
-  x-transition:leave-start="opacity-100"
-  x-transition:leave-end="opacity-0"
-  class={`fixed inset-0 z-50 overflow-hidden ${className}`}
-  style="display: none;"
-  @show-drawer.window="if ($event.detail && $event.detail.drawer === '${id}') isOpen = true"
-  @hide-drawer.window="isOpen = false"
-  @click.self="isOpen = false"
+  title={title}
+  className={className}
+  isOpen={isOpen}
+  onClose={onClose}
+  client:only="react"
 >
-  <div class="absolute inset-0 overflow-hidden">
-    <div class="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
-      <div
-        x-show="isOpen"
-        x-transition:enter="transform transition ease-in-out duration-500"
-        x-transition:enter-start="translate-x-full"
-        x-transition:enter-end="translate-x-0"
-        x-transition:leave="transform transition ease-in-out duration-500"
-        x-transition:leave-start="translate-x-0"
-        x-transition:leave-end="translate-x-full"
-        class="pointer-events-auto w-screen max-w-md"
-      >
-        <div class="flex h-full flex-col overflow-y-scroll bg-white py-6 shadow-xl">
-          <div class="px-4 sm:px-6">
-            <div class="flex items-start justify-between">
-              <h2 class="text-lg font-medium text-gray-900">{title}</h2>
-              <div class="ml-3 flex h-7 items-center">
-                <button
-                  @click="isOpen = false"
-                  class="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                >
-                  <span class="sr-only">Close panel</span>
-                  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="relative mt-6 flex-1 px-4 sm:px-6">
-            <slot />
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+  <slot />
+</DrawerReact>

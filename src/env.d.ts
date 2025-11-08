@@ -3,8 +3,6 @@
 
 declare global {
   interface Window {
-    Alpine: import("alpinejs").Alpine;
-    htmx: typeof htmx;
     toast: {
       success: (message: string) => void;
       error: (message: string) => void;
@@ -100,10 +98,4 @@ interface ImportMetaEnv {
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
-}
-
-// Trix types declaration
-declare module 'trix' {
-  const Trix: any;
-  export default Trix;
 }
