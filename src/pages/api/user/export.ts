@@ -145,7 +145,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     if (format === 'csv-threads') {
       // CSV format: Thread-based export
       const rows: string[][] = [];
-      rows.push(['Thread Title', 'Note Title', 'Note Content', 'Created Date', 'Tags']);
+      rows.push(['Thread Title', 'Thread Color', 'Note Title', 'Note Content', 'Created Date', 'Tags']);
       
       for (const note of allNotes) {
         // Get first thread from junction table, or fallback to legacy threadId
@@ -166,6 +166,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
         rows.push([
           escapeCSV(thread?.title || 'Unorganized'),
+          escapeCSV(thread?.color || ''),
           escapeCSV(note.title || 'Untitled'),
           escapeCSV(plainContent),
           escapeCSV(note.createdAt.toISOString()),
@@ -207,6 +208,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
         }
         if (thread) {
           markdownLines.push(`**Thread:** ${thread.title}`);
+          if (thread.color) {
+            markdownLines.push(`**Thread Color:** ${thread.color}`);
+          }
         }
         if (tags.length > 0) {
           markdownLines.push(`**Tags:** ${tags.map(t => t.name).join(', ')}`);

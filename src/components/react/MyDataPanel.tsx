@@ -19,6 +19,14 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
   };
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isExporting, setIsExporting] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState<string | null>(null);
+  const [importResults, setImportResults] = useState<{
+    notesImported: number;
+    threadsCreated: number;
+    tagsCreated: number;
+    duplicatesSkipped: number;
+    errors?: string[];
+  } | null>(null);
 
   // Prevent body scroll when dialog is open
   useEffect(() => {
@@ -130,6 +138,72 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     setShowDeleteConfirm(false);
   };
 
+  const handleImport = async (format: string, label: string) => {
+    if (isImporting) return;
+
+    // Create file input
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = format === 'markdown' ? '.md' : '.csv';
+    input.style.display = 'none';
+
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      setIsImporting(format);
+      setImportResults(null);
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('format', format);
+
+        const response = await fetch('/api/user/import', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || `Import failed: ${response.statusText}`);
+        }
+
+        setImportResults(data);
+
+        // Show success toast
+        const message = `${data.notesImported} note${data.notesImported !== 1 ? 's' : ''} imported successfully!`;
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message,
+            type: 'success'
+          }
+        }));
+
+        // Reload page after a short delay to show new content
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } catch (error) {
+        console.error('Import error:', error);
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: error instanceof Error ? error.message : `Failed to import ${label}. Please try again.`,
+            type: 'error'
+          }
+        }));
+      } finally {
+        setIsImporting(null);
+        document.body.removeChild(input);
+      }
+    };
+
+    document.body.appendChild(input);
+    input.click();
+  };
+
   return (
     <>
       <div className="h-full flex flex-col min-h-0">
@@ -212,6 +286,107 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                       </div>
                     </div>
                   </button>
+                </div>
+
+                {/* Horizontal Divider */}
+                <div className="w-full h-px bg-[var(--color-gray)] my-3"></div>
+
+                {/* Import Buttons */}
+                <div className="content-stretch flex flex-col gap-3 items-start relative shrink-0 w-full">
+                  {/* Import from Markdown */}
+                  <button
+                    className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                    style={{ 
+                      backgroundImage: 'var(--color-gradient-gray)',
+                      boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
+                      opacity: isImporting === 'markdown' ? 0.6 : 1,
+                      pointerEvents: isImporting === 'markdown' ? 'none' : 'auto'
+                    }}
+                    onClick={() => handleImport('markdown', 'Markdown')}
+                    disabled={isImporting === 'markdown'}
+                  >
+                    <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
+                          Import from Markdown
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-center relative shrink-0">
+                        <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                          <div className="flex items-center justify-center relative shrink-0">
+                            <div className="relative w-6 h-6">
+                              <svg className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
+                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Import from CSV */}
+                  <button
+                    className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                    style={{ 
+                      backgroundImage: 'var(--color-gradient-gray)',
+                      boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
+                      opacity: isImporting === 'csv-threads' ? 0.6 : 1,
+                      pointerEvents: isImporting === 'csv-threads' ? 'none' : 'auto'
+                    }}
+                    onClick={() => handleImport('csv-threads', 'CSV')}
+                    disabled={isImporting === 'csv-threads'}
+                  >
+                    <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
+                          Import from CSV
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-center relative shrink-0">
+                        <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                          <div className="flex items-center justify-center relative shrink-0">
+                            <div className="relative w-6 h-6">
+                              <svg className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
+                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Import Results */}
+                  {importResults && (
+                    <div className="w-full p-4 rounded-xl bg-[var(--color-paper)] border border-[var(--color-stone-grey)] border-opacity-20">
+                      <div className="font-sans text-[16px] font-semibold text-[var(--color-deep-grey)] mb-2">
+                        Import Results
+                      </div>
+                      <div className="font-sans text-[14px] text-[var(--color-pebble-grey)] space-y-1">
+                        <div>✓ {importResults.notesImported} note{importResults.notesImported !== 1 ? 's' : ''} imported</div>
+                        {importResults.threadsCreated > 0 && (
+                          <div>✓ {importResults.threadsCreated} thread{importResults.threadsCreated !== 1 ? 's' : ''} created</div>
+                        )}
+                        {importResults.tagsCreated > 0 && (
+                          <div>✓ {importResults.tagsCreated} tag{importResults.tagsCreated !== 1 ? 's' : ''} created</div>
+                        )}
+                        {importResults.duplicatesSkipped > 0 && (
+                          <div>⚠ {importResults.duplicatesSkipped} duplicate{importResults.duplicatesSkipped !== 1 ? 's' : ''} skipped</div>
+                        )}
+                        {importResults.errors && importResults.errors.length > 0 && (
+                          <div className="mt-2">
+                            <div className="font-semibold text-[var(--color-red)]">Errors:</div>
+                            <ul className="list-disc list-inside space-y-1">
+                              {importResults.errors.map((error, idx) => (
+                                <li key={idx} className="text-[12px]">{error}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
