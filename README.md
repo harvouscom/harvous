@@ -295,7 +295,8 @@ erDiagram
 - Every user has a `thread_unorganized` thread
 - **Unorganized = notes with NO junction table entries**
 - Notes automatically become unorganized when all junction entries are removed
-- Hidden from UI, cannot be deleted
+- Appears in navigation when it contains notes (same as regular threads)
+- Cannot be deleted or edited (no menu options)
 - Primary `threadId` field is legacy (always set to `'thread_unorganized'`)
 
 #### 3. Multi-Thread Support (Junction-Table-Only)

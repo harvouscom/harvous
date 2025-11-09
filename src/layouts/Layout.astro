@@ -31,8 +31,8 @@ interface Props {
 
 const { classNames = '', title = 'Harvous', contentType = 'dashboard', contentId, currentThread, currentSpace, currentNote }: Props = Astro.props;
 
-// Determine if More button should be shown
-const showMoreButton = shouldShowMoreButton(contentType);
+// Determine if More button should be shown (pass contentId to hide for unorganized thread)
+const showMoreButton = shouldShowMoreButton(contentType, contentId);
 
 ---
 

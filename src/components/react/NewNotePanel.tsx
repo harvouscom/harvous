@@ -23,7 +23,7 @@ interface NewNotePanelProps {
 export default function NewNotePanel({ currentThread, onClose }: NewNotePanelProps) {
   // Get navigation context - will use default (no-op) values if NavigationProvider not available
   const navigation = useNavigation();
-  const { addToNavigationHistory, navigationHistory } = navigation;
+  const { addToNavigationHistory, navigationHistory, trackNavigationAccess } = navigation;
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [selectedThread, setSelectedThread] = useState('Unorganized');
@@ -49,6 +49,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   // Track if we've already set thread to prevent unnecessary updates
   // Note: currentThread always takes priority when available
   const [hasSetThreadFromSaved, setHasSetThreadFromSaved] = useState(false);
+  // Track if we've initialized from currentThread to prevent resetting user's manual selection
+  const hasInitializedFromCurrentThread = useRef(false);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -135,19 +137,20 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   }, []); // Empty deps - only run on mount
 
   // Handle thread selection when threadOptions are loaded
-  // Priority: 1) currentThread (if on thread page - ALWAYS takes priority), 2) savedThreadId, 3) Unorganized
+  // Priority: 1) currentThread (if on thread page - initial default only), 2) savedThreadId, 3) Unorganized
   useEffect(() => {
-    // Priority 1: If we're on a thread page, use currentThread (ALWAYS takes priority)
+    // Priority 1: If we're on a thread page, use currentThread as initial default (only once)
     // Check currentThread.id to ensure we're actually on a thread page (not just unorganized)
-    // This check happens regardless of hasSetThreadFromSaved - currentThread always wins
-    if (currentThread && currentThread.id && currentThread.id !== 'thread_unorganized') {
+    // Only initialize once - don't reset if user has manually changed selection
+    if (currentThread && currentThread.id && currentThread.id !== 'thread_unorganized' && !hasInitializedFromCurrentThread.current) {
       // Try to find matching thread in threadOptions
       const matchingThread = threadOptions.find(thread => thread.id === currentThread.id);
       if (matchingThread) {
-        // Found matching thread - use it
+        // Found matching thread - use it as initial default
         if (matchingThread.title !== selectedThread) {
           setSelectedThread(matchingThread.title);
           setHasSetThreadFromSaved(true);
+          hasInitializedFromCurrentThread.current = true;
         }
         return; // currentThread takes priority, don't check saved thread ID
       }
@@ -156,13 +159,14 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       if (currentThread.title && currentThread.title !== selectedThread) {
         setSelectedThread(currentThread.title);
         setHasSetThreadFromSaved(true);
+        hasInitializedFromCurrentThread.current = true;
         return;
       }
     }
     
     // Priority 2: Check for saved thread ID (from previous note creation or selection)
     // Only if we haven't already set from currentThread
-    if (!hasSetThreadFromSaved) {
+    if (!hasSetThreadFromSaved && !hasInitializedFromCurrentThread.current) {
       // Wait for threads to be loaded before checking saved thread ID
       if (threadOptions.length <= 1 && !threadOptions.find(t => t.id === 'thread_unorganized')) {
         return; // Threads not loaded yet, wait
@@ -192,7 +196,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       }
     }
     // Priority 3: Default to Unorganized (already set in initial state)
-  }, [currentThread, threadOptions, hasSetThreadFromSaved, selectedThread]);
+  }, [currentThread, threadOptions, hasSetThreadFromSaved]); // Removed selectedThread from deps to prevent resetting user's manual selection
 
 
   // Save to localStorage when values change
@@ -779,12 +783,79 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           } else if (actualThreadId === 'thread_unorganized') {
             // Only add unorganized thread if note actually has no junction entries
             // (i.e., it was created without selecting a specific thread)
-            addToNavigationHistory({
-              id: 'thread_unorganized',
-              title: 'Unorganized',
-              count: 1, // At least 1 (the new note)
-              backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
-            });
+            // Use the same synchronous localStorage write pattern as regular threads
+            try {
+              const stored = localStorage.getItem('harvous-navigation-history-v2');
+              let history = stored ? JSON.parse(stored) : [];
+              
+              // Find existing unorganized thread in history to preserve firstAccessed timestamp
+              const existingIndex = history.findIndex((item: any) => item.id === 'thread_unorganized');
+              
+              let threadItem: any;
+              if (existingIndex !== -1) {
+                // Unorganized thread exists - update in place, preserving firstAccessed
+                const existingItem = history[existingIndex];
+                threadItem = {
+                  ...existingItem,
+                  id: 'thread_unorganized',
+                  title: 'Unorganized',
+                  count: (existingItem.count || 0) + 1, // Increment existing count
+                  backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+                  lastAccessed: Date.now()
+                  // firstAccessed is preserved from existingItem via spread operator
+                };
+                // Update in place
+                history[existingIndex] = threadItem;
+              } else {
+                // Unorganized thread doesn't exist - add new with firstAccessed timestamp
+                threadItem = {
+                  id: 'thread_unorganized',
+                  title: 'Unorganized',
+                  count: 1, // At least 1 (the new note)
+                  backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+                  firstAccessed: Date.now(),
+                  lastAccessed: Date.now()
+                };
+                history.push(threadItem);
+              }
+              
+              // Sort by firstAccessed to maintain chronological order
+              history.sort((a: any, b: any) => a.firstAccessed - b.firstAccessed);
+              
+              // Limit to 10 items (keep oldest items based on firstAccessed)
+              if (history.length > 10) {
+                history = history.slice(0, 10);
+              }
+              
+              // Write synchronously
+              localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
+              
+              // Also store in sessionStorage as backup
+              sessionStorage.setItem('harvous-pending-thread', JSON.stringify(threadItem));
+              
+              // Now call addToNavigationHistory to update React state
+              // This will update the state, but localStorage is already written
+              if (addToNavigationHistory) {
+                // Pass item without firstAccessed/lastAccessed (addToNavigationHistory will handle those)
+                addToNavigationHistory({
+                  id: 'thread_unorganized',
+                  title: 'Unorganized',
+                  count: threadItem.count,
+                  backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+                });
+              }
+            } catch (error) {
+              console.error('NewNotePanel: Error writing unorganized thread to localStorage:', error);
+              // Fallback to just calling addToNavigationHistory
+              if (addToNavigationHistory) {
+                addToNavigationHistory({
+                  id: 'thread_unorganized',
+                  title: 'Unorganized',
+                  count: 1, // At least 1 (the new note)
+                  backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+                });
+              }
+            }
           } else {
             // Thread not found in threadOptions - this shouldn't happen, but log it
             console.warn('NewNotePanel: Thread not found in threadOptions:', actualThreadId);
