@@ -378,6 +378,18 @@ button.space-button:not([style*="background-image"]):not([style*="background-col
   box-shadow: none !important;
 }
 
+/* Ensure disabled space buttons show cursor-not-allowed */
+button.space-button:disabled,
+button.space-button[disabled] {
+  cursor: not-allowed !important;
+}
+
+/* Ensure disabled buttons in mobile navigation show cursor-not-allowed */
+button:disabled,
+button[disabled] {
+  cursor: not-allowed !important;
+}
+
 /* Override all SpaceButton shadows for inactive buttons */
 .space-button:not(.active):not([style*="background"]) {
   box-shadow: none !important;

@@ -99,8 +99,8 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     backgroundColor: backgroundGradient?.includes('gradient') ? undefined : backgroundGradient
   } : {};
   
-  const disabledStyle = disabled ? 'cursor-not-allowed pointer-events-none' : '';
-  const textStyle = disabled ? 'opacity-60' : '';
+  const cursorStyle = disabled ? 'cursor-not-allowed' : 'cursor-pointer';
+  const textStyle = disabled ? 'opacity-50' : '';
   
   // Helper to determine if background is colored (not paper or gray gradient)
   const isColoredBackground = (gradient: string | undefined): boolean => {
@@ -117,7 +117,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "Default") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 px-4 ${disabledStyle} ${className}`}
+        className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 px-4 ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
@@ -137,7 +137,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "WithCount") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${disabledStyle} ${className}`}
+        className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
@@ -169,7 +169,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "DropdownTrigger") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 ${hideDropdownIcon ? 'pr-4' : 'pr-0'} ${disabledStyle} ${className}`}
+        className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 ${hideDropdownIcon ? 'pr-4' : 'pr-0'} ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
@@ -211,7 +211,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "Dropdown") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${disabledStyle} ${className}`}
+        className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
@@ -252,7 +252,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     return (
       <div className={`relative nav-item-container ${isActive ? 'active' : ''}`}>
         <button
-          className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group ${disabledStyle} ${className}`}
+          className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 group ${className}`}
           style={buttonStyle}
           onClick={disabled ? undefined : onClick}
           disabled={disabled}
@@ -293,7 +293,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     return (
       <div className={`relative nav-item-container ${isActive ? 'active' : ''}`}>
         <button
-          className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group ${disabledStyle} ${className}`}
+          className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 group ${className}`}
           style={buttonStyle}
           onClick={disabled ? undefined : onClick}
           disabled={disabled}
@@ -322,7 +322,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "WithArrow") {
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${disabledStyle} ${className}`}
+        className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
@@ -353,7 +353,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   // Default fallback
   return (
     <button 
-      className={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${disabledStyle} ${className}`}
+      className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
       style={buttonStyle}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
