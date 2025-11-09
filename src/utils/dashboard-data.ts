@@ -309,7 +309,8 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     let allNotes = [];
     
     if (threadId === 'thread_unorganized') {
-      // For unorganized thread, get notes that are ONLY in unorganized (no junction table entries)
+      // For unorganized thread, get notes with NO junction table entries
+      // Notes with any junction entry are in specific threads, not unorganized
       const unorganizedNotes = await db.select({
         id: Notes.id,
         title: Notes.title,
@@ -324,7 +325,11 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         updatedAt: Notes.updatedAt,
       })
       .from(Notes)
-      .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, userId)))
+      .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+      .where(and(
+        eq(Notes.userId, userId),
+        isNull(NoteThreads.id) // No junction entry = unorganized
+      ))
       .orderBy(desc(Notes.updatedAt || Notes.createdAt))
       .limit(limit);
       

@@ -1,4 +1,4 @@
-import { db, Threads, Notes, eq, and, count } from "astro:db";
+import { db, Threads, Notes, NoteThreads, eq, and, count, isNull } from "astro:db";
 
 /**
  * Ensures the unorganized thread exists for a user and returns its data
@@ -52,12 +52,13 @@ export async function ensureUnorganizedThread(userId: string) {
       }
     }
 
-    // Now check if it has notes and return the thread data
+    // Now check if it has notes (notes with NO junction entries = unorganized)
     const noteCount = await db.select({ count: count() })
       .from(Notes)
+      .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(
         eq(Notes.userId, userId),
-        eq(Notes.threadId, "thread_unorganized")
+        isNull(NoteThreads.id) // No junction entry = unorganized
       ))
       .get();
     

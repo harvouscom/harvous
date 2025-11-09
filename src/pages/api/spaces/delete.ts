@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Spaces, Threads, Notes, eq, and } from 'astro:db';
+import { db, Spaces, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
@@ -44,10 +44,24 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       .from(Threads)
       .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)));
 
-    // Delete all notes in threads that belong to this space
-    for (const thread of spaceThreads) {
-      await db.delete(Notes)
-        .where(and(eq(Notes.threadId, thread.id), eq(Notes.userId, userId)));
+    // Get all notes in threads via junction table
+    const notesInThreads = await db.select({ noteId: NoteThreads.noteId })
+      .from(NoteThreads)
+      .innerJoin(Threads, eq(Threads.id, NoteThreads.threadId))
+      .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
+      .all();
+    
+    // Delete junction entries for these notes (notes automatically become unorganized)
+    for (const note of notesInThreads) {
+      await db.delete(NoteThreads).where(eq(NoteThreads.noteId, note.noteId));
+    }
+    
+    // Set all affected notes' primary threadId to unorganized (legacy field)
+    const noteIds = notesInThreads.map(n => n.noteId);
+    for (const noteId of noteIds) {
+      await db.update(Notes)
+        .set({ threadId: 'thread_unorganized' })
+        .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
     }
 
     // Delete all threads in this space

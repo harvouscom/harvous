@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, NoteThreads, eq, and } from 'astro:db';
+import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -64,55 +65,15 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         .all();
       
       if (remainingThreads.length === 0) {
-        // This was the last thread, move to unorganized
-        console.log(`Note ${id} had its last thread removed, moving to unorganized`);
-        
-        // Find or create an "unorganized" thread for the user
-        let unorganizedThread = await db.select()
-          .from(Threads)
-          .where(and(eq(Threads.title, 'Unorganized'), eq(Threads.userId, userId)))
-          .get();
-        
-        if (!unorganizedThread) {
-          // Create unorganized thread
-          const unorganizedId = `thread-unorganized-${userId}-${Date.now()}`;
-          await db.insert(Threads).values({
-            id: unorganizedId,
-            title: 'Unorganized',
-            subtitle: 'Notes without a specific thread',
-            userId: userId,
-            isPublic: false,
-            isPinned: false,
-            color: 'gray',
-            createdAt: new Date(),
-            order: 0
-          });
-          unorganizedThread = { id: unorganizedId };
-          console.log(`Created unorganized thread: ${unorganizedId}`);
-        } else {
-          console.log(`Found existing unorganized thread: ${unorganizedThread.id}`);
-        }
-        
-        // Update the note's primary threadId to unorganized
+        // This was the last thread, note automatically becomes unorganized (no junction entries)
+        // Just ensure unorganized thread exists and set primary threadId to unorganized (legacy field)
+        await ensureUnorganizedThread(userId);
         await db.update(Notes)
-          .set({ threadId: unorganizedThread.id })
+          .set({ threadId: 'thread_unorganized' })
           .where(eq(Notes.id, id));
-        console.log(`Updated note ${id} primary threadId to unorganized: ${unorganizedThread.id}`);
-        
-        // Verify the update worked
-        const updatedNote = await db.select()
-          .from(Notes)
-          .where(eq(Notes.id, id))
-          .get();
-        console.log(`Note ${id} now has threadId: ${updatedNote?.threadId}`);
-      } else {
-        // Update primary threadId to the first remaining thread
-        const newPrimaryThread = remainingThreads[0];
-        await db.update(Notes)
-          .set({ threadId: newPrimaryThread.threadId })
-          .where(eq(Notes.id, id));
-        console.log(`Updated note ${id} primary threadId to: ${newPrimaryThread.threadId}`);
+        console.log(`Note ${id} had its last thread removed, now in unorganized`);
       }
+      // Note: If note still has other threads, no action needed - primary threadId stays as legacy field
     } catch (deleteError) {
       console.error('Error deleting from NoteThreads:', deleteError);
       return new Response(JSON.stringify({ 

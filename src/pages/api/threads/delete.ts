@@ -47,22 +47,29 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Move all notes from this thread to the unorganized thread
-    // Note: The unorganized thread always exists by default (hidden from dashboard)
-
-    // Move all notes that have this thread as their primary threadId to unorganized
-    // (These are notes that are primarily in this thread)
-    await db.update(Notes)
-      .set({ 
-        threadId: 'thread_unorganized',
-        updatedAt: new Date()
-      })
-      .where(and(eq(Notes.threadId, threadId), eq(Notes.userId, userId)));
-
-    // Remove any NoteThreads relationships for this thread
-    // (These are notes that are in this thread via many-to-many relationship)
+    // Remove all NoteThreads relationships for this thread
+    // Notes automatically become unorganized when junction entries are deleted
+    const affectedNotes = await db.select({ noteId: NoteThreads.noteId })
+      .from(NoteThreads)
+      .where(eq(NoteThreads.threadId, threadId))
+      .all();
+    
     await db.delete(NoteThreads)
       .where(eq(NoteThreads.threadId, threadId));
+    
+    // Set all affected notes' primary threadId to unorganized (legacy field)
+    if (affectedNotes.length > 0) {
+      const noteIds = affectedNotes.map(n => n.noteId);
+      // Update each note individually (Astro DB doesn't support IN clause directly)
+      for (const noteId of noteIds) {
+        await db.update(Notes)
+          .set({ 
+            threadId: 'thread_unorganized',
+            updatedAt: new Date()
+          })
+          .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
+      }
+    }
 
     // Then delete the thread itself
     await db.delete(Threads)

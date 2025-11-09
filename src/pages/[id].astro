@@ -432,16 +432,7 @@ let inboxCount: number = 0;
             .all();
           
           // Pure junction table approach: Only use junction table for thread relationships
-          // Primary threadId is only used for unorganized notes (fallback)
-          let allThreadIds = [...noteThreads.map(nt => nt.threadId)];
-          
-          // Only include primary threadId if it's unorganized (fallback case)
-          if (note.threadId === 'thread_unorganized') {
-            allThreadIds.push('thread_unorganized');
-          }
-          
-          // Remove duplicates
-          const uniqueThreadIds = [...new Set(allThreadIds)];
+          const uniqueThreadIds = noteThreads.map(nt => nt.threadId);
           
           if (uniqueThreadIds.length > 1) {
             // Note belongs to multiple threads - use smart default

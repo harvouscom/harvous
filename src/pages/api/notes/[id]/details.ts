@@ -97,46 +97,8 @@ export const GET: APIRoute = async ({ params, locals }) => {
       allThreads = [];
     }
 
-    // If no threads in junction table, check if we have a primary thread and auto-populate
-    if (allThreads.length === 0 && note.threadId) {
-      console.log("No junction threads, checking primary thread:", note.threadId);
-      try {
-        const primaryThread = await db.select()
-          .from(Threads)
-          .where(and(eq(Threads.id, note.threadId), eq(Threads.userId, userId)))
-          .get();
-        
-        if (primaryThread) {
-          // Only include non-Unorganized threads in the results
-          if (primaryThread.title !== 'Unorganized') {
-            allThreads = [primaryThread];
-            console.log("Found primary thread:", primaryThread.title);
-          } else {
-            console.log("Primary thread is Unorganized, not showing in threads list");
-            allThreads = [];
-          }
-          
-          // Auto-populate the junction table for backward compatibility (only if not Unorganized)
-          if (primaryThread.title !== 'Unorganized') {
-            try {
-              await db.insert(NoteThreads).values({
-                noteId: noteId,
-                threadId: note.threadId
-              });
-              console.log("Auto-populated junction table with primary thread");
-            } catch (insertError) {
-              console.log("Note: Junction table entry may already exist:", insertError);
-            }
-          }
-        } else {
-          console.log("Primary thread not found or doesn't belong to user");
-        }
-      } catch (error) {
-        console.log("Error querying primary thread:", error);
-      }
-    }
-
-    console.log("Final threads to return:", allThreads.length);
+    // Use only junction table - no primary thread fallback
+    // If no threads found, note is unorganized (no junction entries)
     console.log("Thread titles:", allThreads.map(t => t.title));
 
     // Helper function to format relative time (same as original)

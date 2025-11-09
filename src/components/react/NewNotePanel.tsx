@@ -46,7 +46,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     }
   ]);
 
-  // Track if we've already set thread from savedThreadId to prevent overriding
+  // Track if we've already set thread to prevent unnecessary updates
+  // Note: currentThread always takes priority when available
   const [hasSetThreadFromSaved, setHasSetThreadFromSaved] = useState(false);
 
   // Ref to store the TiptapEditor instance for focusing
@@ -134,12 +135,42 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   }, []); // Empty deps - only run on mount
 
   // Handle thread selection when threadOptions are loaded
+  // Priority: 1) currentThread (if on thread page - ALWAYS takes priority), 2) savedThreadId, 3) Unorganized
   useEffect(() => {
-    const savedThreadId = localStorage.getItem('newNoteThreadPending') || localStorage.getItem('newNoteThread') || '';
+    // Priority 1: If we're on a thread page, use currentThread (ALWAYS takes priority)
+    // Check currentThread.id to ensure we're actually on a thread page (not just unorganized)
+    // This check happens regardless of hasSetThreadFromSaved - currentThread always wins
+    if (currentThread && currentThread.id && currentThread.id !== 'thread_unorganized') {
+      // Try to find matching thread in threadOptions
+      const matchingThread = threadOptions.find(thread => thread.id === currentThread.id);
+      if (matchingThread) {
+        // Found matching thread - use it
+        if (matchingThread.title !== selectedThread) {
+          setSelectedThread(matchingThread.title);
+          setHasSetThreadFromSaved(true);
+        }
+        return; // currentThread takes priority, don't check saved thread ID
+      }
+      // Thread not found in options yet - might still be loading
+      // But we can still use currentThread.title if available
+      if (currentThread.title && currentThread.title !== selectedThread) {
+        setSelectedThread(currentThread.title);
+        setHasSetThreadFromSaved(true);
+        return;
+      }
+    }
     
-    if (savedThreadId) {
-      // Wait for threads to be loaded if not already
-      if (threadOptions.length > 1 || savedThreadId === 'thread_unorganized') {
+    // Priority 2: Check for saved thread ID (from previous note creation or selection)
+    // Only if we haven't already set from currentThread
+    if (!hasSetThreadFromSaved) {
+      // Wait for threads to be loaded before checking saved thread ID
+      if (threadOptions.length <= 1 && !threadOptions.find(t => t.id === 'thread_unorganized')) {
+        return; // Threads not loaded yet, wait
+      }
+      
+      const savedThreadId = localStorage.getItem('newNoteThreadPending') || localStorage.getItem('newNoteThread') || '';
+      
+      if (savedThreadId) {
         let matchedThread = 'Unorganized';
         
         if (savedThreadId === 'thread_unorganized') {
@@ -151,17 +182,17 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           }
         }
         
-        setSelectedThread(matchedThread);
-        setHasSetThreadFromSaved(true);
-        // Clear the saved thread IDs after using them
-        localStorage.removeItem('newNoteThread');
-        localStorage.removeItem('newNoteThreadPending');
+        if (matchedThread !== selectedThread) {
+          setSelectedThread(matchedThread);
+          setHasSetThreadFromSaved(true);
+          // Clear the saved thread IDs after using them
+          localStorage.removeItem('newNoteThread');
+          localStorage.removeItem('newNoteThreadPending');
+        }
       }
-    } else if (currentThread && currentThread.title && !hasSetThreadFromSaved) {
-      // Only use currentThread if we don't have a saved thread ID
-      setSelectedThread(currentThread.title);
     }
-  }, [currentThread, threadOptions, hasSetThreadFromSaved]);
+    // Priority 3: Default to Unorganized (already set in initial state)
+  }, [currentThread, threadOptions, hasSetThreadFromSaved, selectedThread]);
 
 
   // Save to localStorage when values change
@@ -180,18 +211,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     }
   }, [selectedThread, hasSetThreadFromSaved]);
 
-  // Update selected thread when currentThread prop changes
-  // BUT only if we haven't already set it from savedThreadId
-  useEffect(() => {
-    if (!hasSetThreadFromSaved) {
-      if (currentThread && currentThread.title) {
-        setSelectedThread(currentThread.title);
-      } else {
-        // If no currentThread, default to "Unorganized"
-        setSelectedThread('Unorganized');
-      }
-    }
-  }, [currentThread, hasSetThreadFromSaved]);
+  // Note: Thread selection is now handled in the main useEffect above
+  // This ensures currentThread takes priority over saved thread IDs
 
   // Auto-detection: Detect scripture references ONLY in title (not content)
   // This allows users to type scripture references in content without triggering auto-detection

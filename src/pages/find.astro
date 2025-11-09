@@ -11,7 +11,7 @@ import Avatar from "@/components/Avatar.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 import RecentSearches from "@/components/react/RecentSearches";
-import { db, Notes, Threads, Tags, NoteTags, eq, and, or, like, desc, count } from "astro:db";
+import { db, Notes, Threads, Tags, NoteTags, NoteThreads, eq, and, or, like, desc, count } from "astro:db";
 import { getThreadColorCSS } from "@/utils/colors";
 
 // Helper function to strip HTML tags and decode entities
@@ -338,13 +338,17 @@ if (query.trim()) {
       return noteData;
     });
 
-    // Get note counts for threads
+    // Get note counts for threads using junction table
     const threadNoteCounts = await Promise.all(
       threads.map(async (thread) => {
         const noteCount = await db
           .select({ count: count() })
           .from(Notes)
-          .where(and(eq(Notes.userId, userId), eq(Notes.threadId, thread.id)));
+          .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+          .where(and(
+            eq(NoteThreads.threadId, thread.id),
+            eq(Notes.userId, userId)
+          ));
         return { threadId: thread.id, count: noteCount[0]?.count || 0 };
       })
     );

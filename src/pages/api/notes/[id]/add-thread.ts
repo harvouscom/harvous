@@ -76,20 +76,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         createdAt: new Date()
       });
       console.log(`Note ${id} added to thread ${threadId} successfully`);
-      
-      // If note was in unorganized thread and is being added to a real thread,
-      // update the primary threadId to remove it from unorganized
-      if (note.threadId === 'thread_unorganized' && threadId !== 'thread_unorganized') {
-        await db.update(Notes)
-          .set({ threadId: threadId })
-          .where(eq(Notes.id, id));
-        console.log(`Note ${id} moved from unorganized to thread ${threadId} (primary threadId updated)`);
-      } else {
-        // Note: We don't update the primary threadId when adding to additional threads
-        // The primary threadId should remain unchanged to preserve the original thread context
-        // Only the junction table (NoteThreads) is updated for many-to-many relationships
-        console.log(`Note ${id} added to thread ${threadId} via junction table (primary threadId unchanged)`);
-      }
+      // Note automatically removed from unorganized when junction entry is created
     } catch (insertError) {
       console.error('Error inserting into NoteThreads:', insertError);
       return new Response(JSON.stringify({ 

@@ -127,8 +127,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .set({ updatedAt: new Date() })
       .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
     
-    // If a specific thread was requested (not unorganized), add the note to that thread
-    // This will make it appear in that thread (via junction table query) and remove it from unorganized
+    // If a specific thread was requested (not unorganized), add the note to that thread via junction table
+    // Note automatically removed from unorganized when junction entry is created
     if (threadId && threadId !== 'thread_unorganized') {
       try {
         // Verify the target thread exists and belongs to the user
@@ -146,17 +146,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
             createdAt: new Date()
           });
           
-          // Update the primary threadId to remove it from unorganized
-          await db.update(Notes)
-            .set({ threadId: threadId })
-            .where(eq(Notes.id, newNote.id));
-          
           // Update the target thread's timestamp
           await db.update(Threads)
             .set({ updatedAt: new Date() })
             .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
           
-          console.log(`Note ${newNote.id} added to thread ${threadId} via junction table and moved from unorganized`);
+          console.log(`Note ${newNote.id} added to thread ${threadId} via junction table`);
         }
       } catch (error) {
         console.error('Error adding note to specific thread:', error);
