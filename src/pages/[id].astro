@@ -159,6 +159,7 @@ let inboxCount: number = 0;
         pageContent = note.content.substring(0, 100) + (note.content.length > 100 ? "..." : "");
         
         // Get the thread this note belongs to
+        // NOTE: In sample data, threadId is used directly. In real data, use junction table.
         if (note.threadId && note.threadId !== 'thread_unorganized') {
           // Find the actual thread data
           const parentThread = [...SAMPLE_DATA.unorganizedThreads, ...SAMPLE_DATA.organizedThreads]

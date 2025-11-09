@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, eq, and } from 'astro:db';
+import { db, Notes, Threads, NoteThreads, eq, and } from 'astro:db';
 
 export const PUT: APIRoute = async ({ request, locals }) => {
   try {
@@ -68,10 +68,17 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Update the thread's updatedAt timestamp
-    await db.update(Threads)
-      .set({ updatedAt: new Date() })
-      .where(and(eq(Threads.id, updatedNote.threadId), eq(Threads.userId, userId)));
+    // Update all threads this note belongs to via junction table
+    const noteThreads = await db.select({ threadId: NoteThreads.threadId })
+      .from(NoteThreads)
+      .where(eq(NoteThreads.noteId, noteId))
+      .all();
+
+    for (const nt of noteThreads) {
+      await db.update(Threads)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(Threads.id, nt.threadId), eq(Threads.userId, userId)));
+    }
 
     // Regenerate auto-tags based on updated content
     try {

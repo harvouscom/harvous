@@ -689,18 +689,19 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       if (response.ok) {
         const result = await response.json();
         
+        // Get the actual thread ID (from junction table), not the legacy threadId field
+        // This is the thread the note was actually added to
+        const actualThreadId = getSelectedThread().id;
+        
         // Add thread to navigation history before navigating (if not already present)
         // Always add it synchronously using thread data we already have - don't rely on async fetch
         // Only if NavigationProvider is available (addToNavigationHistory is not a no-op)
-        // Use result.note.threadId to ensure we're adding the exact thread the note was created in
-        if (result.note && result.note.threadId && addToNavigationHistory) {
-          // Try to get thread data from selected thread or thread options
+        if (result.note && actualThreadId && addToNavigationHistory) {
+          // Get thread data from selected thread (the actual thread the note was added to)
           const selectedThreadData = getSelectedThread();
-          const threadData = selectedThreadData && selectedThreadData.id === result.note.threadId 
-            ? selectedThreadData 
-            : threadOptions.find(thread => thread.id === result.note.threadId);
+          const threadData = selectedThreadData || threadOptions.find(thread => thread.id === actualThreadId);
           
-          if (threadData) {
+          if (threadData && actualThreadId !== 'thread_unorganized') {
             // Directly write to localStorage synchronously BEFORE calling addToNavigationHistory
             // This ensures localStorage is updated immediately, even if React state update is delayed
             try {
@@ -775,8 +776,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                 });
               }
             }
-          } else if (result.note.threadId === 'thread_unorganized') {
-            // Fallback for unorganized thread
+          } else if (actualThreadId === 'thread_unorganized') {
+            // Only add unorganized thread if note actually has no junction entries
+            // (i.e., it was created without selecting a specific thread)
             addToNavigationHistory({
               id: 'thread_unorganized',
               title: 'Unorganized',
@@ -785,24 +787,29 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
             });
           } else {
             // Thread not found in threadOptions - this shouldn't happen, but log it
-            console.warn('NewNotePanel: Thread not found in threadOptions:', result.note.threadId);
+            console.warn('NewNotePanel: Thread not found in threadOptions:', actualThreadId);
           }
         }
         
         // Dispatch note created event
+        // Include the actual thread ID (from junction table), not the legacy threadId field
         window.dispatchEvent(new CustomEvent('noteCreated', {
-          detail: { note: result.note }
+          detail: { 
+            note: result.note,
+            actualThreadId: actualThreadId // The thread the note was actually added to via junction table
+          }
         }));
 
         // Ensure localStorage is updated before navigation
         // Check that the thread was added to localStorage
-        if (result.note && result.note.threadId) {
+        // Use actual thread ID, not legacy threadId field
+        if (result.note && actualThreadId) {
           const verifyThreadInStorage = () => {
             try {
               const stored = localStorage.getItem('harvous-navigation-history-v2');
               if (stored) {
                 const history = JSON.parse(stored);
-                const threadExists = history.some((item: any) => item.id === result.note.threadId);
+                const threadExists = history.some((item: any) => item.id === actualThreadId);
                 return threadExists;
               }
               return false;

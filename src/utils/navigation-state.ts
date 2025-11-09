@@ -1,7 +1,7 @@
 // Navigation state management using URL-based detection
 // This approach doesn't rely on global state that gets reset between page requests
 
-import { db, Threads, Notes, NoteThreads, eq, and, count } from "astro:db";
+import { db, Threads, Notes, NoteThreads, eq, and, ne, count, desc } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 
 export interface ActiveThread {
@@ -85,22 +85,30 @@ export async function detectActiveThreadFromPath(currentPath: string, userId: st
     if (currentPath.includes('/note_')) {
       const noteId = currentPath.split('/').pop();
       if (noteId) {
-        // Look up the note's parent thread
-        const note = await db.select({
-          threadId: Notes.threadId,
+        // Get note's threads from junction table (single source of truth)
+        const noteThreads = await db.select({
+          threadId: NoteThreads.threadId,
+          updatedAt: Threads.updatedAt,
+          createdAt: Threads.createdAt,
         })
-        .from(Notes)
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
+        .from(NoteThreads)
+        .innerJoin(Threads, eq(Threads.id, NoteThreads.threadId))
+        .where(and(
+          eq(NoteThreads.noteId, noteId),
+          eq(Threads.userId, userId),
+          ne(Threads.id, 'thread_unorganized')
+        ))
+        .orderBy(desc(Threads.updatedAt || Threads.createdAt))
+        .limit(1)
         .get();
 
-        if (note) {
-          // Special case: if note belongs to unorganized thread, use paper color
-          if (note.threadId === "thread_unorganized") {
-            return null; // This will use paper color
-          }
-          // For all other threads, use the thread's color
-          return await getThreadContext(note.threadId, userId);
+        if (noteThreads) {
+          // Use the most recently updated thread
+          return await getThreadContext(noteThreads.threadId, userId);
         }
+
+        // No junction entries = unorganized, use paper color
+        return null;
       }
     }
     

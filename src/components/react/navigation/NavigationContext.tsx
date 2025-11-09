@@ -810,10 +810,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Listen for note creation events to update thread counts
     const handleNoteCreated = async (event: CustomEvent) => {
       const note = event.detail?.note;
-      if (note && note.threadId) {
+      // Use actualThreadId from junction table, not the legacy threadId field
+      const actualThreadId = event.detail?.actualThreadId || note?.threadId;
+      if (note && actualThreadId) {
         // Use current React state to check if thread exists and update/add it
         setNavigationHistory(currentHistory => {
-          const threadIndex = currentHistory.findIndex((item: any) => item.id === note.threadId);
+          const threadIndex = currentHistory.findIndex((item: any) => item.id === actualThreadId);
           
           if (threadIndex !== -1) {
             // Thread exists in history - just update the count immediately for UI responsiveness
@@ -844,7 +846,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               throw new Error(`Failed to fetch: ${response.status}`);
             })
             .then(threads => {
-              const threadData = threads.find((t: any) => t.id === note.threadId);
+              const threadData = threads.find((t: any) => t.id === actualThreadId);
               
               if (threadData) {
                 // Add thread to navigation history using addToNavigationHistory
@@ -855,8 +857,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   count: threadData.noteCount || 1, // Use fetched count or at least 1 (the new note)
                   backgroundGradient: threadData.backgroundGradient || 'var(--color-gradient-gray)'
                 });
-              } else if (note.threadId === 'thread_unorganized') {
-                // Special handling for unorganized thread
+              } else if (actualThreadId === 'thread_unorganized') {
+                // Special handling for unorganized thread (only if note actually has no junction entries)
                 addToNavigationHistory({
                   id: 'thread_unorganized',
                   title: 'Unorganized',
@@ -868,7 +870,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             .catch(error => {
               console.error('NavigationContext: Error fetching thread data:', error);
               // Fallback: add unorganized thread with minimal data if fetch fails
-              if (note.threadId === 'thread_unorganized') {
+              // Only if the note actually belongs to unorganized (no junction entries)
+              if (actualThreadId === 'thread_unorganized') {
                 addToNavigationHistory({
                   id: 'thread_unorganized',
                   title: 'Unorganized',

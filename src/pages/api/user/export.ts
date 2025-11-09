@@ -64,6 +64,23 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const threadMap = new Map(allThreads.map(t => [t.id, t]));
     const spaceMap = new Map(allSpaces.map(s => [s.id, s]));
 
+    // Fetch all note-thread relationships from junction table
+    const allNoteThreads = await db.select({
+      noteId: NoteThreads.noteId,
+      threadId: NoteThreads.threadId,
+    })
+    .from(NoteThreads)
+    .all();
+
+    // Create map: noteId -> threadIds[]
+    const noteThreadMap = new Map<string, string[]>();
+    allNoteThreads.forEach(nt => {
+      if (!noteThreadMap.has(nt.noteId)) {
+        noteThreadMap.set(nt.noteId, []);
+      }
+      noteThreadMap.get(nt.noteId)!.push(nt.threadId);
+    });
+
     // Fetch tags for all notes
     const noteTagsMap = new Map<string, Array<{ name: string; category?: string }>>();
     
@@ -131,7 +148,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
       rows.push(['Thread Title', 'Note Title', 'Note Content', 'Created Date', 'Tags']);
       
       for (const note of allNotes) {
-        const thread = threadMap.get(note.threadId);
+        // Get first thread from junction table, or fallback to legacy threadId
+        const noteThreadIds = noteThreadMap.get(note.id) || [];
+        const primaryThreadId = noteThreadIds[0] || note.threadId;
+        const thread = threadMap.get(primaryThreadId);
         const tags = noteTagsMap.get(note.id) || [];
         const tagNames = tags.map(t => t.name).join(', ');
         
@@ -161,7 +181,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
       const markdownLines: string[] = [];
       
       for (const note of allNotes) {
-        const thread = threadMap.get(note.threadId);
+        // Get first thread from junction table, or fallback to legacy threadId
+        const noteThreadIds = noteThreadMap.get(note.id) || [];
+        const primaryThreadId = noteThreadIds[0] || note.threadId;
+        const thread = threadMap.get(primaryThreadId);
         const tags = noteTagsMap.get(note.id) || [];
         const scripture = scriptureMap.get(note.id);
 
