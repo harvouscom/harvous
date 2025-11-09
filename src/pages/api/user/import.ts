@@ -10,6 +10,28 @@ import { parseScriptureReference } from '@/utils/scripture-detector';
 import { htmlToPlainText } from '@/utils/html-to-markdown';
 
 /**
+ * Get a deterministic color for a thread based on its title
+ * This ensures better color distribution and consistency
+ * Excludes "paper" since it's the default/blank color
+ */
+function getThreadColorFromTitle(threadTitle: string): string {
+  // Exclude "paper" from random selection (it's the default/blank color)
+  const availableColors = THREAD_COLORS.filter(color => color !== 'paper');
+  
+  // Simple hash function for thread title
+  let hash = 0;
+  for (let i = 0; i < threadTitle.length; i++) {
+    const char = threadTitle.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // Use absolute value and modulo to get color index
+  const colorIndex = Math.abs(hash) % availableColors.length;
+  return availableColors[colorIndex];
+}
+
+/**
  * Get or create a thread by title for a user
  * If threadColor is provided and valid, use it; otherwise use random color
  */
@@ -36,12 +58,13 @@ async function getOrCreateThread(userId: string, threadTitle: string, threadColo
   // Create new thread with provided color or default
   const capitalizedTitle = threadTitle.trim().charAt(0).toUpperCase() + threadTitle.trim().slice(1);
   
-  // Validate and use provided color, or generate random
+  // Validate and use provided color, or generate deterministic color from title
   let finalColor: string | null = null;
   if (threadColor && THREAD_COLORS.includes(threadColor as any)) {
     finalColor = threadColor;
   } else {
-    finalColor = getRandomThreadColor();
+    // Use deterministic color based on thread title for better distribution
+    finalColor = getThreadColorFromTitle(threadTitle.trim());
   }
 
   const newThread = await db.insert(Threads).values({
@@ -174,15 +197,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Parse form data
     const formData = await request.formData();
-    const file = formData.get('file') as File;
     const format = formData.get('format') as string;
-
-    if (!file) {
-      return new Response(JSON.stringify({ error: 'File is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
 
     if (!format || (format !== 'markdown' && format !== 'csv-threads')) {
       return new Response(JSON.stringify({ error: 'Invalid format. Must be "markdown" or "csv-threads"' }), {
@@ -191,20 +206,93 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Read file content
-    const fileContent = await file.text();
-
-    // Parse based on format
-    let parsedNotes: Array<ParsedCSVNote | ParsedMarkdownNote> = [];
-
-    if (format === 'csv-threads') {
-      parsedNotes = parseCSV(fileContent);
-    } else if (format === 'markdown') {
-      parsedNotes = parseMarkdownExport(fileContent);
+    // Get files (support both single 'file' and multiple 'files')
+    const files: File[] = [];
+    const fileEntry = formData.get('file') as File;
+    const filesEntry = formData.getAll('files') as File[];
+    
+    if (fileEntry) {
+      files.push(fileEntry);
+    } else if (filesEntry && filesEntry.length > 0) {
+      files.push(...filesEntry);
+    } else {
+      return new Response(JSON.stringify({ error: 'At least one file is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
-    if (parsedNotes.length === 0) {
-      return new Response(JSON.stringify({ error: 'No notes found in file' }), {
+    // Helper function to extract folder path from file
+    const getFolderPath = (file: File): string | null => {
+      // Try webkitRelativePath first (when selecting from directory)
+      const relativePath = (file as any).webkitRelativePath;
+      if (relativePath) {
+        const pathParts = relativePath.split('/');
+        if (pathParts.length > 1) {
+          // Remove filename, return folder path
+          pathParts.pop();
+          const folderPath = pathParts.join('/');
+          console.log(`[Import] File: ${file.name}, webkitRelativePath: ${relativePath}, folderPath: ${folderPath}`);
+          return folderPath;
+        }
+      }
+      
+      // Fallback: check if filename contains folder separators
+      const fileName = file.name || '';
+      if (fileName.includes('/')) {
+        const pathParts = fileName.split('/');
+        pathParts.pop(); // Remove filename
+        const folderPath = pathParts.join('/');
+        console.log(`[Import] File: ${file.name}, filename path detected, folderPath: ${folderPath}`);
+        return folderPath;
+      }
+      
+      console.log(`[Import] File: ${file.name}, no folder path detected`);
+      return null;
+    };
+
+    // Helper function to get thread name from folder path
+    const getThreadNameFromPath = (folderPath: string | null, defaultName: string | null): string | null => {
+      if (folderPath) {
+        // Use the last folder name as thread name
+        const parts = folderPath.split('/').filter(p => p.trim());
+        const threadName = parts.length > 0 ? parts[parts.length - 1] : null;
+        console.log(`[Import] getThreadNameFromPath: folderPath="${folderPath}", parts=[${parts.join(', ')}], threadName="${threadName}"`);
+        return threadName;
+      }
+      console.log(`[Import] getThreadNameFromPath: no folderPath, returning defaultName="${defaultName}"`);
+      return defaultName;
+    };
+
+    // Parse all files and collect notes
+    const allParsedNotes: Array<{ 
+      note: ParsedCSVNote | ParsedMarkdownNote; 
+      folderPath: string | null;
+      fileName: string;
+    }> = [];
+
+    for (const file of files) {
+      const fileContent = await file.text();
+      const folderPath = getFolderPath(file);
+      const fileName = file.name || '';
+
+      // Parse based on format
+      let parsedNotes: Array<ParsedCSVNote | ParsedMarkdownNote> = [];
+
+      if (format === 'csv-threads') {
+        parsedNotes = parseCSV(fileContent);
+      } else if (format === 'markdown') {
+        parsedNotes = parseMarkdownExport(fileContent);
+      }
+
+      // Add folder path and filename info to each note
+      for (const note of parsedNotes) {
+        allParsedNotes.push({ note, folderPath, fileName });
+      }
+    }
+
+    if (allParsedNotes.length === 0) {
+      return new Response(JSON.stringify({ error: 'No notes found in files' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -265,9 +353,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const createdThreadIds = new Set<string>();
 
     // Process each note
-    for (let i = 0; i < parsedNotes.length; i++) {
+    for (let i = 0; i < allParsedNotes.length; i++) {
       try {
-        const parsedNote = parsedNotes[i];
+        const { note: parsedNote, folderPath } = allParsedNotes[i];
 
         // Extract note data based on format
         let title: string | null = null;
@@ -283,7 +371,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
           const csvNote = parsedNote as ParsedCSVNote;
           title = csvNote.noteTitle || null;
           content = csvNote.content;
-          threadName = csvNote.threadTitle || null;
+          
+          // For CSV: Check if thread title contains folder path (e.g., "folder1/thread1")
+          // If it does, use the last part as thread name (the actual thread)
+          // If folder path exists from file structure, use that instead
+          let csvThreadName = csvNote.threadTitle || null;
+          if (csvThreadName && csvThreadName.includes('/')) {
+            // Thread title has folder structure, use last part
+            const parts = csvThreadName.split('/').filter(p => p.trim());
+            csvThreadName = parts.length > 0 ? parts[parts.length - 1] : null;
+          }
+          
+          // Prefer folder path from file structure over CSV thread title
+          threadName = folderPath ? getThreadNameFromPath(folderPath, csvThreadName) : csvThreadName;
           threadColor = csvNote.threadColor || null;
           tags = csvNote.tags || [];
           createdDate = parseExportDate(csvNote.createdDate);
@@ -292,8 +392,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
           title = mdNote.title || null;
           // Convert markdown content to HTML
           content = markdownToHtml(mdNote.content);
-          threadName = mdNote.threadName || null;
-          threadColor = mdNote.threadColor || null;
+          
+          // For Markdown: Use thread from metadata if present, otherwise put in Unorganized
+          if (mdNote.threadName) {
+            threadName = mdNote.threadName;
+            // Use thread color from metadata if present and valid
+            if (mdNote.threadColor && THREAD_COLORS.includes(mdNote.threadColor as any)) {
+              threadColor = mdNote.threadColor;
+            } else {
+              threadColor = null;
+            }
+          } else {
+            // No thread metadata - put in Unorganized
+            threadName = null;
+            threadColor = null;
+          }
+          
           tags = mdNote.tags || [];
           createdDate = parseExportDate(mdNote.createdDate);
           scriptureReference = mdNote.scriptureReference || null;
