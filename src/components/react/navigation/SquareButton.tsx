@@ -33,7 +33,7 @@ const SquareButton: React.FC<SquareButtonProps> = ({ variant, onClick }) => {
     >
       <div className="flex flex-row items-center justify-center relative w-full h-full">
         <div className="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-[18px] px-4 relative w-full h-full">
-          <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
+          <div className="relative shrink-0 w-6 h-6 flex items-center justify-center">
             {getIcon()}
           </div>
         </div>

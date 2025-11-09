@@ -6,8 +6,6 @@ import EraseIcon from "@fortawesome/fontawesome-free/svgs/solid/eraser.svg";
 import CircleInfoIcon from "@fortawesome/fontawesome-free/svgs/solid/circle-info.svg";
 import XmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 import PlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
-import AngleLeftIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-left.svg";
-import AngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down.svg";
 import EllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
 import MagnifyingGlassIcon from "@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg";
 import Menu from './Menu';
@@ -176,13 +174,21 @@ export default function SquareButton({
     // Default icons for variants without menu
     switch (variant) {
       case "Back":
-        return (
-          <img
-            src={inBottomSheet ? AngleDownIcon.src : AngleLeftIcon.src}
-            alt="Back"
-            className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125"
-          />
-        );
+        if (inBottomSheet) {
+          // Angle down icon path (from FontAwesome)
+          return (
+            <svg className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
+              <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+            </svg>
+          );
+        } else {
+          // Angle left icon path (from FontAwesome)
+          return (
+            <svg className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
+              <path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/>
+            </svg>
+          );
+        }
       case "Close":
         return (
           <svg 

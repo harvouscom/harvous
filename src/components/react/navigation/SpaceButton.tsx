@@ -1,7 +1,6 @@
 import React from 'react';
 import FaAngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down.svg";
 import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
-import FaAngleRightIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-right.svg";
 import { useNavigation } from './NavigationContext';
 import { getThreadTextColorCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 
@@ -338,8 +337,10 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
           <div className="flex items-center justify-center relative shrink-0">
             <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
               <div className="flex items-center justify-center relative shrink-0">
-                <div className="relative size-5">
-                  <img src={FaAngleRightIcon.src} alt="Arrow" className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" />
+                <div className="relative w-6 h-6">
+                  <svg className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
+                    <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                  </svg>
                 </div>
               </div>
             </div>
