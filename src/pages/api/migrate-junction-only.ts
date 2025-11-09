@@ -137,7 +137,7 @@ async function runMigration(locals: any, url: URL) {
             </ul>
           </div>
           <pre>${JSON.stringify(result, null, 2)}</pre>
-          <p><a href="/dashboard">← Back to Dashboard</a></p>
+          <p><a href="/">← Back to Dashboard</a></p>
         </body>
       </html>
     `;

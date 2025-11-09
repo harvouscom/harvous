@@ -623,7 +623,7 @@ let inboxCount: number = 0;
 
 // If content not found, redirect to dashboard
 if (!content) {
-  // return Astro.redirect('/dashboard'); // Temporarily disabled for static mode
+  // return Astro.redirect('/'); // Temporarily disabled for static mode
 }
 ---
 
@@ -910,8 +910,8 @@ if (!content) {
   console.log('🔍 Current path:', currentPath); // Added for debugging
   
   // More specific detection logic
-  const isThread = currentPath.includes('/thread_') || (currentPath.match(/^\/thread_[a-zA-Z0-9_-]+$/) && !currentPath.includes('/dashboard') && !currentPath.includes('/sign-in') && !currentPath.includes('/sign-up'));
-  const isNote = currentPath.includes('/note_') || (currentPath.match(/^\/note_[a-zA-Z0-9_-]+$/) && !currentPath.includes('/dashboard') && !currentPath.includes('/sign-in') && !currentPath.includes('/sign-up'));
+  const isThread = currentPath.includes('/thread_') || (currentPath.match(/^\/thread_[a-zA-Z0-9_-]+$/) && currentPath !== '/' && !currentPath.includes('/sign-in') && !currentPath.includes('/sign-up'));
+  const isNote = currentPath.includes('/note_') || (currentPath.match(/^\/note_[a-zA-Z0-9_-]+$/) && currentPath !== '/' && !currentPath.includes('/sign-in') && !currentPath.includes('/sign-up'));
   
   console.log('🔍 Detection logic:', {
     path: currentPath,

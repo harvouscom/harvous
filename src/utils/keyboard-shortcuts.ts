@@ -81,7 +81,7 @@ function getPageContext(): { isNote: boolean; isThread: boolean; isSpace: boolea
   
   const path = window.location.pathname;
   const isNote = path.startsWith('/note_');
-  const isThread = path.startsWith('/thread_') || (path.startsWith('/') && path.length > 1 && !isNote && !path.startsWith('/space_') && path !== '/dashboard' && path !== '/find' && path !== '/profile' && path !== '/sign-in' && path !== '/sign-up' && path !== '/welcome' && path !== '/new-space');
+  const isThread = path.startsWith('/thread_') || (path.startsWith('/') && path.length > 1 && !isNote && !path.startsWith('/space_') && path !== '/' && path !== '/find' && path !== '/profile' && path !== '/sign-in' && path !== '/sign-up' && path !== '/welcome' && path !== '/new-space');
   const isSpace = path.startsWith('/space_');
   
   return { isNote, isThread, isSpace, path };
@@ -192,7 +192,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   // Cmd/Ctrl + D - Go to dashboard
   if (modifier && key === 'd') {
     event.preventDefault();
-    navigateTo('/dashboard');
+    navigateTo('/');
     return;
   }
   
@@ -203,7 +203,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     if (window.history.length > 1) {
       window.history.back();
     } else {
-      navigateTo('/dashboard');
+      navigateTo('/');
     }
     return;
   }

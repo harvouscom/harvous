@@ -196,7 +196,7 @@ export default function Menu({
         }
         
         // Redirect to dashboard with toast parameters (like create operations)
-        const redirectUrl = '/dashboard?toast=success&message=' + encodeURIComponent(successMessage);
+        const redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
         window.location.href = redirectUrl;
       } else {
         // Show error toast immediately (no redirect on error)

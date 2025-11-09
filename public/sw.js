@@ -2,7 +2,7 @@
 // Improves initial load and re-engagement performance
 
 const CACHE_NAME = 'harvous-cache-v2';
-const OFFLINE_URL = '/dashboard';
+const OFFLINE_URL = '/';
 
 // Resources to pre-cache for faster initial load
 // Note: Removed '/dashboard' to prevent auth conflicts - authenticated routes should use network-first
@@ -160,8 +160,8 @@ self.addEventListener('message', (event) => {
     caches.open(CACHE_NAME).then((cache) => {
       // Pre-fetch common navigation targets with high priority
       const criticalFetches = [
-        fetch('/dashboard').then(response => {
-          cache.put('/dashboard', response);
+        fetch('/').then(response => {
+          cache.put('/', response);
         }).catch(() => {})
       ];
       
@@ -171,8 +171,8 @@ self.addEventListener('message', (event) => {
       // Then schedule less critical pre-fetches
       setTimeout(() => {
         cache.addAll([
-          '/dashboard/find',
-          '/dashboard/profile'
+          '/find',
+          '/profile'
         ]).catch(() => {});
       }, 1000);
     });

@@ -376,7 +376,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setNavigationHistory([...filteredHistory]);
       
       // Navigate to next item or dashboard
-      const targetUrl = nextItem ? `/${nextItem.id}` : '/dashboard';
+      const targetUrl = nextItem ? `/${nextItem.id}` : '/';
       
       // Use replace to avoid adding to browser history
       window.location.replace(targetUrl);

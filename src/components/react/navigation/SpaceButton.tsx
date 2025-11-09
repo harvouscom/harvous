@@ -87,9 +87,9 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       
       // For regular navigation items, navigate to dashboard
       if ((window as any).astroNavigate) {
-        (window as any).astroNavigate('/dashboard');
+        (window as any).astroNavigate('/');
       } else {
-        window.location.replace('/dashboard');
+        window.location.replace('/');
       }
     }
   };

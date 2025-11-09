@@ -170,7 +170,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         <div className="flex flex-col gap-12 items-start justify-start w-full flex-1 min-h-0">
           {/* Navigation Buttons */}
           <div className="flex flex-col items-start justify-start w-full">
-            <a href="/dashboard" className="w-full">
+            <a href="/" className="w-full">
               <SpaceButton 
                 text="For You" 
                 count={inboxCount} 
@@ -230,7 +230,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             <SquareButton variant="Find" />
           </a>
           {showProfile ? (
-            <a href="/dashboard">
+            <a href="/">
               <SquareButton variant="Back" />
             </a>
           ) : (

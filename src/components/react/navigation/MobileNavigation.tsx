@@ -358,7 +358,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           >
             <div className="p-2">
               {/* For You */}
-              <a href="/dashboard" className="block w-full" onClick={handleItemClick}>
+              <a href="/" className="block w-full" onClick={handleItemClick}>
                 <div className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center" style={{ backgroundImage: !currentSpace && !currentThread && !currentItemId ? "var(--color-paper)" : undefined }}>
                   <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                     <div className="flex-1 min-w-0 overflow-hidden text-left">

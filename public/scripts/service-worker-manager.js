@@ -61,7 +61,7 @@
               // Prefetch common navigation paths when idle
               const prefetcher = document.createElement('link');
               prefetcher.rel = 'prefetch';
-              prefetcher.href = '/dashboard';
+              prefetcher.href = '/';
               document.head.appendChild(prefetcher);
             });
           } else {
@@ -69,7 +69,7 @@
             setTimeout(() => {
               const prefetcher = document.createElement('link');
               prefetcher.rel = 'prefetch';
-              prefetcher.href = '/dashboard';
+              prefetcher.href = '/';
               document.head.appendChild(prefetcher);
             }, 1000);
           }

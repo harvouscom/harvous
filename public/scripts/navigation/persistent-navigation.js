@@ -50,7 +50,7 @@ function loadPersistentNavigation(retryCount) {
     
     // Find the "For You" button and insert persistent navigation after it
     // Use more specific selector to ensure we find the right element
-    const forYouButton = document.querySelector('a[href="/dashboard"]');
+    const forYouButton = document.querySelector('a[href="/"]');
     if (!forYouButton) {
       // Retry if button not found and we haven't exceeded max retries
       if (retryCount < maxRetries) {
@@ -283,7 +283,7 @@ function loadPersistentNavigation(retryCount) {
         
         // If this is the active item, navigate to next available item
         if (isCurrentPage) {
-          const targetUrl = nextItem ? `/${nextItem.id}` : '/dashboard';
+          const targetUrl = nextItem ? `/${nextItem.id}` : '/';
           window.location.replace(targetUrl);
           return;
         }
@@ -512,7 +512,7 @@ function addCloseFunctionality() {
     
     // If this is the active item, navigate to next available item
     if (isActive) {
-      const targetUrl = nextItem ? `/${nextItem.id}` : '/dashboard';
+      const targetUrl = nextItem ? `/${nextItem.id}` : '/';
       window.location.replace(targetUrl);
       return;
     }

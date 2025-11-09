@@ -114,7 +114,7 @@ export async function detectActiveThreadFromPath(currentPath: string, userId: st
     
     // For dashboard and space pages, don't show a specific thread context
     // This allows the mobile navigation to show "For You" as the default
-    if (currentPath === '/dashboard' || currentPath.includes('/space_')) {
+    if (currentPath === '/' || currentPath.includes('/space_')) {
       return null;
     }
     
