@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
+import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import ButtonSmall from './ButtonSmall';
@@ -41,7 +42,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     italic: false,
     underline: false,
     orderedList: false,
-    bulletList: false
+    bulletList: false,
+    headingLevel: 0 // 0 = normal/paragraph, 2 = H2, 3 = H3
   });
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +75,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        // Keep all default extensions including lists
+        // Exclude default Heading extension so we can add custom one with restricted levels
+        heading: false,
+      }),
+      Heading.configure({
+        levels: [2, 3], // Only allow H2, H3 (H1 is reserved for note titles)
       }),
       Underline,
       Placeholder.configure({
@@ -110,6 +116,67 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         class: 'prose prose-sm max-w-none focus:outline-none [&_ol]:list-decimal [&_ul]:list-disc',
         style: 'font-family: var(--font-sans); font-size: 16px; line-height: 1.6; color: var(--color-deep-grey); min-height: 200px;',
         tabindex: tabindex || 0,
+      },
+      transformPastedHTML: (html: string) => {
+        // Transform heading levels when pasting:
+        // H1 → H2, H2 → H3, H3 → H3, H4+ → H3
+        if (!html || typeof html !== 'string') {
+          return html;
+        }
+        
+        try {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = html;
+          
+          // Process all heading tags
+          const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
+          headings.forEach((heading) => {
+            const level = parseInt(heading.tagName.charAt(1));
+            if (isNaN(level) || level < 1 || level > 6) {
+              return; // Skip invalid headings
+            }
+            
+            let newLevel: number;
+            
+            if (level === 1) {
+              newLevel = 2; // H1 → H2
+            } else if (level === 2) {
+              newLevel = 3; // H2 → H3
+            } else {
+              newLevel = 3; // H3, H4, H5, H6 → H3 (clamp to max)
+            }
+            
+            // Only transform if newLevel is in allowed range [2, 3]
+            if (newLevel >= 2 && newLevel <= 3) {
+              const newHeading = document.createElement(`h${newLevel}`);
+              newHeading.innerHTML = heading.innerHTML;
+              // Copy attributes
+              Array.from(heading.attributes).forEach(attr => {
+                newHeading.setAttribute(attr.name, attr.value);
+              });
+              if (heading.parentNode) {
+                heading.parentNode.replaceChild(newHeading, heading);
+              }
+            } else {
+              // If somehow we get an invalid level, convert to paragraph
+              const p = document.createElement('p');
+              p.innerHTML = heading.innerHTML;
+              Array.from(heading.attributes).forEach(attr => {
+                if (attr.name !== 'class' || !attr.value.includes('heading')) {
+                  p.setAttribute(attr.name, attr.value);
+                }
+              });
+              if (heading.parentNode) {
+                heading.parentNode.replaceChild(p, heading);
+              }
+            }
+          });
+          
+          return tempDiv.innerHTML;
+        } catch (error) {
+          console.error('Error transforming pasted HTML:', error);
+          return html; // Return original HTML on error
+        }
       },
       handleKeyDown: (view, event) => {
         const editor = editorRef.current;
@@ -377,8 +444,23 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       setIsEditorFocused(true);
     };
 
-    const handleBlur = () => {
-      setIsEditorFocused(false);
+    const handleBlur = (event: any) => {
+      // Don't hide toolbar if blur is caused by clicking toolbar button
+      // Check if the related target (what's being focused) is within the toolbar
+      const relatedTarget = event.event?.relatedTarget;
+      if (relatedTarget) {
+        const toolbar = document.querySelector('.tiptap-toolbar');
+        if (toolbar && toolbar.contains(relatedTarget)) {
+          // Blur is from clicking toolbar button, keep toolbar visible
+          return;
+        }
+      }
+      // Small delay to allow focus to return to editor if needed
+      setTimeout(() => {
+        if (editor && !editor.isFocused) {
+          setIsEditorFocused(false);
+        }
+      }, 100);
     };
 
     editor.on('focus', handleFocus);
@@ -403,12 +485,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     console.log('Setting up active state management for editor');
 
     const updateActiveStates = () => {
+      // Detect current heading level (0 = paragraph, 2 = H2, 3 = H3)
+      let headingLevel = 0;
+      if (editor.isActive('heading', { level: 2 })) {
+        headingLevel = 2;
+      } else if (editor.isActive('heading', { level: 3 })) {
+        headingLevel = 3;
+      }
+      
       const newStates = {
         bold: editor.isActive('bold'),
         italic: editor.isActive('italic'),
         underline: editor.isActive('underline'),
         orderedList: editor.isActive('orderedList'),
-        bulletList: editor.isActive('bulletList')
+        bulletList: editor.isActive('bulletList'),
+        headingLevel: headingLevel
       };
       console.log('Updating active states:', newStates);
       setActiveStates(newStates);
@@ -460,6 +551,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     );
   }
 
+  // Handle heading cycle: H2 → H3 → Normal → H2
+  const handleHeadingCycle = () => {
+    if (!editor) return;
+    
+    const currentLevel = activeStates.headingLevel;
+    
+    if (currentLevel === 0) {
+      // Currently paragraph, set to H2
+      editor.chain().focus().setHeading({ level: 2 }).run();
+    } else if (currentLevel === 2) {
+      // Currently H2, set to H3
+      editor.chain().focus().setHeading({ level: 3 }).run();
+    } else if (currentLevel === 3) {
+      // Currently H3, set to paragraph (normal)
+      editor.chain().focus().setParagraph().run();
+    }
+  };
+
   const ToolbarButton = ({ 
     onClick, 
     isActive, 
@@ -473,7 +582,30 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }) => (
     <button
       type="button"
-      onClick={onClick}
+      onMouseDown={(e) => {
+        // Use onMouseDown to prevent editor from losing focus
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Visual feedback for click
+        e.currentTarget.style.setProperty('filter', 'brightness(0.97)', 'important');
+        e.currentTarget.style.setProperty('transform', 'scale(0.98)', 'important');
+        
+        // Execute the command
+        onClick();
+        
+        // Ensure editor stays focused after command
+        setTimeout(() => {
+          if (editor && !editor.isFocused) {
+            editor.commands.focus();
+          }
+        }, 0);
+      }}
+      onClick={(e) => {
+        // Prevent default click behavior
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       className={`flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] px-3 py-2 rounded-lg transition-all duration-200 relative ${isActive ? 'ql-active' : ''}`}
       title={title}
       style={{
@@ -519,13 +651,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           iconDiv.style.setProperty('color', isActive ? '#4A4A4A' : 'rgb(139, 139, 139)', 'important');
         }
       }}
-      onMouseDown={(e) => {
-        // Match CardFullEditable click effects - override old QuillEditor styles
-        e.currentTarget.style.setProperty('filter', 'brightness(0.97)', 'important');
-        e.currentTarget.style.setProperty('transform', 'scale(0.98)', 'important');
-      }}
       onMouseUp={(e) => {
-        // Reset click effects - override old QuillEditor styles
+        // Visual feedback for click
         e.currentTarget.style.setProperty('filter', 'none', 'important');
         e.currentTarget.style.setProperty('transform', 'none', 'important');
       }}
@@ -615,7 +742,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] mt-2 shrink-0"
           >
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBold().run()}
+            onClick={() => {
+              if (!editor) {
+                console.error('Editor not available');
+                return;
+              }
+              editor.chain().focus().toggleBold().run();
+            }}
             isActive={activeStates.bold}
             title="bold"
           >
@@ -623,7 +756,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </ToolbarButton>
           
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleItalic().run()}
+            onClick={() => {
+              if (!editor) {
+                console.error('Editor not available');
+                return;
+              }
+              editor.chain().focus().toggleItalic().run();
+            }}
             isActive={activeStates.italic}
             title="italic"
           >
@@ -631,7 +770,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </ToolbarButton>
           
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleUnderline().run()}
+            onClick={() => {
+              if (!editor) {
+                console.error('Editor not available');
+                return;
+              }
+              editor.chain().focus().toggleUnderline().run();
+            }}
             isActive={activeStates.underline}
             title="underline"
           >
@@ -639,7 +784,27 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </ToolbarButton>
           
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            onClick={() => {
+              if (!editor) {
+                console.error('Editor not available');
+                return;
+              }
+              handleHeadingCycle();
+            }}
+            isActive={activeStates.headingLevel > 0}
+            title={`heading (${activeStates.headingLevel > 0 ? `H${activeStates.headingLevel}` : 'Normal'})`}
+          >
+            <i className="fa-solid fa-heading" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
+          </ToolbarButton>
+          
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) {
+                console.error('Editor not available');
+                return;
+              }
+              editor.chain().focus().toggleOrderedList().run();
+            }}
             isActive={activeStates.orderedList}
             title="list: ordered"
           >
@@ -647,7 +812,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </ToolbarButton>
           
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            onClick={() => {
+              if (!editor) {
+                console.error('Editor not available');
+                return;
+              }
+              editor.chain().focus().toggleBulletList().run();
+            }}
             isActive={activeStates.bulletList}
             title="list: bullet"
           >
@@ -655,7 +826,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </ToolbarButton>
           
           <ToolbarButton
-            onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
+            onClick={() => {
+              if (!editor) {
+                console.error('Editor not available');
+                return;
+              }
+              editor.chain().focus().clearNodes().unsetAllMarks().run();
+            }}
             isActive={false}
             title="clean"
           >
@@ -759,6 +936,53 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           display: list-item !important;
           list-style-position: outside !important;
           list-style-type: inherit !important;
+        }
+        
+        /* Heading styles */
+        .tiptap-content :global(.ProseMirror h2) {
+          font-size: 18px !important;
+          font-weight: 600 !important;
+          line-height: 1.3 !important;
+          margin-top: 1.5em !important;
+          margin-bottom: 0.75em !important;
+          color: var(--color-deep-grey) !important;
+          font-family: var(--font-sans) !important;
+        }
+        
+        .tiptap-content :global(.ProseMirror h2:first-child) {
+          margin-top: 0 !important;
+        }
+        
+        .tiptap-content :global(.ProseMirror h3) {
+          font-size: 16px !important;
+          font-weight: 600 !important;
+          line-height: 1.4 !important;
+          margin-top: 1.25em !important;
+          margin-bottom: 0.625em !important;
+          color: var(--color-deep-grey) !important;
+          font-family: var(--font-sans) !important;
+        }
+        
+        .tiptap-content :global(.ProseMirror h3:first-child) {
+          margin-top: 0 !important;
+        }
+        
+        /* Horizontal rule styles */
+        .tiptap-content :global(.ProseMirror hr) {
+          margin: 1.5em 0 !important;
+          border: none !important;
+          border-top: 1px solid #e5e5e5 !important;
+          background: none !important;
+          height: 1px !important;
+          padding: 0 !important;
+        }
+        
+        .tiptap-content :global(.ProseMirror hr:first-child) {
+          margin-top: 0 !important;
+        }
+        
+        .tiptap-content :global(.ProseMirror hr:last-child) {
+          margin-bottom: 0 !important;
         }
         
         /* Override all conflicting CSS for toolbar buttons */

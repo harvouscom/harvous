@@ -354,6 +354,53 @@ export default function CardFullEditable({
           .card-full-editable .flex-1.overflow-auto p:last-child {
             margin-bottom: 0 !important;
           }
+
+          /* Heading styles for display mode - match editor styles */
+          .card-full-editable .flex-1.overflow-auto h2 {
+            font-size: 18px !important;
+            font-weight: 600 !important;
+            line-height: 1.3 !important;
+            margin-top: 1.5em !important;
+            margin-bottom: 0.75em !important;
+            color: var(--color-deep-grey) !important;
+            font-family: var(--font-sans) !important;
+          }
+
+          .card-full-editable .flex-1.overflow-auto h2:first-child {
+            margin-top: 0 !important;
+          }
+
+          .card-full-editable .flex-1.overflow-auto h3 {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            line-height: 1.4 !important;
+            margin-top: 1.25em !important;
+            margin-bottom: 0.625em !important;
+            color: var(--color-deep-grey) !important;
+            font-family: var(--font-sans) !important;
+          }
+
+          .card-full-editable .flex-1.overflow-auto h3:first-child {
+            margin-top: 0 !important;
+          }
+
+          /* Horizontal rule styles for display mode - match editor spacing */
+          .card-full-editable .flex-1.overflow-auto hr {
+            margin: 1.5em 0 !important;
+            border: none !important;
+            border-top: 1px solid #e5e5e5 !important;
+            background: none !important;
+            height: 1px !important;
+            padding: 0 !important;
+          }
+
+          .card-full-editable .flex-1.overflow-auto hr:first-child {
+            margin-top: 0 !important;
+          }
+
+          .card-full-editable .flex-1.overflow-auto hr:last-child {
+            margin-bottom: 0 !important;
+          }
         `}
       </style>
       <div 
