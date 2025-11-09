@@ -553,6 +553,50 @@ let inboxCount: number = 0;
               noteCount: await getNotesForThread(thread.id, userId).then(notes => notes.length),
               backgroundGradient: getThreadGradientCSS(thread.color)
             };
+          } else {
+            // Selected thread doesn't exist (might have been deleted)
+            // Try to use one of the other threads the note belongs to
+            const noteThreads = await db.select()
+              .from(NoteThreads)
+              .where(eq(NoteThreads.noteId, note.id))
+              .all();
+            
+            const threadIds = noteThreads.map(nt => nt.threadId).filter(tid => tid !== selectedThreadId);
+            
+            if (threadIds.length > 0) {
+              // Try to get the first available thread
+              for (const threadId of threadIds) {
+                const fallbackThread = await db.select()
+                  .from(Threads)
+                  .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)))
+                  .get();
+                
+                if (fallbackThread) {
+                  currentThread = {
+                    id: fallbackThread.id,
+                    title: fallbackThread.title,
+                    color: fallbackThread.color,
+                    noteCount: await getNotesForThread(fallbackThread.id, userId).then(notes => notes.length),
+                    backgroundGradient: getThreadGradientCSS(fallbackThread.color)
+                  };
+                  console.log('⚠️ Selected thread not found, using fallback thread:', fallbackThread.id);
+                  break;
+                }
+              }
+            }
+            
+            // If still no thread found, fall back to unorganized
+            if (!currentThread) {
+              const noteCount = await getNotesForThread('thread_unorganized', userId).then(notes => notes.length);
+              currentThread = {
+                id: 'thread_unorganized',
+                title: 'Unorganized',
+                color: null,
+                noteCount: noteCount,
+                backgroundGradient: getThreadGradientCSS('paper')
+              };
+              console.log('⚠️ No valid threads found for note, using unorganized fallback');
+            }
           }
         } else {
           // Fallback: no valid thread selected, use unorganized

@@ -136,39 +136,128 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     }
   }, []); // Empty deps - only run on mount
 
-  // Handle thread selection when threadOptions are loaded
-  // Priority: 1) currentThread (if on thread page - initial default only), 2) savedThreadId, 3) Unorganized
+  // Client-side thread detection from URL/navigation context
+  const detectThreadFromContext = (): { id: string; title: string } | null => {
+    if (typeof window === 'undefined') return null;
+    
+    // Try to get from navigation element data attributes
+    const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+    if (navigationElement) {
+      const threadId = navigationElement.getAttribute('data-parent-thread-id') || 
+                       navigationElement.getAttribute('data-thread-id');
+      const threadTitle = navigationElement.getAttribute('data-parent-thread-title') || 
+                         navigationElement.getAttribute('data-thread-title');
+      
+      if (threadId && threadTitle) {
+        return { id: threadId, title: threadTitle };
+      }
+    }
+    
+    // Try to get from URL pathname
+    const pathname = window.location.pathname;
+    if (pathname && pathname !== '/' && !pathname.includes('/dashboard') && 
+        !pathname.includes('/sign-in') && !pathname.includes('/sign-up')) {
+      // Check if it's a thread ID (starts with thread_ or is a valid thread ID format)
+      const threadId = pathname.substring(1); // Remove leading slash
+      if (threadId && threadId !== 'dashboard') {
+        // Check navigation history for thread title
+        const navHistory = navigationHistory || [];
+        const historyItem = navHistory.find(item => item.id === threadId);
+        if (historyItem && historyItem.title) {
+          return { id: threadId, title: historyItem.title };
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  // Separate effect to handle currentThread when it becomes available
+  // This handles the case where currentThread is null on mount but becomes available later
   useEffect(() => {
-    // Priority 1: If we're on a thread page, use currentThread as initial default (only once)
-    // Check currentThread.id to ensure we're actually on a thread page (not just unorganized)
-    // Only initialize once - don't reset if user has manually changed selection
-    if (currentThread && currentThread.id && currentThread.id !== 'thread_unorganized' && !hasInitializedFromCurrentThread.current) {
-      // Try to find matching thread in threadOptions
+    if (currentThread && currentThread.id) {
+      // If we haven't initialized yet, or if we're still on default "Unorganized" and currentThread is available
+      if (!hasInitializedFromCurrentThread.current || 
+          (selectedThread === 'Unorganized' && currentThread.id !== 'thread_unorganized')) {
+        const matchingThread = threadOptions.find(thread => thread.id === currentThread.id);
+        
+        if (matchingThread && matchingThread.title !== selectedThread) {
+          setSelectedThread(matchingThread.title);
+          setHasSetThreadFromSaved(true);
+          hasInitializedFromCurrentThread.current = true;
+        } else if (currentThread.title && currentThread.title !== selectedThread && 
+                   (!hasInitializedFromCurrentThread.current || selectedThread === 'Unorganized')) {
+          // Use title directly if thread not in options yet
+          setSelectedThread(currentThread.title);
+          setHasSetThreadFromSaved(true);
+          hasInitializedFromCurrentThread.current = true;
+        }
+      }
+    }
+  }, [currentThread, threadOptions, selectedThread]);
+
+  // Handle thread selection when threadOptions are loaded
+  // Priority: 1) currentThread (if available - initial default only), 2) client-side detection, 3) savedThreadId, 4) Unorganized
+  useEffect(() => {
+    // Priority 1: Use currentThread prop if available (only once, don't reset user's manual selection)
+    if (currentThread && currentThread.id && !hasInitializedFromCurrentThread.current) {
+      // Use currentThread even if it's 'thread_unorganized' - don't ignore it
       const matchingThread = threadOptions.find(thread => thread.id === currentThread.id);
+      
       if (matchingThread) {
-        // Found matching thread - use it as initial default
+        // Found matching thread in options - use it
         if (matchingThread.title !== selectedThread) {
           setSelectedThread(matchingThread.title);
           setHasSetThreadFromSaved(true);
           hasInitializedFromCurrentThread.current = true;
         }
-        return; // currentThread takes priority, don't check saved thread ID
+        return; // currentThread takes priority, don't check other sources
       }
+      
       // Thread not found in options yet - might still be loading
-      // But we can still use currentThread.title if available
+      // Use currentThread.title directly if available (even if thread not in options yet)
       if (currentThread.title && currentThread.title !== selectedThread) {
         setSelectedThread(currentThread.title);
         setHasSetThreadFromSaved(true);
         hasInitializedFromCurrentThread.current = true;
+        
+        // Set up retry mechanism to find the thread in options once they load
+        // This will be handled by the effect re-running when threadOptions updates
         return;
       }
     }
     
-    // Priority 2: Check for saved thread ID (from previous note creation or selection)
-    // Only if we haven't already set from currentThread
+    // Priority 2: Client-side detection if currentThread prop is not available or not initialized
+    if (!hasSetThreadFromSaved && !hasInitializedFromCurrentThread.current) {
+      const detectedThread = detectThreadFromContext();
+      if (detectedThread) {
+        const matchingThread = threadOptions.find(thread => thread.id === detectedThread.id);
+        if (matchingThread) {
+          if (matchingThread.title !== selectedThread) {
+            setSelectedThread(matchingThread.title);
+            setHasSetThreadFromSaved(true);
+            hasInitializedFromCurrentThread.current = true;
+            return;
+          }
+        } else if (detectedThread.title && detectedThread.title !== selectedThread) {
+          // Use detected title even if thread not in options yet
+          setSelectedThread(detectedThread.title);
+          setHasSetThreadFromSaved(true);
+          hasInitializedFromCurrentThread.current = true;
+          return;
+        }
+      }
+    }
+    
+    // Priority 3: Check for saved thread ID (from previous note creation or selection)
+    // Only if we haven't already set from currentThread or client-side detection
     if (!hasSetThreadFromSaved && !hasInitializedFromCurrentThread.current) {
       // Wait for threads to be loaded before checking saved thread ID
-      if (threadOptions.length <= 1 && !threadOptions.find(t => t.id === 'thread_unorganized')) {
+      // Check if we have more than just the default unorganized thread
+      const hasLoadedThreads = threadOptions.length > 1 || 
+        (threadOptions.length === 1 && threadOptions[0]?.id === 'thread_unorganized');
+      
+      if (!hasLoadedThreads) {
         return; // Threads not loaded yet, wait
       }
       
@@ -195,8 +284,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         }
       }
     }
-    // Priority 3: Default to Unorganized (already set in initial state)
-  }, [currentThread, threadOptions, hasSetThreadFromSaved]); // Removed selectedThread from deps to prevent resetting user's manual selection
+    // Priority 4: Default to Unorganized (already set in initial state)
+  }, [currentThread, threadOptions, hasSetThreadFromSaved, navigationHistory]); // Added navigationHistory for client-side detection
 
 
   // Save to localStorage when values change
