@@ -1,7 +1,7 @@
 {
   "name": "harvous",
   "type": "module",
-  "version": "0.58.6",
+  "version": "0.58.7",
   "engines": {
     "node": ">=20.6.1"
   },
