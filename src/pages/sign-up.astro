@@ -30,6 +30,18 @@ import { SignUp } from "@clerk/astro/components";
           additionalOAuthScopes={{
             google: ['profile', 'email']
           }}
+          additionalFields={[
+            {
+              name: 'first_name',
+              label: 'First Name',
+              required: true,
+            },
+            {
+              name: 'last_name',
+              label: 'Last Name',
+              required: true,
+            },
+          ]}
           signInUrl="/sign-in"
           redirectUrl="/"
         />
