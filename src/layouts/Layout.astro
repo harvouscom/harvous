@@ -92,9 +92,6 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <!-- Special tab interaction handler for first-touch optimization -->
     <script is:inline src="/scripts/tab-interaction-handler.js"></script>
     
-    <!-- Alpine.js CDN for SquareButton menu functionality - defer to not block rendering -->
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    
     <!-- Font Awesome CSS - lazy load since icons aren't critical for initial render -->
     <script is:inline>
       // Lazy load Font Awesome CSS to improve initial load
@@ -124,9 +121,9 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
       if (import.meta.env.DEV) {
         // Override module script loading to handle MIME type issues
         const originalCreateElement = document.createElement;
-        document.createElement = function(tagName: string) {
+        document.createElement = function(tagName) {
           const element = originalCreateElement.call(this, tagName);
-          if (tagName === 'script' && (element as HTMLScriptElement).type === 'module') {
+          if (tagName === 'script' && element.type === 'module') {
             element.addEventListener('error', function(e) {
               // Don't prevent the error, but log it as a warning
               console.warn('Module script loading issue (development):', e);
@@ -257,21 +254,13 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
 <!-- Service Worker Registration for PWA - defer to not block initial render -->
 <script is:inline src="/scripts/service-worker-manager.js" defer></script>
 
-<!-- Global Alpine.js re-initialization for View Transitions -->
-<script>
-  // Simple Alpine.js re-initialization after View Transitions
-  document.addEventListener('astro:page-load', () => {
-    if ((window as any).Alpine) {
-      (window as any).Alpine.initTree(document.body);
-    }
-  });
-</script>
-
 <!-- Keyboard Shortcuts Initialization -->
 <script>
   // Expose Astro's navigate function for keyboard shortcuts
   import { navigate } from 'astro:transitions/client';
-  (window as any).astroNavigate = navigate;
+  if (typeof window !== 'undefined') {
+    window.astroNavigate = navigate;
+  }
   
   // Initialize keyboard shortcuts
   import { initKeyboardShortcuts, cleanupKeyboardShortcuts } from '@/utils/keyboard-shortcuts';
@@ -290,19 +279,23 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     const setupPrefetching = () => {
       // Prefetch dashboard when hovering over links to dashboard
       document.addEventListener('mouseenter', (e) => {
-        const target = e.target as HTMLElement;
-        const link = target.closest('a[href="/"]') || target.closest('a[href="/dashboard"]');
-        if (link) {
-          prefetchPageData('/');
+        const target = e.target;
+        if (target && target instanceof HTMLElement) {
+          const link = target.closest('a[href="/"]') || target.closest('a[href="/dashboard"]');
+          if (link) {
+            prefetchPageData('/');
+          }
         }
       }, true);
       
       // Prefetch on click (for faster navigation)
       document.addEventListener('click', (e) => {
-        const target = e.target as HTMLElement;
-        const link = target.closest('a[href="/"]') || target.closest('a[href="/dashboard"]');
-        if (link) {
-          prefetchPageData('/');
+        const target = e.target;
+        if (target && target instanceof HTMLElement) {
+          const link = target.closest('a[href="/"]') || target.closest('a[href="/dashboard"]');
+          if (link) {
+            prefetchPageData('/');
+          }
         }
       }, true);
     };
@@ -489,7 +482,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     display: none !important;
   }
   
-  /* Override any Alpine.js transition effects */
+  /* Override any transition effects */
   .new-note-panel-container[x-transition] {
     transition: none !important;
   }

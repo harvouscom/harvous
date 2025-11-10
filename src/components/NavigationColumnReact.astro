@@ -55,6 +55,7 @@ Object.keys(rest).forEach(key => {
 <div {...dataAttributes} slot="navigation" class="h-full">
   <NavigationProvider client:load>
     <NavigationColumn 
+      client:load
       inboxCount={inboxCount}
       spaces={spaces}
       activeThread={activeThread}

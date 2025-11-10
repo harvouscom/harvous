@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
 import Avatar from './Avatar';
@@ -45,6 +46,17 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   initials = "DJ",
   userColor = "paper"
 }) => {
+  const { getCurrentActiveItemId } = useNavigation();
+  
+  // Log component mount and renders
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.warn('🟢 [NavigationColumn] Component mounted/rendered:', {
+        pathname: window.location.pathname,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
   const [showActiveThread, setShowActiveThread] = useState(false);
   const [currentItemId, setCurrentItemId] = useState('');
   const [updatedActiveThread, setUpdatedActiveThread] = useState<ActiveThread | null>(activeThread);
@@ -57,7 +69,12 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   // Initialize current item ID and listen for page changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setCurrentItemId(window.location.pathname.substring(1));
+      const initialId = window.location.pathname.substring(1);
+      setCurrentItemId(initialId);
+      console.warn('🟢 [NavigationColumn] Component mounted:', {
+        pathname: window.location.pathname,
+        initialItemId: initialId
+      });
     }
   }, []);
 
@@ -65,15 +82,46 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   useEffect(() => {
     const handlePageLoad = () => {
       // Update current item ID when page changes
-      setCurrentItemId(window.location.pathname.substring(1));
+      const newItemId = window.location.pathname.substring(1);
+      setCurrentItemId(newItemId);
+      
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        const activeItemId = getCurrentActiveItemId();
+        console.warn('🔵 [NavigationColumn] astro:page-load event (delayed):', {
+          pathname: window.location.pathname,
+          currentItemId: newItemId,
+          activeItemIdFromContext: activeItemId,
+          forYouActive: activeItemId === '',
+          oldLogic: { 
+            currentSpace: currentSpace?.id, 
+            activeThread: activeThread?.id, 
+            currentId,
+            oldResult: !currentSpace && !activeThread && !currentId
+          },
+          timestamp: new Date().toISOString()
+        });
+      }, 100);
     };
+
+    // Also log initial load
+    if (typeof window !== 'undefined') {
+      const initialItemId = window.location.pathname.substring(1);
+      const initialActiveId = getCurrentActiveItemId();
+      console.warn('🔵 [NavigationColumn] Initial load:', {
+        pathname: window.location.pathname,
+        currentItemId: initialItemId,
+        activeItemIdFromContext: initialActiveId,
+        forYouActive: initialActiveId === ''
+      });
+    }
 
     document.addEventListener('astro:page-load', handlePageLoad);
     
     return () => {
       document.removeEventListener('astro:page-load', handlePageLoad);
     };
-  }, []);
+  }, [getCurrentActiveItemId, currentSpace, activeThread, currentId]);
   
   // Check if active thread is in persistent navigation on client side
   useEffect(() => {
@@ -163,6 +211,124 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
     };
   }, [activeThread]);
+  
+  // Force re-render on navigation to update active states
+  // With transition:persist, component persists but we need to force re-renders
+  const [renderTrigger, setRenderTrigger] = useState(0);
+  const pathnameRef = useRef<string>('');
+  
+  // Force re-render when pathname changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Initialize pathname ref
+    pathnameRef.current = window.location.pathname;
+    
+    const forceRerender = () => {
+      const currentPathname = window.location.pathname;
+      // Always update, even if pathname is the same, to ensure re-render
+      setRenderTrigger(prev => {
+        const newValue = prev + 1;
+        console.warn('🟢 [NavigationColumn] Forcing re-render:', {
+          pathname: currentPathname,
+          triggerValue: newValue,
+          timestamp: new Date().toISOString()
+        });
+        return newValue;
+      });
+      pathnameRef.current = currentPathname;
+    };
+    
+    // Update on page load (Astro View Transitions)
+    const handlePageLoad = () => {
+      const currentPathname = window.location.pathname;
+      console.warn('🟢 [NavigationColumn] astro:page-load fired:', {
+        pathname: currentPathname,
+        previousPathname: pathnameRef.current
+      });
+      // Force re-render immediately and with multiple delays to catch timing issues
+      forceRerender();
+      setTimeout(forceRerender, 5);
+      setTimeout(forceRerender, 25);
+      setTimeout(forceRerender, 50);
+      setTimeout(forceRerender, 100);
+      setTimeout(forceRerender, 200);
+    };
+    
+    // Also listen for popstate (browser back/forward)
+    const handlePopState = () => {
+      console.warn('🟢 [NavigationColumn] popstate fired:', {
+        pathname: window.location.pathname
+      });
+      setTimeout(forceRerender, 5);
+      setTimeout(forceRerender, 25);
+      setTimeout(forceRerender, 50);
+    };
+    
+    // More aggressive polling - check every 50ms and always force update if pathname changed
+    const intervalId = setInterval(() => {
+      const currentPathname = window.location.pathname;
+      if (currentPathname !== pathnameRef.current) {
+        console.warn('🟢 [NavigationColumn] Polling detected pathname change:', {
+          from: pathnameRef.current,
+          to: currentPathname
+        });
+        forceRerender();
+      }
+    }, 50);
+    
+    document.addEventListener('astro:page-load', handlePageLoad);
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      document.removeEventListener('astro:page-load', handlePageLoad);
+      window.removeEventListener('popstate', handlePopState);
+      clearInterval(intervalId);
+    };
+  }, []);
+  
+  // Compute active item ID directly from pathname on every render
+  // This ensures it's always current, regardless of state updates
+  const getCurrentActiveItemIdFromPath = (): string => {
+    if (typeof window === 'undefined') return '';
+    const pathname = window.location.pathname;
+    const pathId = pathname === '/' ? '' : (pathname.startsWith('/') ? pathname.substring(1) : pathname);
+    
+    // For note pages, use getCurrentActiveItemId to get parent thread
+    if (pathId.startsWith('note_')) {
+      return getCurrentActiveItemId();
+    }
+    return pathId;
+  };
+  
+  const currentActiveItemId = getCurrentActiveItemIdFromPath();
+  const isForYouActive = currentActiveItemId === '';
+  
+  // Debug: Log active state calculation
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.warn('🟢 [NavigationColumn] Active state calculation:', {
+        currentActiveItemId,
+        isForYouActive,
+        pathname: window.location.pathname,
+        props: {
+          currentSpace: currentSpace?.id,
+          activeThread: activeThread?.id,
+          currentId,
+          isNote
+        },
+        oldLogic: {
+          oldResult: !currentSpace && !activeThread && !currentId
+        },
+        state: {
+          currentItemId,
+          showActiveThread
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [currentActiveItemId, isForYouActive, currentSpace, activeThread, currentId, currentItemId, showActiveThread, isNote]);
+  
   return (
     <div className="h-full">
       <div className="flex flex-col items-start justify-between relative h-full">
@@ -176,8 +342,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                 count={inboxCount} 
                 state="WithCount" 
                 className="w-full" 
-                isActive={!currentSpace && !activeThread && !currentId}
-                backgroundGradient={!currentSpace && !activeThread && !currentId ? "var(--color-paper)" : undefined}
+                isActive={isForYouActive}
+                backgroundGradient={isForYouActive ? "var(--color-paper)" : undefined}
               />
             </a>
             
@@ -210,7 +376,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                   state="Close" 
                   className="w-full" 
                   backgroundGradient={(updatedActiveThread || activeThread)!.backgroundGradient}
-                  isActive={isNote || (updatedActiveThread || activeThread)!.id === currentItemId}
+                  isActive={isNote || (updatedActiveThread || activeThread)!.id === currentActiveItemId}
                   itemId={(updatedActiveThread || activeThread)!.id}
                 />
               </a>

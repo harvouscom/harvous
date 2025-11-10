@@ -1,14 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 
 const PersistentNavigation: React.FC = () => {
+  // Log component render to verify it's mounting
+  if (typeof window !== 'undefined') {
+    console.warn('🟡 [PersistentNavigation] Component rendering:', {
+      pathname: window.location.pathname,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
   const contextValue = useNavigation();
   const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
   const [isClient, setIsClient] = useState(false);
   const [currentItemId, setCurrentItemId] = useState('');
   const [renderKey, setRenderKey] = useState(0);
-  
   // Force re-render when navigationHistory changes
   useEffect(() => {
     setRenderKey(prev => prev + 1);
@@ -20,31 +27,105 @@ const PersistentNavigation: React.FC = () => {
     setCurrentItemId(window.location.pathname.substring(1));
   }, []);
 
-  // Listen for page changes to update current item
+  // Force re-render on navigation to update active states
+  // With transition:persist, component persists but we need to force re-renders
+  const [renderTrigger, setRenderTrigger] = useState(0);
+  const pathnameRef = useRef<string>('');
+  
+  // Force re-render when pathname changes
   useEffect(() => {
     if (!isClient) return;
-
+    
+    // Initialize pathname ref
+    pathnameRef.current = window.location.pathname;
+    
+    const forceRerender = () => {
+      const currentPathname = window.location.pathname;
+      // Always update, even if pathname is the same, to ensure re-render
+      setRenderTrigger(prev => {
+        const newValue = prev + 1;
+        console.warn('🟡 [PersistentNavigation] Forcing re-render:', {
+          pathname: currentPathname,
+          triggerValue: newValue,
+          timestamp: new Date().toISOString()
+        });
+        return newValue;
+      });
+      pathnameRef.current = currentPathname;
+    };
+    
     const handlePageLoad = () => {
+      const currentPathname = window.location.pathname;
+      console.warn('🟡 [PersistentNavigation] astro:page-load fired:', {
+        pathname: currentPathname,
+        previousPathname: pathnameRef.current
+      });
       // Update current item ID when page changes
-      setCurrentItemId(window.location.pathname.substring(1));
+      const newItemId = currentPathname === '/' ? '' : currentPathname.substring(1);
+      setCurrentItemId(newItemId);
+      // Force re-render immediately and with multiple delays to catch timing issues
+      forceRerender();
+      setTimeout(forceRerender, 5);
+      setTimeout(forceRerender, 25);
+      setTimeout(forceRerender, 50);
+      setTimeout(forceRerender, 100);
+      setTimeout(forceRerender, 200);
     };
     
     // Listen for navigation history updates from validation
     const handleNavigationUpdate = () => {
       setRenderKey(prev => prev + 1);
     };
+    
+    // Also listen for popstate (browser back/forward)
+    const handlePopState = () => {
+      console.warn('🟡 [PersistentNavigation] popstate fired:', {
+        pathname: window.location.pathname
+      });
+      setTimeout(forceRerender, 5);
+      setTimeout(forceRerender, 25);
+      setTimeout(forceRerender, 50);
+    };
+    
+    // More aggressive polling - check every 50ms and always force update if pathname changed
+    const intervalId = setInterval(() => {
+      const currentPathname = window.location.pathname;
+      if (currentPathname !== pathnameRef.current) {
+        console.warn('🟡 [PersistentNavigation] Polling detected pathname change:', {
+          from: pathnameRef.current,
+          to: currentPathname
+        });
+        forceRerender();
+      }
+    }, 50);
 
     document.addEventListener('astro:page-load', handlePageLoad);
     window.addEventListener('navigationHistoryUpdated', handleNavigationUpdate);
+    window.addEventListener('popstate', handlePopState);
     
     return () => {
       document.removeEventListener('astro:page-load', handlePageLoad);
       window.removeEventListener('navigationHistoryUpdated', handleNavigationUpdate);
+      window.removeEventListener('popstate', handlePopState);
+      clearInterval(intervalId);
     };
   }, [isClient]);
   
-  // Use the context's getCurrentActiveItemId function for consistency
-  const currentActiveItemId = isClient ? getCurrentActiveItemId() : '';
+  // Compute active item ID directly from pathname on every render
+  // This ensures it's always current, regardless of state updates
+  const getCurrentActiveItemIdFromPath = (): string => {
+    if (!isClient || typeof window === 'undefined') return '';
+    const pathname = window.location.pathname;
+    const pathId = pathname === '/' ? '' : (pathname.startsWith('/') ? pathname.substring(1) : pathname);
+    
+    // For note pages, use getCurrentActiveItemId to get parent thread
+    if (pathId.startsWith('note_')) {
+      return getCurrentActiveItemId();
+    }
+    return pathId;
+  };
+  
+  const currentActiveItemId = getCurrentActiveItemIdFromPath();
   
   // Filter out items that shouldn't be shown in persistent navigation
   const getPersistentItems = () => {
@@ -83,6 +164,24 @@ const PersistentNavigation: React.FC = () => {
   };
 
   const persistentItems = getPersistentItems();
+
+  // Debug: Log active state for persistent items
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const activeId = getCurrentActiveItemId();
+    console.warn('🟠 [PersistentNavigation] Active state for items:', {
+      currentActiveItemId: activeId,
+      pathname: window.location.pathname,
+      persistentItemsCount: persistentItems.length,
+      items: persistentItems.map(item => ({
+        id: item.id,
+        title: item.title,
+        isActive: item.id === activeId
+      })),
+      timestamp: new Date().toISOString()
+    });
+  }, [isClient, currentActiveItemId, persistentItems, getCurrentActiveItemId]);
 
   // Don't render anything during SSR or if no items to show
   if (!isClient || persistentItems.length === 0) {
