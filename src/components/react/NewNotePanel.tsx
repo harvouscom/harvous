@@ -36,6 +36,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   const [scriptureVersion, setScriptureVersion] = useState('NET'); // Default to NET Bible for MVP
   const [resourceUrl, setResourceUrl] = useState('');
   const [isFetchingVerse, setIsFetchingVerse] = useState(false);
+  const [sourceNoteId, setSourceNoteId] = useState<string | null>(null);
+  const [sourceSelectionFrom, setSourceSelectionFrom] = useState<number | null>(null);
+  const [sourceSelectionTo, setSourceSelectionTo] = useState<number | null>(null);
   const [threadOptions, setThreadOptions] = useState<Thread[]>([
     {
       id: 'thread_unorganized',
@@ -84,6 +87,21 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     const savedScriptureRef = localStorage.getItem('newNoteScriptureReference') || '';
     const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';
     const savedScriptureText = localStorage.getItem('newNoteScriptureText') || '';
+    
+    // Load source note context for hyperlink creation
+    const savedSourceNoteId = localStorage.getItem('newNoteSourceNoteId');
+    const savedSourceSelectionFrom = localStorage.getItem('newNoteSourceSelectionFrom');
+    const savedSourceSelectionTo = localStorage.getItem('newNoteSourceSelectionTo');
+    
+    if (savedSourceNoteId) {
+      setSourceNoteId(savedSourceNoteId);
+    }
+    if (savedSourceSelectionFrom) {
+      setSourceSelectionFrom(parseInt(savedSourceSelectionFrom, 10));
+    }
+    if (savedSourceSelectionTo) {
+      setSourceSelectionTo(parseInt(savedSourceSelectionTo, 10));
+    }
     
     // Set note type if detected from selection
     if (savedNoteType === 'scripture') {
@@ -992,6 +1010,29 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           }
         }
 
+        // Create hyperlink in source note (default behavior when creating from selected text)
+        if (sourceNoteId && result.note && result.note.id) {
+            const from = localStorage.getItem('newNoteSourceSelectionFrom');
+            const to = localStorage.getItem('newNoteSourceSelectionTo');
+
+            if (from && to) {
+                window.dispatchEvent(new CustomEvent('createHyperlink', {
+                    detail: {
+                        sourceNoteId,
+                        newNoteId: result.note.id,
+                        from: parseInt(from, 10),
+                        to: parseInt(to, 10),
+                    }
+                }));
+            }
+            
+            // Clear source note context from localStorage
+            localStorage.removeItem('newNoteSourceNoteId');
+            localStorage.removeItem('newNoteSourceSelectionFrom');
+            localStorage.removeItem('newNoteSourceSelectionTo');
+            localStorage.removeItem('newNoteSourceSelectionPlainText');
+        }
+
         // Wait longer to ensure localStorage write is complete and persisted
         // This is critical for full page reloads where the new page needs to read from localStorage immediately
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -1287,7 +1328,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                   minimalToolbar={false}
                   onEditorReady={handleEditorReady}
                   onContentChange={(newContent) => {
-                    console.log('TiptapEditor content changed:', newContent.substring(0, 50) + '...');
                     setContent(newContent);
                   }}
                 />

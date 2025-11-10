@@ -108,6 +108,57 @@ export default function CardFullEditable({
     };
   }, [isEditing, isEditable, displayTitle, displayContent]);
 
+  // Listen for hyperlink creation event
+  useEffect(() => {
+    const handleCreateHyperlink = (event: CustomEvent) => {
+        const { sourceNoteId, newNoteId, from, to } = event.detail;
+
+        if (sourceNoteId === noteId && editorInstanceRef.current) {
+            const editor = editorInstanceRef.current;
+            
+            // Use Tiptap API to apply the mark
+            editor.chain()
+                .focus()
+                .setTextSelection({ from, to })
+                .unsetAllMarks()
+                .setMark('noteLink', { noteId: newNoteId })
+                .run();
+
+            // After applying the mark, the content has changed. Trigger a save.
+            // A small delay ensures the editor update is processed before getting HTML
+            setTimeout(() => {
+                const updatedContent = editor.getHTML();
+                setEditContent(updatedContent); // Update local state
+                
+                // Trigger save
+                if (onSave) {
+                    onSave(editTitle, updatedContent);
+                } else {
+                    const globalCallback = (window as any).noteSaveCallback;
+                    if (globalCallback) {
+                        globalCallback(editTitle, updatedContent);
+                    }
+                }
+
+                // Show a temporary confirmation
+                window.dispatchEvent(new CustomEvent('toast', {
+                    detail: {
+                        message: 'Link created in source note.',
+                        type: 'success'
+                    }
+                }));
+
+            }, 50);
+        }
+    };
+
+    window.addEventListener('createHyperlink', handleCreateHyperlink as EventListener);
+
+    return () => {
+        window.removeEventListener('createHyperlink', handleCreateHyperlink as EventListener);
+    };
+}, [noteId, onSave, editTitle]); // Dependencies
+
   // Detect parent thread ID from DOM when editing starts
   useEffect(() => {
     if (isEditing) {
@@ -508,6 +559,7 @@ export default function CardFullEditable({
                   scrollPosition={scrollPosition}
                   enableCreateNoteFromSelection={isEditing}
                   parentThreadId={parentThreadId}
+                  sourceNoteId={noteId}
                   onEditorReady={handleEditorReady}
                 />
               </div>

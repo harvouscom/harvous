@@ -4,3 +4,7 @@ import { twMerge } from "tailwind-merge"
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+export function getThreadGradientCSS(colorName: string | null | undefined): string {
+  // ... (existing code)
+}

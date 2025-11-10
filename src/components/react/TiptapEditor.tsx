@@ -5,7 +5,19 @@ import StarterKit from '@tiptap/starter-kit';
 import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
+import { NoteLink } from './TiptapNoteLink.ts';
 import ButtonSmall from './ButtonSmall';
+
+// Define a global toast function
+declare global {
+  interface Window {
+    toast: {
+      success: (message: string) => void;
+      info: (message: string) => void;
+      error: (message: string) => void;
+    };
+  }
+}
 
 interface TiptapEditorProps {
   content: string;
@@ -18,6 +30,7 @@ interface TiptapEditorProps {
   scrollPosition?: number;
   enableCreateNoteFromSelection?: boolean;
   parentThreadId?: string;
+  sourceNoteId?: string; // ID of the note this editor is editing (for hyperlink creation)
   onEditorReady?: (editor: any) => void;
 }
 
@@ -32,6 +45,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   scrollPosition,
   enableCreateNoteFromSelection = false,
   parentThreadId,
+  sourceNoteId,
   onEditorReady
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -51,7 +65,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   // Check if we're on the client side
   useEffect(() => {
-    console.log('TiptapEditor: Setting client to true');
     setIsClient(true);
   }, []);
 
@@ -62,15 +75,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const editorContent = document.querySelector('.tiptap-content');
         if (editorContent) {
           editorContent.scrollTop = scrollPosition;
-          console.log('TiptapEditor: Scroll position restored:', scrollPosition);
         }
       }, 100);
       
       return () => clearTimeout(timer);
     }
   }, [scrollPosition]);
-
-  console.log('TiptapEditor: Placeholder text:', placeholder);
 
   const editor = useEditor({
     extensions: [
@@ -82,6 +92,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         levels: [2, 3], // Only allow H2, H3 (H1 is reserved for note titles)
       }),
       Underline,
+      NoteLink,
       Placeholder.configure({
         placeholder: placeholder,
         showOnlyWhenEditable: true,
@@ -96,13 +107,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     },
     onUpdate: ({ editor }) => {
-      console.log('TiptapEditor: Editor updated');
       const htmlContent = editor.getHTML();
       
       // Update hidden input
       if (hiddenInputRef.current) {
         hiddenInputRef.current.value = htmlContent;
-        console.log('TiptapEditor: Updated hidden input with content:', htmlContent.substring(0, 50) + '...');
       }
       
       // Notify parent component
@@ -364,6 +373,73 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const detection = await detectResponse.json();
           
           if (detection.isScripture && detection.confidence >= 0.7 && detection.primaryReference) {
+            try {
+              const checkExistingResponse = await fetch('/api/scripture/check-existing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference: detection.primaryReference }),
+                credentials: 'include'
+              });
+
+              if (checkExistingResponse.ok) {
+                const existingCheck = await checkExistingResponse.json();
+                
+                if (existingCheck.exists && existingCheck.noteId) {
+                  // Existing note found - automatically add to thread
+                  const targetThreadId = parentThreadId || localStorage.getItem('newNoteThread') || 'thread_unorganized';
+                  
+                  try {
+                    const addThreadResponse = await fetch(`/api/notes/${existingCheck.noteId}/add-thread`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ threadId: targetThreadId }),
+                      credentials: 'include'
+                    });
+
+                    if (addThreadResponse.ok) {
+                      // Both success and "already in thread" are considered success for the user action.
+                      // Trigger the toast and hyperlink creation in both cases.
+                      const result = await addThreadResponse.json();
+
+                      if (result.success) {
+                          if (window.toast) {
+                              window.toast.success(`Note added to thread.`);
+                          }
+                      } else {
+                          if (window.toast) {
+                              window.toast.info('Note is already in this thread.');
+                          }
+                      }
+                      
+                      // After adding to thread, fire event to create hyperlink in the source note
+                      const { from, to } = editor.state.selection;
+                      window.dispatchEvent(new CustomEvent('createHyperlink', {
+                          detail: {
+                              sourceNoteId,
+                              newNoteId: existingCheck.noteId, // Use the ID of the existing note
+                              from,
+                              to,
+                          }
+                      }));
+                      
+                    } else {
+                      console.error('Error adding existing note to thread, falling back to new note creation.');
+                    }
+                  } catch (addError) {
+                    console.error('Exception when adding existing note to thread:', addError);
+                  }
+                  
+                  // Clear selection and close
+                  editor.commands.blur();
+                  setShowCreateNoteButton(false);
+                  return; // Exit early - don't create new note
+                }
+              }
+            } catch (checkError) {
+              console.error('Exception when checking for existing scripture note:', checkError);
+            }
+
+            // No existing note found - proceed with creating new note
             // Fetch verse text
             try {
               const verseResponse = await fetch('/api/scripture/fetch-verse', {
@@ -424,6 +500,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       localStorage.setItem('newNoteThread', parentThreadId);
     }
     
+    // Store source note context for hyperlink creation
+    if (sourceNoteId) {
+      localStorage.setItem('newNoteSourceNoteId', sourceNoteId);
+      localStorage.setItem('newNoteSourceSelectionFrom', from.toString());
+      localStorage.setItem('newNoteSourceSelectionTo', to.toString());
+      // Also store plain text version for matching in HTML
+      const plainTextForMatching = editor.state.doc.textBetween(from, to, ' ');
+      localStorage.setItem('newNoteSourceSelectionPlainText', plainTextForMatching);
+    }
+    
     // Set localStorage first (as backup in case event listener isn't ready yet)
     localStorage.setItem('showNewNotePanel', 'true');
     localStorage.setItem('showNewThreadPanel', 'false');
@@ -435,6 +521,30 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editor.commands.blur();
     setShowCreateNoteButton(false);
   };
+
+  // Handle note link clicks
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.classList.contains('note-link')) {
+        const noteId = target.getAttribute('data-note-id');
+        if (noteId) {
+          event.preventDefault();
+          event.stopPropagation();
+          window.location.href = `/${noteId}`;
+        }
+      }
+    };
+
+    const editorElement = editor.view.dom;
+    editorElement.addEventListener('click', handleClick);
+
+    return () => {
+      editorElement.removeEventListener('click', handleClick);
+    };
+  }, [editor]);
 
   // Track editor focus state
   useEffect(() => {
@@ -478,11 +588,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   // Update active states when editor changes
   useEffect(() => {
     if (!editor) {
-      console.log('No editor available for active state management');
       return;
     }
-
-    console.log('Setting up active state management for editor');
 
     const updateActiveStates = () => {
       // Detect current heading level (0 = paragraph, 2 = H2, 3 = H3)
@@ -501,7 +608,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         bulletList: editor.isActive('bulletList'),
         headingLevel: headingLevel
       };
-      console.log('Updating active states:', newStates);
       setActiveStates(newStates);
     };
 
@@ -704,7 +810,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         className="tiptap-content flex-1 min-h-0 overflow-auto"
         style={{ height: 0 }}
         onClick={() => {
-          console.log('TiptapEditor: Clicked, focusing editor');
           if (editor) {
             editor.commands.focus();
           }
@@ -1023,6 +1128,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         .tiptap-toolbar button.ql-active {
           background: transparent !important;
           box-shadow: none !important;
+        }
+        
+        /* Note link styling - highlighted text that looks like selection */
+        .tiptap-content :global(.ProseMirror .note-link) {
+          background-color: rgba(255, 235, 59, 0.4) !important;
+          cursor: pointer !important;
+          text-decoration: none !important;
+          border-radius: 2px !important;
+          padding: 1px 2px !important;
+          margin: 0 -2px !important;
+        }
+        
+        .tiptap-content :global(.ProseMirror .note-link:hover) {
+          background-color: rgba(255, 235, 59, 0.5) !important;
         }
       `}</style>
     </div>
