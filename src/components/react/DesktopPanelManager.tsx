@@ -264,6 +264,7 @@ export default function DesktopPanelManager({
             comments={[]}
             tags={[]}
             onClose={handleCloseNoteDetails}
+            inBottomSheet={false}
           />
         </div>
       )}
