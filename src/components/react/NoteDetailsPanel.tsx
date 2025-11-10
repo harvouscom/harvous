@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import CardThread from './CardThread';
 import AddToSection from './AddToSection';
 import SquareButton from './SquareButton';
+import ActionButton from './ActionButton';
+import { toast } from '@/utils/toast';
 
 interface Thread {
   id: string;
@@ -392,23 +394,36 @@ export default function NoteDetailsPanel({
             <div className="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
               <div className="basis-0 grow min-h-px min-w-px shrink-0 w-full">
 
-                {/* Note Metadata - Date, ID, and Version */}
-                {(noteCreatedAt || noteSimpleId || noteVersion) && (
+                {/* Note Metadata - ID and Date */}
+                {(noteCreatedAt || noteSimpleId) && (
                   <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full mb-2">
                     <div className="relative shrink-0">
-                      <p className="leading-[normal] text-nowrap whitespace-pre">
-                        {noteCreatedAt ? noteCreatedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
-                        {noteCreatedAt && noteSimpleId ? ' ' : ''}
-                        {noteSimpleId ? `#N${noteSimpleId.toString().padStart(3, '0')}` : ''}
-                      </p>
+                      {noteSimpleId && (
+                        <button
+                          onClick={async () => {
+                            const noteIdText = `N${noteSimpleId.toString().padStart(3, '0')}`;
+                            try {
+                              await navigator.clipboard.writeText(noteIdText);
+                              toast.success(`Copied ${noteIdText} to clipboard`);
+                            } catch (err) {
+                              console.error('Failed to copy:', err);
+                              toast.error('Failed to copy note ID');
+                            }
+                          }}
+                          className="leading-[normal] text-nowrap hover:text-[var(--color-deep-grey)] cursor-pointer transition-colors"
+                          title="Click to copy note ID"
+                        >
+                          {`#N${noteSimpleId.toString().padStart(3, '0')}`}
+                        </button>
+                      )}
                     </div>
-                    {noteVersion && (
-                      <div className="relative shrink-0">
-                        <p className="leading-[normal] text-nowrap whitespace-pre font-sans font-normal text-[var(--color-stone-grey)] text-[12px]">
-                          {noteVersion}
-                        </p>
-                      </div>
-                    )}
+                    <div className="relative shrink-0">
+                      {noteCreatedAt && (
+                        <span className="leading-[normal] text-nowrap">
+                          {noteCreatedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -515,22 +530,16 @@ export default function NoteDetailsPanel({
                               <CardThread thread={thread} />
                             </a>
                             {/* Remove from thread button */}
-                            <button
+                            <ActionButton
+                              variant="Close"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 handleRemoveFromThread(thread.id);
                               }}
-                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                              style={{
-                                color: 'var(--color-stone-grey)'
-                              }}
+                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
                               disabled={isMovingThread}
-                            >
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M5 11h14v2H5z"/>
-                              </svg>
-                            </button>
+                            />
                           </div>
                         ))}
                       </div>

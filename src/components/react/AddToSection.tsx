@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import SearchInput from './SearchInput';
+import ActionButton from './ActionButton';
 
 interface AddableItem {
   id: string;
@@ -98,22 +99,16 @@ export default function AddToSection({
       </div>
       
       {/* Add button - appears on hover */}
-      <button
+      <ActionButton
+        variant="Add"
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           onClick();
         }}
         className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-        style={{
-          color: 'var(--color-stone-grey)'
-        }}
         disabled={isLoading}
-      >
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-        </svg>
-      </button>
+      />
     </div>
   );
 
