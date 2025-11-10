@@ -36,6 +36,7 @@ interface NoteDetailsPanelProps {
   comments?: Comment[];
   tags?: Tag[];
   onClose?: () => void;
+  inBottomSheet?: boolean;
 }
 
 export default function NoteDetailsPanel({
@@ -45,7 +46,8 @@ export default function NoteDetailsPanel({
   allUserThreads = [],
   comments = [],
   tags = [],
-  onClose
+  onClose,
+  inBottomSheet = false
 }: NoteDetailsPanelProps) {
   const [activeTab, setActiveTab] = useState('threads');
   const [localThreads, setLocalThreads] = useState<Thread[]>(threads);
@@ -646,6 +648,7 @@ export default function NoteDetailsPanel({
         <SquareButton 
           variant="Back" 
           onClick={closePanel}
+          inBottomSheet={inBottomSheet}
         />
       </div>
       </div>

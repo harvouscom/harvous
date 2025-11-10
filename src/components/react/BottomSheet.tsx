@@ -278,6 +278,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   onClose={() => {
                     window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
                   }}
+                  inBottomSheet={true}
                 />
               )}
             </div>
