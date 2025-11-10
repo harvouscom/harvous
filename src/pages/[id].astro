@@ -789,7 +789,7 @@ if (!content) {
 </Layout>
 
 <!-- Initialize navigation cache with server-rendered data -->
-<script define:vars={{ threads, spaces, inboxCount }}>
+<script type="module" define:vars={{ threads, spaces, inboxCount }}>
   import { initNavigationCache } from '@/scripts/navigation-cache-client';
   import { initPrefetching } from '@/utils/prefetch';
   
