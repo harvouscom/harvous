@@ -18,6 +18,7 @@ import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import { getThreadGradientCSS } from "@/utils/colors";
 import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
 import MobileAdditional from "@/components/MobileAdditional.astro";
+import DashboardSkeleton from "@/components/DashboardSkeleton.astro";
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
 const { userId } = auth;
@@ -184,7 +185,14 @@ try {
   </div>
 
   <!-- Main Column -->
-  <div slot="main" class="h-full" id="dashboard-content" data-navigation-item="dashboard" data-title="For You" data-count={inboxItemCount} data-background-gradient="var(--color-paper)">
+  <div slot="main" class="h-full relative" id="dashboard-content" data-navigation-item="dashboard" data-title="For You" data-count={inboxItemCount} data-background-gradient="var(--color-paper)">
+          <!-- Skeleton loading state - shown immediately, hidden when content loads -->
+          <div id="dashboard-skeleton" class="dashboard-skeleton-wrapper">
+            <DashboardSkeleton />
+          </div>
+          
+          <!-- Actual content - shown when ready -->
+          <div id="dashboard-content-wrapper" class="dashboard-content-wrapper">
           <div class="flex flex-col h-full">
             
             <!-- Content List -->
@@ -375,6 +383,7 @@ try {
               </CardStack>
             </div>
           </div>
+          </div>
   </div>
 
 
@@ -392,6 +401,57 @@ try {
   
   // Cache navigation data after page loads
   if (typeof window !== 'undefined') {
+    // Show content and hide skeleton when page is ready
+    function showDashboardContent() {
+      const skeleton = document.getElementById('dashboard-skeleton');
+      const content = document.getElementById('dashboard-content-wrapper');
+      
+      if (skeleton && content) {
+        // Fade out skeleton and fade in content
+        skeleton.style.opacity = '0';
+        skeleton.style.transition = 'opacity 0.3s ease-out';
+        
+        setTimeout(() => {
+          skeleton.style.display = 'none';
+          content.style.display = 'block';
+          content.style.opacity = '0';
+          content.style.transition = 'opacity 0.3s ease-in';
+          
+          // Trigger reflow
+          content.offsetHeight;
+          
+          setTimeout(() => {
+            content.style.opacity = '1';
+          }, 10);
+        }, 300);
+      }
+    }
+    
+    // Show content when page is interactive (React components hydrated)
+    // Wait a bit to ensure React components are ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        // Wait for React to hydrate
+        setTimeout(showDashboardContent, 200);
+      });
+    } else {
+      // DOM already ready, wait for React hydration
+      setTimeout(showDashboardContent, 200);
+    }
+    
+    // Fallback: show content after max 1 second even if React isn't ready
+    setTimeout(() => {
+      const skeleton = document.getElementById('dashboard-skeleton');
+      const content = document.getElementById('dashboard-content-wrapper');
+      if (skeleton && skeleton.style.display !== 'none') {
+        if (skeleton) skeleton.style.display = 'none';
+        if (content) {
+          content.style.display = 'block';
+          content.style.opacity = '1';
+        }
+      }
+    }, 1000);
+    
     // Initialize cache with server-rendered data
     initNavigationCache(threads, spaces, inboxItemCount);
     
@@ -399,6 +459,15 @@ try {
     document.addEventListener('astro:page-load', () => {
       // Try to get data from the new page, or use cached data
       initNavigationCache(threads, spaces, inboxItemCount);
+      
+      // Show content immediately on navigation (no skeleton needed)
+      const skeleton = document.getElementById('dashboard-skeleton');
+      const content = document.getElementById('dashboard-content-wrapper');
+      if (skeleton) skeleton.style.display = 'none';
+      if (content) {
+        content.style.display = 'block';
+        content.style.opacity = '1';
+      }
     });
   }
 </script>

@@ -1,0 +1,95 @@
+---
+// Skeleton loading state for dashboard
+---
+
+<div class="dashboard-skeleton">
+  <div class="flex flex-col h-full">
+    <!-- CardStack skeleton -->
+    <div class="flex-1">
+      <div class="bg-white rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] h-full flex flex-col">
+        <!-- Header skeleton -->
+        <div class="bg-[var(--color-paper)] rounded-t-[24px] px-6 py-6">
+          <div class="h-7 w-24 bg-[var(--color-gray)] rounded animate-pulse"></div>
+        </div>
+        
+        <!-- Content skeleton -->
+        <div class="flex-1 p-6 flex flex-col gap-6">
+          <!-- TabNav skeleton -->
+          <div class="flex gap-2">
+            <div class="h-10 w-20 bg-[var(--color-gray)] rounded-lg animate-pulse"></div>
+            <div class="h-10 w-20 bg-[var(--color-gray)] rounded-lg animate-pulse"></div>
+          </div>
+          
+          <!-- Content items skeleton -->
+          <div class="flex flex-col gap-3">
+            <!-- Skeleton item 1 -->
+            <div class="h-20 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+            <!-- Skeleton item 2 -->
+            <div class="h-20 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+            <!-- Skeleton item 3 -->
+            <div class="h-20 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+          </div>
+          
+          <!-- Second TabNav skeleton -->
+          <div class="flex gap-2 mt-4">
+            <div class="h-10 w-16 bg-[var(--color-gray)] rounded-lg animate-pulse"></div>
+            <div class="h-10 w-20 bg-[var(--color-gray)] rounded-lg animate-pulse"></div>
+            <div class="h-10 w-20 bg-[var(--color-gray)] rounded-lg animate-pulse"></div>
+          </div>
+          
+          <!-- More content items skeleton -->
+          <div class="flex flex-col gap-3">
+            <!-- Skeleton item 4 -->
+            <div class="h-16 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+            <!-- Skeleton item 5 -->
+            <div class="h-16 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+            <!-- Skeleton item 6 -->
+            <div class="h-16 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .dashboard-skeleton-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    opacity: 1;
+    transition: opacity 0.3s ease-out;
+    z-index: 1;
+  }
+  
+  .dashboard-skeleton-wrapper.hidden {
+    opacity: 0;
+    pointer-events: none;
+    display: none;
+  }
+  
+  .dashboard-content-wrapper {
+    position: relative;
+    z-index: 2;
+  }
+  
+  .dashboard-skeleton {
+    height: 100%;
+  }
+  
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+</style>
+
