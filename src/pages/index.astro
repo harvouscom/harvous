@@ -57,12 +57,20 @@ let inboxCount: number = 0;
 
 // Always use real database data
 try {
-    // Fetch data one by one to isolate any issues
-    featuredContent = await getFeaturedContent(userId);
-    contentItems = await getContentItems(userId);
-    threads = await getAllThreadsWithCounts(userId);
-    spaces = await getSpacesWithCounts(userId);
-    inboxCount = await getInboxCount(userId);
+    // Fetch all data in parallel for better performance
+    const [featuredContentData, contentItemsData, threadsData, spacesData, inboxCountData] = await Promise.all([
+      getFeaturedContent(userId),
+      getContentItems(userId),
+      getAllThreadsWithCounts(userId),
+      getSpacesWithCounts(userId),
+      getInboxCount(userId)
+    ]);
+    
+    featuredContent = featuredContentData;
+    contentItems = contentItemsData;
+    threads = threadsData;
+    spaces = spacesData;
+    inboxCount = inboxCountData;
     
     // Ensure threads have backgroundGradient property for consistency
     threads = threads.map(thread => ({
@@ -105,10 +113,19 @@ const organizedContent = contentItems;
 // Use the actual count of items displayed in inbox, not the total inbox count
 const inboxItemCount = inboxContent.length;
 
-// Get archived items
+// Get archived items, active thread, and unorganized thread in parallel
 let archivedItems: any[] = [];
+let activeThread = null;
+let unorganizedThread = null;
+
 try {
-  const archived = await getArchivedItems(userId);
+  const [archived, threadContext, threadData] = await Promise.all([
+    getArchivedItems(userId).catch(() => []),
+    detectActiveThreadFromPath(Astro.url.pathname, userId).catch(() => null),
+    ensureUnorganizedThread(userId).catch(() => null)
+  ]);
+  
+  // Process archived items
   archivedItems = archived.map(item => {
     const cleanContent = item.content ? item.content.replace(/<[^>]*>/g, '').substring(0, 150) + (item.content.length > 150 ? "..." : "") : '';
     return {
@@ -124,23 +141,17 @@ try {
       subtitle: item.subtitle,
     };
   });
-} catch (error) {
-  console.error("Error fetching archived items:", error);
-  archivedItems = [];
-}
-
-// Get active thread context for navigation
-const activeThread = await detectActiveThreadFromPath(Astro.url.pathname, userId);
-
-// Ensure unorganized thread exists in database and check if it has notes
-let unorganizedThread = null;
-try {
-  const threadData = await ensureUnorganizedThread(userId);
-  if (threadData.noteCount > 0) {
+  
+  // Set active thread
+  activeThread = threadContext;
+  
+  // Set unorganized thread if it has notes
+  if (threadData && threadData.noteCount > 0) {
     unorganizedThread = threadData;
   }
 } catch (error) {
-  console.error("Dashboard: Error ensuring unorganized thread:", error);
+  console.error("Error fetching additional dashboard data:", error);
+  archivedItems = [];
 }
 ---
 
@@ -208,7 +219,7 @@ try {
                     <div class="inbox-content" data-tab-content="inbox">
                       {inboxContent.length > 0 ? (
                         <InboxItemsList 
-                          client:load
+                          client:visible
                           items={inboxContent}
                         />
                       ) : (
@@ -226,7 +237,7 @@ try {
                     <div class="archive-content hidden" data-tab-content="archive">
                       {archivedItems.length > 0 ? (
                         <InboxItemsList 
-                          client:load
+                          client:visible
                           items={archivedItems}
                         />
                       ) : (
@@ -374,3 +385,20 @@ try {
 
 
 </Layout>
+
+<!-- Initialize navigation cache with server-rendered data -->
+<script define:vars={{ threads, spaces, inboxItemCount }}>
+  import { initNavigationCache } from '@/scripts/navigation-cache-client';
+  
+  // Cache navigation data after page loads
+  if (typeof window !== 'undefined') {
+    // Initialize cache with server-rendered data
+    initNavigationCache(threads, spaces, inboxItemCount);
+    
+    // Re-initialize after View Transitions
+    document.addEventListener('astro:page-load', () => {
+      // Try to get data from the new page, or use cached data
+      initNavigationCache(threads, spaces, inboxItemCount);
+    });
+  }
+</script>

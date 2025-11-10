@@ -52,6 +52,12 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     
+    <!-- Resource hints for faster external resource loading -->
+    <link rel="preconnect" href="https://unpkg.com" crossorigin />
+    <link rel="dns-prefetch" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
+    
     <!-- Enable View Transitions for client-side navigation -->
     <ClientRouter />
     
@@ -71,6 +77,10 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
         contain: content;
         touch-action: manipulation;
       }
+      /* Prevent FOUT (Flash of Unstyled Text) */
+      body {
+        font-family: "Reddit Sans", system-ui, -apple-system, sans-serif;
+      }
     </style>
     
     <!-- Preload critical resources -->
@@ -82,17 +92,31 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <!-- Special tab interaction handler for first-touch optimization -->
     <script is:inline src="/scripts/tab-interaction-handler.js"></script>
     
-    <!-- Alpine.js CDN for SquareButton menu functionality -->
+    <!-- Alpine.js CDN for SquareButton menu functionality - defer to not block rendering -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
-    <!-- Font Awesome CSS for note type icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+    <!-- Font Awesome CSS - lazy load since icons aren't critical for initial render -->
+    <script is:inline>
+      // Lazy load Font Awesome CSS to improve initial load
+      (function() {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
+        link.media = 'print';
+        link.onload = function() { this.media = 'all'; };
+        document.head.appendChild(link);
+      })();
+    </script>
     
+    <!-- Non-critical scripts - defer to improve initial load -->
     <!-- Avatar Manager Global Script -->
-    <script is:inline src="/scripts/avatar-manager-global.js"></script>
+    <script is:inline src="/scripts/avatar-manager-global.js" defer></script>
     
     <!-- Profile Data Sync Script -->
-    <script is:inline src="/scripts/profile-sync.js"></script>
+    <script is:inline src="/scripts/profile-sync.js" defer></script>
+    
+    <!-- Tab functionality script -->
+    <script is:inline src="/scripts/tabs/tab-manager.js" defer></script>
     
     <!-- Development environment fixes -->
     <script>
@@ -126,9 +150,6 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
       }
     </script>
     
-    <!-- Tab functionality script -->
-    <script is:inline src="/scripts/tabs/tab-manager.js"></script>
-    
 
   </head>
   <body
@@ -143,6 +164,8 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
           <div 
             slot="navigation" 
             class="h-full"
+            data-navigation-persist
+            transition:persist
             data-thread-id={currentThread?.id}
             data-thread-title={currentThread?.title}
             data-thread-color={currentThread?.color}
@@ -192,7 +215,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
                 currentSpace={currentSpace}
                 currentNote={currentNote}
                 contentType={contentType}
-                client:load
+                client:idle
               />
             </div>
           </slot>
@@ -231,8 +254,8 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
 </html>
 
 
-<!-- Service Worker Registration for PWA -->
-<script is:inline src="/scripts/service-worker-manager.js"></script>
+<!-- Service Worker Registration for PWA - defer to not block initial render -->
+<script is:inline src="/scripts/service-worker-manager.js" defer></script>
 
 <!-- Global Alpine.js re-initialization for View Transitions -->
 <script>
@@ -253,6 +276,9 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
   // Initialize keyboard shortcuts
   import { initKeyboardShortcuts, cleanupKeyboardShortcuts } from '@/utils/keyboard-shortcuts';
   
+  // Prefetch utilities
+  import { prefetchPageData } from '@/utils/prefetch';
+  
   // Initialize on page load
   if (typeof window !== 'undefined') {
     // Clean up any existing shortcuts first
@@ -260,10 +286,34 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     // Initialize new shortcuts
     initKeyboardShortcuts();
     
+    // Prefetch on navigation link hover/click
+    const setupPrefetching = () => {
+      // Prefetch dashboard when hovering over links to dashboard
+      document.addEventListener('mouseenter', (e) => {
+        const target = e.target as HTMLElement;
+        const link = target.closest('a[href="/"]') || target.closest('a[href="/dashboard"]');
+        if (link) {
+          prefetchPageData('/');
+        }
+      }, true);
+      
+      // Prefetch on click (for faster navigation)
+      document.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const link = target.closest('a[href="/"]') || target.closest('a[href="/dashboard"]');
+        if (link) {
+          prefetchPageData('/');
+        }
+      }, true);
+    };
+    
+    setupPrefetching();
+    
     // Re-initialize after View Transitions
     document.addEventListener('astro:page-load', () => {
       cleanupKeyboardShortcuts();
       initKeyboardShortcuts();
+      setupPrefetching();
     });
   }
 </script>
@@ -278,16 +328,15 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     console.warn('[Toast Init] Could not load toast utility module:', error);
   });
 </script>
-<!-- Toast Handler -->
-<script is:inline src="/scripts/toast-handler.js"></script>
+<!-- Toast Handler - defer to improve initial load -->
+<script is:inline src="/scripts/toast-handler.js" defer></script>
 <!-- Note: toast utility is also imported in frontmatter to initialize window.toast -->
 
-<!-- Navigation History Script -->
-<script is:inline src="/scripts/navigation/history-tracker.js" data-astro-rerun></script>
+<!-- Navigation History Script - defer to improve initial load -->
+<script is:inline src="/scripts/navigation/history-tracker.js" data-astro-rerun defer></script>
 
-
-<!-- Hide unorganized thread if it's been closed -->
-<script is:inline src="/scripts/navigation/unorganized-handler.js"></script>
+<!-- Hide unorganized thread if it's been closed - defer to improve initial load -->
+<script is:inline src="/scripts/navigation/unorganized-handler.js" defer></script>
 
 <style>
   html,

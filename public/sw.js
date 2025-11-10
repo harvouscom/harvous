@@ -1,8 +1,9 @@
 // Service Worker for Harvous PWA
 // Improves initial load and re-engagement performance
 
-const CACHE_NAME = 'harvous-cache-v2';
+const CACHE_NAME = 'harvous-cache-v3';
 const OFFLINE_URL = '/';
+const NAV_API_CACHE = 'harvous-nav-api-v1';
 
 // Resources to pre-cache for faster initial load
 // Note: Removed '/dashboard' to prevent auth conflicts - authenticated routes should use network-first
@@ -38,7 +39,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.filter((name) => {
-          return name !== CACHE_NAME;
+          return name !== CACHE_NAME && name !== NAV_API_CACHE;
         }).map((name) => {
           return caches.delete(name);
         })
@@ -70,7 +71,47 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Handle API requests or mutations differently
+  // Handle navigation API with cache-first strategy for faster loads
+  if (url.pathname === '/api/navigation/data' && event.request.method === 'GET') {
+    event.respondWith(
+      caches.open(NAV_API_CACHE).then((cache) => {
+        return cache.match(event.request).then((cachedResponse) => {
+          // Return cached response immediately if available
+          // Cache is considered fresh for 30 seconds (handled by client-side cache)
+          if (cachedResponse) {
+            // Refresh in background
+            fetch(event.request)
+              .then((response) => {
+                if (response.ok) {
+                  cache.put(event.request, response.clone());
+                }
+              })
+              .catch(() => { /* Ignore errors */ });
+            return cachedResponse;
+          }
+          
+          // Fetch fresh data and cache it
+          return fetch(event.request)
+            .then((response) => {
+              if (response.ok) {
+                cache.put(event.request, response.clone());
+              }
+              return response;
+            })
+            .catch(() => {
+              // If network fails and we have stale cache, use it
+              return cachedResponse || new Response(JSON.stringify({ threads: [], spaces: [], inboxCount: 0 }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+              });
+            });
+        });
+      })
+    );
+    return;
+  }
+  
+  // Handle other API requests or mutations differently
   if (url.pathname.includes('/api/') || event.request.method !== 'GET') {
     return;
   }

@@ -829,6 +829,30 @@ if (!content) {
 
 </Layout>
 
+<!-- Initialize navigation cache with server-rendered data -->
+<script define:vars={{ threads, spaces, inboxCount }}>
+  import { initNavigationCache } from '@/scripts/navigation-cache-client';
+  import { initPrefetching } from '@/utils/prefetch';
+  
+  // Cache navigation data after page loads
+  if (typeof window !== 'undefined') {
+    // Initialize cache with server-rendered data
+    initNavigationCache(threads, spaces, inboxCount);
+    
+    // Prefetch dashboard data since we're on a thread/note/space page
+    initPrefetching(window.location.pathname);
+    
+    // Re-initialize after View Transitions
+    document.addEventListener('astro:page-load', () => {
+      // Try to get data from the new page, or use cached data
+      initNavigationCache(threads, spaces, inboxCount);
+      
+      // Prefetch dashboard if we're still on a thread/note/space page
+      initPrefetching(window.location.pathname);
+    });
+  }
+</script>
+
 <script type="text/javascript">
   console.log('🚀 Client-side script in [id].astro is running!'); // Added for debugging
   // Set the global save callback for CardFullEditable
