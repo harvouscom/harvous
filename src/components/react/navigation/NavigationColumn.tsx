@@ -45,9 +45,32 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   initials = "DJ",
   userColor = "paper"
 }) => {
+  const [profileData, setProfileData] = useState({
+    initials: initials,
+    userColor: userColor,
+  });
   const [showActiveThread, setShowActiveThread] = useState(false);
   const [currentItemId, setCurrentItemId] = useState('');
   const [updatedActiveThread, setUpdatedActiveThread] = useState<ActiveThread | null>(activeThread);
+
+  useEffect(() => {
+    const handleProfileUpdate = (event: CustomEvent) => {
+      const { firstName, lastName, selectedColor } = event.detail;
+      if (firstName && lastName && selectedColor) {
+        const newInitials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase();
+        setProfileData({
+          initials: newInitials,
+          userColor: selectedColor
+        });
+      }
+    };
+  
+    window.addEventListener('updateProfile', handleProfileUpdate as EventListener);
+  
+    return () => {
+      window.removeEventListener('updateProfile', handleProfileUpdate as EventListener);
+    };
+  }, []);
 
   // Sync updatedActiveThread when activeThread prop changes
   useEffect(() => {
@@ -235,7 +258,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             </a>
           ) : (
             <a href="/profile">
-              <Avatar initials={initials} color={userColor} />
+              <Avatar initials={profileData.initials} color={profileData.userColor} />
             </a>
           )}
         </div>
