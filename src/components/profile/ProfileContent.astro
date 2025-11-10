@@ -1,0 +1,139 @@
+---
+// This component contains the slotted content for the main profile CardStack.
+// It is kept separate to be used within an Astro component (CardStack)
+// while the interactive panels are handled by the main React component.
+
+interface Props {
+    joinDate: string;
+    userXP: number;
+}
+
+const { joinDate, userXP } = Astro.props;
+---
+
+<div class="flex flex-col justify-between h-full w-full">
+    <!-- Top Section -->
+    <div class="flex flex-col gap-4">
+    <!-- Top Info Cards -->
+    <div class="grid grid-cols-2 gap-4">
+        <!-- Joined Date Card -->
+        <div class="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3">
+        <svg class="w-5 h-5 fill-current text-[var(--color-deep-grey)]" viewBox="0 0 448 512">
+            <path d="M152 24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64H64C28.7 64 0 92.7 0 128v16 48V448c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V192 144 128c0-35.3-28.7-64-64-64H344V24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64H152V24zM48 192H400V448c0 8.8-7.2 16-16 16H64c-8.8 0-16-7.2-16-16V192z"/>
+        </svg>
+        <div>
+            <div class="text-lg font-bold text-[var(--color-deep-grey)]">{joinDate}</div>
+            <div class="text-sm text-[var(--color-pebble-grey)]">Joined</div>
+        </div>
+        </div>
+        
+        <!-- XP Card -->
+        <div class="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3">
+            <img src="/icons/bolt.svg" alt="XP" class="w-5 h-5 fill-current text-[var(--color-deep-grey)]" />
+            <div>
+                <div class="text-lg font-bold text-[var(--color-deep-grey)]">{userXP}</div>
+                <div class="text-sm text-[var(--color-pebble-grey)]">XP</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Options -->
+    <div class="flex flex-col gap-3">
+        <!-- These divs dispatch events that are handled by the React component -->
+        <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'editNameColor' } }))" class="w-full">
+            <div class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+                <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                    <div class="flex-1 min-w-0 overflow-hidden">
+                        <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">Edit Name & Color</span>
+                    </div>
+                    <div class="flex items-center justify-center relative shrink-0">
+                        <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                            <div class="flex items-center justify-center relative shrink-0">
+                                <div class="relative w-6 h-6">
+                                    <svg class="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512"><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'emailPassword' } }))" class="w-full">
+            <div class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+                <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                    <div class="flex-1 min-w-0 overflow-hidden">
+                        <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">Email & Password</span>
+                    </div>
+                    <div class="flex items-center justify-center relative shrink-0">
+                        <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                            <div class="flex items-center justify-center relative shrink-0">
+                                <div class="relative w-6 h-6">
+                                    <svg class="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512"><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'myChurch' } }))" class="w-full">
+            <div class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+                <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                    <div class="flex-1 min-w-0 overflow-hidden">
+                        <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">My Church</span>
+                    </div>
+                    <div class="flex items-center justify-center relative shrink-0">
+                        <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                            <div class="flex items-center justify-center relative shrink-0">
+                                <div class="relative w-6 h-6">
+                                    <svg class="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512"><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'myData' } }))" class="w-full">
+            <div class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+                <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                    <div class="flex-1 min-w-0 overflow-hidden">
+                        <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">My Data</span>
+                    </div>
+                    <div class="flex items-center justify-center relative shrink-0">
+                        <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                            <div class="flex items-center justify-center relative shrink-0">
+                                <div class="relative w-6 h-6">
+                                    <svg class="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512"><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Bottom Section - Get Support -->
+    <div class="mt-auto">
+        <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'getSupport' } }))" class="w-full">
+             <div class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+                <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                    <div class="flex-1 min-w-0 overflow-hidden">
+                        <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">Get Support</span>
+                    </div>
+                    <div class="flex items-center justify-center relative shrink-0">
+                        <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                            <div class="flex items-center justify-center relative shrink-0">
+                                <div class="relative w-6 h-6">
+                                    <svg class="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512"><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

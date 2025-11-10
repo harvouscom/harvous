@@ -112,22 +112,8 @@ export default function EmailPasswordPanel({
       console.log('📤 EmailPasswordPanel: Event dispatched:', event);
       window.dispatchEvent(event);
 
-      // Show success toast immediately (the actual API call will happen in the background)
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: 'Credentials updated successfully!',
-          type: 'success'
-        }
-      }));
-
-      // Close panel after a short delay
-      setTimeout(() => {
-        if (onClose) {
-          onClose();
-        } else {
-          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
-        }
-      }, 1000);
+      // Don't show toast here - let the ProfilePage component handle it after API response
+      // The toast will be shown by handleCredentialsUpdateRequest in ProfilePage.tsx
 
     } catch (error: any) {
       console.error('❌ EmailPasswordPanel: Error updating credentials:', error);
@@ -177,10 +163,10 @@ export default function EmailPasswordPanel({
   return (
     <div className="h-full flex flex-col min-h-0">
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
-        {/* Content area that expands to fill available space */}
-        <div className="flex-1 flex flex-col min-h-0">
+        {/* Content area - expands on mobile, fits content on desktop */}
+        <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
           {/* Single unified panel using CardStack structure */}
-          <div className="bg-white box-border flex flex-col min-h-0 flex-1 items-start justify-between overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full mb-3.5">
+          <div className={`bg-white box-border flex flex-col items-start ${inBottomSheet ? "min-h-0 flex-1 justify-between" : "justify-start"} overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full mb-3.5`}>
             {/* Header section with dynamic background */}
             <div 
               className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full rounded-t-3xl"
@@ -192,8 +178,8 @@ export default function EmailPasswordPanel({
             </div>
             
             {/* Content area */}
-            <div className="flex-1 box-border content-stretch flex flex-col items-start justify-start mb-[-24px] min-h-0 overflow-clip relative w-full">
-              <div className="flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full">
+            <div className={inBottomSheet ? "flex-1 box-border content-stretch flex flex-col items-start justify-start mb-[-24px] min-h-0 overflow-clip relative w-full" : "box-border content-stretch flex flex-col items-start justify-start mb-[-24px] overflow-clip relative w-full"}>
+              <div className={inBottomSheet ? "flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full" : "bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start overflow-x-clip p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full"}>
                 
                 {/* Current Email Display */}
                 <div className="w-full py-5">

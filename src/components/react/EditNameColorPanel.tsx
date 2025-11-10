@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
+import { toast } from '@/utils/toast';
 import SquareButton from './SquareButton';
 
 interface EditNameColorPanelProps {
@@ -22,6 +23,11 @@ export default function EditNameColorPanel({
     lastName: lastName,
     selectedColor: selectedColor
   });
+  const [initialData, setInitialData] = useState({
+    firstName: firstName,
+    lastName: lastName,
+    selectedColor: selectedColor
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -38,11 +44,13 @@ export default function EditNameColorPanel({
         console.log('🔄 EditNameColorPanel: Found sessionStorage data:', profileData);
         
         // Update form with sessionStorage data
-        setFormData({
+        const newData = {
           firstName: profileData.firstName || '',
           lastName: profileData.lastName || '',
           selectedColor: profileData.color || 'paper'
-        });
+        };
+        setFormData(newData);
+        setInitialData(newData);
         console.log('✅ EditNameColorPanel: Form updated with sessionStorage data');
         return; // Don't load from API if we have sessionStorage data
       } catch (error) {
@@ -65,11 +73,13 @@ export default function EditNameColorPanel({
       if (response.ok) {
         const data = await response.json();
         console.log('📥 EditNameColorPanel: Received data:', data);
-        setFormData({
+        const newData = {
           firstName: data.firstName || '',
           lastName: data.lastName || '',
           selectedColor: data.userColor || 'paper'
-        });
+        };
+        setFormData(newData);
+        setInitialData(newData);
         console.log('✅ EditNameColorPanel: Form data updated');
       } else {
         console.error('❌ EditNameColorPanel: API call failed:', response.status);
@@ -143,13 +153,33 @@ export default function EditNameColorPanel({
       if (response.ok) {
         console.log('✅ EditNameColorPanel: Profile updated successfully');
         
+        // Determine what changed for specific toast message
+        const firstNameChanged = formData.firstName.trim() !== initialData.firstName.trim();
+        const lastNameChanged = formData.lastName.trim() !== initialData.lastName.trim();
+        const nameChanged = firstNameChanged || lastNameChanged;
+        const colorChanged = formData.selectedColor !== initialData.selectedColor;
+        
+        let toastMessage = '';
+        if (nameChanged && colorChanged) {
+          toastMessage = 'Name and color updated successfully!';
+        } else if (nameChanged) {
+          toastMessage = 'Name updated successfully!';
+        } else if (colorChanged) {
+          toastMessage = 'Color updated successfully!';
+        } else {
+          // Nothing changed, but API succeeded (shouldn't happen, but handle gracefully)
+          toastMessage = 'Profile updated successfully!';
+        }
+        
         // Show success toast only after API success
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: 'Profile updated successfully!',
-            type: 'success'
-          }
-        }));
+        toast.success(toastMessage);
+        
+        // Update initial data to reflect the new state
+        setInitialData({
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          selectedColor: formData.selectedColor
+        });
 
         // Update all avatars on the page
         const newInitials = `${formData.firstName.charAt(0) || ''}${formData.lastName.charAt(0) || ''}`.toUpperCase();
@@ -192,22 +222,12 @@ export default function EditNameColorPanel({
         console.error('❌ EditNameColorPanel: Profile update failed:', data);
         
         // Show error toast
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: data.error || 'Failed to update profile. Please try again.',
-            type: 'error'
-          }
-        }));
+        toast.error(data.error || 'Failed to update profile. Please try again.');
       }
 
     } catch (error) {
       console.error('❌ EditNameColorPanel: Error updating profile:', error);
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: 'Error updating profile. Please try again.',
-          type: 'error'
-        }
-      }));
+      toast.error('Error updating profile. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -252,10 +272,10 @@ export default function EditNameColorPanel({
   return (
     <div className="h-full flex flex-col min-h-0">
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
-        {/* Content area that expands to fill available space */}
-        <div className="flex-1 flex flex-col min-h-0">
+        {/* Content area - expands on mobile, fits content on desktop */}
+        <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
           {/* Single unified panel using CardStack structure */}
-          <div className="bg-white box-border flex flex-col min-h-0 flex-1 items-start justify-between overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full mb-3.5">
+          <div className={`bg-white box-border flex flex-col items-start ${inBottomSheet ? "min-h-0 flex-1 justify-between" : "justify-start"} overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full mb-3.5`}>
             {/* Header section with dynamic background */}
             <div 
               className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full rounded-t-3xl"
@@ -270,8 +290,8 @@ export default function EditNameColorPanel({
             </div>
             
             {/* Content area */}
-            <div className="flex-1 box-border content-stretch flex flex-col items-start justify-start mb-[-24px] min-h-0 overflow-clip relative w-full">
-              <div className="flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full">
+            <div className={inBottomSheet ? "flex-1 box-border content-stretch flex flex-col items-start justify-start mb-[-24px] min-h-0 overflow-clip relative w-full" : "box-border content-stretch flex flex-col items-start justify-start mb-[-24px] overflow-clip relative w-full"}>
+              <div className={inBottomSheet ? "flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full" : "bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start overflow-x-clip p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full"}>
                 
                 {/* First Name Input */}
                 <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">

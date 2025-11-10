@@ -1,0 +1,8 @@
+---
+import ProfilePage from '@/components/react/profile/ProfilePage.tsx';
+import type { ProfilePageProps } from '@/components/react/profile/ProfilePage';
+
+export type Props = ProfilePageProps;
+---
+
+<ProfilePage client:load {...Astro.props} />

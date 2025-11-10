@@ -1,34 +1,25 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import CardStack from "@/components/CardStack.astro";
-import SquareButton from "@/components/SquareButton.astro";
-import SpaceButton from "@/components/SpaceButton.astro";
-import Avatar from "@/components/Avatar.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
-import Button from "@/components/Button.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 import { calculateTotalXP } from "@/utils/xp-system";
 import { getThreadGradientCSS } from "@/utils/colors";
-import FaBoltIcon from "@fortawesome/fontawesome-free/svgs/solid/bolt.svg";
-import EditNameColorPanel from "@/components/EditNameColorPanelReact.astro";
-import EmailPasswordPanel from "@/components/EmailPasswordPanelReact.astro";
-import MyDataPanel from "@/components/MyDataPanelReact.astro";
-import MyChurchPanel from "@/components/MyChurchPanelReact.astro";
-import GetSupportPanel from "@/components/GetSupportPanelReact.astro";
+import { getCachedUserData, type CachedUserData } from '@/utils/user-cache';
+import ProfilePageReact from "@/components/ProfilePageReact.astro";
+import ProfileContent from "@/components/profile/ProfileContent.astro";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
-const { userId, getToken } = auth;
+const { userId } = auth;
 
 if (!userId) {
   return Astro.redirect('/sign-in');
 }
 
-// Get cached user data (optimized - no API calls on every page load)
-import { getCachedUserData, type CachedUserData } from '@/utils/user-cache';
-
+// Get cached user data
 let userData: CachedUserData;
 try {
   userData = await getCachedUserData(userId);
@@ -47,7 +38,7 @@ try {
 
 const { firstName, lastName, email, initials, displayName, userColor, createdAt } = userData;
 
-// Format join date from createdAt (fallback to current date if not available)
+// Format join date
 let joinDate: string;
 if (createdAt) {
   const joinDateObj = new Date(createdAt);
@@ -55,19 +46,13 @@ if (createdAt) {
   const year = joinDateObj.getFullYear();
   joinDate = `${month} ${year}`;
 } else {
-  // Fallback to current date for backwards compatibility
   const currentDate = new Date();
   const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'short' });
   const currentYear = currentDate.getFullYear();
   joinDate = `${currentMonth} ${currentYear}`;
 }
 
-// User data is now cached and includes userColor, initials, displayName, and createdAt
-
-// Debug: Show what we got
-console.log('Final values:', { firstName, lastName, email, initials, displayName, userColor, joinDate, createdAt });
-
-// Fetch navigation data for mobile components and XP data
+// Fetch navigation data
 let spaces: any[] = [];
 let threads: any[] = [];
 let inboxCount: number = 0;
@@ -81,43 +66,20 @@ try {
     calculateTotalXP(userId)
   ]);
   
-  spaces = spacesData;
-  threads = threadsData;
-  inboxCount = inboxCountData;
-  userXP = xpData;
-  
-  // Ensure threads have backgroundGradient property for consistency
-  threads = threads.map(thread => ({
-    ...thread,
-    backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
-  }));
-  
-  // Ensure spaces have backgroundGradient property for consistency
-  spaces = spaces.map(space => ({
+  spaces = spacesData.map(space => ({
     ...space,
     backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue')
   }));
+  threads = threadsData.map(thread => ({
+    ...thread,
+    backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
+  }));
+  inboxCount = inboxCountData;
+  userXP = xpData;
+  
 } catch (error) {
   console.error("Error fetching navigation data:", error);
-  // Fallback to empty data
-  spaces = [];
-  threads = [];
-  inboxCount = 0;
-  userXP = 0;
 }
-
-// Mock data for profile - in a real app this would come from a database
-const userProfile = {
-  name: displayName,
-  initials: initials,
-  email: email,
-  joinDate: "January 2024",
-  stats: {
-    totalNotes: 42,
-    totalThreads: 8,
-    totalSpaces: 3
-  }
-};
 
 const contentType = "profile";
 const contentId = "profile";
@@ -149,110 +111,38 @@ const contentId = "profile";
           class="h-full"
           id="profile-cardstack"
         >
-      <!-- Profile Content -->
-      <div class="flex flex-col justify-between h-full w-full">
-        <!-- Top Section -->
-        <div class="flex flex-col gap-4">
-          <!-- Top Info Cards -->
-          <div class="grid grid-cols-2 gap-4">
-            <!-- Joined Date Card -->
-            <div class="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3">
-              <svg class="w-5 h-5 fill-current text-[var(--color-deep-grey)]" viewBox="0 0 448 512">
-                <path d="M152 24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64H64C28.7 64 0 92.7 0 128v16 48V448c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V192 144 128c0-35.3-28.7-64-64-64H344V24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64H152V24zM48 192H400V448c0 8.8-7.2 16-16 16H64c-8.8 0-16-7.2-16-16V192z"/>
-              </svg>
-              <div>
-                <div class="text-lg font-bold text-[var(--color-deep-grey)]">{joinDate}</div>
-                <div class="text-sm text-[var(--color-pebble-grey)]">Joined</div>
-              </div>
-            </div>
-            
-            <!-- XP Card -->
-            <div class="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3">
-              <FaBoltIcon class="w-5 h-5 fill-current text-[var(--color-deep-grey)]" />
-              <div>
-                <div class="text-lg font-bold text-[var(--color-deep-grey)]">{userXP}</div>
-                <div class="text-sm text-[var(--color-pebble-grey)]">XP</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Settings Options -->
-          <div class="flex flex-col gap-3">
-            <!-- Edit Name & Color -->
-            <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'editNameColor' } }))" class="w-full">
-              <SpaceButton 
-                text="Edit Name & Color"
-                state="WithArrow"
-                backgroundGradient="var(--color-gradient-gray)"
-                className="w-full"
-              />
-            </div>
-            
-            <!-- Email & Password -->
-            <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'emailPassword' } }))" class="w-full">
-              <SpaceButton 
-                text="Email & Password"
-                state="WithArrow"
-                backgroundGradient="var(--color-gradient-gray)"
-                className="w-full"
-              />
-            </div>
-            
-            <!-- My Church -->
-            <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'myChurch' } }))" class="w-full">
-              <SpaceButton 
-                text="My Church"
-                state="WithArrow"
-                backgroundGradient="var(--color-gradient-gray)"
-                className="w-full"
-              />
-            </div>
-            
-            <!-- My Data -->
-            <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'myData' } }))" class="w-full">
-              <SpaceButton 
-                text="My Data"
-                state="WithArrow"
-                backgroundGradient="var(--color-gradient-gray)"
-                className="w-full"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- Bottom Section - Get Support -->
-        <div class="mt-auto">
-          <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'getSupport' } }))" class="w-full">
-            <SpaceButton 
-              text="Get Support"
-              state="WithArrow"
-              backgroundGradient="var(--color-gradient-gray)"
-              className="w-full"
-            />
-          </div>
-        </div>
-      </div>
+          <ProfileContent joinDate={joinDate} userXP={userXP} />
         </CardStack>
       </div>
       
       <!-- Logout Button at Bottom -->
       <div class="mt-4 mb-safe">
-      <button
-        id="logout-button"
-        type="button"
-        onclick="handleLogout(event)"
-        data-outer-shadow
-        class="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] w-full shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
-        style="background-color: var(--color-stone-grey)"
-      >
-        <div class="relative shrink-0 transition-transform duration-125">
-          Logout
-        </div>
-        <div class="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
-      </button>
-    </div>
+        <button
+          id="logout-button"
+          type="button"
+          onclick="window.handleLogout && window.handleLogout(event)"
+          data-outer-shadow
+          class="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] w-full shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
+          style="background-color: var(--color-stone-grey)"
+        >
+          <div class="relative shrink-0 transition-transform duration-125">
+            Logout
+          </div>
+          <div class="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+        </button>
+      </div>
     </div>
   </div>
+
+  <ProfilePageReact
+    slot="additional"
+    displayName={displayName}
+    userColor={userColor}
+    joinDate={joinDate}
+    userXP={userXP}
+    firstName={firstName}
+    lastName={lastName}
+  />
 
   <!-- Mobile Navigation -->
   <div slot="mobile-navigation">
@@ -267,514 +157,22 @@ const contentId = "profile";
     />
   </div>
 
-  <!-- Additional Column for Panels -->
-  <div slot="additional" class="h-full additional-slot" id="profile-panels">
-    <!-- Default state: No panels shown -->
-    <div id="default-panel" class="flex flex-col items-left h-full justify-end">
-      <!-- No buttons for profile page -->
-    </div>
-    
-    <!-- Edit Name & Color Panel -->
-    <div id="editNameColor-panel" class="h-full" style="display: none;">
-      <EditNameColorPanel firstName={firstName} lastName={lastName} selectedColor={userColor as any} />
-    </div>
-    
-    <!-- Email & Password Panel -->
-    <div id="emailPassword-panel" class="h-full" style="display: none;">
-      <EmailPasswordPanel />
-    </div>
-    
-    <div id="myChurch-panel" class="h-full" style="display: none;">
-      <MyChurchPanel />
-    </div>
-    
-    <div id="myData-panel" class="h-full flex flex-col" style="display: none;">
-      <MyDataPanel />
-    </div>
-    
-    <div id="getSupport-panel" class="h-full" style="display: none;">
-      <GetSupportPanel />
-    </div>
-  </div>
-
   <!-- Mobile Additional -->
   <div slot="mobile-additional">
     <MobileAdditional contentType="profile" contentId={contentId} currentThread={null} currentSpace={null} />
   </div>
 </Layout>
-
-
 <script>
-  // Avatar manager is loaded globally via Layout.astro
-  
-  // ===== TYPE DEFINITIONS =====
-  interface ProfileUpdateDetail {
-    firstName: string;
-    lastName: string;
-    color: string;
-  }
-
-  interface CredentialsUpdateDetail {
-    newEmail?: string;
-    currentPassword?: string;
-    newPassword?: string;
-  }
-
-  interface ProfileUpdateEventDetail {
-    firstName: string;
-    lastName: string;
-    selectedColor?: string;
-    userColor?: string;
-  }
-
-  interface ProfileData {
-    firstName?: string;
-    lastName?: string;
-    color: string;
-    initials: string;
-    displayName?: string;
-    timestamp?: number;
-  }
-
-  interface ToastDetail {
-    message: string;
-    type: 'success' | 'error' | 'info' | 'warning';
-  }
-
-  interface OpenProfilePanelDetail {
-    panelName: string;
-  }
-
-  // ===== FUNCTION DEFINITIONS (SCRIPT SCOPE) =====
-  
-  // Setup profile event listeners
-  function setupProfileListeners() {
-    console.log('🔧 Setting up profile event listeners');
-    
-    // Remove any existing listeners to prevent duplicates
-    window.removeEventListener('updateProfileRequest', handleProfileUpdateRequest);
-    window.removeEventListener('updateCredentialsRequest', handleCredentialsUpdateRequest);
-    window.addEventListener('updateProfileRequest', handleProfileUpdateRequest);
-    window.addEventListener('updateCredentialsRequest', handleCredentialsUpdateRequest);
-    
-    console.log('✅ Profile event listeners attached');
-  }
-
-  async function handleProfileUpdateRequest(event: CustomEvent<ProfileUpdateDetail>) {
-    console.log('✅ profile.astro: updateProfileRequest event received:', event.detail);
-    
-    try {
-      const { firstName, lastName, color } = event.detail;
-      
-      console.log('📤 profile.astro: Making API call to /api/user/update-profile');
-      
-      const response = await fetch('/api/user/update-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          firstName,
-          lastName,
-          color
-        })
-      });
-
-      console.log('📥 profile.astro: API response status:', response.status);
-      const data = await response.json();
-      console.log('📥 profile.astro: API response data:', data);
-
-        if (response.ok) {
-          console.log('✅ profile.astro: Profile updated successfully');
-          
-          // Update UI immediately with new data
-          const newInitials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase();
-          console.log('🔄 profile.astro: Updating UI with new data:', { firstName, lastName, color, newInitials });
-          
-          // Update CardStack title
-          const cardStack = document.getElementById('profile-cardstack') as HTMLElement | null;
-          if (cardStack) {
-            const titleElement = cardStack.querySelector('p') as HTMLParagraphElement | null;
-            if (titleElement) {
-              titleElement.textContent = `${firstName} ${lastName.charAt(0)}`.trim();
-            }
-            
-            // Update header background color
-            const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement | null;
-            if (headerElement) {
-              headerElement.style.backgroundColor = `var(--color-${color})`;
-            }
-          }
-          
-          // Update all avatars using the global function
-          if (window.updateAllAvatars) {
-            const result = await window.updateAllAvatars(color, newInitials);
-            console.log(`✅ profile.astro: Updated ${result.updatedCount} avatars`);
-            
-            if (result.errors.length > 0) {
-              console.warn('Avatar update errors:', result.errors);
-            }
-          } else {
-            console.error('Avatar manager not available');
-          }
-          
-          // Show success toast
-          window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
-            detail: {
-              message: 'Profile saved successfully!',
-              type: 'success'
-            }
-          }));
-          
-          // Dispatch profile update event for other components
-          window.dispatchEvent(new CustomEvent<ProfileUpdateEventDetail>('updateProfile', {
-            detail: {
-              firstName,
-              lastName,
-              selectedColor: color
-            }
-          }));
-
-          // Store updated data in sessionStorage to persist across navigation
-          sessionStorage.setItem('userProfileData', JSON.stringify({
-            firstName,
-            lastName,
-            color,
-            initials: newInitials,
-            displayName: `${firstName} ${lastName.charAt(0)}`.trim(),
-            timestamp: Date.now()
-          }));
-
-          // Keep sessionStorage data for navigation persistence
-          // It will be cleared by the global sync script after 1 hour or on logout
-          
-          console.log('✅ profile.astro: Profile update complete - no page reload needed');
-        } else {
-        console.error('❌ profile.astro: Profile update failed:', data);
-        
-        // Show error toast
-        window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
-          detail: {
-            message: 'Failed to save profile. Please try again.',
-            type: 'error'
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('❌ profile.astro: Error updating profile:', error);
-      
-      // Show error toast
-      window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
-        detail: {
-          message: 'Error saving profile. Please try again.',
-          type: 'error'
+    // Make logout globally available for the Astro button to call into the React component
+    // This script can be removed once the logout button is also moved to React
+    document.addEventListener('DOMContentLoaded', () => {
+        if (window.profilePage && window.profilePage.handleLogout) {
+            window.handleLogout = window.profilePage.handleLogout;
         }
-      }));
-    }
-  }
-
-  async function handleCredentialsUpdateRequest(event: CustomEvent<CredentialsUpdateDetail>) {
-    console.log('✅ profile.astro: updateCredentialsRequest event received:', event.detail);
-    
-    try {
-      const { newEmail, currentPassword, newPassword } = event.detail;
-      
-      console.log('📤 profile.astro: Making API call to /api/user/update-credentials');
-      
-      const response = await fetch('/api/user/update-credentials', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          newEmail,
-          currentPassword,
-          newPassword
-        })
-      });
-
-      console.log('📥 profile.astro: API response status:', response.status);
-      const data = await response.json();
-      console.log('📥 profile.astro: API response data:', data);
-
-      if (response.ok) {
-        console.log('✅ profile.astro: Credentials updated successfully');
-        
-        // Show success toast
-        window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
-          detail: {
-            message: 'Credentials updated successfully!',
-            type: 'success'
-          }
-        }));
-        
-        console.log('✅ profile.astro: Credentials update complete - no page reload needed');
-      } else {
-        console.error('❌ profile.astro: Credentials update failed:', data);
-        
-        // Show error toast with specific error message
-        window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
-          detail: {
-            message: (data as { error?: string }).error || 'Failed to update credentials. Please try again.',
-            type: 'error'
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('❌ profile.astro: Error updating credentials:', error);
-      
-      // Show error toast
-      window.dispatchEvent(new CustomEvent<ToastDetail>('toast', {
-        detail: {
-          message: 'Error updating credentials. Please try again.',
-          type: 'error'
-        }
-      }));
-    }
-  }
-
-  // Logout handler function - now global for inline onclick
-  window.handleLogout = async function(event: Event) {
-    event.preventDefault();
-    console.log('Logout button clicked');
-    
-    try {
-      // Use Clerk's client-side signOut if available
-      if (window.Clerk && window.Clerk.signOut) {
-        console.log('Using Clerk signOut');
-        await window.Clerk.signOut();
-      } else {
-        console.log('Clerk not available, using direct redirect');
-      }
-      
-      // Clear sessionStorage data on logout
-      sessionStorage.removeItem('userProfileData');
-      console.log('Cleared profile data from sessionStorage');
-      
-      // Always redirect to sign-in page
-      console.log('Redirecting to sign-in page');
-      window.location.href = '/sign-in';
-    } catch (error) {
-      console.error('Logout failed:', error);
-      // Fallback: redirect to sign-in page anyway
-      console.log('Fallback: redirecting to sign-in page');
-      window.location.href = '/sign-in';
-    }
-  };
-
-  // Desktop panel switching functionality
-  function showPanel(panelName: string) {
-    // Hide all panels
-    document.querySelectorAll('#profile-panels [id$="-panel"]').forEach((panel) => {
-      (panel as HTMLElement).style.display = 'none';
     });
-    
-    // Hide default panel
-    const defaultPanel = document.getElementById('default-panel') as HTMLElement | null;
-    if (defaultPanel) {
-      defaultPanel.style.display = 'none';
-    }
-    
-    // Show the requested panel
-    const targetPanel = document.getElementById(`${panelName}-panel`) as HTMLElement | null;
-    if (targetPanel) {
-      // Use flex for panels that need it (like myData-panel)
-      if (panelName === 'myData') {
-        targetPanel.style.display = 'flex';
-      } else {
-        targetPanel.style.display = 'block';
-      }
-    }
-  }
-  
-  function hideAllPanels() {
-    document.querySelectorAll('#profile-panels [id$="-panel"]').forEach((panel) => {
-      (panel as HTMLElement).style.display = 'none';
-    });
-    const defaultPanel = document.getElementById('default-panel') as HTMLElement | null;
-    if (defaultPanel) {
-      defaultPanel.style.display = 'flex';
-    }
-  }
-
-  // Setup panel event listeners
-  function setupPanelListeners() {
-    window.addEventListener('openProfilePanel', (event: CustomEvent<OpenProfilePanelDetail>) => {
-      if (window.innerWidth >= 1160) {
-        const panelName = event.detail?.panelName;
-        if (panelName) {
-          showPanel(panelName);
+    document.addEventListener('astro:page-load', () => {
+        if (window.profilePage && window.profilePage.handleLogout) {
+            window.handleLogout = window.profilePage.handleLogout;
         }
-      }
     });
-    
-    window.addEventListener('closeProfilePanel', () => {
-      if (window.innerWidth >= 1160) {
-        hideAllPanels();
-      }
-    });
-  }
-
-  // Setup other event listeners
-  function setupOtherListeners() {
-    // Global function to close profile panels
-    window.closeProfilePanel = () => {
-      console.log('closeProfilePanel function called');
-      window.dispatchEvent(new CustomEvent('closeProfilePanel'));
-    };
-
-    // Listen for profile data requests from EditNameColorPanel
-    window.addEventListener('requestProfileData', async () => {
-      console.log('requestProfileData event received');
-      try {
-        // Fetch current user profile data
-        const response = await fetch('/api/user/get-profile');
-        if (response.ok) {
-          const userData = await response.json();
-          console.log('User profile data:', userData);
-          
-          // Only dispatch updateProfile if we have valid data
-          const typedUserData = userData as { firstName?: string; lastName?: string; userColor?: string };
-          if (typedUserData.firstName && typedUserData.lastName) {
-            window.dispatchEvent(new CustomEvent<ProfileUpdateEventDetail>('updateProfile', {
-              detail: {
-                firstName: typedUserData.firstName,
-                lastName: typedUserData.lastName,
-                userColor: typedUserData.userColor
-              }
-            }));
-          } else {
-            console.warn('Invalid user data received:', typedUserData);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching profile data:', error);
-      }
-    });
-    
-    // Listen for profile updates and update the CardStack header
-    // Remove any existing listeners to prevent duplicates
-    window.removeEventListener('updateProfile', handleProfileUpdate);
-    window.addEventListener('updateProfile', handleProfileUpdate);
-  }
-
-  async function handleProfileUpdate(event: CustomEvent<ProfileUpdateEventDetail>) {
-    console.log('updateProfile event received:', event);
-    const detail = event.detail;
-    console.log('Event detail:', detail);
-    if (detail) {
-      try {
-        console.log('Handling profile update UI changes...');
-        
-        // Update CardStack title
-        const cardStack = document.getElementById('profile-cardstack') as HTMLElement | null;
-        if (cardStack) {
-          const titleElement = cardStack.querySelector('p') as HTMLParagraphElement | null;
-          if (titleElement) {
-            titleElement.textContent = `${detail.firstName} ${detail.lastName.charAt(0)}`.trim();
-          }
-          
-          // Update header background color
-          const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement | null;
-          if (headerElement && detail.selectedColor) {
-            headerElement.style.backgroundColor = `var(--color-${detail.selectedColor})`;
-          }
-        }
-        
-        // Update all avatars using the global function
-        const newInitials = `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase();
-        console.log('Updating all avatars with:', { color: detail.selectedColor, initials: newInitials });
-        
-        // Use the global avatar manager function
-        if (window.updateAllAvatars) {
-          const result = await window.updateAllAvatars(detail.selectedColor, newInitials);
-          console.log(`Successfully updated ${result.updatedCount} avatars`);
-          
-          if (result.errors.length > 0) {
-            console.warn('Avatar update errors:', result.errors);
-          }
-        } else {
-          console.error('Avatar manager not available');
-        }
-        
-      } catch (error) {
-        console.error('Error handling profile update:', error);
-      }
-    }
-  }
-
-  // ===== INITIALIZATION FUNCTION =====
-  
-  function initializeProfilePage() {
-    console.log('🚀 Initializing profile page...');
-    
-    // Check for updated profile data in sessionStorage
-        const storedProfileData = sessionStorage.getItem('userProfileData');
-    if (storedProfileData) {
-      try {
-        const profileData = JSON.parse(storedProfileData) as ProfileData;
-        console.log('🔄 Found updated profile data in sessionStorage:', profileData);
-        
-        // Update the page with the stored data
-        updatePageWithProfileData(profileData);
-      } catch (error) {
-        console.error('Error parsing stored profile data:', error);
-        sessionStorage.removeItem('userProfileData');
-      }
-    }
-    
-    // Setup profile event listeners (MOST CRITICAL - DO FIRST)
-    setupProfileListeners();
-    
-    // Setup panel listeners
-    setupPanelListeners();
-    
-    // Setup other listeners
-    setupOtherListeners();
-    
-    console.log('✅ Profile page initialization complete');
-  }
-
-  function updatePageWithProfileData(profileData: ProfileData) {
-    console.log('🔄 Updating page with profile data:', profileData);
-    
-    // Update CardStack title
-    const cardStack = document.getElementById('profile-cardstack') as HTMLElement | null;
-    if (cardStack) {
-      const titleElement = cardStack.querySelector('p') as HTMLParagraphElement | null;
-      if (titleElement && profileData.displayName) {
-        titleElement.textContent = profileData.displayName;
-      }
-      
-      // Update header background color
-      const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement | null;
-      if (headerElement) {
-        headerElement.style.backgroundColor = `var(--color-${profileData.color})`;
-      }
-    }
-    
-    // Update all avatars using the global function
-    if (window.updateAllAvatars) {
-      window.updateAllAvatars(profileData.color, profileData.initials).then(result => {
-        console.log(`✅ Updated ${result.updatedCount} avatars with sessionStorage data`);
-      });
-    }
-  }
-
-  // ===== INITIALIZATION LOGIC =====
-  
-  // Check if DOM is already ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeProfilePage);
-  } else {
-    // DOM already loaded (View Transitions case) - initialize immediately
-    initializeProfilePage();
-  }
-
-  // Also handle View Transitions
-  document.addEventListener('astro:page-load', () => {
-    console.log('🔄 Re-initializing profile page after View Transitions');
-    initializeProfilePage();
-  });
-
 </script>
