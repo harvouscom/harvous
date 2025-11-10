@@ -48,6 +48,11 @@
     --shadow-small: inset 0px -3px 0px rgba(120, 118, 111, 0.2);
 }
 
+/* Active state for space buttons - ensures background is applied on initial load */
+.space-button-active {
+    background-color: var(--color-paper) !important;
+}
+
 /* Text selection styles - vibrant highlighter yellow */
 /* Using #FFEB3B (Yellow) at 40% opacity for realistic highlighter effect */
 /* Include webkit prefix for iOS Safari compatibility */

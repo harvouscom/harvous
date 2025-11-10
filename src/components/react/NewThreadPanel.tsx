@@ -255,7 +255,6 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
               history.push(threadItem);
               history.sort((a: any, b: any) => a.firstAccessed - b.firstAccessed);
               localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
-              console.log('NewThreadPanel: Updated localStorage with new thread');
             }
           } catch (error) {
             console.error('Error updating navigation history:', error);
@@ -277,8 +276,10 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
           if (result.thread && result.thread.id) {
             console.log('NewThreadPanel: Redirecting to thread:', result.thread.id);
             const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
-            // No delay needed since localStorage is already updated
-            window.location.href = redirectUrl;
+            // Add a small delay to ensure localStorage is updated before navigation
+            setTimeout(() => {
+              window.location.href = redirectUrl;
+            }, 50);
           }
         } else {
           let errorMessage = `Failed to create thread: ${response.status}`;
@@ -308,7 +309,6 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
       // Use setTimeout to ensure state update happens after any pending operations
       setTimeout(() => {
         setIsSubmitting(false);
-        console.log('NewThreadPanel: isSubmitting set to false');
       }, 0);
     }
   };

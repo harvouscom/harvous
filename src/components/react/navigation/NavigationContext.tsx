@@ -678,8 +678,16 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Get current history from localStorage (source of truth)
       const history = getNavigationHistory();
       
+      // Add a 30-second grace period for newly created threads
+      const thirtySecondsAgo = Date.now() - 30000;
+
       // Filter out deleted threads (keep spaces and thread_unorganized)
       const validatedHistory = history.filter((item: NavigationItem) => {
+        // Always keep items created in the last 30 seconds to prevent race conditions
+        if (item.firstAccessed > thirtySecondsAgo) {
+          return true;
+        }
+
         // Keep spaces (they're not validated against threads API)
         if (item.id.startsWith('space_')) return true;
         
@@ -699,9 +707,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (validatedHistory.length < history.length) {
         saveNavigationHistory(validatedHistory);
         
-        // Force page reload to update UI
-        // This is the most reliable way to ensure React components re-render with the new data
-        window.location.reload();
+        // Update React state directly and dispatch an event instead of forcing a reload
+        setNavigationHistory(validatedHistory);
+        window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
       }
     } catch (error) {
       // Silently fail - validation is not critical
@@ -746,7 +754,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Also run again after a short delay as a safety net
     const validationTimeoutId = setTimeout(() => {
       validateNavigationHistory();
-    }, 300);
+    }, 5000); // Increased delay to 5 seconds
     
     // Listen for View Transitions and page loads
     const handlePageLoad = () => {

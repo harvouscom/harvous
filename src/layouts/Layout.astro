@@ -52,12 +52,6 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     
-    <!-- Resource hints for faster external resource loading -->
-    <link rel="preconnect" href="https://unpkg.com" crossorigin />
-    <link rel="dns-prefetch" href="https://unpkg.com" />
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
-    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
-    
     <!-- Enable View Transitions for client-side navigation -->
     <ClientRouter />
     
@@ -77,10 +71,6 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
         contain: content;
         touch-action: manipulation;
       }
-      /* Prevent FOUT (Flash of Unstyled Text) */
-      body {
-        font-family: "Reddit Sans", system-ui, -apple-system, sans-serif;
-      }
     </style>
     
     <!-- Preload critical resources -->
@@ -92,28 +82,17 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <!-- Special tab interaction handler for first-touch optimization -->
     <script is:inline src="/scripts/tab-interaction-handler.js"></script>
     
-    <!-- Font Awesome CSS - lazy load since icons aren't critical for initial render -->
-    <script is:inline>
-      // Lazy load Font Awesome CSS to improve initial load
-      (function() {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
-        link.media = 'print';
-        link.onload = function() { this.media = 'all'; };
-        document.head.appendChild(link);
-      })();
-    </script>
+    <!-- Alpine.js CDN for SquareButton menu functionality -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
-    <!-- Non-critical scripts - defer to improve initial load -->
+    <!-- Font Awesome CSS for note type icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+    
     <!-- Avatar Manager Global Script -->
-    <script is:inline src="/scripts/avatar-manager-global.js" defer></script>
+    <script is:inline src="/scripts/avatar-manager-global.js"></script>
     
     <!-- Profile Data Sync Script -->
-    <script is:inline src="/scripts/profile-sync.js" defer></script>
-    
-    <!-- Tab functionality script -->
-    <script is:inline src="/scripts/tabs/tab-manager.js" defer></script>
+    <script is:inline src="/scripts/profile-sync.js"></script>
     
     <!-- Development environment fixes -->
     <script>
@@ -147,6 +126,9 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
       }
     </script>
     
+    <!-- Tab functionality script -->
+    <script is:inline src="/scripts/tabs/tab-manager.js"></script>
+    
 
   </head>
   <body
@@ -161,8 +143,6 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
           <div 
             slot="navigation" 
             class="h-full"
-            data-navigation-persist
-            transition:persist
             data-thread-id={currentThread?.id}
             data-thread-title={currentThread?.title}
             data-thread-color={currentThread?.color}
@@ -212,7 +192,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
                 currentSpace={currentSpace}
                 currentNote={currentNote}
                 contentType={contentType}
-                client:idle
+                client:load
               />
             </div>
           </slot>
@@ -251,62 +231,40 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
 </html>
 
 
-<!-- Service Worker Registration for PWA - defer to not block initial render -->
-<script is:inline src="/scripts/service-worker-manager.js" defer></script>
+<!-- Service Worker Registration for PWA -->
+<script is:inline src="/scripts/service-worker-manager.js"></script>
+
+<!-- Global Alpine.js re-initialization for View Transitions -->
+<script>
+  // Simple Alpine.js re-initialization after View Transitions
+  document.addEventListener('astro:page-load', () => {
+    if ((window as any).Alpine) {
+      (window as any).Alpine.initTree(document.body);
+    }
+  });
+</script>
 
 <!-- Keyboard Shortcuts Initialization -->
 <script>
   // Expose Astro's navigate function for keyboard shortcuts
-  import { navigate } from 'astro:transitions/client';
   if (typeof window !== 'undefined') {
-    window.astroNavigate = navigate;
-  }
-  
-  // Initialize keyboard shortcuts
-  import { initKeyboardShortcuts, cleanupKeyboardShortcuts } from '@/utils/keyboard-shortcuts';
-  
-  // Prefetch utilities
-  import { prefetchPageData } from '@/utils/prefetch';
-  
-  // Initialize on page load
-  if (typeof window !== 'undefined') {
-    // Clean up any existing shortcuts first
-    cleanupKeyboardShortcuts();
-    // Initialize new shortcuts
-    initKeyboardShortcuts();
+    import('astro:transitions/client').then(({ navigate }) => {
+      window.astroNavigate = navigate;
+    });
     
-    // Prefetch on navigation link hover/click
-    const setupPrefetching = () => {
-      // Prefetch dashboard when hovering over links to dashboard
-      document.addEventListener('mouseenter', (e) => {
-        const target = e.target;
-        if (target && target instanceof HTMLElement) {
-          const link = target.closest('a[href="/"]') || target.closest('a[href="/dashboard"]');
-          if (link) {
-            prefetchPageData('/');
-          }
-        }
-      }, true);
-      
-      // Prefetch on click (for faster navigation)
-      document.addEventListener('click', (e) => {
-        const target = e.target;
-        if (target && target instanceof HTMLElement) {
-          const link = target.closest('a[href="/"]') || target.closest('a[href="/dashboard"]');
-          if (link) {
-            prefetchPageData('/');
-          }
-        }
-      }, true);
-    };
-    
-    setupPrefetching();
-    
-    // Re-initialize after View Transitions
-    document.addEventListener('astro:page-load', () => {
+    // Initialize keyboard shortcuts
+    import('@/utils/keyboard-shortcuts').then(({ initKeyboardShortcuts, cleanupKeyboardShortcuts }) => {
+      // Initialize on page load
+      // Clean up any existing shortcuts first
       cleanupKeyboardShortcuts();
+      // Initialize new shortcuts
       initKeyboardShortcuts();
-      setupPrefetching();
+      
+      // Re-initialize after View Transitions
+      document.addEventListener('astro:page-load', () => {
+        cleanupKeyboardShortcuts();
+        initKeyboardShortcuts();
+      });
     });
   }
 </script>
@@ -321,15 +279,16 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     console.warn('[Toast Init] Could not load toast utility module:', error);
   });
 </script>
-<!-- Toast Handler - defer to improve initial load -->
-<script is:inline src="/scripts/toast-handler.js" defer></script>
+<!-- Toast Handler -->
+<script is:inline src="/scripts/toast-handler.js"></script>
 <!-- Note: toast utility is also imported in frontmatter to initialize window.toast -->
 
-<!-- Navigation History Script - defer to improve initial load -->
-<script is:inline src="/scripts/navigation/history-tracker.js" data-astro-rerun defer></script>
+<!-- Navigation History Script -->
+<script is:inline src="/scripts/navigation/history-tracker.js" data-astro-rerun></script>
 
-<!-- Hide unorganized thread if it's been closed - defer to improve initial load -->
-<script is:inline src="/scripts/navigation/unorganized-handler.js" defer></script>
+
+<!-- Hide unorganized thread if it's been closed -->
+<script is:inline src="/scripts/navigation/unorganized-handler.js"></script>
 
 <style>
   html,
@@ -482,7 +441,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     display: none !important;
   }
   
-  /* Override any transition effects */
+  /* Override any Alpine.js transition effects */
   .new-note-panel-container[x-transition] {
     transition: none !important;
   }

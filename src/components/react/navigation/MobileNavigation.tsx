@@ -603,7 +603,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       
       {/* Mobile navigation uses touch-based interaction, not hover */}
       {/* Badge count and close icon are conditionally rendered based on state */}
-      <style jsx>{`
+      <style>{`
         /* Ensure badge count area is properly sized and positioned */
         .badge-count {
           position: relative;

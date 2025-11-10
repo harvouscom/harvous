@@ -94,10 +94,25 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     }
   };
 
-  const buttonStyle = isActive && !disabled ? { 
-    backgroundImage: backgroundGradient?.includes('gradient') ? backgroundGradient : undefined,
-    backgroundColor: backgroundGradient?.includes('gradient') ? undefined : backgroundGradient
-  } : {};
+  // Compute button style - must be consistent for SSR and client to avoid hydration mismatch
+  // For CSS variables, we can safely set them on both server and client since they're just strings
+  const buttonStyle = React.useMemo(() => {
+    if (!isActive || disabled) {
+      return {};
+    }
+    
+    // Directly apply CSS variables for consistent rendering between server and client
+    // This avoids hydration mismatches
+    const style: React.CSSProperties = {};
+    if (backgroundGradient) {
+      if (backgroundGradient.includes('gradient')) {
+        style.backgroundImage = backgroundGradient;
+      } else {
+        style.backgroundColor = backgroundGradient;
+      }
+    }
+    return style;
+  }, [isActive, disabled, backgroundGradient]);
   
   const cursorStyle = disabled ? 'cursor-not-allowed' : 'cursor-pointer';
   const textStyle = disabled ? 'opacity-50' : '';
@@ -135,9 +150,11 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   }
 
   if (state === "WithCount") {
+    // Add active class for CSS-based styling to avoid hydration issues
+    const activeClass = isActive && !disabled && backgroundGradient ? 'space-button-active' : '';
     return (
       <button 
-        className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${activeClass} ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
