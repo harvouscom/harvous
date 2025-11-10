@@ -249,15 +249,15 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           <div className="flex-1">
             <SpaceButton text="New Space" className="w-full" disabled={true} />
           </div>
-          <a href="/find">
+          <a href="/find" aria-label="Search">
             <SquareButton variant="Find" />
           </a>
           {showProfile ? (
-            <a href="/">
+            <a href="/" aria-label="Go to dashboard">
               <SquareButton variant="Back" />
             </a>
           ) : (
-            <a href="/profile">
+            <a href="/profile" aria-label="Go to profile">
               <Avatar initials={profileData.initials} color={profileData.userColor} />
             </a>
           )}

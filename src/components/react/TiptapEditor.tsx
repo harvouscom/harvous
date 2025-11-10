@@ -87,6 +87,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       StarterKit.configure({
         // Exclude default Heading extension so we can add custom one with restricted levels
         heading: false,
+        // Exclude underline from StarterKit to avoid duplicate extension warning
+        underline: false,
       }),
       Heading.configure({
         levels: [2, 3], // Only allow H2, H3 (H1 is reserved for note titles)
@@ -124,7 +126,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none [&_ol]:list-decimal [&_ul]:list-disc',
         style: 'font-family: var(--font-sans); font-size: 16px; line-height: 1.6; color: var(--color-deep-grey); min-height: 200px;',
-        tabindex: tabindex || 0,
+        tabindex: (tabindex || 0).toString(),
       },
       transformPastedHTML: (html: string) => {
         // Transform heading levels when pasting:
@@ -183,7 +185,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           
           return tempDiv.innerHTML;
         } catch (error) {
-          console.error('Error transforming pasted HTML:', error);
           return html; // Return original HTML on error
         }
       },
@@ -422,11 +423,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           }
                       }));
                       
-                    } else {
-                      console.error('Error adding existing note to thread, falling back to new note creation.');
                     }
                   } catch (addError) {
-                    console.error('Exception when adding existing note to thread:', addError);
+                    // Error adding existing note to thread, falling back to new note creation
                   }
                   
                   // Clear selection and close
@@ -436,7 +435,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 }
               }
             } catch (checkError) {
-              console.error('Exception when checking for existing scripture note:', checkError);
+              // Error checking for existing scripture note
             }
 
             // No existing note found - proceed with creating new note
@@ -468,7 +467,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 localStorage.setItem('newNoteContent', extractedContent); // Fallback to original content
               }
             } catch (verseError) {
-              console.error('Error fetching verse in selection:', verseError);
               // Still mark as scripture even if verse fetch fails
               localStorage.setItem('newNoteType', 'scripture');
               localStorage.setItem('newNoteScriptureReference', detection.primaryReference);
@@ -490,7 +488,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         localStorage.setItem('newNoteContent', extractedContent);
       }
     } catch (error) {
-      console.error('Error detecting scripture in selection:', error);
       // Continue anyway - don't block note creation
       localStorage.setItem('newNoteContent', extractedContent);
     }
@@ -820,7 +817,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           <BubbleMenu
             editor={editor}
             shouldShow={({ editor }) => isValidSelection(editor)}
-            tippyOptions={{ duration: 100, zIndex: 99999 }}
           >
             <div style={{ zIndex: 99999, pointerEvents: 'auto', display: 'inline-block' }}>
               <ButtonSmall
@@ -849,7 +845,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           <ToolbarButton
             onClick={() => {
               if (!editor) {
-                console.error('Editor not available');
                 return;
               }
               editor.chain().focus().toggleBold().run();
@@ -863,7 +858,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           <ToolbarButton
             onClick={() => {
               if (!editor) {
-                console.error('Editor not available');
                 return;
               }
               editor.chain().focus().toggleItalic().run();
@@ -877,7 +871,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           <ToolbarButton
             onClick={() => {
               if (!editor) {
-                console.error('Editor not available');
                 return;
               }
               editor.chain().focus().toggleUnderline().run();
@@ -891,7 +884,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           <ToolbarButton
             onClick={() => {
               if (!editor) {
-                console.error('Editor not available');
                 return;
               }
               handleHeadingCycle();
@@ -905,7 +897,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           <ToolbarButton
             onClick={() => {
               if (!editor) {
-                console.error('Editor not available');
                 return;
               }
               editor.chain().focus().toggleOrderedList().run();
@@ -919,7 +910,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           <ToolbarButton
             onClick={() => {
               if (!editor) {
-                console.error('Editor not available');
                 return;
               }
               editor.chain().focus().toggleBulletList().run();
@@ -933,7 +923,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           <ToolbarButton
             onClick={() => {
               if (!editor) {
-                console.error('Editor not available');
                 return;
               }
               editor.chain().focus().clearNodes().unsetAllMarks().run();

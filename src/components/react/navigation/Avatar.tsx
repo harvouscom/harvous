@@ -21,7 +21,7 @@ const Avatar: React.FC<AvatarProps> = ({
         <p className="leading-[normal] whitespace-pre">{initials}</p>
       </div>
       
-      <style jsx>{`
+      <style>{`
         .avatar-button {
           will-change: transform, box-shadow;
           transition: box-shadow 0.125s ease-in-out;

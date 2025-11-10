@@ -514,10 +514,8 @@ const contentId = "new-space";
 </Layout>
 
 <script>
-  // Import Astro's navigate function for View Transitions compatibility
-  import { navigate } from 'astro:transitions/client';
-  (window as any).astroNavigate = navigate;
-
+  // Note: astroNavigate is set up globally via KeyboardShortcutsInit component in Layout.astro
+  
   // Global search function to avoid Alpine.js scope issues
   (window as any).newSpacePanelSearch = async function(query: string) {
     if (!query || query.trim().length < 2) {

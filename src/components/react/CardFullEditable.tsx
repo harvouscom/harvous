@@ -62,26 +62,6 @@ export default function CardFullEditable({
   // Focus handling is now done directly in startEditing
   // This useEffect is kept for backward compatibility but focusTarget is no longer used
 
-  // Debug: Measure actual heights when switching modes
-  useEffect(() => {
-    if (isEditing) {
-      // Measure toolbar and buttons heights
-      const toolbar = document.querySelector('.tiptap-toolbar');
-      const buttonsContainer = document.querySelector('.card-full-editable .flex.justify-end.gap-2.mt-4');
-      if (toolbar && buttonsContainer) {
-        const toolbarHeight = toolbar.getBoundingClientRect().height;
-        const toolbarMarginTop = parseInt(window.getComputedStyle(toolbar).marginTop);
-        const buttonsHeight = buttonsContainer.getBoundingClientRect().height;
-        const buttonsMarginTop = parseInt(window.getComputedStyle(buttonsContainer).marginTop);
-        console.log('Edit mode heights:', {
-          toolbar: { height: toolbarHeight, marginTop: toolbarMarginTop, total: toolbarHeight + toolbarMarginTop },
-          buttons: { height: buttonsHeight, marginTop: buttonsMarginTop, total: buttonsHeight + buttonsMarginTop },
-          combined: toolbarHeight + toolbarMarginTop + buttonsHeight + buttonsMarginTop
-        });
-      }
-    }
-  }, [isEditing]);
-
   // Listen for keyboard shortcut to start editing
   useEffect(() => {
     const handleEditNote = () => {
@@ -107,6 +87,37 @@ export default function CardFullEditable({
       window.removeEventListener('editNote', handleEditNote);
     };
   }, [isEditing, isEditable, displayTitle, displayContent]);
+
+  // Add this useEffect to handle virtual keyboard
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) return;
+
+    const toolbar = document.querySelector('.tiptap-toolbar') as HTMLElement;
+    if (!toolbar) return;
+
+    const handleResize = () => {
+      // When the virtual keyboard is shown, the visual viewport height decreases.
+      const keyboardHeight = window.innerHeight - visualViewport.height;
+      if (keyboardHeight > 150) { // Threshold to detect keyboard
+        toolbar.style.position = 'fixed';
+        toolbar.style.bottom = `${keyboardHeight}px`;
+        toolbar.style.width = 'calc(100% - 2rem)'; // Adjust width to match container padding
+        toolbar.style.left = '1rem';
+        toolbar.style.right = '1rem';
+        toolbar.style.zIndex = '50';
+      } else {
+        toolbar.style.position = 'relative';
+        toolbar.style.bottom = 'auto';
+        toolbar.style.width = 'auto';
+        toolbar.style.left = 'auto';
+        toolbar.style.right = 'auto';
+      }
+    };
+
+    visualViewport.addEventListener('resize', handleResize);
+    return () => visualViewport.removeEventListener('resize', handleResize);
+  }, [isEditing]);
 
   // Listen for hyperlink creation event
   useEffect(() => {
@@ -191,7 +202,6 @@ export default function CardFullEditable({
     // Save current scroll position
     if (contentDisplayRef.current) {
       const currentScroll = contentDisplayRef.current.scrollTop;
-      console.log('Saving scroll position:', currentScroll);
       setScrollPosition(currentScroll);
     }
     
@@ -269,7 +279,6 @@ export default function CardFullEditable({
       setIsEditing(false);
       setHasChanges(false);
     } catch (error) {
-      console.error('Error saving note:', error);
       // Show error toast
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {

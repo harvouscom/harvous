@@ -19,11 +19,18 @@ export default function ActionButton({
   const hasAbsolute = className.match(/\babsolute\b/);
   const positioningClass = hasAbsolute ? '' : 'relative';
   
+  const getAriaLabel = () => {
+    if (variant === "Add") return "Add";
+    if (variant === "Close") return "Close";
+    return props['aria-label'] || undefined;
+  };
+
   return (
     <button
       type="button"
       className={`btn-animate-squish group ${positioningClass} rounded-3xl ${defaultSize} cursor-pointer ${className}`}
       style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+      aria-label={getAriaLabel()}
       {...props}
     >
       <div className="box-border content-stretch flex flex-row gap-3 items-center justify-center relative rounded-3xl size-full">

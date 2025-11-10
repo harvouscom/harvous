@@ -528,6 +528,7 @@ export default function NoteDetailsPanel({
                             <a 
                               href={`/${thread.id}`}
                               className="block transition-transform duration-200 hover:scale-[1.002]"
+                              aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
                             >
                               <CardThread thread={thread} />
                             </a>

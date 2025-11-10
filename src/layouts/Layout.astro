@@ -14,6 +14,7 @@ import NoteDetailsPanel from "@/components/react/NoteDetailsPanel.tsx";
 import EditThreadPanel from "@/components/react/EditThreadPanel.tsx";
 import DesktopPanelManager from "@/components/react/DesktopPanelManager.tsx";
 import BottomSheetReact from "@/components/BottomSheetReact.astro";
+import KeyboardShortcutsInit from "@/components/react/KeyboardShortcutsInit.tsx";
 import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 // Initialize toast utility globally
@@ -40,7 +41,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
 <html lang="en" class="bg-[var(--color-light-paper)]">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#F3F2EC" />
@@ -100,9 +101,9 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
       if (import.meta.env.DEV) {
         // Override module script loading to handle MIME type issues
         const originalCreateElement = document.createElement;
-        document.createElement = function(tagName) {
+        document.createElement = function(tagName: string) {
           const element = originalCreateElement.call(this, tagName);
-          if (tagName === 'script' && element.type === 'module') {
+          if (tagName === 'script' && (element as HTMLScriptElement).type === 'module') {
             element.addEventListener('error', function(e) {
               // Don't prevent the error, but log it as a warning
               console.warn('Module script loading issue (development):', e);
@@ -135,6 +136,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     class={`font-sans bg-[var(--color-light-paper)] ${classNames}`}
   >
     <ToastProvider client:load />
+    <KeyboardShortcutsInit client:load />
 
     <div class="h-[100svh] p-3 min-[1160px]:p-6" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->
@@ -244,40 +246,17 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
   });
 </script>
 
-<!-- Keyboard Shortcuts Initialization -->
-<script>
-  // Expose Astro's navigate function for keyboard shortcuts
-  if (typeof window !== 'undefined') {
-    import('astro:transitions/client').then(({ navigate }) => {
-      window.astroNavigate = navigate;
-    });
-    
-    // Initialize keyboard shortcuts
-    import('@/utils/keyboard-shortcuts').then(({ initKeyboardShortcuts, cleanupKeyboardShortcuts }) => {
-      // Initialize on page load
-      // Clean up any existing shortcuts first
-      cleanupKeyboardShortcuts();
-      // Initialize new shortcuts
-      initKeyboardShortcuts();
-      
-      // Re-initialize after View Transitions
-      document.addEventListener('astro:page-load', () => {
-        cleanupKeyboardShortcuts();
-        initKeyboardShortcuts();
-      });
-    });
-  }
-</script>
+<!-- Astro Navigation Setup -->
+<!-- Note: Navigation is now set up via KeyboardShortcutsInit component -->
 
 <!-- Toast Initialization (ensure window.toast is available on client) -->
+<!-- Note: toast utility is already imported in frontmatter, this is just a safety check -->
 <script>
-  // Initialize toast utility on client side
-  // Import the toast utility to ensure window.toast is set
-  import('@/utils/toast').then(() => {
-    console.log('[Toast Init] Toast utility module loaded, window.toast should be available');
-  }).catch((error) => {
-    console.warn('[Toast Init] Could not load toast utility module:', error);
-  });
+  // Toast utility is already initialized via frontmatter import
+  // This script just confirms it's available
+  if (typeof window !== 'undefined' && !(window as any).toast) {
+    console.warn('[Toast Init] window.toast not available - toast utility may not have loaded');
+  }
 </script>
 <!-- Toast Handler -->
 <script is:inline src="/scripts/toast-handler.js"></script>

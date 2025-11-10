@@ -289,6 +289,14 @@ export default function SquareButton({
         style={getButtonStyle()}
         onClick={handleButtonClick}
         data-outer-shadow={(variant === "Close" || (variant === "Add" && withMenu)) ? "" : undefined}
+        aria-label={
+          variant === "Add" ? "Add new item" :
+          variant === "Close" ? "Close" :
+          variant === "More" ? "More options" :
+          variant === "Back" ? "Go back" :
+          variant === "Find" ? "Search" :
+          "Button"
+        }
       >
         <div className="flex flex-row items-center justify-center relative w-full h-full">
           <div className={`box-border flex flex-row gap-3 items-center justify-center px-4 relative w-full h-full ${

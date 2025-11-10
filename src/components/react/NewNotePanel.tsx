@@ -71,7 +71,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           editor.commands.setTextSelection(0);
         } catch (e) {
           // If setTextSelection fails, just focus (cursor will be at start by default)
-          console.log('Could not set text selection, focusing only');
         }
       }
     }, 50);
@@ -390,7 +389,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                 }
               }
             } catch (verseError) {
-              console.error('Error fetching verse:', verseError);
               // Silently fail - don't interrupt UX
             } finally {
               setIsFetchingVerse(false);
@@ -398,7 +396,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           }
         }
       } catch (error) {
-        console.error('Error detecting scripture:', error);
         // Silently fail - don't interrupt UX
       }
     }, 1000); // 1 second debounce
@@ -431,7 +428,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           setContent(verseData.text);
         }
       } catch (error) {
-        console.error('Error fetching verse with new version:', error);
+        // Error fetching verse with new version
       } finally {
         setIsFetchingVerse(false);
       }
@@ -508,7 +505,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         }
       }
     } catch (error) {
-      console.error('Error loading threads:', error);
+      // Error loading threads
     }
   };
 
@@ -524,7 +521,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         setNextNoteId(`#${data.formattedId}`);
       }
     } catch (error) {
-      console.error('Error loading next note ID:', error);
+      // Error loading next note ID
     }
   };
 
@@ -632,6 +629,37 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread);
     };
   }, []); // Empty deps - loadThreads is stable
+
+  // Add this useEffect to handle virtual keyboard
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) return;
+
+    const toolbar = document.querySelector('.tiptap-toolbar') as HTMLElement;
+    if (!toolbar) return;
+
+    const handleResize = () => {
+      // When the virtual keyboard is shown, the visual viewport height decreases.
+      const keyboardHeight = window.innerHeight - visualViewport.height;
+      if (keyboardHeight > 150) { // Threshold to detect keyboard
+        toolbar.style.position = 'fixed';
+        toolbar.style.bottom = `${keyboardHeight}px`;
+        toolbar.style.width = 'calc(100% - 2rem)'; // Adjust width to match container padding
+        toolbar.style.left = '1rem';
+        toolbar.style.right = '1rem';
+        toolbar.style.zIndex = '50';
+      } else {
+        toolbar.style.position = 'relative';
+        toolbar.style.bottom = 'auto';
+        toolbar.style.width = 'auto';
+        toolbar.style.left = 'auto';
+        toolbar.style.right = 'auto';
+      }
+    };
+
+    visualViewport.addEventListener('resize', handleResize);
+    return () => visualViewport.removeEventListener('resize', handleResize);
+  }, []);
 
   // Load Font Awesome for icons
   useEffect(() => {
@@ -876,7 +904,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                 });
               }
             } catch (error) {
-              console.error('NewNotePanel: Error writing to localStorage:', error);
               // Fallback to just calling addToNavigationHistory
               if (addToNavigationHistory) {
                 addToNavigationHistory({
@@ -952,7 +979,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                 });
               }
             } catch (error) {
-              console.error('NewNotePanel: Error writing unorganized thread to localStorage:', error);
               // Fallback to just calling addToNavigationHistory
               if (addToNavigationHistory) {
                 addToNavigationHistory({
@@ -963,9 +989,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                 });
               }
             }
-          } else {
-            // Thread not found in threadOptions - this shouldn't happen, but log it
-            console.warn('NewNotePanel: Thread not found in threadOptions:', actualThreadId);
           }
         }
         
@@ -992,7 +1015,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
               }
               return false;
             } catch (error) {
-              console.error('Error verifying thread in storage:', error);
               return false;
             }
           };
@@ -1006,7 +1028,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           }
 
           if (!verifyThreadInStorage()) {
-            console.warn('NewNotePanel: Thread not found in localStorage after adding, but proceeding with navigation');
+            // Thread not found in localStorage after adding, but proceeding with navigation
           }
         }
 
@@ -1073,8 +1095,6 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         setIsSubmitting(false);
       }
     } catch (error: any) {
-      console.error('Error creating note:', error);
-      
       if (window.toast) {
         window.toast.error(`Error creating note: ${error?.message || 'Please try again.'}`);
       } else {
@@ -1187,7 +1207,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         }
       }
     } catch (error) {
-      console.error('Error saving note:', error);
+      // Error saving note
     }
     
     // Close the panel regardless of save success
