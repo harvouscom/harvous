@@ -1,9 +1,10 @@
 # Cursor Rules for Harvous Project
 
 ## Documentation Structure
-- **README.md**: Project overview, setup, and quick start guide
-- **ARCHITECTURE.md**: Core functionality, data structures, and implementation details
-- **TYPESCRIPT_INLINE_SCRIPTS.md**: Critical guide for TypeScript syntax in inline scripts
+- **README.md**: Project overview, setup, and quick start guide (stays in root)
+- **All other .md files**: Must be in `/docs/` folder
+- **ARCHITECTURE.md**: Core functionality, data structures, and implementation details (in `/docs/`)
+- **TYPESCRIPT_INLINE_SCRIPTS.md**: Critical guide for TypeScript syntax in inline scripts (in `/docs/`)
 - **ALWAYS consult ARCHITECTURE.md** when working on:
   - Content organization (Spaces/Threads/Notes)
   - Note ID system and UserMetadata
