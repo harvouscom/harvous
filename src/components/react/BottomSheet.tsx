@@ -113,8 +113,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     const sheetContent = document.querySelector('.bottom-sheet-content') as HTMLElement;
     
     if (sheetContent) {
-      sheetContent.style.transform = 'translateY(100%)';
-      sheetContent.style.transition = 'transform 0.2s cubic-bezier(0.4, 0, 1, 1)';
+      sheetContent.classList.remove('bottom-sheet-slide-up');
+      sheetContent.classList.add('bottom-sheet-slide-down');
     }
     
     // Close after animation completes
@@ -123,7 +123,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       if (onClose && typeof onClose === 'function') {
         onClose();
       }
-    }, 200);
+    }, 250);
   }, [onClose]);
 
   // Set up event listeners
@@ -202,7 +202,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         const sheetContent = document.querySelector('.bottom-sheet-content') as HTMLElement;
         
         if (sheetContent) {
-          sheetContent.style.transform = 'translateY(0)';
+          sheetContent.classList.remove('bottom-sheet-slide-down');
+          sheetContent.classList.add('bottom-sheet-slide-up');
         }
       }, 10);
       return () => clearTimeout(timer);
@@ -233,8 +234,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         style={{ 
           paddingBottom: '24px',
           paddingTop: '20px',
-          transform: 'translateY(100%)',
-          transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          transform: 'translateY(100%)'
         }}
       >
         {/* Content */}

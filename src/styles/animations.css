@@ -140,4 +140,152 @@
 .stagger-2 { animation-delay: 0.1s !important; }
 .stagger-3 { animation-delay: 0.15s !important; }
 .stagger-4 { animation-delay: 0.2s !important; }
-.stagger-5 { animation-delay: 0.25s !important; } 
+.stagger-5 { animation-delay: 0.25s !important; }
+
+/* Menu Animations */
+@keyframes menuSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes menuSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+.menu-enter {
+  animation: menuSlideIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.menu-exit {
+  animation: menuSlideOut 0.25s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* Modal Animations */
+@keyframes modalOverlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalContentScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes modalContentScaleOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.modal-overlay-enter {
+  animation: modalOverlayFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.modal-content-enter {
+  animation: modalContentScaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.modal-content-exit {
+  animation: modalContentScaleOut 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* Bottom Sheet Animations */
+@keyframes bottomSheetSlideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes bottomSheetSlideDown {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.bottom-sheet-slide-up {
+  animation: bottomSheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.bottom-sheet-slide-down {
+  animation: bottomSheetSlideDown 0.25s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* Card Animations */
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-enter {
+  animation: cardFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Inbox Item Animations */
+@keyframes inboxItemSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.inbox-item-enter {
+  animation: inboxItemSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Close Icon Animations */
+@keyframes closeIconFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.close-icon-enter {
+  animation: closeIconFadeIn 0.2s ease-out both;
+}

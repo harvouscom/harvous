@@ -426,7 +426,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       {/* Delete Account Confirmation Dialog - Rendered via Portal */}
       {showDeleteConfirm && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 modal-overlay-enter"
           role="dialog"
           aria-modal="true"
           style={{
@@ -441,7 +441,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
           }}
         >
           <div 
-            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg"
+            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >
@@ -463,7 +463,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       {/* Clear Data Confirmation Dialog - Rendered via Portal */}
       {showClearDataConfirm && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 modal-overlay-enter"
           role="dialog"
           aria-modal="true"
           style={{
@@ -478,7 +478,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
           }}
         >
           <div 
-            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg"
+            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >

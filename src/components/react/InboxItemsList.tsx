@@ -121,16 +121,20 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
   return (
     <>
       <div className="flex gap-3 overflow-auto">
-        {items.map((item) => (
-          <a
+        {items.map((item, index) => (
+          <div
             key={item.id}
-            href="#"
-            onClick={(e) => handleItemClick(item, e)}
-            className="block transition-transform duration-200 hover:scale-[1.002] cursor-pointer"
+            className="inbox-item-enter"
+            style={{ animationDelay: `${index * 50}ms` }}
           >
-            <div
-              className="bg-white box-border flex flex-col gap-3 h-[180px] items-start justify-start max-w-[220px] overflow-clip pb-3 pt-2 px-2 relative rounded-2xl shrink-0 w-[220px]"
+            <a
+              href="#"
+              onClick={(e) => handleItemClick(item, e)}
+              className="block transition-transform duration-200 hover:scale-[1.002] cursor-pointer"
             >
+              <div
+                className="bg-white box-border flex flex-col gap-3 h-[180px] items-start justify-start max-w-[220px] overflow-clip pb-3 pt-2 px-2 relative rounded-2xl shrink-0 w-[220px]"
+              >
               {/* Background area */}
               <div
                 className={`basis-0 grow min-h-px min-w-px overflow-clip relative rounded-xl shrink-0 w-full ${
@@ -187,6 +191,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
               </div>
             </div>
           </a>
+          </div>
         ))}
       </div>
 

@@ -267,8 +267,8 @@ try {
                     <!-- All Content -->
                     <div class="organized-content flex flex-col" data-tab-content="all">
                       {organizedContent.length > 0 ? (
-                        organizedContent.map(item => (
-                          <div class={`content-item ${item.type}-item mb-3`}>
+                        organizedContent.map((item, index) => (
+                          <div class={`content-item ${item.type}-item mb-3 card-enter`} style={`animation-delay: ${index * 50}ms;`}>
                             <a 
                               href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
                               class="block transition-transform duration-200 hover:scale-[1.002]"
@@ -309,8 +309,8 @@ try {
                     <!-- Threads Only Content -->
                     <div class="organized-content flex flex-col hidden" data-tab-content="threads">
                       {organizedContent.filter(item => item.type === 'thread').length > 0 ? (
-                        organizedContent.filter(item => item.type === 'thread').map(item => (
-                          <div class={`content-item ${item.type}-item mb-3`}>
+                        organizedContent.filter(item => item.type === 'thread').map((item, index) => (
+                          <div class={`content-item ${item.type}-item mb-3 card-enter`} style={`animation-delay: ${index * 50}ms;`}>
                             <a 
                               href={`/${item.threadId}`}
                               class="block transition-transform duration-200 hover:scale-[1.002]"
@@ -343,8 +343,8 @@ try {
                     <!-- Notes Only Content -->
                     <div class="organized-content flex flex-col hidden" data-tab-content="notes">
                       {organizedContent.filter(item => item.type === 'note').length > 0 ? (
-                        organizedContent.filter(item => item.type === 'note').map(item => (
-                          <div class={`content-item ${item.type}-item mb-3`}>
+                        organizedContent.filter(item => item.type === 'note').map((item, index) => (
+                          <div class={`content-item ${item.type}-item mb-3 card-enter`} style={`animation-delay: ${index * 50}ms;`}>
                             <a 
                               href={`/${item.noteId}`}
                               class="block transition-transform duration-200 hover:scale-[1.002]"

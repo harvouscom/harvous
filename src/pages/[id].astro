@@ -736,8 +736,8 @@ if (!content) {
                 
                 {isThread && threadNotes && threadNotes.length > 0 ? (
                   <div class="flex flex-col gap-3">
-                    {threadNotes.map((note: any) => (
-                      <div class="content-item note-item">
+                    {threadNotes.map((note: any, index: number) => (
+                      <div class="content-item note-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
                         <a 
                           href={`/${note.id}`}
                           class="block transition-transform duration-200 hover:scale-[1.002]"
@@ -757,8 +757,8 @@ if (!content) {
                 ) : isSpace && content && content.threads && content.threads.length > 0 ? (
                   <div class="flex flex-col gap-3">
                     {/* Show threads in this space */}
-                    {content?.threads.map((thread: any) => (
-                      <div class="content-item thread-item">
+                    {content?.threads.map((thread: any, index: number) => (
+                      <div class="content-item thread-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
                         <a 
                           href={`/${thread.id}`}
                           class="block transition-transform duration-200 hover:scale-[1.002]"
@@ -776,8 +776,8 @@ if (!content) {
                     ))}
                     
                     {/* Show standalone notes in this space */}
-                    {content?.notes && content.notes.length > 0 && content.notes.map((note: any) => (
-                      <div class="content-item note-item">
+                    {content?.notes && content.notes.length > 0 && content.notes.map((note: any, index: number) => (
+                      <div class="content-item note-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
                         <a 
                           href={`/${note.id}`}
                           class="block transition-transform duration-200 hover:scale-[1.002]"

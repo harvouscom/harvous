@@ -23,6 +23,16 @@ export default function Menu({
 }: MenuProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [isExiting, setIsExiting] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Mount animation with delay to ensure DOM ready
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsMounted(true);
+    }, 10);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Prevent body scroll when dialog is open
   useEffect(() => {
@@ -40,12 +50,16 @@ export default function Menu({
 
   // Close the parent menu container
   const closeMenu = () => {
-    // Dispatch the closeMoreMenu event that SquareButton listens for
-    window.dispatchEvent(new CustomEvent('closeMoreMenu'));
-    // Also call onClose if provided
-    if (onClose) {
-      onClose();
-    }
+    setIsExiting(true);
+    setIsMounted(false);
+    setTimeout(() => {
+      // Dispatch the closeMoreMenu event that SquareButton listens for
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+      // Also call onClose if provided
+      if (onClose) {
+        onClose();
+      }
+    }, 250); // Match animation duration
   };
 
   const handleAction = async (action: string, label: string) => {
@@ -247,7 +261,10 @@ export default function Menu({
 
   return (
     <>
-      <div className="menu bg-white rounded-xl overflow-hidden">
+      <div 
+        className={`menu bg-white rounded-xl overflow-hidden ${isMounted && !isExiting ? 'menu-enter' : ''} ${isExiting ? 'menu-exit' : ''}`}
+        style={!isMounted ? { opacity: 0, transform: 'translateY(-2px)' } : undefined}
+      >
         {options.map((option, index) => (
           <React.Fragment key={index}>
             {index > 0 && (
@@ -275,7 +292,7 @@ export default function Menu({
       {/* Confirmation Dialog - Rendered via Portal to ensure full viewport coverage */}
       {showConfirmDialog && contentType && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 modal-overlay-enter"
           role="dialog"
           aria-modal="true"
           style={{
@@ -290,7 +307,7 @@ export default function Menu({
           }}
         >
           <div 
-            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg"
+            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >

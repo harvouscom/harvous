@@ -103,7 +103,14 @@
 /* Subtle loading indicator during page transitions */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 0.1s;
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-old(main-content),
+::view-transition-new(main-content) {
+  animation-duration: 0.25s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Loading skeleton for content areas */
@@ -529,4 +536,22 @@ button[disabled] {
     [data-sonner-toaster] {
         max-width: calc(100% - 32px) !important;
     }
+}
+
+/* Close Icon Hover Effects */
+.close-icon {
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.close-icon:hover {
+  transform: scale(1.1);
+}
+
+/* Card Link Hover Effects */
+.content-item a {
+  transition: transform 0.2s ease-out;
+}
+
+.content-item a:hover {
+  transform: translateY(-2px);
 }
