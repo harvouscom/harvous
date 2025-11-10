@@ -191,8 +191,8 @@ try {
             <DashboardSkeleton />
           </div>
           
-          <!-- Actual content - shown when ready -->
-          <div id="dashboard-content-wrapper" class="dashboard-content-wrapper">
+          <!-- Actual content - always rendered, shown when skeleton hides -->
+          <div id="dashboard-content-wrapper" class="dashboard-content-wrapper" style="opacity: 0;">
           <div class="flex flex-col h-full">
             
             <!-- Content List -->
@@ -406,51 +406,64 @@ try {
       const skeleton = document.getElementById('dashboard-skeleton');
       const content = document.getElementById('dashboard-content-wrapper');
       
-      if (skeleton && content) {
-        // Fade out skeleton and fade in content
-        skeleton.style.opacity = '0';
-        skeleton.style.transition = 'opacity 0.3s ease-out';
-        
-        setTimeout(() => {
-          skeleton.style.display = 'none';
-          content.style.display = 'block';
-          content.style.opacity = '0';
-          content.style.transition = 'opacity 0.3s ease-in';
-          
-          // Trigger reflow
-          content.offsetHeight;
-          
-          setTimeout(() => {
-            content.style.opacity = '1';
-          }, 10);
-        }, 300);
+      if (!skeleton || !content) {
+        console.warn('Dashboard skeleton or content wrapper not found');
+        return;
       }
+      
+      // Fade out skeleton and fade in content
+      skeleton.style.opacity = '0';
+      skeleton.style.transition = 'opacity 0.4s ease-out';
+      
+      setTimeout(() => {
+        skeleton.style.display = 'none';
+        // Ensure content is visible and fade it in
+        content.style.transition = 'opacity 0.4s ease-in';
+        
+        // Trigger reflow
+        void content.offsetHeight;
+        
+        // Fade in content
+        content.style.opacity = '1';
+      }, 400);
     }
     
     // Show content when page is interactive (React components hydrated)
     // Wait a bit to ensure React components are ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        // Wait for React to hydrate
-        setTimeout(showDashboardContent, 200);
-      });
-    } else {
-      // DOM already ready, wait for React hydration
-      setTimeout(showDashboardContent, 200);
+    function initDashboard() {
+      // Check if content wrapper exists and has content
+      const content = document.getElementById('dashboard-content-wrapper');
+      if (content && content.children.length > 0) {
+        // Content is ready, show it
+        setTimeout(showDashboardContent, 300);
+      } else {
+        // Wait a bit more for content to render
+        setTimeout(() => {
+          const content = document.getElementById('dashboard-content-wrapper');
+          if (content) {
+            showDashboardContent();
+          }
+        }, 500);
+      }
     }
     
-    // Fallback: show content after max 1 second even if React isn't ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initDashboard);
+    } else {
+      // DOM already ready
+      initDashboard();
+    }
+    
+    // Fallback: show content after max 2 seconds even if React isn't ready
     setTimeout(() => {
       const skeleton = document.getElementById('dashboard-skeleton');
       const content = document.getElementById('dashboard-content-wrapper');
-      if (skeleton && skeleton.style.display !== 'none') {
-        if (skeleton) skeleton.style.display = 'none';
-        if (content) {
-          content.style.display = 'block';
-          content.style.opacity = '1';
-        }
+      if (skeleton && skeleton.style.display !== 'none' && content) {
+        skeleton.style.display = 'none';
+        content.style.display = 'block';
+        content.style.opacity = '1';
       }
-    }, 1000);
+    }, 2000);
     
     // Initialize cache with server-rendered data
     initNavigationCache(threads, spaces, inboxItemCount);

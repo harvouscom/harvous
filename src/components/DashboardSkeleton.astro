@@ -9,42 +9,42 @@
       <div class="bg-white rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] h-full flex flex-col">
         <!-- Header skeleton -->
         <div class="bg-[var(--color-paper)] rounded-t-[24px] px-6 py-6">
-          <div class="h-7 w-24 bg-[var(--color-gray)] rounded animate-pulse"></div>
+          <div class="h-7 w-24 skeleton-shimmer"></div>
         </div>
         
         <!-- Content skeleton -->
         <div class="flex-1 p-6 flex flex-col gap-6">
           <!-- TabNav skeleton -->
           <div class="flex gap-2">
-            <div class="h-10 w-20 bg-[var(--color-gray)] rounded-lg animate-pulse"></div>
-            <div class="h-10 w-20 bg-[var(--color-gray)] rounded-lg animate-pulse"></div>
+            <div class="h-10 w-20 skeleton-shimmer"></div>
+            <div class="h-10 w-20 skeleton-shimmer"></div>
           </div>
           
           <!-- Content items skeleton -->
           <div class="flex flex-col gap-3">
             <!-- Skeleton item 1 -->
-            <div class="h-20 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+            <div class="h-20 skeleton-shimmer"></div>
             <!-- Skeleton item 2 -->
-            <div class="h-20 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+            <div class="h-20 skeleton-shimmer"></div>
             <!-- Skeleton item 3 -->
-            <div class="h-20 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+            <div class="h-20 skeleton-shimmer"></div>
           </div>
           
           <!-- Second TabNav skeleton -->
           <div class="flex gap-2 mt-4">
-            <div class="h-10 w-16 bg-[var(--color-gray)] rounded-lg animate-pulse"></div>
-            <div class="h-10 w-20 bg-[var(--color-gray)] rounded-lg animate-pulse"></div>
-            <div class="h-10 w-20 bg-[var(--color-gray)] rounded-lg animate-pulse"></div>
+            <div class="h-10 w-16 skeleton-shimmer"></div>
+            <div class="h-10 w-20 skeleton-shimmer"></div>
+            <div class="h-10 w-20 skeleton-shimmer"></div>
           </div>
           
           <!-- More content items skeleton -->
           <div class="flex flex-col gap-3">
             <!-- Skeleton item 4 -->
-            <div class="h-16 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+            <div class="h-16 skeleton-shimmer"></div>
             <!-- Skeleton item 5 -->
-            <div class="h-16 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+            <div class="h-16 skeleton-shimmer"></div>
             <!-- Skeleton item 6 -->
-            <div class="h-16 bg-[var(--color-gray)] rounded-xl animate-pulse"></div>
+            <div class="h-16 skeleton-shimmer"></div>
           </div>
         </div>
       </div>
@@ -79,17 +79,55 @@
     height: 100%;
   }
   
-  @keyframes pulse {
-    0%, 100% {
-      opacity: 1;
+  /* Shimmer/sweep animation - left to right */
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--color-gray) 0%,
+      var(--color-gray) 40%,
+      rgba(255, 255, 255, 0.4) 50%,
+      var(--color-gray) 60%,
+      var(--color-gray) 100%
+    );
+    background-size: 200% 100%;
+    border-radius: 0.75rem;
+    animation: shimmer 1.5s ease-in-out infinite;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
     }
-    50% {
-      opacity: 0.5;
+    100% {
+      background-position: 200% 0;
     }
   }
   
-  .animate-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  /* Add slight delay to different items for wave effect */
+  .skeleton-shimmer:nth-child(1) {
+    animation-delay: 0s;
+  }
+  
+  .skeleton-shimmer:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+  
+  .skeleton-shimmer:nth-child(3) {
+    animation-delay: 0.2s;
+  }
+  
+  .skeleton-shimmer:nth-child(4) {
+    animation-delay: 0.3s;
+  }
+  
+  .skeleton-shimmer:nth-child(5) {
+    animation-delay: 0.4s;
+  }
+  
+  .skeleton-shimmer:nth-child(6) {
+    animation-delay: 0.5s;
   }
 </style>
 
