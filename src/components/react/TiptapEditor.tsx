@@ -397,18 +397,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       credentials: 'include'
                     });
 
-                    if (addThreadResponse.ok) {
-                      // Both success and "already in thread" are considered success for the user action.
-                      // Trigger the toast and hyperlink creation in both cases.
-                      const result = await addThreadResponse.json();
+                    let result;
+                    try {
+                      result = await addThreadResponse.json();
+                    } catch (jsonError) {
+                      // If JSON parsing fails, log and continue - will fall through to new note creation
+                      console.error('Failed to parse response:', jsonError);
+                      // Don't return early - let it fall through to cleanup
+                      result = { error: 'Failed to parse response' };
+                    }
 
+                    if (addThreadResponse.ok) {
+                      // Success case - note was added to thread
                       if (result.success) {
                           if (window.toast) {
                               window.toast.success(`Note added to thread.`);
-                          }
-                      } else {
-                          if (window.toast) {
-                              window.toast.info('Note is already in this thread.');
                           }
                       }
                       
@@ -422,10 +425,49 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                               to,
                           }
                       }));
+                    } else if (addThreadResponse.status === 400) {
+                      // Handle 400 status - could be "already in thread" or other validation errors
+                      const errorMessage = result.error || 'Unknown error';
                       
+                      // Check if it's the "already in thread" case (flexible matching)
+                      const isAlreadyInThread = errorMessage.includes('already in this thread') || 
+                                                errorMessage.includes('already in thread') ||
+                                                errorMessage === 'Note is already in this thread';
+                      
+                      if (isAlreadyInThread) {
+                        // Note is already in thread - show toast using multiple methods
+                        const toastMessage = 'Note is already in this thread.';
+                        console.log('[TiptapEditor] Note already in thread, dispatching showToast event:', toastMessage);
+                        
+                        // Dispatch a custom event for the layout to handle.
+                        // This is more robust than calling window.toast directly.
+                        window.dispatchEvent(new CustomEvent('showToast', {
+                          detail: {
+                            message: toastMessage,
+                            type: 'info'
+                          }
+                        }));
+                        
+                        // After confirming note is in thread, fire event to create hyperlink in the source note
+                        const { from, to } = editor.state.selection;
+                        window.dispatchEvent(new CustomEvent('createHyperlink', {
+                            detail: {
+                                sourceNoteId,
+                                newNoteId: existingCheck.noteId, // Use the ID of the existing note
+                                from,
+                                to,
+                            }
+                        }));
+                      } else {
+                        // Other 400 error - log but don't show toast (will fall through to new note creation)
+                        console.warn('[TiptapEditor] Error adding note to thread (not "already in thread"):', errorMessage);
+                      }
+                    } else {
+                      console.log('[TiptapEditor] Unexpected response status:', addThreadResponse.status);
                     }
                   } catch (addError) {
                     // Error adding existing note to thread, falling back to new note creation
+                    console.error('Error in addThreadResponse:', addError);
                   }
                   
                   // Clear selection and close

@@ -19,6 +19,7 @@ interface SquareButtonProps {
   withMenu?: boolean;
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
   contentId?: string;
+  currentThreadId?: string; // Add this prop
   inBottomSheet?: boolean;
 }
 
@@ -30,6 +31,7 @@ export default function SquareButton({
   withMenu = false,
   contentType = "dashboard",
   contentId,
+  currentThreadId, // Add this prop
   inBottomSheet = false
 }: SquareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -331,6 +333,7 @@ export default function SquareButton({
             options={menuOptions}
             contentType={contentType}
             contentId={contentId}
+            currentThreadId={currentThreadId} // Pass this prop
           />
         </div>
       )}

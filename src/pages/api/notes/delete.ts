@@ -39,6 +39,9 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    // Store threadId before deletion for redirect
+    const threadId = existingNote.threadId;
+
     // Delete the note
     await db.delete(Notes)
       .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
@@ -47,7 +50,8 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     return new Response(JSON.stringify({ 
       success: "Note erased successfully!",
-      noteId: noteId
+      noteId: noteId,
+      threadId: threadId
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

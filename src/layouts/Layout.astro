@@ -182,7 +182,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
               <!-- SquareButtons (shown when no panel is open) -->
               <div id="square-buttons-container" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
                 {showMoreButton && (
-                  <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
+                  <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} />
                 )}
                 {contentType !== 'profile' && (
                   <SquareButton variant="Add" withMenu={true} />
@@ -260,6 +260,19 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
 </script>
 <!-- Toast Handler -->
 <script is:inline src="/scripts/toast-handler.js"></script>
+
+<!-- Custom Toast event listener -->
+<script>
+  window.addEventListener('showToast', (event) => {
+    const { message, type } = event.detail;
+    if (window.toast && typeof window.toast[type] === 'function') {
+      window.toast[type](message);
+    } else {
+      console.warn('Toast system not available to handle showToast event.');
+    }
+  });
+</script>
+
 <!-- Note: toast utility is also imported in frontmatter to initialize window.toast -->
 
 <!-- Navigation History Script -->

@@ -7,11 +7,12 @@ export interface Props {
   type?: "button" | "submit" | "reset";
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
   contentId?: string;
+  currentThreadId?: string; // Add this prop
   onClick?: () => void;
   className?: string;
 }
 
-const { variant = "More", withMenu = false, type = "button", contentType = "dashboard", contentId, onClick, className } = Astro.props;
+const { variant = "More", withMenu = false, type = "button", contentType = "dashboard", contentId, currentThreadId, onClick, className } = Astro.props;
 
 // For Find variant, wrap in anchor tag (backward compatibility)
 // For all other variants, use React SquareButton directly
@@ -25,6 +26,7 @@ const { variant = "More", withMenu = false, type = "button", contentType = "dash
       type={type}
       contentType={contentType}
       contentId={contentId}
+      currentThreadId={currentThreadId} // Pass this prop
       onClick={onClick}
       className={className}
       client:only="react"
@@ -37,6 +39,7 @@ const { variant = "More", withMenu = false, type = "button", contentType = "dash
     type={type}
     contentType={contentType}
     contentId={contentId}
+    currentThreadId={currentThreadId} // Pass this prop
     onClick={onClick}
     className={className}
     client:only="react"

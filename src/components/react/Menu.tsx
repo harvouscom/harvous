@@ -12,6 +12,7 @@ export interface MenuProps {
   options: MenuOption[];
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
   contentId?: string;
+  currentThreadId?: string; // Add this prop
   onClose?: () => void;
 }
 
@@ -19,6 +20,7 @@ export default function Menu({
   options,
   contentType,
   contentId,
+  currentThreadId, // Add this prop
   onClose
 }: MenuProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -209,8 +211,25 @@ export default function Menu({
           }));
         }
         
-        // Redirect to dashboard with toast parameters (like create operations)
-        const redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+        // Redirect based on content type
+        let redirectUrl: string;
+        if (contentType === 'note') {
+          // Priority 1: Use the explicitly passed currentThreadId if available
+          if (currentThreadId) {
+            redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
+          }
+          // Priority 2: Fallback to the threadId from the API response
+          else if (data.threadId && data.threadId !== 'thread_unorganized') {
+            redirectUrl = `/${data.threadId}?toast=success&message=` + encodeURIComponent(successMessage);
+          }
+          // Priority 3: Fallback to dashboard
+          else {
+            redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+          }
+        } else {
+          // For threads and spaces, redirect to dashboard
+          redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+        }
         window.location.href = redirectUrl;
       } else {
         // Show error toast immediately (no redirect on error)
