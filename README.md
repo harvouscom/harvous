@@ -944,6 +944,6 @@ Built with ❤️ for Bible study enthusiasts
 
 ---
 
-**Version:** 0.69.0
+**Version:** 0.70.0
 **Last Updated:** January 2025
 **Status:** Active Development - 85% to V1 🚀
