@@ -54,6 +54,8 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   const [hasSetThreadFromSaved, setHasSetThreadFromSaved] = useState(false);
   // Track if we've initialized from currentThread to prevent resetting user's manual selection
   const hasInitializedFromCurrentThread = useRef(false);
+  // Track if we're loading from localStorage to prevent auto-detection toast on mount
+  const isLoadingFromLocalStorage = useRef(false);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -87,6 +89,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';
     const savedScriptureText = localStorage.getItem('newNoteScriptureText') || '';
     
+    // Mark that we're loading from localStorage to prevent auto-detection toast
+    isLoadingFromLocalStorage.current = true;
+    
     // Load source note context for hyperlink creation
     const savedSourceNoteId = localStorage.getItem('newNoteSourceNoteId');
     const savedSourceSelectionFrom = localStorage.getItem('newNoteSourceSelectionFrom');
@@ -103,12 +108,26 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     }
     
     // Set note type if detected from selection
+    // IMPORTANT: Set noteType FIRST to prevent auto-detection from running
     if (savedNoteType === 'scripture') {
       setNoteType('scripture');
       if (savedScriptureRef) {
         // Keep original format (no divider in title)
         setScriptureReference(savedScriptureRef);
-        setTitle(savedScriptureRef); // Reference becomes title
+        // Set title after a brief delay to ensure noteType is set first
+        // This prevents the auto-detection useEffect from running with noteType still 'default'
+        setTimeout(() => {
+          setTitle(savedScriptureRef); // Reference becomes title
+          // Clear the flag after state updates complete
+          setTimeout(() => {
+            isLoadingFromLocalStorage.current = false;
+          }, 100);
+        }, 0);
+      } else {
+        // No scripture ref, clear flag immediately
+        setTimeout(() => {
+          isLoadingFromLocalStorage.current = false;
+        }, 100);
       }
       if (savedScriptureVersion) {
         setScriptureVersion(savedScriptureVersion);
@@ -126,6 +145,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       if (savedTitle) {
         setTitle(savedTitle);
       }
+      // Clear the flag after state updates complete
+      setTimeout(() => {
+        isLoadingFromLocalStorage.current = false;
+      }, 100);
     }
     
     // Handle content setting for non-scripture notes
@@ -329,6 +352,10 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   useEffect(() => {
     // Only detect if note type is still default (don't override user's manual selection)
     if (noteType !== 'default') return;
+    
+    // Skip auto-detection if we're currently loading from localStorage
+    // This prevents the toast from showing when loading saved scripture data
+    if (isLoadingFromLocalStorage.current) return;
 
     // Only check title field, not content
     const titleToCheck = title.trim();
@@ -336,6 +363,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
 
     // Debounce detection (1 second after typing stops in title)
     const timeoutId = setTimeout(async () => {
+      // Double-check we're not loading from localStorage (race condition protection)
+      if (isLoadingFromLocalStorage.current) return;
+      
       try {
         const response = await fetch('/api/scripture/detect', {
           method: 'POST',
@@ -375,17 +405,19 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
                 // Set version (NET for MVP)
                 setScriptureVersion('NET');
                 
-                // Show toast notification
-                if (window.toast && typeof window.toast.info === 'function') {
-                  window.toast.info('Made a scripture note for you');
-                } else {
-                  // Fallback: dispatch custom event (shouldn't be needed but keep as backup)
-                  window.dispatchEvent(new CustomEvent('toast', {
-                    detail: {
-                      message: 'Made a scripture note for you',
-                      type: 'info'
-                    }
-                  }));
+                // Show toast notification (only if not loading from localStorage)
+                if (!isLoadingFromLocalStorage.current) {
+                  if (window.toast && typeof window.toast.info === 'function') {
+                    window.toast.info('Made a scripture note for you');
+                  } else {
+                    // Fallback: dispatch custom event (shouldn't be needed but keep as backup)
+                    window.dispatchEvent(new CustomEvent('toast', {
+                      detail: {
+                        message: 'Made a scripture note for you',
+                        type: 'info'
+                      }
+                    }));
+                  }
                 }
               }
             } catch (verseError) {
