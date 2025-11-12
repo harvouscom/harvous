@@ -812,6 +812,12 @@ npm or pnpm
    - `fix:` → patch bump (0.10.0 → 0.10.1)
    - `BREAKING CHANGE` → major bump (0.10.0 → 1.0.0)
 
+   **Changelog sync to Webflow CMS** (automatic starting at v1.0.0):
+   - After each commit, if version >= 1.0.0, creates a changelog entry in Webflow CMS
+   - Extracts version, date, commit message, and category automatically
+   - Skips version bump commits automatically
+   - Requires `WEBFLOW_API_TOKEN` environment variable
+
 5. **Push and deploy**
    ```bash
    git push origin feature/my-feature
