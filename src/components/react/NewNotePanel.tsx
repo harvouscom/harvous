@@ -860,6 +860,50 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       if (response.ok) {
         const result = await response.json();
         
+        // Show toasts for scripture processing results
+        if (result.scriptureResults && Array.isArray(result.scriptureResults) && result.scriptureResults.length > 0) {
+          // Show toasts sequentially with small delay to avoid overwhelming UI
+          result.scriptureResults.forEach((scriptureResult: any, index: number) => {
+            setTimeout(() => {
+              if (scriptureResult.action === 'created') {
+                if (window.toast && typeof window.toast.info === 'function') {
+                  window.toast.info(`Created scripture note: ${scriptureResult.reference}`);
+                } else {
+                  window.dispatchEvent(new CustomEvent('toast', {
+                    detail: {
+                      message: `Created scripture note: ${scriptureResult.reference}`,
+                      type: 'info'
+                    }
+                  }));
+                }
+              } else if (scriptureResult.action === 'added') {
+                if (window.toast && typeof window.toast.info === 'function') {
+                  window.toast.info(`Added ${scriptureResult.reference} to this thread`);
+                } else {
+                  window.dispatchEvent(new CustomEvent('toast', {
+                    detail: {
+                      message: `Added ${scriptureResult.reference} to this thread`,
+                      type: 'info'
+                    }
+                  }));
+                }
+              } else if (scriptureResult.action === 'unorganized') {
+                if (window.toast && typeof window.toast.info === 'function') {
+                  window.toast.info(`Scripture note ${scriptureResult.reference} exists in Unorganized`);
+                } else {
+                  window.dispatchEvent(new CustomEvent('toast', {
+                    detail: {
+                      message: `Scripture note ${scriptureResult.reference} exists in Unorganized`,
+                      type: 'info'
+                    }
+                  }));
+                }
+              }
+              // 'skipped' action doesn't show a toast (silent)
+            }, index * 150); // 150ms delay between toasts
+          });
+        }
+        
         // Get the actual thread ID (from junction table), not the legacy threadId field
         // This is the thread the note was actually added to
         const actualThreadId = getSelectedThread().id;

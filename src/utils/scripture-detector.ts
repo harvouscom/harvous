@@ -173,14 +173,60 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
 
   // Pattern 1: "Book Chapter:Verse" or "Book Chapter:Verse-Verse" or "Book Chapter:Verse-Verse, Verse-Verse"
   // Captures comma-separated verse groups like "Matthew 26:6-13, 17-30"
+  // Use a simpler pattern and validate matches afterward
   const referencePattern = new RegExp(
-    `\\b(${escapedBookNames.join('|')})\\s+(\\d+):(\\d+(?:-\\d+)?(?:,\\s*\\d+(?:-\\d+)?)*)\\b`,
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+):(\\d+(?:-\\d+)?(?:,\\s*\\d+(?:-\\d+)?)*)`,
     'gi'
   );
 
   let match;
   while ((match = referencePattern.exec(text)) !== null) {
-    const fullMatch = match[0];
+    let fullMatch = match[0];
+    const originalMatchEnd = match.index + fullMatch.length;
+    let adjustedLastIndex = originalMatchEnd;
+    
+    // Check if the match ends with ", number" and what follows forms a book name
+    // This indicates we matched too much (e.g., "Hebrews 13:2, 1" when "1 Peter" follows)
+    const versePartMatch = fullMatch.match(/:\s*([^:]+)$/);
+    if (versePartMatch && versePartMatch[1].includes(',')) {
+      const verseGroups = versePartMatch[1];
+      const lastCommaIndex = verseGroups.lastIndexOf(',');
+      if (lastCommaIndex >= 0) {
+        const afterLastComma = verseGroups.substring(lastCommaIndex + 1).trim();
+        // If after the comma we have just a number (like "1"), check if it's part of a book name
+        if (/^\d+$/.test(afterLastComma)) {
+          // Check what comes after our match in the original text
+          const textAfterMatch = text.substring(originalMatchEnd);
+          // Extract the first word after the space (e.g., "Peter" from " Peter 4:9")
+          const wordAfterSpace = textAfterMatch.match(/^\s+(\w+)/)?.[1];
+          
+          if (wordAfterSpace) {
+            // Check if "number + space + word" forms a book name
+            // For example, if we have ", 1" and " Peter" follows, check if "1 Peter" is a book name
+            const potentialBookName = `${afterLastComma} ${wordAfterSpace}`;
+            
+            // Check if this potential book name matches any book name (including numbered books)
+            const matchesBookName = bookNames.some(bookName => {
+              const normalizedBook = normalizeText(bookName);
+              const normalizedPotential = normalizeText(potentialBookName);
+              return normalizedBook === normalizedPotential || 
+                     normalizedBook.startsWith(normalizedPotential) ||
+                     normalizedPotential.startsWith(normalizedBook);
+            });
+            
+            if (matchesBookName) {
+              // The number is part of the next book name, trim it from the match
+              const trimmedLength = verseGroups.length - lastCommaIndex;
+              fullMatch = fullMatch.substring(0, fullMatch.length - trimmedLength);
+              // Adjust the regex's lastIndex to point to after the trimmed match
+              // This ensures the next iteration can find "1 Peter 4:9"
+              adjustedLastIndex = match.index + fullMatch.length;
+            }
+          }
+        }
+      }
+    }
+    
     const extracted = parseReference(fullMatch);
     if (extracted) {
       // Preserve the original matched text for display (with spaces intact)
@@ -194,6 +240,11 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
       if (!isDuplicate) {
         references.push(extracted);
       }
+    }
+    
+    // Adjust the regex's lastIndex if we trimmed the match
+    if (adjustedLastIndex !== originalMatchEnd) {
+      referencePattern.lastIndex = adjustedLastIndex;
     }
   }
 

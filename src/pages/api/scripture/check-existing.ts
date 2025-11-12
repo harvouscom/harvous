@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, ScriptureMetadata, Notes, eq, and } from 'astro:db';
+import { db, ScriptureMetadata, Notes, NoteThreads, eq, and, count, isNull } from 'astro:db';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -14,7 +14,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    const { reference } = await request.json();
+    const { reference, threadId } = await request.json();
 
     if (!reference || typeof reference !== 'string') {
       return new Response(JSON.stringify({ 
@@ -41,20 +41,49 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .limit(1)
       .get();
 
-    if (existingScripture) {
+    if (!existingScripture) {
       return new Response(JSON.stringify({
-        exists: true,
-        noteId: existingScripture.noteId,
-        reference: existingScripture.reference
+        exists: false,
+        noteId: null,
+        inThread: false,
+        inUnorganized: false
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
+    // Check if scripture note is in the specified thread
+    let inThread = false;
+    if (threadId) {
+      const threadRelation = await db.select()
+        .from(NoteThreads)
+        .where(
+          and(
+            eq(NoteThreads.noteId, existingScripture.noteId),
+            eq(NoteThreads.threadId, threadId)
+          )
+        )
+        .limit(1)
+        .get();
+      
+      inThread = !!threadRelation;
+    }
+
+    // Check if scripture note is in unorganized (no NoteThreads entries)
+    const threadCount = await db.select({ count: count() })
+      .from(NoteThreads)
+      .where(eq(NoteThreads.noteId, existingScripture.noteId))
+      .get();
+    
+    const inUnorganized = !threadCount || threadCount.count === 0;
+
     return new Response(JSON.stringify({
-      exists: false,
-      noteId: null
+      exists: true,
+      noteId: existingScripture.noteId,
+      reference: existingScripture.reference,
+      inThread,
+      inUnorganized
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

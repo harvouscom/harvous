@@ -233,9 +233,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
+    // Process scripture references in the note content (background processing)
+    let scriptureResults: any[] = [];
+    try {
+      // Determine the actual thread ID (the thread the note was created in)
+      const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
+      
+      // Call processing function directly
+      const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+      const processResult = await processScriptureReferences(newNote.id, userId, actualThreadId);
+      scriptureResults = processResult.results || [];
+    } catch (error: any) {
+      // Don't fail note creation if scripture processing fails
+      console.error('Error processing scripture references (non-critical):', error);
+    }
+
     return new Response(JSON.stringify({ 
       success: "Note created successfully!",
-      note: newNote
+      note: newNote,
+      scriptureResults
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
