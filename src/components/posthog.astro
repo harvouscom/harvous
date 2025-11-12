@@ -13,6 +13,7 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog
 
   posthog.init('phc_7yS004XiZwUzaFgnd39kIaeXxcoyLuDG9C3zE1kM9ia', {
     api_host: 'https://us.i.posthog.com',
+    ui_host: 'https://us.posthog.com',
     defaults: '2025-05-24',
     person_profiles: 'identified_only',
     loaded: function(posthog) {
