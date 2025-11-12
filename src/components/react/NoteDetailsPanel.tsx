@@ -482,30 +482,6 @@ export default function NoteDetailsPanel({
                             </div>
                           )}
                         </button>
-                        
-                        <button
-                          type="button"
-                          className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative shrink-0 transition-all duration-200 ${
-                            activeTab === 'comments' ? 'opacity-100' : 'opacity-50 hover:opacity-75'
-                          }`}
-                          onClick={() => switchTab('comments')}
-                          data-tab-id="comments"
-                          data-active={activeTab === 'comments' ? 'true' : 'false'}
-                        >
-                          <span className="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
-                            Comments
-                          </span>
-                          <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-5 h-5">
-                            <span className="text-[12px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                              {localComments.length}
-                            </span>
-                          </div>
-                          {activeTab === 'comments' && (
-                            <div className="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1">
-                              <div className="w-1 h-1 bg-[#4a473d] rounded-full"></div>
-                            </div>
-                          )}
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -563,26 +539,6 @@ export default function NoteDetailsPanel({
                     </div>
                   </div>
                 )}
-                    {activeTab === 'comments' && (
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <div className="text-center">
-                          {/* Coming Soon Icon */}
-                          <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                          </div>
-                          
-                          {/* Coming Soon Text */}
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            Comments Coming Soon
-                          </h3>
-                          <p className="text-sm text-gray-500 max-w-sm">
-                            We're working on adding comment functionality to notes. This feature will allow you to add notes, feedback, and discussions to your notes.
-                          </p>
-                        </div>
-                      </div>
-                    )}
                     {activeTab === 'tags' && (
                       <div className="flex flex-col gap-3">
                         {localTags.length === 0 ? (
