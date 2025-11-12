@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SquareButton from './SquareButton';
+import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
 
 interface EmailPasswordPanelProps {
   onClose?: () => void;
@@ -24,8 +25,19 @@ export default function EmailPasswordPanel({
 
   // Load current user data when component mounts
   useEffect(() => {
-    console.log('🔄 EmailPasswordPanel: useEffect triggered, loading user data');
-    loadUserData();
+    console.log('🔄 EmailPasswordPanel: useEffect triggered, checking cache');
+    
+    // Check cache first
+    const cached = getCachedProfileData();
+    if (cached && cached.email) {
+      console.log('📦 EmailPasswordPanel: Using cached email data');
+      setCurrentEmail(cached.email);
+      setEmailVerified(cached.emailVerified || false);
+      console.log('✅ EmailPasswordPanel: Email data loaded from cache');
+    } else {
+      console.log('📥 EmailPasswordPanel: No cache found, loading from API');
+      loadUserData();
+    }
   }, []);
 
   const loadUserData = async () => {
@@ -38,9 +50,18 @@ export default function EmailPasswordPanel({
       if (response.ok) {
         const data = await response.json();
         console.log('📥 EmailPasswordPanel: Received data:', data);
-        setCurrentEmail(data.email || '');
-        setEmailVerified(data.emailVerified || false);
-        console.log('✅ EmailPasswordPanel: User data loaded');
+        const email = data.email || '';
+        const emailVerified = data.emailVerified || false;
+        
+        setCurrentEmail(email);
+        setEmailVerified(emailVerified);
+        
+        // Update cache with fetched data
+        updateCachedProfileData({
+          email,
+          emailVerified
+        });
+        console.log('✅ EmailPasswordPanel: User data loaded and cache refreshed');
       } else {
         console.error('❌ EmailPasswordPanel: API call failed:', response.status);
       }

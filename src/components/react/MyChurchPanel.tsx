@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import SquareButton from './SquareButton';
 import ButtonSmall from './ButtonSmall';
 import ChurchIcon from "@fortawesome/fontawesome-free/svgs/solid/church.svg";
+import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
 
 interface MyChurchPanelProps {
   onClose?: () => void;
@@ -33,8 +34,29 @@ export default function MyChurchPanel({
 
   // Load existing church data when component mounts
   useEffect(() => {
-    console.log('🔄 MyChurchPanel: useEffect triggered, loading church data');
-    loadChurchData();
+    console.log('🔄 MyChurchPanel: useEffect triggered, checking cache');
+    
+    // Check cache first
+    const cached = getCachedProfileData();
+    if (cached && (cached.churchName || cached.churchCity || cached.churchState !== undefined)) {
+      console.log('📦 MyChurchPanel: Using cached church data');
+      const cachedData = {
+        churchName: cached.churchName || '',
+        churchCity: cached.churchCity || '',
+        churchState: cached.churchState || ''
+      };
+      
+      setFormData(cachedData);
+      setOriginalFormData(cachedData);
+      
+      const hasData = !!(cached.churchName || cached.churchCity || cached.churchState);
+      setHasExistingData(hasData);
+      setViewMode(hasData ? 'view' : 'edit');
+      console.log('✅ MyChurchPanel: Form data updated from cache');
+    } else {
+      console.log('📥 MyChurchPanel: No cache found, loading from API');
+      loadChurchData();
+    }
   }, []);
 
   // Prevent body scroll when dialog is open
@@ -80,7 +102,14 @@ export default function MyChurchPanel({
         setHasExistingData(hasData);
         // Set view mode based on whether data exists
         setViewMode(hasData ? 'view' : 'edit');
-        console.log('✅ MyChurchPanel: Form data updated');
+        
+        // Update cache with fetched data
+        updateCachedProfileData({
+          churchName: churchName || null,
+          churchCity: churchCity || null,
+          churchState: churchState || null
+        });
+        console.log('✅ MyChurchPanel: Form data updated and cache refreshed');
       } else {
         console.error('❌ MyChurchPanel: API call failed:', response.status);
       }
@@ -166,19 +195,29 @@ export default function MyChurchPanel({
       if (response.ok) {
         console.log('✅ MyChurchPanel: Church data updated successfully');
         
-        // Update hasExistingData flag
-        const hasData = !!(formData.churchName.trim() || formData.churchCity.trim() || formData.churchState.trim());
-        setHasExistingData(hasData);
-        
-        // Update originalFormData to match saved data
-        setOriginalFormData({
+        const savedData = {
           churchName: formData.churchName.trim(),
           churchCity: formData.churchCity.trim(),
           churchState: formData.churchState.trim()
-        });
+        };
+        
+        // Update hasExistingData flag
+        const hasData = !!(savedData.churchName || savedData.churchCity || savedData.churchState);
+        setHasExistingData(hasData);
+        
+        // Update originalFormData to match saved data
+        setOriginalFormData(savedData);
         
         // Switch to view mode after successful save (panel stays open)
         setViewMode('view');
+        
+        // Update cache with saved data
+        updateCachedProfileData({
+          churchName: savedData.churchName || null,
+          churchCity: savedData.churchCity || null,
+          churchState: savedData.churchState || null
+        });
+        console.log('✅ MyChurchPanel: Cache updated with saved church data');
         
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -308,19 +347,29 @@ export default function MyChurchPanel({
       if (response.ok) {
         console.log('✅ MyChurchPanel: Church data updated successfully (from Save & Close)');
         
-        // Update hasExistingData flag
-        const hasData = !!(formData.churchName.trim() || formData.churchCity.trim() || formData.churchState.trim());
-        setHasExistingData(hasData);
-        
-        // Update originalFormData to match saved data
-        setOriginalFormData({
+        const savedData = {
           churchName: formData.churchName.trim(),
           churchCity: formData.churchCity.trim(),
           churchState: formData.churchState.trim()
-        });
+        };
+        
+        // Update hasExistingData flag
+        const hasData = !!(savedData.churchName || savedData.churchCity || savedData.churchState);
+        setHasExistingData(hasData);
+        
+        // Update originalFormData to match saved data
+        setOriginalFormData(savedData);
         
         // Switch to view mode
         setViewMode('view');
+        
+        // Update cache with saved data
+        updateCachedProfileData({
+          churchName: savedData.churchName || null,
+          churchCity: savedData.churchCity || null,
+          churchState: savedData.churchState || null
+        });
+        console.log('✅ MyChurchPanel: Cache updated with saved church data');
         
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -400,6 +449,14 @@ export default function MyChurchPanel({
         // Update state
         setHasExistingData(false);
         setViewMode('edit');
+        
+        // Update cache to reflect removal
+        updateCachedProfileData({
+          churchName: null,
+          churchCity: null,
+          churchState: null
+        });
+        console.log('✅ MyChurchPanel: Cache updated to reflect church removal');
         
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {

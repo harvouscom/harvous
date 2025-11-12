@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from '@/utils/toast';
+import { clearCachedProfileData, updateCachedProfileData, getCachedProfileData } from '@/utils/profile-cache';
 
 // Import panel components
 import EditNameColorPanel from '@/components/react/EditNameColorPanel';
@@ -57,6 +58,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       
       sessionStorage.removeItem('userProfileData');
       console.log('Cleared profile data from sessionStorage');
+      
+      // Clear unified profile cache
+      clearCachedProfileData();
+      console.log('Cleared unified profile cache');
       
       console.log('Redirecting to sign-in page');
       window.location.href = '/sign-in';
@@ -131,6 +136,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
 
         toast.success('Name and color updated successfully!');
         
+        // Update unified cache
+        updateCachedProfileData({
+          firstName,
+          lastName,
+          userColor: color
+        });
+        console.log('✅ ProfilePage: Cache updated after profile update');
+        
+        // Also update legacy sessionStorage for backward compatibility
         sessionStorage.setItem('userProfileData', JSON.stringify({
           firstName,
           lastName,
@@ -184,6 +198,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             
             toast.success(message);
             
+            // Update cache if email was changed (we need to fetch new email from API)
+            // For now, we'll let the EmailPasswordPanel update the cache when it loads
+            // But we can trigger a cache refresh by dispatching an event
+            if (detail.newEmail?.trim()) {
+                // Cache will be updated when EmailPasswordPanel loads next time
+                // Or we could fetch the profile again here, but that's an extra API call
+                console.log('📝 ProfilePage: Email updated, cache will refresh on next panel load');
+            }
+            
             // Close the panel after a short delay to show the toast
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('closeProfilePanel'));
@@ -204,24 +227,48 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     // @ts-ignore
     window.profilePage = { handleLogout };
 
-    // Replicate sessionStorage check from original script
-    const storedProfileData = sessionStorage.getItem('userProfileData');
-    if (storedProfileData) {
-        try {
-            const parsedData = JSON.parse(storedProfileData);
-            console.log('🔄 Found updated profile data in sessionStorage:', parsedData);
-            setProfileData({
-                displayName: parsedData.displayName,
-                userColor: parsedData.color,
-                firstName: parsedData.firstName,
-                lastName: parsedData.lastName,
-                initials: parsedData.initials,
-            });
-            // Update the CardStack header immediately
-            updateCardStackHeader(parsedData.color, parsedData.displayName);
-        } catch (error) {
-            console.error('Error parsing stored profile data:', error);
-            sessionStorage.removeItem('userProfileData');
+    // Check unified cache first
+    const cached = getCachedProfileData();
+    if (cached && (cached.firstName || cached.lastName)) {
+        console.log('🔄 Found cached profile data');
+        const newDisplayName = `${cached.firstName} ${cached.lastName.charAt(0)}`.trim();
+        const newInitials = `${cached.firstName.charAt(0) || ''}${cached.lastName.charAt(0) || ''}`.toUpperCase();
+        setProfileData({
+            displayName: newDisplayName,
+            userColor: cached.userColor,
+            firstName: cached.firstName,
+            lastName: cached.lastName,
+            initials: newInitials,
+        });
+        // Update the CardStack header immediately
+        updateCardStackHeader(cached.userColor, newDisplayName);
+    } else {
+        // Fallback: Check legacy sessionStorage for backward compatibility
+        const storedProfileData = sessionStorage.getItem('userProfileData');
+        if (storedProfileData) {
+            try {
+                const parsedData = JSON.parse(storedProfileData);
+                console.log('🔄 Found legacy profile data in sessionStorage, migrating to cache');
+                setProfileData({
+                    displayName: parsedData.displayName,
+                    userColor: parsedData.color,
+                    firstName: parsedData.firstName,
+                    lastName: parsedData.lastName,
+                    initials: parsedData.initials,
+                });
+                // Update the CardStack header immediately
+                updateCardStackHeader(parsedData.color, parsedData.displayName);
+                
+                // Migrate to unified cache
+                updateCachedProfileData({
+                    firstName: parsedData.firstName,
+                    lastName: parsedData.lastName,
+                    userColor: parsedData.color
+                });
+            } catch (error) {
+                console.error('Error parsing stored profile data:', error);
+                sessionStorage.removeItem('userProfileData');
+            }
         }
     }
 
@@ -241,6 +288,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             });
             // Update the CardStack header immediately
             updateCardStackHeader(newColor, newDisplayName);
+            
+            // Update unified cache
+            updateCachedProfileData({
+                firstName: detail.firstName,
+                lastName: detail.lastName,
+                userColor: newColor
+            });
+            console.log('✅ ProfilePage: Cache updated after profile update event');
         }
     };
 

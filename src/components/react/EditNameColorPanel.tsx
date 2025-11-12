@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import { toast } from '@/utils/toast';
 import SquareButton from './SquareButton';
+import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
 
 interface EditNameColorPanelProps {
   firstName?: string;
@@ -32,18 +33,33 @@ export default function EditNameColorPanel({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  // Check sessionStorage first, then load from API if needed
+  // Check cache first, then load from API if needed
   useEffect(() => {
-    console.log('🔄 EditNameColorPanel: useEffect triggered, checking for data');
+    console.log('🔄 EditNameColorPanel: useEffect triggered, checking cache');
     
-    // First check sessionStorage for updated data
+    // Check unified cache first
+    const cached = getCachedProfileData();
+    if (cached && (cached.firstName || cached.lastName)) {
+      console.log('📦 EditNameColorPanel: Using cached profile data');
+      const newData = {
+        firstName: cached.firstName || '',
+        lastName: cached.lastName || '',
+        selectedColor: (cached.userColor as ThreadColor) || 'paper'
+      };
+      setFormData(newData);
+      setInitialData(newData);
+      console.log('✅ EditNameColorPanel: Form updated with cached data');
+      return; // Don't load from API if we have cached data
+    }
+    
+    // Fallback: Check old sessionStorage for backward compatibility
     const storedProfileData = sessionStorage.getItem('userProfileData');
     if (storedProfileData) {
       try {
         const profileData = JSON.parse(storedProfileData);
-        console.log('🔄 EditNameColorPanel: Found sessionStorage data:', profileData);
+        console.log('🔄 EditNameColorPanel: Found legacy sessionStorage data, migrating to cache');
         
-        // Update form with sessionStorage data
+        // Update form with legacy data
         const newData = {
           firstName: profileData.firstName || '',
           lastName: profileData.lastName || '',
@@ -51,15 +67,22 @@ export default function EditNameColorPanel({
         };
         setFormData(newData);
         setInitialData(newData);
-        console.log('✅ EditNameColorPanel: Form updated with sessionStorage data');
-        return; // Don't load from API if we have sessionStorage data
+        
+        // Migrate to unified cache
+        updateCachedProfileData({
+          firstName: profileData.firstName || '',
+          lastName: profileData.lastName || '',
+          userColor: profileData.color || 'paper'
+        });
+        console.log('✅ EditNameColorPanel: Form updated and migrated to unified cache');
+        return;
       } catch (error) {
-        console.error('❌ EditNameColorPanel: Error parsing sessionStorage data:', error);
+        console.error('❌ EditNameColorPanel: Error parsing legacy sessionStorage data:', error);
       }
     }
     
-    // If no sessionStorage data, load from API
-    console.log('🔄 EditNameColorPanel: No sessionStorage data, loading from API');
+    // If no cache, load from API
+    console.log('📥 EditNameColorPanel: No cache found, loading from API');
     loadUserData();
   }, []);
 
@@ -80,7 +103,14 @@ export default function EditNameColorPanel({
         };
         setFormData(newData);
         setInitialData(newData);
-        console.log('✅ EditNameColorPanel: Form data updated');
+        
+        // Update cache with fetched data
+        updateCachedProfileData({
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          userColor: data.userColor || 'paper'
+        });
+        console.log('✅ EditNameColorPanel: Form data updated and cache refreshed');
       } else {
         console.error('❌ EditNameColorPanel: API call failed:', response.status);
       }
@@ -188,7 +218,16 @@ export default function EditNameColorPanel({
           console.log(`✅ EditNameColorPanel: Updated ${result.updatedCount} avatars`);
         }
 
-        // Store updated data in sessionStorage to persist across navigation
+        // Update unified cache with saved data
+        updateCachedProfileData({
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          userColor: formData.selectedColor
+        });
+        console.log('✅ EditNameColorPanel: Cache updated with saved profile data');
+        
+        // Also update legacy sessionStorage for backward compatibility with ProfilePage
+        // This can be removed once ProfilePage is fully migrated
         sessionStorage.setItem('userProfileData', JSON.stringify({
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
@@ -197,9 +236,6 @@ export default function EditNameColorPanel({
           displayName: `${formData.firstName.trim()} ${formData.lastName.trim().charAt(0)}`.trim(),
           timestamp: Date.now()
         }));
-
-        // Keep sessionStorage data for navigation persistence
-        // It will be cleared by the global sync script after 1 hour or on logout
 
         // Dispatch profile update event for other components
         window.dispatchEvent(new CustomEvent('updateProfile', {
