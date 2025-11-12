@@ -1,8 +1,9 @@
 ---
 import ProfilePage from '@/components/react/profile/ProfilePage.tsx';
 import type { ProfilePageProps } from '@/components/react/profile/ProfilePage';
+import packageJson from '../../package.json';
 
 export type Props = ProfilePageProps;
 ---
 
-<ProfilePage client:load {...Astro.props} />
+<ProfilePage client:load {...Astro.props} version={packageJson.version} />

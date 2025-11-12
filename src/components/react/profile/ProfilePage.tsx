@@ -16,6 +16,7 @@ export interface ProfilePageProps {
   userXP: number;
   firstName: string;
   lastName: string;
+  version?: string;
 }
 
 // Type definition for a panel name
@@ -28,6 +29,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   userXP,
   firstName,
   lastName,
+  version = '0.10.0',
 }) => {
   const [activePanel, setActivePanel] = useState<PanelName>(null);
   const [profileData, setProfileData] = useState({
@@ -285,7 +287,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       case 'myData':
         return <MyDataPanel />;
       case 'getSupport':
-        return <GetSupportPanel />;
+        return <GetSupportPanel version={version} />;
       default:
         return (
             <div id="default-panel" className="flex flex-col items-left h-full justify-end">
