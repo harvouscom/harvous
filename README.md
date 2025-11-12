@@ -950,6 +950,6 @@ Built with ❤️ for Bible study enthusiasts
 
 ---
 
-**Version:** 0.77.0
+**Version:** 0.78.0
 **Last Updated:** January 2025
 **Status:** Active Development - 85% to V1 🚀
