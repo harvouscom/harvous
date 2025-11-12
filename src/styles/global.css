@@ -534,12 +534,72 @@ button[disabled] {
 
 [data-sonner-toast] {
     pointer-events: auto !important;
+    text-align: center !important;
 }
 
-/* Mobile: Ensure toast doesn't exceed viewport width */
+/* Center align toast text content - comprehensive targeting */
+.toast-center-text,
+[data-sonner-toast],
+[data-sonner-toast] *,
+[data-sonner-toast] *::before,
+[data-sonner-toast] *::after {
+    text-align: center !important;
+}
+
+/* Target all divs and spans within toast */
+[data-sonner-toast] div,
+[data-sonner-toast] span,
+[data-sonner-toast] p {
+    text-align: center !important;
+    display: block !important;
+    width: 100% !important;
+}
+
+/* Target the toast content wrapper specifically */
+[data-sonner-toast] > div {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+}
+
+/* Target the title/content area with all possible selectors */
+[data-sonner-toast] [data-title],
+[data-sonner-toast] [data-content],
+[data-sonner-toast] [data-description],
+[data-sonner-toast] .sonner-toast-title,
+[data-sonner-toast] .sonner-toast-description {
+    text-align: center !important;
+    width: 100% !important;
+    display: block !important;
+}
+
+/* Mobile: Ensure toast is centered and fully visible */
 @media (max-width: 1159px) {
     [data-sonner-toaster] {
+        left: 16px !important;
+        right: 16px !important;
+        width: calc(100% - 32px) !important;
         max-width: calc(100% - 32px) !important;
+        margin: 0 auto !important;
+        transform: none !important;
+    }
+    
+    [data-sonner-toast] {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        box-sizing: border-box !important;
+    }
+    
+    /* Ensure toast content wrapper also takes full width */
+    [data-sonner-toast] > div {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
     }
 }
 
