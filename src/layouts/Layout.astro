@@ -15,6 +15,8 @@ import EditThreadPanel from "@/components/react/EditThreadPanel.tsx";
 import DesktopPanelManager from "@/components/react/DesktopPanelManager.tsx";
 import BottomSheetReact from "@/components/BottomSheetReact.astro";
 import KeyboardShortcutsInit from "@/components/react/KeyboardShortcutsInit.tsx";
+import PostHog from "@/components/posthog.astro";
+import PostHogUserInit from "@/components/react/PostHogUserInit.tsx";
 import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 // Initialize toast utility globally
@@ -28,9 +30,26 @@ interface Props {
   currentThread?: any;
   currentSpace?: any;
   currentNote?: any;
+  userId?: string;
+  userData?: {
+    email?: string;
+    name?: string;
+    displayName?: string;
+    userColor?: string;
+  };
 }
 
-const { classNames = '', title = 'Harvous', contentType = 'dashboard', contentId, currentThread, currentSpace, currentNote }: Props = Astro.props;
+const { 
+  classNames = '', 
+  title = 'Harvous', 
+  contentType = 'dashboard', 
+  contentId, 
+  currentThread, 
+  currentSpace, 
+  currentNote,
+  userId,
+  userData
+}: Props = Astro.props;
 
 // Determine if More button should be shown (pass contentId to hide for unorganized thread)
 const showMoreButton = shouldShowMoreButton(contentType, contentId);
@@ -52,6 +71,9 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <link rel="apple-touch-icon" href="/favicon.png" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    
+    <!-- PostHog Analytics (Official Astro Integration) -->
+    <PostHog />
     
     <!-- Enable View Transitions for client-side navigation -->
     <ClientRouter />
@@ -137,6 +159,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
   >
     <ToastProvider client:load />
     <KeyboardShortcutsInit client:load />
+    <PostHogUserInit client:load userId={userId} userData={userData} />
 
     <div class="h-[100svh] p-3 min-[1160px]:p-6" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->

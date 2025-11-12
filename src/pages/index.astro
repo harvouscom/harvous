@@ -155,7 +155,19 @@ try {
 }
 ---
 
-<Layout title="Harvous" contentType="dashboard" currentThread={null} currentSpace={null}>
+<Layout 
+  title="Harvous" 
+  contentType="dashboard" 
+  currentThread={null} 
+  currentSpace={null}
+  userId={userId}
+  userData={{
+    email: userData.email,
+    name: `${userData.firstName} ${userData.lastName}`.trim(),
+    displayName: userData.displayName,
+    userColor: userData.userColor,
+  }}
+>
   <!-- Navigation Column -->
   <NavigationColumnReact 
     slot="navigation"

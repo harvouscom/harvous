@@ -3,4 +3,7 @@ CLERK_SECRET_KEY=sk_test_ETTyur7PugI1Lji1xyAia9JrFTTIcwlcEE6Hl7mKc1
 # ASTRO_DB_REMOTE_URL=""
 # ASTRO_DB_APP_TOKEN=""
 # Webflow CMS API token for syncing inbox items
-WEBFLOW_API_TOKEN="" 
+WEBFLOW_API_TOKEN=""
+# PostHog Analytics
+PUBLIC_POSTHOG_KEY=phc_your_key_here
+PUBLIC_POSTHOG_HOST=https://app.posthog.com 

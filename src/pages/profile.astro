@@ -85,7 +85,18 @@ const contentType = "profile";
 const contentId = "profile";
 ---
 
-<Layout title="Profile" contentType={contentType} contentId={contentId}>
+<Layout 
+  title="Profile" 
+  contentType={contentType} 
+  contentId={contentId}
+  userId={userId}
+  userData={{
+    email: userData.email,
+    name: `${userData.firstName} ${userData.lastName}`.trim(),
+    displayName: userData.displayName,
+    userColor: userData.userColor,
+  }}
+>
   <!-- Navigation Column -->
   <NavigationColumnReact 
     slot="navigation"
