@@ -790,8 +790,8 @@ if (!content) {
 
 <!-- Initialize navigation cache with server-rendered data -->
 <script type="module" define:vars={{ threads, spaces, inboxCount }}>
-  import { initNavigationCache } from '@/scripts/navigation-cache-client';
-  import { initPrefetching } from '@/utils/prefetch';
+  import { initNavigationCache } from '../scripts/navigation-cache-client';
+  import { initPrefetching } from '../../utils/prefetch';
   
   // Cache navigation data after page loads
   if (typeof window !== 'undefined') {
@@ -811,7 +811,7 @@ if (!content) {
     });
   }
 </script>
-
+ 
 <script type="text/javascript">
   // Set the global save callback for CardFullEditable
   var noteSaveCallback = async function(newTitle, newContent) {

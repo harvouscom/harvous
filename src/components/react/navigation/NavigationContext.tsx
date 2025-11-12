@@ -153,7 +153,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
   
   const [navigationHistory, setNavigationHistory] = useState<NavigationItem[]>(getInitialHistory);
-  
 
   // Get navigation history from storage
   const getNavigationHistory = (): NavigationItem[] => {
@@ -342,14 +341,20 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Remove item from navigation history
   const removeFromNavigationHistory = (itemId: string) => {
+    console.log(`[removeFromNavigationHistory] Called with itemId: ${itemId}`);
     const history = getNavigationHistory();
+    console.log(`[removeFromNavigationHistory] Current history:`, history);
     
     // Check if the item being removed is currently active
     const currentActiveItemId = getCurrentActiveItemId();
+    console.log(`[removeFromNavigationHistory] getCurrentActiveItemId() returned: '${currentActiveItemId}'`);
+    console.log(`[removeFromNavigationHistory] window.location.pathname: '${window.location.pathname}'`);
     const isActive = itemId === currentActiveItemId;
+    console.log(`[removeFromNavigationHistory] isActive check: '${itemId}' === '${currentActiveItemId}' = ${isActive}`);
     
     // If removing an active item, navigate to the next available item first
     if (isActive) {
+      console.log(`[removeFromNavigationHistory] Item is active, proceeding with navigation`);
       
       // Find the current index in the history (before filtering)
       const currentIndex = history.findIndex((item) => item.id === itemId);
@@ -924,9 +929,52 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return currentHistory;
         });
         
+        // Also increment unorganized thread count (note was moved back to unorganized)
+        // Note: This assumes the note became unorganized. The API refresh will correct any inaccuracies.
+        setNavigationHistory(currentHistory => {
+          const unorganizedIndex = currentHistory.findIndex((item: any) => item.id === 'thread_unorganized');
+          if (unorganizedIndex !== -1) {
+            const oldUnorganizedCount = currentHistory[unorganizedIndex].count || 0;
+            const newUnorganizedCount = oldUnorganizedCount + 1;
+            
+            const updatedHistory = currentHistory.map((item, index) => 
+              index === unorganizedIndex 
+                ? { ...item, count: newUnorganizedCount }
+                : item
+            );
+            
+            saveNavigationHistory(updatedHistory);
+            return updatedHistory;
+          } else {
+            // Unorganized thread not in history - might need to add it back if it was closed
+            // Check if it should be reopened after API refresh
+          }
+          return currentHistory;
+        });
+        
         // Refresh counts from API after a delay to ensure database is committed
-        setTimeout(() => {
-          refreshThreadCounts();
+        setTimeout(async () => {
+          await refreshThreadCounts();
+          // Check if unorganized should be reopened if it was closed
+          const history = getNavigationHistory();
+          const unorganizedInHistory = history.find(i => i.id === 'thread_unorganized');
+          if (!unorganizedInHistory && isItemClosed('thread_unorganized')) {
+            // It's closed, let's get the count and see if we should reopen
+            const response = await fetch('/api/threads/list', { credentials: 'include' });
+            if (response.ok) {
+              const threads = await response.json();
+              const unorganizedThread = threads.find((t: any) => t.id === 'thread_unorganized');
+              if (unorganizedThread && unorganizedThread.noteCount > 0) {
+                // Reopen it
+                addToNavigationHistory({
+                  id: 'thread_unorganized',
+                  title: 'Unorganized',
+                  count: unorganizedThread.noteCount,
+                  backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+                });
+              }
+            }
+          }
         }, 300);
       }
     };
@@ -956,6 +1004,32 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return currentHistory;
         });
         
+        // Also decrement unorganized thread count (note was moved from unorganized to a thread)
+        // Note: This assumes the note was previously unorganized. The API refresh will correct any inaccuracies.
+        setNavigationHistory(currentHistory => {
+          const unorganizedIndex = currentHistory.findIndex((item: any) => item.id === 'thread_unorganized');
+          if (unorganizedIndex !== -1) {
+            const oldUnorganizedCount = currentHistory[unorganizedIndex].count || 0;
+            const newUnorganizedCount = Math.max(0, oldUnorganizedCount - 1);
+            
+            const updatedHistory = currentHistory.map((item, index) => 
+              index === unorganizedIndex 
+                ? { ...item, count: newUnorganizedCount }
+                : item
+            );
+            
+            saveNavigationHistory(updatedHistory);
+
+            // If unorganized thread is now empty, call the standard removal function
+            if (newUnorganizedCount === 0) {
+              removeFromNavigationHistory('thread_unorganized');
+            }
+            
+            return updatedHistory;
+          }
+          return currentHistory;
+        });
+        
         // Refresh counts from API after a delay to ensure database is committed
         setTimeout(() => {
           refreshThreadCounts();
@@ -974,44 +1048,56 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Listen for note deletion events
     const handleNoteDeleted = (event: CustomEvent) => {
-      const note = event.detail?.note;
-      if (note && note.threadId) {
-        // Use current React state instead of reading from localStorage
+      const { noteId, threadId } = event.detail;
+      const actualThreadId = threadId || event.detail?.note?.threadId;
+      
+      if (noteId && actualThreadId) {
+        let shouldCloseUnorganized = false;
+
         setNavigationHistory(currentHistory => {
-          const threadIndex = currentHistory.findIndex((item: any) => item.id === note.threadId);
-          if (threadIndex !== -1) {
-            // Update count immediately for UI responsiveness
-            // Use immutable updates to ensure React detects the change
-            const oldCount = currentHistory[threadIndex].count || 0;
-            const newCount = Math.max(0, oldCount - 1);
-            
-            const updatedHistory = currentHistory.map((item, index) => 
-              index === threadIndex 
-                ? { ...item, count: newCount }
-                : item
-            );
-            saveNavigationHistory(updatedHistory);
-            return updatedHistory;
+          const threadIndex = currentHistory.findIndex((item: any) => item.id === actualThreadId);
+          if (threadIndex === -1) {
+            return currentHistory;
           }
-          return currentHistory;
+
+          const oldCount = currentHistory[threadIndex].count || 0;
+          const newCount = Math.max(0, oldCount - 1);
+            
+          // If the unorganized thread is now empty, set a flag to close it
+          if (actualThreadId === 'thread_unorganized' && newCount === 0) {
+            shouldCloseUnorganized = true;
+          }
+            
+          const updatedHistory = currentHistory.map((item, index) => 
+            index === threadIndex 
+              ? { ...item, count: newCount }
+              : item
+          );
+          saveNavigationHistory(updatedHistory);
+          return updatedHistory;
         });
+
+        // Call removal function outside of the state update
+        if (shouldCloseUnorganized) {
+          removeFromNavigationHistory('thread_unorganized');
+        }
         
-        // Refresh counts from API after a delay to ensure database is committed
+        // Refresh counts from API after a delay to ensure database is fully consistent
         setTimeout(() => {
           refreshThreadCounts();
-        }, 300);
+        }, 500);
       }
     };
     
     document.addEventListener('astro:page-load', handlePageLoad);
     document.addEventListener('spaceCreated', handleSpaceCreated as EventListener);
-    document.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
+    window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
     document.addEventListener('threadCreated', handleThreadCreated as EventListener);
-    document.addEventListener('threadDeleted', handleThreadDeleted as EventListener);
-    document.addEventListener('noteCreated', handleNoteCreated as EventListener);
-    document.addEventListener('noteDeleted', handleNoteDeleted as EventListener);
-    document.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
-    document.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+    window.addEventListener('threadDeleted', handleThreadDeleted as EventListener);
+    window.addEventListener('noteCreated', handleNoteCreated as EventListener);
+    window.addEventListener('noteDeleted', handleNoteDeleted as EventListener);
+    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
     
     // Expose functions to global scope for non-React code
     (window as any).removeFromNavigationHistory = removeFromNavigationHistory;
@@ -1026,13 +1112,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       clearTimeout(validationTimeoutId);
       document.removeEventListener('astro:page-load', handlePageLoad);
       document.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
-      document.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
+      window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
       document.removeEventListener('threadCreated', handleThreadCreated as EventListener);
-      document.removeEventListener('threadDeleted', handleThreadDeleted as EventListener);
-      document.removeEventListener('noteCreated', handleNoteCreated as EventListener);
-      document.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
-      document.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
-      document.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+      window.removeEventListener('threadDeleted', handleThreadDeleted as EventListener);
+      window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
+      window.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
+      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
     };
   }, []);
 

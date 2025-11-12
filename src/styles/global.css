@@ -537,6 +537,15 @@ button[disabled] {
     text-align: center !important;
 }
 
+/* Desktop: Set minimum width to 280px, allow expansion for longer messages */
+@media (min-width: 1160px) {
+    [data-sonner-toast] {
+        min-width: 280px !important;
+        width: auto !important;
+        max-width: none !important;
+    }
+}
+
 /* Center align toast text content - comprehensive targeting */
 .toast-center-text,
 [data-sonner-toast],

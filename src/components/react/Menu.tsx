@@ -202,9 +202,26 @@ export default function Menu({
             detail: { threadId: contentId }
           }));
         } else if (contentType === 'note') {
+          const pathBeforeEvent = window.location.pathname;
+          
           window.dispatchEvent(new CustomEvent('noteDeleted', {
-            detail: { noteId: contentId }
+            detail: { 
+              noteId: contentId,
+              threadId: currentThreadId // Pass the threadId so navigation knows which thread to update
+            }
           }));
+          
+          // Give NavigationContext time to process the event and navigate if needed
+          // (e.g., if unorganized thread becomes empty, NavigationContext will navigate)
+          // If NavigationContext doesn't navigate, we'll proceed with normal redirect below
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Check if NavigationContext navigated away (page changed)
+          // If so, don't proceed with our redirect
+          if (window.location.pathname !== pathBeforeEvent) {
+            // NavigationContext already navigated, we're done
+            return;
+          }
         } else if (contentType === 'space') {
           window.dispatchEvent(new CustomEvent('spaceDeleted', {
             detail: { spaceId: contentId }
