@@ -16,6 +16,22 @@ export const POST: APIRoute = async ({ locals }) => {
       });
     }
 
+    return await assignInboxItems();
+  } catch (error: any) {
+    console.error('Error assigning inbox items:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to assign inbox items',
+      details: error.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+};
+
+async function assignInboxItems() {
+  try {
+
     // Get all active inbox items
     const allInboxItems = await db
       .select()
@@ -82,16 +98,9 @@ export const POST: APIRoute = async ({ locals }) => {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
-
   } catch (error: any) {
     console.error('Error assigning inbox items:', error);
-    return new Response(JSON.stringify({ 
-      error: 'Failed to assign inbox items',
-      details: error.message 
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    throw error;
   }
-};
+}
 
