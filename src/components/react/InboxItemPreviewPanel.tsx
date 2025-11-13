@@ -282,9 +282,9 @@ export default function InboxItemPreviewPanel({
         }
       `}</style>
     <div className="h-full flex flex-col">
-      {/* Content area that expands to fill available space */}
+      {/* Content area that expands to fill available space - matches NewNotePanel structure */}
       <div className="flex-1 flex flex-col min-h-0 mb-3.5 overflow-hidden">
-        {/* Note Detail View - Simple card like CardFullEditable (no CardStack) */}
+        {/* Note Detail View - matches NewNotePanel card structure */}
         {viewMode === 'noteDetail' && selectedNote ? (
           <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full" style={{ maxHeight: '100%' }}>
             {/* Header with title and note type icon */}
@@ -302,7 +302,7 @@ export default function InboxItemPreviewPanel({
               </div>
             </div>
             
-            {/* Rich text content area - similar to CardFullEditable display mode */}
+            {/* Content - exact structure from CardFullEditable.tsx */}
             <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px' }}>
               <div className="flex-1 flex flex-col font-sans font-normal min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
                 <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
@@ -319,7 +319,7 @@ export default function InboxItemPreviewPanel({
           </div>
         ) : (
           /* Thread View - CardStack structure */
-          <div className="box-border flex flex-col min-h-0 flex-1 items-start justify-start overflow-clip pb-6 pt-0 px-0 relative rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full mb-3.5">
+          <div className="box-border flex flex-col min-h-0 flex-1 items-start justify-start overflow-clip pb-6 pt-0 px-0 relative rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full">
             {/* CardStack-like Header */}
             <div 
               className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full"
@@ -337,8 +337,8 @@ export default function InboxItemPreviewPanel({
             </div>
 
             {/* Content area */}
-            <div className="basis-0 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-px min-w-px overflow-clip relative shrink-0 w-full">
-              <div className="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
+            <div className="flex-1 box-border flex flex-col min-h-0 overflow-clip relative w-full mb-[-24px]">
+              <div className="flex-1 bg-[var(--color-snow-white)] box-border flex flex-col min-h-0 overflow-x-clip p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full">
                 {/* Thread View - Thread with Notes */}
                 {viewMode === 'thread' && item.contentType === 'thread' && (
                   <div className="flex flex-col h-full w-full">
