@@ -111,8 +111,18 @@ export const POST: APIRoute = async ({ request }) => {
     // Parse webhook payload
     const payload: WebflowWebhookPayload = JSON.parse(rawBody);
     
+    console.log('Webhook received:', {
+      triggerType: payload.triggerType,
+      collection: payload.collection,
+      itemId: payload.item?.id,
+      isDraft: payload.item?.isDraft,
+      lastPublished: payload.item?.lastPublished,
+      active: payload.item?.fieldData?.active,
+    });
+    
     // Only process webhooks from Threads collection
     if (payload.collection !== THREADS_COLLECTION_ID) {
+      console.log('Webhook ignored - not from Threads collection:', payload.collection);
       return new Response(JSON.stringify({ 
         message: 'Ignored - not from Threads collection',
         collection: payload.collection 
@@ -152,6 +162,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Only process published items with "Send to Harvous Inbox?" toggle enabled
     if (!payload.item.fieldData?.active) {
+      console.log('Webhook ignored - "Send to Harvous Inbox?" toggle not enabled for item:', payload.item.id);
       return new Response(JSON.stringify({ 
         message: 'Ignored - toggle not enabled',
         itemId: payload.item.id 
@@ -163,6 +174,11 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Skip draft items
     if (payload.item.isDraft || !payload.item.lastPublished) {
+      console.log('Webhook ignored - item is draft or not published:', {
+        itemId: payload.item.id,
+        isDraft: payload.item.isDraft,
+        lastPublished: payload.item.lastPublished,
+      });
       return new Response(JSON.stringify({ 
         message: 'Ignored - item is draft or not published',
         itemId: payload.item.id 
@@ -183,7 +199,14 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Import sync logic from sync-inbox endpoint
     // We'll reuse the transformation and processing logic
+    console.log('Processing webhook item:', payload.item.id);
     const syncResult = await processWebflowItem(webflowItem, webflowToken, SITE_ID);
+    
+    console.log('Webhook processing result:', {
+      itemId: payload.item.id,
+      synced: syncResult.synced,
+      errors: syncResult.errors,
+    });
 
     return new Response(JSON.stringify({
       success: true,
