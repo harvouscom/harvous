@@ -924,13 +924,33 @@ npm or pnpm
 
 ## Contributing
 
-This is a private project. For questions or issues, contact the development team.
+Harvous is an open-source project! We welcome contributions from the community.
+
+### How to Contribute
+
+1. **Fork the repository** and clone it locally
+2. **Create a branch** for your feature or fix: `git checkout -b feature/your-feature`
+3. **Make your changes** and test thoroughly
+4. **Commit** using conventional commits: `feat: add new feature` or `fix: resolve bug`
+5. **Push** to your fork and open a Pull Request
+
+### Development Setup
+
+See the [Development](#development) section above for setup instructions.
+
+### Questions or Issues?
+
+- Open an issue on GitHub for bugs or feature requests
+- Check existing issues before creating a new one
+- Be respectful and constructive in all interactions
+
+We appreciate your interest in contributing to Harvous!
 
 ---
 
 ## License
 
-Proprietary - All rights reserved
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
