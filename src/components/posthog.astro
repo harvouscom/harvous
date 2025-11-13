@@ -17,10 +17,37 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog
     defaults: '2025-05-24',
     person_profiles: 'identified_only',
     loaded: function(posthog) {
+      window.posthog = posthog;
+      
       // Identify user if available
       if (window.__posthog_userId__) {
         posthog.identify(window.__posthog_userId__, window.__posthog_userData__ || {});
       }
+      
+      // Global error handler for uncaught exceptions
+      window.addEventListener('error', (event) => {
+        if (posthog && typeof posthog.captureException === 'function') {
+          posthog.captureException(event.error || new Error(event.message), {
+            error_type: 'javascript_error',
+            error_filename: event.filename,
+            error_line: event.lineno,
+            error_column: event.colno,
+          });
+        }
+      });
+      
+      // Global handler for unhandled promise rejections
+      window.addEventListener('unhandledrejection', (event) => {
+        if (posthog && typeof posthog.captureException === 'function') {
+          const error = event.reason instanceof Error 
+            ? event.reason 
+            : new Error(String(event.reason || 'Unhandled promise rejection'));
+          
+          posthog.captureException(error, {
+            error_type: 'promise_rejection',
+          });
+        }
+      });
     }
   });
 </script>

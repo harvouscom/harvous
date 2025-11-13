@@ -229,3 +229,27 @@ export function optIn() {
   }
 }
 
+/**
+ * Capture an exception/error in PostHog
+ * Uses PostHog's captureException method for proper error tracking
+ */
+export function captureException(
+  error: Error | string,
+  additionalProperties?: Record<string, any>
+) {
+  if (typeof window === 'undefined' || !window.posthog) {
+    return;
+  }
+
+  try {
+    // Convert string errors to Error objects
+    const errorObj = typeof error === 'string' 
+      ? new Error(error) 
+      : error;
+
+    window.posthog.captureException(errorObj, additionalProperties);
+  } catch (err) {
+    console.error('[PostHog] Error capturing exception:', err);
+  }
+}
+

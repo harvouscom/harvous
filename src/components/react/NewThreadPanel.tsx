@@ -4,6 +4,7 @@ import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextCo
 // import CardNote from '@/components/react/CardNote';
 import SquareButton from './SquareButton';
 import ChevronDownIcon from '@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg';
+import { captureException } from '@/utils/posthog';
 
 interface NewThreadPanelProps {
   currentSpace?: any;
@@ -295,7 +296,15 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
           throw new Error(errorMessage);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Track error in PostHog
+      if (typeof window !== 'undefined' && window.posthog) {
+        captureException(error, {
+          context: 'thread_creation',
+          endpoint: '/api/threads/create',
+        });
+      }
+      
       console.error('NewThreadPanel: Error:', error);
       const errorMessage = error instanceof Error ? error.message : `Failed to ${isEditMode ? 'update' : 'create'} thread. Please try again.`;
       console.error('NewThreadPanel: Error message:', errorMessage);

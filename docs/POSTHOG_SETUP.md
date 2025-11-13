@@ -95,7 +95,37 @@ if (isFeatureEnabled('new-note-types')) {
 
 ### Error Tracking
 
-PostHog automatically captures JavaScript errors. For custom error tracking:
+PostHog provides comprehensive error tracking through exception autocapture and manual error capture.
+
+#### Exception Autocapture
+
+Exception autocapture is automatically enabled when PostHog initializes. It captures:
+- Uncaught JavaScript exceptions (`window.onerror`)
+- Unhandled promise rejections (`window.onunhandledrejection`)
+
+**Note**: Exception autocapture must be enabled in PostHog project settings:
+1. Go to PostHog dashboard → Project Settings → Error Tracking
+2. Enable "Exception Autocapture"
+3. This automatically captures `$exception` events when errors occur
+
+#### Manual Error Capture
+
+For custom error tracking in catch blocks:
+
+```typescript
+import { captureException } from '@/utils/posthog';
+
+try {
+  // Your code
+} catch (error) {
+  captureException(error, {
+    context: 'note_creation',
+    endpoint: '/api/notes/create',
+  });
+}
+```
+
+Or use the analytics utility:
 
 ```typescript
 import { trackError } from '@/utils/analytics';
@@ -107,10 +137,25 @@ try {
     errorMessage: error.message,
     errorStack: error.stack,
     context: 'note_creation',
-    userId: userId
+    userId: userId,
+    error: error
   });
 }
 ```
+
+#### Viewing Errors in PostHog
+
+1. Go to PostHog dashboard → Error Tracking
+2. View all captured exceptions with stack traces
+3. Filter by error type, context, or user
+4. See error frequency and trends
+
+#### Best Practices
+
+- **Capture errors with context**: Always include `context` and `endpoint` properties
+- **Don't capture sensitive data**: Never include passwords, tokens, or personal information
+- **Use appropriate error types**: Distinguish between JavaScript errors, promise rejections, and API errors
+- **Source maps**: For production, consider uploading source maps to PostHog for better stack traces (future enhancement)
 
 ## Privacy Settings
 

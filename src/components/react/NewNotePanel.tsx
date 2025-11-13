@@ -6,6 +6,7 @@ import SquareButton from './SquareButton';
 import ButtonSmall from './ButtonSmall';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { useNavigation } from './navigation/NavigationContext';
+import { captureException } from '@/utils/posthog';
 
 interface Thread {
   id: string;
@@ -1171,6 +1172,14 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
         setIsSubmitting(false);
       }
     } catch (error: any) {
+      // Track error in PostHog
+      if (typeof window !== 'undefined' && window.posthog) {
+        captureException(error, {
+          context: 'note_creation',
+          endpoint: '/api/notes/create',
+        });
+      }
+      
       if (window.toast) {
         window.toast.error(`Error creating note: ${error?.message || 'Please try again.'}`);
       } else {

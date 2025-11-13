@@ -5,7 +5,7 @@
  * Use these functions throughout the app to track user actions
  */
 
-import { captureEvent } from './posthog';
+import { captureEvent, captureException } from './posthog';
 
 /**
  * Track note creation
@@ -101,18 +101,21 @@ export function trackFeatureUsed(data: {
 
 /**
  * Track error occurred
+ * Uses PostHog's captureException for proper error tracking
  */
 export function trackError(data: {
   errorMessage: string;
   errorStack?: string;
   context: string;
   userId?: string;
+  error?: Error;
 }) {
-  captureEvent('error_occurred', {
-    error_message: data.errorMessage,
-    error_stack: data.errorStack,
+  const error = data.error || new Error(data.errorMessage);
+  
+  captureException(error, {
     context: data.context,
     user_id: data.userId,
+    error_stack: data.errorStack || error.stack,
   });
 }
 
