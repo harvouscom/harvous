@@ -19,6 +19,16 @@ import { db, InboxItems, InboxItemNotes, UserInboxItems, UserMetadata, eq, and }
  * 2. Add a new webhook with URL: https://your-domain.com/api/webflow/webhook
  * 3. Select trigger: "Collection Item Changed" for Threads collection
  *    (This catches publishes, updates, and deletes - you only need one webhook)
+ * 
+ * Supported Trigger Types:
+ * - collection_item.changed (from "Collection Item Changed" webhook)
+ * - collection_item.created
+ * - collection_item.updated
+ * - collection_item.unpublished
+ * - collection_item.deleted
+ * 
+ * The endpoint processes ALL trigger types except unpublished/deleted.
+ * "Collection Item Changed" is fully supported and will fire for creates, updates, and publishes.
  */
 
 const THREADS_COLLECTION_ID = '690ed2f0edd9bab40a4eb397';
@@ -132,10 +142,11 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    // Only process published items (not drafts or unpublished)
+    // Handle unpublished/deleted items - mark as inactive
+    // These trigger types: collection_item.unpublished, collection_item.deleted
     if (payload.triggerType === 'collection_item.unpublished' || 
         payload.triggerType === 'collection_item.deleted') {
-      // Handle unpublished/deleted items - mark as inactive
+      console.log('Webhook processing unpublished/deleted item:', payload.triggerType);
       if (payload.item?.id) {
         const existingItem = await db
           .select()
@@ -159,6 +170,28 @@ export const POST: APIRoute = async ({ request }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
+
+    // Process published/updated items
+    // These trigger types include: collection_item.changed, collection_item.created, collection_item.updated
+    // "Collection Item Changed" webhook fires for creates, updates, and publishes
+    // We process ALL trigger types that aren't unpublished/deleted
+    const validTriggerTypes = [
+      'collection_item.changed',
+      'collection_item_changed', 
+      'collection_item.created',
+      'collection_item_created',
+      'collection_item.updated',
+      'collection_item_updated',
+    ];
+    
+    // Log if we get an unexpected trigger type (but still process it)
+    if (!validTriggerTypes.includes(payload.triggerType) && 
+        !payload.triggerType.includes('unpublished') && 
+        !payload.triggerType.includes('deleted')) {
+      console.log('Webhook received unexpected trigger type (will still process):', payload.triggerType);
+    }
+    
+    console.log('Webhook processing published/updated item. Trigger type:', payload.triggerType);
 
     // Only process published items with "Send to Harvous Inbox?" toggle enabled
     if (!payload.item.fieldData?.active) {
@@ -215,6 +248,9 @@ export const POST: APIRoute = async ({ request }) => {
       itemId: payload.item.id,
       synced: syncResult.synced,
       errors: syncResult.errors,
+      note: syncResult.synced 
+        ? 'Item synced successfully to inbox' 
+        : 'Item processing failed - check errors',
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
