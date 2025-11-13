@@ -950,7 +950,9 @@ We appreciate your interest in contributing to Harvous!
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under a Non-Commercial License - see the [LICENSE](LICENSE) file for details.
+
+**Summary**: Free for personal and non-commercial use. Commercial use requires explicit permission from Testament Made, LLC.
 
 ---
 
