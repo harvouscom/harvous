@@ -1,4 +1,4 @@
-import { db, Threads, Notes, Spaces, NoteThreads, eq, and, desc, count, or, ne, isNull, isNotNull } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, eq, and, desc, count, or, ne, isNull, isNotNull } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 import { getInboxItems, getInboxCount as getInboxCountUtil } from "./inbox-data";
 
@@ -460,8 +460,8 @@ export async function getInboxDisplayCount(userId: string) {
     // IMPORTANT: The inbox section is reserved for external content only
     // User-generated content should NEVER appear in the inbox
     
-    // For now, return 0 since we don't have external content yet
-    return 0;
+    // Use the inbox data utility to get actual count
+    return await getInboxCountUtil(userId);
   } catch (error) {
     console.error("Error fetching inbox display count:", error);
     return 0;
@@ -481,9 +481,21 @@ export async function getFeaturedContent(userId: string) {
     // Fetch inbox items from Harvous team (synced from Webflow CMS)
     const inboxItems = await getInboxItems(userId);
     
-    // Map inbox items to CardFeat format
-    return inboxItems.map(item => {
+    // Map inbox items to CardFeat format with note counts for threads
+    return await Promise.all(inboxItems.map(async (item) => {
       const cleanContent = stripHtml(item.content || '');
+      
+      // Get note count for threads
+      let noteCount = 0;
+      if (item.contentType === 'thread') {
+        const countResult = await db
+          .select({ count: count() })
+          .from(InboxItemNotes)
+          .where(eq(InboxItemNotes.inboxItemId, item.id))
+          .get();
+        noteCount = countResult?.count || 0;
+      }
+      
       return {
         id: item.id,
         type: item.contentType === 'thread' ? 'thread' : 'note',
@@ -497,8 +509,9 @@ export async function getFeaturedContent(userId: string) {
         noteId: item.contentType === 'note' ? item.id : undefined,
         color: item.color,
         subtitle: item.subtitle,
+        count: noteCount, // Note count for threads
       };
-    });
+    }));
   } catch (error) {
     console.error("Error fetching featured content:", error);
     return [];

@@ -1,8 +1,9 @@
-import React, { useReducer, useEffect, useCallback } from 'react';
+import React, { useReducer, useEffect, useCallback, useState } from 'react';
 import NewNotePanel from './NewNotePanel';
 import NewThreadPanel from './NewThreadPanel';
 import NoteDetailsPanel from './NoteDetailsPanel';
 import EditThreadPanel from './EditThreadPanel';
+import InboxItemPreviewPanel from './InboxItemPreviewPanel';
 
 interface DesktopPanelManagerProps {
   currentThread?: any;
@@ -11,7 +12,23 @@ interface DesktopPanelManagerProps {
   contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile';
 }
 
-type PanelType = 'newNote' | 'newThread' | 'noteDetails' | 'editThread' | null;
+type PanelType = 'newNote' | 'newThread' | 'noteDetails' | 'editThread' | 'inboxPreview' | null;
+
+interface InboxItem {
+  id: string;
+  contentType: 'thread' | 'note';
+  title: string;
+  subtitle?: string;
+  content?: string;
+  imageUrl?: string;
+  color?: string;
+  notes?: Array<{
+    id: string;
+    title?: string;
+    content: string;
+    order: number;
+  }>;
+}
 
 interface PanelState {
   activePanel: PanelType;
@@ -27,6 +44,8 @@ type PanelAction =
   | { type: 'CLOSE_NOTE_DETAILS' }
   | { type: 'OPEN_EDIT_THREAD' }
   | { type: 'CLOSE_EDIT_THREAD' }
+  | { type: 'OPEN_INBOX_PREVIEW' }
+  | { type: 'CLOSE_INBOX_PREVIEW' }
   | { type: 'LOAD_FROM_STORAGE' };
 
 function panelReducer(state: PanelState, action: PanelAction): PanelState {
@@ -67,6 +86,13 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
     case 'CLOSE_EDIT_THREAD':
       return { activePanel: null, panelKey: state.panelKey };
     
+    case 'OPEN_INBOX_PREVIEW':
+      // Close all other panels and open InboxPreview
+      return { activePanel: 'inboxPreview', panelKey: state.panelKey + 1 };
+    
+    case 'CLOSE_INBOX_PREVIEW':
+      return { activePanel: null, panelKey: state.panelKey };
+    
     case 'LOAD_FROM_STORAGE':
       // Check localStorage for saved panel state
       const savedNotePanel = localStorage.getItem('showNewNotePanel');
@@ -98,6 +124,7 @@ export default function DesktopPanelManager({
   contentType = 'dashboard'
 }: DesktopPanelManagerProps) {
   const [state, dispatch] = useReducer(panelReducer, { activePanel: null, panelKey: 0 });
+  const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
 
   // Load panel state from localStorage on mount
   useEffect(() => {
@@ -169,6 +196,20 @@ export default function DesktopPanelManager({
       dispatch({ type: 'CLOSE_EDIT_THREAD' });
     };
 
+    const handleOpenInboxPreview = (event: CustomEvent) => {
+      const item = event.detail?.item;
+      if (item) {
+        setInboxPreviewData(item);
+        dispatch({ type: 'OPEN_INBOX_PREVIEW' });
+        window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+      }
+    };
+
+    const handleCloseInboxPreview = () => {
+      dispatch({ type: 'CLOSE_INBOX_PREVIEW' });
+      setInboxPreviewData(null);
+    };
+
     // Register all event listeners
     window.addEventListener('openNewNotePanel', handleOpenNewNote);
     window.addEventListener('closeNewNotePanel', handleCloseNewNote);
@@ -178,6 +219,8 @@ export default function DesktopPanelManager({
     window.addEventListener('closeNoteDetailsPanel', handleCloseNoteDetails);
     window.addEventListener('openEditThreadPanel', handleOpenEditThread);
     window.addEventListener('closeEditThreadPanel', handleCloseEditThread);
+    window.addEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
+    window.addEventListener('closeInboxPreview', handleCloseInboxPreview);
 
     // Cleanup
     return () => {
@@ -189,6 +232,8 @@ export default function DesktopPanelManager({
       window.removeEventListener('closeNoteDetailsPanel', handleCloseNoteDetails);
       window.removeEventListener('openEditThreadPanel', handleOpenEditThread);
       window.removeEventListener('closeEditThreadPanel', handleCloseEditThread);
+      window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
+      window.removeEventListener('closeInboxPreview', handleCloseInboxPreview);
     };
   }, []);
 
@@ -210,6 +255,11 @@ export default function DesktopPanelManager({
   // Handler for closing EditThreadPanel
   const handleCloseEditThread = useCallback(() => {
     window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+  }, []);
+
+  // Handler for closing InboxItemPreviewPanel
+  const handleCloseInboxPreview = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('closeInboxPreview'));
   }, []);
 
   // Expose panel state to hide/show SquareButtons in Layout.astro
@@ -277,6 +327,30 @@ export default function DesktopPanelManager({
             initialTitle={currentThread.title}
             initialColor={currentThread.color}
             onClose={handleCloseEditThread}
+          />
+        </div>
+      )}
+
+      {/* Inbox Item Preview Panel - Desktop Only */}
+      {state.activePanel === 'inboxPreview' && inboxPreviewData && (
+        <div className="h-full hidden min-[1160px]:block">
+          <InboxItemPreviewPanel
+            key={`inbox-preview-${state.panelKey}`}
+            item={inboxPreviewData}
+            onClose={handleCloseInboxPreview}
+            onAddToHarvous={async (inboxItemId: string) => {
+              // Dispatch event that InboxItemsList will handle
+              window.dispatchEvent(new CustomEvent('inboxItemAddToHarvous', { detail: { inboxItemId } }));
+            }}
+            onArchive={async (inboxItemId: string) => {
+              // Dispatch event that InboxItemsList will handle
+              window.dispatchEvent(new CustomEvent('inboxItemArchive', { detail: { inboxItemId } }));
+            }}
+            onAddNoteToHarvous={async (inboxItemNoteId: string) => {
+              // Dispatch event that InboxItemsList will handle
+              window.dispatchEvent(new CustomEvent('inboxNoteAddToHarvous', { detail: { inboxItemNoteId } }));
+            }}
+            inBottomSheet={false}
           />
         </div>
       )}

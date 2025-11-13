@@ -1,6 +1,5 @@
 ---
-import ActionButton from "@/components/ActionButton.astro";
-import OverlappingNotes from "@/components/OverlappingNotes.astro";
+import CardFeatReact from "@/components/react/CardFeat";
 
 export interface Props {
   variant?: "Thread" | "Note" | "NoteImage";
@@ -8,6 +7,7 @@ export interface Props {
   content?: string;
   imageUrl?: string;
   count?: number;
+  color?: string;
   class?: string;
   lastUpdated?: string;
   isPrivate?: boolean;
@@ -19,169 +19,22 @@ const {
   content, 
   imageUrl, 
   count,
+  color,
   class: className = "",
   lastUpdated,
   isPrivate = true
 } = Astro.props;
-
-// Helper function to convert HTML to readable text
-function stripHtml(html: string): string {
-  if (!html) return '';
-  
-  let text = html
-    // Remove script and style tags completely (including their content)
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    // Convert ordered lists to numbered format
-    .replace(/<ol[^>]*>/gi, '')
-    .replace(/<\/ol>/gi, '')
-    .replace(/<li[^>]*>/gi, '• ')
-    // Convert unordered lists to bullet format
-    .replace(/<ul[^>]*>/gi, '')
-    .replace(/<\/ul>/gi, '')
-    // Handle line breaks and paragraphs
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<\/p>/gi, ' ')
-    .replace(/<p[^>]*>/gi, '')
-    // Remove other HTML tags
-    .replace(/<[^>]*>/g, '')
-    // Decode HTML entities
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/')
-    .replace(/&#x60;/g, '`')
-    .replace(/&#x3D;/g, '=')
-    // Clean up whitespace
-    .replace(/\s+/g, ' ')
-    .trim();
-    
-  return text;
-}
 ---
 
-<div class={`card-feat-container ${className}`}>
-  {variant === "Note" && (
-    <div class="bg-white box-border flex flex-col gap-3 h-[180px] items-start justify-start max-w-[220px] overflow-clip pb-3 pt-2 px-2 relative rounded-2xl shrink-0 w-[220px]">
-      <!-- Light Paper background area -->
-      <div class="basis-0 bg-[#f3f2ec] grow min-h-px min-w-px overflow-clip relative rounded-xl shrink-0 w-full">
-        <!-- Bookmark icon -->
-        <div class="absolute left-3.5 size-5 top-[17px]">
-          <svg class="block max-w-none size-full text-[#4a473d] opacity-20" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-          </svg>
-        </div>
-        
-        <!-- Plus button -->
-        <div class="absolute right-2 top-2">
-          <ActionButton variant="Add" />
-        </div>
-      </div>
-      
-      <!-- Text content area -->
-      <div class="box-border flex gap-6 items-start justify-start px-2 py-0 relative shrink-0 w-full">
-        <div class="basis-0 flex flex-col gap-2 grow items-start justify-start leading-[0] min-h-px min-w-px relative self-stretch shrink-0">
-          <!-- Title -->
-          <div class="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#4a473d] text-[18px] w-full">
-            <p class="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
-              {title || "Note from Our Founder"}
-            </p>
-          </div>
-          
-          <!-- Content -->
-          <div class="flex flex-col font-normal justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#78766f] text-[12px] w-full">
-            <p class="leading-[1.3] overflow-hidden text-ellipsis whitespace-nowrap">
-              {content ? stripHtml(content) : "Thank you so much for trying out this notes app designed for Bible study. It's been a project I've been working on for a good amount of time. The goal of Harvous is to be the digital tool and space for you and others to use for your Bible study."}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-
-  {variant === "Thread" && (
-    <div class="bg-white box-border flex flex-col gap-3 h-[180px] items-start justify-start max-w-[220px] overflow-clip pb-3 pt-2 px-2 relative rounded-2xl shrink-0 w-[220px]">
-      <!-- Blessed Blue background area -->
-      <div class="basis-0 bg-[#c3e4ff] grow min-h-px min-w-px overflow-clip relative rounded-xl shrink-0 w-full">
-        <!-- User icon (Private) or User group icon (Shared) -->
-        <div class="absolute left-3.5 size-5 top-[17px]">
-          {isPrivate ? (
-            <!-- Single user icon for Private -->
-            <svg class="block max-w-none size-full text-[#4a473d] opacity-20" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-            </svg>
-          ) : (
-            <!-- User group icon for Shared -->
-            <svg class="block max-w-none size-full text-[#4a473d] opacity-20" fill="currentColor" viewBox="0 0 640 640">
-              <path d="M96 192C96 130.1 146.1 80 208 80C269.9 80 320 130.1 320 192C320 253.9 269.9 304 208 304C146.1 304 96 253.9 96 192zM32 528C32 430.8 110.8 352 208 352C305.2 352 384 430.8 384 528L384 534C384 557.2 365.2 576 342 576L74 576C50.8 576 32 557.2 32 534L32 528zM464 128C517 128 560 171 560 224C560 277 517 320 464 320C411 320 368 277 368 224C368 171 411 128 464 128zM464 368C543.5 368 608 432.5 608 512L608 534.4C608 557.4 589.4 576 566.4 576L421.6 576C428.2 563.5 432 549.2 432 534L432 528C432 476.5 414.6 429.1 385.5 391.3C408.1 376.6 435.1 368 464 368z"/>
-            </svg>
-          )}
-        </div>
-        
-        <!-- Overlapping cards -->
-        <div class="absolute left-3 top-[66px] flex items-center">
-          <OverlappingNotes count={3} />
-        </div>
-        
-        <!-- Plus button -->
-        <div class="absolute right-2 top-2">
-          <ActionButton variant="Add" />
-        </div>
-      </div>
-      
-      <!-- Text content area -->
-      <div class="box-border flex gap-6 items-start justify-start px-2 py-0 relative shrink-0 w-full">
-        <div class="basis-0 flex flex-col gap-2 grow items-start justify-start leading-[0] min-h-px min-w-px relative self-stretch shrink-0">
-          <!-- Title -->
-          <div class="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#4a473d] text-[18px] w-full">
-            <p class="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
-              {title || "Thread Title"}
-            </p>
-          </div>
-          
-          <!-- Content -->
-          <div class="flex flex-col font-normal justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#78766f] text-[12px] w-full">
-            <p class="leading-[1.3] overflow-hidden text-ellipsis whitespace-nowrap">
-              {lastUpdated || (content ? stripHtml(content) : "Subheading")}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-
-  {variant === "NoteImage" && (
-    <div class="bg-white box-border flex flex-col gap-3 h-[180px] items-start justify-start max-w-[220px] overflow-clip pb-3 pt-2 px-2 relative rounded-2xl shrink-0 w-[220px]">
-      <!-- Image background area -->
-      <div class="basis-0 bg-center bg-cover bg-no-repeat grow min-h-px min-w-px overflow-clip relative rounded-xl shrink-0 w-full" style={imageUrl ? `background-image: url('${imageUrl}')` : 'background-color: #f3f2ec'}>
-        <!-- Plus button -->
-        <div class="absolute right-2 top-2">
-          <ActionButton variant="Add" />
-        </div>
-      </div>
-      
-      <!-- Text content area -->
-      <div class="box-border flex gap-6 items-start justify-start px-2 py-0 relative shrink-0 w-full">
-        <div class="basis-0 flex flex-col gap-2 grow items-start justify-start leading-[0] min-h-px min-w-px relative self-stretch shrink-0">
-          <!-- Title -->
-          <div class="flex flex-col font-bold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#4a473d] text-[18px] w-full">
-            <p class="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
-              {title || "Note Title"}
-            </p>
-          </div>
-          
-          <!-- Content -->
-          <div class="flex flex-col font-normal justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[#78766f] text-[12px] w-full">
-            <p class="leading-[1.3] overflow-hidden text-ellipsis whitespace-nowrap">
-              {content ? stripHtml(content) : "Note content description"}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-</div>
+<CardFeatReact
+  variant={variant}
+  title={title}
+  content={content}
+  imageUrl={imageUrl}
+  count={count}
+  color={color}
+  className={className}
+  lastUpdated={lastUpdated}
+  isPrivate={isPrivate}
+  client:load
+/>

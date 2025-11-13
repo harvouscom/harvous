@@ -15,6 +15,7 @@ import EmailPasswordPanel from './EmailPasswordPanel';
 import MyChurchPanel from './MyChurchPanel';
 import MyDataPanel from './MyDataPanel';
 import GetSupportPanel from './GetSupportPanel';
+import InboxItemPreviewPanel from './InboxItemPreviewPanel';
 
 // Extend the Window interface to include custom functions
 declare global {
@@ -35,7 +36,23 @@ export interface BottomSheetProps {
   version?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'editThread' | 'getSupport' | 'emailPassword' | 'myChurch' | 'myData';
+type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'editThread' | 'getSupport' | 'emailPassword' | 'myChurch' | 'myData' | 'inboxPreview';
+
+interface InboxItem {
+  id: string;
+  contentType: 'thread' | 'note';
+  title: string;
+  subtitle?: string;
+  content?: string;
+  imageUrl?: string;
+  color?: string;
+  notes?: Array<{
+    id: string;
+    title?: string;
+    content: string;
+    order: number;
+  }>;
+}
 
 const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen = false,
@@ -51,6 +68,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [panelKey, setPanelKey] = useState(0); // Force remount when panel opens
+  const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
 
   // Check if we're on mobile
   const checkMobile = useCallback(() => {
@@ -132,16 +150,37 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       console.log('BottomSheet: openMobileDrawer event received:', event.detail);
       const type = (event.detail && (event.detail.type || event.detail.drawerType)) || 'note';
       console.log('BottomSheet: Opening with type:', type);
+      
+      // Handle inbox preview with data
+      if (type === 'inboxPreview' && event.detail?.item) {
+        setInboxPreviewData(event.detail.item);
+      }
+      
       openBottomSheet(type as DrawerType);
     };
 
     const handleCloseBottomSheet = () => {
       closeBottomSheet();
+      // Clear inbox preview data when closing
+      if (drawerType === 'inboxPreview') {
+        setInboxPreviewData(null);
+      }
     };
 
     // Listen for bottom sheet events
     window.addEventListener('openMobileDrawer', handleOpenBottomSheet as EventListener);
     window.addEventListener('closeMobileDrawer', handleCloseBottomSheet);
+    
+    // Listen for inbox preview events
+    const handleOpenInboxPreview = (event: CustomEvent) => {
+      const item = event.detail?.item;
+      if (item && isMobile) {
+        setInboxPreviewData(item);
+        openBottomSheet('inboxPreview');
+      }
+    };
+    
+    window.addEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
     
     // Listen for panel events and open mobile drawer if on mobile
     const handleOpenEditThreadPanel = () => {
@@ -162,6 +201,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     return () => {
       window.removeEventListener('openMobileDrawer', handleOpenBottomSheet as EventListener);
       window.removeEventListener('closeMobileDrawer', handleCloseBottomSheet);
+      window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
       window.removeEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
       window.removeEventListener('closeNewNotePanel', handleCloseBottomSheet);
       window.removeEventListener('closeNewThreadPanel', handleCloseBottomSheet);
@@ -356,6 +396,32 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
               <MyDataPanel 
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+                inBottomSheet={true}
+              />
+            </div>
+          )}
+          
+          {/* Inbox Item Preview Panel */}
+          {drawerType === 'inboxPreview' && inboxPreviewData && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <InboxItemPreviewPanel
+                key={`mobile-inbox-preview-${panelKey}`}
+                item={inboxPreviewData}
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeInboxPreview'));
+                }}
+                onAddToHarvous={async (inboxItemId: string) => {
+                  // Dispatch event that InboxItemsList will handle
+                  window.dispatchEvent(new CustomEvent('inboxItemAddToHarvous', { detail: { inboxItemId } }));
+                }}
+                onArchive={async (inboxItemId: string) => {
+                  // Dispatch event that InboxItemsList will handle
+                  window.dispatchEvent(new CustomEvent('inboxItemArchive', { detail: { inboxItemId } }));
+                }}
+                onAddNoteToHarvous={async (inboxItemNoteId: string) => {
+                  // Dispatch event that InboxItemsList will handle
+                  window.dispatchEvent(new CustomEvent('inboxNoteAddToHarvous', { detail: { inboxItemNoteId } }));
                 }}
                 inBottomSheet={true}
               />

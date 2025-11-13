@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, InboxItems, InboxItemNotes, UserInboxItems, eq } from 'astro:db';
+import { db, InboxItems, InboxItemNotes, UserInboxItems, UserMetadata, eq, and } from 'astro:db';
 
 interface WebflowItem {
   _id: string;
@@ -16,6 +16,33 @@ interface WebflowItem {
   'is-draft'?: boolean;
   'published-on'?: string;
 }
+
+// Webflow native API format
+interface WebflowNativeItem {
+  id: string;
+  fieldData?: {
+    name?: string;
+    content?: string;
+    'color-2'?: string; // Reference to color item
+    notes?: string[]; // MultiReference to notes
+    image?: string | { url: string };
+    [key: string]: any;
+  };
+  isDraft?: boolean;
+  lastPublished?: string;
+  isArchived?: boolean;
+}
+
+// Color mapping from Webflow color names/slugs to Harvous color names
+const COLOR_MAP: Record<string, string> = {
+  'blue': 'blessed-blue',
+  'yellow': 'graceful-gold',
+  'orange': 'pleasant-peach',
+  'pink': 'peaceful-pink',
+  'purple': 'lovely-lavender',
+  'green': 'mindful-mint',
+  'paper': 'paper',
+};
 
 interface WebflowNoteItem {
   _id: string;
@@ -46,7 +73,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // If items are provided directly, use them
     // Otherwise, fetch from Webflow API
-    let webflowItems: WebflowItem[] = items || [];
+    let webflowNativeItems: WebflowNativeItem[] = items || [];
 
     if (!items && collectionId && siteId) {
       // Fetch from Webflow API
@@ -70,8 +97,80 @@ export const POST: APIRoute = async ({ request }) => {
       }
 
       const data = await response.json();
-      webflowItems = data.items || [];
+      webflowNativeItems = data.items || [];
     }
+
+    // Transform Webflow native format to expected format
+    const webflowItems: WebflowItem[] = await Promise.all(
+      webflowNativeItems.map(async (item) => {
+        const transformed: WebflowItem = {
+          _id: item.id,
+          'is-draft': item.isDraft || false,
+          'published-on': item.lastPublished || undefined,
+        };
+
+        // Determine content type from collection or field data
+        // Threads collection ID: 690ed2f0edd9bab40a4eb397
+        // Notes collection ID: 690ed346b73a1ff102283b32
+        if (collectionId === '690ed2f0edd9bab40a4eb397') {
+          transformed['content-type'] = 'thread';
+        } else if (collectionId === '690ed346b73a1ff102283b32') {
+          transformed['content-type'] = 'note';
+        }
+
+        if (item.fieldData) {
+          // Map name to title
+          transformed.title = item.fieldData.name;
+
+          // Map content
+          transformed.content = item.fieldData.content;
+
+          // Handle color reference (color-2 field)
+          if (item.fieldData['color-2']) {
+            try {
+              const colorResponse = await fetch(
+                `https://api.webflow.com/v2/collections/6915354840aef29a7530463c/items/${item.fieldData['color-2']}`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${webflowToken}`,
+                    'Accept-Version': '1.0.0',
+                  }
+                }
+              );
+              if (colorResponse.ok) {
+                const colorData = await colorResponse.json();
+                const colorItem = colorData.items?.[0] || colorData;
+                const colorSlug = colorItem.fieldData?.slug || colorItem.fieldData?.name?.toLowerCase();
+                transformed.color = COLOR_MAP[colorSlug] || 'blessed-blue';
+              }
+            } catch (error) {
+              console.error('Error fetching color:', error);
+              transformed.color = 'blessed-blue'; // default
+            }
+          }
+
+          // Handle thread notes (MultiReference field)
+          if (item.fieldData.notes && Array.isArray(item.fieldData.notes)) {
+            transformed['thread-notes'] = item.fieldData.notes;
+          }
+
+          // Handle image
+          if (item.fieldData.image) {
+            if (typeof item.fieldData.image === 'string') {
+              transformed['image-url'] = item.fieldData.image;
+            } else if (item.fieldData.image.url) {
+              transformed['image-url'] = item.fieldData.image.url;
+            }
+          }
+        }
+
+        // Default values
+        transformed['target-audience'] = 'all_users';
+        transformed['is-active'] = !item.isArchived;
+
+        return transformed;
+      })
+    );
 
     if (!webflowItems || webflowItems.length === 0) {
       return new Response(JSON.stringify({ error: 'No items provided' }), {
@@ -153,39 +252,89 @@ export const POST: APIRoute = async ({ request }) => {
             .delete(InboxItemNotes)
             .where(eq(InboxItemNotes.inboxItemId, inboxItemId));
 
-          // Fetch note items from Webflow (assuming they're in a separate collection)
-          // For now, we'll expect the notes to be provided in the request
-          // In a full implementation, you'd fetch them from Webflow's reference field
           const threadNoteIds = webflowItem['thread-notes'];
           
-          // If notes are provided in the request body, use them
-          if (body.threadNotes && body.threadNotes[webflowItemId]) {
-            const notes = body.threadNotes[webflowItemId];
-            for (let i = 0; i < notes.length; i++) {
-              const note = notes[i];
-              await db.insert(InboxItemNotes).values({
-                id: `inbox_note_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
-                inboxItemId: inboxItemId,
-                title: note.title || null,
-                content: note.content || '',
-                order: note.order || i,
-                createdAt: new Date(),
-              });
-            }
+          // Fetch note items from Webflow
+          const notesCollectionId = '690ed346b73a1ff102283b32';
+          const noteItems = await Promise.all(
+            threadNoteIds.map(async (noteId, index) => {
+              try {
+                const noteResponse = await fetch(
+                  `https://api.webflow.com/v2/collections/${notesCollectionId}/items/${noteId}`,
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${webflowToken}`,
+                      'Accept-Version': '1.0.0',
+                    }
+                  }
+                );
+                
+                if (noteResponse.ok) {
+                  const noteData = await noteResponse.json();
+                  const note = noteData.items?.[0] || noteData;
+                  return {
+                    title: note.fieldData?.name || null,
+                    content: note.fieldData?.content || '',
+                    order: index,
+                  };
+                }
+              } catch (error) {
+                console.error(`Error fetching note ${noteId}:`, error);
+              }
+              return {
+                title: null,
+                content: '',
+                order: index,
+              };
+            })
+          );
+
+          // Insert notes
+          for (let i = 0; i < noteItems.length; i++) {
+            const note = noteItems[i];
+            await db.insert(InboxItemNotes).values({
+              id: `inbox_note_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+              inboxItemId: inboxItemId,
+              title: note.title || null,
+              content: note.content || '',
+              order: note.order || i,
+              createdAt: new Date(),
+            });
           }
         }
 
         syncedItems.push(inboxItemId);
 
         // Auto-assign to users based on targetAudience
-        if (inboxItemData.targetAudience === 'all_new_users' || inboxItemData.targetAudience === 'all_users') {
-          // This will be handled by the new user creation flow
-          // For now, we'll create UserInboxItems for existing users if targetAudience is 'all_users'
-          if (inboxItemData.targetAudience === 'all_users') {
-            // Note: This would require fetching all users, which might be expensive
-            // For now, we'll handle this in the user creation middleware
+        if (inboxItemData.targetAudience === 'all_users') {
+          // Get all existing users
+          const allUsers = await db.select().from(UserMetadata);
+          
+          // Create UserInboxItems for all existing users
+          for (const user of allUsers) {
+            const existingUserInboxItem = await db
+              .select()
+              .from(UserInboxItems)
+              .where(
+                and(
+                  eq(UserInboxItems.userId, user.userId),
+                  eq(UserInboxItems.inboxItemId, inboxItemId)
+                )
+              )
+              .get();
+
+            if (!existingUserInboxItem) {
+              await db.insert(UserInboxItems).values({
+                id: `user_inbox_${user.userId}_${inboxItemId}_${Date.now()}`,
+                userId: user.userId,
+                inboxItemId: inboxItemId,
+                status: 'inbox',
+                createdAt: new Date(),
+              });
+            }
           }
         }
+        // Note: 'all_new_users' is handled in the user creation middleware
 
       } catch (error: any) {
         console.error(`Error syncing item ${webflowItem._id}:`, error);
@@ -263,6 +412,7 @@ export const GET: APIRoute = async ({ url }) => {
     const items = data.items || [];
 
     // Process items (reuse POST logic)
+    // Pass items in Webflow native format - POST will transform them
     const request = new Request(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
