@@ -10,3 +10,7 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Note: For scheduled functions, configure in Netlify dashboard:
+# Site Settings > Functions > Scheduled Functions
+# Or use an external cron service to call /api/inbox/auto-archive daily

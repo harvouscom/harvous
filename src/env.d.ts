@@ -96,6 +96,8 @@ interface ImportMetaEnv {
   readonly WEBFLOW_API_TOKEN?: string;
   // Webflow webhook secret for verifying webhook signatures
   readonly WEBFLOW_WEBHOOK_SECRET?: string;
+  // Auto-archive secret token for securing the auto-archive endpoint
+  readonly AUTO_ARCHIVE_SECRET_TOKEN?: string;
 }
 
 interface ImportMeta {

@@ -218,14 +218,19 @@ try {
                 <div class="flex flex-col gap-6">
                   <!-- First TabNav Group -->
                   <div class="flex flex-col gap-3">
-                    <!-- First TabNav - Inbox/Archive -->
-                    <TabNav 
-                      tabs={[
-                        { id: "inbox", label: "Inbox", isActive: true },
-                        { id: "archive", label: "Archive", isActive: false }
-                      ]}
-                      class="inbox-archive-tabs"
-                    />
+                    <!-- First TabNav - Inbox/Archive with auto-archive text -->
+                    <div class="flex items-center justify-between pb-0 pl-[4px] pr-[12px] pt-[4px] relative w-full">
+                      <TabNav 
+                        tabs={[
+                          { id: "inbox", label: "Inbox", isActive: true },
+                          { id: "archive", label: "Archive", isActive: false }
+                        ]}
+                        class="inbox-archive-tabs"
+                      />
+                      <div class="flex flex-col font-sans font-normal justify-center leading-[0] overflow-ellipsis overflow-hidden relative shrink-0 text-[12px] text-[#78766f] text-nowrap">
+                        <p class="leading-[1.3] whitespace-pre">14 day auto archive</p>
+                      </div>
+                    </div>
                     
                     <!-- Inbox Content (reserved for external content only) -->
                     <div class="inbox-content" data-tab-content="inbox">

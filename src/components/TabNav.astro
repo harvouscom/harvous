@@ -20,7 +20,7 @@ const { tabs, class: className = "" } = Astro.props;
 >
   <!-- Tab Navigation -->
   <div class:list={[
-    "flex items-center justify-start gap-0 pb-0 px-1 relative w-full"
+    "flex items-center justify-start gap-0 pb-0 px-1 relative shrink-0"
   ]}>
     {tabs.map((tab) => (
       <button

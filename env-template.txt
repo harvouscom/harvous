@@ -10,4 +10,6 @@ WEBFLOW_API_TOKEN=""
 WEBFLOW_WEBHOOK_SECRET=""
 # PostHog Analytics
 PUBLIC_POSTHOG_KEY=phc_your_key_here
-PUBLIC_POSTHOG_HOST=https://app.posthog.com 
+PUBLIC_POSTHOG_HOST=https://app.posthog.com
+# Auto-archive secret token (optional, for securing the auto-archive endpoint)
+AUTO_ARCHIVE_SECRET_TOKEN="" 
