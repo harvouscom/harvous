@@ -303,13 +303,17 @@ export default function InboxItemPreviewPanel({
             </div>
             
             {/* Rich text content area - similar to CardFullEditable display mode */}
-            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px', maxHeight: '100%' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
-                <div 
-                  className="flex-1 overflow-auto inbox-note-detail-content"
-                  style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
-                  dangerouslySetInnerHTML={{ __html: selectedNote.content || '' }}
-                />
+            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px' }}>
+              <div className="flex-1 flex flex-col font-sans font-normal min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
+                <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
+                  <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+                    <div 
+                      className="flex-1 overflow-auto inbox-note-detail-content"
+                      style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
+                      dangerouslySetInnerHTML={{ __html: selectedNote.content || '' }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
