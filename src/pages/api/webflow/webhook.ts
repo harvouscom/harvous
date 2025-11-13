@@ -74,12 +74,26 @@ export const POST: APIRoute = async ({ request }) => {
     // Get raw body for signature verification
     const rawBody = await request.text();
     
+    console.log('Webhook received - initial check:', {
+      hasSecret: !!webflowWebhookSecret,
+      secretLength: webflowWebhookSecret?.length || 0,
+      secretPreview: webflowWebhookSecret ? `${webflowWebhookSecret.substring(0, 10)}...${webflowWebhookSecret.substring(webflowWebhookSecret.length - 10)}` : 'none',
+      bodyLength: rawBody.length,
+      bodyPreview: rawBody.substring(0, 200),
+    });
+    
     // Verify webhook signature if secret is configured
     // Support multiple secrets (comma-separated) for different webhook event types
     if (webflowWebhookSecret) {
       const signature = request.headers.get('x-webflow-signature');
+      console.log('Signature verification check:', {
+        hasSignature: !!signature,
+        signatureValue: signature ? `${signature.substring(0, 20)}...` : 'none',
+        secretCount: webflowWebhookSecret.split(',').length,
+      });
+      
       if (!signature) {
-        console.error('Webhook signature missing');
+        console.error('Webhook signature missing - rejecting request');
         return new Response(JSON.stringify({ error: 'Missing webhook signature' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
@@ -93,29 +107,52 @@ export const POST: APIRoute = async ({ request }) => {
       // Webflow sends signature in format: sha256=<hex>
       const receivedSignature = signature.replace('sha256=', '');
       
+      console.log('Signature verification details:', {
+        receivedSignatureLength: receivedSignature.length,
+        receivedSignaturePreview: receivedSignature.substring(0, 20),
+        secretsToCheck: secrets.length,
+      });
+      
       // Check against all configured secrets
       let signatureValid = false;
-      for (const secret of secrets) {
+      for (let i = 0; i < secrets.length; i++) {
+        const secret = secrets[i];
         const expectedSignature = crypto
           .createHmac('sha256', secret)
           .update(rawBody)
           .digest('hex');
         
+        console.log(`Checking secret ${i + 1}/${secrets.length}:`, {
+          secretLength: secret.length,
+          secretPreview: `${secret.substring(0, 10)}...${secret.substring(secret.length - 10)}`,
+          expectedSignaturePreview: expectedSignature.substring(0, 20),
+          receivedSignaturePreview: receivedSignature.substring(0, 20),
+          match: receivedSignature === expectedSignature,
+        });
+        
         if (receivedSignature === expectedSignature) {
           signatureValid = true;
+          console.log(`✅ Signature verified with secret ${i + 1}`);
           break;
         }
       }
 
       if (!signatureValid) {
-        console.error('Webhook signature verification failed');
+        console.error('❌ Webhook signature verification failed - all secrets checked, none matched');
+        console.error('Debug info:', {
+          receivedSignature: receivedSignature.substring(0, 40),
+          bodyLength: rawBody.length,
+          bodyHash: crypto.createHash('sha256').update(rawBody).digest('hex').substring(0, 20),
+        });
         return new Response(JSON.stringify({ error: 'Invalid webhook signature' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
         });
       }
 
-      console.log('Webhook signature verified successfully');
+      console.log('✅ Webhook signature verified successfully');
+    } else {
+      console.log('⚠️ Webhook secret not configured - skipping signature verification');
     }
 
     // Parse webhook payload
