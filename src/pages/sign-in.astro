@@ -11,26 +11,24 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
         <p class="text-[var(--color-stone-grey)]">Sign in to your account</p>
       </div>
       
-      <div class="bg-white rounded-2xl shadow-lg p-8">
-        <ClerkSignIn
-          appearance={{
-            elements: {
-              rootBox: "w-full",
-              card: "shadow-none p-0",
-              headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
-              headerSubtitle: "text-[var(--color-stone-grey)]",
-              formButtonPrimary: "bg-[var(--color-blue)] hover:bg-[var(--color-blue)]/90 text-white font-semibold py-3 px-4 rounded-xl transition-colors",
-              formFieldInput: "border border-gray-200 rounded-xl px-4 py-3 focus:border-[var(--color-blue)] focus:ring-2 focus:ring-[var(--color-blue)]/20 transition-colors",
-              formFieldLabel: "text-[var(--color-deep-grey)] font-medium",
-              footerActionLink: "text-[var(--color-blue)] hover:text-[var(--color-blue)]/80 font-medium",
-              dividerLine: "bg-gray-200",
-              dividerText: "text-[var(--color-stone-grey)] bg-white px-4"
-            }
-          }}
-          signUpUrl="/sign-up"
-          redirectUrl="/"
-        />
-      </div>
+      <ClerkSignIn
+        appearance={{
+          elements: {
+            rootBox: "w-full",
+            card: "bg-white rounded-2xl shadow-lg p-8 shadow-none",
+            headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
+            headerSubtitle: "text-[var(--color-stone-grey)]",
+            formButtonPrimary: "bg-[var(--color-blue)] hover:bg-[var(--color-blue)]/90 text-white font-semibold py-3 px-4 rounded-xl transition-colors",
+            formFieldInput: "border border-gray-200 rounded-xl px-4 py-3 focus:border-[var(--color-blue)] focus:ring-2 focus:ring-[var(--color-blue)]/20 transition-colors",
+            formFieldLabel: "text-[var(--color-deep-grey)] font-medium",
+            footerActionLink: "text-[var(--color-blue)] hover:text-[var(--color-blue)]/80 font-medium",
+            dividerLine: "bg-gray-200",
+            dividerText: "text-[var(--color-stone-grey)] bg-white px-4"
+          }
+        }}
+        signUpUrl="/sign-up"
+        redirectUrl="/"
+      />
     </div>
   </div>
 </EmptyLayout>
