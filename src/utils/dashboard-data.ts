@@ -1,6 +1,7 @@
 import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, eq, and, desc, count, or, ne, isNull, isNotNull } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 import { getInboxItems, getInboxCount as getInboxCountUtil } from "./inbox-data";
+import { getRelativeTime } from "./date-formatting";
 
 // Helper function to strip HTML tags and decode entities
 function stripHtml(html: string): string {
@@ -481,8 +482,11 @@ export async function getFeaturedContent(userId: string) {
     // Fetch inbox items from Harvous team (synced from Webflow CMS)
     const inboxItems = await getInboxItems(userId);
     
+    // Filter to only show threads - notes should not appear in inbox
+    const threadItems = inboxItems.filter(item => item.contentType === 'thread');
+    
     // Map inbox items to CardFeat format with note counts for threads
-    return await Promise.all(inboxItems.map(async (item) => {
+    return await Promise.all(threadItems.map(async (item) => {
       const cleanContent = stripHtml(item.content || '');
       
       // Get note count for threads
@@ -496,6 +500,21 @@ export async function getFeaturedContent(userId: string) {
         noteCount = countResult?.count || 0;
       }
       
+      // Format timestamp showing when item was made available to user
+      // item.createdAt comes from UserInboxItems.createdAt (when item appeared in user's inbox)
+      let displayTimestamp: string | undefined = undefined;
+      if (item.createdAt) {
+        try {
+          displayTimestamp = getRelativeTime(new Date(item.createdAt));
+        } catch (error) {
+          console.error('Error formatting timestamp:', error, 'item.createdAt:', item.createdAt);
+          displayTimestamp = undefined;
+        }
+      } else {
+        // Debug: log if createdAt is missing
+        console.warn('Inbox item missing createdAt timestamp:', item.id, item.title);
+      }
+      
       return {
         id: item.id,
         type: item.contentType === 'thread' ? 'thread' : 'note',
@@ -503,7 +522,7 @@ export async function getFeaturedContent(userId: string) {
         content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
         imageUrl: item.imageUrl,
         variant: item.contentType === 'thread' ? 'Thread' : (item.imageUrl ? 'NoteImage' : 'Note'),
-        lastUpdated: item.updatedAt ? new Date(item.updatedAt).toISOString() : new Date(item.createdAt).toISOString(),
+        lastUpdated: displayTimestamp, // Relative time when item was made available to user (undefined if not available)
         isPrivate: true, // Inbox items are always private to the user
         threadId: item.contentType === 'thread' ? item.id : undefined,
         noteId: item.contentType === 'note' ? item.id : undefined,

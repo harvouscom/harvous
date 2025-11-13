@@ -13,6 +13,7 @@ interface InboxItem {
   color?: string;
   subtitle?: string;
   count?: number; // Note count for threads
+  lastUpdated?: string; // Relative timestamp when item was made available to user
 }
 
 interface InboxItemsListProps {
@@ -195,6 +196,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
                 count={item.count}
                 color={item.color}
                 isPrivate={true}
+                lastUpdated={item.lastUpdated}
               />
             </a>
           </div>

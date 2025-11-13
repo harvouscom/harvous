@@ -26,6 +26,7 @@ interface WebflowNativeItem {
     'color-2'?: string; // Reference to color item
     notes?: string[]; // MultiReference to notes
     image?: string | { url: string };
+    active?: boolean; // Switch field: "Send to Harvous Inbox?"
     [key: string]: any;
   };
   isDraft?: boolean;
@@ -71,6 +72,18 @@ export const POST: APIRoute = async ({ request }) => {
     const body = await request.json();
     const { items, collectionId, siteId } = body;
 
+    // Threads collection ID: 690ed2f0edd9bab40a4eb397
+    // Notes collection ID: 690ed346b73a1ff102283b32
+    // Only sync from Threads collection - skip Notes collection entirely
+    if (collectionId === '690ed346b73a1ff102283b32') {
+      return new Response(JSON.stringify({ 
+        error: 'Notes collection sync is not supported. Only Threads collection can be synced to inbox.' 
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // If items are provided directly, use them
     // Otherwise, fetch from Webflow API
     let webflowNativeItems: WebflowNativeItem[] = items || [];
@@ -101,75 +114,83 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Transform Webflow native format to expected format
+    // Only process threads - filter by "Push to Harvous Inbox?" toggle
     const webflowItems: WebflowItem[] = await Promise.all(
-      webflowNativeItems.map(async (item) => {
-        const transformed: WebflowItem = {
-          _id: item.id,
-          'is-draft': item.isDraft || false,
-          'published-on': item.lastPublished || undefined,
-        };
+      webflowNativeItems
+        .filter((item) => {
+          // Only sync threads where "Send to Harvous Inbox?" toggle is enabled
+          return item.fieldData?.active === true;
+        })
+        .map(async (item) => {
+          const transformed: WebflowItem = {
+            _id: item.id,
+            'is-draft': item.isDraft || false,
+            'published-on': item.lastPublished || undefined,
+          };
 
-        // Determine content type from collection or field data
-        // Threads collection ID: 690ed2f0edd9bab40a4eb397
-        // Notes collection ID: 690ed346b73a1ff102283b32
-        if (collectionId === '690ed2f0edd9bab40a4eb397') {
+          // All items from Threads collection are threads
           transformed['content-type'] = 'thread';
-        } else if (collectionId === '690ed346b73a1ff102283b32') {
-          transformed['content-type'] = 'note';
-        }
 
-        if (item.fieldData) {
-          // Map name to title
-          transformed.title = item.fieldData.name;
+          if (item.fieldData) {
+            // Map name to title
+            transformed.title = item.fieldData.name;
 
-          // Map content
-          transformed.content = item.fieldData.content;
+            // Map content
+            transformed.content = item.fieldData.content;
 
-          // Handle color reference (color-2 field)
-          if (item.fieldData['color-2']) {
-            try {
-              const colorResponse = await fetch(
-                `https://api.webflow.com/v2/collections/6915354840aef29a7530463c/items/${item.fieldData['color-2']}`,
-                {
-                  headers: {
-                    'Authorization': `Bearer ${webflowToken}`,
-                    'Accept-Version': '1.0.0',
+            // Handle color reference (color-2 field)
+            if (item.fieldData['color-2']) {
+              try {
+                const colorResponse = await fetch(
+                  `https://api.webflow.com/v2/collections/6915354840aef29a7530463c/items/${item.fieldData['color-2']}`,
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${webflowToken}`,
+                      'Accept-Version': '1.0.0',
+                    }
                   }
+                );
+                if (colorResponse.ok) {
+                  const colorData = await colorResponse.json();
+                  const colorItem = colorData.items?.[0] || colorData;
+                  const colorSlug = colorItem.fieldData?.slug || colorItem.fieldData?.name?.toLowerCase();
+                  transformed.color = COLOR_MAP[colorSlug] || 'blessed-blue';
                 }
-              );
-              if (colorResponse.ok) {
-                const colorData = await colorResponse.json();
-                const colorItem = colorData.items?.[0] || colorData;
-                const colorSlug = colorItem.fieldData?.slug || colorItem.fieldData?.name?.toLowerCase();
-                transformed.color = COLOR_MAP[colorSlug] || 'blessed-blue';
+              } catch (error) {
+                console.error('Error fetching color:', error);
+                transformed.color = 'blessed-blue'; // default
               }
-            } catch (error) {
-              console.error('Error fetching color:', error);
-              transformed.color = 'blessed-blue'; // default
             }
-          }
 
-          // Handle thread notes (MultiReference field)
-          if (item.fieldData.notes && Array.isArray(item.fieldData.notes)) {
-            transformed['thread-notes'] = item.fieldData.notes;
-          }
-
-          // Handle image
-          if (item.fieldData.image) {
-            if (typeof item.fieldData.image === 'string') {
-              transformed['image-url'] = item.fieldData.image;
-            } else if (item.fieldData.image.url) {
-              transformed['image-url'] = item.fieldData.image.url;
+            // Handle thread notes (MultiReference field)
+            if (item.fieldData.notes && Array.isArray(item.fieldData.notes)) {
+              transformed['thread-notes'] = item.fieldData.notes;
             }
+
+            // Handle image
+            if (item.fieldData.image) {
+              if (typeof item.fieldData.image === 'string') {
+                transformed['image-url'] = item.fieldData.image;
+              } else if (item.fieldData.image.url) {
+                transformed['image-url'] = item.fieldData.image.url;
+              }
+            }
+
+            // Set target-audience based on thread title
+            // "Welcome to Harvous" is for new users only, all others are for all users
+            const threadTitle = item.fieldData.name || '';
+            if (threadTitle.toLowerCase().includes('welcome to harvous')) {
+              transformed['target-audience'] = 'all_new_users';
+            } else {
+              transformed['target-audience'] = 'all_users';
+            }
+
+            // Set is-active based on archived status
+            transformed['is-active'] = !item.isArchived;
           }
-        }
 
-        // Default values
-        transformed['target-audience'] = 'all_users';
-        transformed['is-active'] = !item.isArchived;
-
-        return transformed;
-      })
+          return transformed;
+        })
     );
 
     if (!webflowItems || webflowItems.length === 0) {
@@ -191,11 +212,11 @@ export const POST: APIRoute = async ({ request }) => {
         }
 
         const webflowItemId = webflowItem._id;
-        const contentType = webflowItem['content-type'] || 'note';
+        const contentType = webflowItem['content-type'] || 'thread';
         
-        // Validate contentType
-        if (contentType !== 'thread' && contentType !== 'note') {
-          errors.push(`Invalid content type for item ${webflowItemId}: ${contentType}`);
+        // Only threads are supported now
+        if (contentType !== 'thread') {
+          errors.push(`Invalid content type for item ${webflowItemId}: ${contentType}. Only threads are supported.`);
           continue;
         }
 
@@ -228,7 +249,7 @@ export const POST: APIRoute = async ({ request }) => {
           content: webflowItem.content || null,
           imageUrl: imageUrl || null,
           color: webflowItem.color || null,
-          targetAudience: webflowItem['target-audience'] || 'all_new_users',
+          targetAudience: webflowItem['target-audience'] || 'all_users', // Default to all_users if not set
           isActive: webflowItem['is-active'] !== false,
           updatedAt: new Date(),
         };
@@ -306,11 +327,13 @@ export const POST: APIRoute = async ({ request }) => {
         syncedItems.push(inboxItemId);
 
         // Auto-assign to users based on targetAudience
-        if (inboxItemData.targetAudience === 'all_users') {
+        if (inboxItemData.targetAudience === 'all_users' || inboxItemData.targetAudience === 'all_new_users') {
           // Get all existing users
           const allUsers = await db.select().from(UserMetadata);
           
           // Create UserInboxItems for all existing users
+          // Note: 'all_new_users' items are also assigned to existing users
+          // (new users will get them via the user creation middleware)
           for (const user of allUsers) {
             const existingUserInboxItem = await db
               .select()
@@ -334,7 +357,7 @@ export const POST: APIRoute = async ({ request }) => {
             }
           }
         }
-        // Note: 'all_new_users' is handled in the user creation middleware
+        // Note: 'all_new_users' is also handled in the user creation middleware for future new users
 
       } catch (error: any) {
         console.error(`Error syncing item ${webflowItem._id}:`, error);
@@ -384,6 +407,16 @@ export const GET: APIRoute = async ({ url }) => {
 
     if (!collectionId || !siteId) {
       return new Response(JSON.stringify({ error: 'collectionId and siteId are required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Only allow syncing from Threads collection - reject Notes collection
+    if (collectionId === '690ed346b73a1ff102283b32') {
+      return new Response(JSON.stringify({ 
+        error: 'Notes collection sync is not supported. Only Threads collection can be synced to inbox.' 
+      }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
