@@ -101,7 +101,8 @@ const PersistentNavigation: React.FC = () => {
               </a>
               {/* Close icon positioned outside the link element, aligned with badge count center */}
               {/* Show close icon for all items (active items can be closed too) */}
-              <div
+              <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
@@ -111,12 +112,13 @@ const PersistentNavigation: React.FC = () => {
                   e.stopPropagation();
                   e.preventDefault();
                 }}
-                className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center"
+                className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center bg-transparent border-none p-0"
                 style={{ right: '16px' }} // Move 16px left to align with badge count center
                 data-item-id={item.id}
+                aria-label={`Close ${item.title || 'item'}`}
               >
-                <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]"></i>
-              </div>
+                <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]" aria-hidden="true"></i>
+              </button>
             </div>
           </div>
         );

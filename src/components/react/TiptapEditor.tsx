@@ -718,12 +718,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     onClick, 
     isActive, 
     children, 
-    title 
+    title,
+    ariaLabel 
   }: { 
     onClick: () => void; 
     isActive: boolean; 
     children: React.ReactNode; 
     title: string;
+    ariaLabel?: string;
   }) => (
     <button
       type="button"
@@ -753,6 +755,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }}
       className={`flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] px-3 py-2 rounded-lg transition-all duration-200 relative ${isActive ? 'ql-active' : ''}`}
       title={title}
+      aria-label={ariaLabel || title}
       style={{
         fontFamily: 'var(--font-sans) !important',
         fontSize: '14px !important',
@@ -893,6 +896,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }}
             isActive={activeStates.bold}
             title="bold"
+            ariaLabel="Toggle bold"
           >
             <i className="fa-solid fa-bold" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
           </ToolbarButton>
@@ -906,6 +910,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }}
             isActive={activeStates.italic}
             title="italic"
+            ariaLabel="Toggle italic"
           >
             <i className="fa-solid fa-italic" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
           </ToolbarButton>
@@ -919,6 +924,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }}
             isActive={activeStates.underline}
             title="underline"
+            ariaLabel="Toggle underline"
           >
             <i className="fa-solid fa-underline" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
           </ToolbarButton>
@@ -932,6 +938,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }}
             isActive={activeStates.headingLevel > 0}
             title={`heading (${activeStates.headingLevel > 0 ? `H${activeStates.headingLevel}` : 'Normal'})`}
+            ariaLabel={`Toggle heading (${activeStates.headingLevel > 0 ? `H${activeStates.headingLevel}` : 'Normal'})`}
           >
             <i className="fa-solid fa-heading" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
           </ToolbarButton>
@@ -945,6 +952,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }}
             isActive={activeStates.orderedList}
             title="list: ordered"
+            ariaLabel="Toggle ordered list"
           >
             <i className="fa-solid fa-list-ol" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
           </ToolbarButton>
@@ -958,6 +966,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }}
             isActive={activeStates.bulletList}
             title="list: bullet"
+            ariaLabel="Toggle bullet list"
           >
             <i className="fa-solid fa-list" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
           </ToolbarButton>
@@ -971,6 +980,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }}
             isActive={false}
             title="clean"
+            ariaLabel="Clear formatting"
           >
             <i className="fa-solid fa-eraser" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
           </ToolbarButton>

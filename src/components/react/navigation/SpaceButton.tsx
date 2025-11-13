@@ -294,13 +294,19 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
         </button>
         {/* Close icon - only show for inactive items */}
         {!isActive && (
-          <div
+          <button
+            type="button"
             onClick={handleCloseClick}
-            className="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
+            className="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer bg-transparent border-none p-0"
             data-item-id={itemId}
+            aria-label={`Close ${text || 'item'}`}
           >
-            <img src={FaXmarkIcon.src} alt="Close" className="w-4 h-4" style={{color: closeIconColor}} />
-          </div>
+            <img src={FaXmarkIcon.src} alt="" className="w-4 h-4" style={{color: closeIconColor}} aria-hidden="true" />
+          </button>
         )}
       </div>
     );
@@ -325,13 +331,19 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
           </div>
         </button>
         {/* Close icon - always visible for tags */}
-        <div
+        <button
+          type="button"
           onClick={handleCloseClick}
-          className="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          className="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer bg-transparent border-none p-0"
           data-item-id={itemId}
+          aria-label={`Remove tag ${text || 'item'}`}
         >
-          <img src={FaXmarkIcon.src} alt="Close" className="w-4 h-4" style={{color: closeIconColor}} />
-        </div>
+          <img src={FaXmarkIcon.src} alt="" className="w-4 h-4" style={{color: closeIconColor}} aria-hidden="true" />
+        </button>
       </div>
     );
   }
