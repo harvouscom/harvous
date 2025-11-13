@@ -4,6 +4,10 @@ CLERK_SECRET_KEY=sk_test_ETTyur7PugI1Lji1xyAia9JrFTTIcwlcEE6Hl7mKc1
 # ASTRO_DB_APP_TOKEN=""
 # Webflow CMS API token for syncing inbox items
 WEBFLOW_API_TOKEN=""
+# Webflow webhook secret for verifying webhook signatures
+# Get this from Webflow when creating the "Collection Item Changed" webhook
+# You only need one webhook - "Collection Item Changed" catches all events
+WEBFLOW_WEBHOOK_SECRET=""
 # PostHog Analytics
 PUBLIC_POSTHOG_KEY=phc_your_key_here
 PUBLIC_POSTHOG_HOST=https://app.posthog.com 

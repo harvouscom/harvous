@@ -57,6 +57,7 @@ interface WebflowNoteItem {
  * This endpoint can be called:
  * 1. Manually via POST with Webflow data
  * 2. As a scheduled job that fetches from Webflow API
+ * 3. Automatically via Webflow webhooks (see /api/webflow/webhook.ts)
  */
 export const POST: APIRoute = async ({ request }) => {
   try {

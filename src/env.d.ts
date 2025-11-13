@@ -94,6 +94,8 @@ interface ImportMetaEnv {
   
   // Webflow CMS API token for syncing inbox items
   readonly WEBFLOW_API_TOKEN?: string;
+  // Webflow webhook secret for verifying webhook signatures
+  readonly WEBFLOW_WEBHOOK_SECRET?: string;
 }
 
 interface ImportMeta {
