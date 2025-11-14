@@ -2,6 +2,14 @@ import { db, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc } from "a
 
 /**
  * Get all inbox items for a user (status='inbox')
+ * 
+ * Only returns items that are:
+ * - Active (isActive: true) - items are marked inactive when:
+ *   - "Send to Harvous Inbox?" toggle is turned off
+ *   - Item is archived in Webflow
+ *   - Item is deleted in Webflow
+ * - Published - items are only created/updated for published items (not drafts)
+ *   This is enforced in the sync and webhook endpoints
  */
 export async function getInboxItems(userId: string) {
   try {
@@ -16,7 +24,7 @@ export async function getInboxItems(userId: string) {
         and(
           eq(UserInboxItems.userId, userId),
           eq(UserInboxItems.status, 'inbox'),
-          eq(InboxItems.isActive, true)
+          eq(InboxItems.isActive, true) // Only show active items (published, not archived/deleted)
         )
       )
       .orderBy(desc(InboxItems.createdAt));
@@ -65,6 +73,10 @@ export async function getArchivedItems(userId: string) {
 
 /**
  * Get inbox count for a user
+ * 
+ * Only counts items that are:
+ * - Active (isActive: true) - excludes archived/deleted/toggled-off items
+ * - Published - items are only created for published items (enforced in sync/webhook)
  */
 export async function getInboxCount(userId: string): Promise<number> {
   try {
@@ -76,7 +88,7 @@ export async function getInboxCount(userId: string): Promise<number> {
         and(
           eq(UserInboxItems.userId, userId),
           eq(UserInboxItems.status, 'inbox'),
-          eq(InboxItems.isActive, true)
+          eq(InboxItems.isActive, true) // Only count active items (published, not archived/deleted)
         )
       );
 
