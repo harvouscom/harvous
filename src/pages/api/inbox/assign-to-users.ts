@@ -36,10 +36,11 @@ async function assignInboxItems() {
     const allInboxItems = await db
       .select()
       .from(InboxItems)
-      .where(eq(InboxItems.isActive, true));
+      .where(eq(InboxItems.isActive, true))
+      .all();
 
     // Get all users
-    const allUsers = await db.select().from(UserMetadata);
+    const allUsers = await db.select().from(UserMetadata).all();
 
     let totalAssigned = 0;
     const results: string[] = [];

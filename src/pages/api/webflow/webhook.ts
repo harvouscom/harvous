@@ -720,7 +720,7 @@ async function processWebflowItem(
     // Auto-assign to users based on targetAudience
     if (inboxItemData.targetAudience === 'all_users' || inboxItemData.targetAudience === 'all_new_users') {
       // Get all existing users
-      const allUsers = await db.select().from(UserMetadata);
+      const allUsers = await db.select().from(UserMetadata).all();
       
       // Create UserInboxItems for all existing users
       for (const user of allUsers) {

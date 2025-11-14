@@ -129,7 +129,8 @@ export async function getAllThreadsWithCounts(userId: string) {
       eq(Threads.userId, userId),
       ne(Threads.id, "thread_unorganized") // Exclude unorganized thread from dashboard display
     ))
-    .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt));
+    .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt))
+    .all();
 
     // Get note counts for each thread using junction table only
     const threadsWithCounts = await Promise.all(
@@ -193,7 +194,8 @@ export async function getSpacesWithCounts(userId: string) {
     .leftJoin(Threads, eq(Spaces.id, Threads.spaceId))
     .where(eq(Spaces.userId, userId))
     .groupBy(Spaces.id)
-    .orderBy(desc(Spaces.isActive), desc(Spaces.updatedAt || Spaces.createdAt));
+    .orderBy(desc(Spaces.isActive), desc(Spaces.updatedAt || Spaces.createdAt))
+    .all();
 
     // Get standalone note counts for each space in a single query
     const standaloneNoteCounts = await db.select({
@@ -206,7 +208,8 @@ export async function getSpacesWithCounts(userId: string) {
       eq(Notes.threadId, "thread_unorganized"),
       isNotNull(Notes.spaceId)
     ))
-    .groupBy(Notes.spaceId);
+    .groupBy(Notes.spaceId)
+    .all();
 
     // Get total note counts for each space in a single query
     const totalNoteCounts = await db.select({
@@ -218,7 +221,8 @@ export async function getSpacesWithCounts(userId: string) {
       eq(Notes.userId, userId),
       isNotNull(Notes.spaceId)
     ))
-    .groupBy(Notes.spaceId);
+    .groupBy(Notes.spaceId)
+    .all();
 
     // Create lookup maps for efficient joining
     const standaloneCountMap = new Map(standaloneNoteCounts.map(item => [item.spaceId, item.standaloneNoteCount]));
@@ -264,7 +268,8 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
     })
     .from(Threads)
     .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
-    .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt));
+    .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt))
+    .all();
 
     // Get note counts for each thread using junction table only
     const threadsWithCounts = await Promise.all(
@@ -335,7 +340,8 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         isNull(NoteThreads.id) // No junction entry = unorganized
       ))
       .orderBy(desc(Notes.updatedAt || Notes.createdAt))
-      .limit(limit);
+      .limit(limit)
+      .all();
       
       allNotes = unorganizedNotes;
     } else {
@@ -357,7 +363,8 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
       .orderBy(desc(Notes.updatedAt || Notes.createdAt))
-      .limit(limit);
+      .limit(limit)
+      .all();
       
       allNotes = junctionNotes;
     }
@@ -400,7 +407,8 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
     .from(Notes)
     .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
     .orderBy(desc(Notes.updatedAt || Notes.createdAt))
-    .limit(limit);
+    .limit(limit)
+    .all();
 
     return notes.map(note => ({
       ...note,
@@ -431,7 +439,8 @@ export async function getNotesForDashboard(userId: string, limit = 10) {
     .from(Notes)
     .where(eq(Notes.userId, userId))
     .orderBy(desc(Notes.updatedAt || Notes.createdAt))
-    .limit(limit);
+    .limit(limit)
+    .all();
 
     return notes.map(note => ({
       ...note,
@@ -640,7 +649,8 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
       eq(Notes.threadId, unorganizedThread.id)
     ))
     .orderBy(desc(Notes.updatedAt || Notes.createdAt))
-    .limit(limit);
+    .limit(limit)
+    .all();
 
     return notes.map(note => ({
       ...note,
@@ -674,7 +684,8 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       .from(Notes)
       .where(eq(Notes.userId, userId))
       .orderBy(desc(Notes.updatedAt || Notes.createdAt))
-      .limit(limit);
+      .limit(limit)
+      .all();
 
       return notes.map(note => ({
         ...note,
@@ -701,7 +712,8 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       ne(Notes.threadId, unorganizedThread.id)
     ))
     .orderBy(desc(Notes.updatedAt || Notes.createdAt))
-    .limit(limit);
+    .limit(limit)
+    .all();
 
     return notes.map(note => ({
       ...note,

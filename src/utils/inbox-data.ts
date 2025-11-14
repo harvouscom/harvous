@@ -1,4 +1,4 @@
-import { db, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc } from "astro:db";
+import { db, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc, asc } from "astro:db";
 
 /**
  * Get all inbox items for a user (status='inbox')
@@ -27,7 +27,8 @@ export async function getInboxItems(userId: string) {
           eq(InboxItems.isActive, true) // Only show active items (published, not archived/deleted)
         )
       )
-      .orderBy(desc(InboxItems.createdAt));
+      .orderBy(desc(InboxItems.createdAt))
+      .all();
 
     return userInboxItems.map(item => ({
       ...item.inboxItem,
@@ -58,7 +59,8 @@ export async function getArchivedItems(userId: string) {
           eq(UserInboxItems.status, 'archived')
         )
       )
-      .orderBy(desc(UserInboxItems.archivedAt));
+      .orderBy(desc(UserInboxItems.archivedAt))
+      .all();
 
     return userInboxItems.map(item => ({
       ...item.inboxItem,
@@ -162,7 +164,8 @@ export async function getInboxItemWithNotes(inboxItemId: string) {
         .select()
         .from(InboxItemNotes)
         .where(eq(InboxItemNotes.inboxItemId, inboxItemId))
-        .orderBy(InboxItemNotes.order);
+        .orderBy(asc(InboxItemNotes.order))
+        .all();
 
       return {
         ...inboxItem,

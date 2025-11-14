@@ -133,6 +133,8 @@ export default function CardFullEditable({
                 .setTextSelection({ from, to })
                 .unsetAllMarks()
                 .setMark('noteLink', { noteId: newNoteId })
+                .setTextSelection(to)  // Move cursor to end of link
+                .unsetAllMarks()        // Clear marks so new text isn't linked
                 .run();
 
             // After applying the mark, the content has changed. Trigger a save.

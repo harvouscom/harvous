@@ -252,7 +252,7 @@ export const POST: APIRoute = async ({ request }) => {
     // First, verify all existing inbox items against Webflow
     // Mark as inactive if they're no longer published, deleted, or archived
     try {
-      const allInboxItems = await db.select().from(InboxItems);
+      const allInboxItems = await db.select().from(InboxItems).all();
       console.log(`Verifying ${allInboxItems.length} existing inbox items against Webflow...`);
       verificationResults.checked = allInboxItems.length;
       
@@ -445,7 +445,7 @@ export const POST: APIRoute = async ({ request }) => {
         // Auto-assign to users based on targetAudience
         if (inboxItemData.targetAudience === 'all_users' || inboxItemData.targetAudience === 'all_new_users') {
           // Get all existing users
-          const allUsers = await db.select().from(UserMetadata);
+          const allUsers = await db.select().from(UserMetadata).all();
           
           // Create UserInboxItems for all existing users
           // Note: 'all_new_users' items are also assigned to existing users
@@ -556,9 +556,12 @@ export const POST: APIRoute = async ({ request }) => {
 
   } catch (error: any) {
     console.error('Error syncing inbox items:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', JSON.stringify(error, null, 2));
     return new Response(JSON.stringify({ 
       error: 'Failed to sync inbox items',
-      details: error.message 
+      details: error.message,
+      stack: error.stack
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
