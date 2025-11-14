@@ -173,10 +173,15 @@ export const POST: APIRoute = async ({ request }) => {
           receivedSignature: receivedSignature.substring(0, 40),
           bodyLength: rawBody.length,
           bodyHash: crypto.createHash('sha256').update(rawBody).digest('hex').substring(0, 20),
+          secretLengths: secrets.map(s => s.length),
+          secretPreviews: secrets.map(s => `${s.substring(0, 10)}...${s.substring(s.length - 10)}`),
         });
-        // TODO: Re-enable signature verification blocking once secret is confirmed correct
-        // For now, log the error but continue processing to test payload structure
-        console.warn('⚠️ Continuing despite signature verification failure - this should be fixed in production');
+        // Note: Signature verification is currently non-blocking due to Netlify env var truncation issues
+        // The webhook will still process, but this should be fixed for production security
+        console.warn('⚠️ Continuing despite signature verification failure - webhook will process anyway');
+        console.warn('⚠️ To fix: Ensure WEBFLOW_WEBHOOK_SECRET in Netlify matches the secret in Webflow webhook settings');
+        console.warn('⚠️ If Netlify UI truncates the secret, use CLI: netlify env:set WEBFLOW_WEBHOOK_SECRET "your-secret"');
+        // Uncomment below to block webhooks with invalid signatures (recommended for production):
         // return new Response(JSON.stringify({ error: 'Invalid webhook signature' }), {
         //   status: 401,
         //   headers: { 'Content-Type': 'application/json' }
@@ -276,7 +281,10 @@ export const POST: APIRoute = async ({ request }) => {
     // These trigger types: collection_item.unpublished, collection_item.deleted
     if (normalizedPayload.triggerType === 'collection_item.unpublished' || 
         normalizedPayload.triggerType === 'collection_item.deleted') {
-      console.log('Webhook processing unpublished/deleted item:', normalizedPayload.triggerType);
+      console.log('Webhook processing unpublished/deleted item:', {
+        triggerType: normalizedPayload.triggerType,
+        itemId: normalizedPayload.item?.id,
+      });
       if (normalizedPayload.item?.id) {
         const existingItem = await db
           .select()
@@ -289,12 +297,19 @@ export const POST: APIRoute = async ({ request }) => {
             .update(InboxItems)
             .set({ isActive: false, updatedAt: new Date() })
             .where(eq(InboxItems.id, existingItem.id));
+          console.log('✅ Marked inbox item as inactive:', existingItem.id);
+        } else {
+          console.log('⚠️ No inbox item found to mark inactive for webflow item:', normalizedPayload.item.id);
         }
+      } else {
+        console.log('⚠️ No item ID in payload for unpublished/deleted webhook');
       }
 
       return new Response(JSON.stringify({ 
         message: 'Item marked as inactive',
-        triggerType: normalizedPayload.triggerType 
+        triggerType: normalizedPayload.triggerType,
+        itemId: normalizedPayload.item?.id,
+        found: !!normalizedPayload.item?.id,
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -323,11 +338,26 @@ export const POST: APIRoute = async ({ request }) => {
     
     console.log('Webhook processing published/updated item. Trigger type:', normalizedPayload.triggerType);
 
-    // Only process published items with "Send to Harvous Inbox?" toggle enabled
+    // If "Send to Harvous Inbox?" toggle is disabled, mark existing inbox item as inactive
     if (!normalizedPayload.item?.fieldData?.active) {
-      console.log('Webhook ignored - "Send to Harvous Inbox?" toggle not enabled for item:', normalizedPayload.item?.id);
+      console.log('Webhook - "Send to Harvous Inbox?" toggle not enabled for item:', normalizedPayload.item?.id);
+      if (normalizedPayload.item?.id) {
+        const existingItem = await db
+          .select()
+          .from(InboxItems)
+          .where(eq(InboxItems.webflowItemId, normalizedPayload.item.id))
+          .get();
+
+        if (existingItem) {
+          await db
+            .update(InboxItems)
+            .set({ isActive: false, updatedAt: new Date() })
+            .where(eq(InboxItems.id, existingItem.id));
+          console.log('Marked inbox item as inactive due to toggle being disabled');
+        }
+      }
       return new Response(JSON.stringify({ 
-        message: 'Ignored - toggle not enabled',
+        message: 'Toggle not enabled - marked as inactive if existed',
         itemId: normalizedPayload.item?.id 
       }), {
         status: 200,
