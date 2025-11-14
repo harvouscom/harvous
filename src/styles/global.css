@@ -629,3 +629,42 @@ button[disabled] {
 .content-item a:hover {
   transform: translateY(-2px);
 }
+
+/* Scripture Pill Styles */
+.scripture-pill {
+  position: relative;
+  /* Prevent text selection highlighting */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.scripture-pill::before {
+  content: "\f70e"; /* Font Awesome scroll icon unicode */
+  font-family: "Font Awesome 6 Free", "Font Awesome 6 Pro", "FontAwesome";
+  font-weight: 900;
+  font-size: 16px;
+  color: var(--color-deep-grey);
+  margin-right: 6px;
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.scripture-pill-clickable:hover {
+  opacity: 0.8;
+}
+
+/* Ensure pills are inline with text and don't get highlighted */
+.scripture-pill * {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}

@@ -50,11 +50,61 @@ export function highlightScriptureReferences(
     for (let i = matches.length - 1; i >= 0; i--) {
       const { match: matchText, index } = matches[i];
       
-      // Check if this match is already inside a note-link span
       const beforeMatch = updatedContent.substring(0, index);
-      const afterMatch = updatedContent.substring(index + matchText.length);
+      const matchEnd = index + matchText.length;
       
-      // Count open and close note-link spans before this match
+      // Check if this match is inside a scripture pill
+      // Look backwards from the match to find the most recent unclosed span
+      let searchPos = index;
+      let depth = 0;
+      let foundPillSpan = false;
+      
+      while (searchPos > 0) {
+        const lastSpanOpen = beforeMatch.lastIndexOf('<span', searchPos - 1);
+        if (lastSpanOpen === -1) break;
+        
+        // Get the span tag
+        const spanTagEnd = updatedContent.indexOf('>', lastSpanOpen);
+        if (spanTagEnd === -1 || spanTagEnd >= index) {
+          searchPos = lastSpanOpen - 1;
+          continue;
+        }
+        
+        const spanTag = updatedContent.substring(lastSpanOpen, spanTagEnd + 1);
+        
+        // Check if this is a scripture pill span
+        const isPillSpan = spanTag.includes('data-scripture-reference') || 
+                          spanTag.includes('scripture-pill') || 
+                          spanTag.includes('class="scripture-pill') ||
+                          spanTag.includes("class='scripture-pill");
+        
+        // Check if this span is closed before our match
+        const spanCloseAfter = updatedContent.indexOf('</span>', spanTagEnd + 1);
+        if (spanCloseAfter !== -1 && spanCloseAfter < index) {
+          // This span is closed before our match, continue searching
+          searchPos = lastSpanOpen - 1;
+          continue;
+        }
+        
+        // This span is not closed before our match
+        if (isPillSpan) {
+          // Check if it closes after our match
+          const spanCloseAfterMatch = updatedContent.indexOf('</span>', matchEnd);
+          if (spanCloseAfterMatch !== -1) {
+            foundPillSpan = true;
+            break;
+          }
+        }
+        
+        searchPos = lastSpanOpen - 1;
+      }
+      
+      // Skip if already inside a scripture pill
+      if (foundPillSpan) {
+        continue;
+      }
+      
+      // Check if this match is already inside a note-link span
       const openSpansBefore = (beforeMatch.match(/<span[^>]*class="note-link"[^>]*>/gi) || []).length;
       const closeSpansBefore = (beforeMatch.match(/<\/span>/gi) || []).length;
       
@@ -65,7 +115,7 @@ export function highlightScriptureReferences(
       
       // Check if this exact match is already wrapped (look for data-note-id attribute nearby)
       const contextBefore = beforeMatch.substring(Math.max(0, beforeMatch.length - 100));
-      const contextAfter = afterMatch.substring(0, 100);
+      const contextAfter = updatedContent.substring(matchEnd, Math.min(matchEnd + 100, updatedContent.length));
       const fullContext = contextBefore + matchText + contextAfter;
       
       // If we see a note-link span with this noteId nearby, skip wrapping

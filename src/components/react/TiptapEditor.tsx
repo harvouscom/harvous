@@ -6,6 +6,7 @@ import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import { NoteLink } from './TiptapNoteLink.ts';
+import { ScripturePill } from './TiptapScripturePill.ts';
 import ButtonSmall from './ButtonSmall';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 
@@ -33,6 +34,209 @@ interface TiptapEditorProps {
   parentThreadId?: string;
   sourceNoteId?: string; // ID of the note this editor is editing (for hyperlink creation)
   onEditorReady?: (editor: any) => void;
+}
+
+// Helper function to find text positions in ProseMirror document
+function findTextPositions(doc: any, searchText: string): { from: number; to: number } | null {
+  const fullText = doc.textContent;
+  const index = fullText.indexOf(searchText);
+  
+  if (index === -1) {
+    return null;
+  }
+
+  let from = 0;
+  let to = 0;
+  let currentPos = 0;
+  
+  doc.nodesBetween(0, doc.content.size, (node: any, pos: number) => {
+    if (node.isText) {
+      const text = node.text || '';
+      const nodeStart = currentPos;
+      const nodeEnd = currentPos + text.length;
+      
+      if (index >= nodeStart && index < nodeEnd) {
+        const offset = index - nodeStart;
+        from = pos + offset;
+        to = from + searchText.length;
+      }
+      
+      currentPos = nodeEnd;
+    }
+  });
+
+  if (from > 0 && to > from) {
+    return { from, to };
+  }
+  
+  return null;
+}
+
+// Helper function to check if reference is already wrapped in a pill
+function isReferenceWrapped(htmlContent: string, reference: string): boolean {
+  const escapedRef = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`<span[^>]*data-scripture-reference=["']${escapedRef.replace(/"/g, '&quot;')}["'][^>]*>`, 'i');
+  return pattern.test(htmlContent);
+}
+
+// Helper function to check/create scripture note and get noteId
+async function getOrCreateScriptureNote(reference: string): Promise<{ noteId: string | null; isNew: boolean }> {
+  const normalizedRef = normalizeScriptureReference(reference);
+  
+  // Check if note exists
+  const checkResponse = await fetch('/api/scripture/check-existing', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reference: normalizedRef }),
+    credentials: 'include'
+  });
+
+  if (checkResponse.ok) {
+    const checkResult = await checkResponse.json();
+    if (checkResult.exists && checkResult.noteId) {
+      // Show toast for existing note (optional, can be removed if too noisy)
+      // if (window.toast) {
+      //   window.toast.info(`Scripture note already exists: ${reference}`);
+      // }
+      return { noteId: checkResult.noteId, isNew: false };
+    }
+  }
+
+  // Create new note
+  const formData = new FormData();
+  formData.set('content', reference);
+  formData.set('title', reference);
+  formData.set('threadId', 'thread_unorganized');
+  formData.set('noteType', 'scripture');
+  formData.set('scriptureReference', normalizedRef);
+  formData.set('scriptureVersion', 'NET');
+
+  const createResponse = await fetch('/api/notes/create', {
+    method: 'POST',
+    body: formData,
+    credentials: 'include'
+  });
+
+  if (createResponse.ok) {
+    const result = await createResponse.json();
+    if (result.note && result.note.id) {
+      // Show success toast
+      if (window.toast) {
+        window.toast.success(`Scripture note created: ${reference}`);
+      }
+      return { noteId: result.note.id, isNew: true };
+    }
+  }
+
+  // Show error toast
+  if (window.toast) {
+    window.toast.error(`Error creating scripture note: ${reference}`);
+  }
+  
+  return { noteId: null, isNew: false };
+}
+
+// Helper function to detect and create scripture notes
+async function detectAndCreateScriptureNotes(editor: any) {
+  if (!editor) return;
+
+  try {
+    // Store current cursor position before processing
+    const currentSelection = editor.state.selection;
+    const currentCursorPos = currentSelection.anchor;
+    
+    // Extract plain text from editor
+    const plainText = editor.state.doc.textContent;
+    
+    if (!plainText || plainText.trim().length < 5) {
+      return;
+    }
+
+    // Call detection API
+    const detectResponse = await fetch('/api/scripture/detect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: plainText }),
+      credentials: 'include'
+    });
+
+    if (!detectResponse.ok) {
+      return;
+    }
+
+    const detection = await detectResponse.json();
+    
+    if (!detection.isScripture || !detection.references || detection.references.length === 0) {
+      return;
+    }
+
+    const htmlContent = editor.getHTML();
+    const doc = editor.state.doc;
+
+    // Process each detected reference
+    for (const ref of detection.references) {
+      const reference = ref.reference || ref;
+      if (!reference) continue;
+
+      // Check if already wrapped
+      if (isReferenceWrapped(htmlContent, reference)) {
+        continue;
+      }
+
+      // Find positions in document
+      const positions = findTextPositions(doc, reference);
+      if (!positions) {
+        // Try with normalized reference
+        const normalizedRef = normalizeScriptureReference(reference);
+        const normalizedPositions = findTextPositions(doc, normalizedRef);
+        if (!normalizedPositions) continue;
+        
+        // Get or create note
+        const { noteId } = await getOrCreateScriptureNote(reference);
+        
+        // Determine where to place cursor after applying mark
+        // If cursor was within the reference range, place it after the pill
+        // If cursor was after the reference, keep it where it was
+        let cursorPos = normalizedPositions.to;
+        if (currentCursorPos > normalizedPositions.to) {
+          // Cursor was after the reference, keep it there
+          cursorPos = currentCursorPos;
+        }
+        
+        // Apply scripture pill mark (remove any existing note-link marks first)
+        editor.chain()
+          .setTextSelection(normalizedPositions)
+          .unsetMark('noteLink')
+          .setMark('scripturePill', { reference: normalizedRef, noteId })
+          .setTextSelection(cursorPos)
+          .run();
+      } else {
+        // Get or create note
+        const normalizedRef = normalizeScriptureReference(reference);
+        const { noteId } = await getOrCreateScriptureNote(reference);
+        
+        // Determine where to place cursor after applying mark
+        // If cursor was within the reference range, place it after the pill
+        // If cursor was after the reference, keep it where it was
+        let cursorPos = positions.to;
+        if (currentCursorPos > positions.to) {
+          // Cursor was after the reference, keep it there
+          cursorPos = currentCursorPos;
+        }
+        
+        // Apply scripture pill mark (remove any existing note-link marks first)
+        editor.chain()
+          .setTextSelection(positions)
+          .unsetMark('noteLink')
+          .setMark('scripturePill', { reference: normalizedRef, noteId })
+          .setTextSelection(cursorPos)
+          .run();
+      }
+    }
+  } catch (error) {
+    console.error('Error in scripture detection:', error);
+    // Don't show error toast for detection errors to avoid spam
+  }
 }
 
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
@@ -63,10 +267,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
+  const scriptureDetectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check if we're on the client side
   useEffect(() => {
     setIsClient(true);
+  }, []);
+
+  // Cleanup scripture detection timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scriptureDetectionTimeoutRef.current) {
+        clearTimeout(scriptureDetectionTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Restore scroll position when provided
@@ -96,6 +310,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }),
       Underline,
       NoteLink,
+      ScripturePill,
       Placeholder.configure({
         placeholder: placeholder,
         showOnlyWhenEditable: true,
@@ -121,6 +336,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (onContentChange) {
         onContentChange(htmlContent);
       }
+
+      // Debounced scripture detection (2 seconds after typing stops)
+      if (scriptureDetectionTimeoutRef.current) {
+        clearTimeout(scriptureDetectionTimeoutRef.current);
+      }
+
+      scriptureDetectionTimeoutRef.current = setTimeout(async () => {
+        await detectAndCreateScriptureNotes(editor);
+      }, 2000);
     },
     editable: true,
     editorProps: {
