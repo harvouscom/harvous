@@ -65,6 +65,14 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
+    // Check if note is currently in unorganized (no NoteThreads entries)
+    const existingThreadRelations = await db.select()
+      .from(NoteThreads)
+      .where(eq(NoteThreads.noteId, id))
+      .all();
+    
+    const isInUnorganized = existingThreadRelations.length === 0 || note.threadId === 'thread_unorganized';
+
     // Add the note to the thread (many-to-many relationship)
     console.log(`Attempting to insert: noteId=${id}, threadId=${threadId}`);
     try {
@@ -76,7 +84,20 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         createdAt: new Date()
       });
       console.log(`Note ${id} added to thread ${threadId} successfully`);
-      // Note automatically removed from unorganized when junction entry is created
+      
+      // If note was in unorganized, update the legacy threadId field to the new thread
+      // This ensures the note is properly removed from unorganized
+      if (isInUnorganized && threadId !== 'thread_unorganized') {
+        await db.update(Notes)
+          .set({ threadId: threadId })
+          .where(eq(Notes.id, id));
+        console.log(`Note ${id} removed from unorganized and added to thread ${threadId}`);
+      }
+      
+      // Update the target thread's timestamp
+      await db.update(Threads)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
     } catch (insertError) {
       console.error('Error inserting into NoteThreads:', insertError);
       return new Response(JSON.stringify({ 

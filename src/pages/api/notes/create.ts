@@ -3,7 +3,7 @@ import { db, Notes, Threads, UserMetadata, Tags, NoteTags, NoteThreads, Scriptur
 import { generateNoteId } from '@/utils/ids';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
-import { parseScriptureReference } from '@/utils/scripture-detector';
+import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -207,7 +207,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Create ScriptureMetadata record if this is a scripture note
     if (finalNoteType === 'scripture' && scriptureReference) {
       try {
-        const parsed = parseScriptureReference(scriptureReference);
+        // Normalize the reference for consistent storage
+        const normalizedReference = normalizeScriptureReference(scriptureReference);
+        const parsed = parseScriptureReference(normalizedReference);
         if (parsed) {
           const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
           const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
@@ -215,7 +217,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           await db.insert(ScriptureMetadata).values({
             id: `scripture_${newNote.id}_${Date.now()}`,
             noteId: newNote.id,
-            reference: scriptureReference,
+            reference: normalizedReference, // Store normalized reference
             book: parsed.book,
             chapter: parsed.chapter,
             verse: verseStart,
@@ -225,7 +227,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
             createdAt: new Date()
           });
 
-          console.log(`ScriptureMetadata created for note ${newNote.id}: ${scriptureReference}`);
+          console.log(`ScriptureMetadata created for note ${newNote.id}: ${normalizedReference}`);
         }
       } catch (error: any) {
         // Don't fail note creation if ScriptureMetadata creation fails

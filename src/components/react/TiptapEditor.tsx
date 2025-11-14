@@ -7,6 +7,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import { NoteLink } from './TiptapNoteLink.ts';
 import ButtonSmall from './ButtonSmall';
+import { normalizeScriptureReference } from '@/utils/scripture-detector';
 
 // Define a global toast function
 declare global {
@@ -375,10 +376,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           
           if (detection.isScripture && detection.confidence >= 0.7 && detection.primaryReference) {
             try {
+              // Normalize the reference before checking to ensure consistent format matching
+              const normalizedReference = normalizeScriptureReference(detection.primaryReference);
+              
               const checkExistingResponse = await fetch('/api/scripture/check-existing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reference: detection.primaryReference }),
+                body: JSON.stringify({ reference: normalizedReference }),
                 credentials: 'include'
               });
 
@@ -402,17 +406,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       result = await addThreadResponse.json();
                     } catch (jsonError) {
                       // If JSON parsing fails, log and continue - will fall through to new note creation
-                      console.error('Failed to parse response:', jsonError);
-                      // Don't return early - let it fall through to cleanup
+                      console.error('[TiptapEditor] Failed to parse add-thread response:', jsonError);
                       result = { error: 'Failed to parse response' };
                     }
 
                     if (addThreadResponse.ok) {
                       // Success case - note was added to thread
                       if (result.success) {
-                          if (window.toast) {
-                              window.toast.success(`Note added to thread.`);
+                        const toastMessage = `Added ${normalizedReference} to this thread.`;
+                        if (window.toast) {
+                          window.toast.success(toastMessage);
+                        }
+                        // Also dispatch event for layout handling
+                        window.dispatchEvent(new CustomEvent('showToast', {
+                          detail: {
+                            message: toastMessage,
+                            type: 'success'
                           }
+                        }));
                       }
                       
                       // After adding to thread, fire event to create hyperlink in the source note
@@ -436,7 +447,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       
                       if (isAlreadyInThread) {
                         // Note is already in thread - show toast using multiple methods
-                        const toastMessage = 'Note is already in this thread.';
+                        const toastMessage = `${normalizedReference} is already in this thread.`;
                         console.log('[TiptapEditor] Note already in thread, dispatching showToast event:', toastMessage);
                         
                         // Dispatch a custom event for the layout to handle.
@@ -463,21 +474,31 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         console.warn('[TiptapEditor] Error adding note to thread (not "already in thread"):', errorMessage);
                       }
                     } else {
-                      console.log('[TiptapEditor] Unexpected response status:', addThreadResponse.status);
+                      console.error('[TiptapEditor] Unexpected response status when adding note to thread:', addThreadResponse.status, result);
                     }
                   } catch (addError) {
                     // Error adding existing note to thread, falling back to new note creation
-                    console.error('Error in addThreadResponse:', addError);
+                    console.error('[TiptapEditor] Error in addThreadResponse:', addError);
                   }
                   
                   // Clear selection and close
                   editor.commands.blur();
                   setShowCreateNoteButton(false);
                   return; // Exit early - don't create new note
+                } else {
+                  // Note doesn't exist - will fall through to create new note
+                  console.log('[TiptapEditor] Scripture note does not exist, will create new note:', normalizedReference);
                 }
+              } else {
+                // Non-OK response from check-existing API
+                const errorText = await checkExistingResponse.text().catch(() => 'Unknown error');
+                console.error('[TiptapEditor] Error checking for existing scripture note:', checkExistingResponse.status, errorText);
+                // Continue to create new note since check failed
               }
             } catch (checkError) {
               // Error checking for existing scripture note
+              console.error('[TiptapEditor] Exception while checking for existing scripture note:', checkError);
+              // Continue to create new note since check failed
             }
 
             // No existing note found - proceed with creating new note

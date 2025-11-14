@@ -3,8 +3,8 @@
  * Can be called directly from API routes or other server-side code
  */
 
-import { db, Notes, UserMetadata, NoteThreads, ScriptureMetadata, eq, and, desc, isNotNull, count } from 'astro:db';
-import { detectScriptureReferences } from '@/utils/scripture-detector';
+import { db, Notes, UserMetadata, NoteThreads, ScriptureMetadata, Threads, eq, and, desc, isNotNull, count } from 'astro:db';
+import { detectScriptureReferences, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { generateNoteId } from '@/utils/ids';
@@ -66,10 +66,13 @@ export async function processScriptureReferences(
   // Process each detected reference
   for (const detectedRef of detectedReferences) {
     const reference = detectedRef.reference;
+    // Normalize the reference for consistent storage and comparison
+    const normalizedReference = normalizeScriptureReference(reference);
     
     try {
       // Check if scripture note exists (direct database query)
-      const existingScripture = await db.select({
+      // Try exact match first with normalized reference
+      let existingScripture = await db.select({
         noteId: ScriptureMetadata.noteId,
         reference: ScriptureMetadata.reference
       })
@@ -77,12 +80,34 @@ export async function processScriptureReferences(
         .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
         .where(
           and(
-            eq(ScriptureMetadata.reference, reference),
+            eq(ScriptureMetadata.reference, normalizedReference),
             eq(Notes.userId, userId)
           )
         )
         .limit(1)
         .get();
+
+      // If no exact match, try to find by normalizing stored references
+      // This handles legacy references that might not be normalized
+      if (!existingScripture) {
+        const allUserScripture = await db.select({
+          noteId: ScriptureMetadata.noteId,
+          reference: ScriptureMetadata.reference
+        })
+          .from(ScriptureMetadata)
+          .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+          .where(eq(Notes.userId, userId))
+          .all();
+
+        // Find matching reference by normalizing each stored reference
+        for (const scripture of allUserScripture) {
+          const normalizedStored = normalizeScriptureReference(scripture.reference);
+          if (normalizedStored === normalizedReference) {
+            existingScripture = scripture;
+            break;
+          }
+        }
+      }
 
       if (!existingScripture) {
         // New scripture - create it
@@ -175,7 +200,7 @@ export async function processScriptureReferences(
             .where(eq(UserMetadata.userId, userId));
 
           // Create ScriptureMetadata
-          const parsed = parseScriptureReference(reference);
+          const parsed = parseScriptureReference(normalizedReference);
           if (parsed) {
             const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
             const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
@@ -183,7 +208,7 @@ export async function processScriptureReferences(
             await db.insert(ScriptureMetadata).values({
               id: `scripture_${scriptureNote.id}_${Date.now()}`,
               noteId: scriptureNote.id,
-              reference: reference,
+              reference: normalizedReference, // Store normalized reference
               book: parsed.book,
               chapter: parsed.chapter,
               verse: verseStart,
@@ -257,45 +282,49 @@ export async function processScriptureReferences(
             noteId: existingNoteId,
             reference
           });
-        } else if (inUnorganized) {
-          // Exists in unorganized - special toast
+        } else if (actualThreadId !== 'thread_unorganized') {
+          // Target is a specific thread - add the scripture note to it
+          // This handles both: notes in unorganized and notes in other threads
+          try {
+            await db.insert(NoteThreads).values({
+              id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              noteId: existingNoteId,
+              threadId: actualThreadId,
+              createdAt: new Date()
+            });
+
+            // If note was in unorganized, update the legacy threadId field to remove it from unorganized
+            if (inUnorganized) {
+              await db.update(Notes)
+                .set({ threadId: actualThreadId })
+                .where(eq(Notes.id, existingNoteId));
+            }
+
+            // Update the target thread's timestamp
+            await db.update(Threads)
+              .set({ updatedAt: new Date() })
+              .where(and(eq(Threads.id, actualThreadId), eq(Threads.userId, userId)));
+
+            results.push({
+              action: 'added',
+              noteId: existingNoteId,
+              reference
+            });
+          } catch (error) {
+            // Already exists - skip
+            results.push({
+              action: 'skipped',
+              noteId: existingNoteId,
+              reference
+            });
+          }
+        } else {
+          // Target thread is unorganized - don't add, just mark as unorganized
           results.push({
             action: 'unorganized',
             noteId: existingNoteId,
             reference
           });
-        } else {
-          // Exists but not in this thread - add to thread (unless unorganized)
-          if (actualThreadId !== 'thread_unorganized') {
-            try {
-              await db.insert(NoteThreads).values({
-                id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                noteId: existingNoteId,
-                threadId: actualThreadId,
-                createdAt: new Date()
-              });
-
-              results.push({
-                action: 'added',
-                noteId: existingNoteId,
-                reference
-              });
-            } catch (error) {
-              // Already exists - skip
-              results.push({
-                action: 'skipped',
-                noteId: existingNoteId,
-                reference
-              });
-            }
-          } else {
-            // Target thread is unorganized - don't add, just mark as unorganized
-            results.push({
-              action: 'unorganized',
-              noteId: existingNoteId,
-              reference
-            });
-          }
         }
       }
     } catch (error) {

@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, ScriptureMetadata, Notes, NoteThreads, eq, and, count, isNull } from 'astro:db';
+import { normalizeScriptureReference } from '@/utils/scripture-detector';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -25,8 +26,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    // Normalize the reference for consistent comparison
+    const normalizedReference = normalizeScriptureReference(reference);
+
     // Find existing scripture note with this reference for this user
-    const existingScripture = await db.select({
+    // First try exact match with normalized reference (for newly stored normalized references)
+    let existingScripture = await db.select({
       noteId: ScriptureMetadata.noteId,
       reference: ScriptureMetadata.reference
     })
@@ -34,12 +39,34 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
       .where(
         and(
-          eq(ScriptureMetadata.reference, reference),
+          eq(ScriptureMetadata.reference, normalizedReference),
           eq(Notes.userId, userId)
         )
       )
       .limit(1)
       .get();
+
+    // If no exact match, try to find by normalizing stored references
+    // This handles legacy references that might not be normalized
+    if (!existingScripture) {
+      const allUserScripture = await db.select({
+        noteId: ScriptureMetadata.noteId,
+        reference: ScriptureMetadata.reference
+      })
+        .from(ScriptureMetadata)
+        .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+        .where(eq(Notes.userId, userId))
+        .all();
+
+      // Find matching reference by normalizing each stored reference
+      for (const scripture of allUserScripture) {
+        const normalizedStored = normalizeScriptureReference(scripture.reference);
+        if (normalizedStored === normalizedReference) {
+          existingScripture = scripture;
+          break;
+        }
+      }
+    }
 
     if (!existingScripture) {
       return new Response(JSON.stringify({

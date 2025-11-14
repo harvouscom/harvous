@@ -334,6 +334,38 @@ export const formatReferenceForAPI = (reference: string): string => {
   return reference.replace(/\s+\|\s+/g, ',');
 };
 
+// Normalize scripture reference to consistent format for storage and comparison
+// Handles various spacing formats: "John 3: 16", "John 3:16 - 17", "Matthew 26:6-13, 17-30"
+// Returns: "John 3:16", "John 3:16-17", "Matthew 26:6-13,17-30"
+export const normalizeScriptureReference = (reference: string): string => {
+  if (!reference || typeof reference !== 'string') {
+    return reference;
+  }
+
+  // First, try to parse and use the normalized format from parseReference
+  // This ensures we get the canonical book name and proper formatting
+  const parsed = parseReference(reference.trim());
+  if (parsed) {
+    return parsed.reference;
+  }
+
+  // If parsing fails, do manual normalization
+  // Remove spaces after colons: "John 3: 16" → "John 3:16"
+  let normalized = reference.replace(/:\s+/g, ':');
+  
+  // Remove spaces after commas: "Matthew 26:6-13, 17-30" → "Matthew 26:6-13,17-30"
+  normalized = normalized.replace(/,\s+/g, ',');
+  
+  // Normalize spaces around dashes in verse ranges: "John 3:16 - 17" → "John 3:16-17"
+  // But be careful not to affect dashes in book names like "1 Corinthians"
+  normalized = normalized.replace(/(\d+)\s*-\s*(\d+)/g, '$1-$2');
+  
+  // Trim whitespace
+  normalized = normalized.trim();
+  
+  return normalized;
+};
+
 // Parse verse groups from a reference string
 // "Matthew 26:6-13,17-30" → [{ start: 6, end: 13 }, { start: 17, end: 30 }]
 export interface VerseGroup {
