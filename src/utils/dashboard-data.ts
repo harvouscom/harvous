@@ -75,7 +75,10 @@ async function findUnorganizedThread(userId: string) {
       return newUnorganizedThread;
     } catch (createError: any) {
       // If creation failed due to constraint, it means another process created it
-      if (createError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || createError.rawCode === 1555) {
+      if (createError.code === 'SQLITE_CONSTRAINT' || 
+          createError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || 
+          createError.rawCode === 1555 ||
+          createError.message?.includes('UNIQUE constraint failed')) {
         // Try to fetch it again
         const existingThread = await db.select({
           id: Threads.id,

@@ -50,17 +50,48 @@ export const POST: APIRoute = async ({ request, locals }) => {
       updatedAt: new Date()
     };
 
-    const result = await db.insert(Threads).values(unorganizedThread);
-    console.log('Created unorganized thread:', result);
+    try {
+      const result = await db.insert(Threads).values(unorganizedThread);
+      console.log('Created unorganized thread:', result);
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: 'Unorganized thread created successfully',
-      thread: unorganizedThread
-    }), {
-      status: 201,
-      headers: { 'Content-Type': 'application/json' }
-    });
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Unorganized thread created successfully',
+        thread: unorganizedThread
+      }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (insertError: any) {
+      // If insert fails due to constraint, another request created it - re-fetch it
+      if (insertError.code === 'SQLITE_CONSTRAINT' || 
+          insertError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || 
+          insertError.rawCode === 1555 ||
+          insertError.message?.includes('UNIQUE constraint failed')) {
+        // Re-fetch the thread since another request created it
+        const createdThread = await db.select()
+          .from(Threads)
+          .where(and(
+            eq(Threads.userId, userId),
+            eq(Threads.id, 'thread_unorganized')
+          ))
+          .get();
+
+        if (createdThread) {
+          console.log('Unorganized thread already exists (created by another request):', createdThread);
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'Unorganized thread already exists',
+            thread: createdThread
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      }
+      // Re-throw if it's a different error
+      throw insertError;
+    }
 
   } catch (error) {
     console.error('Error ensuring unorganized thread:', error);
