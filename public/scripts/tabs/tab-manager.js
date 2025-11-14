@@ -59,34 +59,74 @@
       // Dot is now handled by CSS ::after pseudo-element
       
       // Find and switch content sections that belong to this specific TabNav
+      // Handle both cases:
+      // 1. TabNav is directly in parent (like find.astro) - content sections are siblings
+      // 2. TabNav is wrapped in a container (like index.astro) - content sections are siblings of the wrapper
+      
       const tabNavParent = tabNavContainer.parentElement;
       if (!tabNavParent) return;
       
-      const allSiblings = Array.from(tabNavParent.children);
-      const currentTabNavIndex = allSiblings.indexOf(tabNavContainer);
+      // Check if content sections are direct siblings of tabNavContainer
+      const directSiblings = Array.from(tabNavParent.children);
+      const hasDirectContentSiblings = directSiblings.some(function(sibling) {
+        return sibling !== tabNavContainer && 
+               sibling.hasAttribute && 
+               sibling.hasAttribute('data-tab-content');
+      });
       
-      // Find the next TabNav (if any) to determine the boundary
+      let searchContainer, wrapperIndex;
+      
+      if (hasDirectContentSiblings) {
+        // Case 1: Content sections are direct siblings (like find.astro)
+        searchContainer = tabNavParent;
+        wrapperIndex = directSiblings.indexOf(tabNavContainer);
+      } else {
+        // Case 2: TabNav is wrapped in a container, content sections are siblings of wrapper
+        // The wrapper is tabNavParent, we need to look at its parent
+        const wrapperParent = tabNavParent.parentElement;
+        if (!wrapperParent) return;
+        
+        searchContainer = wrapperParent;
+        const wrapperParentChildren = Array.from(wrapperParent.children);
+        wrapperIndex = wrapperParentChildren.indexOf(tabNavParent);
+      }
+      
+      if (!searchContainer) return;
+      
+      const allSiblings = Array.from(searchContainer.children);
+      
+      // Find the next TabNav group (if any) to determine the boundary
+      // Look for the next element that contains a .tab-nav-container
       let nextTabNavIndex = -1;
-      for (let i = currentTabNavIndex + 1; i < allSiblings.length; i++) {
+      for (let i = wrapperIndex + 1; i < allSiblings.length; i++) {
         const sibling = allSiblings[i];
+        // Check if this sibling contains a tab-nav-container (new TabNav group)
+        if (sibling.querySelector && sibling.querySelector('.tab-nav-container')) {
+          nextTabNavIndex = i;
+          break;
+        }
+        // Also check if the sibling itself is a tab-nav-container (direct case)
         if (sibling.classList && sibling.classList.contains('tab-nav-container')) {
           nextTabNavIndex = i;
           break;
         }
       }
       
-      // Find content sections between current TabNav and next TabNav (or end)
+      // Find content sections between current TabNav/wrapper and next TabNav group (or end)
       const endIndex = nextTabNavIndex !== -1 ? nextTabNavIndex : allSiblings.length;
-      const relevantSiblings = allSiblings.slice(currentTabNavIndex + 1, endIndex);
+      const relevantSiblings = allSiblings.slice(wrapperIndex + 1, endIndex);
       
       relevantSiblings.forEach(function(sibling) {
         if (sibling.hasAttribute && sibling.hasAttribute('data-tab-content')) {
           const sectionTabId = sibling.getAttribute('data-tab-content');
           
           if (sectionTabId === tabId) {
+            // Show this content section
             sibling.classList.remove('hidden');
-            sibling.style.display = 'block';
+            // Remove inline display style to let CSS handle it (or set to empty string)
+            sibling.style.display = '';
           } else {
+            // Hide this content section
             sibling.classList.add('hidden');
             sibling.style.display = 'none';
           }

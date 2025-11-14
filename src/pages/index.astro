@@ -18,6 +18,8 @@ import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import { getThreadGradientCSS } from "@/utils/colors";
 import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
 import MobileAdditional from "@/components/MobileAdditional.astro";
+import { getRelativeTime } from "@/utils/date-formatting";
+import { db, InboxItemNotes, eq, count } from "astro:db";
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
 const { userId } = auth;
@@ -126,8 +128,32 @@ try {
   ]);
   
   // Process archived items
-  archivedItems = archived.map(item => {
+  archivedItems = await Promise.all(archived.map(async (item) => {
     const cleanContent = item.content ? item.content.replace(/<[^>]*>/g, '').substring(0, 150) + (item.content.length > 150 ? "..." : "") : '';
+    
+    // Get note count for threads
+    let noteCount = 0;
+    if (item.contentType === 'thread') {
+      const countResult = await db
+        .select({ count: count() })
+        .from(InboxItemNotes)
+        .where(eq(InboxItemNotes.inboxItemId, item.id))
+        .get();
+      noteCount = countResult?.count || 0;
+    }
+    
+    // Format timestamp showing when item was made available to user
+    // Use createdAt from UserInboxItems (when item appeared in user's inbox)
+    let displayTimestamp: string | undefined = undefined;
+    if (item.createdAt) {
+      try {
+        displayTimestamp = getRelativeTime(new Date(item.createdAt));
+      } catch (error) {
+        console.error('Error formatting archived item timestamp:', error, 'item.createdAt:', item.createdAt);
+        displayTimestamp = undefined;
+      }
+    }
+    
     return {
       id: item.id,
       type: item.contentType === 'thread' ? 'thread' : 'note',
@@ -139,8 +165,11 @@ try {
       noteId: item.contentType === 'note' ? item.id : undefined,
       color: item.color,
       subtitle: item.subtitle,
+      lastUpdated: displayTimestamp, // Relative time when item was made available to user
+      count: noteCount, // Note count for threads
+      threadType: item.threadType, // Thread type from CMS
     };
-  });
+  }));
   
   // Set active thread
   activeThread = threadContext;
@@ -233,7 +262,7 @@ try {
                     </div>
                     
                     <!-- Inbox Content (reserved for external content only) -->
-                    <div class="inbox-content" data-tab-content="inbox">
+                    <div class="inbox-content min-h-[200px]" data-tab-content="inbox">
                       {inboxContent.length > 0 ? (
                         <InboxItemsList 
                           client:visible
@@ -251,7 +280,7 @@ try {
                     </div>
                     
                     <!-- Archive Content (dismissed items) -->
-                    <div class="archive-content hidden" data-tab-content="archive">
+                    <div class="archive-content hidden min-h-[200px]" data-tab-content="archive">
                       {archivedItems.length > 0 ? (
                         <InboxItemsList 
                           client:visible

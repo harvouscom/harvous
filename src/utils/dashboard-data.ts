@@ -532,6 +532,7 @@ export async function getFeaturedContent(userId: string) {
         color: item.color,
         subtitle: item.subtitle,
         count: noteCount, // Note count for threads
+        threadType: item.threadType, // Thread type from CMS
       };
     }));
   } catch (error) {

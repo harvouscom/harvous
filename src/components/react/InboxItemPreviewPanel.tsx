@@ -20,6 +20,7 @@ interface InboxItem {
   imageUrl?: string;
   color?: string;
   notes?: InboxItemNote[];
+  userStatus?: 'inbox' | 'archived' | 'added' | null;
 }
 
 interface InboxItemPreviewPanelProps {
@@ -27,6 +28,7 @@ interface InboxItemPreviewPanelProps {
   onClose: () => void;
   onAddToHarvous: (inboxItemId: string) => Promise<void>;
   onArchive: (inboxItemId: string) => Promise<void>;
+  onUnarchive?: (inboxItemId: string) => Promise<void>;
   onAddNoteToHarvous?: (inboxItemNoteId: string) => Promise<void>;
   inBottomSheet?: boolean;
 }
@@ -89,12 +91,16 @@ export default function InboxItemPreviewPanel({
   onClose,
   onAddToHarvous,
   onArchive,
+  onUnarchive,
   onAddNoteToHarvous,
   inBottomSheet = false
 }: InboxItemPreviewPanelProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isUnarchiving, setIsUnarchiving] = useState(false);
   const [addingNoteIds, setAddingNoteIds] = useState<Set<string>>(new Set());
+  
+  const isArchived = item.userStatus === 'archived';
   // Navigation state: 'thread' for thread view, 'noteDetail' for individual note view
   const [viewMode, setViewMode] = useState<'thread' | 'noteDetail'>(item.contentType === 'note' ? 'noteDetail' : 'thread');
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(item.contentType === 'note' ? item.id : null);
@@ -122,6 +128,20 @@ export default function InboxItemPreviewPanel({
       alert('Failed to archive item. Please try again.');
     } finally {
       setIsArchiving(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    if (!onUnarchive) return;
+    setIsUnarchiving(true);
+    try {
+      await onUnarchive(item.id);
+      onClose();
+    } catch (error) {
+      console.error('Error unarchiving:', error);
+      alert('Failed to unarchive item. Please try again.');
+    } finally {
+      setIsUnarchiving(false);
     }
   };
 
@@ -371,27 +391,29 @@ export default function InboxItemPreviewPanel({
                       )}
                     </div>
 
-                    {/* Archive button at bottom of white container */}
-                    <div className="shrink-0 mt-3">
-                      <button
-                        type="button"
-                        onClick={handleArchive}
-                        disabled={isArchiving || isAdding}
-                        className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ 
-                          backgroundImage: 'var(--color-gradient-gray)', 
-                          boxShadow: 'rgba(120, 118, 111, 0.2) 0px -3px 0px 0px inset' 
-                        }}
-                      >
-                        <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                          <div className="flex-1 min-w-0 overflow-hidden">
-                            <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
-                              {isArchiving ? 'Archiving...' : 'Archive Thread'}
-                            </span>
+                    {/* Archive button at bottom of white container - only show if not archived */}
+                    {!isArchived && (
+                      <div className="shrink-0 mt-3">
+                        <button
+                          type="button"
+                          onClick={handleArchive}
+                          disabled={isArchiving || isAdding || isUnarchiving}
+                          className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{ 
+                            backgroundImage: 'var(--color-gradient-gray)', 
+                            boxShadow: 'rgba(120, 118, 111, 0.2) 0px -3px 0px 0px inset' 
+                          }}
+                        >
+                          <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                              <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
+                                {isArchiving ? 'Archiving...' : 'Archive Thread'}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </button>
-                    </div>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -410,21 +432,39 @@ export default function InboxItemPreviewPanel({
             inBottomSheet={inBottomSheet}
           />
           
-          {/* Add to Harvous button for thread */}
+          {/* Add to Harvous or Unarchive button for thread */}
           {item.contentType === 'thread' && (
-            <button 
-              type="button"
-              onClick={handleAddToHarvous}
-              disabled={isAdding || isArchiving}
-              data-outer-shadow
-              className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: 'var(--color-bold-blue)' }}
-            >
-              <div className="relative shrink-0 transition-transform duration-125">
-                {isAdding ? 'Adding...' : 'Add All to Harvous'}
-              </div>
-              <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
-            </button>
+            <>
+              {isArchived ? (
+                <button 
+                  type="button"
+                  onClick={handleUnarchive}
+                  disabled={isUnarchiving || isAdding || isArchiving}
+                  data-outer-shadow
+                  className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: 'var(--color-bold-blue)' }}
+                >
+                  <div className="relative shrink-0 transition-transform duration-125">
+                    {isUnarchiving ? 'Unarchiving...' : 'Unarchive'}
+                  </div>
+                  <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={handleAddToHarvous}
+                  disabled={isAdding || isArchiving || isUnarchiving}
+                  data-outer-shadow
+                  className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: 'var(--color-bold-blue)' }}
+                >
+                  <div className="relative shrink-0 transition-transform duration-125">
+                    {isAdding ? 'Adding...' : 'Add All to Harvous'}
+                  </div>
+                  <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+                </button>
+              )}
+            </>
           )}
         </div>
       ) : (
@@ -436,21 +476,39 @@ export default function InboxItemPreviewPanel({
             inBottomSheet={inBottomSheet}
           />
           
-          {/* Add to Harvous button for note detail */}
+          {/* Add to Harvous or Unarchive button for note detail */}
           {selectedNote && (
-            <button 
-              type="button"
-              onClick={() => selectedNote.id && handleAddNoteToHarvous(selectedNote.id)}
-              disabled={addingNoteIds.has(selectedNote.id) || isAdding || isArchiving}
-              data-outer-shadow
-              className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: 'var(--color-bold-blue)' }}
-            >
-              <div className="relative shrink-0 transition-transform duration-125">
-                {addingNoteIds.has(selectedNote.id) ? 'Adding...' : 'Add to Harvous'}
-              </div>
-              <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
-            </button>
+            <>
+              {isArchived ? (
+                <button 
+                  type="button"
+                  onClick={handleUnarchive}
+                  disabled={isUnarchiving || isAdding || isArchiving}
+                  data-outer-shadow
+                  className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: 'var(--color-bold-blue)' }}
+                >
+                  <div className="relative shrink-0 transition-transform duration-125">
+                    {isUnarchiving ? 'Unarchiving...' : 'Unarchive'}
+                  </div>
+                  <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={() => selectedNote.id && handleAddNoteToHarvous(selectedNote.id)}
+                  disabled={addingNoteIds.has(selectedNote.id) || isAdding || isArchiving || isUnarchiving}
+                  data-outer-shadow
+                  className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: 'var(--color-bold-blue)' }}
+                >
+                  <div className="relative shrink-0 transition-transform duration-125">
+                    {addingNoteIds.has(selectedNote.id) ? 'Adding...' : 'Add to Harvous'}
+                  </div>
+                  <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

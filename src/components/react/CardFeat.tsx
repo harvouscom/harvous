@@ -1,6 +1,6 @@
 import React from 'react';
 import OverlappingNotes from './OverlappingNotes';
-import ActionButton from './ActionButton';
+import LayerGroupIcon from '@fortawesome/fontawesome-free/svgs/solid/layer-group.svg';
 
 export interface CardFeatProps {
   variant?: "Thread" | "Note" | "NoteImage";
@@ -12,6 +12,7 @@ export interface CardFeatProps {
   className?: string;
   lastUpdated?: string;
   isPrivate?: boolean;
+  threadType?: string; // Thread type from CMS (e.g., 'Default')
 }
 
 // Map color names to CSS variable names
@@ -89,7 +90,8 @@ export default function CardFeat({
   color,
   className = "",
   lastUpdated,
-  isPrivate = true
+  isPrivate = true,
+  threadType
 }: CardFeatProps) {
   return (
     <>
@@ -145,10 +147,6 @@ export default function CardFeat({
                 </svg>
               </div>
               
-              {/* Plus button */}
-              <div className="absolute right-2 top-2">
-                <ActionButton variant="Add" />
-              </div>
             </div>
             
             {/* Text content area */}
@@ -179,17 +177,20 @@ export default function CardFeat({
               className="basis-0 grow min-h-px min-w-px overflow-clip relative rounded-xl shrink-0 w-full"
               style={{ backgroundColor: getColorCSSVariable(color) }}
             >
-              {/* User icon (Private) or User group icon (Shared) */}
+              {/* Icon based on thread type */}
               <div className="absolute left-3.5 size-5 top-[17px]">
-                {isPrivate ? (
-                  // Single user icon for Private
+                {threadType && threadType.toLowerCase() === 'default' ? (
+                  // Layer group icon for Default thread type
+                  <img 
+                    src={LayerGroupIcon.src} 
+                    alt="Layer group" 
+                    className="block max-w-none size-full opacity-20"
+                    style={{ filter: 'brightness(0) saturate(100%)' }}
+                  />
+                ) : (
+                  // User icon for other thread types (or when threadType is not set)
                   <svg className="block max-w-none size-full text-[#4a473d] opacity-20" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                  </svg>
-                ) : (
-                  // User group icon for Shared
-                  <svg className="block max-w-none size-full text-[#4a473d] opacity-20" fill="currentColor" viewBox="0 0 640 640">
-                    <path d="M96 192C96 130.1 146.1 80 208 80C269.9 80 320 130.1 320 192C320 253.9 269.9 304 208 304C146.1 304 96 253.9 96 192zM32 528C32 430.8 110.8 352 208 352C305.2 352 384 430.8 384 528L384 534C384 557.2 365.2 576 342 576L74 576C50.8 576 32 557.2 32 534L32 528zM464 128C517 128 560 171 560 224C560 277 517 320 464 320C411 320 368 277 368 224C368 171 411 128 464 128zM464 368C543.5 368 608 432.5 608 512L608 534.4C608 557.4 589.4 576 566.4 576L421.6 576C428.2 563.5 432 549.2 432 534L432 528C432 476.5 414.6 429.1 385.5 391.3C408.1 376.6 435.1 368 464 368z"/>
                   </svg>
                 )}
               </div>
@@ -199,10 +200,6 @@ export default function CardFeat({
                 <OverlappingNotes count={count || 0} />
               </div>
               
-              {/* Plus button */}
-              <div className="absolute right-2 top-2">
-                <ActionButton variant="Add" />
-              </div>
             </div>
             
             {/* Text content area */}
@@ -233,10 +230,6 @@ export default function CardFeat({
               className="basis-0 bg-center bg-cover bg-no-repeat grow min-h-px min-w-px overflow-clip relative rounded-xl shrink-0 w-full"
               style={imageUrl ? { backgroundImage: `url('${imageUrl}')` } : { backgroundColor: '#f3f2ec' }}
             >
-              {/* Plus button */}
-              <div className="absolute right-2 top-2">
-                <ActionButton variant="Add" />
-              </div>
             </div>
             
             {/* Text content area */}

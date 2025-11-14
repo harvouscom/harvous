@@ -419,6 +419,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   // Dispatch event that InboxItemsList will handle
                   window.dispatchEvent(new CustomEvent('inboxItemArchive', { detail: { inboxItemId } }));
                 }}
+                onUnarchive={async (inboxItemId: string) => {
+                  // Dispatch event that InboxItemsList will handle
+                  window.dispatchEvent(new CustomEvent('inboxItemUnarchive', { detail: { inboxItemId } }));
+                }}
                 onAddNoteToHarvous={async (inboxItemNoteId: string) => {
                   // Dispatch event that InboxItemsList will handle
                   window.dispatchEvent(new CustomEvent('inboxNoteAddToHarvous', { detail: { inboxItemNoteId } }));

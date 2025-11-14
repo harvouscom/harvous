@@ -10,6 +10,7 @@ interface WebflowItem {
   content?: string;
   'image-url'?: string | { url: string };
   color?: string;
+  'thread-type'?: string; // Thread type from CMS (e.g., 'Default')
   'target-audience'?: string;
   'is-active'?: boolean;
   'thread-notes'?: string[]; // Array of referenced note IDs
@@ -177,6 +178,44 @@ export const POST: APIRoute = async ({ request }) => {
               }
             }
 
+            // Handle thread type - check multiple possible field name formats
+            // Webflow option fields store the selected option's ID or slug
+            // Since "Default" is the only option, if the field has any value, it's "Default"
+            let threadTypeField = null;
+            
+            // Check common field name variations
+            if (item.fieldData['thread-type']) {
+              threadTypeField = item.fieldData['thread-type'];
+            } else if (item.fieldData.threadType) {
+              threadTypeField = item.fieldData.threadType;
+            } else if (item.fieldData['Thread Type']) {
+              threadTypeField = item.fieldData['Thread Type'];
+            } else {
+              // Try to find any field that might be thread type by checking all fieldData keys
+              const fieldKeys = Object.keys(item.fieldData);
+              const threadTypeKey = fieldKeys.find(key => 
+                key.toLowerCase().includes('thread') && key.toLowerCase().includes('type')
+              );
+              if (threadTypeKey) {
+                threadTypeField = item.fieldData[threadTypeKey];
+              }
+            }
+            
+            // For option fields: if field has a value (ID, slug, or name), set to "Default"
+            // since that's the only option available
+            if (threadTypeField) {
+              // Check if it's an object with a name property
+              if (typeof threadTypeField === 'object' && threadTypeField !== null) {
+                const optionName = threadTypeField.name || threadTypeField.slug;
+                // If it has a name and it's "Default", use it; otherwise default to "Default"
+                transformed['thread-type'] = (optionName && optionName.toLowerCase() === 'default') ? 'Default' : 'Default';
+              } else if (typeof threadTypeField === 'string' && threadTypeField.trim() !== '') {
+                // If it's a string (ID or name), check if it's already "Default", otherwise set to "Default"
+                // Since there's only one option, any value means "Default"
+                transformed['thread-type'] = (threadTypeField.toLowerCase() === 'default') ? 'Default' : 'Default';
+              }
+            }
+
             // Set target-audience based on thread title
             // "Welcome to Harvous" is for new users only, all others are for all users
             const threadTitle = item.fieldData.name || '';
@@ -325,6 +364,7 @@ export const POST: APIRoute = async ({ request }) => {
           content: webflowItem.content || null,
           imageUrl: imageUrl || null,
           color: webflowItem.color || null,
+          threadType: webflowItem['thread-type'] || null,
           targetAudience: webflowItem['target-audience'] || 'all_users', // Default to all_users if not set
           isActive: webflowItem['is-active'] !== false,
           updatedAt: new Date(),

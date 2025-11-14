@@ -170,6 +170,7 @@ const InboxItems = defineTable({
     content: column.text({ optional: true }), // For notes, optional for threads
     imageUrl: column.text({ optional: true }),
     color: column.text({ optional: true }), // Thread color (optional)
+    threadType: column.text({ optional: true }), // Thread type from CMS (e.g., 'Default')
     targetAudience: column.text(), // 'all_new_users' | 'all_users' | 'specific_users'
     isActive: column.boolean({ default: true }),
     createdAt: column.date(),

@@ -3,6 +3,44 @@ import { db, InboxItems, InboxItemNotes, UserInboxItems, Notes, Threads, UserMet
 import { generateNoteId, generateThreadId } from '@/utils/ids';
 import { awardNoteCreatedXP, awardThreadCreatedXP } from '@/utils/xp-system';
 import { getInboxItemWithNotes } from '@/utils/inbox-data';
+import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
+
+// Reverse color mapping: convert long color names (from Webflow) to short names (for Threads)
+const REVERSE_COLOR_MAP: Record<string, string> = {
+  'blessed-blue': 'blue',
+  'graceful-gold': 'yellow',
+  'mindful-mint': 'green',
+  'pleasant-peach': 'orange',
+  'peaceful-pink': 'pink',
+  'lovely-lavender': 'purple',
+  'paper': 'paper',
+  // Also handle short names directly
+  'blue': 'blue',
+  'yellow': 'yellow',
+  'green': 'green',
+  'orange': 'orange',
+  'pink': 'pink',
+  'purple': 'purple',
+};
+
+// Convert inbox color to thread color format
+function convertInboxColorToThreadColor(inboxColor: string | null | undefined): string | null {
+  if (!inboxColor) return null;
+  
+  // Check if it's already a valid thread color
+  if (THREAD_COLORS.includes(inboxColor as any)) {
+    return inboxColor;
+  }
+  
+  // Try to map from long format to short format
+  const mappedColor = REVERSE_COLOR_MAP[inboxColor.toLowerCase()];
+  if (mappedColor && THREAD_COLORS.includes(mappedColor as any)) {
+    return mappedColor;
+  }
+  
+  // If no valid mapping found, return null (will use default/random)
+  return null;
+}
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -134,6 +172,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       // Create a copy of the thread and all its notes
       const newThreadId = generateThreadId();
       
+      // Convert inbox color format to thread color format
+      const threadColor = convertInboxColorToThreadColor(inboxItem.color) || getRandomThreadColor();
+      
       const newThread = await db.insert(Threads)
         .values({
           id: newThreadId,
@@ -142,7 +183,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           spaceId: targetSpaceId || null,
           userId: userId,
           isPublic: false,
-          color: inboxItem.color || null,
+          color: threadColor,
           createdAt: new Date(),
         })
         .returning()
@@ -208,6 +249,37 @@ export const POST: APIRoute = async ({ request, locals }) => {
           .returning()
           .get();
 
+        // Add note to thread via junction table (required for notes to appear in thread)
+        // Use unique ID based on note ID and timestamp to avoid collisions
+        const junctionId = `note-thread-${newNote.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        try {
+          await db.insert(NoteThreads).values({
+            id: junctionId,
+            noteId: newNote.id,
+            threadId: newThreadId,
+            createdAt: new Date()
+          });
+          console.log(`✅ Created junction entry: note ${newNote.id} -> thread ${newThreadId}`);
+          
+          // Verify the junction entry was created
+          const verifyJunction = await db
+            .select()
+            .from(NoteThreads)
+            .where(and(
+              eq(NoteThreads.noteId, newNote.id),
+              eq(NoteThreads.threadId, newThreadId)
+            ))
+            .get();
+          
+          if (!verifyJunction) {
+            console.error(`❌ Junction entry verification failed: note ${newNote.id} -> thread ${newThreadId}`);
+          }
+        } catch (junctionError: any) {
+          console.error(`❌ Error creating junction entry for note ${newNote.id}:`, junctionError);
+          // Re-throw the error to fail the operation - notes must be properly linked
+          throw new Error(`Failed to link note to thread: ${junctionError.message}`);
+        }
+
         // Award XP for each note
         await awardNoteCreatedXP(userId, newNote.id);
 
@@ -222,6 +294,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
           updatedAt: new Date()
         })
         .where(eq(UserMetadata.userId, userId));
+
+      // Update thread's updatedAt timestamp after adding all notes
+      await db.update(Threads)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(Threads.id, newThreadId), eq(Threads.userId, userId)));
     }
 
     // Update UserInboxItems status to 'added'

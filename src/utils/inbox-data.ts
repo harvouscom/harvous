@@ -63,6 +63,7 @@ export async function getArchivedItems(userId: string) {
     return userInboxItems.map(item => ({
       ...item.inboxItem,
       userStatus: item.userInboxItem.status,
+      createdAt: item.userInboxItem.createdAt,
       archivedAt: item.userInboxItem.archivedAt,
     }));
   } catch (error) {

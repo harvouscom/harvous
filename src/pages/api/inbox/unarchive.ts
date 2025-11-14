@@ -1,8 +1,7 @@
 import type { APIRoute } from 'astro';
-import { getInboxItemWithNotes } from '@/utils/inbox-data';
 import { db, UserInboxItems, eq, and } from 'astro:db';
 
-export const GET: APIRoute = async ({ url, locals }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const { userId } = locals.auth();
     
@@ -13,7 +12,8 @@ export const GET: APIRoute = async ({ url, locals }) => {
       });
     }
 
-    const inboxItemId = url.searchParams.get('inboxItemId');
+    const body = await request.json();
+    const { inboxItemId } = body;
 
     if (!inboxItemId) {
       return new Response(JSON.stringify({ error: 'inboxItemId is required' }), {
@@ -22,16 +22,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
       });
     }
 
-    const inboxItem = await getInboxItemWithNotes(inboxItemId);
-
-    if (!inboxItem) {
-      return new Response(JSON.stringify({ error: 'Inbox item not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Get user's status for this item
+    // Check if user has this inbox item
     const userInboxItem = await db
       .select()
       .from(UserInboxItems)
@@ -43,23 +34,46 @@ export const GET: APIRoute = async ({ url, locals }) => {
       )
       .get();
 
-    const userStatus = userInboxItem?.status || null;
+    if (!userInboxItem) {
+      return new Response(JSON.stringify({ error: 'Inbox item not found in your inbox' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Check if item is actually archived
+    if (userInboxItem.status !== 'archived') {
+      return new Response(JSON.stringify({ error: 'Item is not archived' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Update status back to inbox and clear archivedAt
+    await db.update(UserInboxItems)
+      .set({
+        status: 'inbox',
+        archivedAt: null,
+      })
+      .where(
+        and(
+          eq(UserInboxItems.userId, userId),
+          eq(UserInboxItems.inboxItemId, inboxItemId)
+        )
+      );
 
     return new Response(JSON.stringify({
       success: true,
-      item: {
-        ...inboxItem,
-        userStatus: userStatus,
-      },
+      message: 'Item unarchived successfully',
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    console.error('Error fetching inbox item preview:', error);
+    console.error('Error unarchiving inbox item:', error);
     return new Response(JSON.stringify({ 
-      error: 'Failed to fetch inbox item preview',
+      error: 'Failed to unarchive inbox item',
       details: error.message 
     }), {
       status: 500,

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import CardFeat from './CardFeat';
+import { toast } from '@/utils/toast';
 
 interface InboxItem {
   id: string;
@@ -14,6 +15,7 @@ interface InboxItem {
   subtitle?: string;
   count?: number; // Note count for threads
   lastUpdated?: string; // Relative timestamp when item was made available to user
+  threadType?: string; // Thread type from CMS (e.g., 'Default')
 }
 
 interface InboxItemsListProps {
@@ -65,21 +67,30 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
         if (!response.ok) {
           const error = await response.json();
-          throw new Error(error.error || 'Failed to add to Harvous');
+          const errorMessage = error.error || 'Failed to add to Harvous';
+          toast.error(errorMessage);
+          throw new Error(errorMessage);
         }
 
         const result = await response.json();
         if (result.success) {
+          toast.success('Added to Harvous');
           if (onItemAdded) {
             onItemAdded();
           }
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
-          // Reload page to refresh inbox
-          window.location.reload();
+          // Delay reload to allow toast to be fully visible
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
         }
       } catch (error) {
         console.error('Error adding to Harvous:', error);
+        // Show toast for network errors (API errors already show toast before throwing)
+        if (error instanceof TypeError) {
+          toast.error('Failed to add to Harvous');
+        }
         throw error;
       }
     };
@@ -97,21 +108,71 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
         if (!response.ok) {
           const error = await response.json();
-          throw new Error(error.error || 'Failed to archive');
+          const errorMessage = error.error || 'Failed to archive';
+          toast.error(errorMessage);
+          throw new Error(errorMessage);
         }
 
         const result = await response.json();
         if (result.success) {
+          toast.success('Item archived');
           if (onItemArchived) {
             onItemArchived();
           }
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
-          // Reload page to refresh inbox
-          window.location.reload();
+          // Delay reload to allow toast to be fully visible
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
         }
       } catch (error) {
         console.error('Error archiving:', error);
+        // Show toast for network errors (API errors already show toast before throwing)
+        if (error instanceof TypeError) {
+          toast.error('Failed to archive item');
+        }
+        throw error;
+      }
+    };
+
+    const handleUnarchive = async (inboxItemId: string) => {
+      try {
+        const response = await fetch('/api/inbox/unarchive', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ inboxItemId }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          const errorMessage = error.error || 'Failed to unarchive';
+          toast.error(errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        const result = await response.json();
+        if (result.success) {
+          toast.success('Item unarchived');
+          if (onItemArchived) {
+            onItemArchived();
+          }
+          // Close the preview panel
+          window.dispatchEvent(new CustomEvent('closeInboxPreview'));
+          // Delay reload to allow toast to be fully visible
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Error unarchiving:', error);
+        // Show toast for network errors (API errors already show toast before throwing)
+        if (error instanceof TypeError) {
+          toast.error('Failed to unarchive item');
+        }
         throw error;
       }
     };
@@ -121,6 +182,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
       try {
         await handleAddToHarvous(inboxItemId);
       } catch (error) {
+        // Error toast is already shown in handleAddToHarvous
         console.error('Error adding to Harvous:', error);
       }
     };
@@ -130,7 +192,18 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
       try {
         await handleArchive(inboxItemId);
       } catch (error) {
+        // Error toast is already shown in handleArchive
         console.error('Error archiving:', error);
+      }
+    };
+
+    const handleInboxItemUnarchive = async (event: CustomEvent) => {
+      const { inboxItemId } = event.detail;
+      try {
+        await handleUnarchive(inboxItemId);
+      } catch (error) {
+        // Error toast is already shown in handleUnarchive
+        console.error('Error unarchiving:', error);
       }
     };
 
@@ -148,28 +221,33 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
         if (!response.ok) {
           const error = await response.json();
-          throw new Error(error.error || 'Failed to add note to Harvous');
+          const errorMessage = error.error || 'Failed to add note to Harvous';
+          toast.error(errorMessage);
+          throw new Error(errorMessage);
         }
 
         const result = await response.json();
         if (result.success) {
+          toast.success('Note added to Harvous');
           if (onItemAdded) {
             onItemAdded();
           }
         }
       } catch (error) {
         console.error('Error adding note to Harvous:', error);
-        alert('Failed to add note to your Harvous. Please try again.');
+        toast.error('Failed to add note to Harvous');
       }
     };
 
     window.addEventListener('inboxItemAddToHarvous', handleInboxItemAddToHarvous as EventListener);
     window.addEventListener('inboxItemArchive', handleInboxItemArchive as EventListener);
+    window.addEventListener('inboxItemUnarchive', handleInboxItemUnarchive as EventListener);
     window.addEventListener('inboxNoteAddToHarvous', handleInboxNoteAddToHarvous as EventListener);
 
     return () => {
       window.removeEventListener('inboxItemAddToHarvous', handleInboxItemAddToHarvous as EventListener);
       window.removeEventListener('inboxItemArchive', handleInboxItemArchive as EventListener);
+      window.removeEventListener('inboxItemUnarchive', handleInboxItemUnarchive as EventListener);
       window.removeEventListener('inboxNoteAddToHarvous', handleInboxNoteAddToHarvous as EventListener);
     };
   }, [onItemAdded, onItemArchived]);
@@ -197,6 +275,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
                 color={item.color}
                 isPrivate={true}
                 lastUpdated={item.lastUpdated}
+                threadType={item.threadType}
               />
             </a>
           </div>
