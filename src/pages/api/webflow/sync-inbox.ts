@@ -203,6 +203,81 @@ export const POST: APIRoute = async ({ request }) => {
 
     const syncedItems: string[] = [];
     const errors: string[] = [];
+    const verificationResults = {
+      checked: 0,
+      markedInactive: 0,
+      reactivated: 0,
+      details: [] as string[],
+    };
+
+    // First, verify all existing inbox items against Webflow
+    // Mark as inactive if they're no longer published, deleted, or archived
+    try {
+      const allInboxItems = await db.select().from(InboxItems);
+      console.log(`Verifying ${allInboxItems.length} existing inbox items against Webflow...`);
+      verificationResults.checked = allInboxItems.length;
+      
+      for (const inboxItem of allInboxItems) {
+        if (!inboxItem.webflowItemId) continue;
+        
+        try {
+          const verifyResponse = await fetch(
+            `https://api.webflow.com/v2/collections/${collectionId}/items/${inboxItem.webflowItemId}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${webflowToken}`,
+                'Accept-Version': '1.0.0',
+              }
+            }
+          );
+          
+          if (verifyResponse.status === 404) {
+            // Item was deleted - mark as inactive
+            if (inboxItem.isActive) {
+              await db
+                .update(InboxItems)
+                .set({ isActive: false, updatedAt: new Date() })
+                .where(eq(InboxItems.id, inboxItem.id));
+              verificationResults.markedInactive++;
+              verificationResults.details.push(`Deleted: ${inboxItem.title || inboxItem.id}`);
+              console.log(`Marked deleted item as inactive: ${inboxItem.id} (${inboxItem.webflowItemId})`);
+            }
+          } else if (verifyResponse.ok) {
+            const itemData = await verifyResponse.json();
+            const fullItem = itemData.items?.[0] || itemData.item || itemData;
+            
+            // Check if item is draft, archived, or toggle is off
+            const isDraft = fullItem.isDraft || !fullItem.lastPublished;
+            const isArchived = fullItem.isArchived || false;
+            const toggleOff = fullItem.fieldData?.active !== true;
+            
+            if ((isDraft || isArchived || toggleOff) && inboxItem.isActive) {
+              await db
+                .update(InboxItems)
+                .set({ isActive: false, updatedAt: new Date() })
+                .where(eq(InboxItems.id, inboxItem.id));
+              verificationResults.markedInactive++;
+              const reason = isDraft ? 'draft' : isArchived ? 'archived' : 'toggle off';
+              verificationResults.details.push(`${reason}: ${inboxItem.title || inboxItem.id}`);
+              console.log(`Marked item as inactive: ${inboxItem.id} (draft: ${isDraft}, archived: ${isArchived}, toggle: ${!toggleOff})`);
+            } else if (!isDraft && !isArchived && toggleOff === false && !inboxItem.isActive) {
+              // Item is now published and active - reactivate it
+              await db
+                .update(InboxItems)
+                .set({ isActive: true, updatedAt: new Date() })
+                .where(eq(InboxItems.id, inboxItem.id));
+              verificationResults.reactivated++;
+              verificationResults.details.push(`Reactivated: ${inboxItem.title || inboxItem.id}`);
+              console.log(`Reactivated item: ${inboxItem.id}`);
+            }
+          }
+        } catch (error) {
+          console.error(`Error verifying item ${inboxItem.id}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error during inbox verification:', error);
+    }
 
     // Process each Webflow item
     for (const webflowItem of webflowItems) {
@@ -366,12 +441,75 @@ export const POST: APIRoute = async ({ request }) => {
       }
     }
 
-    return new Response(JSON.stringify({
+    const result = {
       success: true,
       synced: syncedItems.length,
       items: syncedItems,
+      verification: {
+        checked: verificationResults.checked,
+        markedInactive: verificationResults.markedInactive,
+        reactivated: verificationResults.reactivated,
+        details: verificationResults.details,
+      },
       errors: errors.length > 0 ? errors : undefined,
-    }), {
+      message: `Synced ${syncedItems.length} item(s). Verified ${verificationResults.checked} existing items: ${verificationResults.markedInactive} marked inactive, ${verificationResults.reactivated} reactivated.`,
+    };
+
+    // Check if request wants HTML (browser visit) or JSON
+    const acceptHeader = request.headers.get('accept') || '';
+    if (acceptHeader.includes('text/html')) {
+      // Return HTML for browser viewing
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Inbox Sync Complete</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+    .success { color: #059669; }
+    .info { background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 20px 0; }
+    .details { background: #f9fafb; padding: 10px; border-radius: 6px; margin: 10px 0; }
+    ul { margin: 10px 0; padding-left: 20px; }
+    .error { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <h1 class="success">✅ Inbox Sync Complete</h1>
+  <div class="info">
+    <h2>Summary</h2>
+    <p><strong>Synced:</strong> ${result.synced} item(s)</p>
+    <p><strong>Verified:</strong> ${result.verification.checked} existing items</p>
+    <p><strong>Marked Inactive:</strong> ${result.verification.markedInactive} item(s)</p>
+    <p><strong>Reactivated:</strong> ${result.verification.reactivated} item(s)</p>
+  </div>
+  ${result.verification.details.length > 0 ? `
+    <div class="details">
+      <h3>Details:</h3>
+      <ul>
+        ${result.verification.details.map(d => `<li>${d}</li>`).join('')}
+      </ul>
+    </div>
+  ` : ''}
+  ${result.errors && result.errors.length > 0 ? `
+    <div class="error">
+      <h3>Errors:</h3>
+      <ul>
+        ${result.errors.map(e => `<li>${e}</li>`).join('')}
+      </ul>
+    </div>
+  ` : ''}
+  <p><a href="/">← Back to Dashboard</a></p>
+</body>
+</html>
+      `;
+      return new Response(html, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' }
+      });
+    }
+
+    // Return JSON for API calls
+    return new Response(JSON.stringify(result), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -392,7 +530,7 @@ export const POST: APIRoute = async ({ request }) => {
  * GET endpoint to manually trigger sync from Webflow
  * Requires collectionId and siteId as query parameters
  */
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, request }) => {
   try {
     const webflowToken = import.meta.env.WEBFLOW_API_TOKEN;
     
@@ -447,13 +585,18 @@ export const GET: APIRoute = async ({ url }) => {
 
     // Process items (reuse POST logic)
     // Pass items in Webflow native format - POST will transform them
-    const request = new Request(url.toString(), {
+    // Preserve Accept header from original request so HTML can be returned for browser visits
+    const acceptHeader = request.headers.get('accept') || '';
+    const postRequest = new Request(url.toString(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': acceptHeader,
+      },
       body: JSON.stringify({ items, collectionId, siteId }),
     });
 
-    return POST({ request } as any);
+    return POST({ request: postRequest } as any);
 
   } catch (error: any) {
     console.error('Error fetching from Webflow:', error);

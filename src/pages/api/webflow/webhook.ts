@@ -418,15 +418,33 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    // Skip draft items
+    // Skip draft items - but mark existing inbox item as inactive if it exists
     if (!normalizedPayload.item || normalizedPayload.item.isDraft || !normalizedPayload.item.lastPublished) {
-      console.log('Webhook ignored - item is draft or not published:', {
+      console.log('Webhook - item is draft or not published, marking existing inbox item as inactive:', {
         itemId: normalizedPayload.item?.id,
         isDraft: normalizedPayload.item?.isDraft,
         lastPublished: normalizedPayload.item?.lastPublished,
       });
+      
+      // Mark existing inbox item as inactive if it exists
+      if (normalizedPayload.item?.id) {
+        const existingItem = await db
+          .select()
+          .from(InboxItems)
+          .where(eq(InboxItems.webflowItemId, normalizedPayload.item.id))
+          .get();
+
+        if (existingItem && existingItem.isActive) {
+          await db
+            .update(InboxItems)
+            .set({ isActive: false, updatedAt: new Date() })
+            .where(eq(InboxItems.id, existingItem.id));
+          console.log('✅ Marked inbox item as inactive (item is draft or unpublished)');
+        }
+      }
+      
       return new Response(JSON.stringify({ 
-        message: 'Ignored - item is draft or not published',
+        message: 'Ignored - item is draft or not published, marked as inactive if existed',
         itemId: normalizedPayload.item?.id 
       }), {
         status: 200,
