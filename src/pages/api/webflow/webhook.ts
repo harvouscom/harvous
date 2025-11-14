@@ -250,6 +250,31 @@ export const POST: APIRoute = async ({ request }) => {
             hasFieldData: !!normalizedPayload.item.fieldData,
             fieldDataKeys: Object.keys(normalizedPayload.item.fieldData || {}),
             active: normalizedPayload.item.fieldData?.active,
+            isArchived: normalizedPayload.item.isArchived,
+          });
+        } else if (itemResponse.status === 404) {
+          // Item was deleted - mark inbox item as inactive
+          console.log('Item not found in Webflow API (likely deleted) - marking inbox item as inactive');
+          const existingItem = await db
+            .select()
+            .from(InboxItems)
+            .where(eq(InboxItems.webflowItemId, normalizedPayload.item.id))
+            .get();
+
+          if (existingItem) {
+            await db
+              .update(InboxItems)
+              .set({ isActive: false, updatedAt: new Date() })
+              .where(eq(InboxItems.id, existingItem.id));
+            console.log('✅ Marked inbox item as inactive (item deleted in Webflow)');
+          }
+          return new Response(JSON.stringify({ 
+            message: 'Item deleted - marked as inactive',
+            itemId: normalizedPayload.item.id,
+            found: !!existingItem,
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
           });
         } else {
           const errorText = await itemResponse.text();
@@ -318,7 +343,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Process published/updated items
     // These trigger types include: collection_item.changed, collection_item.created, collection_item.updated
-    // "Collection Item Changed" webhook fires for creates, updates, and publishes
+    // "Collection Item Changed" webhook fires for creates, updates, publishes, and sometimes deletes/archives
     // We process ALL trigger types that aren't unpublished/deleted
     const validTriggerTypes = [
       'collection_item.changed',
@@ -337,6 +362,34 @@ export const POST: APIRoute = async ({ request }) => {
     }
     
     console.log('Webhook processing published/updated item. Trigger type:', normalizedPayload.triggerType);
+
+    // Check if item is archived - mark as inactive if so
+    // "Collection Item Changed" can fire for archived items
+    if (normalizedPayload.item?.isArchived) {
+      console.log('Item is archived - marking inbox item as inactive:', normalizedPayload.item.id);
+      if (normalizedPayload.item.id) {
+        const existingItem = await db
+          .select()
+          .from(InboxItems)
+          .where(eq(InboxItems.webflowItemId, normalizedPayload.item.id))
+          .get();
+
+        if (existingItem) {
+          await db
+            .update(InboxItems)
+            .set({ isActive: false, updatedAt: new Date() })
+            .where(eq(InboxItems.id, existingItem.id));
+          console.log('✅ Marked inbox item as inactive (item archived in Webflow)');
+        }
+      }
+      return new Response(JSON.stringify({ 
+        message: 'Item archived - marked as inactive',
+        itemId: normalizedPayload.item?.id 
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     // If "Send to Harvous Inbox?" toggle is disabled, mark existing inbox item as inactive
     if (!normalizedPayload.item?.fieldData?.active) {
