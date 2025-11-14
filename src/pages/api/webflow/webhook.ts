@@ -205,8 +205,9 @@ export const POST: APIRoute = async ({ request }) => {
       rawPayloadStructure: rawPayload.payload ? 'nested' : 'direct',
     });
     
-    // If item data is incomplete (only ID), fetch full item from Webflow API
-    if (normalizedPayload.item.id && !normalizedPayload.item.fieldData) {
+    // If item data is incomplete (only ID or empty fieldData), fetch full item from Webflow API
+    const hasEmptyFieldData = !normalizedPayload.item.fieldData || Object.keys(normalizedPayload.item.fieldData || {}).length === 0;
+    if (normalizedPayload.item.id && hasEmptyFieldData) {
       console.log('Item data incomplete - fetching full item from Webflow API:', normalizedPayload.item.id);
       try {
         const itemResponse = await fetch(
@@ -221,7 +222,14 @@ export const POST: APIRoute = async ({ request }) => {
         
         if (itemResponse.ok) {
           const itemData = await itemResponse.json();
-          const fullItem = itemData.items?.[0] || itemData;
+          console.log('Webflow API response structure:', {
+            hasItems: !!itemData.items,
+            itemsLength: itemData.items?.length,
+            hasItem: !!itemData.item,
+            topLevelKeys: Object.keys(itemData),
+          });
+          
+          const fullItem = itemData.items?.[0] || itemData.item || itemData;
           normalizedPayload.item = {
             id: fullItem.id || normalizedPayload.item.id,
             cmsLocaleId: fullItem.cmsLocaleId || '',
@@ -232,9 +240,20 @@ export const POST: APIRoute = async ({ request }) => {
             isDraft: fullItem.isDraft || false,
             fieldData: fullItem.fieldData || {},
           };
-          console.log('✅ Fetched full item data from Webflow API');
+          console.log('✅ Fetched full item data from Webflow API:', {
+            itemId: normalizedPayload.item.id,
+            hasFieldData: !!normalizedPayload.item.fieldData,
+            fieldDataKeys: Object.keys(normalizedPayload.item.fieldData || {}),
+            active: normalizedPayload.item.fieldData?.active,
+          });
         } else {
-          console.error('Failed to fetch item from Webflow API:', itemResponse.status, await itemResponse.text());
+          const errorText = await itemResponse.text();
+          console.error('Failed to fetch item from Webflow API:', {
+            status: itemResponse.status,
+            statusText: itemResponse.statusText,
+            error: errorText,
+            url: `https://api.webflow.com/v2/collections/${normalizedPayload.collection}/items/${normalizedPayload.item.id}`,
+          });
         }
       } catch (error) {
         console.error('Error fetching item from Webflow API:', error);
