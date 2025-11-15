@@ -102,14 +102,6 @@ export default function EditThreadPanel({
       if (response.ok) {
         console.log('✅ EditThreadPanel: Thread updated successfully');
         
-        // Show success toast
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: 'Thread updated successfully!',
-            type: 'success'
-          }
-        }));
-
         // Close panel after a short delay
         setTimeout(() => {
           if (onClose) {
@@ -119,7 +111,11 @@ export default function EditThreadPanel({
           }
         }, 500);
 
-        // Refresh the page to show updated thread
+        // Refresh the page to show updated thread with URL-based toast
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('toast', 'success');
+        currentUrl.searchParams.set('message', encodeURIComponent('Thread updated successfully!'));
+        window.history.replaceState({}, '', currentUrl.toString());
         window.location.reload();
       } else {
         console.error('❌ EditThreadPanel: Thread update failed:', data);

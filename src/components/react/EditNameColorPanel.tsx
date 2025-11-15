@@ -201,9 +201,6 @@ export default function EditNameColorPanel({
           toastMessage = 'Profile updated successfully!';
         }
         
-        // Show success toast only after API success
-        toast.success(toastMessage);
-        
         // Update initial data to reflect the new state
         setInitialData({
           firstName: formData.firstName.trim(),
@@ -225,6 +222,12 @@ export default function EditNameColorPanel({
           userColor: formData.selectedColor
         });
         console.log('✅ EditNameColorPanel: Cache updated with saved profile data');
+        
+        // Wait to ensure data persistence before showing toast
+        await new Promise(resolve => setTimeout(resolve, 250));
+        
+        // Show success toast after ensuring persistence
+        toast.success(toastMessage);
         
         // Also update legacy sessionStorage for backward compatibility with ProfilePage
         // This can be removed once ProfilePage is fully migrated

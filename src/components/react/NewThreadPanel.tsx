@@ -181,12 +181,11 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
             onClose();
           }
           
-          // Show success toast and refresh page
-          if (window.toast) {
-            window.toast.success('Thread updated successfully!');
-          }
-          
-          // Refresh the page to show updated thread
+          // Refresh the page to show updated thread with URL-based toast
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.set('toast', 'success');
+          currentUrl.searchParams.set('message', encodeURIComponent('Thread updated successfully!'));
+          window.history.replaceState({}, '', currentUrl.toString());
           window.location.reload();
         } else {
           const errorText = await response.text();

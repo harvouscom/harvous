@@ -133,8 +133,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             // @ts-ignore
             await window.updateAllAvatars(color, newInitials);
         }
-
-        toast.success('Name and color updated successfully!');
         
         // Update unified cache
         updateCachedProfileData({
@@ -154,12 +152,21 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
           timestamp: Date.now()
         }));
 
+        // Wait to ensure data persistence before showing toast
+        await new Promise(resolve => setTimeout(resolve, 250));
+        
+        toast.success('Name and color updated successfully!');
+
       } else {
         console.error('❌ React component: Profile update failed:', data);
+        // Wait before showing error toast
+        await new Promise(resolve => setTimeout(resolve, 250));
         toast.error('Failed to save profile. Please try again.');
       }
     } catch (error) {
       console.error('❌ React component: Error updating profile:', error);
+      // Wait before showing error toast
+      await new Promise(resolve => setTimeout(resolve, 250));
       toast.error('Error saving profile. Please try again.');
     }
   };

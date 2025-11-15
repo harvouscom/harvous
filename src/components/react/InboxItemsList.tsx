@@ -74,16 +74,17 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
         const result = await response.json();
         if (result.success) {
-          toast.success('Added to Harvous');
           if (onItemAdded) {
             onItemAdded();
           }
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
-          // Delay reload to allow toast to be fully visible
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
+          // Reload with URL-based toast
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.set('toast', 'success');
+          currentUrl.searchParams.set('message', encodeURIComponent('Added to Harvous'));
+          window.history.replaceState({}, '', currentUrl.toString());
+          window.location.reload();
         }
       } catch (error) {
         console.error('Error adding to Harvous:', error);
@@ -115,16 +116,17 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
         const result = await response.json();
         if (result.success) {
-          toast.success('Item archived');
           if (onItemArchived) {
             onItemArchived();
           }
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
-          // Delay reload to allow toast to be fully visible
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
+          // Reload with URL-based toast
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.set('toast', 'success');
+          currentUrl.searchParams.set('message', encodeURIComponent('Item archived'));
+          window.history.replaceState({}, '', currentUrl.toString());
+          window.location.reload();
         }
       } catch (error) {
         console.error('Error archiving:', error);
@@ -156,16 +158,17 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
         const result = await response.json();
         if (result.success) {
-          toast.success('Item unarchived');
           if (onItemArchived) {
             onItemArchived();
           }
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
-          // Delay reload to allow toast to be fully visible
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
+          // Reload with URL-based toast
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.set('toast', 'success');
+          currentUrl.searchParams.set('message', encodeURIComponent('Item unarchived'));
+          window.history.replaceState({}, '', currentUrl.toString());
+          window.location.reload();
         }
       } catch (error) {
         console.error('Error unarchiving:', error);
