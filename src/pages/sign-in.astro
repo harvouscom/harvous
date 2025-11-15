@@ -10,10 +10,10 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
         appearance={{
           elements: {
             rootBox: "w-full",
-            card: "bg-white rounded-2xl shadow-lg p-8 shadow-none",
+            card: "bg-white rounded-2xl shadow-lg p-0 shadow-none",
             headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
             headerSubtitle: "text-[var(--color-stone-grey)]",
-            formField: "!mb-3",
+            formField: "mb-3",
             formButtonPrimary: "group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] w-full primary-button",
             formFieldInput: "rounded-3xl py-5 px-4 min-h-[64px] bg-transparent border-none text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] focus:outline-none focus:ring-0",
             formFieldLabel: "hidden",
@@ -125,18 +125,16 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     justify-content: center !important;
   }
 
-  /* SPACING - Remove all padding/margins between elements */
-  :global([data-clerk-element="formField"]) {
-    margin-bottom: 0 !important;
-    margin-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-top: 0 !important;
+  /* SPACING - Set exactly 12px between all elements */
+  :global([data-clerk-element="card"]) {
+    padding: 24px !important;
+    gap: 0 !important;
   }
 
-  :global([data-clerk-element="headerSubtitle"]) {
+  :global([data-clerk-element="header"]) {
     margin-bottom: 0 !important;
-    margin-top: 0 !important;
     padding-bottom: 0 !important;
+    margin-top: 0 !important;
     padding-top: 0 !important;
   }
 
@@ -147,10 +145,10 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     padding-top: 0 !important;
   }
 
-  :global([data-clerk-element="header"]) {
-    margin-bottom: 0 !important;
-    padding-bottom: 0 !important;
+  :global([data-clerk-element="headerSubtitle"]) {
+    margin-bottom: 12px !important;
     margin-top: 0 !important;
+    padding-bottom: 0 !important;
     padding-top: 0 !important;
   }
 
@@ -159,21 +157,30 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     row-gap: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
+    margin-top: 0 !important;
   }
 
-  /* Remove all default Clerk spacing */
-  :global(.cl-formField),
-  :global(.cl-formFieldRow),
-  :global([class*="formField"]) {
-    margin-bottom: 0 !important;
+  :global([data-clerk-element="formField"]) {
+    margin-bottom: 12px !important;
     margin-top: 0 !important;
     padding-bottom: 0 !important;
     padding-top: 0 !important;
   }
 
-  /* Remove spacing from card content */
-  :global([data-clerk-element="card"]) {
-    gap: 0 !important;
+  /* Remove all default Clerk spacing and set to 12px */
+  :global(.cl-formField),
+  :global(.cl-formFieldRow),
+  :global([class*="formField"]) {
+    margin-bottom: 12px !important;
+    margin-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  /* Ensure no extra spacing from line-height */
+  :global([data-clerk-element="headerTitle"]),
+  :global([data-clerk-element="headerSubtitle"]) {
+    line-height: 1.2 !important;
   }
 
   /* Style input fields to match app's search-input style */
