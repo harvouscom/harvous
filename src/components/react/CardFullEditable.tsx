@@ -258,11 +258,18 @@ export default function CardFullEditable({
     setIsSaving(true);
 
     try {
-      // Get content from QuillEditor
+      // Get content directly from Tiptap editor to ensure all marks (including scripture pills) are preserved
       let editorContent = editContent;
-      const hiddenInput = document.querySelector('#edit-note-content') as HTMLInputElement;
-      if (hiddenInput && hiddenInput.value) {
-        editorContent = hiddenInput.value;
+      
+      // First, try to get content from editor instance (most reliable)
+      if (editorInstanceRef.current) {
+        editorContent = editorInstanceRef.current.getHTML();
+      } else {
+        // Fallback to hidden input or state
+        const hiddenInput = document.querySelector('#edit-note-content') as HTMLInputElement;
+        if (hiddenInput && hiddenInput.value) {
+          editorContent = hiddenInput.value;
+        }
       }
 
       if (onSave) {
@@ -342,6 +349,26 @@ export default function CardFullEditable({
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEditTitle(e.target.value);
     setHasChanges(e.target.value !== displayTitle || editContent !== displayContent);
+  };
+
+  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Check if click is on a scripture pill
+    const target = e.target as HTMLElement;
+    const pillElement = target.closest('.scripture-pill');
+    
+    if (pillElement) {
+      const noteId = pillElement.getAttribute('data-note-id');
+      if (noteId) {
+        // Navigate to the note
+        e.preventDefault();
+        e.stopPropagation();
+        window.location.href = `/${noteId}`;
+        return;
+      }
+    }
+    
+    // If not a scripture pill, enter edit mode
+    startEditing('content');
   };
 
   return (
@@ -551,7 +578,7 @@ export default function CardFullEditable({
                   ref={contentDisplayRef}
                   className="flex-1 overflow-auto cursor-pointer rounded"
                   style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
-                  onClick={() => startEditing('content')}
+                  onClick={handleContentClick}
                   dangerouslySetInnerHTML={{ __html: displayContent }}
                 />
               </div>

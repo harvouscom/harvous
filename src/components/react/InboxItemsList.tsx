@@ -36,7 +36,16 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load preview');
+        // Try to extract error message from response
+        let errorMessage = 'Failed to load preview';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If response is not JSON, use default message
+        }
+        toast.error(errorMessage);
+        return;
       }
 
       const result = await response.json();
@@ -45,10 +54,12 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
         window.dispatchEvent(new CustomEvent('openInboxPreview', {
           detail: { item: result.item }
         }));
+      } else {
+        toast.error('Failed to load preview');
       }
     } catch (error) {
       console.error('Error loading preview:', error);
-      alert('Failed to load preview. Please try again.');
+      toast.error('Failed to load preview. Please try again.');
     }
   };
 
@@ -124,7 +135,14 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
           // Reload with URL-based toast
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.set('toast', 'success');
-          currentUrl.searchParams.set('message', encodeURIComponent('Item archived'));
+          // Use contentType from API response, fallback to items array lookup, then generic message
+          const contentType = result.contentType || items.find(item => item.id === inboxItemId)?.type;
+          const message = contentType === 'thread' 
+            ? 'Thread moved to archive' 
+            : contentType === 'note' 
+            ? 'Note moved to archive' 
+            : 'Item archived'; // Fallback if contentType not available
+          currentUrl.searchParams.set('message', encodeURIComponent(message));
           window.history.replaceState({}, '', currentUrl.toString());
           window.location.reload();
         }
@@ -166,7 +184,14 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
           // Reload with URL-based toast
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.set('toast', 'success');
-          currentUrl.searchParams.set('message', encodeURIComponent('Item unarchived'));
+          // Use contentType from API response, fallback to items array lookup, then generic message
+          const contentType = result.contentType || items.find(item => item.id === inboxItemId)?.type;
+          const message = contentType === 'thread' 
+            ? 'Thread moved back to inbox' 
+            : contentType === 'note' 
+            ? 'Note moved back to inbox' 
+            : 'Item unarchived'; // Fallback if contentType not available
+          currentUrl.searchParams.set('message', encodeURIComponent(message));
           window.history.replaceState({}, '', currentUrl.toString());
           window.location.reload();
         }
@@ -253,7 +278,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
       window.removeEventListener('inboxItemUnarchive', handleInboxItemUnarchive as EventListener);
       window.removeEventListener('inboxNoteAddToHarvous', handleInboxNoteAddToHarvous as EventListener);
     };
-  }, [onItemAdded, onItemArchived]);
+  }, [onItemAdded, onItemArchived, items]);
 
   return (
     <>

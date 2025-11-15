@@ -102,9 +102,28 @@ async function getOrCreateScriptureNote(reference: string): Promise<{ noteId: st
     }
   }
 
-  // Create new note
+  // Fetch verse text first
+  let verseText = reference; // Fallback to reference if fetch fails
+  try {
+    const verseResponse = await fetch('/api/scripture/fetch-verse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reference: normalizedRef }),
+      credentials: 'include'
+    });
+
+    if (verseResponse.ok) {
+      const verseData = await verseResponse.json();
+      verseText = verseData.text || reference;
+    }
+  } catch (error) {
+    // If verse fetch fails, use reference as fallback
+    console.error('Error fetching verse text:', error);
+  }
+
+  // Create new note with verse text as content
   const formData = new FormData();
-  formData.set('content', reference);
+  formData.set('content', verseText);
   formData.set('title', reference);
   formData.set('threadId', 'thread_unorganized');
   formData.set('noteType', 'scripture');
@@ -194,37 +213,107 @@ async function detectAndCreateScriptureNotes(editor: any) {
         // Get or create note
         const { noteId } = await getOrCreateScriptureNote(reference);
         
-        // Determine where to place cursor after applying mark
-        // Always place cursor after the pill (at the end of the reference)
-        // This ensures cursor is never stuck inside the pill
-        const cursorPos = normalizedPositions.to;
-        
-        // Apply scripture pill mark (remove any existing note-link marks first)
+        // Apply scripture pill mark
         editor.chain()
           .setTextSelection(normalizedPositions)
           .unsetMark('noteLink')
           .setMark('scripturePill', { reference: normalizedRef, noteId })
-          .setTextSelection(cursorPos)
-          .unsetAllMarks()
           .run();
+        
+        // After applying the mark, find where it actually ends
+        const updatedState = editor.state;
+        const updatedDoc = updatedState.doc;
+        const markEndPos = normalizedPositions.to;
+        
+        // Find the first position after the mark where the mark is no longer active
+        let exitPos = markEndPos;
+        for (let pos = markEndPos; pos <= updatedDoc.content.size; pos++) {
+          try {
+            const $pos = updatedDoc.resolve(pos);
+            const marks = $pos.marks();
+            const hasPill = marks.some(m => m.type.name === 'scripturePill');
+            if (!hasPill) {
+              exitPos = pos;
+              break;
+            }
+          } catch (e) {
+            exitPos = pos;
+            break;
+          }
+        }
+        
+        // Check if there's already text at the exit position
+        const textAtExit = updatedDoc.textBetween(exitPos, Math.min(exitPos + 1, updatedDoc.content.size));
+        
+        if (textAtExit === '') {
+          // No text at exit position - insert a space to create an exit point
+          editor.chain()
+            .insertContentAt(exitPos, ' ')
+            .setTextSelection(exitPos + 1)
+            .unsetAllMarks()
+            .focus()
+            .run();
+        } else {
+          // There's already text - just move cursor there and unset marks
+          editor.chain()
+            .setTextSelection(exitPos)
+            .unsetAllMarks()
+            .focus()
+            .run();
+        }
       } else {
         // Get or create note
         const normalizedRef = normalizeScriptureReference(reference);
         const { noteId } = await getOrCreateScriptureNote(reference);
         
-        // Determine where to place cursor after applying mark
-        // Always place cursor after the pill (at the end of the reference)
-        // This ensures cursor is never stuck inside the pill
-        const cursorPos = positions.to;
-        
-        // Apply scripture pill mark (remove any existing note-link marks first)
+        // Apply scripture pill mark
         editor.chain()
           .setTextSelection(positions)
           .unsetMark('noteLink')
           .setMark('scripturePill', { reference: normalizedRef, noteId })
-          .setTextSelection(cursorPos)
-          .unsetAllMarks()
           .run();
+        
+        // After applying the mark, find where it actually ends
+        const updatedState = editor.state;
+        const updatedDoc = updatedState.doc;
+        const markEndPos = positions.to;
+        
+        // Find the first position after the mark where the mark is no longer active
+        let exitPos = markEndPos;
+        for (let pos = markEndPos; pos <= updatedDoc.content.size; pos++) {
+          try {
+            const $pos = updatedDoc.resolve(pos);
+            const marks = $pos.marks();
+            const hasPill = marks.some(m => m.type.name === 'scripturePill');
+            if (!hasPill) {
+              exitPos = pos;
+              break;
+            }
+          } catch (e) {
+            exitPos = pos;
+            break;
+          }
+        }
+        
+        // Check if there's already text at the exit position
+        const textAtExit = updatedDoc.textBetween(exitPos, Math.min(exitPos + 1, updatedDoc.content.size));
+        
+        if (textAtExit === '') {
+          // No text at exit position - insert a space to create an exit point
+          editor.chain()
+            .insertContentAt(exitPos, ' ')
+            .setTextSelection(exitPos + 1)
+            .unsetAllMarks()
+            .focus()
+            .run();
+        } else {
+          // There's already text - just move cursor there and unset marks
+          editor.chain()
+            .setTextSelection(exitPos)
+            .unsetAllMarks()
+            .focus()
+            .run();
+        }
       }
     }
   } catch (error) {
@@ -418,14 +507,57 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           return true;
         }
         
+        // Handle Tab and Space to exit scripture pills
+        const { from, to } = view.state.selection;
+        const $from = view.state.selection.$from;
+        const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
+        
+        if (scripturePillMark && from === to) {
+          // Cursor is inside a scripture pill
+          // Find the end of the mark by checking positions forward
+          const doc = view.state.doc;
+          let pillEnd = from;
+          
+          // Find where the mark ends by checking marks at each position
+          for (let pos = from; pos <= doc.content.size; pos++) {
+            try {
+              const $pos = doc.resolve(pos);
+              const marks = $pos.marks();
+              const hasPill = marks.some(m => m.type.name === 'scripturePill');
+              if (!hasPill) {
+                pillEnd = pos;
+                break;
+              }
+            } catch (e) {
+              // If we can't resolve the position, we've reached the end
+              pillEnd = pos;
+              break;
+            }
+          }
+          
+          if (event.key === 'Tab') {
+            event.preventDefault();
+            // Move cursor to end of pill and unset marks
+            editor.chain()
+              .setTextSelection(pillEnd)
+              .unsetAllMarks()
+              .run();
+            return true;
+          } else if (event.key === ' ') {
+            event.preventDefault();
+            // Insert a space after the pill and move cursor after it
+            editor.chain()
+              .setTextSelection(pillEnd)
+              .insertContent(' ')
+              .setTextSelection(pillEnd + 1)
+              .unsetAllMarks()
+              .run();
+            return true;
+          }
+        }
+        
         // Handle Auto-Capitalize First Line
         // Check if cursor is at the very start of the document
-        const { from, to } = view.state.selection;
-        
-        // Check if cursor is at the start of the first paragraph
-        // In ProseMirror, position 1 is the start of content for empty documents
-        // For documents with content, we check if we're at the start of the first block
-        const $from = view.state.selection.$from;
         const isAtDocumentStart = from === to && (
           from === 1 || // Empty document or at very start
           ($from.depth === 1 && $from.parentOffset === 0 && $from.parent.type.name === 'paragraph') // Start of first paragraph

@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, UserInboxItems, eq, and } from 'astro:db';
+import { db, UserInboxItems, InboxItems, eq, and } from 'astro:db';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -22,10 +22,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Check if user has this inbox item
+    // Check if user has this inbox item and get the inbox item for contentType
     const userInboxItem = await db
-      .select()
+      .select({
+        userInboxItem: UserInboxItems,
+        inboxItem: InboxItems,
+      })
       .from(UserInboxItems)
+      .innerJoin(InboxItems, eq(UserInboxItems.inboxItemId, InboxItems.id))
       .where(
         and(
           eq(UserInboxItems.userId, userId),
@@ -57,6 +61,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return new Response(JSON.stringify({
       success: true,
       message: 'Item archived successfully',
+      contentType: userInboxItem.inboxItem.contentType,
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

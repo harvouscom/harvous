@@ -126,6 +126,91 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
     };
   },
 
+  addKeyboardShortcuts() {
+    return {
+      Tab: ({ editor }) => {
+        const { state } = editor;
+        const { selection } = state;
+        const { $from, from, to } = selection;
+        
+        // Check if cursor is inside a scripture pill
+        const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
+        
+        if (scripturePillMark && from === to) {
+          // Find the end of the mark
+          const doc = state.doc;
+          let pillEnd = from;
+          
+          // Find where the mark ends
+          for (let pos = from; pos <= doc.content.size; pos++) {
+            try {
+              const $pos = doc.resolve(pos);
+              const marks = $pos.marks();
+              const hasPill = marks.some(m => m.type.name === 'scripturePill');
+              if (!hasPill) {
+                pillEnd = pos;
+                break;
+              }
+            } catch (e) {
+              pillEnd = pos;
+              break;
+            }
+          }
+          
+          // Move cursor to end of pill and unset marks
+          editor.chain()
+            .setTextSelection(pillEnd)
+            .unsetAllMarks()
+            .run();
+          return true;
+        }
+        
+        return false;
+      },
+      'Space': ({ editor }) => {
+        const { state } = editor;
+        const { selection } = state;
+        const { $from, from, to } = selection;
+        
+        // Check if cursor is inside a scripture pill
+        const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
+        
+        if (scripturePillMark && from === to) {
+          // Find the end of the mark
+          const doc = state.doc;
+          let pillEnd = from;
+          
+          // Find where the mark ends
+          for (let pos = from; pos <= doc.content.size; pos++) {
+            try {
+              const $pos = doc.resolve(pos);
+              const marks = $pos.marks();
+              const hasPill = marks.some(m => m.type.name === 'scripturePill');
+              if (!hasPill) {
+                pillEnd = pos;
+                break;
+              }
+            } catch (e) {
+              pillEnd = pos;
+              break;
+            }
+          }
+          
+          // Insert space after pill and move cursor
+          editor.chain()
+            .setTextSelection(pillEnd)
+            .insertContent(' ')
+            .setTextSelection(pillEnd + 1)
+            .unsetAllMarks()
+            .run();
+          return true;
+        }
+        
+        return false;
+      },
+    };
+  },
+
   addEventListeners() {
     return {
       click: (view, event) => {
