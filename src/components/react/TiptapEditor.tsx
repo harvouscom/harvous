@@ -195,13 +195,9 @@ async function detectAndCreateScriptureNotes(editor: any) {
         const { noteId } = await getOrCreateScriptureNote(reference);
         
         // Determine where to place cursor after applying mark
-        // If cursor was within the reference range, place it after the pill
-        // If cursor was after the reference, keep it where it was
-        let cursorPos = normalizedPositions.to;
-        if (currentCursorPos > normalizedPositions.to) {
-          // Cursor was after the reference, keep it there
-          cursorPos = currentCursorPos;
-        }
+        // Always place cursor after the pill (at the end of the reference)
+        // This ensures cursor is never stuck inside the pill
+        const cursorPos = normalizedPositions.to;
         
         // Apply scripture pill mark (remove any existing note-link marks first)
         editor.chain()
@@ -209,6 +205,7 @@ async function detectAndCreateScriptureNotes(editor: any) {
           .unsetMark('noteLink')
           .setMark('scripturePill', { reference: normalizedRef, noteId })
           .setTextSelection(cursorPos)
+          .unsetAllMarks()
           .run();
       } else {
         // Get or create note
@@ -216,13 +213,9 @@ async function detectAndCreateScriptureNotes(editor: any) {
         const { noteId } = await getOrCreateScriptureNote(reference);
         
         // Determine where to place cursor after applying mark
-        // If cursor was within the reference range, place it after the pill
-        // If cursor was after the reference, keep it where it was
-        let cursorPos = positions.to;
-        if (currentCursorPos > positions.to) {
-          // Cursor was after the reference, keep it there
-          cursorPos = currentCursorPos;
-        }
+        // Always place cursor after the pill (at the end of the reference)
+        // This ensures cursor is never stuck inside the pill
+        const cursorPos = positions.to;
         
         // Apply scripture pill mark (remove any existing note-link marks first)
         editor.chain()
@@ -230,6 +223,7 @@ async function detectAndCreateScriptureNotes(editor: any) {
           .unsetMark('noteLink')
           .setMark('scripturePill', { reference: normalizedRef, noteId })
           .setTextSelection(cursorPos)
+          .unsetAllMarks()
           .run();
       }
     }
