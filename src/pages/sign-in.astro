@@ -10,7 +10,7 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
         appearance={{
           elements: {
             rootBox: "w-full",
-            card: "bg-white rounded-2xl shadow-lg p-0 shadow-none",
+            card: "bg-white rounded-2xl shadow-lg p-8 shadow-none",
             headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
             headerSubtitle: "text-[var(--color-stone-grey)]",
             formField: "mb-3",
@@ -125,46 +125,13 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     justify-content: center !important;
   }
 
-  /* SPACING - Set exactly 12px between all elements */
-  :global([data-clerk-element="card"]) {
-    padding: 24px !important;
-    gap: 0 !important;
-  }
-
-  :global([data-clerk-element="header"]) {
-    margin-bottom: 0 !important;
-    padding-bottom: 0 !important;
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-  }
-
-  :global([data-clerk-element="headerTitle"]) {
-    margin-bottom: 0 !important;
-    padding-bottom: 0 !important;
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-  }
-
+  /* SPACING - Set exactly 12px between form elements only */
   :global([data-clerk-element="headerSubtitle"]) {
     margin-bottom: 12px !important;
-    margin-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-top: 0 !important;
-  }
-
-  :global([data-clerk-element="form"]) {
-    gap: 0 !important;
-    row-gap: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    margin-top: 0 !important;
   }
 
   :global([data-clerk-element="formField"]) {
     margin-bottom: 12px !important;
-    margin-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-top: 0 !important;
   }
 
   /* Remove all default Clerk spacing and set to 12px */
@@ -172,15 +139,6 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
   :global(.cl-formFieldRow),
   :global([class*="formField"]) {
     margin-bottom: 12px !important;
-    margin-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-top: 0 !important;
-  }
-
-  /* Ensure no extra spacing from line-height */
-  :global([data-clerk-element="headerTitle"]),
-  :global([data-clerk-element="headerSubtitle"]) {
-    line-height: 1.2 !important;
   }
 
   /* Style input fields to match app's search-input style */
