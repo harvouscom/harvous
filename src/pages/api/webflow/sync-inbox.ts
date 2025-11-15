@@ -443,35 +443,48 @@ export const POST: APIRoute = async ({ request }) => {
         syncedItems.push(inboxItemId);
 
         // Auto-assign to users based on targetAudience
-        if (inboxItemData.targetAudience === 'all_users' || inboxItemData.targetAudience === 'all_new_users') {
-          // Get all existing users
-          const allUsers = await db.select().from(UserMetadata).all();
-          
-          // Create UserInboxItems for all existing users
-          // Note: 'all_new_users' items are also assigned to existing users
-          // (new users will get them via the user creation middleware)
-          for (const user of allUsers) {
-            const existingUserInboxItem = await db
-              .select()
-              .from(UserInboxItems)
-              .where(
-                and(
-                  eq(UserInboxItems.userId, user.userId),
-                  eq(UserInboxItems.inboxItemId, inboxItemId)
+        // Always assign if targetAudience is 'all_users' or 'all_new_users'
+        // This ensures items are assigned even if UserInboxItems entries were deleted
+        const targetAudience = inboxItemData.targetAudience || 'all_users';
+        if (targetAudience === 'all_users' || targetAudience === 'all_new_users') {
+          try {
+            // Get all existing users
+            const allUsers = await db.select().from(UserMetadata).all();
+            
+            let assignedCount = 0;
+            // Create UserInboxItems for all existing users
+            // Note: 'all_new_users' items are also assigned to existing users
+            // (new users will get them via the user creation middleware)
+            for (const user of allUsers) {
+              const existingUserInboxItem = await db
+                .select()
+                .from(UserInboxItems)
+                .where(
+                  and(
+                    eq(UserInboxItems.userId, user.userId),
+                    eq(UserInboxItems.inboxItemId, inboxItemId)
+                  )
                 )
-              )
-              .get();
+                .get();
 
-            if (!existingUserInboxItem) {
-              await db.insert(UserInboxItems).values({
-                id: `user_inbox_${user.userId}_${inboxItemId}_${Date.now()}`,
-                userId: user.userId,
-                inboxItemId: inboxItemId,
-                status: 'inbox',
-                createdAt: new Date(),
-              });
+              if (!existingUserInboxItem) {
+                await db.insert(UserInboxItems).values({
+                  id: `user_inbox_${user.userId}_${inboxItemId}_${Date.now()}`,
+                  userId: user.userId,
+                  inboxItemId: inboxItemId,
+                  status: 'inbox',
+                  createdAt: new Date(),
+                });
+                assignedCount++;
+              }
             }
+            console.log(`✅ Assigned inbox item ${inboxItemId} to ${assignedCount} user(s) (${allUsers.length} total users)`);
+          } catch (assignError: any) {
+            console.error(`❌ Error assigning inbox item ${inboxItemId} to users:`, assignError);
+            // Don't fail the entire sync if assignment fails - log and continue
           }
+        } else {
+          console.log(`⚠️ Skipping assignment for inbox item ${inboxItemId} - targetAudience: ${targetAudience}`);
         }
         // Note: 'all_new_users' is also handled in the user creation middleware for future new users
 
