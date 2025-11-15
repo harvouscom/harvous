@@ -33,6 +33,16 @@ function warmUpApp() {
     // Preload thread data
     warmUpLocalData();
     
+    // Warm up API endpoints to prevent cold start delays
+    // This is critical for preventing the first-action delay
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        warmUpAPI();
+      }, { timeout: 2000 });
+    } else {
+      setTimeout(warmUpAPI, 1000);
+    }
+    
     // Tell the service worker to warm up
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage('warmup');
@@ -146,6 +156,37 @@ function warmUpLocalData() {
 }
 
 /**
+ * Warm up API endpoints to prevent cold start delays
+ * This proactively calls a lightweight API endpoint to warm up
+ * serverless functions and database connections
+ */
+function warmUpAPI() {
+  // Only warm up if we haven't done so recently (within last 5 minutes)
+  const lastWarmup = sessionStorage.getItem('lastAPIWarmup');
+  const now = Date.now();
+  const fiveMinutes = 5 * 60 * 1000;
+  
+  if (lastWarmup && (now - parseInt(lastWarmup, 10)) < fiveMinutes) {
+    // Already warmed up recently, skip
+    return;
+  }
+  
+  // Call a lightweight API endpoint to warm up the serverless function
+  // This endpoint is cached and lightweight, perfect for warming up
+  fetch('/api/navigation/data', {
+    method: 'GET',
+    credentials: 'include'
+  })
+    .then(() => {
+      // Mark that we've warmed up
+      sessionStorage.setItem('lastAPIWarmup', now.toString());
+    })
+    .catch(() => {
+      // Silently fail - this is just a warmup, not critical
+    });
+}
+
+/**
  * Apply CSS optimizations to improve UI rendering performance
  */
 function applyCssOptimizations() {
@@ -183,18 +224,24 @@ function initPWA() {
   // Prep for touch inputs
   document.addEventListener('touchstart', () => {}, {passive: true});
   
+  // Always set up visibility change listener to warm up API on return from background
+  // This is critical for preventing cold start delays, not just for standalone PWAs
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      // App is visible again - warm up API to prevent cold start
+      // Reset warmup flag so we can warm up again
+      isWarmedUp = false;
+      
+      // Warm up immediately when returning from background
+      // This ensures the first user action is fast
+      warmUpApp();
+    }
+  });
+  
   // Execute full warmup if in standalone mode
   if (isStandalone) {
     // Immediate warm up when the page loads
     warmUpApp();
-    
-    // Set visibility change listener to warm up when returning from background
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        isWarmedUp = false; // Reset flag when returning from background
-        warmUpApp();
-      }
-    });
   }
 }
 
