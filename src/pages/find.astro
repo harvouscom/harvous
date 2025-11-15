@@ -463,7 +463,7 @@ if (query.trim()) {
                   x-cloak
                   x-on:click="searchQuery = ''; window.location.href = '/find';"
                   aria-label="Clear find"
-                  class="bg-transparent border-none p-0 cursor-pointer flex items-center justify-center"
+                  class="bg-transparent border-none p-0 cursor-pointer flex items-center justify-center search-input-clear-button"
                 >
                   <svg 
                     width="20" 
@@ -647,6 +647,10 @@ if (query.trim()) {
   .search-input {
     background: var(--color-gradient-gray);
     box-shadow: var(--shadow-small);
+  }
+  
+  .search-input-clear-button {
+    box-shadow: none !important;
   }
   
   .space-button {

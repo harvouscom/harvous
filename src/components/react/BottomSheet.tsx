@@ -197,6 +197,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     window.addEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
     window.addEventListener('closeProfilePanel', handleCloseBottomSheet);
     window.addEventListener('closeEditThreadPanel', handleCloseBottomSheet);
+    window.addEventListener('closeInboxPreview', handleCloseBottomSheet);
 
     return () => {
       window.removeEventListener('openMobileDrawer', handleOpenBottomSheet as EventListener);
@@ -208,6 +209,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
       window.removeEventListener('closeProfilePanel', handleCloseBottomSheet);
       window.removeEventListener('closeEditThreadPanel', handleCloseBottomSheet);
+      window.removeEventListener('closeInboxPreview', handleCloseBottomSheet);
     };
   }, [openBottomSheet, closeBottomSheet, isMobile]);
 
@@ -382,6 +384,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {drawerType === 'myChurch' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
               <MyChurchPanel 
+                key={`mobile-church-${panelKey}`}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}

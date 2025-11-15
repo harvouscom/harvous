@@ -53,7 +53,7 @@ export default function SearchInput({
           type="button"
           onClick={handleClear}
           aria-label="Clear find"
-          className="bg-transparent border-none p-0 cursor-pointer flex items-center justify-center"
+          className="bg-transparent border-none p-0 cursor-pointer flex items-center justify-center search-input-clear-button"
         >
           <svg 
             width="20" 
@@ -71,6 +71,10 @@ export default function SearchInput({
         .search-input {
           background: var(--color-gradient-gray);
           box-shadow: var(--shadow-small);
+        }
+        
+        .search-input-clear-button {
+          box-shadow: none !important;
         }
       `}</style>
     </div>

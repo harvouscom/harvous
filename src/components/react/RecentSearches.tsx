@@ -88,7 +88,7 @@ const RecentSearches: React.FC = () => {
           <div key={search.term} className="recent-search-item">
             <div className="relative nav-item-container">
               <button 
-                className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-[80px] group w-full text-left" 
+                className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-4 group w-full text-left" 
                 style={{
                   backgroundImage: 'var(--color-gradient-gray)',
                   boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
@@ -120,13 +120,13 @@ const RecentSearches: React.FC = () => {
                   console.log('Close clicked for:', search.term);
                   removeFromRecentSearches(search.term);
                 }}
-                className="recent-search-close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
+                className="recent-search-close-icon absolute top-1/2 right-4 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
                 data-item-id={search.term}
               >
                 <img 
                   src={FaXmarkIcon.src} 
                   alt="Close" 
-                  className="w-4 h-4" 
+                  className="w-5 h-5" 
                   style={{ color: 'var(--color-deep-grey)' }}
                 />
               </div>

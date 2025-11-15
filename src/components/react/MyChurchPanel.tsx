@@ -78,7 +78,9 @@ export default function MyChurchPanel({
     setIsLoading(true);
     try {
       console.log('📤 MyChurchPanel: Fetching from /api/user/get-profile');
-      const response = await fetch('/api/user/get-profile');
+      const response = await fetch('/api/user/get-profile', {
+        credentials: 'include'
+      });
       console.log('📥 MyChurchPanel: Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
@@ -181,6 +183,7 @@ export default function MyChurchPanel({
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           churchName: formData.churchName.trim(),
           churchCity: formData.churchCity.trim(),
@@ -335,6 +338,7 @@ export default function MyChurchPanel({
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           churchName: formData.churchName.trim(),
           churchCity: formData.churchCity.trim(),
@@ -422,6 +426,7 @@ export default function MyChurchPanel({
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           churchName: null,
           churchCity: null,
