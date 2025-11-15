@@ -131,6 +131,12 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     margin-top: -32px !important;
   }
 
+  /* Apply negative margin to form container to reduce gap from header */
+  :global([data-clerk-element="form"]),
+  :global(.cl-form) {
+    margin-top: -24px !important;
+  }
+
   /* Apply negative margin to form fields (except first one) for consistent spacing */
   :global([data-clerk-element="formField"]:not(:first-of-type)),
   :global(.cl-formField:not(:first-of-type)),
