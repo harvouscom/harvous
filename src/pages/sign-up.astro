@@ -115,8 +115,16 @@ import { SignUp } from "@clerk/astro/components";
 
 <style>
   /* PRIMARY BUTTON STYLING - Match Button.astro component */
+  /* Target all Clerk primary buttons including modals, error screens, etc. */
   .primary-button,
-  :global(.cl-formButtonPrimary) {
+  :global(.cl-formButtonPrimary),
+  :global(.cl-buttonPrimary),
+  :global([class*="cl-buttonPrimary"]),
+  :global([class*="cl-formButtonPrimary"]),
+  :global(button[type="submit"][class*="cl-"]),
+  :global(.cl-card button[type="submit"]),
+  :global(.cl-modalContent button[type="submit"]),
+  :global(.cl-alert button[type="submit"]) {
     background-color: var(--color-bold-blue) !important;
     will-change: transform, box-shadow !important;
     transition:
@@ -125,15 +133,34 @@ import { SignUp } from "@clerk/astro/components";
     box-shadow:
       0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
       0px 4px 4px 0px hsla(0, 0%, 0%, 0.25) !important;
+    border-radius: 1.5rem !important;
+    min-height: 60px !important;
+    font-weight: 600 !important;
+    font-size: 18px !important;
+    color: var(--color-fog-white) !important;
   }
 
   .primary-button:hover,
-  :global(.cl-formButtonPrimary:hover) {
+  :global(.cl-formButtonPrimary:hover),
+  :global(.cl-buttonPrimary:hover),
+  :global([class*="cl-buttonPrimary"]:hover),
+  :global([class*="cl-formButtonPrimary"]:hover),
+  :global(button[type="submit"][class*="cl-"]:hover),
+  :global(.cl-card button[type="submit"]:hover),
+  :global(.cl-modalContent button[type="submit"]:hover),
+  :global(.cl-alert button[type="submit"]:hover) {
     background-color: var(--color-bold-blue) !important;
   }
 
   .primary-button:active,
-  :global(.cl-formButtonPrimary:active) {
+  :global(.cl-formButtonPrimary:active),
+  :global(.cl-buttonPrimary:active),
+  :global([class*="cl-buttonPrimary"]:active),
+  :global([class*="cl-formButtonPrimary"]:active),
+  :global(button[type="submit"][class*="cl-"]:active),
+  :global(.cl-card button[type="submit"]:active),
+  :global(.cl-modalContent button[type="submit"]:active),
+  :global(.cl-alert button[type="submit"]:active) {
     transform: scale(0.98) !important;
     background-color: var(--color-navy) !important;
     box-shadow:
@@ -143,7 +170,14 @@ import { SignUp } from "@clerk/astro/components";
   }
 
   .primary-button:active > *,
-  :global(.cl-formButtonPrimary:active > *) {
+  :global(.cl-formButtonPrimary:active > *),
+  :global(.cl-buttonPrimary:active > *),
+  :global([class*="cl-buttonPrimary"]:active > *),
+  :global([class*="cl-formButtonPrimary"]:active > *),
+  :global(button[type="submit"][class*="cl-"]:active > *),
+  :global(.cl-card button[type="submit"]:active > *),
+  :global(.cl-modalContent button[type="submit"]:active > *),
+  :global(.cl-alert button[type="submit"]:active > *) {
     translate: 0 0 !important;
     transform: scale(0.98) !important;
   }
@@ -171,10 +205,14 @@ import { SignUp } from "@clerk/astro/components";
   :global(.cl-formButtonPrimary *::before),
   :global(.cl-buttonIcon),
   :global(.cl-signUpButtonIcon),
+  :global(.cl-signInButtonIcon),
   :global([class*="cl-buttonIcon"]),
   :global([class*="cl-icon"]),
   :global([class*="buttonIcon"]),
-  :global([class*="ButtonIcon"]) {
+  :global([class*="ButtonIcon"]),
+  :global(.cl-card button[type="submit"] svg),
+  :global(.cl-modalContent button[type="submit"] svg),
+  :global(.cl-alert button[type="submit"] svg) {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
@@ -202,13 +240,23 @@ import { SignUp } from "@clerk/astro/components";
 
   /* Ensure button text is centered */
   .primary-button,
-  :global(.cl-formButtonPrimary) {
+  :global(.cl-formButtonPrimary),
+  :global(.cl-buttonPrimary),
+  :global([class*="cl-buttonPrimary"]),
+  :global([class*="cl-formButtonPrimary"]),
+  :global(button[type="submit"][class*="cl-"]),
+  :global(.cl-card button[type="submit"]),
+  :global(.cl-modalContent button[type="submit"]),
+  :global(.cl-alert button[type="submit"]) {
     justify-content: center !important;
   }
 
   /* Negative spacing to reduce gaps between form elements */
   .primary-button,
-  :global(.cl-formButtonPrimary) {
+  :global(.cl-formButtonPrimary),
+  :global(.cl-buttonPrimary),
+  :global([class*="cl-buttonPrimary"]),
+  :global([class*="cl-formButtonPrimary"]) {
     margin-top: -32px !important;
   }
 
