@@ -6,9 +6,9 @@ import SquareButton from "@/components/SquareButton.astro";
 
 <EmptyLayout title="Sign Up">
   <div class="min-h-screen max-h-screen p-3 min-[1160px]:p-6">
-    <div class="min-h-[100vh] max-h-[100vh] flex gap-6">
-      <!-- Left Column: Sunset to Dusk Gradient -->
-      <div class="hidden lg:flex lg:w-1/2 sunset-dusk-gradient relative overflow-hidden rounded-[12px]">
+    <div class="flex gap-6 h-full">
+      <!-- Left Column: Thread Colors Mesh Gradient -->
+      <div class="hidden lg:flex lg:w-1/2 thread-colors-mesh-gradient relative overflow-hidden rounded-[12px] h-full">
         <div class="relative z-10 flex flex-col p-3 min-[1160px]:p-6 w-full h-full">
           <!-- Back to home link using SquareButton Back variant -->
           <a href="https://harvous.com" class="block w-fit">
@@ -223,12 +223,12 @@ import SquareButton from "@/components/SquareButton.astro";
   }
 
   /* Mesh gradient using all thread colors with subtle movement */
-  .sunset-dusk-gradient {
+  .thread-colors-mesh-gradient {
     position: relative;
     overflow: hidden;
   }
 
-  .sunset-dusk-gradient::before {
+  .thread-colors-mesh-gradient::before {
     content: '';
     position: absolute;
     top: -50%;
@@ -247,7 +247,7 @@ import SquareButton from "@/components/SquareButton.astro";
     opacity: 0.8;
   }
 
-  .sunset-dusk-gradient::after {
+  .thread-colors-mesh-gradient::after {
     content: '';
     position: absolute;
     top: 0;
