@@ -125,33 +125,38 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     justify-content: center !important;
   }
 
-  /* SPACING - Set exactly 12px between all elements */
+  /* SPACING - Remove all padding/margins between elements */
   :global([data-clerk-element="formField"]) {
-    margin-bottom: 12px !important;
+    margin-bottom: 0 !important;
     margin-top: 0 !important;
     padding-bottom: 0 !important;
     padding-top: 0 !important;
   }
 
   :global([data-clerk-element="headerSubtitle"]) {
-    margin-bottom: 12px !important;
+    margin-bottom: 0 !important;
     margin-top: 0 !important;
     padding-bottom: 0 !important;
+    padding-top: 0 !important;
   }
 
   :global([data-clerk-element="headerTitle"]) {
     margin-bottom: 0 !important;
     padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
   }
 
   :global([data-clerk-element="header"]) {
     margin-bottom: 0 !important;
     padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
   }
 
   :global([data-clerk-element="form"]) {
     gap: 0 !important;
-    row-gap: 12px !important;
+    row-gap: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
   }
@@ -160,8 +165,15 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
   :global(.cl-formField),
   :global(.cl-formFieldRow),
   :global([class*="formField"]) {
-    margin-bottom: 12px !important;
+    margin-bottom: 0 !important;
     margin-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  /* Remove spacing from card content */
+  :global([data-clerk-element="card"]) {
+    gap: 0 !important;
   }
 
   /* Style input fields to match app's search-input style */
