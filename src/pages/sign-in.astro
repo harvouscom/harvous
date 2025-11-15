@@ -125,6 +125,12 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     justify-content: center !important;
   }
 
+  /* Negative spacing to reduce gap between inputs and button */
+  .primary-button,
+  :global(.cl-formButtonPrimary) {
+    margin-top: -12px !important;
+  }
+
   /* Style input fields to match app's search-input style */
   :global(input[type="email"]),
   :global(input[type="password"]),
