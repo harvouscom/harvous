@@ -13,7 +13,8 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
             card: "bg-white rounded-2xl shadow-lg p-8 shadow-none",
             headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
             headerSubtitle: "text-[var(--color-stone-grey)]",
-            formFieldInput: "border border-gray-200 rounded-xl px-4 py-3 focus:border-[var(--color-bold-blue)] focus:ring-2 focus:ring-[var(--color-bold-blue)]/20 transition-colors",
+            formButtonPrimary: "group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] w-full shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] primary-button",
+            formFieldInput: "rounded-3xl py-5 px-4 min-h-[64px] bg-transparent border-none text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] focus:outline-none focus:ring-0",
             formFieldLabel: "text-[var(--color-deep-grey)] font-medium",
             footerActionLink: "text-[var(--color-bold-blue)] hover:text-[var(--color-bold-blue)]/80 font-medium",
             dividerLine: "bg-gray-200",
@@ -29,3 +30,46 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     </div>
   </div>
 </EmptyLayout>
+
+<style>
+  .primary-button {
+    background-color: var(--color-bold-blue) !important;
+    will-change: transform, box-shadow;
+    transition:
+      background-color 0.125s ease-in-out,
+      box-shadow 0.125s ease-in-out;
+    box-shadow:
+      0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+      0px 4px 4px 0px hsla(0, 0%, 0%, 0.25);
+  }
+
+  .primary-button:active {
+    transform: scale(0.98);
+    background-color: var(--color-navy) !important;
+    box-shadow:
+      0px -4px 0px 0px #0000001a inset,
+      0px 0px 4px 0px #00000040,
+      0px 4px 0px 0px #00000040 inset;
+  }
+
+  .primary-button:active > * {
+    translate: 0 0;
+    transform: scale(0.98);
+  }
+
+  /* Hide any arrow/icon in the primary button */
+  .primary-button svg,
+  .primary-button img,
+  .primary-button [class*="icon"],
+  .primary-button [class*="arrow"] {
+    display: none !important;
+  }
+
+  /* Style input fields to match app's search-input style */
+  :global(input[type="email"]),
+  :global(input[type="password"]),
+  :global(input[type="text"]) {
+    background: var(--color-gradient-gray) !important;
+    box-shadow: var(--shadow-small) !important;
+  }
+</style>
