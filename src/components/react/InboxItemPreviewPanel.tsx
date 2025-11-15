@@ -306,7 +306,7 @@ export default function InboxItemPreviewPanel({
       <div className="flex-1 flex flex-col min-h-0 mb-3.5 overflow-hidden">
         {/* Note Detail View - matches NewNotePanel card structure */}
         {viewMode === 'noteDetail' && selectedNote ? (
-          <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full" style={{ maxHeight: '100%' }}>
+          <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full gap-6" style={{ maxHeight: '100%' }}>
             {/* Header with title and note type icon */}
             <div className="box-border content-stretch flex gap-3 items-center px-3 py-0 relative shrink-0 w-full">
               <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
@@ -322,18 +322,14 @@ export default function InboxItemPreviewPanel({
               </div>
             </div>
             
-            {/* Content - exact structure from CardFullEditable.tsx */}
-            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px' }}>
-              <div className="flex-1 flex flex-col font-sans font-normal min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
-                <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
-                  <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
-                    <div 
-                      className="flex-1 overflow-auto inbox-note-detail-content"
-                      style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
-                      dangerouslySetInnerHTML={{ __html: selectedNote.content || '' }}
-                    />
-                  </div>
-                </div>
+            {/* Content - simplified structure matching NewNotePanel exactly */}
+            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+                <div 
+                  className="overflow-auto inbox-note-detail-content"
+                  style={{ lineHeight: '1.6', height: '100%', paddingBottom: '12px' }}
+                  dangerouslySetInnerHTML={{ __html: selectedNote.content || '' }}
+                />
               </div>
             </div>
           </div>

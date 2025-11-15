@@ -6,10 +6,62 @@ The `InboxItemPreviewPanel` component's note detail view is not properly contain
 
 ## Current Status
 
-**Status**: ❌ Not Fixed - Content still pushes elements off-screen, no scroll is happening
+**Status**: ❌ **UNRESOLVED** - Content still pushes elements off-screen, no scroll is happening
 
+**Last Updated**: 2025-01-16
 **Component**: `src/components/react/InboxItemPreviewPanel.tsx`
 **View**: Note Detail View (`viewMode === 'noteDetail'`)
+
+### Attempted Fixes
+
+1. **Added `gap-6` spacing** (2025-01-16)
+   - Added `gap-6` to card container to match CardFullEditable spacing
+   - ✅ Spacing fixed, but overflow issue persists
+
+2. **Simplified content structure** (2025-01-16)
+   - Removed extra nested wrapper divs
+   - Removed `overflow: 'hidden'` from content wrapper
+   - Removed `marginBottom: '-12px'`
+   - ❌ Still not working
+
+3. **Removed `flex-1` from scrollable div** (2025-01-16)
+   - Changed scrollable content div from `flex-1` to `height: '100%'`
+   - Matched structure exactly to NewNotePanel
+   - ❌ Still not working - content continues to push layout down
+
+### Current Structure (After Attempts)
+
+```tsx
+<div className="h-full flex flex-col">
+  {/* Content area */}
+  <div className="flex-1 flex flex-col min-h-0 mb-3.5 overflow-hidden">
+    {viewMode === 'noteDetail' && selectedNote ? (
+      <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full gap-6" style={{ maxHeight: '100%' }}>
+        {/* Header - shrink-0 */}
+        <div className="box-border content-stretch flex gap-3 items-center px-3 py-0 relative shrink-0 w-full">
+          {/* Title and icon */}
+        </div>
+        
+        {/* Content - simplified structure matching NewNotePanel exactly */}
+        <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%' }}>
+          <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+            <div 
+              className="overflow-auto inbox-note-detail-content"
+              style={{ lineHeight: '1.6', height: '100%', paddingBottom: '12px' }}
+              dangerouslySetInnerHTML={{ __html: selectedNote.content || '' }}
+            />
+          </div>
+        </div>
+      </div>
+    ) : (
+      /* Thread View */
+    )}
+  </div>
+  
+  {/* Bottom buttons - shrink-0 */}
+  <div className="shrink-0">...</div>
+</div>
+```
 
 ## Working Reference Implementations
 
@@ -75,42 +127,22 @@ The `InboxItemPreviewPanel` component's note detail view is not properly contain
 </form>
 ```
 
-## Current InboxItemPreviewPanel Structure
+## Root Cause Hypothesis
 
-**Location**: `src/components/react/InboxItemPreviewPanel.tsx` (lines 284-320)
+The structure now matches `NewNotePanel.tsx` exactly, but the overflow issue persists. This suggests the problem may be:
 
-**Current Structure**:
-```tsx
-<div className="h-full flex flex-col">
-  {/* Content area */}
-  <div className="flex-1 flex flex-col min-h-0 mb-3.5 overflow-hidden">
-    {viewMode === 'noteDetail' && selectedNote ? (
-      <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full" style={{ maxHeight: '100%' }}>
-        {/* Header - shrink-0 */}
-        <div className="shrink-0">...</div>
-        
-        {/* Content - matches CardFullEditable structure */}
-        <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px' }}>
-          <div className="flex-1 flex flex-col font-sans font-normal min-h-0">
-            <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
-                <div className="flex-1 overflow-auto inbox-note-detail-content" style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}>
-                  {/* Content here */}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    ) : (
-      /* Thread View */
-    )}
-  </div>
-  
-  {/* Bottom buttons - shrink-0 */}
-  <div className="shrink-0">...</div>
-</div>
-```
+1. **Parent container context**: The parent component that renders `InboxItemPreviewPanel` may not be providing proper height constraints
+2. **Missing wrapper div**: Unlike the note page, there may be a missing intermediate wrapper that provides critical height constraints
+3. **CSS specificity**: Some global styles or parent styles may be overriding the height constraints
+4. **Viewport/container height**: The parent container may not have a defined height, causing `h-full` to not work properly
+
+### Next Steps to Investigate
+
+1. **Check parent component**: Find where `InboxItemPreviewPanel` is rendered and verify it has proper height constraints
+2. **Compare parent structure**: Compare the parent structure with the note page (`[id].astro`) that works correctly
+3. **Add intermediate wrapper**: Try adding the same wrapper structure that exists on the note page
+4. **Inspect computed styles**: Use browser DevTools to check if `height: 0` is actually being applied and if the flex calculation is working
+5. **Test with explicit height**: Try setting an explicit `height` instead of relying on flex to see if that reveals the issue
 
 ## Key Differences to Investigate
 
@@ -168,8 +200,32 @@ When debugging this issue, check:
 
 ## Notes
 
-- The content structure inside the card matches CardFullEditable exactly
-- The issue appears to be in the parent container structure
+- The content structure inside the card now matches NewNotePanel exactly
+- Multiple attempts to fix have been made, but the issue persists
+- The structure appears correct, suggesting the issue is in the parent container context
 - Both NewNotePanel and CardFullEditable work correctly with similar content
 - The key difference may be in how the component is mounted/rendered in its parent context
+- The `height: 0` trick may not be working due to parent container not providing proper height constraints
+
+## Debugging Commands
+
+To inspect the current state in browser DevTools:
+
+```javascript
+// Check if height: 0 is being applied
+document.querySelector('.inbox-note-detail-content').parentElement.style.height
+// Should return "0px"
+
+// Check computed heights
+const contentArea = document.querySelector('[data-card-full-editable]') || document.querySelector('.bg-white.rounded-\\[24px\\]');
+console.log('Content area height:', contentArea?.offsetHeight);
+console.log('Content area computed height:', window.getComputedStyle(contentArea).height);
+
+// Check parent chain heights
+let el = document.querySelector('.inbox-note-detail-content');
+while (el) {
+  console.log(el.className, 'height:', window.getComputedStyle(el).height, 'overflow:', window.getComputedStyle(el).overflow);
+  el = el.parentElement;
+}
+```
 
