@@ -125,22 +125,6 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     justify-content: center !important;
   }
 
-  /* SPACING - Set exactly 12px between form elements only */
-  :global([data-clerk-element="headerSubtitle"]) {
-    margin-bottom: 12px !important;
-  }
-
-  :global([data-clerk-element="formField"]) {
-    margin-bottom: 12px !important;
-  }
-
-  /* Remove all default Clerk spacing and set to 12px */
-  :global(.cl-formField),
-  :global(.cl-formFieldRow),
-  :global([class*="formField"]) {
-    margin-bottom: 12px !important;
-  }
-
   /* Style input fields to match app's search-input style */
   :global(input[type="email"]),
   :global(input[type="password"]),
