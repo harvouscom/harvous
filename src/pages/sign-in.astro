@@ -125,10 +125,17 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     justify-content: center !important;
   }
 
-  /* Negative spacing to reduce gap between inputs and button */
+  /* Negative spacing to reduce gaps between form elements */
   .primary-button,
   :global(.cl-formButtonPrimary) {
-    margin-top: -12px !important;
+    margin-top: -32px !important;
+  }
+
+  /* Apply negative margin to form fields (except first one) for consistent spacing */
+  :global([data-clerk-element="formField"]:not(:first-of-type)),
+  :global(.cl-formField:not(:first-of-type)),
+  :global([class*="formField"]:not(:first-of-type)) {
+    margin-top: -32px !important;
   }
 
   /* Style input fields to match app's search-input style */
