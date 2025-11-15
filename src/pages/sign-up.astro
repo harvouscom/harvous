@@ -6,14 +6,12 @@ import { SignUp } from "@clerk/astro/components";
 <EmptyLayout title="Sign Up">
   <div class="min-h-screen flex">
     <!-- Left Column: Promotional Content -->
-    <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-pink-400 via-orange-400 to-yellow-400 relative overflow-hidden">
-      <div class="absolute inset-0 bg-gradient-to-br from-pink-500/80 via-orange-500/80 to-yellow-500/80"></div>
-      
-      <div class="relative z-10 flex flex-col justify-between p-12 text-white">
+    <div class="hidden lg:flex lg:w-1/2 bg-[var(--color-paper)] relative overflow-hidden">
+      <div class="relative z-10 flex flex-col justify-between p-12 w-full">
         <!-- Back to home link -->
         <a 
           href="https://harvous.com" 
-          class="inline-flex items-center text-white/90 hover:text-white transition-colors mb-8"
+          class="inline-flex items-center text-[var(--color-stone-grey)] hover:text-[var(--color-deep-grey)] transition-colors mb-8"
         >
           <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
@@ -22,43 +20,38 @@ import { SignUp } from "@clerk/astro/components";
         </a>
 
         <!-- Promotional Content -->
-        <div class="flex-1 flex flex-col justify-center max-w-md">
-          <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
-            <h2 class="text-3xl font-bold mb-4">Organize your thoughts, amplify your impact</h2>
-            <p class="text-lg mb-6 text-white/90">
+        <div class="flex-1 flex flex-col justify-center max-w-md mx-auto">
+          <div class="bg-white rounded-2xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] p-8">
+            <h2 class="text-3xl font-bold text-[var(--color-deep-grey)] mb-4">Organize your thoughts, amplify your impact</h2>
+            <p class="text-lg text-[var(--color-stone-grey)] mb-6">
               Harvous helps you capture, organize, and connect your ideas in a way that makes sense for you.
             </p>
-            <ul class="space-y-3 text-white/90">
+            <ul class="space-y-4 text-[var(--color-deep-grey)]">
               <li class="flex items-start">
-                <svg class="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                </svg>
-                <span>Capture notes and ideas instantly</span>
+                <div class="w-6 h-6 rounded-full bg-[var(--color-blue)] flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
+                  <svg class="w-4 h-4 text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                  </svg>
+                </div>
+                <span class="text-body">Capture notes and ideas instantly</span>
               </li>
               <li class="flex items-start">
-                <svg class="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                </svg>
-                <span>Organize with threads and spaces</span>
+                <div class="w-6 h-6 rounded-full bg-[var(--color-yellow)] flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
+                  <svg class="w-4 h-4 text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                  </svg>
+                </div>
+                <span class="text-body">Organize with threads and spaces</span>
               </li>
               <li class="flex items-start">
-                <svg class="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                </svg>
-                <span>Connect ideas across your workspace</span>
+                <div class="w-6 h-6 rounded-full bg-[var(--color-green)] flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
+                  <svg class="w-4 h-4 text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                  </svg>
+                </div>
+                <span class="text-body">Connect ideas across your workspace</span>
               </li>
             </ul>
-          </div>
-
-          <!-- Testimonial -->
-          <div class="mt-8 flex items-center">
-            <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mr-4 flex-shrink-0">
-              <span class="text-xl font-bold">JD</span>
-            </div>
-            <div>
-              <p class="font-semibold">John Doe</p>
-              <p class="text-sm text-white/80">Creator and Solopreneur</p>
-            </div>
           </div>
         </div>
       </div>
@@ -66,7 +59,7 @@ import { SignUp } from "@clerk/astro/components";
 
     <!-- Right Column: Sign Up Form -->
     <div class="flex-1 flex items-center justify-center bg-[var(--color-light-paper)] p-6 lg:p-12">
-      <div class="w-full max-w-md">
+      <div class="w-full max-w-md flex flex-col items-center justify-center">
         <!-- Back to home link (mobile only) -->
         <a 
           href="https://harvous.com" 
