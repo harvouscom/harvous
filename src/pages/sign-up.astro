@@ -1,6 +1,6 @@
 ---
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
-import { SignUp } from "@clerk/astro/components";
+import { SignUp as ClerkSignUp } from "@clerk/astro/components";
 import SquareButton from "@/components/SquareButton.astro";
 ---
 
@@ -21,17 +21,11 @@ import SquareButton from "@/components/SquareButton.astro";
       <div class="flex-1 flex items-center justify-center bg-[var(--color-light-paper)]">
         <div class="w-full max-w-md mx-auto p-3 min-[1160px]:p-6">
         <!-- Back to home link (mobile only) -->
-        <a 
-          href="https://harvous.com" 
-          class="lg:hidden inline-flex items-center text-[var(--color-stone-grey)] hover:text-[var(--color-deep-grey)] transition-colors mb-6"
-        >
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-          </svg>
-          Back to home
+        <a href="https://harvous.com" class="lg:hidden block w-fit mb-6">
+          <SquareButton variant="Back" />
         </a>
 
-        <SignUp
+        <ClerkSignUp
             appearance={{
               elements: {
                 rootBox: "w-full",
@@ -50,21 +44,6 @@ import SquareButton from "@/components/SquareButton.astro";
                 colorPrimary: "var(--color-bold-blue)"
               }
             }}
-            additionalOAuthScopes={{
-              google: ['profile', 'email']
-            }}
-            additionalFields={[
-              {
-                name: 'first_name',
-                label: 'First Name',
-                required: true,
-              },
-              {
-                name: 'last_name',
-                label: 'Last Name',
-                required: true,
-              },
-            ]}
             signInUrl="/sign-in"
             redirectUrl="/"
           />
@@ -315,6 +294,18 @@ import SquareButton from "@/components/SquareButton.astro";
     75% {
       transform: translate(-2%, 3%) scale(1.06);
     }
+  }
+
+  /* Ensure SquareButton Back variant has proper shadow styling */
+  :global(.square-button-container button[style*="background-image"]:not([data-outer-shadow])) {
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+  }
+
+  :global(.square-button-container button[style*="background-image"]:not([data-outer-shadow]):active) {
+    filter: brightness(0.97) !important;
+    box-shadow: 
+      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
   }
 
 </style>
