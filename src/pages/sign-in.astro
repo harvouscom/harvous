@@ -33,36 +33,41 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
 </EmptyLayout>
 
 <style>
-  .primary-button {
+  /* PRIMARY BUTTON STYLING - Match Button.astro component */
+  .primary-button,
+  :global(.cl-formButtonPrimary) {
     background-color: var(--color-bold-blue) !important;
-    will-change: transform, box-shadow;
+    will-change: transform, box-shadow !important;
     transition:
       background-color 0.125s ease-in-out,
-      box-shadow 0.125s ease-in-out;
+      box-shadow 0.125s ease-in-out !important;
     box-shadow:
       0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
-      0px 4px 4px 0px hsla(0, 0%, 0%, 0.25);
+      0px 4px 4px 0px hsla(0, 0%, 0%, 0.25) !important;
   }
 
-  .primary-button:hover {
+  .primary-button:hover,
+  :global(.cl-formButtonPrimary:hover) {
     background-color: var(--color-bold-blue) !important;
   }
 
-  .primary-button:active {
-    transform: scale(0.98);
+  .primary-button:active,
+  :global(.cl-formButtonPrimary:active) {
+    transform: scale(0.98) !important;
     background-color: var(--color-navy) !important;
     box-shadow:
       0px -4px 0px 0px #0000001a inset,
       0px 0px 4px 0px #00000040,
-      0px 4px 0px 0px #00000040 inset;
+      0px 4px 0px 0px #00000040 inset !important;
   }
 
-  .primary-button:active > * {
-    translate: 0 0;
-    transform: scale(0.98);
+  .primary-button:active > *,
+  :global(.cl-formButtonPrimary:active > *) {
+    translate: 0 0 !important;
+    transform: scale(0.98) !important;
   }
 
-  /* Hide any arrow/icon in the primary button - comprehensive approach */
+  /* HIDE ARROW ICON - Comprehensive targeting of all Clerk button icons */
   .primary-button svg,
   .primary-button img,
   .primary-button [class*="icon"],
@@ -72,72 +77,91 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
   .primary-button::after,
   .primary-button::before,
   .primary-button *::after,
-  .primary-button *::before {
+  .primary-button *::before,
+  :global(.cl-formButtonPrimary svg),
+  :global(.cl-formButtonPrimary img),
+  :global(.cl-formButtonPrimary [class*="icon"]),
+  :global(.cl-formButtonPrimary [class*="arrow"]),
+  :global(.cl-formButtonPrimary [class*="Icon"]),
+  :global(.cl-formButtonPrimary [class*="Arrow"]),
+  :global(.cl-formButtonPrimary::after),
+  :global(.cl-formButtonPrimary::before),
+  :global(.cl-formButtonPrimary *::after),
+  :global(.cl-formButtonPrimary *::before),
+  :global(.cl-buttonIcon),
+  :global(.cl-signInButtonIcon),
+  :global([class*="cl-buttonIcon"]),
+  :global([class*="cl-icon"]),
+  :global([class*="buttonIcon"]),
+  :global([class*="ButtonIcon"]) {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
     width: 0 !important;
     height: 0 !important;
     content: none !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
   }
 
-  /* Hide Clerk's icon wrapper if it exists */
-  .primary-button [data-clerk-element="icon"],
-  .primary-button [class*="clerk-icon"],
-  .primary-button [class*="button-icon"],
-  .primary-button [data-clerk-element="buttonIcon"] {
-    display: none !important;
-  }
-
-  /* Hide any child element that's not the main text content - be more specific */
-  .primary-button > span:not(:first-of-type),
-  .primary-button > div:not(:first-of-type) {
-    display: none !important;
-  }
-
-  /* Target any element containing arrow-like content using :has() */
-  .primary-button *:has(> svg),
-  .primary-button *:has(> img),
-  .primary-button *[aria-label*="arrow"],
-  .primary-button *[aria-label*="icon"],
-  .primary-button *[role="img"] {
-    display: none !important;
-  }
-
-  /* Hide any element that's a sibling after the text - but preserve first child text */
-  .primary-button > *:nth-child(2),
-  .primary-button > *:nth-child(3) {
+  /* Hide any child elements that aren't the main text */
+  .primary-button > *:nth-child(n+2),
+  :global(.cl-formButtonPrimary > *:nth-child(n+2)) {
     display: none !important;
     visibility: hidden !important;
   }
 
-  /* Hide any span or div that comes after the first child */
-  .primary-button span + span,
-  .primary-button div + div,
-  .primary-button span + div,
-  .primary-button div + span {
+  /* Hide sibling elements after first child */
+  .primary-button span + *,
+  .primary-button div + *,
+  :global(.cl-formButtonPrimary span + *),
+  :global(.cl-formButtonPrimary div + *) {
     display: none !important;
   }
 
-  /* Ensure button text is centered and visible - hide arrow if it's in the text */
-  .primary-button {
+  /* Ensure button text is centered */
+  .primary-button,
+  :global(.cl-formButtonPrimary) {
     justify-content: center !important;
   }
 
-  .primary-button > *:first-child {
-    margin: 0 auto !important;
+  /* SPACING - Set exactly 12px between all elements */
+  :global([data-clerk-element="formField"]) {
+    margin-bottom: 12px !important;
+    margin-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-top: 0 !important;
   }
 
-  /* Hide arrow Unicode characters that might be in button text */
-  .primary-button::after {
-    content: "" !important;
-    display: none !important;
+  :global([data-clerk-element="headerSubtitle"]) {
+    margin-bottom: 12px !important;
+    margin-top: 0 !important;
+    padding-bottom: 0 !important;
   }
 
-  /* Try to hide arrow using content replacement if it's a pseudo-element */
-  .primary-button > *:first-child::after {
-    content: "" !important;
-    display: none !important;
+  :global([data-clerk-element="headerTitle"]) {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  :global([data-clerk-element="header"]) {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  :global([data-clerk-element="form"]) {
+    gap: 0 !important;
+    row-gap: 12px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Remove all default Clerk spacing */
+  :global(.cl-formField),
+  :global(.cl-formFieldRow),
+  :global([class*="formField"]) {
+    margin-bottom: 12px !important;
+    margin-top: 0 !important;
   }
 
   /* Style input fields to match app's search-input style */
@@ -146,45 +170,5 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
   :global(input[type="text"]) {
     background: var(--color-gradient-gray) !important;
     box-shadow: var(--shadow-small) !important;
-  }
-
-  /* Set spacing between form elements to exactly 12px - override all defaults */
-  :global([data-clerk-element="formField"]) {
-    margin-bottom: 12px !important;
-    margin-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-top: 0 !important;
-  }
-
-  /* Spacing between header subtitle and first input */
-  :global([data-clerk-element="headerSubtitle"]) {
-    margin-bottom: 12px !important;
-    margin-top: 0 !important;
-  }
-
-  /* Remove any extra spacing from form container */
-  :global([data-clerk-element="form"]) {
-    gap: 0 !important;
-    row-gap: 12px !important;
-  }
-
-  /* Remove default margins from header */
-  :global([data-clerk-element="header"]) {
-    margin-bottom: 0 !important;
-  }
-
-  :global([data-clerk-element="headerTitle"]) {
-    margin-bottom: 0 !important;
-  }
-
-  /* Hide Clerk's button icon classes */
-  :global(.cl-buttonIcon),
-  :global(.cl-signInButtonIcon),
-  :global([class*="buttonIcon"]),
-  :global([class*="ButtonIcon"]) {
-    display: none !important;
-    visibility: hidden !important;
-    width: 0 !important;
-    height: 0 !important;
   }
 </style>
