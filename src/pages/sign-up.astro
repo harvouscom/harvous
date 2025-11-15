@@ -1,0 +1,246 @@
+---
+import EmptyLayout from "@/layouts/EmptyLayout.astro";
+import { SignUp } from "@clerk/astro/components";
+---
+
+<EmptyLayout title="Sign Up">
+  <div class="min-h-screen flex">
+    <!-- Left Column: Promotional Content -->
+    <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-pink-400 via-orange-400 to-yellow-400 relative overflow-hidden">
+      <div class="absolute inset-0 bg-gradient-to-br from-pink-500/80 via-orange-500/80 to-yellow-500/80"></div>
+      
+      <div class="relative z-10 flex flex-col justify-between p-12 text-white">
+        <!-- Back to home link -->
+        <a 
+          href="/" 
+          class="inline-flex items-center text-white/90 hover:text-white transition-colors mb-8"
+        >
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+          Back to home
+        </a>
+
+        <!-- Promotional Content -->
+        <div class="flex-1 flex flex-col justify-center max-w-md">
+          <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
+            <h2 class="text-3xl font-bold mb-4">Organize your thoughts, amplify your impact</h2>
+            <p class="text-lg mb-6 text-white/90">
+              Harvous helps you capture, organize, and connect your ideas in a way that makes sense for you.
+            </p>
+            <ul class="space-y-3 text-white/90">
+              <li class="flex items-start">
+                <svg class="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+                <span>Capture notes and ideas instantly</span>
+              </li>
+              <li class="flex items-start">
+                <svg class="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+                <span>Organize with threads and spaces</span>
+              </li>
+              <li class="flex items-start">
+                <svg class="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+                <span>Connect ideas across your workspace</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Testimonial -->
+          <div class="mt-8 flex items-center">
+            <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mr-4 flex-shrink-0">
+              <span class="text-xl font-bold">JD</span>
+            </div>
+            <div>
+              <p class="font-semibold">John Doe</p>
+              <p class="text-sm text-white/80">Creator and Solopreneur</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Sign Up Form -->
+    <div class="flex-1 flex items-center justify-center bg-[var(--color-light-paper)] p-6 lg:p-12">
+      <div class="w-full max-w-md">
+        <!-- Back to home link (mobile only) -->
+        <a 
+          href="/" 
+          class="lg:hidden inline-flex items-center text-[var(--color-stone-grey)] hover:text-[var(--color-deep-grey)] transition-colors mb-6"
+        >
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+          Back to home
+        </a>
+
+        <div class="bg-white rounded-2xl shadow-lg p-8">
+          <SignUp
+            appearance={{
+              elements: {
+                rootBox: "w-full",
+                card: "shadow-none p-0",
+                headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
+                headerSubtitle: "text-[var(--color-stone-grey)]",
+                formField: "mb-3",
+                formButtonPrimary: "group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] w-full primary-button",
+                formFieldInput: "rounded-3xl py-5 px-4 min-h-[64px] bg-transparent border-none text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] focus:outline-none focus:ring-0",
+                formFieldLabel: "hidden",
+                footerActionLink: "text-[var(--color-bold-blue)] hover:text-[var(--color-bold-blue)]/80 font-medium",
+                dividerLine: "bg-gray-200",
+                dividerText: "text-[var(--color-stone-grey)] bg-white px-4"
+              },
+              variables: {
+                colorPrimary: "var(--color-bold-blue)"
+              }
+            }}
+            additionalOAuthScopes={{
+              google: ['profile', 'email']
+            }}
+            additionalFields={[
+              {
+                name: 'first_name',
+                label: 'First Name',
+                required: true,
+              },
+              {
+                name: 'last_name',
+                label: 'Last Name',
+                required: true,
+              },
+            ]}
+            signInUrl="/sign-in"
+            redirectUrl="/"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</EmptyLayout>
+
+<style>
+  /* PRIMARY BUTTON STYLING - Match Button.astro component */
+  .primary-button,
+  :global(.cl-formButtonPrimary) {
+    background-color: var(--color-bold-blue) !important;
+    will-change: transform, box-shadow !important;
+    transition:
+      background-color 0.125s ease-in-out,
+      box-shadow 0.125s ease-in-out !important;
+    box-shadow:
+      0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+      0px 4px 4px 0px hsla(0, 0%, 0%, 0.25) !important;
+  }
+
+  .primary-button:hover,
+  :global(.cl-formButtonPrimary:hover) {
+    background-color: var(--color-bold-blue) !important;
+  }
+
+  .primary-button:active,
+  :global(.cl-formButtonPrimary:active) {
+    transform: scale(0.98) !important;
+    background-color: var(--color-navy) !important;
+    box-shadow:
+      0px -4px 0px 0px #0000001a inset,
+      0px 0px 4px 0px #00000040,
+      0px 4px 0px 0px #00000040 inset !important;
+  }
+
+  .primary-button:active > *,
+  :global(.cl-formButtonPrimary:active > *) {
+    translate: 0 0 !important;
+    transform: scale(0.98) !important;
+  }
+
+  /* HIDE ARROW ICON - Comprehensive targeting of all Clerk button icons */
+  .primary-button svg,
+  .primary-button img,
+  .primary-button [class*="icon"],
+  .primary-button [class*="arrow"],
+  .primary-button [class*="Icon"],
+  .primary-button [class*="Arrow"],
+  .primary-button::after,
+  .primary-button::before,
+  .primary-button *::after,
+  .primary-button *::before,
+  :global(.cl-formButtonPrimary svg),
+  :global(.cl-formButtonPrimary img),
+  :global(.cl-formButtonPrimary [class*="icon"]),
+  :global(.cl-formButtonPrimary [class*="arrow"]),
+  :global(.cl-formButtonPrimary [class*="Icon"]),
+  :global(.cl-formButtonPrimary [class*="Arrow"]),
+  :global(.cl-formButtonPrimary::after),
+  :global(.cl-formButtonPrimary::before),
+  :global(.cl-formButtonPrimary *::after),
+  :global(.cl-formButtonPrimary *::before),
+  :global(.cl-buttonIcon),
+  :global(.cl-signUpButtonIcon),
+  :global([class*="cl-buttonIcon"]),
+  :global([class*="cl-icon"]),
+  :global([class*="buttonIcon"]),
+  :global([class*="ButtonIcon"]) {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    content: none !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+  }
+
+  /* Hide any child elements that aren't the main text */
+  .primary-button > *:nth-child(n+2),
+  :global(.cl-formButtonPrimary > *:nth-child(n+2)) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Hide sibling elements after first child */
+  .primary-button span + *,
+  .primary-button div + *,
+  :global(.cl-formButtonPrimary span + *),
+  :global(.cl-formButtonPrimary div + *) {
+    display: none !important;
+  }
+
+  /* Ensure button text is centered */
+  .primary-button,
+  :global(.cl-formButtonPrimary) {
+    justify-content: center !important;
+  }
+
+  /* Negative spacing to reduce gaps between form elements */
+  .primary-button,
+  :global(.cl-formButtonPrimary) {
+    margin-top: -32px !important;
+  }
+
+  /* Apply negative margin to form container to reduce gap from header and footer */
+  :global([data-clerk-element="form"]),
+  :global(.cl-form) {
+    margin-top: -12px !important;
+    margin-bottom: -12px !important;
+  }
+
+  /* Apply negative margin to form fields (except first one) for consistent spacing */
+  :global([data-clerk-element="formField"]:not(:first-of-type)),
+  :global(.cl-formField:not(:first-of-type)),
+  :global([class*="formField"]:not(:first-of-type)) {
+    margin-top: -32px !important;
+  }
+
+  /* Style input fields to match app's search-input style */
+  :global(input[type="email"]),
+  :global(input[type="password"]),
+  :global(input[type="text"]) {
+    background: var(--color-gradient-gray) !important;
+    box-shadow: var(--shadow-small) !important;
+  }
+</style>
+
