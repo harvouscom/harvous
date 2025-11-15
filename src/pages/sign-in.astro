@@ -13,6 +13,7 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
             card: "bg-white rounded-2xl shadow-lg p-8 shadow-none",
             headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
             headerSubtitle: "text-[var(--color-stone-grey)]",
+            formField: "mb-3",
             formButtonPrimary: "group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 py-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] w-full shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] primary-button",
             formFieldInput: "rounded-3xl py-5 px-4 min-h-[64px] bg-transparent border-none text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] focus:outline-none focus:ring-0",
             formFieldLabel: "hidden",
@@ -56,7 +57,7 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
     transform: scale(0.98);
   }
 
-  /* Hide any arrow/icon in the primary button */
+  /* Hide any arrow/icon in the primary button - comprehensive approach */
   .primary-button svg,
   .primary-button img,
   .primary-button [class*="icon"],
@@ -64,28 +65,53 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
   .primary-button [class*="Icon"],
   .primary-button [class*="Arrow"],
   .primary-button::after,
-  .primary-button::before {
+  .primary-button::before,
+  .primary-button *::after,
+  .primary-button *::before {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
     width: 0 !important;
     height: 0 !important;
+    content: none !important;
   }
 
   /* Hide Clerk's icon wrapper if it exists */
   .primary-button [data-clerk-element="icon"],
   .primary-button [class*="clerk-icon"],
-  .primary-button [class*="button-icon"] {
+  .primary-button [class*="button-icon"],
+  .primary-button [data-clerk-element="buttonIcon"] {
     display: none !important;
   }
 
-  /* Hide any element that appears after the button text (arrow) - be specific */
-  .primary-button > *:not(:first-child):has(svg),
-  .primary-button > *:not(:first-child):has([class*="icon"]),
-  .primary-button > *:not(:first-child):has([class*="arrow"]),
-  .primary-button > span:last-child:not(:only-child):has(svg),
-  .primary-button > div:last-child:not(:only-child):has(svg) {
+  /* Hide any child element that's not the main text content - be more specific */
+  .primary-button > span:not(:first-of-type),
+  .primary-button > div:not(:first-of-type) {
     display: none !important;
+  }
+
+  /* Target any element containing arrow-like content using :has() */
+  .primary-button *:has(> svg),
+  .primary-button *:has(> img),
+  .primary-button *[aria-label*="arrow"],
+  .primary-button *[aria-label*="icon"],
+  .primary-button *[role="img"] {
+    display: none !important;
+  }
+
+  /* Hide any element that's a sibling after the text and contains visual content */
+  .primary-button > *:nth-child(2),
+  .primary-button > *:nth-child(3) {
+    display: none !important;
+  }
+
+  /* Ensure button text is centered and visible */
+  .primary-button {
+    justify-content: center !important;
+  }
+
+  .primary-button > *:first-child {
+    margin: 0 auto !important;
   }
 
   /* Style input fields to match app's search-input style */
@@ -94,5 +120,26 @@ import { SignIn as ClerkSignIn } from "@clerk/astro/components";
   :global(input[type="text"]) {
     background: var(--color-gradient-gray) !important;
     box-shadow: var(--shadow-small) !important;
+  }
+
+  /* Set spacing between form elements to 12px */
+  :global([data-clerk-element="formField"]) {
+    margin-bottom: 12px !important;
+  }
+
+  /* Also target Clerk's form field wrapper */
+  :global(.cl-formField),
+  :global([class*="formField"]) {
+    margin-bottom: 12px !important;
+  }
+
+  /* Spacing between header and input */
+  :global([data-clerk-element="headerSubtitle"]) {
+    margin-bottom: 12px !important;
+  }
+
+  /* Spacing between input and button */
+  :global([data-clerk-element="formField"]:last-of-type) {
+    margin-bottom: 12px !important;
   }
 </style>
