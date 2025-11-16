@@ -245,27 +245,23 @@ import SquareButton from "@/components/SquareButton.astro";
     position: relative !important;
   }
 
+  /* Override Clerk's default 32px gap on the form to use 12px instead */
+  :global(.cl-form),
+  :global([data-clerk-element="form"]),
+  :global([class*="cl-form"]) {
+    gap: 12px !important; /* Set gap to exactly 12px between all form elements */
+  }
+
   /* Apply negative margin ONLY between consecutive input fields (email → password) */
+  /* This reduces the gap between email and password fields specifically */
   :global(.cl-formField:has(input[type="email"]) + .cl-formField:has(input[type="password"])),
   :global([data-clerk-element="formField"]:has(input[type="email"]) + [data-clerk-element="formField"]:has(input[type="password"])) {
-    margin-top: -32px !important;
+    margin-top: -20px !important; /* Reduce gap from 12px to create tighter spacing between email and password */
   }
 
   /* When previous form field has an error, use less negative margin */
   :global(.cl-formField:has(.cl-formFieldError) + .cl-formField:has(input[type="password"])) {
-    margin-top: -8px !important;
-  }
-
-  /* Apply negative margin between password field and button, but only when button directly follows */
-  /* This reduces gap without affecting other elements */
-  :global(.cl-formField:has(input[type="password"]) + .cl-formField:has(button[type="submit"])),
-  :global([data-clerk-element="formField"]:has(input[type="password"]) + [data-clerk-element="formField"]:has(button[type="submit"])) {
-    margin-top: -32px !important;
-  }
-
-  /* When password field has error, use less negative margin before button */
-  :global(.cl-formField:has(input[type="password"]):has(.cl-formFieldError) + .cl-formField:has(button[type="submit"])) {
-    margin-top: -8px !important;
+    margin-top: -8px !important; /* Less negative to account for error message space */
   }
 
   /* Position error messages below input fields (not inside/overlapping) */
@@ -320,32 +316,43 @@ import SquareButton from "@/components/SquareButton.astro";
   }
 
   /* Fix "Forgot password" link - ensure it appears BELOW password field, not above */
-  /* The link should be inside or after the password formField */
+  /* Target all possible locations where Clerk might place the link */
   :global(.cl-formField:has(input[type="password"]) .cl-formFieldAction),
   :global(.cl-formField:has(input[type="password"]) [data-clerk-element="formFieldAction"]),
-  :global(.cl-formField:has(input[type="password"]) [class*="formFieldAction"]) {
-    position: static !important; /* Use static positioning, not relative/absolute */
+  :global(.cl-formField:has(input[type="password"]) [class*="formFieldAction"]),
+  :global(.cl-formField:has(input[type="password"]) a[href*="forgot"]),
+  :global(.cl-formField:has(input[type="password"]) a[href*="reset"]) {
+    position: static !important;
     z-index: auto !important;
     display: block !important;
     margin-top: 8px !important;
     margin-bottom: 0 !important;
     text-align: center !important;
-    order: 10 !important; /* Ensure it appears after the input in flex layout */
+    order: 999 !important; /* High order value to ensure it appears last in flex layout */
     top: auto !important;
     bottom: auto !important;
     left: auto !important;
     right: auto !important;
+    transform: none !important;
   }
 
-  /* If forgot password link is a sibling after password field, position it correctly */
+  /* If forgot password link is a sibling after password field */
   :global(.cl-formField:has(input[type="password"]) ~ .cl-formFieldAction),
-  :global(.cl-formField:has(input[type="password"]) + .cl-formFieldAction) {
+  :global(.cl-formField:has(input[type="password"]) + .cl-formFieldAction),
+  :global(.cl-formField:has(input[type="password"]) ~ a[href*="forgot"]),
+  :global(.cl-formField:has(input[type="password"]) ~ a[href*="reset"]) {
     position: static !important;
     margin-top: 8px !important;
     margin-bottom: 0 !important;
     text-align: center !important;
     top: auto !important;
     bottom: auto !important;
+    transform: none !important;
+  }
+
+  /* Ensure password input appears before the link in flex order */
+  :global(.cl-formField:has(input[type="password"]) input[type="password"]) {
+    order: 1 !important;
   }
 
   /* Mesh gradient using all thread colors with subtle movement */

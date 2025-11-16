@@ -39,39 +39,77 @@ interface TiptapEditorProps {
 // Helper function to find text positions in ProseMirror document
 // Returns the first occurrence that doesn't already have a scripture pill mark
 function findTextPositions(doc: any, searchText: string, skipMarked: boolean = true): { from: number; to: number } | null {
+  const allPositions = findAllTextPositions(doc, searchText, skipMarked);
+  return allPositions.length > 0 ? allPositions[0] : null;
+}
+
+// Helper function to find ALL text positions in ProseMirror document
+// Returns all occurrences that don't already have a scripture pill mark
+function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean = true): Array<{ from: number; to: number }> {
   const fullText = doc.textContent;
   const normalizedSearch = normalizeScriptureReference(searchText);
   
-  // Try to find the text in the document
-  let searchIndex = fullText.indexOf(searchText);
-  if (searchIndex === -1) {
-    // Try normalized version
-    searchIndex = fullText.indexOf(normalizedSearch);
-    if (searchIndex === -1) {
-      return null;
+  // Determine which text to search for (original or normalized)
+  let actualSearchText = searchText;
+  let searchIndices: number[] = [];
+  
+  // Find all occurrences of the original text
+  let index = fullText.indexOf(searchText);
+  while (index !== -1) {
+    searchIndices.push(index);
+    index = fullText.indexOf(searchText, index + 1);
+  }
+  
+  // Also find all occurrences of normalized text (if different)
+  if (normalizedSearch !== searchText) {
+    index = fullText.indexOf(normalizedSearch);
+    while (index !== -1) {
+      if (!searchIndices.includes(index)) {
+        searchIndices.push(index);
+      }
+      index = fullText.indexOf(normalizedSearch, index + 1);
     }
-    // Use normalized text for position finding
-    searchText = normalizedSearch;
+    // Use normalized text for position calculation
+    actualSearchText = normalizedSearch;
+  }
+  
+  if (searchIndices.length === 0) {
+    return [];
   }
 
-  let from = 0;
-  let to = 0;
+  // Sort indices to process in order
+  searchIndices.sort((a, b) => a - b);
+  
+  const positions: Array<{ from: number; to: number }> = [];
   let currentPos = 0;
-  let found = false;
+  
+  // Build a map of text positions to document positions
+  const textToDocMap: Array<{ textStart: number; textEnd: number; docStart: number }> = [];
   
   doc.nodesBetween(0, doc.content.size, (node: any, pos: number) => {
-    if (found) return; // Stop after finding first valid match
-    
     if (node.isText) {
       const text = node.text || '';
       const nodeStart = currentPos;
       const nodeEnd = currentPos + text.length;
       
-      // Check if this text node contains our search text
-      if (searchIndex >= nodeStart && searchIndex < nodeEnd) {
-        const offset = searchIndex - nodeStart;
-        const candidateFrom = pos + offset;
-        const candidateTo = candidateFrom + searchText.length;
+      textToDocMap.push({
+        textStart: nodeStart,
+        textEnd: nodeEnd,
+        docStart: pos
+      });
+      
+      currentPos = nodeEnd;
+    }
+  });
+  
+  // For each search index, find the corresponding document position
+  for (const searchIndex of searchIndices) {
+    // Find which text node contains this index
+    for (const map of textToDocMap) {
+      if (searchIndex >= map.textStart && searchIndex < map.textEnd) {
+        const offset = searchIndex - map.textStart;
+        const candidateFrom = map.docStart + offset;
+        const candidateTo = candidateFrom + actualSearchText.length;
         
         // Check if this position already has a scripture pill mark
         if (skipMarked) {
@@ -80,29 +118,31 @@ function findTextPositions(doc: any, searchText: string, skipMarked: boolean = t
             const marks = $from.marks();
             const hasPill = marks.some(m => m.type.name === 'scripturePill');
             if (hasPill) {
-              // Skip this position, continue searching
-              currentPos = nodeEnd;
-              return;
+              // Skip this position
+              continue;
             }
           } catch (e) {
-            // If we can't resolve, continue anyway
+            // If we can't resolve, skip it
+            continue;
           }
         }
         
-        from = candidateFrom;
-        to = candidateTo;
-        found = true;
+        // Check if this position overlaps with any already found position
+        const overlaps = positions.some(p => 
+          (candidateFrom >= p.from && candidateFrom < p.to) ||
+          (candidateTo > p.from && candidateTo <= p.to) ||
+          (candidateFrom <= p.from && candidateTo >= p.to)
+        );
+        
+        if (!overlaps) {
+          positions.push({ from: candidateFrom, to: candidateTo });
+        }
+        break;
       }
-      
-      currentPos = nodeEnd;
     }
-  });
-
-  if (from > 0 && to > from) {
-    return { from, to };
   }
   
-  return null;
+  return positions;
 }
 
 // Helper function to check if reference is already wrapped in a pill
@@ -235,38 +275,47 @@ async function detectAndCreateScriptureNotes(editor: any) {
       // Normalize reference for consistent checking
       const normalizedRef = normalizeScriptureReference(reference);
 
-      // Check if already wrapped (using normalized reference)
-      if (isReferenceWrapped(htmlContent, normalizedRef)) {
-        continue;
-      }
-
-      // Find positions in document (will skip positions already marked)
-      const positions = findTextPositions(doc, reference, true);
-      if (!positions) {
+      // Find ALL positions in document (will skip positions already marked)
+      const allPositions = findAllTextPositions(doc, reference, true);
+      
+      if (allPositions.length === 0) {
         continue;
       }
       
-      // Double-check that this position doesn't already have a pill mark
-      try {
-        const $from = doc.resolve(positions.from);
-        const marks = $from.marks();
-        const hasPill = marks.some(m => m.type.name === 'scripturePill');
-        if (hasPill) {
-          continue; // Skip if already marked
-        }
-      } catch (e) {
-        // If we can't resolve, continue anyway
-      }
-      
-      // Get or create note
+      // Get or create note once for all occurrences of this reference
       const { noteId } = await getOrCreateScriptureNote(reference);
       
-      // Apply scripture pill mark - Tiptap will handle mark boundaries naturally
-      editor.chain()
-        .setTextSelection(positions)
-        .unsetMark('noteLink')
-        .setMark('scripturePill', { reference: normalizedRef, noteId })
-        .run();
+      // Process each occurrence
+      // Note: We process in reverse order (from end to start) to avoid position shifts
+      // when marks are applied, since applying a mark doesn't change document size
+      // but we'll still process in order for safety
+      for (let i = allPositions.length - 1; i >= 0; i--) {
+        const positions = allPositions[i];
+        
+        // Get fresh document state after previous mark applications
+        const currentDoc = editor.state.doc;
+        
+        // Double-check that this position doesn't already have a pill mark
+        // (in case it was marked between when we found it and now)
+        try {
+          const $from = currentDoc.resolve(positions.from);
+          const marks = $from.marks();
+          const hasPill = marks.some(m => m.type.name === 'scripturePill');
+          if (hasPill) {
+            continue; // Skip if already marked
+          }
+        } catch (e) {
+          // If we can't resolve, skip this position
+          continue;
+        }
+        
+        // Apply scripture pill mark - Tiptap will handle mark boundaries naturally
+        editor.chain()
+          .setTextSelection(positions)
+          .unsetMark('noteLink')
+          .setMark('scripturePill', { reference: normalizedRef, noteId })
+          .run();
+      }
       
       // Restore cursor position to where it was before processing
       // Don't insert any spaces - let Tiptap handle mark boundaries
