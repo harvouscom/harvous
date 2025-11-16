@@ -37,28 +37,61 @@ interface TiptapEditorProps {
 }
 
 // Helper function to find text positions in ProseMirror document
-function findTextPositions(doc: any, searchText: string): { from: number; to: number } | null {
+// Returns the first occurrence that doesn't already have a scripture pill mark
+function findTextPositions(doc: any, searchText: string, skipMarked: boolean = true): { from: number; to: number } | null {
   const fullText = doc.textContent;
-  const index = fullText.indexOf(searchText);
+  const normalizedSearch = normalizeScriptureReference(searchText);
   
-  if (index === -1) {
-    return null;
+  // Try to find the text in the document
+  let searchIndex = fullText.indexOf(searchText);
+  if (searchIndex === -1) {
+    // Try normalized version
+    searchIndex = fullText.indexOf(normalizedSearch);
+    if (searchIndex === -1) {
+      return null;
+    }
+    // Use normalized text for position finding
+    searchText = normalizedSearch;
   }
 
   let from = 0;
   let to = 0;
   let currentPos = 0;
+  let found = false;
   
   doc.nodesBetween(0, doc.content.size, (node: any, pos: number) => {
+    if (found) return; // Stop after finding first valid match
+    
     if (node.isText) {
       const text = node.text || '';
       const nodeStart = currentPos;
       const nodeEnd = currentPos + text.length;
       
-      if (index >= nodeStart && index < nodeEnd) {
-        const offset = index - nodeStart;
-        from = pos + offset;
-        to = from + searchText.length;
+      // Check if this text node contains our search text
+      if (searchIndex >= nodeStart && searchIndex < nodeEnd) {
+        const offset = searchIndex - nodeStart;
+        const candidateFrom = pos + offset;
+        const candidateTo = candidateFrom + searchText.length;
+        
+        // Check if this position already has a scripture pill mark
+        if (skipMarked) {
+          try {
+            const $from = doc.resolve(candidateFrom);
+            const marks = $from.marks();
+            const hasPill = marks.some(m => m.type.name === 'scripturePill');
+            if (hasPill) {
+              // Skip this position, continue searching
+              currentPos = nodeEnd;
+              return;
+            }
+          } catch (e) {
+            // If we can't resolve, continue anyway
+          }
+        }
+        
+        from = candidateFrom;
+        to = candidateTo;
+        found = true;
       }
       
       currentPos = nodeEnd;
@@ -74,7 +107,9 @@ function findTextPositions(doc: any, searchText: string): { from: number; to: nu
 
 // Helper function to check if reference is already wrapped in a pill
 function isReferenceWrapped(htmlContent: string, reference: string): boolean {
-  const escapedRef = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Normalize the reference to match how it's stored in HTML
+  const normalizedRef = normalizeScriptureReference(reference);
+  const escapedRef = normalizedRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`<span[^>]*data-scripture-reference=["']${escapedRef.replace(/"/g, '&quot;')}["'][^>]*>`, 'i');
   return pattern.test(htmlContent);
 }
@@ -197,123 +232,50 @@ async function detectAndCreateScriptureNotes(editor: any) {
       const reference = ref.reference || ref;
       if (!reference) continue;
 
-      // Check if already wrapped
-      if (isReferenceWrapped(htmlContent, reference)) {
+      // Normalize reference for consistent checking
+      const normalizedRef = normalizeScriptureReference(reference);
+
+      // Check if already wrapped (using normalized reference)
+      if (isReferenceWrapped(htmlContent, normalizedRef)) {
         continue;
       }
 
-      // Find positions in document
-      const positions = findTextPositions(doc, reference);
+      // Find positions in document (will skip positions already marked)
+      const positions = findTextPositions(doc, reference, true);
       if (!positions) {
-        // Try with normalized reference
-        const normalizedRef = normalizeScriptureReference(reference);
-        const normalizedPositions = findTextPositions(doc, normalizedRef);
-        if (!normalizedPositions) continue;
-        
-        // Get or create note
-        const { noteId } = await getOrCreateScriptureNote(reference);
-        
-        // Apply scripture pill mark
+        continue;
+      }
+      
+      // Double-check that this position doesn't already have a pill mark
+      try {
+        const $from = doc.resolve(positions.from);
+        const marks = $from.marks();
+        const hasPill = marks.some(m => m.type.name === 'scripturePill');
+        if (hasPill) {
+          continue; // Skip if already marked
+        }
+      } catch (e) {
+        // If we can't resolve, continue anyway
+      }
+      
+      // Get or create note
+      const { noteId } = await getOrCreateScriptureNote(reference);
+      
+      // Apply scripture pill mark - Tiptap will handle mark boundaries naturally
+      editor.chain()
+        .setTextSelection(positions)
+        .unsetMark('noteLink')
+        .setMark('scripturePill', { reference: normalizedRef, noteId })
+        .run();
+      
+      // Restore cursor position to where it was before processing
+      // Don't insert any spaces - let Tiptap handle mark boundaries
+      try {
         editor.chain()
-          .setTextSelection(normalizedPositions)
-          .unsetMark('noteLink')
-          .setMark('scripturePill', { reference: normalizedRef, noteId })
+          .setTextSelection(currentCursorPos)
           .run();
-        
-        // After applying the mark, find where it actually ends
-        const updatedState = editor.state;
-        const updatedDoc = updatedState.doc;
-        const markEndPos = normalizedPositions.to;
-        
-        // Find the first position after the mark where the mark is no longer active
-        let exitPos = markEndPos;
-        for (let pos = markEndPos; pos <= updatedDoc.content.size; pos++) {
-          try {
-            const $pos = updatedDoc.resolve(pos);
-            const marks = $pos.marks();
-            const hasPill = marks.some(m => m.type.name === 'scripturePill');
-            if (!hasPill) {
-              exitPos = pos;
-              break;
-            }
-          } catch (e) {
-            exitPos = pos;
-            break;
-          }
-        }
-        
-        // Check if there's already text at the exit position
-        const textAtExit = updatedDoc.textBetween(exitPos, Math.min(exitPos + 1, updatedDoc.content.size));
-        
-        if (textAtExit === '') {
-          // No text at exit position - insert a space to create an exit point
-          editor.chain()
-            .insertContentAt(exitPos, ' ')
-            .setTextSelection(exitPos + 1)
-            .unsetAllMarks()
-            .focus()
-            .run();
-        } else {
-          // There's already text - just move cursor there and unset marks
-          editor.chain()
-            .setTextSelection(exitPos)
-            .unsetAllMarks()
-            .focus()
-            .run();
-        }
-      } else {
-        // Get or create note
-        const normalizedRef = normalizeScriptureReference(reference);
-        const { noteId } = await getOrCreateScriptureNote(reference);
-        
-        // Apply scripture pill mark
-        editor.chain()
-          .setTextSelection(positions)
-          .unsetMark('noteLink')
-          .setMark('scripturePill', { reference: normalizedRef, noteId })
-          .run();
-        
-        // After applying the mark, find where it actually ends
-        const updatedState = editor.state;
-        const updatedDoc = updatedState.doc;
-        const markEndPos = positions.to;
-        
-        // Find the first position after the mark where the mark is no longer active
-        let exitPos = markEndPos;
-        for (let pos = markEndPos; pos <= updatedDoc.content.size; pos++) {
-          try {
-            const $pos = updatedDoc.resolve(pos);
-            const marks = $pos.marks();
-            const hasPill = marks.some(m => m.type.name === 'scripturePill');
-            if (!hasPill) {
-              exitPos = pos;
-              break;
-            }
-          } catch (e) {
-            exitPos = pos;
-            break;
-          }
-        }
-        
-        // Check if there's already text at the exit position
-        const textAtExit = updatedDoc.textBetween(exitPos, Math.min(exitPos + 1, updatedDoc.content.size));
-        
-        if (textAtExit === '') {
-          // No text at exit position - insert a space to create an exit point
-          editor.chain()
-            .insertContentAt(exitPos, ' ')
-            .setTextSelection(exitPos + 1)
-            .unsetAllMarks()
-            .focus()
-            .run();
-        } else {
-          // There's already text - just move cursor there and unset marks
-          editor.chain()
-            .setTextSelection(exitPos)
-            .unsetAllMarks()
-            .focus()
-            .run();
-        }
+      } catch (e) {
+        // If cursor position is invalid, just leave it where it is
       }
     }
   } catch (error) {
@@ -351,6 +313,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
   const scriptureDetectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousTextContentRef = useRef<string>('');
 
   // Check if we're on the client side
   useEffect(() => {
@@ -420,14 +383,27 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         onContentChange(htmlContent);
       }
 
-      // Debounced scripture detection (2 seconds after typing stops)
-      if (scriptureDetectionTimeoutRef.current) {
-        clearTimeout(scriptureDetectionTimeoutRef.current);
-      }
+      // Only run detection if text content has meaningfully changed
+      // This prevents re-detection when only formatting changes or cursor moves
+      const currentTextContent = editor.state.doc.textContent.trim();
+      const previousTextContent = previousTextContentRef.current.trim();
+      
+      // Check if text content actually changed (not just whitespace or formatting)
+      const textContentChanged = currentTextContent !== previousTextContent;
+      
+      if (textContentChanged) {
+        // Update the previous text content reference
+        previousTextContentRef.current = currentTextContent;
+        
+        // Debounced scripture detection (2 seconds after typing stops)
+        if (scriptureDetectionTimeoutRef.current) {
+          clearTimeout(scriptureDetectionTimeoutRef.current);
+        }
 
-      scriptureDetectionTimeoutRef.current = setTimeout(async () => {
-        await detectAndCreateScriptureNotes(editor);
-      }, 2000);
+        scriptureDetectionTimeoutRef.current = setTimeout(async () => {
+          await detectAndCreateScriptureNotes(editor);
+        }, 2000);
+      }
     },
     editable: true,
     editorProps: {
@@ -584,12 +560,27 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   useEffect(() => {
     if (editor) {
       editorRef.current = editor;
+      // Initialize previous text content reference
+      previousTextContentRef.current = editor.state.doc.textContent;
     }
   }, [editor]);
 
+  // Update content from props, but only if it's different and editor is not focused
+  // This preserves marks that are already in the editor
   useEffect(() => {
-    if (editor && content && !editor.isFocused) {
-      editor.commands.setContent(content);
+    if (!editor || !content) return;
+    
+    // Only update if editor is not focused (to avoid interrupting user typing)
+    if (!editor.isFocused) {
+      const currentContent = editor.getHTML();
+      // Only update if content actually changed (prevents unnecessary updates that clear marks)
+      if (currentContent !== content) {
+        // Use setContent with emitUpdate: false to prevent triggering detection
+        // This preserves marks that are in the HTML content
+        editor.commands.setContent(content, false);
+        // Update previous text content reference to prevent unnecessary detection
+        previousTextContentRef.current = editor.state.doc.textContent;
+      }
     }
   }, [editor, content]);
 
