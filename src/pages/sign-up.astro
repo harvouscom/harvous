@@ -219,13 +219,6 @@ import SquareButton from "@/components/SquareButton.astro";
     margin-bottom: -12px !important;
   }
 
-  /* Apply negative margin to form fields (except first one) for consistent spacing */
-  :global([data-clerk-element="formField"]:not(:first-of-type)),
-  :global(.cl-formField:not(:first-of-type)),
-  :global([class*="formField"]:not(:first-of-type)) {
-    margin-top: -32px !important;
-  }
-
   /* Remove border from card */
   :global(.cl-card),
   :global([data-clerk-element="card"]),
@@ -248,7 +241,22 @@ import SquareButton from "@/components/SquareButton.astro";
     display: flex !important;
     flex-direction: column !important;
     position: relative !important;
-    margin-bottom: 24px !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Apply negative margin to form fields (except first one) for consistent spacing */
+  /* But only when there's no error message to avoid overlap */
+  :global([data-clerk-element="formField"]:not(:first-of-type):not(:has(.cl-formFieldError))),
+  :global(.cl-formField:not(:first-of-type):not(:has(.cl-formFieldError))),
+  :global([class*="formField"]:not(:first-of-type):not(:has([class*="formFieldError"]))) {
+    margin-top: -32px !important;
+  }
+
+  /* When form field has an error, use less negative margin to account for error space */
+  :global([data-clerk-element="formField"]:not(:first-of-type):has(.cl-formFieldError)),
+  :global(.cl-formField:not(:first-of-type):has(.cl-formFieldError)),
+  :global([class*="formField"]:not(:first-of-type):has([class*="formFieldError"])) {
+    margin-top: -8px !important;
   }
 
   /* Input wrapper - ensure it doesn't contain errors visually */
@@ -270,7 +278,7 @@ import SquareButton from "@/components/SquareButton.astro";
     position: static !important;
     display: block !important;
     margin-top: 8px !important;
-    margin-bottom: 0 !important;
+    margin-bottom: 16px !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
     padding-left: 0 !important;
@@ -296,6 +304,26 @@ import SquareButton from "@/components/SquareButton.astro";
     display: inline-block !important;
     vertical-align: middle !important;
     margin-right: 4px !important;
+  }
+
+  /* Fix "Forgot password" link positioning - ensure it appears above input fields */
+  :global(.cl-footerActionLink),
+  :global([data-clerk-element="footerActionLink"]),
+  :global([class*="footerActionLink"]),
+  :global(.cl-formFieldAction),
+  :global([data-clerk-element="formFieldAction"]),
+  :global([class*="formFieldAction"]) {
+    position: relative !important;
+    z-index: 10 !important;
+    display: block !important;
+    margin-top: 8px !important;
+    margin-bottom: 0 !important;
+    text-align: center !important;
+  }
+
+  /* Ensure password field doesn't overlap the forgot password link */
+  :global(.cl-formField:has(input[type="password"])) {
+    margin-bottom: 0 !important;
   }
 
   /* Mesh gradient using all thread colors with subtle movement */
