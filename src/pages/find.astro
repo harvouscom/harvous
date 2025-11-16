@@ -13,6 +13,7 @@ import MobileAdditional from "@/components/MobileAdditional.astro";
 import RecentSearches from "@/components/react/RecentSearches";
 import { db, Notes, Threads, Tags, NoteTags, NoteThreads, eq, and, or, like, desc, count } from "astro:db";
 import { getThreadColorCSS } from "@/utils/colors";
+import { getInboxCount } from "@/utils/dashboard-data";
 
 // Helper function to strip HTML tags and decode entities
 function stripHtml(html: string): string {
@@ -103,6 +104,15 @@ try {
   userColor = userMetadata?.userColor || 'paper';
 } catch (error) {
   console.log('Error fetching user color:', error);
+}
+
+// Fetch inbox count
+let inboxCount: number = 0;
+try {
+  inboxCount = await getInboxCount(userId);
+} catch (error) {
+  console.error("Error fetching inbox count:", error);
+  inboxCount = 0;
 }
 
 // Get search query from URL parameters
@@ -401,7 +411,7 @@ if (query.trim()) {
   <!-- Navigation Column -->
   <NavigationColumnReact 
     slot="navigation"
-    inboxCount={0}
+    inboxCount={inboxCount}
     spaces={[]}
     activeThread={null}
     currentSpace={null}
@@ -629,7 +639,7 @@ if (query.trim()) {
     <MobileNavigation 
       spaces={[]}
       threads={[]}
-      inboxCount={0}
+      inboxCount={inboxCount}
       currentSpace={null}
       currentThread={null}
       initials={initials}
