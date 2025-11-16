@@ -2,7 +2,7 @@ import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { db, Notes, Threads, UserMetadata, eq, and, desc, isNotNull } from "astro:db";
 import { generateNoteId } from "@/utils/ids";
-import { awardNoteCreatedXP } from "@/utils/xp-system";
+import { awardNoteCreatedXP, revokeXPOnDeletion, revokeAllXPForItem } from "@/utils/xp-system";
 
 export const notes = {
   create: defineAction({
@@ -126,8 +126,10 @@ export const notes = {
           .set({ updatedAt: new Date() })
           .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
 
-        // Award XP for note creation
-        await awardNoteCreatedXP(userId, newNote.id);
+        // Award XP for note creation (check if scripture note by checking noteType)
+        // Note: This action doesn't currently support noteType, so assume false
+        const isScriptureNote = false;
+        await awardNoteCreatedXP(userId, newNote.id, isScriptureNote, capitalizedContent);
 
         // Add a small delay to ensure the database operation completes
         await new Promise(resolve => setTimeout(resolve, 150));
@@ -243,6 +245,22 @@ export const notes = {
         throw new Error("Authentication required");
       }
       try {
+        // Get note before deletion to check creation time
+        const existingNote = await db.select()
+          .from(Notes)
+          .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
+          .get();
+
+        if (!existingNote) {
+          throw new Error("Note not found or you don't have permission to delete it");
+        }
+
+        // Revoke XP if deleted within quick deletion window
+        await revokeXPOnDeletion(userId, id, existingNote.createdAt);
+        
+        // Revoke all XP for this note (cleanup)
+        await revokeAllXPForItem(userId, id);
+
         const deletedNote = await db.delete(Notes)
           .where(and(eq(Notes.id, id), eq(Notes.userId, userId)))
           .returning()

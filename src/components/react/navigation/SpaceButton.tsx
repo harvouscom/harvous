@@ -134,7 +134,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       <button 
         className={`space-button relative rounded-xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 px-4 ${className}`}
         style={buttonStyle}
-        onClick={disabled ? undefined : onClick}
+        onClick={onClick}
         disabled={disabled}
         {...props}
       >

@@ -219,8 +219,8 @@ export async function processScriptureReferences(
             });
           }
 
-          // Award XP
-          await awardNoteCreatedXP(userId, scriptureNote.id);
+          // Award XP (scripture notes get 3 XP and are exempt from rate/content checks)
+          await awardNoteCreatedXP(userId, scriptureNote.id, true, capitalizedContent);
 
           // If not unorganized, add to thread
           if (actualThreadId !== 'thread_unorganized') {

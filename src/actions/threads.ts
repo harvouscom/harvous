@@ -3,7 +3,7 @@ import { z } from "astro:schema";
 import { db, Threads, Notes, NoteThreads, eq, and } from "astro:db";
 import { THREAD_COLORS, getRandomThreadColor } from "@/utils/colors";
 import { generateThreadId } from "@/utils/ids";
-import { awardThreadCreatedXP } from "@/utils/xp-system";
+import { awardThreadCreatedXP, revokeXPOnDeletion, revokeAllXPForItem } from "@/utils/xp-system";
 
 export const threads = {
   create: defineAction({
@@ -55,8 +55,8 @@ export const threads = {
           
         console.log("Thread created successfully:", newThread);
 
-        // Award XP for thread creation
-        await awardThreadCreatedXP(userId, newThread.id);
+        // Award XP for thread creation (pass title for validation)
+        await awardThreadCreatedXP(userId, newThread.id, capitalizedTitle, subtitle || null);
 
         // Add a small delay to ensure the database operation completes
         await new Promise(resolve => setTimeout(resolve, 150));
@@ -168,6 +168,25 @@ export const threads = {
         if (id === 'thread_unorganized') {
           throw new Error("Cannot delete the unorganized thread");
         }
+
+        // Get thread before deletion to check creation time
+        const existingThread = await db.select()
+          .from(Threads)
+          .where(and(eq(Threads.id, id), eq(Threads.userId, userId)))
+          .get();
+
+        if (!existingThread) {
+          throw new Error("Thread not found or you don't have permission to delete it");
+        }
+
+        // Store creation time before deletion for XP revocation
+        const threadCreatedAt = existingThread.createdAt;
+
+        // Revoke XP if deleted within quick deletion window
+        await revokeXPOnDeletion(userId, id, threadCreatedAt);
+        
+        // Revoke all XP for this thread (cleanup)
+        await revokeAllXPForItem(userId, id);
 
         // Remove all NoteThreads relationships for this thread
         // Notes automatically become unorganized when junction entries are deleted

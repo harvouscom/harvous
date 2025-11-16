@@ -163,8 +163,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
         })
         .where(eq(UserMetadata.userId, userId));
 
-      // Award XP
-      await awardNoteCreatedXP(userId, newNote.id);
+      // Award XP (check if scripture note by checking noteType)
+      const isScriptureNote = newNote.noteType === 'scripture';
+      await awardNoteCreatedXP(userId, newNote.id, isScriptureNote, newNote.content || '');
 
       createdIds.noteIds.push(newNote.id);
 
@@ -189,8 +190,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .returning()
         .get();
 
-      // Award XP for thread creation
-      await awardThreadCreatedXP(userId, newThreadId);
+      // Award XP for thread creation (pass title for validation)
+      await awardThreadCreatedXP(userId, newThreadId, newThread.title, newThread.subtitle || null);
 
       createdIds.threadId = newThreadId;
 
@@ -280,8 +281,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
           throw new Error(`Failed to link note to thread: ${junctionError.message}`);
         }
 
-        // Award XP for each note
-        await awardNoteCreatedXP(userId, newNote.id);
+        // Award XP for each note (check if scripture note by checking noteType)
+        const isScriptureNote = newNote.noteType === 'scripture';
+        await awardNoteCreatedXP(userId, newNote.id, isScriptureNote, newNote.content || '');
 
         createdIds.noteIds.push(newNote.id);
         currentSimpleNoteId++;

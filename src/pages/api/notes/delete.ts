@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, eq, and } from 'astro:db';
+import { revokeXPOnDeletion, revokeAllXPForItem } from '@/utils/xp-system';
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
@@ -41,6 +42,13 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     // Store threadId before deletion for redirect
     const threadId = existingNote.threadId;
+    const noteCreatedAt = existingNote.createdAt;
+
+    // Revoke XP if deleted within quick deletion window
+    await revokeXPOnDeletion(userId, noteId, noteCreatedAt);
+    
+    // Revoke all XP for this note (cleanup)
+    await revokeAllXPForItem(userId, noteId);
 
     // Delete the note
     await db.delete(Notes)

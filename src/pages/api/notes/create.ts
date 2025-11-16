@@ -161,8 +161,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       console.log(`Note ${newNote.id} created in unorganized thread`);
     }
 
-    // Award XP for note creation
-    await awardNoteCreatedXP(userId, newNote.id);
+    // Award XP for note creation (pass content and note type)
+    const isScriptureNote = finalNoteType === 'scripture';
+    await awardNoteCreatedXP(userId, newNote.id, isScriptureNote, capitalizedContent);
     
     // Reload the note from database to ensure we return the correct threadId
     // This is important if the note was moved from unorganized to a specific thread

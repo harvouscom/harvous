@@ -106,8 +106,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       })
       .where(eq(UserMetadata.userId, userId));
 
-    // Award XP
-    await awardNoteCreatedXP(userId, newNote.id);
+    // Award XP (check if scripture note by checking noteType)
+    const isScriptureNote = newNote.noteType === 'scripture';
+    await awardNoteCreatedXP(userId, newNote.id, isScriptureNote, newNote.content || '');
 
     return new Response(JSON.stringify({
       success: true,

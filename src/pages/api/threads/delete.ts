@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
+import { revokeXPOnDeletion, revokeAllXPForItem } from '@/utils/xp-system';
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
@@ -46,6 +47,15 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
+
+    // Store creation time before deletion for XP revocation
+    const threadCreatedAt = existingThread.createdAt;
+
+    // Revoke XP if deleted within quick deletion window
+    await revokeXPOnDeletion(userId, threadId, threadCreatedAt);
+    
+    // Revoke all XP for this thread (cleanup)
+    await revokeAllXPForItem(userId, threadId);
 
     // Remove all NoteThreads relationships for this thread
     // Notes automatically become unorganized when junction entries are deleted
