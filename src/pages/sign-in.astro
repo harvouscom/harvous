@@ -203,22 +203,6 @@ import SquareButton from "@/components/SquareButton.astro";
     justify-content: center !important;
   }
 
-  /* Negative spacing to reduce gaps between form elements */
-  .primary-button,
-  :global(.cl-formButtonPrimary),
-  :global(.cl-buttonPrimary),
-  :global([class*="cl-buttonPrimary"]),
-  :global([class*="cl-formButtonPrimary"]) {
-    margin-top: -32px !important;
-  }
-
-  /* Apply negative margin to form container to reduce gap from header and footer */
-  :global([data-clerk-element="form"]),
-  :global(.cl-form) {
-    margin-top: -12px !important;
-    margin-bottom: -12px !important;
-  }
-
   /* Remove border from card */
   :global(.cl-card),
   :global([data-clerk-element="card"]),
@@ -228,42 +212,44 @@ import SquareButton from "@/components/SquareButton.astro";
     outline: none !important;
   }
 
-  /* Style input fields to match app's search-input style */
-  :global(input[type="email"]),
-  :global(input[type="password"]),
-  :global(input[type="text"]) {
+  /* Style ONLY input fields to match app's search-input style */
+  /* Be specific - only target actual input elements, not containers */
+  :global(.cl-formField input[type="email"]),
+  :global(.cl-formField input[type="password"]),
+  :global(.cl-formField input[type="text"]),
+  :global([data-clerk-element="formFieldInput"][type="email"]),
+  :global([data-clerk-element="formFieldInput"][type="password"]),
+  :global([data-clerk-element="formFieldInput"][type="text"]) {
     background: var(--color-gradient-gray) !important;
     box-shadow: var(--shadow-small) !important;
   }
 
-  /* Ensure form fields have proper structure for error positioning */
-  :global(.cl-formField) {
+  /* Ensure form fields maintain proper structure for error positioning */
+  /* Only affect form fields that contain inputs, preserve other structure */
+  :global(.cl-formField:has(input[type="email"])),
+  :global(.cl-formField:has(input[type="password"])),
+  :global(.cl-formField:has(input[type="text"])),
+  :global([data-clerk-element="formField"]:has(input)) {
     display: flex !important;
     flex-direction: column !important;
     position: relative !important;
-    margin-bottom: 0 !important;
   }
 
-  /* Apply negative margin to form fields (except first one) for consistent spacing */
-  /* But only when there's no error message to avoid overlap */
-  :global([data-clerk-element="formField"]:not(:first-of-type):not(:has(.cl-formFieldError))),
-  :global(.cl-formField:not(:first-of-type):not(:has(.cl-formFieldError))),
-  :global([class*="formField"]:not(:first-of-type):not(:has([class*="formFieldError"]))) {
+  /* Apply negative margin ONLY between consecutive input fields (email → password) */
+  /* Keep gap between password field and button - don't apply negative margin there */
+  :global(.cl-formField:has(input[type="email"]) + .cl-formField:has(input[type="password"])),
+  :global([data-clerk-element="formField"]:has(input[type="email"]) + [data-clerk-element="formField"]:has(input[type="password"])) {
     margin-top: -32px !important;
   }
 
-  /* When form field has an error, use less negative margin to account for error space */
-  :global([data-clerk-element="formField"]:not(:first-of-type):has(.cl-formFieldError)),
-  :global(.cl-formField:not(:first-of-type):has(.cl-formFieldError)),
-  :global([class*="formField"]:not(:first-of-type):has([class*="formFieldError"])) {
+  /* When previous form field has an error, use less negative margin */
+  :global(.cl-formField:has(.cl-formFieldError) + .cl-formField:has(input[type="password"])) {
     margin-top: -8px !important;
   }
 
-  /* Input wrapper - ensure it doesn't contain errors visually */
-  :global(.cl-formFieldInputWrapper),
-  :global([data-clerk-element="formFieldInputWrapper"]) {
-    position: relative !important;
-    margin-bottom: 0 !important;
+  /* Ensure button has proper spacing - no negative margin before button */
+  :global(.cl-formField:has(button[type="submit"])) {
+    margin-top: 0 !important;
   }
 
   /* Position error messages below input fields (not inside/overlapping) */
@@ -306,24 +292,33 @@ import SquareButton from "@/components/SquareButton.astro";
     margin-right: 4px !important;
   }
 
-  /* Fix "Forgot password" link positioning - ensure it appears above input fields */
+  /* Preserve footer and help text elements - don't apply negative margins to these */
+  :global(.cl-footer),
   :global(.cl-footerActionLink),
-  :global([data-clerk-element="footerActionLink"]),
-  :global([class*="footerActionLink"]),
+  :global([data-clerk-element="footer"]),
+  :global([data-clerk-element="footerActionLink"]) {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    position: relative !important;
+    z-index: 1 !important;
+  }
+
+  /* Fix "Forgot password" link - ensure it appears above password field, not behind it */
   :global(.cl-formFieldAction),
   :global([data-clerk-element="formFieldAction"]),
-  :global([class*="formFieldAction"]) {
+  :global(.cl-formField:has(input[type="password"]) ~ .cl-formFieldAction),
+  :global(.cl-formField:has(input[type="password"]) + .cl-formFieldAction) {
     position: relative !important;
     z-index: 10 !important;
     display: block !important;
     margin-top: 8px !important;
-    margin-bottom: 0 !important;
+    margin-bottom: 8px !important;
     text-align: center !important;
   }
 
   /* Ensure password field doesn't overlap the forgot password link */
   :global(.cl-formField:has(input[type="password"])) {
-    margin-bottom: 0 !important;
+    margin-top: 0 !important;
   }
 
   /* Mesh gradient using all thread colors with subtle movement */
