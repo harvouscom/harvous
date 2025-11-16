@@ -308,20 +308,22 @@ import SquareButton from "@/components/SquareButton.astro";
   }
 
   /* Preserve footer and help text elements - don't apply negative margins to these */
-  /* Keep footer padding-top but remove it from internal wrapper classes */
+  /* Set footer padding-top to 12px */
   :global(.cl-footer),
   :global([data-clerk-element="footer"]) {
     margin-top: 0 !important;
     margin-bottom: 0 !important;
+    padding-top: 12px !important;
     position: relative !important;
     z-index: 1 !important;
   }
 
-  /* Remove padding-top from internal footer wrapper classes */
+  /* Set padding-top to 12px for internal footer wrapper classes */
   :global([class*="cl-internal"][class*="footer"]),
   :global(.cl-footer [class*="cl-internal"]),
-  :global([class*="cl-internal-vorlia"]) {
-    padding-top: 0 !important;
+  :global([class*="cl-internal-vorlia"]),
+  :global([class*="cl-internal-1dauvpw"]) {
+    padding-top: 12px !important;
   }
 
   /* Footer action links (like "Forgot password") */
