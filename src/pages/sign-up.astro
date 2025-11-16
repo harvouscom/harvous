@@ -34,7 +34,7 @@ import SquareButton from "@/components/SquareButton.astro";
                 },
                 headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
                 headerSubtitle: "text-[var(--color-stone-grey)]",
-                formField: "mb-3",
+                formField: "",
                 formButtonPrimary: "group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] w-full primary-button",
                 formFieldInput: "rounded-3xl py-5 px-4 min-h-[64px] bg-transparent border-none text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] focus:outline-none focus:ring-0",
                 formFieldLabel: "hidden",
@@ -236,13 +236,16 @@ import SquareButton from "@/components/SquareButton.astro";
 
   /* Ensure form fields maintain proper structure for error positioning */
   /* Only affect form fields that contain inputs, preserve other structure */
+  /* Remove mb-3 margin-bottom that was adding extra spacing */
   :global(.cl-formField:has(input[type="email"])),
   :global(.cl-formField:has(input[type="password"])),
   :global(.cl-formField:has(input[type="text"])),
-  :global([data-clerk-element="formField"]:has(input)) {
+  :global([data-clerk-element="formField"]:has(input)),
+  :global(.cl-formField.mb-3) {
     display: flex !important;
     flex-direction: column !important;
     position: relative !important;
+    margin-bottom: 0 !important; /* Remove mb-3 margin */
   }
 
   /* Override Clerk's default 32px gap on the form to use 12px instead */
@@ -305,9 +308,22 @@ import SquareButton from "@/components/SquareButton.astro";
   }
 
   /* Preserve footer and help text elements - don't apply negative margins to these */
+  /* Remove padding-top that Clerk adds to footer (including internal classes like .cl-internal-vorlia) */
   :global(.cl-footer),
-  :global(.cl-footerActionLink),
   :global([data-clerk-element="footer"]),
+  :global([class*="cl-footer"]:not(.cl-footerActionLink)),
+  :global([class*="cl-internal"][class*="footer"]),
+  :global(.cl-footer [class*="cl-internal"]),
+  :global([class*="cl-internal-vorlia"]) {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    position: relative !important;
+    z-index: 1 !important;
+  }
+
+  /* Footer action links */
+  :global(.cl-footerActionLink),
   :global([data-clerk-element="footerActionLink"]),
   :global(.cl-formFieldAction),
   :global([data-clerk-element="formFieldAction"]) {
