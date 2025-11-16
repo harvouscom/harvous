@@ -308,18 +308,20 @@ import SquareButton from "@/components/SquareButton.astro";
   }
 
   /* Preserve footer and help text elements - don't apply negative margins to these */
-  /* Remove padding-top that Clerk adds to footer (including internal classes like .cl-internal-vorlia) */
+  /* Keep footer padding-top but remove it from internal wrapper classes */
   :global(.cl-footer),
-  :global([data-clerk-element="footer"]),
-  :global([class*="cl-footer"]:not(.cl-footerActionLink)),
+  :global([data-clerk-element="footer"]) {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    position: relative !important;
+    z-index: 1 !important;
+  }
+
+  /* Remove padding-top from internal footer wrapper classes */
   :global([class*="cl-internal"][class*="footer"]),
   :global(.cl-footer [class*="cl-internal"]),
   :global([class*="cl-internal-vorlia"]) {
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
     padding-top: 0 !important;
-    position: relative !important;
-    z-index: 1 !important;
   }
 
   /* Footer action links (like "Forgot password") */
