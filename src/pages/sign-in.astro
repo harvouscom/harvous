@@ -66,17 +66,9 @@ import SquareButton from "@/components/SquareButton.astro";
 </EmptyLayout>
 
 <style>
-  /* PRIMARY BUTTON STYLING - Match Button.astro component */
-  /* Target all Clerk primary buttons including modals, error screens, etc. */
+  /* Custom primary button styling */
   .primary-button,
-  :global(.cl-formButtonPrimary),
-  :global(.cl-buttonPrimary),
-  :global([class*="cl-buttonPrimary"]),
-  :global([class*="cl-formButtonPrimary"]),
-  :global(button[type="submit"][class*="cl-"]),
-  :global(.cl-card button[type="submit"]),
-  :global(.cl-modalContent button[type="submit"]),
-  :global(.cl-alert button[type="submit"]) {
+  :global(.cl-formButtonPrimary) {
     background-color: var(--color-bold-blue) !important;
     will-change: transform, box-shadow !important;
     transition:
@@ -90,29 +82,16 @@ import SquareButton from "@/components/SquareButton.astro";
     font-weight: 600 !important;
     font-size: 18px !important;
     color: var(--color-fog-white) !important;
+    justify-content: center !important;
   }
 
   .primary-button:hover,
-  :global(.cl-formButtonPrimary:hover),
-  :global(.cl-buttonPrimary:hover),
-  :global([class*="cl-buttonPrimary"]:hover),
-  :global([class*="cl-formButtonPrimary"]:hover),
-  :global(button[type="submit"][class*="cl-"]:hover),
-  :global(.cl-card button[type="submit"]:hover),
-  :global(.cl-modalContent button[type="submit"]:hover),
-  :global(.cl-alert button[type="submit"]:hover) {
+  :global(.cl-formButtonPrimary:hover) {
     background-color: var(--color-bold-blue) !important;
   }
 
   .primary-button:active,
-  :global(.cl-formButtonPrimary:active),
-  :global(.cl-buttonPrimary:active),
-  :global([class*="cl-buttonPrimary"]:active),
-  :global([class*="cl-formButtonPrimary"]:active),
-  :global(button[type="submit"][class*="cl-"]:active),
-  :global(.cl-card button[type="submit"]:active),
-  :global(.cl-modalContent button[type="submit"]:active),
-  :global(.cl-alert button[type="submit"]:active) {
+  :global(.cl-formButtonPrimary:active) {
     transform: scale(0.98) !important;
     background-color: var(--color-navy) !important;
     box-shadow:
@@ -122,257 +101,37 @@ import SquareButton from "@/components/SquareButton.astro";
   }
 
   .primary-button:active > *,
-  :global(.cl-formButtonPrimary:active > *),
-  :global(.cl-buttonPrimary:active > *),
-  :global([class*="cl-buttonPrimary"]:active > *),
-  :global([class*="cl-formButtonPrimary"]:active > *),
-  :global(button[type="submit"][class*="cl-"]:active > *),
-  :global(.cl-card button[type="submit"]:active > *),
-  :global(.cl-modalContent button[type="submit"]:active > *),
-  :global(.cl-alert button[type="submit"]:active > *) {
+  :global(.cl-formButtonPrimary:active > *) {
     translate: 0 0 !important;
     transform: scale(0.98) !important;
   }
 
-  /* HIDE ARROW ICON - Comprehensive targeting of all Clerk button icons */
+  /* Hide button icons */
   .primary-button svg,
   .primary-button img,
   .primary-button [class*="icon"],
   .primary-button [class*="arrow"],
-  .primary-button [class*="Icon"],
-  .primary-button [class*="Arrow"],
-  .primary-button::after,
-  .primary-button::before,
-  .primary-button *::after,
-  .primary-button *::before,
   :global(.cl-formButtonPrimary svg),
   :global(.cl-formButtonPrimary img),
   :global(.cl-formButtonPrimary [class*="icon"]),
-  :global(.cl-formButtonPrimary [class*="arrow"]),
-  :global(.cl-formButtonPrimary [class*="Icon"]),
-  :global(.cl-formButtonPrimary [class*="Arrow"]),
-  :global(.cl-formButtonPrimary::after),
-  :global(.cl-formButtonPrimary::before),
-  :global(.cl-formButtonPrimary *::after),
-  :global(.cl-formButtonPrimary *::before),
-  :global(.cl-buttonIcon),
-  :global(.cl-signInButtonIcon),
-  :global(.cl-signUpButtonIcon),
-  :global([class*="cl-buttonIcon"]),
-  :global([class*="cl-icon"]),
-  :global([class*="buttonIcon"]),
-  :global([class*="ButtonIcon"]),
-  :global(.cl-card button[type="submit"] svg),
-  :global(.cl-modalContent button[type="submit"] svg),
-  :global(.cl-alert button[type="submit"] svg) {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    width: 0 !important;
-    height: 0 !important;
-    content: none !important;
-    font-size: 0 !important;
-    line-height: 0 !important;
-  }
-
-  /* Hide any child elements that aren't the main text */
-  .primary-button > *:nth-child(n+2),
-  :global(.cl-formButtonPrimary > *:nth-child(n+2)) {
-    display: none !important;
-    visibility: hidden !important;
-  }
-
-  /* Hide sibling elements after first child */
-  .primary-button span + *,
-  .primary-button div + *,
-  :global(.cl-formButtonPrimary span + *),
-  :global(.cl-formButtonPrimary div + *) {
+  :global(.cl-formButtonPrimary [class*="arrow"]) {
     display: none !important;
   }
 
-  /* Ensure button text is centered */
-  .primary-button,
-  :global(.cl-formButtonPrimary),
-  :global(.cl-buttonPrimary),
-  :global([class*="cl-buttonPrimary"]),
-  :global([class*="cl-formButtonPrimary"]),
-  :global(button[type="submit"][class*="cl-"]),
-  :global(.cl-card button[type="submit"]),
-  :global(.cl-modalContent button[type="submit"]),
-  :global(.cl-alert button[type="submit"]) {
-    justify-content: center !important;
-  }
-
-  /* Remove border from card */
-  :global(.cl-card),
-  :global([data-clerk-element="card"]),
-  :global([class*="cl-card"]) {
-    border: none !important;
-    border-width: 0 !important;
-    outline: none !important;
-  }
-
-  /* Style ONLY input fields to match app's search-input style */
-  /* Be specific - only target actual input elements, not containers */
+  /* Custom text input styling */
   :global(.cl-formField input[type="email"]),
   :global(.cl-formField input[type="password"]),
-  :global(.cl-formField input[type="text"]),
-  :global([data-clerk-element="formFieldInput"][type="email"]),
-  :global([data-clerk-element="formFieldInput"][type="password"]),
-  :global([data-clerk-element="formFieldInput"][type="text"]) {
+  :global(.cl-formField input[type="text"]) {
     background: var(--color-gradient-gray) !important;
     box-shadow: var(--shadow-small) !important;
-    position: relative !important; /* Ensure input itself doesn't create positioning context */
-    z-index: 0 !important; /* Keep input below other elements */
   }
 
-  /* Ensure input wrapper doesn't interfere with link positioning */
-  :global(.cl-formFieldInputWrapper),
-  :global([data-clerk-element="formFieldInputWrapper"]),
-  :global(.cl-formField > div:has(input)) {
-    position: relative !important;
-    z-index: 0 !important;
-  }
-
-  /* Ensure form fields maintain proper structure for error positioning */
-  /* Only affect form fields that contain inputs, preserve other structure */
-  /* Remove mb-3 margin-bottom that was adding extra spacing */
-  :global(.cl-formField:has(input[type="email"])),
-  :global(.cl-formField:has(input[type="password"])),
-  :global(.cl-formField:has(input[type="text"])),
-  :global([data-clerk-element="formField"]:has(input)),
-  :global(.cl-formField.mb-3) {
-    display: flex !important;
-    flex-direction: column !important;
-    position: relative !important;
-    margin-bottom: 0 !important; /* Remove mb-3 margin */
-  }
-
-  /* Override Clerk's default 32px gap on the form to use 12px instead */
+  /* Set spacing to 12px */
   :global(.cl-form),
-  :global([data-clerk-element="form"]),
-  :global([class*="cl-form"]) {
-    gap: 12px !important; /* Set gap to exactly 12px between all form elements */
-  }
-
-  /* Apply negative margin ONLY between consecutive input fields (email → password) */
-  /* This reduces the gap between email and password fields specifically */
-  :global(.cl-formField:has(input[type="email"]) + .cl-formField:has(input[type="password"])),
-  :global([data-clerk-element="formField"]:has(input[type="email"]) + [data-clerk-element="formField"]:has(input[type="password"])) {
-    margin-top: -20px !important; /* Reduce gap from 12px to create tighter spacing between email and password */
-  }
-
-  /* When previous form field has an error, use less negative margin */
-  :global(.cl-formField:has(.cl-formFieldError) + .cl-formField:has(input[type="password"])) {
-    margin-top: -8px !important; /* Less negative to account for error message space */
-  }
-
-  /* Position error messages below input fields (not inside/overlapping) */
-  :global(.cl-formFieldError),
-  :global([data-clerk-element="formFieldError"]),
-  :global(.cl-formFieldErrorText),
-  :global([data-clerk-element="formFieldErrorText"]),
-  :global([class*="formFieldError"]),
-  :global(.cl-formFieldError span),
-  :global(.cl-formFieldErrorText span),
-  :global([class*="formFieldError"] span) {
-    position: static !important;
-    display: block !important;
-    margin-top: 8px !important;
-    margin-bottom: 16px !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    text-align: center !important;
-    color: #ef4444 !important;
-    font-size: 14px !important;
-    line-height: 1.4 !important;
-    width: 100% !important;
-    left: auto !important;
-    right: auto !important;
-    top: auto !important;
-    bottom: auto !important;
-    transform: none !important;
-  }
-
-  /* Remove any absolute positioning from error icons */
-  :global(.cl-formFieldError svg),
-  :global(.cl-formFieldError [class*="icon"]),
-  :global([class*="formFieldError"] svg),
-  :global([class*="formFieldError"] [class*="icon"]) {
-    position: static !important;
-    display: inline-block !important;
-    vertical-align: middle !important;
-    margin-right: 4px !important;
-  }
-
-  /* Preserve footer and help text elements - don't apply negative margins to these */
-  /* Set footer padding-top to 12px */
-  :global(.cl-footer),
-  :global([data-clerk-element="footer"]) {
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    padding-top: 12px !important;
-    position: relative !important;
-    z-index: 1 !important;
-  }
-
-  /* Set padding-top to 12px for internal footer wrapper classes */
-  :global([class*="cl-internal"][class*="footer"]),
-  :global(.cl-footer [class*="cl-internal"]),
-  :global([class*="cl-internal-vorlia"]),
-  :global([class*="cl-internal-1dauvpw"]) {
-    padding-top: 12px !important;
-  }
-
-  /* Footer action links (like "Forgot password") */
-  :global(.cl-footerActionLink),
-  :global([data-clerk-element="footerActionLink"]) {
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    position: relative !important;
-    z-index: 1 !important;
-  }
-
-  /* Fix "Forgot password" link - ensure it appears BELOW password field, not above */
-  /* Target all possible locations where Clerk might place the link */
-  :global(.cl-formField:has(input[type="password"]) .cl-formFieldAction),
-  :global(.cl-formField:has(input[type="password"]) [data-clerk-element="formFieldAction"]),
-  :global(.cl-formField:has(input[type="password"]) [class*="formFieldAction"]),
-  :global(.cl-formField:has(input[type="password"]) a[href*="forgot"]),
-  :global(.cl-formField:has(input[type="password"]) a[href*="reset"]) {
-    position: static !important;
-    z-index: auto !important;
-    display: block !important;
-    margin-top: 8px !important;
-    margin-bottom: 0 !important;
-    text-align: center !important;
-    order: 999 !important; /* High order value to ensure it appears last in flex layout */
-    top: auto !important;
-    bottom: auto !important;
-    left: auto !important;
-    right: auto !important;
-    transform: none !important;
-  }
-
-  /* If forgot password link is a sibling after password field */
-  :global(.cl-formField:has(input[type="password"]) ~ .cl-formFieldAction),
-  :global(.cl-formField:has(input[type="password"]) + .cl-formFieldAction),
-  :global(.cl-formField:has(input[type="password"]) ~ a[href*="forgot"]),
-  :global(.cl-formField:has(input[type="password"]) ~ a[href*="reset"]) {
-    position: static !important;
-    margin-top: 8px !important;
-    margin-bottom: 0 !important;
-    text-align: center !important;
-    top: auto !important;
-    bottom: auto !important;
-    transform: none !important;
-  }
-
-  /* Ensure password input appears before the link in flex order */
-  :global(.cl-formField:has(input[type="password"]) input[type="password"]) {
-    order: 1 !important;
+  :global([class*="cl-internal-ht35d7"]),
+  :global([class*="cl-internal-1llpz65"]),
+  :global([class*="cl-internal"]:has(.cl-formField)) {
+    gap: 12px !important;
   }
 
   /* Mesh gradient using all thread colors with subtle movement */
