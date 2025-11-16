@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 // Tab navigation disabled for v1
 // import CardNote from '@/components/react/CardNote';
@@ -9,13 +9,14 @@ import { captureException } from '@/utils/posthog';
 interface NewThreadPanelProps {
   currentSpace?: any;
   onClose?: () => void;
+  onThreadCreated?: () => void;
   // Edit mode props
   threadId?: string;
   initialTitle?: string;
   initialColor?: ThreadColor;
 }
 
-export default function NewThreadPanel({ currentSpace, onClose, threadId, initialTitle, initialColor }: NewThreadPanelProps) {
+export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor }: NewThreadPanelProps) {
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
@@ -33,6 +34,9 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
   //   allowReactions: true,
   //   visibility: 'space' // 'space', 'public', 'invite-only'
   // });
+
+  // Ref for auto-focusing the thread name input
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   // Detect edit mode
   const isEditMode = !!threadId;
@@ -110,6 +114,18 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isDropdownOpen]);
+
+  // Auto-focus the thread name input when component mounts
+  useEffect(() => {
+    // Small delay to ensure the input is rendered and visible
+    const timer = setTimeout(() => {
+      if (titleInputRef.current) {
+        titleInputRef.current.focus();
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // Tab navigation disabled for v1
   // const fetchRecentNotes = async () => {
@@ -265,21 +281,29 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
           }));
           console.log('NewThreadPanel: threadCreated event dispatched successfully');
 
-          // Close panel
-          window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+          // If onThreadCreated callback is provided, use it instead of redirecting
+          if (onThreadCreated) {
+            console.log('NewThreadPanel: Using onThreadCreated callback instead of redirecting');
+            // Call the callback (it will handle closing the panel and refreshing)
+            onThreadCreated();
+          } else {
+            // Default behavior: redirect to the newly created thread
+            // Close panel
+            window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+            // Default behavior: redirect to the newly created thread
+            if (onClose) {
+              onClose();
+            }
 
-          if (onClose) {
-            onClose();
-          }
-
-          // Redirect to the newly created thread with toast parameter
-          if (result.thread && result.thread.id) {
-            console.log('NewThreadPanel: Redirecting to thread:', result.thread.id);
-            const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
-            // Add a small delay to ensure localStorage is updated before navigation
-            setTimeout(() => {
-              window.location.href = redirectUrl;
-            }, 50);
+            // Redirect to the newly created thread with toast parameter
+            if (result.thread && result.thread.id) {
+              console.log('NewThreadPanel: Redirecting to thread:', result.thread.id);
+              const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
+              // Add a small delay to ensure localStorage is updated before navigation
+              setTimeout(() => {
+                window.location.href = redirectUrl;
+              }, 50);
+            }
           }
         } else {
           let errorMessage = `Failed to create thread: ${response.status}`;
@@ -381,6 +405,7 @@ export default function NewThreadPanel({ currentSpace, onClose, threadId, initia
             >
               <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px]">
                 <input 
+                  ref={titleInputRef}
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}

@@ -3,6 +3,8 @@ import CardThread from './CardThread';
 import AddToSection from './AddToSection';
 import SquareButton from './SquareButton';
 import ActionButton from './ActionButton';
+import NewTagPanel from './NewTagPanel';
+import NewThreadPanel from './NewThreadPanel';
 import { toast } from '@/utils/toast';
 
 interface Thread {
@@ -61,6 +63,8 @@ export default function NoteDetailsPanel({
   const [noteCreatedAt, setNoteCreatedAt] = useState<Date | null>(null);
   const [noteSimpleId, setNoteSimpleId] = useState<number | null>(null);
   const [noteVersion, setNoteVersion] = useState<string | null>(null);
+  const [showNewTagPanel, setShowNewTagPanel] = useState(false);
+  const [showNewThreadPanel, setShowNewThreadPanel] = useState(false);
 
   // Fetch data when component mounts
   useEffect(() => {
@@ -329,14 +333,85 @@ export default function NoteDetailsPanel({
   };
 
   const addNewTag = () => {
-    // TODO: Implement add new tag functionality
-    console.log('Add new tag clicked');
+    setShowNewTagPanel(true);
   };
 
-  const removeTagFromNote = (tagId: string) => {
-    // TODO: Implement remove tag functionality
-    console.log('Remove tag:', tagId);
+  const handleTagCreated = async () => {
+    // Refresh the note details to show the new tag
+    await fetchNoteDetails();
   };
+
+  const handleCloseNewTagPanel = () => {
+    setShowNewTagPanel(false);
+  };
+
+  const addNewThread = () => {
+    setShowNewThreadPanel(true);
+  };
+
+  const handleThreadCreated = async () => {
+    // Show success toast
+    toast.success('Thread created successfully!');
+    // Close the NewThreadPanel first
+    setShowNewThreadPanel(false);
+    // Small delay to ensure state updates
+    await new Promise(resolve => setTimeout(resolve, 50));
+    // Ensure we're on the threads tab
+    setActiveTab('threads');
+    // Refresh the note details to show updated threads
+    await fetchNoteDetails();
+  };
+
+  const handleCloseNewThreadPanel = () => {
+    setShowNewThreadPanel(false);
+  };
+
+  const removeTagFromNote = async (tagId: string) => {
+    try {
+      const response = await fetch(`/api/note-tags/remove?noteId=${noteId}&tagId=${tagId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success('Tag removed from note');
+        
+        // Refresh the note details to show updated tags
+        await fetchNoteDetails();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Error removing tag from note');
+      }
+    } catch (error) {
+      console.error('Error removing tag from note:', error);
+      toast.error('Error removing tag from note. Please try again.');
+    }
+  };
+
+  // If showing new tag panel, render it instead of the details panel
+  if (showNewTagPanel) {
+    return (
+      <NewTagPanel
+        noteId={noteId}
+        onClose={handleCloseNewTagPanel}
+        onTagCreated={handleTagCreated}
+        inBottomSheet={inBottomSheet}
+      />
+    );
+  }
+
+  // If showing new thread panel, render it instead of the details panel
+  if (showNewThreadPanel) {
+    return (
+      <NewThreadPanel
+        currentSpace={null}
+        onClose={handleCloseNewThreadPanel}
+        onThreadCreated={handleThreadCreated}
+        inBottomSheet={inBottomSheet}
+      />
+    );
+  }
 
   return (
     <>
@@ -377,6 +452,18 @@ export default function NoteDetailsPanel({
         
         .lavender-accent {
           background-color: var(--color-purple);
+        }
+        
+        /* Fix close icon hover for tags - scale on hover */
+        .note-details-panel .tag-item .tag-close-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 50;
+        }
+        
+        .note-details-panel .tag-item .tag-close-icon:hover {
+          transform: translateY(-50%) scale(1.1) !important;
         }
       `}</style>
       <div className="note-details-panel h-full flex flex-col justify-between">
@@ -547,24 +634,27 @@ export default function NoteDetailsPanel({
                             <p className="text-sm mt-1">Tags are automatically generated based on your note content when you create or update notes.</p>
                           </div>
                         ) : (
-                          <div className="flex flex-col gap-3">
+                          <div className="flex flex-wrap gap-3">
                             {localTags.map(tag => (
                               <div key={tag.id} className="content-item tag-item">
                                 <div className="relative nav-item-container">
-                                  <button
-                                    className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full"
+                                  <div
+                                    className="space-button relative rounded-[12px] transition-[scale,shadow] duration-300 pb-3 pl-4 pr-10 pt-[10px] group w-auto flex items-center gap-3"
                                     style={{ backgroundImage: 'var(--color-gradient-gray)' }}
                                   >
-                                    <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                                      <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-                                        {tag.name}
-                                      </span>
-                                    </div>
-                                  </button>
-                                  {/* Close icon - always visible for tags */}
+                                    <span className="text-[var(--color-deep-grey)] font-sans text-[14px] font-semibold whitespace-nowrap">
+                                      {tag.name}
+                                    </span>
+                                  </div>
+                                  {/* Close icon - absolutely positioned, matches RecentSearches pattern */}
                                   <div
-                                    onClick={() => removeTagFromNote(tag.id)}
-                                    className="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
+                                    onClick={(e: React.MouseEvent) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      console.log('Close icon clicked for tag:', tag.id);
+                                      removeTagFromNote(tag.id);
+                                    }}
+                                    className="tag-close-icon absolute top-1/2 right-3 transform -translate-y-1/2 flex items-center justify-center w-4 h-4 cursor-pointer"
                                     data-item-id={tag.id}
                                   >
                                     <svg className="w-4 h-4 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 384 512">
@@ -576,20 +666,6 @@ export default function NoteDetailsPanel({
                             ))}
                           </div>
                         )}
-                        
-                        {/* New Tag button */}
-                        <div className="w-full">
-                          <button 
-                            type="button"
-                            className="bg-[#006eff] box-border content-stretch flex h-[60px] items-center justify-center overflow-clip pb-[28px] pt-6 px-6 relative rounded-3xl shrink-0 w-full"
-                            onClick={addNewTag}
-                          >
-                            <div className="font-sans font-semibold leading-[0] relative shrink-0 text-[#f7f7f6] text-[18px] text-nowrap">
-                              New Tag
-                            </div>
-                            <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.1)_inset]"></div>
-                          </button>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -600,13 +676,46 @@ export default function NoteDetailsPanel({
         </div>
       </div>
 
-      {/* Bottom close button using SquareButton Back variant */}
-      <div className="flex items-center justify-start gap-3">
+      {/* Bottom buttons */}
+      <div className="flex items-center justify-between gap-3 shrink-0">
+        {/* Back button - SquareButton Back variant */}
         <SquareButton 
-          variant="Back" 
+          variant="Back"
           onClick={closePanel}
           inBottomSheet={inBottomSheet}
         />
+        
+        {/* New Thread button - only show on threads tab */}
+        {activeTab === 'threads' && (
+          <button 
+            type="button"
+            onClick={addNewThread}
+            data-outer-shadow
+            className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
+            style={{ backgroundColor: 'var(--color-bold-blue)' }}
+          >
+            <div className="relative shrink-0 transition-transform duration-125">
+              New Thread
+            </div>
+            <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+          </button>
+        )}
+        
+        {/* New Tag button - only show on tags tab */}
+        {activeTab === 'tags' && (
+          <button 
+            type="button"
+            onClick={addNewTag}
+            data-outer-shadow
+            className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
+            style={{ backgroundColor: 'var(--color-bold-blue)' }}
+          >
+            <div className="relative shrink-0 transition-transform duration-125">
+              New Tag
+            </div>
+            <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+          </button>
+        )}
       </div>
       </div>
     </>
