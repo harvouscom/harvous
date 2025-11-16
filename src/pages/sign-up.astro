@@ -25,13 +25,29 @@ import SquareButton from "@/components/SquareButton.astro";
             appearance={{
               elements: {
                 rootBox: "w-full flex justify-center",
-                card: "bg-white rounded-2xl shadow-lg p-8 border-none w-full max-w-md",
+                card: {
+                  className: "bg-white rounded-2xl shadow-lg p-8 w-full max-w-md",
+                  style: {
+                    border: "none",
+                    borderWidth: "0"
+                  }
+                },
                 headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
                 headerSubtitle: "text-[var(--color-stone-grey)]",
                 formField: "mb-3",
                 formButtonPrimary: "group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] w-full primary-button",
                 formFieldInput: "rounded-3xl py-5 px-4 min-h-[64px] bg-transparent border-none text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] focus:outline-none focus:ring-0",
                 formFieldLabel: "hidden",
+                formFieldError: {
+                  className: "mt-2 text-center",
+                  style: {
+                    position: "static",
+                    display: "block",
+                    marginTop: "8px",
+                    color: "#ef4444",
+                    fontSize: "14px"
+                  }
+                },
                 footerActionLink: "text-[var(--color-bold-blue)] hover:text-[var(--color-bold-blue)]/80 font-medium",
                 dividerLine: "bg-gray-200",
                 dividerText: "text-[var(--color-stone-grey)] bg-white px-4"
@@ -210,6 +226,15 @@ import SquareButton from "@/components/SquareButton.astro";
     margin-top: -32px !important;
   }
 
+  /* Remove border from card */
+  :global(.cl-card),
+  :global([data-clerk-element="card"]),
+  :global([class*="cl-card"]) {
+    border: none !important;
+    border-width: 0 !important;
+    outline: none !important;
+  }
+
   /* Style input fields to match app's search-input style */
   :global(input[type="email"]),
   :global(input[type="password"]),
@@ -218,26 +243,59 @@ import SquareButton from "@/components/SquareButton.astro";
     box-shadow: var(--shadow-small) !important;
   }
 
+  /* Ensure form fields have proper structure for error positioning */
+  :global(.cl-formField) {
+    display: flex !important;
+    flex-direction: column !important;
+    position: relative !important;
+    margin-bottom: 24px !important;
+  }
+
+  /* Input wrapper - ensure it doesn't contain errors visually */
+  :global(.cl-formFieldInputWrapper),
+  :global([data-clerk-element="formFieldInputWrapper"]) {
+    position: relative !important;
+    margin-bottom: 0 !important;
+  }
+
   /* Position error messages below input fields (not inside/overlapping) */
   :global(.cl-formFieldError),
   :global([data-clerk-element="formFieldError"]),
   :global(.cl-formFieldErrorText),
   :global([data-clerk-element="formFieldErrorText"]),
-  :global([class*="formFieldError"]) {
-    position: relative !important;
+  :global([class*="formFieldError"]),
+  :global(.cl-formFieldError span),
+  :global(.cl-formFieldErrorText span),
+  :global([class*="formFieldError"] span) {
+    position: static !important;
+    display: block !important;
     margin-top: 8px !important;
     margin-bottom: 0 !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
     text-align: center !important;
     color: #ef4444 !important;
     font-size: 14px !important;
+    line-height: 1.4 !important;
+    width: 100% !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    transform: none !important;
   }
 
-  /* Ensure error messages don't overlap input fields */
-  :global(.cl-formField) {
-    display: flex !important;
-    flex-direction: column !important;
+  /* Remove any absolute positioning from error icons */
+  :global(.cl-formFieldError svg),
+  :global(.cl-formFieldError [class*="icon"]),
+  :global([class*="formFieldError"] svg),
+  :global([class*="formFieldError"] [class*="icon"]) {
+    position: static !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+    margin-right: 4px !important;
   }
 
   /* Mesh gradient using all thread colors with subtle movement */
