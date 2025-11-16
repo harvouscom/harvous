@@ -25,7 +25,7 @@ import SquareButton from "@/components/SquareButton.astro";
             appearance={{
               elements: {
                 rootBox: "w-full flex justify-center",
-                card: "bg-white rounded-2xl shadow-lg p-8 shadow-none w-full max-w-md",
+                card: "bg-white rounded-2xl shadow-lg p-8 border-none w-full max-w-md",
                 headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
                 headerSubtitle: "text-[var(--color-stone-grey)]",
                 formField: "mb-3",
@@ -216,6 +216,28 @@ import SquareButton from "@/components/SquareButton.astro";
   :global(input[type="text"]) {
     background: var(--color-gradient-gray) !important;
     box-shadow: var(--shadow-small) !important;
+  }
+
+  /* Position error messages below input fields (not inside/overlapping) */
+  :global(.cl-formFieldError),
+  :global([data-clerk-element="formFieldError"]),
+  :global(.cl-formFieldErrorText),
+  :global([data-clerk-element="formFieldErrorText"]),
+  :global([class*="formFieldError"]) {
+    position: relative !important;
+    margin-top: 8px !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    text-align: center !important;
+    color: #ef4444 !important;
+    font-size: 14px !important;
+  }
+
+  /* Ensure error messages don't overlap input fields */
+  :global(.cl-formField) {
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   /* Mesh gradient using all thread colors with subtle movement */
