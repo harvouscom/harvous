@@ -222,6 +222,16 @@ import SquareButton from "@/components/SquareButton.astro";
   :global([data-clerk-element="formFieldInput"][type="text"]) {
     background: var(--color-gradient-gray) !important;
     box-shadow: var(--shadow-small) !important;
+    position: relative !important; /* Ensure input itself doesn't create positioning context */
+    z-index: 0 !important; /* Keep input below other elements */
+  }
+
+  /* Ensure input wrapper doesn't interfere with link positioning */
+  :global(.cl-formFieldInputWrapper),
+  :global([data-clerk-element="formFieldInputWrapper"]),
+  :global(.cl-formField > div:has(input)) {
+    position: relative !important;
+    z-index: 0 !important;
   }
 
   /* Ensure form fields maintain proper structure for error positioning */
@@ -236,7 +246,6 @@ import SquareButton from "@/components/SquareButton.astro";
   }
 
   /* Apply negative margin ONLY between consecutive input fields (email → password) */
-  /* Keep gap between password field and button - don't apply negative margin there */
   :global(.cl-formField:has(input[type="email"]) + .cl-formField:has(input[type="password"])),
   :global([data-clerk-element="formField"]:has(input[type="email"]) + [data-clerk-element="formField"]:has(input[type="password"])) {
     margin-top: -32px !important;
@@ -247,9 +256,16 @@ import SquareButton from "@/components/SquareButton.astro";
     margin-top: -8px !important;
   }
 
-  /* Ensure button has proper spacing - no negative margin before button */
-  :global(.cl-formField:has(button[type="submit"])) {
-    margin-top: 0 !important;
+  /* Apply negative margin between password field and button, but only when button directly follows */
+  /* This reduces gap without affecting other elements */
+  :global(.cl-formField:has(input[type="password"]) + .cl-formField:has(button[type="submit"])),
+  :global([data-clerk-element="formField"]:has(input[type="password"]) + [data-clerk-element="formField"]:has(button[type="submit"])) {
+    margin-top: -32px !important;
+  }
+
+  /* When password field has error, use less negative margin before button */
+  :global(.cl-formField:has(input[type="password"]):has(.cl-formFieldError) + .cl-formField:has(button[type="submit"])) {
+    margin-top: -8px !important;
   }
 
   /* Position error messages below input fields (not inside/overlapping) */
