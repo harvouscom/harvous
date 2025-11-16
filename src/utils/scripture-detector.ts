@@ -60,11 +60,12 @@ export const formatBookNameForAPI = (bookName: string): string => {
 const parseReference = (match: string): ScriptureReference | null => {
   // Patterns: "John 3:16", "1 Corinthians 13:4-7", "Matthew 26:6-13, 17-30"
   // Match: Book Chapter:VerseGroups where VerseGroups can be "6-13, 17-30" or "6-13" or "6"
+  // Updated to handle optional spaces around dashes: "6 - 13" or "6-13"
   const patterns = [
-    // Comma-separated verse groups: "Book 1:2-3, 5-7, 10"
-    /^(.+?)\s+(\d+):((?:\d+(?:-\d+)?)(?:,\s*\d+(?:-\d+)?)*)$/,
-    // Single range: "Book 1:2-3"
-    /^(.+?)\s+(\d+):(\d+)-(\d+)$/,
+    // Comma-separated verse groups: "Book 1:2-3, 5-7, 10" or "Book 1:2 - 3, 5 - 7, 10"
+    /^(.+?)\s+(\d+):((?:\d+(?:\s*-\s*\d+)?)(?:,\s*\d+(?:\s*-\s*\d+)?)*)$/,
+    // Single range: "Book 1:2-3" or "Book 1:2 - 3"
+    /^(.+?)\s+(\d+):(\d+)\s*-\s*(\d+)$/,
     // Single verse: "Book 1:2"
     /^(.+?)\s+(\d+):(\d+)$/,
     // Chapter only: "Book 1" (treat as chapter 1, verse 1)
@@ -116,8 +117,9 @@ const parseReference = (match: string): ScriptureReference | null => {
           const verseStart = Math.min(...allVerses);
           const verseEnd = Math.max(...allVerses);
           
-          // Clean up verse groups: remove spaces after commas for API
-          const cleanVerseGroups = verseGroups.replace(/,\s+/g, ',');
+          // Clean up verse groups: remove spaces after commas and normalize spaces around dashes for API
+          let cleanVerseGroups = verseGroups.replace(/,\s+/g, ',');
+          cleanVerseGroups = cleanVerseGroups.replace(/\s*-\s*/g, '-');
           
           return {
             book: canonicalBook,
@@ -174,8 +176,9 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
   // Pattern 1: "Book Chapter:Verse" or "Book Chapter:Verse-Verse" or "Book Chapter:Verse-Verse, Verse-Verse"
   // Captures comma-separated verse groups like "Matthew 26:6-13, 17-30"
   // Use a simpler pattern and validate matches afterward
+  // Updated to better handle ranges with dashes - allow optional spaces around dashes
   const referencePattern = new RegExp(
-    `\\b(${escapedBookNames.join('|')})\\s+(\\d+):(\\d+(?:-\\d+)?(?:,\\s*\\d+(?:-\\d+)?)*)`,
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+):(\\d+(?:\\s*-\\s*\\d+)?(?:,\\s*\\d+(?:\\s*-\\s*\\d+)?)*)(?!\\d)`,
     'gi'
   );
 

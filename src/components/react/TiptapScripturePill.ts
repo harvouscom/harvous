@@ -127,6 +127,57 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
   },
 
   addKeyboardShortcuts() {
+    // Helper function to find pill boundaries
+    const findPillBoundaries = (doc: any, pos: number): { start: number; end: number } | null => {
+      let pillStart = pos;
+      let pillEnd = pos;
+      
+      // Find start of pill
+      for (let p = pos; p >= 0; p--) {
+        try {
+          const $p = doc.resolve(p);
+          const marks = $p.marks();
+          const hasPill = marks.some(m => m.type.name === 'scripturePill');
+          if (!hasPill) {
+            pillStart = p + 1;
+            break;
+          }
+          if (p === 0) {
+            pillStart = 0;
+            break;
+          }
+        } catch (e) {
+          pillStart = p + 1;
+          break;
+        }
+      }
+      
+      // Find end of pill
+      for (let p = pos; p <= doc.content.size; p++) {
+        try {
+          const $p = doc.resolve(p);
+          const marks = $p.marks();
+          const hasPill = marks.some(m => m.type.name === 'scripturePill');
+          if (!hasPill) {
+            pillEnd = p;
+            break;
+          }
+        } catch (e) {
+          pillEnd = p;
+          break;
+        }
+      }
+      
+      return { start: pillStart, end: pillEnd };
+    };
+    
+    // Helper function to check if entire pill is selected
+    const isEntirePillSelected = (doc: any, from: number, to: number): boolean => {
+      const boundaries = findPillBoundaries(doc, from);
+      if (!boundaries) return false;
+      return from === boundaries.start && to === boundaries.end;
+    };
+    
     return {
       Tab: ({ editor }) => {
         const { state } = editor;
@@ -138,31 +189,15 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         
         if (scripturePillMark && from === to) {
           // Find the end of the mark
-          const doc = state.doc;
-          let pillEnd = from;
-          
-          // Find where the mark ends
-          for (let pos = from; pos <= doc.content.size; pos++) {
-            try {
-              const $pos = doc.resolve(pos);
-              const marks = $pos.marks();
-              const hasPill = marks.some(m => m.type.name === 'scripturePill');
-              if (!hasPill) {
-                pillEnd = pos;
-                break;
-              }
-            } catch (e) {
-              pillEnd = pos;
-              break;
-            }
+          const boundaries = findPillBoundaries(state.doc, from);
+          if (boundaries) {
+            // Move cursor to end of pill and unset marks
+            editor.chain()
+              .setTextSelection(boundaries.end)
+              .unsetAllMarks()
+              .run();
+            return true;
           }
-          
-          // Move cursor to end of pill and unset marks
-          editor.chain()
-            .setTextSelection(pillEnd)
-            .unsetAllMarks()
-            .run();
-          return true;
         }
         
         return false;
@@ -177,33 +212,103 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         
         if (scripturePillMark && from === to) {
           // Find the end of the mark
-          const doc = state.doc;
-          let pillEnd = from;
-          
-          // Find where the mark ends
-          for (let pos = from; pos <= doc.content.size; pos++) {
-            try {
-              const $pos = doc.resolve(pos);
-              const marks = $pos.marks();
-              const hasPill = marks.some(m => m.type.name === 'scripturePill');
-              if (!hasPill) {
-                pillEnd = pos;
-                break;
-              }
-            } catch (e) {
-              pillEnd = pos;
-              break;
+          const boundaries = findPillBoundaries(state.doc, from);
+          if (boundaries) {
+            // Insert space after pill and move cursor
+            editor.chain()
+              .setTextSelection(boundaries.end)
+              .insertContent(' ')
+              .setTextSelection(boundaries.end + 1)
+              .unsetAllMarks()
+              .run();
+            return true;
+          }
+        }
+        
+        return false;
+      },
+      // Prevent text input when cursor is inside a pill (unless entire pill is selected for deletion)
+      'Backspace': ({ editor }) => {
+        const { state } = editor;
+        const { selection } = state;
+        const { $from, from, to } = selection;
+        
+        const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
+        
+        if (scripturePillMark) {
+          // Allow deletion only if entire pill is selected
+          if (isEntirePillSelected(state.doc, from, to)) {
+            // Allow normal deletion
+            return false;
+          } else {
+            // Prevent partial deletion - move cursor to end of pill
+            const boundaries = findPillBoundaries(state.doc, from);
+            if (boundaries) {
+              editor.chain()
+                .setTextSelection(boundaries.end)
+                .unsetAllMarks()
+                .run();
+              return true;
             }
           }
+        }
+        
+        return false;
+      },
+      'Delete': ({ editor }) => {
+        const { state } = editor;
+        const { selection } = state;
+        const { $from, from, to } = selection;
+        
+        const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
+        
+        if (scripturePillMark) {
+          // Allow deletion only if entire pill is selected
+          if (isEntirePillSelected(state.doc, from, to)) {
+            // Allow normal deletion
+            return false;
+          } else {
+            // Prevent partial deletion - move cursor to end of pill
+            const boundaries = findPillBoundaries(state.doc, from);
+            if (boundaries) {
+              editor.chain()
+                .setTextSelection(boundaries.end)
+                .unsetAllMarks()
+                .run();
+              return true;
+            }
+          }
+        }
+        
+        return false;
+      },
+      // Prevent all other text input (letters, numbers, punctuation) when inside a pill
+      // This is a catch-all for any character input
+      '*': ({ editor, view, event }) => {
+        const { state } = editor;
+        const { selection } = state;
+        const { $from, from, to } = selection;
+        
+        const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
+        
+        if (scripturePillMark && from === to) {
+          // Check if this is a printable character (not a control key)
+          const key = (event as KeyboardEvent).key;
+          // Allow arrow keys, Tab, Enter, Escape, etc. (control keys)
+          const isControlKey = key.length > 1 || 
+            ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown'].includes(key);
           
-          // Insert space after pill and move cursor
-          editor.chain()
-            .setTextSelection(pillEnd)
-            .insertContent(' ')
-            .setTextSelection(pillEnd + 1)
-            .unsetAllMarks()
-            .run();
-          return true;
+          if (!isControlKey) {
+            // This is a printable character - prevent input and move cursor to end of pill
+            const boundaries = findPillBoundaries(state.doc, from);
+            if (boundaries) {
+              editor.chain()
+                .setTextSelection(boundaries.end)
+                .unsetAllMarks()
+                .run();
+              return true;
+            }
+          }
         }
         
         return false;

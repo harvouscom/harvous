@@ -532,52 +532,119 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           return true;
         }
         
-        // Handle Tab and Space to exit scripture pills
+        // Handle scripture pill editing prevention
         const { from, to } = view.state.selection;
         const $from = view.state.selection.$from;
         const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
         
-        if (scripturePillMark && from === to) {
-          // Cursor is inside a scripture pill
-          // Find the end of the mark by checking positions forward
-          const doc = view.state.doc;
-          let pillEnd = from;
-          
-          // Find where the mark ends by checking marks at each position
-          for (let pos = from; pos <= doc.content.size; pos++) {
-            try {
-              const $pos = doc.resolve(pos);
-              const marks = $pos.marks();
-              const hasPill = marks.some(m => m.type.name === 'scripturePill');
-              if (!hasPill) {
-                pillEnd = pos;
+        if (scripturePillMark) {
+          // Helper to find pill boundaries
+          const findPillBoundaries = (doc: any, pos: number): { start: number; end: number } | null => {
+            let pillStart = pos;
+            let pillEnd = pos;
+            
+            // Find start of pill
+            for (let p = pos; p >= 0; p--) {
+              try {
+                const $p = doc.resolve(p);
+                const marks = $p.marks();
+                const hasPill = marks.some(m => m.type.name === 'scripturePill');
+                if (!hasPill) {
+                  pillStart = p + 1;
+                  break;
+                }
+                if (p === 0) {
+                  pillStart = 0;
+                  break;
+                }
+              } catch (e) {
+                pillStart = p + 1;
                 break;
               }
-            } catch (e) {
-              // If we can't resolve the position, we've reached the end
-              pillEnd = pos;
-              break;
             }
-          }
+            
+            // Find end of pill
+            for (let p = pos; p <= doc.content.size; p++) {
+              try {
+                const $p = doc.resolve(p);
+                const marks = $p.marks();
+                const hasPill = marks.some(m => m.type.name === 'scripturePill');
+                if (!hasPill) {
+                  pillEnd = p;
+                  break;
+                }
+              } catch (e) {
+                pillEnd = p;
+                break;
+              }
+            }
+            
+            return { start: pillStart, end: pillEnd };
+          };
           
-          if (event.key === 'Tab') {
-            event.preventDefault();
-            // Move cursor to end of pill and unset marks
-            editor.chain()
-              .setTextSelection(pillEnd)
-              .unsetAllMarks()
-              .run();
-            return true;
-          } else if (event.key === ' ') {
-            event.preventDefault();
-            // Insert a space after the pill and move cursor after it
-            editor.chain()
-              .setTextSelection(pillEnd)
-              .insertContent(' ')
-              .setTextSelection(pillEnd + 1)
-              .unsetAllMarks()
-              .run();
-            return true;
+          // Helper to check if entire pill is selected
+          const isEntirePillSelected = (doc: any, from: number, to: number): boolean => {
+            const boundaries = findPillBoundaries(doc, from);
+            if (!boundaries) return false;
+            return from === boundaries.start && to === boundaries.end;
+          };
+          
+          const boundaries = findPillBoundaries(view.state.doc, from);
+          
+          if (boundaries) {
+            // Handle Tab and Space to exit scripture pills
+            if (from === to) {
+              if (event.key === 'Tab') {
+                event.preventDefault();
+                // Move cursor to end of pill and unset marks
+                editor.chain()
+                  .setTextSelection(boundaries.end)
+                  .unsetAllMarks()
+                  .run();
+                return true;
+              } else if (event.key === ' ') {
+                event.preventDefault();
+                // Insert a space after the pill and move cursor after it
+                editor.chain()
+                  .setTextSelection(boundaries.end)
+                  .insertContent(' ')
+                  .setTextSelection(boundaries.end + 1)
+                  .unsetAllMarks()
+                  .run();
+                return true;
+              }
+            }
+            
+            // Handle Backspace/Delete - only allow if entire pill is selected
+            if (event.key === 'Backspace' || event.key === 'Delete') {
+              if (!isEntirePillSelected(view.state.doc, from, to)) {
+                // Prevent partial deletion - move cursor to end of pill
+                event.preventDefault();
+                editor.chain()
+                  .setTextSelection(boundaries.end)
+                  .unsetAllMarks()
+                  .run();
+                return true;
+              }
+              // If entire pill is selected, allow normal deletion (return false)
+            }
+            
+            // Prevent all text input when cursor is inside a pill (not entire selection)
+            if (from === to) {
+              // Check if this is a printable character (not a control key)
+              const isControlKey = event.key.length > 1 || 
+                ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(event.key);
+              
+              if (!isControlKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+                // This is a printable character - prevent input and move cursor to end of pill
+                event.preventDefault();
+                editor.chain()
+                  .setTextSelection(boundaries.end)
+                  .unsetAllMarks()
+                  .run();
+                return true;
+              }
+            }
           }
         }
         
