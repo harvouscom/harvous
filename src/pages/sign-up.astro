@@ -5,11 +5,11 @@ import SquareButton from "@/components/SquareButton.astro";
 ---
 
 <EmptyLayout title="Sign Up">
-  <div class="min-h-[100svh] max-h-[100svh] p-3 min-[1160px]:p-6 flex flex-col">
-    <div class="flex-1 flex gap-6">
-      <!-- Left Column: Thread Colors Mesh Gradient -->
-      <div class="hidden lg:flex lg:flex-1 thread-colors-mesh-gradient relative overflow-hidden rounded-[12px]">
-        <div class="relative z-10 flex flex-col p-3 min-[1160px]:p-6 w-full h-full">
+  <div class="min-h-[100svh] max-h-[100svh] p-3 flex flex-col">
+    <div class="flex-1 flex flex-col lg:flex-row gap-6">
+      <!-- Top Row (Mobile) / Left Column (Desktop): Thread Colors Mesh Gradient -->
+      <div class="flex flex-1 thread-colors-mesh-gradient relative overflow-hidden rounded-[12px]">
+        <div class="relative z-10 flex flex-col p-3 w-full h-full">
           <!-- Back to home link using SquareButton Back variant -->
           <a href="https://harvous.com" class="block w-fit">
             <SquareButton variant="Back" />
@@ -17,13 +17,9 @@ import SquareButton from "@/components/SquareButton.astro";
         </div>
       </div>
 
-      <!-- Right Column: Sign Up Form -->
+      <!-- Bottom Row (Mobile) / Right Column (Desktop): Sign Up Form -->
       <div class="flex-1 flex items-center justify-center bg-[var(--color-light-paper)] min-h-0">
-        <div class="w-full max-w-md mx-auto p-3 min-[1160px]:p-6">
-        <!-- Back to home link (mobile only) -->
-        <a href="https://harvous.com" class="lg:hidden block w-fit mb-6">
-          <SquareButton variant="Back" />
-        </a>
+        <div class="w-full max-w-md mx-auto p-3">
 
         <ClerkSignUp
             appearance={{
