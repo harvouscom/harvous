@@ -625,11 +625,8 @@ export async function getContentItems(userId: string, limit = 20) {
 // Fetch unorganized notes for dashboard (notes in unorganized thread)
 export async function getUnorganizedNotesForDashboard(userId: string, limit = 10) {
   try {
-    const unorganizedThread = await findUnorganizedThread(userId);
-    if (!unorganizedThread) {
-      return [];
-    }
-
+    // For unorganized notes, get notes with NO junction table entries
+    // Notes with any junction entry are in specific threads, not unorganized
     const notes = await db.select({
       id: Notes.id,
       title: Notes.title,
@@ -644,9 +641,10 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
       updatedAt: Notes.updatedAt,
     })
     .from(Notes)
+    .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
     .where(and(
       eq(Notes.userId, userId),
-      eq(Notes.threadId, unorganizedThread.id)
+      isNull(NoteThreads.id) // No junction entry = unorganized
     ))
     .orderBy(desc(Notes.updatedAt || Notes.createdAt))
     .limit(limit)
