@@ -1,9 +1,12 @@
-# Auto-Archive Setup for Inbox Items
+# Auto-Archive and Auto-Delete Setup for Inbox Items
 
-This guide explains how to set up automatic archiving of inbox items after 14 days.
+This guide explains how to set up automatic archiving and deletion of inbox items.
 
 ## Overview
 
+The inbox cleanup system has two stages:
+
+### Stage 1: Auto-Archive (14 days)
 Inbox items are automatically archived after 14 days based on when they appeared in the user's inbox (`UserInboxItems.createdAt`). The auto-archive process:
 
 - Finds all inbox items with status `'inbox'` that are older than 14 days
@@ -11,7 +14,16 @@ Inbox items are automatically archived after 14 days based on when they appeared
 - Sets the `archivedAt` timestamp
 - Runs daily (via scheduled job)
 
-## API Endpoint
+### Stage 2: Auto-Delete (60 days after archiving)
+Archived items are automatically deleted 60 days after being archived (`UserInboxItems.archivedAt`). The auto-delete process:
+
+- Finds all archived items that were archived more than 60 days ago
+- Permanently deletes the `UserInboxItems` record
+- Runs daily (via scheduled job)
+
+## API Endpoints
+
+### Auto-Archive Endpoint
 
 The auto-archive endpoint is available at:
 ```
@@ -19,15 +31,23 @@ POST /api/inbox/auto-archive
 GET /api/inbox/auto-archive  (also supported for easy testing)
 ```
 
+### Auto-Delete Endpoint
+
+The auto-delete endpoint is available at:
+```
+POST /api/inbox/auto-delete
+GET /api/inbox/auto-delete  (also supported for easy testing)
+```
+
 ### Security (Optional)
 
-If you set `AUTO_ARCHIVE_SECRET_TOKEN` in your environment variables, the endpoint will require authentication:
+If you set `AUTO_ARCHIVE_SECRET_TOKEN` in your environment variables, both endpoints will require authentication:
 
 ```bash
 Authorization: Bearer YOUR_SECRET_TOKEN
 ```
 
-If the token is not set, the endpoint is publicly accessible (use with caution in production).
+If the token is not set, the endpoints are publicly accessible (use with caution in production).
 
 ## Setting Up Scheduled Execution
 
@@ -53,7 +73,7 @@ GitHub Actions offers free scheduled workflows for public repositories. The work
 
 4. **Test Manually** (Optional):
    - Go to your repository → **Actions** tab
-   - Find "Auto-Archive Inbox Items" workflow
+   - Find "Auto-Archive and Auto-Delete Inbox Items" workflow
    - Click **Run workflow** to test it immediately
 
 ### Option 2: External Cron Service (Free Options)
@@ -63,9 +83,10 @@ Use a free service like:
 - **EasyCron** (https://www.easycron.com/) - Limited free tier
 - **UptimeRobot** (https://uptimerobot.com/) - Free monitoring + cron
 
-Configure it to call:
+Configure it to call both endpoints:
 ```
 POST https://your-site.netlify.app/api/inbox/auto-archive
+POST https://your-site.netlify.app/api/inbox/auto-delete
 ```
 
 With optional authentication header:
@@ -77,14 +98,17 @@ Schedule: Daily at your preferred time (e.g., 2 AM UTC)
 
 ### Option 3: Manual Trigger (For Testing)
 
-You can manually trigger the auto-archive by calling:
+You can manually trigger the auto-archive and auto-delete by calling:
 ```bash
 curl -X POST https://your-site.netlify.app/api/inbox/auto-archive
+curl -X POST https://your-site.netlify.app/api/inbox/auto-delete
 ```
 
-Or visit the URL in your browser (GET request also works).
+Or visit the URLs in your browser (GET request also works).
 
 ## How It Works
+
+### Auto-Archive Process
 
 1. **Daily Execution**: The scheduled job runs once per day
 2. **Query**: Finds all `UserInboxItems` where:
@@ -96,9 +120,20 @@ Or visit the URL in your browser (GET request also works).
    - `archivedAt = new Date()`
 4. **Response**: Returns count of archived items and any errors
 
+### Auto-Delete Process
+
+1. **Daily Execution**: The scheduled job runs once per day (same workflow)
+2. **Query**: Finds all `UserInboxItems` where:
+   - `status === 'archived'`
+   - `archivedAt < (today - 60 days)`
+3. **Delete**: Permanently deletes each `UserInboxItems` record
+4. **Response**: Returns count of deleted items and any errors
+
+**Note**: Only the `UserInboxItems` record is deleted. The underlying `InboxItems` content remains (as it may be shared across users).
+
 ## Testing
 
-To test the auto-archive functionality:
+### Testing Auto-Archive
 
 1. **Create test data** (items older than 14 days in inbox)
 2. **Call the endpoint manually**:
@@ -107,16 +142,34 @@ To test the auto-archive functionality:
    ```
 3. **Check results**: Verify items moved to archive tab
 
+### Testing Auto-Delete
+
+1. **Create test data** (items archived more than 60 days ago)
+2. **Call the endpoint manually**:
+   ```bash
+   curl -X POST http://localhost:4321/api/inbox/auto-delete
+   ```
+3. **Check results**: Verify archived items are permanently deleted
+
 ## Monitoring
 
 Check Netlify function logs or your cron service logs to monitor:
 - Number of items archived each day
+- Number of items deleted each day
 - Any errors during the process
 - Execution time
+
+## User Experience
+
+Users see different messages in the UI based on which tab they're viewing:
+- **Inbox tab**: "14 day auto archive" - indicates items will be archived after 14 days
+- **Archive tab**: "60 day auto delete" - indicates archived items will be deleted after 60 days
 
 ## Related Files
 
 - `/api/inbox/auto-archive.ts` - Auto-archive endpoint
+- `/api/inbox/auto-delete.ts` - Auto-delete endpoint
 - `/utils/inbox-data.ts` - Inbox data utilities
 - `db/config.ts` - Database schema (UserInboxItems table)
+- `.github/workflows/auto-archive.yml` - Scheduled workflow (runs both jobs)
 

@@ -1,4 +1,4 @@
-name: Auto-Archive Inbox Items
+name: Auto-Archive and Auto-Delete Inbox Items
 
 on:
   schedule:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch: # Allow manual triggering from GitHub Actions UI
 
 jobs:
-  archive:
+  inbox-cleanup:
     runs-on: ubuntu-latest
     steps:
       - name: Call Auto-Archive API
@@ -21,6 +21,21 @@ jobs:
             echo "$response"
           else
             response=$(curl -s -w "\n%{http_code}" -X POST $SITE_URL/api/inbox/auto-archive \
+              -H "Authorization: Bearer $SECRET_TOKEN")
+            echo "$response"
+          fi
+      
+      - name: Call Auto-Delete API
+        env:
+          SITE_URL: ${{ secrets.AUTO_ARCHIVE_SITE_URL || 'https://app.harvous.com' }}
+          SECRET_TOKEN: ${{ secrets.AUTO_ARCHIVE_SECRET_TOKEN }}
+        run: |
+          echo "Calling auto-delete endpoint: $SITE_URL/api/inbox/auto-delete"
+          if [ -z "$SECRET_TOKEN" ]; then
+            response=$(curl -s -w "\n%{http_code}" -X POST $SITE_URL/api/inbox/auto-delete)
+            echo "$response"
+          else
+            response=$(curl -s -w "\n%{http_code}" -X POST $SITE_URL/api/inbox/auto-delete \
               -H "Authorization: Bearer $SECRET_TOKEN")
             echo "$response"
           fi

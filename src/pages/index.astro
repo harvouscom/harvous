@@ -247,7 +247,7 @@ try {
                 <div class="flex flex-col gap-6">
                   <!-- First TabNav Group -->
                   <div class="flex flex-col gap-3">
-                    <!-- First TabNav - Inbox/Archive with auto-archive text -->
+                    <!-- First TabNav - Inbox/Archive with dynamic text -->
                     <div class="flex items-center justify-between pb-0 pl-[4px] pr-[12px] pt-[4px] relative w-full">
                       <TabNav 
                         tabs={[
@@ -257,7 +257,8 @@ try {
                         class="inbox-archive-tabs"
                       />
                       <div class="flex flex-col font-sans font-normal justify-center leading-[0] overflow-ellipsis overflow-hidden relative shrink-0 text-[12px] text-[#78766f] text-nowrap">
-                        <p class="leading-[1.3] whitespace-pre">14 day auto archive</p>
+                        <p class="leading-[1.3] whitespace-pre inbox-auto-text">14 day auto archive</p>
+                        <p class="leading-[1.3] whitespace-pre archive-auto-text hidden">60 day auto delete</p>
                       </div>
                     </div>
                     
@@ -273,6 +274,9 @@ try {
                           <div class="flex flex-col gap-2 items-center justify-center">
                             <div class="font-sans font-semibold text-[#4a473d] text-[18px] leading-[1.2]">
                               <p>Your inbox is empty</p>
+                            </div>
+                            <div class="font-sans font-normal text-[#78766f] text-[14px] leading-[1.3]">
+                              <p>Where new items appear, from Harvous and others</p>
                             </div>
                           </div>
                         </div>
@@ -290,7 +294,10 @@ try {
                         <div class="flex flex-col items-center justify-center min-h-[200px] w-full text-center">
                           <div class="flex flex-col gap-2 items-center justify-center">
                             <div class="font-sans font-semibold text-[#4a473d] text-[18px] leading-[1.2]">
-                              <p>Your archive is ready</p>
+                              <p>Your archive is empty</p>
+                            </div>
+                            <div class="font-sans font-normal text-[#78766f] text-[14px] leading-[1.3]">
+                              <p>Archived items are kept for 60 days</p>
                             </div>
                           </div>
                         </div>
@@ -445,6 +452,55 @@ try {
     document.addEventListener('astro:page-load', () => {
       // Try to get data from the new page, or use cached data
       initNavigationCache(threads, spaces, inboxItemCount);
+    });
+  }
+</script>
+
+<!-- Update inbox/archive auto text based on active tab -->
+<script is:inline>
+  function updateInboxArchiveText() {
+    const inboxArchiveTabs = document.querySelector('.inbox-archive-tabs');
+    if (!inboxArchiveTabs) return;
+    
+    const inboxButton = inboxArchiveTabs.querySelector('[data-tab-id="inbox"]');
+    const archiveButton = inboxArchiveTabs.querySelector('[data-tab-id="archive"]');
+    const inboxText = document.querySelector('.inbox-auto-text');
+    const archiveText = document.querySelector('.archive-auto-text');
+    
+    if (!inboxButton || !archiveButton || !inboxText || !archiveText) return;
+    
+    const isInboxActive = inboxButton.getAttribute('data-active') === 'true';
+    
+    if (isInboxActive) {
+      inboxText.classList.remove('hidden');
+      archiveText.classList.add('hidden');
+    } else {
+      inboxText.classList.add('hidden');
+      archiveText.classList.remove('hidden');
+    }
+  }
+  
+  // Update on page load
+  if (typeof window !== 'undefined') {
+    // Wait for DOM to be ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', updateInboxArchiveText);
+    } else {
+      updateInboxArchiveText();
+    }
+    
+    // Listen for tab clicks on inbox-archive-tabs
+    document.addEventListener('click', function(e) {
+      const clickedTab = e.target.closest('.inbox-archive-tabs [data-tab-button]');
+      if (clickedTab) {
+        // Small delay to let tab-manager.js update the active state first
+        setTimeout(updateInboxArchiveText, 10);
+      }
+    });
+    
+    // Also listen for View Transitions
+    document.addEventListener('astro:page-load', function() {
+      setTimeout(updateInboxArchiveText, 100);
     });
   }
 </script>
