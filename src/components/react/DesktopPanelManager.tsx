@@ -281,7 +281,7 @@ export default function DesktopPanelManager({
   
 
   return (
-    <div className="flex flex-col items-left justify-between h-full">
+    <div className="flex flex-col items-left h-full min-h-0 overflow-hidden" style={{ maxHeight: '100%' }}>
       {/* New Note Panel - Desktop Only */}
       {state.activePanel === 'newNote' && (
         <div className="h-full new-note-panel-container hidden min-[1160px]:block">
@@ -333,7 +333,7 @@ export default function DesktopPanelManager({
 
       {/* Inbox Item Preview Panel - Desktop Only */}
       {state.activePanel === 'inboxPreview' && inboxPreviewData && (
-        <div className="h-full hidden min-[1160px]:block">
+        <div className="h-full hidden min-[1160px]:block" style={{ height: '100%', maxHeight: '100%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <InboxItemPreviewPanel
             key={`inbox-preview-${state.panelKey}`}
             item={inboxPreviewData}

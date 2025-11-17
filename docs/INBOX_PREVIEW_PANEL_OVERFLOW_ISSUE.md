@@ -6,11 +6,23 @@ The `InboxItemPreviewPanel` component's note detail view is not properly contain
 
 ## Current Status
 
-**Status**: ❌ **UNRESOLVED** - Content still pushes elements off-screen, no scroll is happening
+**Status**: ✅ **RESOLVED** - Fixed by adding missing wrapper structure and h-full class
 
-**Last Updated**: 2025-01-16
+**Last Updated**: 2025-01-16 (Fixed)
 **Component**: `src/components/react/InboxItemPreviewPanel.tsx`
 **View**: Note Detail View (`viewMode === 'noteDetail'`)
+
+### Resolution (2025-01-16)
+
+**Root Cause**: The parent wrapper in `DesktopPanelManager.tsx` was missing critical height constraint classes, and the card container was missing `h-full` class.
+
+**Fix Applied**:
+1. **DesktopPanelManager wrapper**: Added `min-h-0 overflow-hidden flex flex-col` classes and `maxHeight: '100%'` style to match the note page structure
+2. **InboxItemPreviewPanel card**: Added `h-full` class to the card container to match `CardFullEditable` pattern
+
+**Files Modified**:
+- `src/components/react/DesktopPanelManager.tsx` (line 336): Added `min-h-0 overflow-hidden flex flex-col` and `maxHeight: '100%'` style
+- `src/components/react/InboxItemPreviewPanel.tsx` (line 309): Added `h-full` class to card container
 
 ### Attempted Fixes
 

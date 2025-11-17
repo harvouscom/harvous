@@ -86,6 +86,61 @@ function stripHtml(html: string): string {
   return text;
 }
 
+// Helper to normalize HTML content - ensure paragraphs are properly formatted
+function normalizeHtmlContent(html: string | null | undefined): string {
+  if (!html) return '';
+  
+  // If content already has paragraph tags, return as-is (but clean up any issues)
+  if (html.includes('<p>') || html.includes('<p ')) {
+    // Ensure proper paragraph structure - fix any unclosed or malformed tags
+    return html;
+  }
+  
+  // Convert <div> tags to <p> tags (Webflow sometimes uses divs for paragraphs)
+  let normalized = html.replace(/<div([^>]*)>/gi, '<p$1>').replace(/<\/div>/gi, '</p>');
+  
+  // If content has no HTML tags at all, split by line breaks and wrap in paragraphs
+  if (!normalized.includes('<')) {
+    // Split by double line breaks (paragraph breaks) or single line breaks
+    const paragraphs = normalized
+      .split(/\n\s*\n/) // Split on double line breaks first
+      .flatMap(p => p.split(/\n/)) // Then split on single line breaks
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+    
+    if (paragraphs.length > 1) {
+      return paragraphs.map(p => `<p>${p}</p>`).join('');
+    } else if (paragraphs.length === 1) {
+      return `<p>${paragraphs[0]}</p>`;
+    }
+    return normalized;
+  }
+  
+  // If content has HTML but no paragraphs, try to convert <br> tags to paragraphs
+  // First, handle double <br> tags as paragraph breaks
+  normalized = normalized
+    .replace(/(<br\s*\/?>\s*){2,}/gi, '</p><p>')
+    .trim();
+  
+  // If we created paragraph breaks, ensure proper wrapping
+  if (normalized.includes('</p><p>')) {
+    if (!normalized.startsWith('<p')) {
+      normalized = '<p>' + normalized;
+    }
+    if (!normalized.endsWith('</p>')) {
+      normalized = normalized + '</p>';
+    }
+    return normalized;
+  }
+  
+  // If still no paragraphs, wrap the whole thing
+  if (!normalized.includes('<p')) {
+    normalized = `<p>${normalized}</p>`;
+  }
+  
+  return normalized;
+}
+
 export default function InboxItemPreviewPanel({
   item,
   onClose,
@@ -253,7 +308,13 @@ export default function InboxItemPreviewPanel({
         }
 
         .inbox-note-detail-content p {
+          display: block !important;
           margin: 0.75em 0 !important;
+          padding: 0 !important;
+          line-height: 1.6 !important;
+          color: var(--color-deep-grey) !important;
+          font-family: var(--font-sans) !important;
+          font-size: 16px !important;
         }
 
         .inbox-note-detail-content p:first-child {
@@ -262,6 +323,11 @@ export default function InboxItemPreviewPanel({
 
         .inbox-note-detail-content p:last-child {
           margin-bottom: 0 !important;
+        }
+        
+        /* Ensure empty paragraphs don't collapse */
+        .inbox-note-detail-content p:empty {
+          min-height: 0.75em;
         }
 
         .inbox-note-detail-content ul {
@@ -301,12 +367,12 @@ export default function InboxItemPreviewPanel({
           margin-bottom: 0 !important;
         }
       `}</style>
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" style={{ height: '100%', maxHeight: '100%', minHeight: 0 }}>
       {/* Content area that expands to fill available space - matches NewNotePanel structure */}
       <div className="flex-1 flex flex-col min-h-0 mb-3.5 overflow-hidden">
         {/* Note Detail View - matches NewNotePanel card structure */}
         {viewMode === 'noteDetail' && selectedNote ? (
-          <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full gap-6" style={{ maxHeight: '100%' }}>
+          <div className="bg-white box-border flex flex-col h-full flex-1 min-h-0 items-start justify-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] gap-6" style={{ maxHeight: '100%', height: '100%' }}>
             {/* Header with title and note type icon */}
             <div className="box-border content-stretch flex gap-3 items-center px-3 py-0 relative shrink-0 w-full">
               <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
@@ -322,14 +388,20 @@ export default function InboxItemPreviewPanel({
               </div>
             </div>
             
-            {/* Content - simplified structure matching NewNotePanel exactly */}
-            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
-                <div 
-                  className="overflow-auto inbox-note-detail-content"
-                  style={{ lineHeight: '1.6', height: '100%', paddingBottom: '12px' }}
-                  dangerouslySetInnerHTML={{ __html: selectedNote.content || '' }}
-                />
+            {/* Content - matching CardFullEditable structure exactly */}
+            <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px' }}>
+              <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
+                <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+                  <div 
+                    className="flex-1 overflow-auto inbox-note-detail-content"
+                    style={{ 
+                      lineHeight: '1.6', 
+                      minHeight: 0, 
+                      paddingBottom: '12px' 
+                    }}
+                    dangerouslySetInnerHTML={{ __html: normalizeHtmlContent(selectedNote.content) }}
+                  />
+                </div>
               </div>
             </div>
           </div>

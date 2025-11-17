@@ -137,8 +137,41 @@ export const POST: APIRoute = async ({ request }) => {
             // Map name to title
             transformed.title = item.fieldData.name;
 
-            // Map content
-            transformed.content = item.fieldData.content;
+            // Map content - check multiple possible field names
+            // Webflow rich text fields might be stored with different names
+            // Also handle if content is an object (Webflow v2 API sometimes returns rich text as objects)
+            let rawContent = item.fieldData.content 
+              || item.fieldData['Content'] 
+              || item.fieldData['content-html']
+              || item.fieldData['content-html-2']
+              || item.fieldData.description
+              || item.fieldData.body
+              || null;
+            
+            // If content is an object, extract HTML from it
+            if (rawContent && typeof rawContent === 'object') {
+              // Webflow v2 API might return rich text as { html: "...", plainText: "..." }
+              rawContent = rawContent.html || rawContent.richText || rawContent.content || JSON.stringify(rawContent);
+            }
+            
+            transformed.content = rawContent;
+            
+            // Debug: log fieldData to see what's available
+            if (!transformed.content) {
+              console.log('No content found for item:', item.id);
+              console.log('Available fields:', Object.keys(item.fieldData || {}));
+              // Log all field values to help debug
+              Object.keys(item.fieldData || {}).forEach(key => {
+                const value = item.fieldData[key];
+                if (typeof value === 'string' && value.length > 0) {
+                  console.log(`Field "${key}":`, value.substring(0, 100) + (value.length > 100 ? '...' : ''));
+                }
+              });
+            } else {
+              console.log('Content found for item:', item.id, 'Length:', transformed.content?.length || 0);
+              // Log first 200 chars to see structure
+              console.log('Content preview:', transformed.content?.substring(0, 200) || 'empty');
+            }
 
             // Handle color reference (color-2 field)
             if (item.fieldData['color-2']) {
