@@ -862,14 +862,8 @@ async function transformWebflowItem(item: any, webflowToken: string): Promise<an
       }
     }
 
-    // Set target-audience based on thread title
-    // "Welcome to Harvous" is for new users only, all others are for all users
-    const threadTitle = item.fieldData.name || '';
-    if (threadTitle.toLowerCase().includes('welcome to harvous')) {
-      transformed['target-audience'] = 'all_new_users';
-    } else {
-      transformed['target-audience'] = 'all_users';
-    }
+    // Set target-audience - all threads with "Send to Harvous Inbox" enabled go to all users
+    transformed['target-audience'] = 'all_users';
 
     // Set is-active based on archived status
     transformed['is-active'] = !item.isArchived;

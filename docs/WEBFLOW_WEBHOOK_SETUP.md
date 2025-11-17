@@ -70,14 +70,14 @@ https://your-domain.com/api/webflow/webhook
 
 ### Target Audience Logic
 
-- **"Welcome to Harvous"** thread → `targetAudience: 'all_new_users'`
-- **All other threads** → `targetAudience: 'all_users'`
+- All threads with "Send to Harvous Inbox?" enabled are set to `targetAudience: 'all_users'`
+- These items are assigned to all existing users
 
 ### User Assignment
 
-- Items with `targetAudience: 'all_users'` are assigned to all existing users
-- Items with `targetAudience: 'all_new_users'` are assigned to all existing users (new users get them via middleware)
+- All threads synced from Webflow are set to `targetAudience: 'all_users'` and assigned to all existing users
 - Each user gets a `UserInboxItems` record with `createdAt` timestamp (used for relative time display)
+- Note: The system still supports `targetAudience: 'all_new_users'` for programmatic use (e.g., new user onboarding), but Webflow-synced items always use `'all_users'`
 
 ## Troubleshooting
 
