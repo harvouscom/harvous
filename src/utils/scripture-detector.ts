@@ -128,7 +128,7 @@ const parseReference = (match: string): ScriptureReference | null => {
             reference: `${canonicalBook} ${chapter}:${cleanVerseGroups}`
           };
         } else if (matchResult.length === 5) {
-          // Single range detected
+          // Single range detected (Pattern 2: separate capture groups for start and end)
           const verseStart = parseInt(matchResult[3]);
           const verseEnd = parseInt(matchResult[4]);
           return {
@@ -137,7 +137,20 @@ const parseReference = (match: string): ScriptureReference | null => {
             verse: [verseStart, verseEnd] as [number, number],
             reference: `${canonicalBook} ${chapter}:${verseStart}-${verseEnd}`
           };
-        } else if (matchResult.length === 4 && !matchResult[3].includes(',')) {
+        } else if (matchResult.length === 4 && !matchResult[3].includes(',') && matchResult[3].includes('-')) {
+          // Single range detected (Pattern 1: range in single capture group like "8-23")
+          const versePart = matchResult[3].trim();
+          const [start, end] = versePart.split(/\s*-\s*/).map(v => parseInt(v.trim()));
+          if (!isNaN(start) && !isNaN(end)) {
+            return {
+              book: canonicalBook,
+              chapter,
+              verse: [start, end] as [number, number],
+              reference: `${canonicalBook} ${chapter}:${start}-${end}`
+            };
+          }
+          // Fall through to single verse if parsing fails
+        } else if (matchResult.length === 4 && !matchResult[3].includes(',') && !matchResult[3].includes('-')) {
           // Single verse
           const verse = parseInt(matchResult[3]);
           return {
