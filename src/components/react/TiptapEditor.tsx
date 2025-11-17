@@ -149,7 +149,7 @@ function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean 
           try {
             const $from = doc.resolve(candidateFrom);
             const marks = $from.marks();
-            const hasPill = marks.some(m => m.type.name === 'scripturePill');
+            const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
             if (hasPill) {
               // Skip this position
               continue;
@@ -347,8 +347,8 @@ async function convertNoteLinksToScripturePills(editor: any) {
                 try {
                   const $from = doc.resolve(pos.from);
                   const marks = $from.marks();
-                  const hasPill = marks.some(m => m.type.name === 'scripturePill');
-                  const hasNoteLink = marks.some(m => m.type.name === 'noteLink');
+                  const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+                  const hasNoteLink = marks.some((m: any) => m.type.name === 'noteLink');
                   
                   if (hasPill) {
                     continue; // Already a pill
@@ -450,7 +450,7 @@ async function detectAndCreateScriptureNotes(editor: any) {
         try {
           const $from = currentDoc.resolve(positions.from);
           const marks = $from.marks();
-          const hasPill = marks.some(m => m.type.name === 'scripturePill');
+          const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
           if (hasPill) {
             continue; // Skip if already marked
           }
@@ -687,6 +687,72 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const $from = view.state.selection.$from;
         const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
         
+        // Detect scripture references when space is pressed (before cursor is in a pill)
+        // This provides better UX: user types "John 3:16 " and it converts to a pill immediately
+        if (event.key === ' ' && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          // Get text before cursor (back to last space or start of paragraph)
+          const doc = view.state.doc;
+          let textStart = from;
+          
+          // Find the start of the current word/phrase (back to space or paragraph start)
+          for (let pos = from - 1; pos >= 0; pos--) {
+            try {
+              const $pos = doc.resolve(pos);
+              const char = doc.textBetween(pos, pos + 1);
+              
+              // Stop at space, newline, or paragraph boundary
+              if (char === ' ' || char === '\n' || $pos.parentOffset === 0) {
+                textStart = pos + 1;
+                break;
+              }
+              
+              // Also stop at start of document
+              if (pos === 0) {
+                textStart = 0;
+                break;
+              }
+            } catch (e) {
+              break;
+            }
+          }
+          
+          // Get the potential scripture reference text
+          const potentialReference = doc.textBetween(textStart, from);
+          
+          // Only check if it looks like it could be a scripture reference (has colon and numbers)
+          if (potentialReference.length >= 5 && potentialReference.match(/:\d/)) {
+            // Check if this text is already a pill
+            try {
+              const $checkPos = doc.resolve(textStart);
+              const marksAtStart = $checkPos.marks();
+              const alreadyPill = marksAtStart.some(m => m.type.name === 'scripturePill');
+              
+              if (!alreadyPill) {
+                // Trigger detection immediately (async, don't block space insertion)
+                // The space will be inserted normally, then detection will convert the text before it
+                setTimeout(async () => {
+                  // Get fresh document state after space was inserted
+                  const currentDoc = editor.state.doc;
+                  const currentFrom = editor.state.selection.from;
+                  
+                  // Re-check the text before the space (now the space is inserted, so we check one position back)
+                  const checkStart = Math.max(0, currentFrom - potentialReference.length - 1);
+                  const checkEnd = currentFrom - 1; // Before the space we just inserted
+                  const textToCheck = currentDoc.textBetween(checkStart, checkEnd);
+                  
+                  // Quick check: does this text contain our potential reference?
+                  if (textToCheck.includes(potentialReference)) {
+                    // Trigger detection for the text before the space
+                    await detectAndCreateScriptureNotes(editor);
+                  }
+                }, 50); // Small delay to ensure space is inserted first
+              }
+            } catch (e) {
+              // If we can't check, just continue normally
+            }
+          }
+        }
+        
         if (scripturePillMark) {
           // Helper to find pill boundaries
           const findPillBoundaries = (doc: any, pos: number): { start: number; end: number } | null => {
@@ -698,7 +764,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               try {
                 const $p = doc.resolve(p);
                 const marks = $p.marks();
-                const hasPill = marks.some(m => m.type.name === 'scripturePill');
+                const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
                 if (!hasPill) {
                   pillStart = p + 1;
                   break;
@@ -718,7 +784,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               try {
                 const $p = doc.resolve(p);
                 const marks = $p.marks();
-                const hasPill = marks.some(m => m.type.name === 'scripturePill');
+                const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
                 if (!hasPill) {
                   pillEnd = p;
                   break;
@@ -843,7 +909,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (currentContent !== content) {
         // Use setContent with emitUpdate: false to prevent triggering detection
         // This preserves marks that are in the HTML content
-        editor.commands.setContent(content, false);
+        editor.commands.setContent(content, { emitUpdate: false });
         // Update previous text content reference to prevent unnecessary detection
         previousTextContentRef.current = editor.state.doc.textContent;
         
