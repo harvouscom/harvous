@@ -392,6 +392,67 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
                 const result = await createResponse.json();
                 if (result.note && result.note.id) {
                   targetNoteId = result.note.id;
+                  
+                  // Update the pill's noteId attribute in the editor
+                  try {
+                    const { from, to } = state.selection;
+                    const tr = state.tr;
+                    
+                    // Find the range of the scripture pill mark
+                    let pillStart = from;
+                    let pillEnd = from;
+                    
+                    // Find start of pill
+                    for (let pos = from; pos >= 0; pos--) {
+                      try {
+                        const $pos = state.doc.resolve(pos);
+                        const marks = $pos.marks();
+                        const hasPill = marks.some(m => m.type.name === 'scripturePill');
+                        if (!hasPill) {
+                          pillStart = pos + 1;
+                          break;
+                        }
+                        if (pos === 0) {
+                          pillStart = 0;
+                          break;
+                        }
+                      } catch (e) {
+                        pillStart = pos + 1;
+                        break;
+                      }
+                    }
+                    
+                    // Find end of pill
+                    for (let pos = from; pos <= state.doc.content.size; pos++) {
+                      try {
+                        const $pos = state.doc.resolve(pos);
+                        const marks = $pos.marks();
+                        const hasPill = marks.some(m => m.type.name === 'scripturePill');
+                        if (!hasPill) {
+                          pillEnd = pos;
+                          break;
+                        }
+                      } catch (e) {
+                        pillEnd = pos;
+                        break;
+                      }
+                    }
+                    
+                    // Update the mark with new noteId
+                    const markType = state.schema.marks.scripturePill;
+                    if (markType) {
+                      tr.removeMark(pillStart, pillEnd, markType);
+                      tr.addMark(pillStart, pillEnd, markType.create({
+                        reference: reference,
+                        noteId: targetNoteId
+                      }));
+                      view.dispatch(tr);
+                    }
+                  } catch (updateError) {
+                    console.error('Error updating pill noteId:', updateError);
+                    // Continue with navigation even if update fails
+                  }
+                  
                   // Show success toast
                   if (window.toast) {
                     window.toast.success(`Scripture note restored: ${reference}`);
@@ -468,6 +529,70 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
                   const result = await createResponse.json();
                   if (result.note && result.note.id) {
                     targetNoteId = result.note.id;
+                    
+                    // Update the pill's noteId attribute in the editor
+                    try {
+                      const { from, to } = state.selection;
+                      const tr = state.tr;
+                      
+                      // Find the range of the scripture pill mark by checking the clicked element
+                      // We need to find the position in the document that corresponds to this element
+                      // Since we're clicking on the element, we can use the selection
+                      const $from = state.selection.$from;
+                      let pillStart = from;
+                      let pillEnd = from;
+                      
+                      // Find start of pill
+                      for (let pos = from; pos >= 0; pos--) {
+                        try {
+                          const $pos = state.doc.resolve(pos);
+                          const marks = $pos.marks();
+                          const hasPill = marks.some(m => m.type.name === 'scripturePill');
+                          if (!hasPill) {
+                            pillStart = pos + 1;
+                            break;
+                          }
+                          if (pos === 0) {
+                            pillStart = 0;
+                            break;
+                          }
+                        } catch (e) {
+                          pillStart = pos + 1;
+                          break;
+                        }
+                      }
+                      
+                      // Find end of pill
+                      for (let pos = from; pos <= state.doc.content.size; pos++) {
+                        try {
+                          const $pos = state.doc.resolve(pos);
+                          const marks = $pos.marks();
+                          const hasPill = marks.some(m => m.type.name === 'scripturePill');
+                          if (!hasPill) {
+                            pillEnd = pos;
+                            break;
+                          }
+                        } catch (e) {
+                          pillEnd = pos;
+                          break;
+                        }
+                      }
+                      
+                      // Update the mark with new noteId
+                      const markType = state.schema.marks.scripturePill;
+                      if (markType) {
+                        tr.removeMark(pillStart, pillEnd, markType);
+                        tr.addMark(pillStart, pillEnd, markType.create({
+                          reference: clickedReference,
+                          noteId: targetNoteId
+                        }));
+                        view.dispatch(tr);
+                      }
+                    } catch (updateError) {
+                      console.error('Error updating pill noteId:', updateError);
+                      // Continue with navigation even if update fails
+                    }
+                    
                     // Show success toast
                     if (window.toast) {
                       window.toast.success(`Scripture note restored: ${clickedReference}`);

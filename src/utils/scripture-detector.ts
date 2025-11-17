@@ -106,8 +106,14 @@ const parseReference = (match: string): ScriptureReference | null => {
             const trimmed = group.trim();
             if (trimmed.includes('-')) {
               const [start, end] = trimmed.split('-').map(v => parseInt(v.trim()));
-              for (let v = start; v <= end; v++) {
-                allVerses.push(v);
+              // Validate range: start must be <= end
+              if (!isNaN(start) && !isNaN(end) && start <= end) {
+                for (let v = start; v <= end; v++) {
+                  allVerses.push(v);
+                }
+              } else if (!isNaN(start) && !isNaN(end) && start > end) {
+                // Invalid range (start > end) - treat as single verse
+                allVerses.push(start);
               }
             } else {
               allVerses.push(parseInt(trimmed));
@@ -131,22 +137,43 @@ const parseReference = (match: string): ScriptureReference | null => {
           // Single range detected (Pattern 2: separate capture groups for start and end)
           const verseStart = parseInt(matchResult[3]);
           const verseEnd = parseInt(matchResult[4]);
-          return {
-            book: canonicalBook,
-            chapter,
-            verse: [verseStart, verseEnd] as [number, number],
-            reference: `${canonicalBook} ${chapter}:${verseStart}-${verseEnd}`
-          };
+          // Validate range: start must be <= end
+          if (!isNaN(verseStart) && !isNaN(verseEnd) && verseStart <= verseEnd) {
+            return {
+              book: canonicalBook,
+              chapter,
+              verse: [verseStart, verseEnd] as [number, number],
+              reference: `${canonicalBook} ${chapter}:${verseStart}-${verseEnd}`
+            };
+          } else if (!isNaN(verseStart) && !isNaN(verseEnd) && verseStart > verseEnd) {
+            // Invalid range (start > end) - treat as single verse
+            return {
+              book: canonicalBook,
+              chapter,
+              verse: verseStart,
+              reference: `${canonicalBook} ${chapter}:${verseStart}`
+            };
+          }
+          // If parsing fails, fall through to single verse
         } else if (matchResult.length === 4 && !matchResult[3].includes(',') && matchResult[3].includes('-')) {
           // Single range detected (Pattern 1: range in single capture group like "8-23")
           const versePart = matchResult[3].trim();
           const [start, end] = versePart.split(/\s*-\s*/).map(v => parseInt(v.trim()));
-          if (!isNaN(start) && !isNaN(end)) {
+          // Validate range: start must be <= end
+          if (!isNaN(start) && !isNaN(end) && start <= end) {
             return {
               book: canonicalBook,
               chapter,
               verse: [start, end] as [number, number],
               reference: `${canonicalBook} ${chapter}:${start}-${end}`
+            };
+          } else if (!isNaN(start) && !isNaN(end) && start > end) {
+            // Invalid range (start > end) - treat as single verse
+            return {
+              book: canonicalBook,
+              chapter,
+              verse: start,
+              reference: `${canonicalBook} ${chapter}:${start}`
             };
           }
           // Fall through to single verse if parsing fails
@@ -249,10 +276,13 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
       // Override the cleaned reference with the original to maintain user's formatting
       extracted.reference = fullMatch;
       
-      // Avoid duplicates
-      const isDuplicate = references.some(ref => 
-        ref.reference === extracted.reference
-      );
+      // Avoid duplicates by comparing normalized references
+      // This prevents duplicates like "John 3:16" vs "John 3: 16"
+      const normalizedExtracted = normalizeScriptureReference(extracted.reference);
+      const isDuplicate = references.some(ref => {
+        const normalizedRef = normalizeScriptureReference(ref.reference);
+        return normalizedRef === normalizedExtracted;
+      });
       if (!isDuplicate) {
         references.push(extracted);
       }
