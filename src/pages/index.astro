@@ -434,7 +434,7 @@ try {
 
 <!-- Initialize navigation cache with server-rendered data -->
 <script type="module" define:vars={{ threads, spaces, inboxItemCount }}>
-  import { initNavigationCache } from '@/scripts/navigation-cache-client';
+  import { initNavigationCache } from '../scripts/navigation-cache-client';
   
   // Cache navigation data after page loads
   if (typeof window !== 'undefined') {
