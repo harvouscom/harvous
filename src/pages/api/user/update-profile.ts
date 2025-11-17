@@ -106,13 +106,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
     
     // Production fallback: Ensure database is updated even if cache invalidation fails
+    // Preserve church fields - they should never be lost
     try {
       console.log('🔄 Production fallback: Direct database update');
+      
+      // Get existing metadata to preserve church fields
+      const existingMetadata = await db.select()
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, userId))
+        .get();
+      
       await db.update(UserMetadata)
         .set({
           firstName,
           lastName,
           userColor: color,
+          // Preserve church fields - they are stored in database and should never be lost
+          churchName: existingMetadata?.churchName ?? null,
+          churchCity: existingMetadata?.churchCity ?? null,
+          churchState: existingMetadata?.churchState ?? null,
           updatedAt: new Date()
         })
         .where(eq(UserMetadata.userId, userId));

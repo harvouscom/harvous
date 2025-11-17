@@ -175,6 +175,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
   }
 
   // Update database with fresh Clerk data (including metadata)
+  // Preserve church fields from existing metadata - they should persist indefinitely
   let userCreatedAt: Date | undefined;
   if (existingMetadata) {
     userCreatedAt = existingMetadata.createdAt;
@@ -185,12 +186,17 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
         email,
         profileImageUrl,
         userColor,  // Cache from Clerk's public_metadata
+        // Preserve church fields - they are stored in database and should never be lost
+        churchName: existingMetadata.churchName ?? null,
+        churchCity: existingMetadata.churchCity ?? null,
+        churchState: existingMetadata.churchState ?? null,
         clerkDataUpdatedAt: new Date(),
         updatedAt: new Date()
       })
       .where(eq(UserMetadata.userId, userId));
   } else {
     // Create new user record with Clerk data
+    // Church fields default to null for new users
     userCreatedAt = new Date();
     await db.insert(UserMetadata).values({
       id: `user_metadata_${userId}`,
@@ -201,6 +207,10 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       profileImageUrl,
       userColor,  // From Clerk's public_metadata
       highestSimpleNoteId: 0,
+      // Church fields default to null for new users
+      churchName: null,
+      churchCity: null,
+      churchState: null,
       createdAt: userCreatedAt,
       updatedAt: new Date(),
       clerkDataUpdatedAt: new Date(),
