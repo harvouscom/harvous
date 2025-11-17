@@ -329,7 +329,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
 
   addEventListeners() {
     return {
-      click: (view, event) => {
+      click: async (view, event) => {
         const { state } = view;
         const { selection } = state;
         const { $from } = selection;
@@ -337,11 +337,74 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         // Check if click is on a scripture pill
         const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
         const noteId = scripturePillMark?.attrs.noteId;
+        const reference = scripturePillMark?.attrs.reference;
         
         if (noteId) {
           event.preventDefault();
-          // Navigate to note using Astro view transitions
-          window.location.href = `/${noteId}`;
+          
+          // Check if note exists, and recreate if needed
+          let targetNoteId = noteId;
+          
+          try {
+            const checkResponse = await fetch(`/api/notes/${noteId}/details`, {
+              method: 'GET',
+              credentials: 'include'
+            });
+            
+            // If note doesn't exist and we have a reference, recreate it
+            if (!checkResponse.ok && reference) {
+              const normalizedRef = reference; // Reference should already be normalized
+              
+              // Fetch verse text first
+              let verseText = reference;
+              try {
+                const verseResponse = await fetch('/api/scripture/fetch-verse', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ reference: normalizedRef }),
+                  credentials: 'include'
+                });
+
+                if (verseResponse.ok) {
+                  const verseData = await verseResponse.json();
+                  verseText = verseData.text || reference;
+                }
+              } catch (error) {
+                console.error('Error fetching verse text:', error);
+              }
+
+              // Create new note with verse text as content
+              const formData = new FormData();
+              formData.set('content', verseText);
+              formData.set('title', reference);
+              formData.set('threadId', 'thread_unorganized');
+              formData.set('noteType', 'scripture');
+              formData.set('scriptureReference', normalizedRef);
+              formData.set('scriptureVersion', 'NET');
+
+              const createResponse = await fetch('/api/notes/create', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+              });
+
+              if (createResponse.ok) {
+                const result = await createResponse.json();
+                if (result.note && result.note.id) {
+                  targetNoteId = result.note.id;
+                  // Show success toast
+                  if (window.toast) {
+                    window.toast.success(`Scripture note restored: ${reference}`);
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error checking/restoring note:', error);
+          }
+          
+          // Navigate to note (either original or recreated)
+          window.location.href = `/${targetNoteId}`;
           return true;
         }
 
@@ -350,9 +413,73 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         const pillElement = target.closest('.scripture-pill');
         if (pillElement) {
           const clickedNoteId = pillElement.getAttribute('data-note-id');
+          const clickedReference = pillElement.getAttribute('data-scripture-reference');
+          
           if (clickedNoteId) {
             event.preventDefault();
-            window.location.href = `/${clickedNoteId}`;
+            
+            // Check if note exists, and recreate if needed
+            let targetNoteId = clickedNoteId;
+            
+            try {
+              const checkResponse = await fetch(`/api/notes/${clickedNoteId}/details`, {
+                method: 'GET',
+                credentials: 'include'
+              });
+              
+              // If note doesn't exist and we have a reference, recreate it
+              if (!checkResponse.ok && clickedReference) {
+                const normalizedRef = clickedReference;
+                
+                // Fetch verse text first
+                let verseText = clickedReference;
+                try {
+                  const verseResponse = await fetch('/api/scripture/fetch-verse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reference: normalizedRef }),
+                    credentials: 'include'
+                  });
+
+                  if (verseResponse.ok) {
+                    const verseData = await verseResponse.json();
+                    verseText = verseData.text || clickedReference;
+                  }
+                } catch (error) {
+                  console.error('Error fetching verse text:', error);
+                }
+
+                // Create new note with verse text as content
+                const formData = new FormData();
+                formData.set('content', verseText);
+                formData.set('title', clickedReference);
+                formData.set('threadId', 'thread_unorganized');
+                formData.set('noteType', 'scripture');
+                formData.set('scriptureReference', normalizedRef);
+                formData.set('scriptureVersion', 'NET');
+
+                const createResponse = await fetch('/api/notes/create', {
+                  method: 'POST',
+                  body: formData,
+                  credentials: 'include'
+                });
+
+                if (createResponse.ok) {
+                  const result = await createResponse.json();
+                  if (result.note && result.note.id) {
+                    targetNoteId = result.note.id;
+                    // Show success toast
+                    if (window.toast) {
+                      window.toast.success(`Scripture note restored: ${clickedReference}`);
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Error checking/restoring note:', error);
+            }
+            
+            window.location.href = `/${targetNoteId}`;
             return true;
           }
         }

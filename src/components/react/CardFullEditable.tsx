@@ -353,18 +353,82 @@ export default function CardFullEditable({
     setHasChanges(e.target.value !== displayTitle || editContent !== displayContent);
   };
 
-  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleContentClick = async (e: React.MouseEvent<HTMLDivElement>) => {
     // Check if click is on a scripture pill
     const target = e.target as HTMLElement;
     const pillElement = target.closest('.scripture-pill');
     
     if (pillElement) {
       const noteId = pillElement.getAttribute('data-note-id');
+      const reference = pillElement.getAttribute('data-scripture-reference');
+      
       if (noteId) {
-        // Navigate to the note
+        // Navigate to the note (with lazy recreation if needed)
         e.preventDefault();
         e.stopPropagation();
-        window.location.href = `/${noteId}`;
+        
+        // Check if note exists, and recreate if needed
+        let targetNoteId = noteId;
+        
+        try {
+          const checkResponse = await fetch(`/api/notes/${noteId}/details`, {
+            method: 'GET',
+            credentials: 'include'
+          });
+          
+          // If note doesn't exist and we have a reference, recreate it
+          if (!checkResponse.ok && reference) {
+            const normalizedRef = reference;
+            
+            // Fetch verse text first
+            let verseText = reference;
+            try {
+              const verseResponse = await fetch('/api/scripture/fetch-verse', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference: normalizedRef }),
+                credentials: 'include'
+              });
+
+              if (verseResponse.ok) {
+                const verseData = await verseResponse.json();
+                verseText = verseData.text || reference;
+              }
+            } catch (error) {
+              console.error('Error fetching verse text:', error);
+            }
+
+            // Create new note with verse text as content
+            const formData = new FormData();
+            formData.set('content', verseText);
+            formData.set('title', reference);
+            formData.set('threadId', 'thread_unorganized');
+            formData.set('noteType', 'scripture');
+            formData.set('scriptureReference', normalizedRef);
+            formData.set('scriptureVersion', 'NET');
+
+            const createResponse = await fetch('/api/notes/create', {
+              method: 'POST',
+              body: formData,
+              credentials: 'include'
+            });
+
+            if (createResponse.ok) {
+              const result = await createResponse.json();
+              if (result.note && result.note.id) {
+                targetNoteId = result.note.id;
+                // Show success toast
+                if (window.toast) {
+                  window.toast.success(`Scripture note restored: ${reference}`);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error checking/restoring note:', error);
+        }
+        
+        window.location.href = `/${targetNoteId}`;
         return;
       }
     }
