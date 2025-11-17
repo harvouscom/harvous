@@ -240,6 +240,8 @@ export default function CardFullEditable({
         }
       });
     }
+    // Note: Scripture detection is handled by TiptapEditor's useEffect
+    // when content is loaded, so we don't need to trigger it here
   };
 
   const cancelEdit = () => {

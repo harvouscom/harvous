@@ -43,42 +43,72 @@ function findTextPositions(doc: any, searchText: string, skipMarked: boolean = t
   return allPositions.length > 0 ? allPositions[0] : null;
 }
 
+// Helper function to normalize text for flexible matching (handles spacing variations)
+function normalizeTextForMatching(text: string): string {
+  // Remove spaces around dashes and colons, normalize whitespace
+  return text
+    .replace(/\s*-\s*/g, '-')  // "16 - 17" -> "16-17"
+    .replace(/:\s+/g, ':')     // "3: 16" -> "3:16"
+    .replace(/\s+/g, ' ')      // Multiple spaces -> single space
+    .trim()
+    .toLowerCase();
+}
+
+// Helper function to find text positions with flexible matching for verse ranges
+function findTextWithFlexibleMatching(fullText: string, searchText: string): Array<{ index: number; length: number }> {
+  const normalizedSearch = normalizeTextForMatching(searchText);
+  const matches: Array<{ index: number; length: number }> = [];
+  
+  // Try exact match first
+  let index = fullText.indexOf(searchText);
+  while (index !== -1) {
+    matches.push({ index, length: searchText.length });
+    index = fullText.indexOf(searchText, index + 1);
+  }
+  
+  // Also try normalized match (handles spacing variations)
+  if (normalizedSearch !== searchText.toLowerCase()) {
+    // Build regex pattern that matches with flexible spacing
+    const escapedSearch = searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Allow optional spaces around dashes and colons
+    const flexiblePattern = escapedSearch
+      .replace(/\s*-\s*/g, '\\s*-\\s*')  // Flexible dash spacing
+      .replace(/:\s+/g, ':\\s*')         // Flexible colon spacing
+      .replace(/\s+/g, '\\s+');          // Flexible general spacing
+    
+    const regex = new RegExp(flexiblePattern, 'gi');
+    let match;
+    while ((match = regex.exec(fullText)) !== null) {
+      const matchIndex = match.index;
+      const matchLength = match[0].length;
+      // Avoid duplicates
+      if (!matches.some(m => m.index === matchIndex)) {
+        matches.push({ index: matchIndex, length: matchLength });
+      }
+    }
+  }
+  
+  return matches;
+}
+
 // Helper function to find ALL text positions in ProseMirror document
 // Returns all occurrences that don't already have a scripture pill mark
 function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean = true): Array<{ from: number; to: number }> {
   const fullText = doc.textContent;
-  const normalizedSearch = normalizeScriptureReference(searchText);
   
-  // Determine which text to search for (original or normalized)
-  let actualSearchText = searchText;
-  let searchIndices: number[] = [];
-  
-  // Find all occurrences of the original text
-  let index = fullText.indexOf(searchText);
-  while (index !== -1) {
-    searchIndices.push(index);
-    index = fullText.indexOf(searchText, index + 1);
+  if (!fullText || fullText.trim().length === 0) {
+    return [];
   }
   
-  // Also find all occurrences of normalized text (if different)
-  if (normalizedSearch !== searchText) {
-    index = fullText.indexOf(normalizedSearch);
-    while (index !== -1) {
-      if (!searchIndices.includes(index)) {
-        searchIndices.push(index);
-      }
-      index = fullText.indexOf(normalizedSearch, index + 1);
-    }
-    // Use normalized text for position calculation
-    actualSearchText = normalizedSearch;
-  }
+  // Find all matches with flexible spacing handling
+  const matches = findTextWithFlexibleMatching(fullText, searchText);
   
-  if (searchIndices.length === 0) {
+  if (matches.length === 0) {
     return [];
   }
 
   // Sort indices to process in order
-  searchIndices.sort((a, b) => a - b);
+  matches.sort((a, b) => a.index - b.index);
   
   const positions: Array<{ from: number; to: number }> = [];
   let currentPos = 0;
@@ -102,14 +132,17 @@ function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean 
     }
   });
   
-  // For each search index, find the corresponding document position
-  for (const searchIndex of searchIndices) {
+  // For each match, find the corresponding document position
+  for (const match of matches) {
+    const searchIndex = match.index;
+    const matchLength = match.length;
+    
     // Find which text node contains this index
     for (const map of textToDocMap) {
       if (searchIndex >= map.textStart && searchIndex < map.textEnd) {
         const offset = searchIndex - map.textStart;
         const candidateFrom = map.docStart + offset;
-        const candidateTo = candidateFrom + actualSearchText.length;
+        const candidateTo = candidateFrom + matchLength;
         
         // Check if this position already has a scripture pill mark
         if (skipMarked) {
@@ -228,6 +261,123 @@ async function getOrCreateScriptureNote(reference: string): Promise<{ noteId: st
   }
   
   return { noteId: null, isNew: false };
+}
+
+// Helper function to convert note-link spans to scripture-pill marks
+// This handles cases where HTML contains note-link spans that should be scripture pills
+async function convertNoteLinksToScripturePills(editor: any) {
+  if (!editor) return;
+  
+  try {
+    const htmlContent = editor.getHTML();
+    const doc = editor.state.doc;
+    
+    // Find all note-link spans in the HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlContent;
+    const noteLinks = tempDiv.querySelectorAll('span.note-link[data-note-id]');
+    
+    if (noteLinks.length === 0) {
+      return;
+    }
+    
+    // Check each note-link to see if it references a scripture note
+    for (const noteLink of Array.from(noteLinks)) {
+      const noteId = (noteLink as HTMLElement).getAttribute('data-note-id');
+      if (!noteId) continue;
+      
+      // Check if this note is a scripture note
+      try {
+        const checkResponse = await fetch(`/api/notes/${noteId}/details`, {
+          method: 'GET',
+          credentials: 'include'
+        });
+        
+        if (checkResponse.ok) {
+          const noteData = await checkResponse.json();
+          if (noteData.note && noteData.note.noteType === 'scripture') {
+            // This is a scripture note - we need to get the scripture reference
+            // Try to detect it from the link text or fetch from scripture metadata
+            const linkText = noteLink.textContent || '';
+            
+            // First, try to detect if the link text is a scripture reference
+            const detectResponse = await fetch('/api/scripture/detect', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: linkText }),
+              credentials: 'include'
+            });
+            
+            let reference = '';
+            if (detectResponse.ok) {
+              const detection = await detectResponse.json();
+              if (detection.isScripture && detection.references && detection.references.length > 0) {
+                reference = detection.references[0].reference;
+              }
+            }
+            
+            // If we couldn't detect it, try to get it from the note title (scripture notes often have reference as title)
+            if (!reference && noteData.note.title) {
+              const titleDetectResponse = await fetch('/api/scripture/detect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: noteData.note.title }),
+                credentials: 'include'
+              });
+              
+              if (titleDetectResponse.ok) {
+                const titleDetection = await titleDetectResponse.json();
+                if (titleDetection.isScripture && titleDetection.references && titleDetection.references.length > 0) {
+                  reference = titleDetection.references[0].reference;
+                }
+              }
+            }
+            
+            if (reference) {
+              const normalizedRef = normalizeScriptureReference(reference);
+              
+              // Find positions of this text in the document
+              const positions = findAllTextPositions(doc, linkText, true);
+              
+              // Convert each occurrence to a scripture pill
+              for (let i = positions.length - 1; i >= 0; i--) {
+                const pos = positions[i];
+                
+                // Check if this position already has a scripture pill mark
+                try {
+                  const $from = doc.resolve(pos.from);
+                  const marks = $from.marks();
+                  const hasPill = marks.some(m => m.type.name === 'scripturePill');
+                  const hasNoteLink = marks.some(m => m.type.name === 'noteLink');
+                  
+                  if (hasPill) {
+                    continue; // Already a pill
+                  }
+                  
+                  if (hasNoteLink) {
+                    // Convert note-link to scripture-pill
+                    editor.chain()
+                      .setTextSelection(pos)
+                      .unsetMark('noteLink')
+                      .setMark('scripturePill', { reference: normalizedRef, noteId })
+                      .run();
+                  }
+                } catch (e) {
+                  // Skip if we can't resolve the position
+                  continue;
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Skip if we can't check the note type
+        continue;
+      }
+    }
+  } catch (error) {
+    console.error('Error converting note-links to scripture pills:', error);
+  }
 }
 
 // Helper function to detect and create scripture notes
@@ -696,6 +846,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         editor.commands.setContent(content, false);
         // Update previous text content reference to prevent unnecessary detection
         previousTextContentRef.current = editor.state.doc.textContent;
+        
+        // First, convert any note-link spans to scripture-pill marks if they reference scripture notes
+        // Then trigger detection after content is loaded (with delay to ensure editor is initialized)
+        // This ensures new scripture references are detected even if user doesn't type
+        const conversionTimeout = setTimeout(async () => {
+          if (editor && !editor.isFocused) {
+            // Convert note-links to scripture pills first
+            await convertNoteLinksToScripturePills(editor);
+            // Then run detection for any new references
+            await detectAndCreateScriptureNotes(editor);
+          }
+        }, 500);
+        
+        return () => clearTimeout(conversionTimeout);
       }
     }
   }, [editor, content]);

@@ -71,6 +71,17 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           return reference ? { reference, noteId } : false;
         },
       },
+      {
+        // Also handle note-link spans that have data-scripture-reference
+        // This helps when HTML contains note-link spans that should be scripture pills
+        tag: 'span.note-link[data-scripture-reference]',
+        getAttrs: (element) => {
+          const noteId = (element as HTMLElement).getAttribute('data-note-id');
+          const reference = (element as HTMLElement).getAttribute('data-scripture-reference');
+          // Only parse if it has a scripture reference attribute
+          return reference ? { reference, noteId } : false;
+        },
+      },
     ];
   },
 
