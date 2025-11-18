@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import TiptapEditor from './TiptapEditor';
+import TiptapEditor, { convertScriptureReferencesToPills } from './TiptapEditor';
 import ButtonSmall from './ButtonSmall';
 
 interface CardFullEditableProps {
@@ -274,13 +274,122 @@ export default function CardFullEditable({
         }
       }
 
+      let saveResult: any = null;
       if (onSave) {
-        await onSave(editTitle, editorContent);
+        saveResult = await onSave(editTitle, editorContent);
       } else {
         // Fallback to global save callback
         const globalCallback = (window as any).noteSaveCallback;
         if (globalCallback) {
-          await globalCallback(editTitle, editorContent);
+          saveResult = await globalCallback(editTitle, editorContent);
+        }
+      }
+
+      // Process scripture references after note update
+      if (saveResult && noteId && editorInstanceRef.current) {
+        try {
+          // Get the thread ID for processing (try to get from parentThreadId or use unorganized)
+          const threadId = parentThreadId || 'thread_unorganized';
+          
+          // Process scripture references
+          const processResponse = await fetch(`/api/notes/${noteId}/process-scripture-references`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ threadId }),
+            credentials: 'include'
+          });
+
+          if (processResponse.ok) {
+            const processResult = await processResponse.json();
+            
+            // Show toasts for each scripture reference created or added
+            if (processResult.results && processResult.results.length > 0) {
+              console.log('CardFullEditable: Found', processResult.results.length, 'scripture results');
+              for (const scriptureResult of processResult.results) {
+                console.log('CardFullEditable: Processing result:', scriptureResult);
+                // Show toast for newly created notes
+                if (scriptureResult.action === 'created') {
+                  console.log('CardFullEditable: Dispatching toast for created:', scriptureResult.reference);
+                  window.dispatchEvent(new CustomEvent('toast', {
+                    detail: {
+                      message: `Created scripture note: ${scriptureResult.reference}`,
+                      type: 'success'
+                    }
+                  }));
+                } 
+                // Show toast for notes added to thread
+                else if (scriptureResult.action === 'added') {
+                  console.log('CardFullEditable: Dispatching toast for added:', scriptureResult.reference);
+                  window.dispatchEvent(new CustomEvent('toast', {
+                    detail: {
+                      message: `Added ${scriptureResult.reference} to this thread`,
+                      type: 'success'
+                    }
+                  }));
+                }
+              }
+            } else {
+              console.log('CardFullEditable: No scripture results found');
+            }
+
+            // Update editor content with processed HTML (contains note-links)
+            if (processResult.updatedContent && editorInstanceRef.current) {
+              // Store cursor position before updating
+              const currentSelection = editorInstanceRef.current.state.selection;
+              const cursorPos = currentSelection.anchor;
+
+              // Update editor content
+              editorInstanceRef.current.commands.setContent(processResult.updatedContent, { emitUpdate: false });
+              
+              // Wait a bit for Tiptap to parse the HTML content, then convert scripture references to pills
+              setTimeout(async () => {
+                if (editorInstanceRef.current && processResult.results) {
+                  // Extract reference + noteId pairs from results for conversion
+                  const scriptureData = processResult.results
+                    .filter((r: any) => r.reference && r.noteId)
+                    .map((r: any) => ({ reference: r.reference, noteId: r.noteId }));
+                  
+                  console.log('CardFullEditable: Extracted scripture data for conversion:', scriptureData);
+                  
+                  if (scriptureData.length > 0) {
+                    // Get fresh doc state after setContent
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    await convertScriptureReferencesToPills(editorInstanceRef.current, scriptureData);
+                  } else {
+                    console.log('CardFullEditable: No scripture data to convert');
+                  }
+                  
+                  // Restore cursor position after conversion
+                  try {
+                    editorInstanceRef.current.commands.setTextSelection(cursorPos);
+                  } catch (e) {
+                    // If cursor position is invalid, just leave it where it is
+                  }
+                }
+              }, 200);
+
+              // Update the content state with processed content
+              editorContent = processResult.updatedContent;
+            }
+          } else {
+            // Show error toast if processing fails
+            const errorData = await processResponse.json().catch(() => ({ error: 'Failed to process scripture references' }));
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: errorData.error || 'Error processing scripture references',
+                type: 'error'
+              }
+            }));
+          }
+        } catch (error) {
+          // Show error toast if processing fails
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Error processing scripture references',
+              type: 'error'
+            }
+          }));
+          console.error('Error processing scripture references:', error);
         }
       }
 

@@ -110,11 +110,39 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       console.log('Auto-tag regeneration failed (non-critical):', error);
     }
 
+    // Process scripture references in the note content (background processing)
+    let scriptureResults: any[] = [];
+    let processedContent = capitalizedContent;
+    try {
+      // Determine the actual thread ID (check NoteThreads junction table)
+      let actualThreadId = 'thread_unorganized';
+      const threadRelation = await db.select()
+        .from(NoteThreads)
+        .where(eq(NoteThreads.noteId, noteId))
+        .limit(1)
+        .get();
+      
+      if (threadRelation) {
+        actualThreadId = threadRelation.threadId;
+      }
+      
+      // Call processing function directly
+      const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+      const processResult = await processScriptureReferences(noteId, userId, actualThreadId);
+      scriptureResults = processResult.results || [];
+      processedContent = processResult.updatedContent || capitalizedContent;
+    } catch (error: any) {
+      // Don't fail note update if scripture processing fails
+      console.error('Error processing scripture references (non-critical):', error);
+    }
+
     console.log("Note updated successfully:", updatedNote);
 
     return new Response(JSON.stringify({ 
       success: "Note updated successfully!",
-      note: updatedNote
+      note: updatedNote,
+      scriptureResults,
+      processedContent
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

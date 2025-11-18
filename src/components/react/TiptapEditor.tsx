@@ -287,9 +287,93 @@ async function getOrCreateScriptureNote(reference: string, parentThreadId?: stri
   return { noteId: null, isNew: false };
 }
 
+// Helper function to convert scripture references to pills using processed results data
+// This is more reliable than parsing HTML since Tiptap may have already parsed/removed spans
+export async function convertScriptureReferencesToPills(
+  editor: any, 
+  scriptureResults: Array<{ reference: string; noteId: string }>
+) {
+  if (!editor || !scriptureResults || scriptureResults.length === 0) {
+    console.log('convertScriptureReferencesToPills: No editor or empty results');
+    return;
+  }
+  
+  try {
+    // Get fresh document state after content was set
+    const doc = editor.state.doc;
+    const fullText = doc.textContent;
+    
+    console.log('convertScriptureReferencesToPills: Processing', scriptureResults.length, 'references');
+    console.log('Document text content:', fullText.substring(0, 200));
+    
+    // Process each scripture reference from the results
+    for (const result of scriptureResults) {
+      const { reference, noteId } = result;
+      if (!reference || !noteId) {
+        console.log('Skipping result - missing reference or noteId:', result);
+        continue;
+      }
+      
+      console.log('Looking for reference:', reference, 'with noteId:', noteId);
+      
+      const normalizedRef = normalizeScriptureReference(reference);
+      
+      // Find all positions of this reference in the document
+      const positions = findAllTextPositions(doc, reference, true);
+      
+      console.log('Found', positions.length, 'positions for reference:', reference);
+      
+      if (positions.length === 0) {
+        // Try to find it in the text content to debug
+        const indexInText = fullText.indexOf(reference);
+        console.log('Reference not found in positions. Index in text:', indexInText);
+        if (indexInText !== -1) {
+          console.log('Text around match:', fullText.substring(Math.max(0, indexInText - 20), indexInText + reference.length + 20));
+        }
+        continue;
+      }
+      
+      // Convert each occurrence to a scripture pill
+      for (let i = positions.length - 1; i >= 0; i--) {
+        const pos = positions[i];
+        
+        // Check if this position already has a scripture pill mark
+        try {
+          const $from = doc.resolve(pos.from);
+          const marks = $from.marks();
+          const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+          
+          if (hasPill) {
+            console.log('Position already has pill, skipping');
+            continue; // Already a pill
+          }
+          
+          console.log('Converting position', pos.from, 'to', pos.to, 'to scripture pill');
+          
+          // Convert to scripture-pill
+          editor.chain()
+            .setTextSelection(pos)
+            .unsetMark('noteLink')
+            .setMark('scripturePill', { reference: normalizedRef, noteId })
+            .run();
+        } catch (e) {
+          console.error('Error converting position to pill:', e);
+          // Skip if we can't resolve the position
+          continue;
+        }
+      }
+    }
+    
+    console.log('convertScriptureReferencesToPills: Completed');
+  } catch (error) {
+    console.error('Error converting scripture references to pills:', error);
+  }
+}
+
 // Helper function to convert note-link spans to scripture-pill marks
 // This handles cases where HTML contains note-link spans that should be scripture pills
-async function convertNoteLinksToScripturePills(editor: any) {
+// (Fallback method for when we don't have processed results data)
+export async function convertNoteLinksToScripturePills(editor: any) {
   if (!editor) return;
   
   try {
@@ -361,6 +445,7 @@ async function convertNoteLinksToScripturePills(editor: any) {
               const normalizedRef = normalizeScriptureReference(reference);
               
               // Find positions of this text in the document
+              // Use the linkText which should match what's in the document
               const positions = findAllTextPositions(doc, linkText, true);
               
               // Convert each occurrence to a scripture pill
@@ -372,20 +457,18 @@ async function convertNoteLinksToScripturePills(editor: any) {
                   const $from = doc.resolve(pos.from);
                   const marks = $from.marks();
                   const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
-                  const hasNoteLink = marks.some((m: any) => m.type.name === 'noteLink');
                   
                   if (hasPill) {
                     continue; // Already a pill
                   }
                   
-                  if (hasNoteLink) {
-                    // Convert note-link to scripture-pill
-                    editor.chain()
-                      .setTextSelection(pos)
-                      .unsetMark('noteLink')
-                      .setMark('scripturePill', { reference: normalizedRef, noteId })
-                      .run();
-                  }
+                  // Convert to scripture-pill (whether it has noteLink mark or not)
+                  // This handles both cases: HTML spans that became marks, and plain text
+                  editor.chain()
+                    .setTextSelection(pos)
+                    .unsetMark('noteLink')
+                    .setMark('scripturePill', { reference: normalizedRef, noteId })
+                    .run();
                 } catch (e) {
                   // Skip if we can't resolve the position
                   continue;
@@ -565,21 +648,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
-  const scriptureDetectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const previousTextContentRef = useRef<string>('');
 
   // Check if we're on the client side
   useEffect(() => {
     setIsClient(true);
-  }, []);
-
-  // Cleanup scripture detection timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (scriptureDetectionTimeoutRef.current) {
-        clearTimeout(scriptureDetectionTimeoutRef.current);
-      }
-    };
   }, []);
 
   // Restore scroll position when provided
@@ -634,28 +706,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Notify parent component
       if (onContentChange) {
         onContentChange(htmlContent);
-      }
-
-      // Only run detection if text content has meaningfully changed
-      // This prevents re-detection when only formatting changes or cursor moves
-      const currentTextContent = editor.state.doc.textContent.trim();
-      const previousTextContent = previousTextContentRef.current.trim();
-      
-      // Check if text content actually changed (not just whitespace or formatting)
-      const textContentChanged = currentTextContent !== previousTextContent;
-      
-      if (textContentChanged) {
-        // Update the previous text content reference
-        previousTextContentRef.current = currentTextContent;
-        
-        // Debounced scripture detection (2 seconds after typing stops)
-        if (scriptureDetectionTimeoutRef.current) {
-          clearTimeout(scriptureDetectionTimeoutRef.current);
-        }
-
-          scriptureDetectionTimeoutRef.current = setTimeout(async () => {
-            await detectAndCreateScriptureNotes(editor, parentThreadId);
-          }, 2000);
       }
     },
     editable: true,
@@ -773,38 +823,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           // Get the potential scripture reference text
           const potentialReference = doc.textBetween(textStart, from);
           
-          // Only check if it looks like it could be a scripture reference (has colon and numbers)
-          if (potentialReference.length >= 5 && potentialReference.match(/:\d/)) {
-            // Check if this text is already a pill
-            try {
-              const $checkPos = doc.resolve(textStart);
-              const marksAtStart = $checkPos.marks();
-              const alreadyPill = marksAtStart.some(m => m.type.name === 'scripturePill');
-              
-              if (!alreadyPill) {
-                // Trigger detection immediately (async, don't block space insertion)
-                // The space will be inserted normally, then detection will convert the text before it
-                setTimeout(async () => {
-                  // Get fresh document state after space was inserted
-                  const currentDoc = editor.state.doc;
-                  const currentFrom = editor.state.selection.from;
-                  
-                  // Re-check the text before the space (now the space is inserted, so we check one position back)
-                  const checkStart = Math.max(0, currentFrom - potentialReference.length - 1);
-                  const checkEnd = currentFrom - 1; // Before the space we just inserted
-                  const textToCheck = currentDoc.textBetween(checkStart, checkEnd);
-                  
-                  // Quick check: does this text contain our potential reference?
-                    if (textToCheck.includes(potentialReference)) {
-                      // Trigger detection for the text before the space
-                      await detectAndCreateScriptureNotes(editor, parentThreadId);
-                    }
-                }, 50); // Small delay to ensure space is inserted first
-              }
-            } catch (e) {
-              // If we can't check, just continue normally
-            }
-          }
+          // Scripture detection removed - now happens on save only
         }
         
         if (scripturePillMark) {
@@ -947,7 +966,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (editor) {
       editorRef.current = editor;
       // Initialize previous text content reference
-      previousTextContentRef.current = editor.state.doc.textContent;
     }
   }, [editor]);
 
@@ -964,18 +982,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Use setContent with emitUpdate: false to prevent triggering detection
         // This preserves marks that are in the HTML content
         editor.commands.setContent(content, { emitUpdate: false });
-        // Update previous text content reference to prevent unnecessary detection
-        previousTextContentRef.current = editor.state.doc.textContent;
         
-        // First, convert any note-link spans to scripture-pill marks if they reference scripture notes
-        // Then trigger detection after content is loaded (with delay to ensure editor is initialized)
-        // This ensures new scripture references are detected even if user doesn't type
+        // Convert any note-link spans to scripture-pill marks if they reference scripture notes
+        // Scripture detection now happens on save only, not on content load
         const conversionTimeout = setTimeout(async () => {
           if (editor && !editor.isFocused) {
-            // Convert note-links to scripture pills first
+            // Convert note-links to scripture pills
             await convertNoteLinksToScripturePills(editor);
-            // Then run detection for any new references
-            await detectAndCreateScriptureNotes(editor, parentThreadId);
           }
         }, 500);
         
