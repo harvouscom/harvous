@@ -459,25 +459,34 @@ try {
 <!-- Update inbox/archive auto text based on active tab -->
 <script is:inline>
   function updateInboxArchiveText() {
-    const inboxArchiveTabs = document.querySelector('.inbox-archive-tabs');
-    if (!inboxArchiveTabs) return;
+    // Find all inbox-archive-tabs instances (works for both desktop and mobile)
+    const inboxArchiveTabs = document.querySelectorAll('.inbox-archive-tabs');
     
-    const inboxButton = inboxArchiveTabs.querySelector('[data-tab-id="inbox"]');
-    const archiveButton = inboxArchiveTabs.querySelector('[data-tab-id="archive"]');
-    const inboxText = document.querySelector('.inbox-auto-text');
-    const archiveText = document.querySelector('.archive-auto-text');
-    
-    if (!inboxButton || !archiveButton || !inboxText || !archiveText) return;
-    
-    const isInboxActive = inboxButton.getAttribute('data-active') === 'true';
-    
-    if (isInboxActive) {
-      inboxText.classList.remove('hidden');
-      archiveText.classList.add('hidden');
-    } else {
-      inboxText.classList.add('hidden');
-      archiveText.classList.remove('hidden');
-    }
+    inboxArchiveTabs.forEach(function(tabContainer) {
+      const inboxButton = tabContainer.querySelector('[data-tab-id="inbox"]');
+      const archiveButton = tabContainer.querySelector('[data-tab-id="archive"]');
+      
+      if (!inboxButton || !archiveButton) return;
+      
+      // Find text elements within the same parent container
+      const parentContainer = tabContainer.parentElement;
+      if (!parentContainer) return;
+      
+      const inboxText = parentContainer.querySelector('.inbox-auto-text');
+      const archiveText = parentContainer.querySelector('.archive-auto-text');
+      
+      if (!inboxText || !archiveText) return;
+      
+      const isInboxActive = inboxButton.getAttribute('data-active') === 'true';
+      
+      if (isInboxActive) {
+        inboxText.classList.remove('hidden');
+        archiveText.classList.add('hidden');
+      } else {
+        inboxText.classList.add('hidden');
+        archiveText.classList.remove('hidden');
+      }
+    });
   }
   
   // Update on page load
