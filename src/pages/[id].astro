@@ -8,6 +8,7 @@ import SquareButton from "@/components/SquareButton.astro";
 import Avatar from "@/components/Avatar.astro";
 import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
+import ThreadNotesList from "@/components/react/ThreadNotesList";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, eq, and, desc, count, ne } from "astro:db";
@@ -694,25 +695,11 @@ if (!content) {
               <div class="flex flex-col gap-6">
                 
                 {isThread && threadNotes && threadNotes.length > 0 ? (
-                  <div class="flex flex-col gap-3">
-                    {threadNotes.map((note: any, index: number) => (
-                      <div class="content-item note-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
-                        <a 
-                          href={`/${note.id}`}
-                          class="block transition-transform duration-200 hover:scale-[1.002]"
-                        >
-                          <CardNote 
-                            title={note.title || "Untitled Note"}
-                            content={(() => {
-                              const cleanContent = stripHtml(note.content);
-                              return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
-                            })()}
-                            noteType={note.noteType || 'default'}
-                          />
-                        </a>
-                      </div>
-                    ))}
-                  </div>
+                  <ThreadNotesList 
+                    initialNotes={threadNotes}
+                    threadId={id!}
+                    client:visible
+                  />
                 ) : isSpace && content && content.threads && content.threads.length > 0 ? (
                   <div class="flex flex-col gap-3">
                     {/* Show threads in this space */}

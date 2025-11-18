@@ -523,7 +523,8 @@ button[disabled] {
 /* Let Sonner handle positioning via position prop, we only ensure visibility */
 [data-sonner-toaster] {
     position: fixed !important;
-    top: 16px !important;
+    bottom: 16px !important;
+    top: auto !important;
     z-index: 999999 !important;
     pointer-events: none !important;
 }
@@ -538,7 +539,14 @@ button[disabled] {
 }
 
 /* Desktop: Set minimum width to 280px, allow expansion for longer messages */
+/* Position at bottom-right (Sonner handles this via position prop) */
 @media (min-width: 1160px) {
+    [data-sonner-toaster] {
+        left: auto !important;
+        right: 16px !important;
+        transform: none !important;
+    }
+    
     [data-sonner-toast] {
         min-width: 280px !important;
         width: auto !important;
@@ -583,28 +591,30 @@ button[disabled] {
     display: block !important;
 }
 
-/* Mobile: Ensure toast is centered and fully visible */
+/* Mobile: Ensure toast is centered with same size as desktop */
 @media (max-width: 1159px) {
     [data-sonner-toaster] {
-        left: 16px !important;
-        right: 16px !important;
-        width: calc(100% - 32px) !important;
-        max-width: calc(100% - 32px) !important;
-        margin: 0 auto !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
         transform: none !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: flex-end !important;
     }
     
     [data-sonner-toast] {
-        width: 100% !important;
-        max-width: 100% !important;
+        min-width: 280px !important;
+        width: auto !important;
+        max-width: calc(100vw - 32px) !important;
         margin-left: 0 !important;
         margin-right: 0 !important;
-        margin-top: 0 !important;
-        margin-bottom: 0 !important;
         box-sizing: border-box !important;
     }
     
-    /* Ensure toast content wrapper also takes full width */
+    /* Ensure toast content wrapper maintains proper sizing */
     [data-sonner-toast] > div {
         width: 100% !important;
         max-width: 100% !important;

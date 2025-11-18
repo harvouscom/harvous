@@ -44,7 +44,7 @@ export default function ToastProvider() {
 
   return (
     <Toaster
-      position={isMobile ? "top-center" : "top-right"}
+      position={isMobile ? "bottom-center" : "bottom-right"}
       toastOptions={{
         duration: 5000,
         style: {
@@ -58,7 +58,7 @@ export default function ToastProvider() {
           boxShadow: '0px 7px 16px 0px rgba(0, 0, 0, 0.1), 0px 30px 30px 0px rgba(0, 0, 0, 0.09), 0px 67px 40px 0px rgba(0, 0, 0, 0.05), 0px 119px 47px 0px rgba(0, 0, 0, 0.01), 0px 185px 52px 0px rgba(0, 0, 0, 0)',
           padding: '16px 20px',
           textAlign: 'center',
-          ...(isMobile ? {} : { minWidth: '280px' }),
+          minWidth: '280px',
         },
         classNames: {
           toast: 'rounded-xl toast-center-text',

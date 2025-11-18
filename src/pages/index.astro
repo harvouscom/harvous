@@ -13,6 +13,7 @@ import MobileNavigation from "@/components/MobileNavigation.astro";
 import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
 import { getArchivedItems } from "@/utils/inbox-data";
 import InboxItemsList from "@/components/react/InboxItemsList";
+import OrganizedContentList from "@/components/react/OrganizedContentList";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import { getThreadGradientCSS } from "@/utils/colors";
@@ -320,31 +321,11 @@ try {
                     <!-- All Content -->
                     <div class="organized-content flex flex-col" data-tab-content="all">
                       {organizedContent.length > 0 ? (
-                        organizedContent.map((item, index) => (
-                          <div class={`content-item ${item.type}-item mb-3 card-enter`} style={`animation-delay: ${index * 50}ms;`}>
-                            <a 
-                              href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
-                              class="block transition-transform duration-200 hover:scale-[1.002]"
-                            >
-                              {item.type === 'note' ? (
-                                <CardNote 
-                                  title={item.title}
-                                  content={item.content}
-                                  noteType={item.noteType || 'default'}
-                                />
-                              ) : (
-                                <CardThread 
-                                  title={item.title}
-                                  subtitle={item.subtitle}
-                                  count={item.count}
-                                  accentColor={item.accentColor}
-                                  lastUpdated={item.lastUpdated}
-                                  isPrivate={(item as any).isPrivate}
-                                />
-                              )}
-                            </a>
-                          </div>
-                        ))
+                        <OrganizedContentList 
+                          initialItems={organizedContent}
+                          filter="all"
+                          client:visible
+                        />
                       ) : (
                         <div class="flex flex-col items-center justify-center min-h-[300px] w-full text-center">
                           <div class="flex flex-col gap-2 items-center justify-center">
@@ -362,23 +343,11 @@ try {
                     <!-- Threads Only Content -->
                     <div class="organized-content flex flex-col hidden" data-tab-content="threads">
                       {organizedContent.filter(item => item.type === 'thread').length > 0 ? (
-                        organizedContent.filter(item => item.type === 'thread').map((item, index) => (
-                          <div class={`content-item ${item.type}-item mb-3 card-enter`} style={`animation-delay: ${index * 50}ms;`}>
-                            <a 
-                              href={`/${item.threadId}`}
-                              class="block transition-transform duration-200 hover:scale-[1.002]"
-                            >
-                              <CardThread 
-                                title={item.title}
-                                subtitle={item.subtitle}
-                                count={item.count}
-                                accentColor={item.accentColor}
-                                lastUpdated={item.lastUpdated}
-                                isPrivate={(item as any).isPrivate}
-                              />
-                            </a>
-                          </div>
-                        ))
+                        <OrganizedContentList 
+                          initialItems={organizedContent.filter(item => item.type === 'thread')}
+                          filter="threads"
+                          client:visible
+                        />
                       ) : (
                         <div class="flex flex-col items-center justify-center min-h-[300px] w-full text-center">
                           <div class="flex flex-col gap-2 items-center justify-center">
@@ -396,20 +365,11 @@ try {
                     <!-- Notes Only Content -->
                     <div class="organized-content flex flex-col hidden" data-tab-content="notes">
                       {organizedContent.filter(item => item.type === 'note').length > 0 ? (
-                        organizedContent.filter(item => item.type === 'note').map((item, index) => (
-                          <div class={`content-item ${item.type}-item mb-3 card-enter`} style={`animation-delay: ${index * 50}ms;`}>
-                            <a 
-                              href={`/${item.noteId}`}
-                              class="block transition-transform duration-200 hover:scale-[1.002]"
-                            >
-                              <CardNote 
-                                title={item.title}
-                                content={item.content}
-                                noteType={item.noteType || 'default'}
-                              />
-                            </a>
-                          </div>
-                        ))
+                        <OrganizedContentList 
+                          initialItems={organizedContent.filter(item => item.type === 'note')}
+                          filter="notes"
+                          client:visible
+                        />
                       ) : (
                         <div class="flex flex-col items-center justify-center min-h-[300px] w-full text-center">
                           <div class="flex flex-col gap-2 items-center justify-center">

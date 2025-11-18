@@ -313,7 +313,7 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
 }
 
 // Fetch notes for a specific thread
-export async function getNotesForThread(threadId: string, userId: string, limit = 20) {
+export async function getNotesForThread(threadId: string, userId: string, limit = 20, offset = 0) {
   try {
     let allNotes = [];
     
@@ -369,14 +369,14 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       allNotes = junctionNotes;
     }
 
-    // Sort by updatedAt/createdAt and limit
+    // Sort by updatedAt/createdAt, apply offset and limit
     const sortedNotes = allNotes
       .sort((a, b) => {
         const aTime = a.updatedAt || a.createdAt;
         const bTime = b.updatedAt || b.createdAt;
         return bTime.getTime() - aTime.getTime();
       })
-      .slice(0, limit);
+      .slice(offset, offset + limit);
     
     return sortedNotes.map(note => ({
       ...note,
@@ -551,12 +551,14 @@ export async function getFeaturedContent(userId: string) {
 }
 
 // Get content items for the main list (organized content + unorganized notes)
-export async function getContentItems(userId: string, limit = 20) {
+export async function getContentItems(userId: string, limit = 20, offset = 0) {
   try {
+    // Fetch enough items to cover offset + limit
+    const fetchLimit = limit + offset;
     const [threads, assignedNotes, unorganizedNotes] = await Promise.all([
       getAllThreadsWithCounts(userId),
-      getAssignedNotesForDashboard(userId, limit),
-      getUnorganizedNotesForDashboard(userId, limit)
+      getAssignedNotesForDashboard(userId, fetchLimit),
+      getUnorganizedNotesForDashboard(userId, fetchLimit)
     ]);
 
     const threadItems = threads.map(thread => ({
@@ -629,13 +631,14 @@ export async function getContentItems(userId: string, limit = 20) {
     });
 
     // Convert map to array and sort by actual timestamp (newest first)
+    // Apply offset and limit after sorting
     const allItems = Array.from(allItemsMap.values())
       .sort((a, b) => {
         const aTime = new Date(a.updatedAt).getTime();
         const bTime = new Date(b.updatedAt).getTime();
         return bTime - aTime; // Newest first
       })
-      .slice(0, limit);
+      .slice(offset, offset + limit);
 
     return allItems;
   } catch (error) {
