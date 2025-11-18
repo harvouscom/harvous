@@ -5,8 +5,11 @@ import StarterKit from '@tiptap/starter-kit';
 import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
+import { TextSelection } from 'prosemirror-state';
 import { NoteLink } from './TiptapNoteLink.ts';
 import { ScripturePill } from './TiptapScripturePill.ts';
+import { BoldCustom } from './TiptapBoldCustom.ts';
+import { HighlightCustom } from './TiptapHighlightCustom.ts';
 import ButtonSmall from './ButtonSmall';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 
@@ -675,11 +678,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         heading: false,
         // Exclude underline from StarterKit to avoid duplicate extension warning
         underline: false,
+        // Exclude bold from StarterKit so we can use custom Bold extension
+        bold: false,
       }),
       Heading.configure({
         levels: [2, 3], // Only allow H2, H3 (H1 is reserved for note titles)
       }),
       Underline,
+      BoldCustom, // Use custom Bold extension that prevents application after pills
+      HighlightCustom, // Use custom Highlight extension that prevents application after pills
       NoteLink,
       ScripturePill,
       Placeholder.configure({
@@ -715,6 +722,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         style: 'font-family: var(--font-sans); font-size: 16px; line-height: 1.6; color: var(--color-deep-grey); min-height: 200px;',
         tabindex: (tabindex || 0).toString(),
       },
+      // NOTE: beforeinput handler removed - using plugin's handleTextInput instead
+      // This prevents conflicts between DOM-level and ProseMirror-level handlers
+      handleDOMEvents: {},
       transformPastedHTML: (html: string) => {
         // Transform heading levels when pasting:
         // H1 → H2, H2 → H3, H3 → H3, H4+ → H3
@@ -925,13 +935,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(event.key);
               
               if (!isControlKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-                // This is a printable character - prevent input and move cursor to end of pill
-                event.preventDefault();
+                // Move cursor to end of pill and clear marks before typing
                 editor.chain()
                   .setTextSelection(boundaries.end)
                   .unsetAllMarks()
                   .run();
-                return true;
+                // Then allow the character to be typed (return false to allow default)
+                return false;
               }
             }
           }
@@ -982,6 +992,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Use setContent with emitUpdate: false to prevent triggering detection
         // This preserves marks that are in the HTML content
         editor.commands.setContent(content, { emitUpdate: false });
+        
+        // Move cursor to end of content to avoid getting stuck on scripture pills
+        setTimeout(() => {
+          if (editor && !editor.isFocused) {
+            try {
+              const doc = editor.state.doc;
+              const endPos = doc.content.size;
+              editor.commands.setTextSelection(endPos);
+            } catch (e) {
+              // Ignore if setting selection fails
+            }
+          }
+        }, 100);
         
         // Convert any note-link spans to scripture-pill marks if they reference scripture notes
         // Scripture detection now happens on save only, not on content load

@@ -19,7 +19,8 @@ export interface ProcessingResult {
 export async function processScriptureReferences(
   noteId: string,
   userId: string,
-  threadId?: string
+  threadId?: string,
+  contentOverride?: string // Optional: use this content instead of reading from DB
 ): Promise<{ results: ProcessingResult[]; updatedContent: string }> {
   // Get the note from database
   const note = await db.select()
@@ -30,6 +31,9 @@ export async function processScriptureReferences(
   if (!note) {
     throw new Error('Note not found');
   }
+
+  // Use provided content or note content
+  const noteContent = contentOverride || note.content;
 
   // Determine the actual thread ID (use provided threadId or check NoteThreads)
   let actualThreadId = threadId || 'thread_unorganized';
@@ -47,8 +51,27 @@ export async function processScriptureReferences(
     }
   }
 
+  // Extract existing scripture references from the content (already processed)
+  // This helps us track which references were already in the note
+  // Improved regex to handle variations in HTML formatting (quotes, spacing, etc.)
+  const existingPillPattern = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  const existingReferences = new Map<string, string>(); // normalizedReference -> noteId
+  let match;
+  while ((match = existingPillPattern.exec(noteContent)) !== null) {
+    const reference = match[1];
+    const noteId = match[2];
+    const normalizedRef = normalizeScriptureReference(reference);
+    existingReferences.set(normalizedRef, noteId);
+  }
+
   // Extract plain text from HTML content for detection
-  const plainText = note.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  // Preserve existing scripture pills by extracting their text content
+  // This regex removes HTML tags but keeps text inside scripture pills
+  const plainText = noteContent
+    .replace(/<span[^>]*data-scripture-reference[^>]*>([^<]*)<\/span>/gi, '$1') // Extract text from existing pills
+    .replace(/<[^>]*>/g, ' ') // Remove remaining HTML tags
+    .replace(/\s+/g, ' ')
+    .trim();
   
   // Detect all scripture references in the content
   const detectedReferences = detectScriptureReferences(plainText);
@@ -68,6 +91,14 @@ export async function processScriptureReferences(
     const reference = detectedRef.reference;
     // Normalize the reference for consistent storage and comparison
     const normalizedReference = normalizeScriptureReference(reference);
+    
+    // Check if this reference was already in the note (skip if it was)
+    if (existingReferences.has(normalizedReference)) {
+      // Already exists - skip processing but add to referenceMap for highlighting
+      const existingNoteId = existingReferences.get(normalizedReference)!;
+      referenceMap.set(reference, existingNoteId);
+      continue; // Skip processing, don't add to results
+    }
     
     try {
       // Check if scripture note exists (direct database query)
@@ -333,12 +364,24 @@ export async function processScriptureReferences(
   }
 
   // Update note content with highlighted references
+  // Use the provided content (which may already have pills) as the base
+  // Include both new references and existing ones for highlighting
   const referencesForHighlighting = Array.from(referenceMap.entries()).map(([reference, noteId]) => ({
     reference,
     noteId
   }));
+  
+  // Also add existing references to the map so they're preserved
+  for (const [normalizedRef, noteId] of existingReferences.entries()) {
+    // Find the original reference format from detected references
+    const matchingRef = detectedReferences.find(d => normalizeScriptureReference(d.reference) === normalizedRef);
+    if (matchingRef && !referenceMap.has(matchingRef.reference)) {
+      referenceMap.set(matchingRef.reference, noteId);
+      referencesForHighlighting.push({ reference: matchingRef.reference, noteId });
+    }
+  }
 
-  const updatedContent = highlightScriptureReferences(note.content, referencesForHighlighting);
+  const updatedContent = highlightScriptureReferences(noteContent, referencesForHighlighting);
 
   // Update note in database if content changed
   if (updatedContent !== note.content) {

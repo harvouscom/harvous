@@ -1,4 +1,7 @@
 import { Mark } from '@tiptap/core';
+import { Plugin, PluginKey, TextSelection } from 'prosemirror-state';
+import { ReplaceStep } from 'prosemirror-transform';
+import { Slice, Fragment } from 'prosemirror-model';
 
 export interface ScripturePillOptions {
   HTMLAttributes: Record<string, any>;
@@ -121,7 +124,10 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
     return {
       setScripturePill:
         attributes =>
-        ({ chain }) => {
+        ({ chain, tr }) => {
+          // Clear stored marks when setting a scripture pill
+          // This prevents future typing from inheriting formatting
+          tr.setStoredMarks([]);
           return chain().setMark(this.name, attributes).run();
         },
       toggleScripturePill:
@@ -238,6 +244,8 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         
         return false;
       },
+      // Handle typing any character after a pill - clear marks
+      'Mod-KeyA': () => false, // Don't interfere with select all
       // Prevent text input when cursor is inside a pill (unless entire pill is selected for deletion)
       'Backspace': ({ editor }) => {
         const { state } = editor;
@@ -293,13 +301,14 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         
         return false;
       },
-      // Prevent all other text input (letters, numbers, punctuation) when inside a pill
+      // Handle typing any character - check if cursor is after a pill and clear marks
       // This is a catch-all for any character input
       '*': ({ editor, view, event }) => {
         const { state } = editor;
         const { selection } = state;
         const { $from, from, to } = selection;
         
+        // Check if cursor is INSIDE a pill
         const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
         
         if (scripturePillMark && from === to) {
@@ -322,9 +331,280 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           }
         }
         
+        // Check if cursor is RIGHT AFTER a pill (not inside, but immediately after)
+        if (from > 0 && from === to) {
+          try {
+            const prevPos = from - 1;
+            const $prev = state.doc.resolve(prevPos);
+            const prevMarks = $prev.marks();
+            const hasPill = prevMarks.some((m: any) => m.type.name === 'scripturePill');
+            
+            if (hasPill) {
+              // Check if this is a printable character
+              const key = (event as KeyboardEvent).key;
+              const isControlKey = key.length > 1 || 
+                ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(key);
+              
+              if (!isControlKey) {
+                // Clear ALL stored marks before typing the character
+                // This prevents mark inheritance
+                const tr = state.tr.setStoredMarks([]);
+                editor.view.dispatch(tr);
+                // Return false to allow the character to be typed (with cleared marks)
+                return false;
+              }
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+        
         return false;
       },
     };
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('scripturePillMarkRemoval'),
+        filterTransaction: (transaction, state) => {
+          // Clear stored marks BEFORE transaction is applied
+          const { selection } = state;
+          const { from } = selection;
+          
+          if (from >= 0 && from === selection.to) {
+            // Check if we're at the end of a pill (can be scripturePill or noteLink)
+            try {
+              const $current = state.doc.resolve(from);
+              const currentMarks = $current.marks();
+              const currentHasPill = currentMarks.some((m: any) => m.type.name === 'scripturePill' || m.type.name === 'noteLink');
+              
+              // Check next position (if it exists)
+              let nextHasPill = false;
+              if (from < state.doc.content.size) {
+                try {
+                  const $next = state.doc.resolve(from + 1);
+                  const nextMarks = $next.marks();
+                  nextHasPill = nextMarks.some((m: any) => m.type.name === 'scripturePill' || m.type.name === 'noteLink');
+                } catch (e) {
+                  nextHasPill = false;
+                }
+              }
+              
+              // If current position has pill but next doesn't, we're at the end of the pill
+              if (currentHasPill && !nextHasPill) {
+                transaction.setStoredMarks([]);
+              }
+            } catch (e) {
+              // Ignore errors
+            }
+          }
+          
+          return true;
+        },
+        appendTransaction: (transactions, oldState, newState) => {
+          // Remove marks from text inserted after pills
+          const { selection } = newState;
+          const { from } = selection;
+          
+          if (from >= 0 && from === selection.to) {
+            // Check if we're at the end of a pill (can be scripturePill or noteLink)
+            try {
+              const $current = newState.doc.resolve(from);
+              const currentMarks = $current.marks();
+              const currentHasPill = currentMarks.some((m: any) => m.type.name === 'scripturePill' || m.type.name === 'noteLink');
+              
+              // Check next position (if it exists)
+              let nextHasPill = false;
+              if (from < newState.doc.content.size) {
+                try {
+                  const $next = newState.doc.resolve(from + 1);
+                  const nextMarks = $next.marks();
+                  nextHasPill = nextMarks.some((m: any) => m.type.name === 'scripturePill' || m.type.name === 'noteLink');
+                } catch (e) {
+                  nextHasPill = false;
+                }
+              }
+              
+              // If current position has pill but next doesn't, we're at the end of the pill
+              if (currentHasPill && !nextHasPill) {
+                // Check if current position has formatting marks (already resolved above)
+                const formattingMarks = currentMarks.filter((m: any) => 
+                  m.type.name !== 'scripturePill' && m.type.name !== 'noteLink'
+                );
+                
+                if (formattingMarks.length > 0) {
+                  const tr = newState.tr;
+                  const schema = newState.schema;
+                  const allMarkTypes = Object.values(schema.marks);
+                  
+                  // Remove all formatting marks from a range after the cursor
+                  const removeEnd = Math.min(from + 50, newState.doc.content.size);
+                  
+                  for (const markType of allMarkTypes) {
+                    if (markType.name !== 'scripturePill' && markType.name !== 'noteLink') {
+                      try {
+                        tr.removeMark(from, removeEnd, markType);
+                      } catch (e) {
+                        // Continue
+                      }
+                    }
+                  }
+                  
+                  tr.setStoredMarks([]);
+                  
+                  if (tr.steps.length > 0) {
+                    return tr;
+                  }
+                }
+              }
+            } catch (e) {
+              // Ignore errors
+            }
+          }
+          
+          return null;
+        },
+        props: {
+          handleTextInput(view, from, to, text) {
+            const { state } = view;
+            
+            // Check if we're typing right after a pill
+            // ProseMirror marks are inclusive at boundaries, so we need to check:
+            // 1. If position from has a pill mark (we're at the end of a pill)
+            // 2. AND position from+1 does NOT have a pill mark (we're right after it)
+            // NOTE: Pills can be stored as either 'scripturePill' or 'noteLink' marks
+            if (from >= 0) {
+              try {
+                // Check current position
+                const $current = state.doc.resolve(from);
+                const currentMarks = $current.marks();
+                const currentHasPill = currentMarks.some((m: any) => m.type.name === 'scripturePill' || m.type.name === 'noteLink');
+                
+                // Check next position (if it exists)
+                let nextHasPill = false;
+                if (from < state.doc.content.size) {
+                  try {
+                    const $next = state.doc.resolve(from + 1);
+                    const nextMarks = $next.marks();
+                    nextHasPill = nextMarks.some((m: any) => m.type.name === 'scripturePill' || m.type.name === 'noteLink');
+                  } catch (e) {
+                    // If we can't resolve next position, assume we're at the end
+                    nextHasPill = false;
+                  }
+                }
+                
+                // If current position has pill but next doesn't, we're at the end of the pill
+                if (currentHasPill && !nextHasPill) {
+                  // Insert text without marks
+                  const tr = state.tr;
+                  tr.setStoredMarks([]);
+                  
+                  // Insert text explicitly without marks
+                  const schema = state.schema;
+                  const textNode = schema.text(text, []);
+                  tr.replaceWith(from, to, textNode);
+                  
+                  // Remove all formatting marks from inserted text
+                  const allMarkTypes = Object.values(schema.marks);
+                  for (const markType of allMarkTypes) {
+                    if (markType.name !== 'scripturePill' && markType.name !== 'noteLink') {
+                      try {
+                        tr.removeMark(from, from + text.length, markType);
+                      } catch (e) {
+                        // Continue
+                      }
+                    }
+                  }
+                  
+                  tr.setStoredMarks([]);
+                  
+                  // Update selection
+                  tr.setSelection(TextSelection.near(tr.doc.resolve(from + text.length)));
+                  
+                  view.dispatch(tr);
+                  return true; // Handled
+                }
+              } catch (e) {
+                // Ignore errors
+              }
+            }
+            
+            return false; // Let default handler process
+          },
+        },
+        view(editorView) {
+          return {
+            update(view, prevState) {
+              // Monitor state updates and remove marks immediately
+              const { state } = view;
+              const { selection } = state;
+              const { from } = selection;
+              
+              if (from >= 0 && from === selection.to) {
+                // Check if we're at the end of a pill (can be scripturePill or noteLink)
+                try {
+                  const $current = state.doc.resolve(from);
+                  const currentMarks = $current.marks();
+                  const currentHasPill = currentMarks.some((m: any) => m.type.name === 'scripturePill' || m.type.name === 'noteLink');
+                  
+                  // Check next position (if it exists)
+                  let nextHasPill = false;
+                  if (from < state.doc.content.size) {
+                    try {
+                      const $next = state.doc.resolve(from + 1);
+                      const nextMarks = $next.marks();
+                      nextHasPill = nextMarks.some((m: any) => m.type.name === 'scripturePill' || m.type.name === 'noteLink');
+                    } catch (e) {
+                      nextHasPill = false;
+                    }
+                  }
+                  
+                  // If current position has pill but next doesn't, we're at the end of the pill
+                  if (currentHasPill && !nextHasPill) {
+                    // Check if current position has formatting marks (already resolved above)
+                    const formattingMarks = currentMarks.filter((m: any) => 
+                      m.type.name !== 'scripturePill' && m.type.name !== 'noteLink'
+                    );
+                    
+                    if (formattingMarks.length > 0) {
+                      const tr = state.tr;
+                      const schema = state.schema;
+                      const allMarkTypes = Object.values(schema.marks);
+                      
+                      const removeEnd = Math.min(from + 50, state.doc.content.size);
+                      
+                      for (const markType of allMarkTypes) {
+                        if (markType.name !== 'scripturePill' && markType.name !== 'noteLink') {
+                          try {
+                            tr.removeMark(from, removeEnd, markType);
+                          } catch (e) {
+                            // Continue
+                          }
+                        }
+                      }
+                      
+                      tr.setStoredMarks([]);
+                      
+                      if (tr.steps.length > 0) {
+                        view.dispatch(tr);
+                      }
+                    } else if (state.storedMarks && state.storedMarks.length > 0) {
+                      // Clear stored marks even if no formatting marks found
+                      const tr = state.tr.setStoredMarks([]);
+                      view.dispatch(tr);
+                    }
+                  }
+                } catch (e) {
+                  // Ignore errors
+                }
+              }
+            },
+          };
+        },
+      }),
+    ];
   },
 
   addEventListeners() {
@@ -355,6 +635,10 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
             if (!checkResponse.ok && reference) {
               const normalizedRef = reference; // Reference should already be normalized
               
+              // Get parent thread ID from DOM (the thread this note belongs to)
+              const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+              const parentThreadId = noteElement?.dataset.parentThreadId || 'thread_unorganized';
+              
               // Fetch verse text first
               let verseText = reference;
               try {
@@ -374,10 +658,11 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
               }
 
               // Create new note with verse text as content
+              // Use parent thread ID so the recreated note is in the same thread as the current note
               const formData = new FormData();
               formData.set('content', verseText);
               formData.set('title', reference);
-              formData.set('threadId', 'thread_unorganized');
+              formData.set('threadId', parentThreadId);
               formData.set('noteType', 'scripture');
               formData.set('scriptureReference', normalizedRef);
               formData.set('scriptureVersion', 'NET');
@@ -492,6 +777,10 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
               if (!checkResponse.ok && clickedReference) {
                 const normalizedRef = clickedReference;
                 
+                // Get parent thread ID from DOM (the thread this note belongs to)
+                const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+                const parentThreadId = noteElement?.dataset.parentThreadId || 'thread_unorganized';
+                
                 // Fetch verse text first
                 let verseText = clickedReference;
                 try {
@@ -511,10 +800,11 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
                 }
 
                 // Create new note with verse text as content
+                // Use parent thread ID so the recreated note is in the same thread as the current note
                 const formData = new FormData();
                 formData.set('content', verseText);
                 formData.set('title', clickedReference);
-                formData.set('threadId', 'thread_unorganized');
+                formData.set('threadId', parentThreadId);
                 formData.set('noteType', 'scripture');
                 formData.set('scriptureReference', normalizedRef);
                 formData.set('scriptureVersion', 'NET');

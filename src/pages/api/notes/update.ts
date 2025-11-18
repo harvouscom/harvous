@@ -126,9 +126,9 @@ export const PUT: APIRoute = async ({ request, locals }) => {
         actualThreadId = threadRelation.threadId;
       }
       
-      // Call processing function directly
+      // Call processing function directly, passing the updated content to preserve existing pills
       const { processScriptureReferences } = await import('@/utils/process-scripture-references');
-      const processResult = await processScriptureReferences(noteId, userId, actualThreadId);
+      const processResult = await processScriptureReferences(noteId, userId, actualThreadId, capitalizedContent);
       scriptureResults = processResult.results || [];
       processedContent = processResult.updatedContent || capitalizedContent;
     } catch (error: any) {

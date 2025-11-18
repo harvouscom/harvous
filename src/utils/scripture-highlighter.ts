@@ -118,13 +118,14 @@ export function highlightScriptureReferences(
       const contextAfter = updatedContent.substring(matchEnd, Math.min(matchEnd + 100, updatedContent.length));
       const fullContext = contextBefore + matchText + contextAfter;
       
-      // If we see a note-link span with this noteId nearby, skip wrapping
+      // If we see a note-link span or scripture pill with this noteId nearby, skip wrapping
       if (fullContext.includes(`data-note-id="${noteId}"`)) {
         continue;
       }
       
-      // Wrap the match with note-link span
-      const wrapped = `<span class="note-link" data-note-id="${noteId}" style="background-color: rgba(255, 235, 59, 0.4); cursor: pointer;">${matchText}</span>`;
+      // Wrap the match with scripture pill span format with inline styles
+      // This ensures proper rendering both in Tiptap and when displayed via dangerouslySetInnerHTML
+      const wrapped = `<span data-scripture-reference="${matchText}" data-note-id="${noteId}" class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 4px; padding: 0px 8px 0px 6px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 6px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; cursor: pointer;">${matchText}</span>`;
       updatedContent = updatedContent.substring(0, index) + wrapped + updatedContent.substring(index + matchText.length);
     }
   }

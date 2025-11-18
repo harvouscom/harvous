@@ -195,13 +195,32 @@ document.addEventListener('astro:page-load', () => {
 });
 
 // Listen for custom 'toast' events from anywhere in the app
-window.addEventListener('toast', (event) => {
-  const detail = event.detail || {};
-  const message = detail.message || 'Notification';
-  const type = detail.type || 'success';
+function setupToastListener() {
+  // Remove existing listener if any (to prevent duplicates)
+  if (window._toastListener) {
+    window.removeEventListener('toast', window._toastListener);
+  }
   
-  console.log('[Toast Handler] Custom toast event received:', { message, type });
+  window._toastListener = (event) => {
+    const detail = event.detail || {};
+    const message = detail.message || 'Notification';
+    const type = detail.type || 'success';
+    
+    console.log('[Toast Handler] Custom toast event received:', { message, type, event });
+    
+    // Use the toast system to show the message
+    showToast(message, type);
+  };
   
-  // Use the toast system to show the message
-  showToast(message, type);
+  window.addEventListener('toast', window._toastListener);
+  console.log('[Toast Handler] Toast event listener registered');
+}
+
+// Set up listener immediately
+setupToastListener();
+
+// Re-setup listener after view transitions (Astro page loads)
+document.addEventListener('astro:page-load', () => {
+  console.log('[Toast Handler] Page load detected, re-setting up toast listener');
+  setupToastListener();
 });

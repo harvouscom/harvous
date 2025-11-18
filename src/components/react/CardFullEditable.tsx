@@ -237,6 +237,15 @@ export default function CardFullEditable({
       requestAnimationFrame(() => {
         if (editor) {
           editor.commands.focus();
+          // Move cursor to end of content to avoid getting stuck on scripture pills
+          try {
+            const doc = editor.state.doc;
+            const endPos = doc.content.size;
+            editor.commands.setTextSelection(endPos);
+          } catch (e) {
+            // If setting selection fails, just focus
+            console.log('Could not set cursor to end:', e);
+          }
         }
       });
     }
@@ -285,119 +294,89 @@ export default function CardFullEditable({
         }
       }
 
-      // Process scripture references after note update
-      if (saveResult && noteId && editorInstanceRef.current) {
-        try {
-          // Get the thread ID for processing (try to get from parentThreadId or use unorganized)
-          const threadId = parentThreadId || 'thread_unorganized';
-          
-          // Process scripture references
-          const processResponse = await fetch(`/api/notes/${noteId}/process-scripture-references`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ threadId }),
-            credentials: 'include'
-          });
-
-          if (processResponse.ok) {
-            const processResult = await processResponse.json();
-            
-            // Show toasts for each scripture reference created or added
-            if (processResult.results && processResult.results.length > 0) {
-              console.log('CardFullEditable: Found', processResult.results.length, 'scripture results');
-              for (const scriptureResult of processResult.results) {
-                console.log('CardFullEditable: Processing result:', scriptureResult);
-                // Show toast for newly created notes
-                if (scriptureResult.action === 'created') {
-                  console.log('CardFullEditable: Dispatching toast for created:', scriptureResult.reference);
-                  window.dispatchEvent(new CustomEvent('toast', {
-                    detail: {
-                      message: `Created scripture note: ${scriptureResult.reference}`,
-                      type: 'success'
-                    }
-                  }));
-                } 
-                // Show toast for notes added to thread
-                else if (scriptureResult.action === 'added') {
-                  console.log('CardFullEditable: Dispatching toast for added:', scriptureResult.reference);
-                  window.dispatchEvent(new CustomEvent('toast', {
-                    detail: {
-                      message: `Added ${scriptureResult.reference} to this thread`,
-                      type: 'success'
-                    }
-                  }));
-                }
-              }
-            } else {
-              console.log('CardFullEditable: No scripture results found');
-            }
-
-            // Update editor content with processed HTML (contains note-links)
-            if (processResult.updatedContent && editorInstanceRef.current) {
-              // Store cursor position before updating
-              const currentSelection = editorInstanceRef.current.state.selection;
-              const cursorPos = currentSelection.anchor;
-
-              // Update editor content
-              editorInstanceRef.current.commands.setContent(processResult.updatedContent, { emitUpdate: false });
+      // Handle scripture results from the update endpoint
+      // (The update endpoint already processes scripture and returns results)
+      console.log('CardFullEditable: Save result:', saveResult);
+      if (saveResult && saveResult.scriptureResults) {
+        console.log('CardFullEditable: Scripture results from update:', saveResult.scriptureResults, 'Length:', saveResult.scriptureResults.length);
+        
+        if (saveResult.scriptureResults.length > 0) {
+          // Show toasts for each scripture reference created or added
+          for (const scriptureResult of saveResult.scriptureResults) {
+            console.log('CardFullEditable: Processing result:', scriptureResult);
+            // Show toast for newly created notes
+            if (scriptureResult.action === 'created') {
+              const message = `Created scripture note: ${scriptureResult.reference}`;
+              console.log('CardFullEditable: Dispatching toast for created:', scriptureResult.reference);
               
-              // Wait a bit for Tiptap to parse the HTML content, then convert scripture references to pills
-              setTimeout(async () => {
-                if (editorInstanceRef.current && processResult.results) {
-                  // Extract reference + noteId pairs from results for conversion
-                  const scriptureData = processResult.results
-                    .filter((r: any) => r.reference && r.noteId)
-                    .map((r: any) => ({ reference: r.reference, noteId: r.noteId }));
-                  
-                  console.log('CardFullEditable: Extracted scripture data for conversion:', scriptureData);
-                  
-                  if (scriptureData.length > 0) {
-                    // Get fresh doc state after setContent
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    await convertScriptureReferencesToPills(editorInstanceRef.current, scriptureData);
-                  } else {
-                    console.log('CardFullEditable: No scripture data to convert');
-                  }
-                  
-                  // Restore cursor position after conversion
-                  try {
-                    editorInstanceRef.current.commands.setTextSelection(cursorPos);
-                  } catch (e) {
-                    // If cursor position is invalid, just leave it where it is
-                  }
-                }
-              }, 200);
-
-              // Update the content state with processed content
-              editorContent = processResult.updatedContent;
-            }
-          } else {
-            // Show error toast if processing fails
-            const errorData = await processResponse.json().catch(() => ({ error: 'Failed to process scripture references' }));
-            window.dispatchEvent(new CustomEvent('toast', {
-              detail: {
-                message: errorData.error || 'Error processing scripture references',
-                type: 'error'
+              // Dispatch event
+              const event = new CustomEvent('toast', {
+                detail: { message, type: 'success' }
+              });
+              window.dispatchEvent(event);
+              
+              // Fallback: directly call toast if available
+              if (window.toast && typeof window.toast.success === 'function') {
+                setTimeout(() => window.toast.success(message), 100);
               }
-            }));
-          }
-        } catch (error) {
-          // Show error toast if processing fails
-          window.dispatchEvent(new CustomEvent('toast', {
-            detail: {
-              message: 'Error processing scripture references',
-              type: 'error'
+            } 
+            // Show toast for notes added to thread
+            else if (scriptureResult.action === 'added') {
+              const message = `Added ${scriptureResult.reference} to this thread`;
+              console.log('CardFullEditable: Dispatching toast for added:', scriptureResult.reference);
+              
+              // Dispatch event
+              const event = new CustomEvent('toast', {
+                detail: { message, type: 'success' }
+              });
+              window.dispatchEvent(event);
+              
+              // Fallback: directly call toast if available
+              if (window.toast && typeof window.toast.success === 'function') {
+                setTimeout(() => window.toast.success(message), 100);
+              }
             }
-          }));
-          console.error('Error processing scripture references:', error);
+          }
+        } else {
+          console.log('CardFullEditable: No scripture results to process');
         }
+      } else {
+        console.log('CardFullEditable: No scriptureResults in saveResult');
       }
 
-      // Update display content
-      setDisplayTitle(editTitle);
-      setDisplayContent(editorContent);
-      setIsEditing(false);
-      setHasChanges(false);
+      // After save, update editor with processedContent (which has all pills as HTML spans)
+      // Then convert those HTML spans to marks so they display correctly
+      if (saveResult.processedContent && editorInstanceRef.current) {
+        // Update editor with processed content (has pills as HTML spans)
+        editorInstanceRef.current.commands.setContent(saveResult.processedContent, { emitUpdate: false });
+        
+        // Convert HTML spans to marks after a short delay, then update display
+        setTimeout(async () => {
+          if (editorInstanceRef.current) {
+            const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
+            await convertNoteLinksToScripturePills(editorInstanceRef.current);
+            // Get updated HTML with marks
+            const finalContent = editorInstanceRef.current.getHTML();
+            
+            // Update display content with the final content
+            setDisplayTitle(editTitle);
+            setDisplayContent(finalContent);
+            setIsEditing(false);
+            setHasChanges(false);
+          }
+        }, 200);
+      } else {
+        // No processed content, just use editor's current HTML
+        if (editorInstanceRef.current) {
+          editorContent = editorInstanceRef.current.getHTML();
+        }
+        
+        // Update display content
+        setDisplayTitle(editTitle);
+        setDisplayContent(editorContent);
+        setIsEditing(false);
+        setHasChanges(false);
+      }
     } catch (error) {
       // Show error toast
       window.dispatchEvent(new CustomEvent('toast', {
@@ -489,6 +468,10 @@ export default function CardFullEditable({
           if (!checkResponse.ok && reference) {
             const normalizedRef = reference;
             
+            // Get parent thread ID from DOM (the thread this note belongs to)
+            const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+            const parentThreadId = noteElement?.dataset.parentThreadId || 'thread_unorganized';
+            
             // Fetch verse text first
             let verseText = reference;
             try {
@@ -508,10 +491,11 @@ export default function CardFullEditable({
             }
 
             // Create new note with verse text as content
+            // Use parent thread ID so the recreated note is in the same thread as the current note
             const formData = new FormData();
             formData.set('content', verseText);
             formData.set('title', reference);
-            formData.set('threadId', 'thread_unorganized');
+            formData.set('threadId', parentThreadId);
             formData.set('noteType', 'scripture');
             formData.set('scriptureReference', normalizedRef);
             formData.set('scriptureVersion', 'NET');

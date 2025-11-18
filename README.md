@@ -601,12 +601,21 @@ graph LR
 - Deduplication and overlap detection
 - Categories: spiritual, biblical, character, place, book
 
-### 4. Scripture Detection
-- Detects references: "John 3:16", "Romans 8:28-30"
-- Parses book, chapter, verse
-- Fetches verse text from Bible.org API (NET translation)
-- Creates `ScriptureMetadata` records
-- Note type: 'scripture'
+### 4. Scripture Detection & Pills
+- **Automatic Detection**: Detects references like "John 3:16", "Romans 8:28-30" in note content
+- **Post-Save Processing**: References are processed when notes are saved (not while typing)
+- **Interactive Pills**: Detected references become styled, clickable pills in the editor
+- **Scripture Notes**: Automatically creates scripture notes for new references
+- **Thread Linking**: Links existing scripture notes to the current note's thread
+- **Formatting Prevention**: Typing after a pill doesn't inherit formatting (bold, highlight)
+- **Toast Notifications**: Shows which scripture notes were created or added to threads
+- **Pill Persistence**: Pills remain when editing notes and adding new references
+
+**Technical Details:**
+- Uses ProseMirror plugins to prevent mark inheritance
+- Multi-layered approach: `handleTextInput`, `filterTransaction`, `appendTransaction`, `view.update`
+- Detects pill boundaries using ProseMirror's inclusive mark system
+- See [SCRIPTURE_PILL_IMPLEMENTATION.md](./docs/SCRIPTURE_PILL_IMPLEMENTATION.md) for full details
 
 ### 5. XP Gamification
 | Activity | XP | Notes |
@@ -871,6 +880,7 @@ npm or pnpm
 - **[AUTO_TAG_DEBUGGING_GUIDE.md](./AUTO_TAG_DEBUGGING_GUIDE.md)** - Auto-tagging system
 - **[CAPTURE_SYSTEM_DESIGN.md](./CAPTURE_SYSTEM_DESIGN.md)** - Capture flow design
 - **[NOTE_TYPES_SYSTEM.md](./NOTE_TYPES_SYSTEM.md)** - Note types (default, scripture, resource)
+- **[SCRIPTURE_PILL_IMPLEMENTATION.md](./docs/SCRIPTURE_PILL_IMPLEMENTATION.md)** - Scripture detection and pill system
 
 #### Component Documentation
 - **[MENU_COMPONENT_DOCUMENTATION.md](./MENU_COMPONENT_DOCUMENTATION.md)** - Menu system

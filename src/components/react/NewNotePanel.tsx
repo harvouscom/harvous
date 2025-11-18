@@ -1289,112 +1289,54 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           }
         }));
 
-        // Process scripture references after note creation
-        if (result.note && result.note.id && editorRef.current) {
-          try {
-            // Get the thread ID for processing
-            const threadId = getSelectedThread().id;
-            
-            // Process scripture references
-            const processResponse = await fetch(`/api/notes/${result.note.id}/process-scripture-references`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ threadId }),
-              credentials: 'include'
-            });
-
-            if (processResponse.ok) {
-              const processResult = await processResponse.json();
-              
-              // Debug logging
-              console.log('Scripture processing results:', processResult);
-              
-              // Show toasts for each scripture reference created or added
-              if (processResult.results && processResult.results.length > 0) {
-                console.log('Found', processResult.results.length, 'scripture results');
-                for (const scriptureResult of processResult.results) {
-                  console.log('Processing scripture result:', scriptureResult);
-                  // Show toast for newly created notes
-                  if (scriptureResult.action === 'created') {
-                    console.log('Dispatching toast for created:', scriptureResult.reference);
-                    window.dispatchEvent(new CustomEvent('toast', {
-                      detail: {
-                        message: `Created scripture note: ${scriptureResult.reference}`,
-                        type: 'success'
-                      }
-                    }));
-                  } 
-                  // Show toast for notes added to thread
-                  else if (scriptureResult.action === 'added') {
-                    console.log('Dispatching toast for added:', scriptureResult.reference);
-                    window.dispatchEvent(new CustomEvent('toast', {
-                      detail: {
-                        message: `Added ${scriptureResult.reference} to this thread`,
-                        type: 'success'
-                      }
-                    }));
-                  }
-                }
-              } else {
-                console.log('No scripture results found or empty array');
-              }
-
-              // Update editor content with processed HTML (contains note-links)
-              if (processResult.updatedContent && editorRef.current) {
-                // Store cursor position before updating
-                const currentSelection = editorRef.current.state.selection;
-                const cursorPos = currentSelection.anchor;
-
-                // Update editor content
-                editorRef.current.commands.setContent(processResult.updatedContent, { emitUpdate: false });
+        // Handle scripture results from the create endpoint
+        // (The create endpoint already processes scripture and returns results)
+        console.log('NewNotePanel: Create result:', result);
+        if (result.scriptureResults) {
+          console.log('NewNotePanel: Scripture results from create:', result.scriptureResults, 'Length:', result.scriptureResults.length);
+          
+          if (result.scriptureResults.length > 0) {
+            // Show toasts for each scripture reference created or added
+            for (const scriptureResult of result.scriptureResults) {
+              console.log('NewNotePanel: Processing result:', scriptureResult);
+              // Show toast for newly created notes
+              if (scriptureResult.action === 'created') {
+                const message = `Created scripture note: ${scriptureResult.reference}`;
+                console.log('NewNotePanel: Dispatching toast for created:', scriptureResult.reference);
                 
-                // Wait a bit for Tiptap to parse the HTML content, then convert scripture references to pills
-                setTimeout(async () => {
-                  if (editorRef.current && processResult.results) {
-                    // Extract reference + noteId pairs from results for conversion
-                    const scriptureData = processResult.results
-                      .filter((r: any) => r.reference && r.noteId)
-                      .map((r: any) => ({ reference: r.reference, noteId: r.noteId }));
-                    
-                    console.log('Extracted scripture data for conversion:', scriptureData);
-                    
-                    if (scriptureData.length > 0) {
-                      // Get fresh doc state after setContent
-                      await new Promise(resolve => setTimeout(resolve, 50));
-                      await convertScriptureReferencesToPills(editorRef.current, scriptureData);
-                    } else {
-                      console.log('No scripture data to convert');
-                    }
-                    
-                    // Restore cursor position after conversion
-                    try {
-                      editorRef.current.commands.setTextSelection(cursorPos);
-                    } catch (e) {
-                      // If cursor position is invalid, just leave it where it is
-                    }
-                  }
-                }, 200);
-              }
-            } else {
-              // Show error toast if processing fails
-              const errorData = await processResponse.json().catch(() => ({ error: 'Failed to process scripture references' }));
-              window.dispatchEvent(new CustomEvent('toast', {
-                detail: {
-                  message: errorData.error || 'Error processing scripture references',
-                  type: 'error'
+                // Dispatch event
+                const event = new CustomEvent('toast', {
+                  detail: { message, type: 'success' }
+                });
+                window.dispatchEvent(event);
+                
+                // Fallback: directly call toast if available
+                if (window.toast && typeof window.toast.success === 'function') {
+                  setTimeout(() => window.toast.success(message), 100);
                 }
-              }));
-            }
-          } catch (error) {
-            // Show error toast if processing fails
-            window.dispatchEvent(new CustomEvent('toast', {
-              detail: {
-                message: 'Error processing scripture references',
-                type: 'error'
+              } 
+              // Show toast for notes added to thread
+              else if (scriptureResult.action === 'added') {
+                const message = `Added ${scriptureResult.reference} to this thread`;
+                console.log('NewNotePanel: Dispatching toast for added:', scriptureResult.reference);
+                
+                // Dispatch event
+                const event = new CustomEvent('toast', {
+                  detail: { message, type: 'success' }
+                });
+                window.dispatchEvent(event);
+                
+                // Fallback: directly call toast if available
+                if (window.toast && typeof window.toast.success === 'function') {
+                  setTimeout(() => window.toast.success(message), 100);
+                }
               }
-            }));
-            console.error('Error processing scripture references:', error);
+            }
+          } else {
+            console.log('NewNotePanel: No scripture results to process');
           }
+        } else {
+          console.log('NewNotePanel: No scriptureResults in result');
         }
 
         // Navigate to the newly created note
