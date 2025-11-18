@@ -188,7 +188,7 @@ function isReferenceWrapped(htmlContent: string, reference: string): boolean {
 }
 
 // Helper function to check/create scripture note and get noteId
-async function getOrCreateScriptureNote(reference: string): Promise<{ noteId: string | null; isNew: boolean }> {
+async function getOrCreateScriptureNote(reference: string, parentThreadId?: string): Promise<{ noteId: string | null; isNew: boolean }> {
   const normalizedRef = normalizeScriptureReference(reference);
   
   // Check if note exists
@@ -202,10 +202,32 @@ async function getOrCreateScriptureNote(reference: string): Promise<{ noteId: st
   if (checkResponse.ok) {
     const checkResult = await checkResponse.json();
     if (checkResult.exists && checkResult.noteId) {
-      // Show toast for existing note (optional, can be removed if too noisy)
-      // if (window.toast) {
-      //   window.toast.info(`Scripture note already exists: ${reference}`);
-      // }
+      // If parent thread is provided, add existing note to that thread
+      if (parentThreadId && parentThreadId !== 'thread_unorganized') {
+        try {
+          const addThreadResponse = await fetch(`/api/notes/${checkResult.noteId}/add-thread`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ threadId: parentThreadId }),
+            credentials: 'include'
+          });
+
+          // Note: We don't show an error if it's already in the thread (400 status)
+          // This is expected behavior and handled silently
+          if (addThreadResponse.ok) {
+            const result = await addThreadResponse.json();
+            if (result.success) {
+              // Note was successfully added to thread
+              // Optionally show a subtle toast, but keep it quiet to avoid spam
+            }
+          }
+        } catch (error) {
+          // Silently fail - note exists, just couldn't add to thread
+          // This is non-critical since the note already exists
+          console.error('Error adding existing scripture note to thread:', error);
+        }
+      }
+      
       return { noteId: checkResult.noteId, isNew: false };
     }
   }
@@ -230,10 +252,12 @@ async function getOrCreateScriptureNote(reference: string): Promise<{ noteId: st
   }
 
   // Create new note with verse text as content
+  // Use parentThreadId if provided, otherwise default to thread_unorganized
+  const targetThreadId = parentThreadId || 'thread_unorganized';
   const formData = new FormData();
   formData.set('content', verseText);
   formData.set('title', reference);
-  formData.set('threadId', 'thread_unorganized');
+  formData.set('threadId', targetThreadId);
   formData.set('noteType', 'scripture');
   formData.set('scriptureReference', normalizedRef);
   formData.set('scriptureVersion', 'NET');
@@ -381,7 +405,7 @@ async function convertNoteLinksToScripturePills(editor: any) {
 }
 
 // Helper function to detect and create scripture notes
-async function detectAndCreateScriptureNotes(editor: any) {
+async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: string) {
   if (!editor) return;
 
   try {
@@ -432,8 +456,38 @@ async function detectAndCreateScriptureNotes(editor: any) {
         continue;
       }
       
+      // Early exit optimization: Check if ALL positions already have pills
+      // This prevents unnecessary processing and visual cycling
+      let allPositionsHavePills = true;
+      for (const positions of allPositions) {
+        try {
+          const $from = doc.resolve(positions.from);
+          const marks = $from.marks();
+          const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+          if (!hasPill) {
+            allPositionsHavePills = false;
+            break;
+          }
+        } catch (e) {
+          // If we can't resolve, assume it doesn't have a pill
+          allPositionsHavePills = false;
+          break;
+        }
+      }
+      
+      // Skip this reference entirely if all positions already have pills
+      if (allPositionsHavePills) {
+        continue;
+      }
+      
       // Get or create note once for all occurrences of this reference
-      const { noteId } = await getOrCreateScriptureNote(reference);
+      // Pass parentThreadId so new notes are created in the correct thread
+      const { noteId } = await getOrCreateScriptureNote(reference, parentThreadId);
+      
+      if (!noteId) {
+        // If note creation failed, skip processing this reference
+        continue;
+      }
       
       // Process each occurrence
       // Note: We process in reverse order (from end to start) to avoid position shifts
@@ -599,9 +653,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           clearTimeout(scriptureDetectionTimeoutRef.current);
         }
 
-        scriptureDetectionTimeoutRef.current = setTimeout(async () => {
-          await detectAndCreateScriptureNotes(editor);
-        }, 2000);
+          scriptureDetectionTimeoutRef.current = setTimeout(async () => {
+            await detectAndCreateScriptureNotes(editor, parentThreadId);
+          }, 2000);
       }
     },
     editable: true,
@@ -741,10 +795,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   const textToCheck = currentDoc.textBetween(checkStart, checkEnd);
                   
                   // Quick check: does this text contain our potential reference?
-                  if (textToCheck.includes(potentialReference)) {
-                    // Trigger detection for the text before the space
-                    await detectAndCreateScriptureNotes(editor);
-                  }
+                    if (textToCheck.includes(potentialReference)) {
+                      // Trigger detection for the text before the space
+                      await detectAndCreateScriptureNotes(editor, parentThreadId);
+                    }
                 }, 50); // Small delay to ensure space is inserted first
               }
             } catch (e) {
@@ -921,7 +975,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             // Convert note-links to scripture pills first
             await convertNoteLinksToScripturePills(editor);
             // Then run detection for any new references
-            await detectAndCreateScriptureNotes(editor);
+            await detectAndCreateScriptureNotes(editor, parentThreadId);
           }
         }, 500);
         
