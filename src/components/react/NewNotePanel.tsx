@@ -733,6 +733,11 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Prevent double submission - check at the very beginning
+    if (isSubmitting) {
+      return;
+    }
+    
     // Don't submit if dialog is open
     if (showUnsavedDialog) {
       return;

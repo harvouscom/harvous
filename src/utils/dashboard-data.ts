@@ -605,9 +605,31 @@ export async function getContentItems(userId: string, limit = 20) {
       };
     });
 
-    // Combine and sort by actual timestamp (newest first)
-    // This ensures notes from unorganized threads are sorted by their actual update time
-    const allItems = [...threadItems, ...assignedNoteItems, ...unorganizedNoteItems]
+    // Combine and deduplicate by note ID, then sort by actual timestamp (newest first)
+    // This ensures each note appears only once, regardless of which query it came from
+    const allItemsMap = new Map<string, any>();
+
+    // Add thread items (no deduplication needed for threads, but use Map for consistency)
+    threadItems.forEach(item => {
+      allItemsMap.set(item.id, item);
+    });
+
+    // Add assigned notes, checking for duplicates
+    assignedNoteItems.forEach(item => {
+      if (!allItemsMap.has(item.id)) {
+        allItemsMap.set(item.id, item);
+      }
+    });
+
+    // Add unorganized notes, checking for duplicates
+    unorganizedNoteItems.forEach(item => {
+      if (!allItemsMap.has(item.id)) {
+        allItemsMap.set(item.id, item);
+      }
+    });
+
+    // Convert map to array and sort by actual timestamp (newest first)
+    const allItems = Array.from(allItemsMap.values())
       .sort((a, b) => {
         const aTime = new Date(a.updatedAt).getTime();
         const bTime = new Date(b.updatedAt).getTime();
