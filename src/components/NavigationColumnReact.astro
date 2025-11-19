@@ -24,6 +24,7 @@ interface Props {
   showProfile?: boolean;
   initials?: string;
   userColor?: string;
+  pathname?: string;
   [key: `data-${string}`]: string | number | undefined;
 }
 
@@ -37,6 +38,7 @@ const {
   showProfile = false,
   initials = "DJ",
   userColor = "paper",
+  pathname = Astro.url.pathname,
   ...rest
 } = Astro.props;
 
@@ -64,6 +66,7 @@ Object.keys(rest).forEach(key => {
       showProfile={showProfile}
       initials={initials}
       userColor={userColor}
+      pathname={pathname}
     />
   </NavigationProvider>
 </div>

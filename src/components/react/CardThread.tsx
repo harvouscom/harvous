@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import OverlappingNotes from './OverlappingNotes';
 import { getRelativeTime } from '@/utils/date-formatting';
 
@@ -35,21 +35,53 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
   // Convert color to CSS variable format
   const threadAccentColor = accentColor || (color ? `var(--color-${color})` : "var(--color-purple)");
 
-  // Format the timestamp properly
-  let displaySubtitle = subtitle || "5 hours ago";
-  if (lastUpdated) {
-    try {
-      displaySubtitle = getRelativeTime(new Date(lastUpdated));
-    } catch (error) {
-      displaySubtitle = lastUpdated;
+  // Format the timestamp properly - prioritize time over note count (subtitle)
+  // Calculate relative time immediately, prioritizing lastUpdated or createdAt dates
+  const displaySubtitle = React.useMemo(() => {
+    // On server, use a safe placeholder to avoid hydration mismatch
+    // On client, calculate relative time immediately
+    if (typeof window === 'undefined') {
+      // Server: use lastUpdated if it's already a relative time string, otherwise placeholder
+      if (lastUpdated && typeof lastUpdated === 'string' && 
+          (lastUpdated.includes('ago') || lastUpdated.includes('day') || lastUpdated.includes('hour') || lastUpdated.includes('minute'))) {
+        return lastUpdated;
+      }
+      // Use a generic placeholder on server - will be replaced on client
+      return "recently";
     }
-  } else if (createdAt) {
-    try {
-      displaySubtitle = getRelativeTime(new Date(createdAt));
-    } catch (error) {
-      displaySubtitle = createdAt;
+    
+    // Client: calculate relative time immediately from dates
+    if (lastUpdated) {
+      try {
+        // Check if it's already a relative time string
+        if (typeof lastUpdated === 'string' && 
+            (lastUpdated.includes('ago') || lastUpdated.includes('day') || lastUpdated.includes('hour') || lastUpdated.includes('minute') || lastUpdated.includes('Just now'))) {
+          return lastUpdated;
+        }
+        // Otherwise treat as date string and calculate
+        const date = new Date(lastUpdated);
+        if (!isNaN(date.getTime())) {
+          return getRelativeTime(date);
+        }
+      } catch (error) {
+        // Fall through
+      }
     }
-  }
+    
+    if (createdAt) {
+      try {
+        const date = new Date(createdAt);
+        if (!isNaN(date.getTime())) {
+          return getRelativeTime(date);
+        }
+      } catch (error) {
+        // Fall through
+      }
+    }
+    
+    // Fallback - but avoid showing note count (subtitle)
+    return "recently";
+  }, [lastUpdated, createdAt]);
 
   return (
     <>

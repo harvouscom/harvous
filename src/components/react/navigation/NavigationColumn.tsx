@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
 import Avatar from './Avatar';
@@ -33,6 +33,7 @@ interface NavigationColumnProps {
   showProfile?: boolean;
   initials?: string;
   userColor?: string;
+  pathname?: string;
 }
 
 const NavigationColumn: React.FC<NavigationColumnProps> = ({
@@ -44,16 +45,65 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   currentId = null,
   showProfile = false,
   initials = "DJ",
-  userColor = "paper"
+  userColor = "paper",
+  pathname = '/'
 }) => {
-  const { removeFromNavigationHistory } = useNavigation();
+  const { removeFromNavigationHistory, navigationHistory } = useNavigation();
   const [profileData, setProfileData] = useState({
     initials: initials,
     userColor: userColor,
   });
   const [showActiveThread, setShowActiveThread] = useState(false);
-  const [currentItemId, setCurrentItemId] = useState('');
+  // Initialize currentItemId from pathname prop (works on both server and client)
+  const [currentItemId, setCurrentItemId] = useState(() => {
+    return pathname.substring(1) || '';
+  });
   const [updatedActiveThread, setUpdatedActiveThread] = useState<ActiveThread | null>(activeThread);
+  
+  // Compute filtered spaces - only show spaces not in navigation history
+  // Use useMemo to ensure it updates when navigationHistory changes
+  // This prevents duplicates - spaces in navigation history are shown by PersistentNavigation
+  const filteredSpaces = useMemo(() => {
+    if (typeof window === 'undefined') return spaces;
+    
+    // Get navigation history IDs for quick lookup
+    const historyIds = new Set(navigationHistory.map(item => item.id));
+    
+    // Always check localStorage directly as the source of truth (in case context hasn't updated yet)
+    // This is critical to prevent duplicates when a space is just created
+    try {
+      const stored = localStorage.getItem('harvous-navigation-history-v2');
+      if (stored) {
+        const storedHistory = JSON.parse(stored);
+        storedHistory.forEach((item: any) => {
+          if (item.id) {
+            historyIds.add(item.id);
+          }
+        });
+      }
+    } catch (error) {
+      // Ignore localStorage errors
+    }
+    
+    // Also exclude the current space if we're on a space page
+    if (currentSpace?.id) {
+      historyIds.add(currentSpace.id);
+    }
+    
+    // Filter out spaces that are in navigation history or are the current space
+    // This ensures spaces only appear once - either in PersistentNavigation (if in history) or here (if not)
+    return spaces.filter(space => {
+      // Double-check: exclude if in history IDs set
+      return !historyIds.has(space.id);
+    });
+  }, [spaces, navigationHistory, currentSpace]);
+  
+  // Determine if we're on the dashboard page
+  // Use pathname prop which is available on both server and client (from Astro.url.pathname)
+  // This ensures SSR and client render the same value, preventing hydration mismatches
+  const isDashboard = useMemo(() => {
+    return pathname === '/' || pathname === '/dashboard';
+  }, [pathname]);
 
   useEffect(() => {
     const handleProfileUpdate = (event: CustomEvent) => {
@@ -79,26 +129,27 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     setUpdatedActiveThread(activeThread);
   }, [activeThread]);
   
-  // Initialize current item ID and listen for page changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setCurrentItemId(window.location.pathname.substring(1));
-    }
-  }, []);
+  // currentItemId is already initialized from pathname in useState
+  // This useEffect just updates it when the page changes
 
-  // Listen for page changes to update current item
+  // Listen for page changes to update currentItemId when pathname changes
   useEffect(() => {
+    setCurrentItemId(pathname.substring(1) || '');
+    
     const handlePageLoad = () => {
-      // Update current item ID when page changes
-      setCurrentItemId(window.location.pathname.substring(1));
+      // Update currentItemId when page changes via Astro transitions
+      if (typeof window !== 'undefined') {
+        setCurrentItemId(window.location.pathname.substring(1) || '');
+      }
     };
 
+    // Listen for Astro page transitions
     document.addEventListener('astro:page-load', handlePageLoad);
     
     return () => {
       document.removeEventListener('astro:page-load', handlePageLoad);
     };
-  }, []);
+  }, [pathname]);
   
   // Check if active thread is in persistent navigation on client side
   useEffect(() => {
@@ -201,16 +252,16 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                 count={inboxCount} 
                 state="WithCount" 
                 className="w-full" 
-                isActive={!currentSpace && !activeThread && !currentId}
-                backgroundGradient={!currentSpace && !activeThread && !currentId ? "var(--color-paper)" : undefined}
+                isActive={isDashboard}
+                backgroundGradient={isDashboard ? "var(--color-paper)" : undefined}
               />
             </a>
             
             {/* Persistent Navigation - shows recently accessed items */}
             <PersistentNavigation />
             
-            {/* Show created spaces */}
-            {spaces.map(space => (
+            {/* Show created spaces - filter out spaces already in persistent navigation */}
+            {filteredSpaces.map(space => (
               <div key={space.id} data-navigation-item={space.id} className="w-full nav-item-container">
                 <div className="relative w-full">
                   <a href={`/${space.id}`} className="w-full relative block">
@@ -219,7 +270,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                       count={space.totalItemCount} 
                       state="WithCount" 
                       className="w-full" 
-                      backgroundGradient={space.backgroundGradient}
+                      backgroundGradient="var(--color-paper)"
                       isActive={currentSpace?.id === space.id}
                       itemId={space.id}
                     />
@@ -340,13 +391,15 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         }
 
         /* Close icon hover states - for all items that have a close icon */
+        /* Works with both paper and colored backgrounds */
         .nav-item-container:has(.close-icon) .badge-count:hover .badge-number {
           display: none !important;
         }
         .nav-item-container:has(.close-icon) .badge-count:hover {
           background-color: transparent !important;
         }
-        .nav-item-container:has(.close-icon) .badge-count:hover .close-icon {
+        /* Show close icon when hovering over nav-item-container - works for both paper and colored backgrounds */
+        .nav-item-container:has(.close-icon):hover .close-icon {
           display: flex !important;
         }
         .close-icon {

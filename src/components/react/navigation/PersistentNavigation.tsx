@@ -94,7 +94,7 @@ const PersistentNavigation: React.FC = () => {
                   count={item.count || 0}
                   state="WithCount"
                   className="w-full"
-                  backgroundGradient={item.backgroundGradient}
+                  backgroundGradient={item.id.startsWith('space_') ? "var(--color-paper)" : item.backgroundGradient}
                   isActive={isActive}
                   itemId={item.id}
                 />

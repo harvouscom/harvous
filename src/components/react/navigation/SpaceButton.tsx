@@ -103,6 +103,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     
     // Directly apply CSS variables for consistent rendering between server and client
     // This avoids hydration mismatches
+    // Only apply background when active - inactive items have no background
     const style: React.CSSProperties = {};
     if (backgroundGradient) {
       if (backgroundGradient.includes('gradient')) {
@@ -151,10 +152,12 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
 
   if (state === "WithCount") {
     // Add active class for CSS-based styling to avoid hydration issues
-    const activeClass = isActive && !disabled && backgroundGradient ? 'space-button-active' : '';
+    // For spaces (paper background), always add active class when active
+    const isSpace = backgroundGradient === "var(--color-paper)" || !backgroundGradient || backgroundGradient === 'var(--color-gradient-gray)';
+    const activeClass = isActive && !disabled && (backgroundGradient || isSpace) ? 'space-button-active' : '';
     return (
       <button 
-        className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${activeClass} ${className}`}
+        className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 group ${activeClass} ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
@@ -175,7 +178,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
           </div>
         </div>
         
-        {/* Only show shadow when active */}
+        {/* Show shadow when active - always for spaces, conditionally for threads with background */}
         {isActive && (
           <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
         )}
