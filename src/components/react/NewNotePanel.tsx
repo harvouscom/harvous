@@ -729,6 +729,34 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
     return trimmedTitle || hasContent;
   };
 
+  // Listen for keyboard shortcut to save
+  useEffect(() => {
+    const handleSaveContent = (e: Event) => {
+      // Only save if form has content and we're not already submitting
+      // Check for unsaved changes inline to avoid dependency issues
+      const trimmedTitle = title.trim();
+      const trimmedContent = content.trim();
+      const hasContent = trimmedContent && 
+        trimmedContent !== '<p></p>' && 
+        trimmedContent !== '<p><br></p>' &&
+        trimmedContent !== '<br>';
+      const hasChanges = trimmedTitle || hasContent;
+      
+      if (hasChanges && !isSubmitting && !showUnsavedDialog) {
+        // Trigger form submission
+        const form = document.querySelector('.new-note-panel form') as HTMLFormElement;
+        if (form) {
+          form.requestSubmit();
+        }
+      }
+    };
+    
+    window.addEventListener('saveContent', handleSaveContent);
+    return () => {
+      window.removeEventListener('saveContent', handleSaveContent);
+    };
+  }, [title, content, isSubmitting, showUnsavedDialog]);
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

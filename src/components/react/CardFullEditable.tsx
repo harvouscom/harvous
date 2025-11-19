@@ -390,6 +390,21 @@ export default function CardFullEditable({
     }
   };
 
+  // Listen for keyboard shortcut to save when editing
+  useEffect(() => {
+    const handleSaveContent = (e: Event) => {
+      // Only save if we're in edit mode, have changes, and not already saving
+      if (isEditing && hasChanges && !isSaving) {
+        saveChanges();
+      }
+    };
+    
+    window.addEventListener('saveContent', handleSaveContent);
+    return () => {
+      window.removeEventListener('saveContent', handleSaveContent);
+    };
+  }, [isEditing, hasChanges, isSaving]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       cancelEdit();

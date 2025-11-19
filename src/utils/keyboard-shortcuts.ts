@@ -11,25 +11,28 @@
 function isTypingInInput(): boolean {
   if (typeof document === 'undefined') return false;
   
-  const activeElement = document.activeElement;
+  const activeElement = document.activeElement as HTMLElement | null;
   if (!activeElement) return false;
   
   const tagName = activeElement.tagName.toLowerCase();
   
   // Check for input fields (excluding buttons, checkboxes, etc.)
-  const isInput = tagName === 'input' && 
-    (activeElement.type === 'text' || 
-     activeElement.type === 'search' || 
-     activeElement.type === 'email' || 
-     activeElement.type === 'password' ||
-     activeElement.type === 'url' ||
-     activeElement.type === 'tel' ||
-     !activeElement.type); // default type is text
+  if (tagName === 'input') {
+    const inputElement = activeElement as HTMLInputElement;
+    const isInput = inputElement.type === 'text' || 
+      inputElement.type === 'search' || 
+      inputElement.type === 'email' || 
+      inputElement.type === 'password' ||
+      inputElement.type === 'url' ||
+      inputElement.type === 'tel' ||
+      !inputElement.type; // default type is text
+    if (isInput) return true;
+  }
   
   const isTextarea = tagName === 'textarea';
   const isContentEditable = activeElement.contentEditable === 'true';
   
-  return isInput || isTextarea || isContentEditable;
+  return isTextarea || isContentEditable;
 }
 
 /**
@@ -134,14 +137,35 @@ function focusSearchInput(): void {
  * Handle keyboard shortcut events
  */
 function handleKeyboardShortcut(event: KeyboardEvent): void {
+  const modifier = isModifierPressed(event);
+  const key = event.key.toLowerCase();
+  const code = event.code;
+  
+  // Cmd/Ctrl + S - Save current note/thread (when editing)
+  // Handle BEFORE isTypingInInput() check so it works in editors
+  if (modifier && key === 's') {
+    // Only prevent default if we're actually in an editing context
+    // We'll check if there's an active editor or form
+    const activeElement = document.activeElement as HTMLElement | null;
+    const isInEditor = activeElement && (
+      activeElement.contentEditable === 'true' ||
+      activeElement.closest('.ProseMirror') !== null ||
+      activeElement.closest('.tiptap-editor-container') !== null ||
+      activeElement.closest('form') !== null
+    );
+    
+    if (isInEditor || isPanelOpen()) {
+      event.preventDefault();
+      // Dispatch save event that components can listen to
+      window.dispatchEvent(new CustomEvent('saveContent'));
+    }
+    return;
+  }
+  
   // Don't handle shortcuts when typing in inputs
   if (isTypingInInput()) {
     return;
   }
-  
-  const modifier = isModifierPressed(event);
-  const key = event.key.toLowerCase();
-  const code = event.code;
   
   // Cmd/Ctrl + N - Create new note (context-aware: only when app is focused)
   if (modifier && key === 'n' && !event.shiftKey) {
@@ -228,31 +252,6 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
       // Trigger edit mode - this might need to be implemented based on how editing works
       // For now, we'll dispatch an event that components can listen to
       window.dispatchEvent(new CustomEvent('editNote'));
-    }
-    return;
-  }
-  
-  // Cmd/Ctrl + S - Save current note/thread (when editing)
-  if (modifier && key === 's') {
-    // Only prevent default if we're actually in an editing context
-    // We'll check if there's an active editor or form
-    const activeElement = document.activeElement;
-    const isInEditor = activeElement && (
-      activeElement.contentEditable === 'true' ||
-      activeElement.closest('[data-tiptap-editor]') !== null ||
-      activeElement.closest('form') !== null
-    );
-    
-    if (isInEditor || isPanelOpen()) {
-      event.preventDefault();
-      // Try to find and submit the active form or trigger save
-      const activeForm = document.querySelector('form[data-panel-form]') as HTMLFormElement;
-      if (activeForm) {
-        activeForm.requestSubmit();
-      } else {
-        // Dispatch save event that components can listen to
-        window.dispatchEvent(new CustomEvent('saveContent'));
-      }
     }
     return;
   }
