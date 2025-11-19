@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { db, UserInboxItems, eq, and, lt } from 'astro:db';
 
 /**
- * Auto-delete endpoint that permanently deletes archived items older than 60 days
+ * Auto-delete endpoint that permanently deletes archived items older than 30 days
  * This can be called:
  * 1. Manually via GET/POST
  * 2. As a scheduled job (Netlify Scheduled Functions, cron, etc.)
@@ -21,18 +21,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Calculate date 60 days ago
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    // Calculate date 30 days ago
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Find all archived items that were archived more than 60 days ago
+    // Find all archived items that were archived more than 30 days ago
     const itemsToDelete = await db
       .select()
       .from(UserInboxItems)
       .where(
         and(
           eq(UserInboxItems.status, 'archived'),
-          lt(UserInboxItems.archivedAt, sixtyDaysAgo)
+          lt(UserInboxItems.archivedAt, thirtyDaysAgo)
         )
       )
       .all();

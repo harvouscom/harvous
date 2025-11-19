@@ -14,10 +14,10 @@ Inbox items are automatically archived after 14 days based on when they appeared
 - Sets the `archivedAt` timestamp
 - Runs daily (via scheduled job)
 
-### Stage 2: Auto-Delete (60 days after archiving)
-Archived items are automatically deleted 60 days after being archived (`UserInboxItems.archivedAt`). The auto-delete process:
+### Stage 2: Auto-Delete (30 days after archiving)
+Archived items are automatically deleted 30 days after being archived (`UserInboxItems.archivedAt`). The auto-delete process:
 
-- Finds all archived items that were archived more than 60 days ago
+- Finds all archived items that were archived more than 30 days ago
 - Permanently deletes the `UserInboxItems` record
 - Runs daily (via scheduled job)
 
@@ -125,7 +125,7 @@ Or visit the URLs in your browser (GET request also works).
 1. **Daily Execution**: The scheduled job runs once per day (same workflow)
 2. **Query**: Finds all `UserInboxItems` where:
    - `status === 'archived'`
-   - `archivedAt < (today - 60 days)`
+   - `archivedAt < (today - 30 days)`
 3. **Delete**: Permanently deletes each `UserInboxItems` record
 4. **Response**: Returns count of deleted items and any errors
 
@@ -144,7 +144,7 @@ Or visit the URLs in your browser (GET request also works).
 
 ### Testing Auto-Delete
 
-1. **Create test data** (items archived more than 60 days ago)
+1. **Create test data** (items archived more than 30 days ago)
 2. **Call the endpoint manually**:
    ```bash
    curl -X POST http://localhost:4321/api/inbox/auto-delete
@@ -163,7 +163,7 @@ Check Netlify function logs or your cron service logs to monitor:
 
 Users see different messages in the UI based on which tab they're viewing:
 - **Inbox tab**: "14 day auto archive" - indicates items will be archived after 14 days
-- **Archive tab**: "60 day auto delete" - indicates archived items will be deleted after 60 days
+- **Archive tab**: "30 day auto delete" - indicates archived items will be deleted after 30 days
 
 ## Related Files
 
