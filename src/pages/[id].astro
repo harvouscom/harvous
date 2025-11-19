@@ -700,10 +700,10 @@ if (!content) {
                     threadId={id!}
                     client:visible
                   />
-                ) : isSpace && content && content.threads && content.threads.length > 0 ? (
+                ) : isSpace && content ? (
                   <div class="flex flex-col gap-3">
                     {/* Show threads in this space */}
-                    {content?.threads.map((thread: any, index: number) => (
+                    {content.threads && content.threads.length > 0 && content.threads.map((thread: any, index: number) => (
                       <div class="content-item thread-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
                         <a 
                           href={`/${thread.id}`}
@@ -722,7 +722,7 @@ if (!content) {
                     ))}
                     
                     {/* Show standalone notes in this space */}
-                    {content?.notes && content.notes.length > 0 && content.notes.map((note: any, index: number) => (
+                    {content.notes && content.notes.length > 0 && content.notes.map((note: any, index: number) => (
                       <div class="content-item note-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
                         <a 
                           href={`/${note.id}`}
@@ -739,6 +739,13 @@ if (!content) {
                         </a>
                       </div>
                     ))}
+                    
+                    {/* Show empty state if no threads and no notes */}
+                    {(!content.threads || content.threads.length === 0) && (!content.notes || content.notes.length === 0) && (
+                      <div class="text-center py-12">
+                        <p class="text-[var(--color-pebble-grey)] text-lg">No content found in this space.</p>
+                      </div>
+                    )}
                   </div>
                 ) : isThread ? (
                   <div class="text-center py-12">

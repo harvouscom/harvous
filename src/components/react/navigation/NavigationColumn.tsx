@@ -3,6 +3,7 @@ import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
 import Avatar from './Avatar';
 import SquareButton from './SquareButton';
+import { useNavigation } from './NavigationContext';
 
 interface Space {
   id: string;
@@ -45,6 +46,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   initials = "DJ",
   userColor = "paper"
 }) => {
+  const { removeFromNavigationHistory } = useNavigation();
   const [profileData, setProfileData] = useState({
     initials: initials,
     userColor: userColor,
@@ -209,18 +211,40 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             
             {/* Show created spaces */}
             {spaces.map(space => (
-              <div key={space.id} data-navigation-item={space.id} className="w-full">
-                <a href={`/${space.id}`} className="w-full">
-                  <SpaceButton 
-                    text={space.title} 
-                    count={space.totalItemCount} 
-                    state="Close" 
-                    className="w-full" 
-                    backgroundGradient={space.backgroundGradient}
-                    isActive={currentSpace?.id === space.id}
-                    itemId={space.id}
-                  />
-                </a>
+              <div key={space.id} data-navigation-item={space.id} className="w-full nav-item-container">
+                <div className="relative w-full">
+                  <a href={`/${space.id}`} className="w-full relative block">
+                    <SpaceButton 
+                      text={space.title} 
+                      count={space.totalItemCount} 
+                      state="WithCount" 
+                      className="w-full" 
+                      backgroundGradient={space.backgroundGradient}
+                      isActive={currentSpace?.id === space.id}
+                      itemId={space.id}
+                    />
+                  </a>
+                  {/* Close icon positioned outside the link element, aligned with badge count center */}
+                  {/* Show close icon for all items (active items can be closed too) */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      removeFromNavigationHistory(space.id);
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
+                    className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center bg-transparent border-none p-0"
+                    style={{ right: '16px' }} // Move 16px left to align with badge count center
+                    data-item-id={space.id}
+                    aria-label={`Close ${space.title || 'space'}`}
+                  >
+                    <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]" aria-hidden="true"></i>
+                  </button>
+                </div>
               </div>
             ))}
             
@@ -315,20 +339,18 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           transform: scale(0.95);
         }
 
-        /* Close icon hover states - only for inactive items that have a close icon (itemId) */
-        .nav-item-container:not(.active):has(.close-icon) .badge-count:hover .badge-number {
+        /* Close icon hover states - for all items that have a close icon */
+        .nav-item-container:has(.close-icon) .badge-count:hover .badge-number {
           display: none !important;
         }
-        .nav-item-container:not(.active):has(.close-icon) .badge-count:hover .close-icon {
+        .nav-item-container:has(.close-icon) .badge-count:hover {
+          background-color: transparent !important;
+        }
+        .nav-item-container:has(.close-icon) .badge-count:hover .close-icon {
           display: flex !important;
         }
         .close-icon {
           display: none;
-        }
-        
-        /* TagClose variant - always show close icon, no badge count */
-        .nav-item-container .close-icon[data-item-id] {
-          display: flex !important;
         }
       `}</style>
     </div>

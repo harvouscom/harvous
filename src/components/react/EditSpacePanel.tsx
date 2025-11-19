@@ -3,6 +3,9 @@ import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadCol
 import SquareButton from './SquareButton';
 import ChevronDownIcon from '@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg';
 import AddToSpaceSection from './AddToSpaceSection';
+import CardThread from './CardThread';
+import CardNote from './CardNote';
+import ActionButton from './ActionButton';
 
 interface Note {
   id: string;
@@ -300,6 +303,21 @@ export default function EditSpacePanel({
     });
   };
 
+  // Helper function to strip HTML from content
+  const stripHtml = (html: string): string => {
+    if (!html) return '';
+    return html
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .trim()
+      .substring(0, 150);
+  };
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
@@ -426,6 +444,71 @@ export default function EditSpacePanel({
                     )}
                   </div>
                 </div>
+
+                {/* Selected Items - displayed above AddToSpaceSection */}
+                {selectedItems.length > 0 && !isLoadingItems && (
+                  <div className="w-full shrink-0 mb-3">
+                    <div className="flex flex-col gap-3">
+                      {selectedItems.map(itemId => {
+                        const thread = allThreads.find(t => t.id === itemId);
+                        const note = allNotes.find(n => n.id === itemId);
+                        
+                        if (thread) {
+                          return (
+                            <div key={thread.id} className="relative group">
+                              <a 
+                                href={`/${thread.id}`}
+                                className="block transition-transform duration-200 hover:scale-[1.002]"
+                                aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
+                              >
+                                <CardThread thread={thread} />
+                              </a>
+                              {/* Remove from selection button */}
+                              <ActionButton
+                                variant="Close"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleItemSelect(thread.id, 'thread');
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                disabled={isAddingItems}
+                              />
+                            </div>
+                          );
+                        } else if (note) {
+                          return (
+                            <div key={note.id} className="relative group">
+                              <a 
+                                href={`/${note.id}`}
+                                className="block transition-transform duration-200 hover:scale-[1.002]"
+                                aria-label={`View note: ${note.title || 'Untitled note'}`}
+                              >
+                                <CardNote 
+                                  title={note.title || "Untitled Note"}
+                                  content={stripHtml(note.content)}
+                                  noteType={note.noteType || 'default'}
+                                />
+                              </a>
+                              {/* Remove from selection button */}
+                              <ActionButton
+                                variant="Close"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleItemSelect(note.id, 'note');
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                disabled={isAddingItems}
+                              />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* AddToSpaceSection - for adding items to existing space */}
                 <div className="w-full flex-1 min-h-0">
