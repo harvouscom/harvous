@@ -125,22 +125,17 @@ export default function NewTagPanel({
               <div className="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
                 <div className="basis-0 grow min-h-px min-w-px shrink-0 w-full">
                   
-                  {/* Text input field - styled like tag button */}
-                  <div className="mb-3 relative">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={tagName}
-                        onChange={(e) => setTagName(e.target.value)}
-                        placeholder="Type here..."
-                        className="space-button relative rounded-[12px] cursor-text transition-[scale,shadow] duration-300 pb-3 pl-4 pr-3 pt-[10px] w-full h-[60px] outline-none border-none text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50"
-                        style={{ backgroundImage: 'var(--color-gradient-gray)' }}
-                        disabled={isSubmitting}
-                        autoFocus
-                      />
-                      {/* Inset shadow */}
-                      <div className="absolute inset-0 pointer-events-none rounded-[12px] shadow-[0px_-3px_0px_0px_inset_rgba(176,176,176,0.25)]" />
-                    </div>
+                  {/* Text input field */}
+                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full mb-3">
+                    <input
+                      type="text"
+                      value={tagName}
+                      onChange={(e) => setTagName(e.target.value)}
+                      placeholder="Type here..."
+                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
+                      disabled={isSubmitting}
+                      autoFocus
+                    />
                   </div>
 
                   {/* Button row */}
