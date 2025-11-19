@@ -147,15 +147,18 @@ function loadPersistentNavigation(retryCount) {
       
         // Apply active styling if this is the current page
       if (isCurrentPage) {
-        // Use thread's background color or paper color for spaces
-        if (item.id.startsWith('space_')) {
+        // Apply background gradient for both threads and spaces
+        if (item.backgroundGradient) {
+          if (item.backgroundGradient.includes('gradient')) {
+            button.style.backgroundImage = item.backgroundGradient;
+          } else {
+            button.style.background = item.backgroundGradient;
+          }
+          backgroundGradient = item.backgroundGradient;
+        } else {
+          // Fallback to paper if no backgroundGradient
           button.style.background = 'var(--color-paper)';
           backgroundGradient = 'var(--color-paper)';
-        } else {
-          // Apply thread's background gradient
-          button.style.background = item.backgroundGradient;
-          button.style.backgroundImage = item.backgroundGradient;
-          backgroundGradient = item.backgroundGradient;
         }
         button.classList.add('active-state');
         

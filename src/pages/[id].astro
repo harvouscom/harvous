@@ -595,7 +595,7 @@ let inboxCount: number = 0;
           title: spaceData.title,
           color: spaceData.color,
           totalItemCount: spaceData.totalItemCount,
-          backgroundGradient: getThreadGradientCSS(spaceData.color)
+          backgroundGradient: spaceData.backgroundGradient || getThreadGradientCSS(spaceData.color || 'paper')
         };
         
         threads = spaceThreads;
@@ -689,7 +689,11 @@ if (!content) {
             <CardStack 
               title={pageTitle} 
               subtitle={isThread ? undefined : pageContent} 
-              headerBgColor={isThread && currentThread?.color ? `var(--color-${currentThread.color})` : "var(--color-paper)"}
+              headerBgColor={
+                isThread && currentThread?.color 
+                  ? `var(--color-${currentThread.color})` 
+                  : (currentSpace?.color ? `var(--color-${currentSpace.color})` : "var(--color-paper)")
+              }
               centerTitle={isThread}
             >
               <div class="flex flex-col gap-6">

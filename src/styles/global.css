@@ -48,9 +48,9 @@
     --shadow-small: inset 0px -3px 0px rgba(120, 118, 111, 0.2);
 }
 
-/* Active state for space buttons - ensures background is applied on initial load */
+/* Active state for space buttons - background is applied via inline styles from backgroundGradient */
 .space-button-active {
-    background-color: var(--color-paper) !important;
+    /* Background color is set via inline styles, not CSS */
 }
 
 /* Active state inner shadow for space buttons - shows shadow when button has active-state class */

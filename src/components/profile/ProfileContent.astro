@@ -96,6 +96,24 @@ const { joinDate, userXP } = Astro.props;
                 </div>
             </div>
         </div>
+        <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'mySpaces' } }))" class="w-full">
+            <div class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+                <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                    <div class="flex-1 min-w-0 overflow-hidden">
+                        <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">My Spaces</span>
+                    </div>
+                    <div class="flex items-center justify-center relative shrink-0">
+                        <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
+                            <div class="flex items-center justify-center relative shrink-0">
+                                <div class="relative w-6 h-6">
+                                    <svg class="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512"><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'myData' } }))" class="w-full">
             <div class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
                 <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">

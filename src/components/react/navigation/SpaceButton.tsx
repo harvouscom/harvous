@@ -152,9 +152,8 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
 
   if (state === "WithCount") {
     // Add active class for CSS-based styling to avoid hydration issues
-    // For spaces (paper background), always add active class when active
-    const isSpace = backgroundGradient === "var(--color-paper)" || !backgroundGradient || backgroundGradient === 'var(--color-gradient-gray)';
-    const activeClass = isActive && !disabled && (backgroundGradient || isSpace) ? 'space-button-active' : '';
+    // Apply active class when active and has a background (spaces or threads)
+    const activeClass = isActive && !disabled && backgroundGradient ? 'space-button-active' : '';
     return (
       <button 
         className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 group ${activeClass} ${className}`}

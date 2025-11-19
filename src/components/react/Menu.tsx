@@ -298,7 +298,7 @@ export default function Menu({
   return (
     <>
       <div 
-        className={`menu bg-white rounded-xl overflow-hidden ${isMounted && !isExiting ? 'menu-enter' : ''} ${isExiting ? 'menu-exit' : ''}`}
+        className={`menu bg-white rounded-3xl overflow-hidden ${isMounted && !isExiting ? 'menu-enter' : ''} ${isExiting ? 'menu-exit' : ''}`}
         style={!isMounted ? { opacity: 0, transform: 'translateY(-2px)' } : undefined}
       >
         {options.map((option, index) => (
@@ -308,7 +308,7 @@ export default function Menu({
             )}
             <button
               onClick={() => handleAction(option.action, option.label)}
-              className="menu-item flex items-center gap-3 py-[18px] px-4 pb-5 hover:bg-gray-50 transition-colors duration-150 cursor-pointer w-full text-left"
+              className="menu-item flex items-center gap-3 py-[18px] px-4 pb-5 hover:bg-gray-50 transition-colors duration-150 cursor-pointer w-full text-left rounded-[3px]"
             >
               <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
                 <img

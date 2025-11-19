@@ -29,7 +29,7 @@ export const GET: APIRoute = async ({ locals }) => {
     
     const spacesWithGradients = spaces.map(space => ({
       ...space,
-      backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue')
+      backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper')
     }));
     
     return new Response(JSON.stringify({

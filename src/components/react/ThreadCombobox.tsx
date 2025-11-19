@@ -38,7 +38,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full flex items-center justify-between"
+        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full flex items-center justify-between"
         style={{ backgroundImage: selectedThreadObj?.backgroundGradient || 'var(--color-gradient-gray)' }}
       >
         <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getThreadColorCSS, getThreadTextColorCSS } from '@/utils/colors';
+import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import ChevronDownIcon from '@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg';
 import AddToSpaceSection from './AddToSpaceSection';
@@ -29,6 +29,7 @@ interface Thread {
 interface EditSpacePanelProps {
   spaceId: string;
   initialTitle?: string;
+  initialColor?: ThreadColor;
   onClose?: () => void;
   inBottomSheet?: boolean;
 }
@@ -36,11 +37,13 @@ interface EditSpacePanelProps {
 export default function EditSpacePanel({ 
   spaceId,
   initialTitle = '', 
+  initialColor = 'paper',
   onClose,
   inBottomSheet = false
 }: EditSpacePanelProps) {
   const [formData, setFormData] = useState({
     title: initialTitle,
+    selectedColor: initialColor,
     selectedType: 'Private'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,12 +138,12 @@ export default function EditSpacePanel({
       console.log('EditSpacePanel: Data being sent:', {
         spaceId: spaceId,
         title: formData.title.trim(),
-        color: 'paper'
+        color: formData.selectedColor
       });
       
       const formDataToSend = new FormData();
       formDataToSend.append('title', formData.title.trim());
-      formDataToSend.append('color', 'paper'); // Always use paper color for spaces
+      formDataToSend.append('color', formData.selectedColor);
 
       const response = await fetch(`/api/spaces/${spaceId}/update`, {
         method: 'POST',
@@ -274,6 +277,11 @@ export default function EditSpacePanel({
     }
   };
 
+  // Handle color selection
+  const handleColorSelect = (color: ThreadColor) => {
+    setFormData(prev => ({ ...prev, selectedColor: color }));
+  };
+
   // Handle close
   const handleClose = () => {
     if (onClose) {
@@ -321,8 +329,8 @@ export default function EditSpacePanel({
             <div 
               className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full rounded-t-3xl"
               style={{ 
-                backgroundColor: getThreadColorCSS('paper'),
-                color: getThreadTextColorCSS('paper')
+                backgroundColor: getThreadColorCSS(formData.selectedColor),
+                color: getThreadTextColorCSS(formData.selectedColor)
               }}
             >
               <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
@@ -348,6 +356,30 @@ export default function EditSpacePanel({
                       {validationErrors.title}
                     </div>
                   )}
+                </div>
+                
+                {/* Color selection */}
+                <div className="color-selection flex gap-2 items-center justify-start w-full">
+                  {THREAD_COLORS.map((color) => (
+                    <button 
+                      key={color}
+                      type="button"
+                      onClick={() => handleColorSelect(color)}
+                      className={`relative rounded-xl size-10 cursor-pointer transition-all duration-200 ${
+                        formData.selectedColor === color ? 'ring-2 ring-[var(--color-deep-grey)] ring-offset-2' : ''
+                      }`}
+                      style={{ backgroundColor: getThreadColorCSS(color) }}
+                    >
+                      {/* Check icon for selected color */}
+                      {formData.selectedColor === color && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <svg className="size-5" style={{ color: getThreadTextColorCSS(color) }} fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+                  ))}
                 </div>
 
                 {/* Space type selection with dropdown */}

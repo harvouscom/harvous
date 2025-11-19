@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS } from '@/utils/colors';
+import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import ChevronDownIcon from '@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg';
 import AddToSpaceSection from './AddToSpaceSection';
@@ -35,6 +35,7 @@ interface NewSpacePanelProps {
 
 export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet = false }: NewSpacePanelProps) {
   const [title, setTitle] = useState('');
+  const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
@@ -50,8 +51,10 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   // Load data from localStorage on mount
   useEffect(() => {
     const savedTitle = localStorage.getItem('newSpaceTitle') || '';
+    const savedColor = localStorage.getItem('newSpaceColor') || 'paper';
     const savedType = localStorage.getItem('newSpaceType') || 'Private';
     setTitle(savedTitle);
+    setSelectedColor(savedColor as ThreadColor);
     setSelectedType(savedType);
   }, []);
 
@@ -59,6 +62,10 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   useEffect(() => {
     localStorage.setItem('newSpaceTitle', title);
   }, [title]);
+
+  useEffect(() => {
+    localStorage.setItem('newSpaceColor', selectedColor);
+  }, [selectedColor]);
 
   useEffect(() => {
     localStorage.setItem('newSpaceType', selectedType);
@@ -139,7 +146,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     try {
       const formData = new FormData();
       formData.append('title', title.trim());
-      formData.append('color', 'paper'); // Always use paper color for spaces
+      formData.append('color', selectedColor);
       formData.append('isPublic', 'false'); // Always private for now
       
       // Add selected items
@@ -176,14 +183,14 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         
         // Clear form data
         setTitle('');
+        setSelectedColor('paper');
         setSelectedType('Private');
         setSelectedItems([]);
         localStorage.removeItem('newSpaceTitle');
+        localStorage.removeItem('newSpaceColor');
         localStorage.removeItem('newSpaceType');
         
         // Dispatch event to notify other components
-        console.log('NewSpacePanel: Dispatching spaceCreated event with space:', result.space);
-
         // Immediately update localStorage synchronously
         try {
           const spaceColor = result.space.color || 'blue';
@@ -287,9 +294,11 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
 
   const handleDiscardChanges = () => {
     setTitle('');
+    setSelectedColor('paper');
     setSelectedType('Private');
     setSelectedItems([]);
     localStorage.removeItem('newSpaceTitle');
+    localStorage.removeItem('newSpaceColor');
     localStorage.removeItem('newSpaceType');
     setShowUnsavedDialog(false);
     
@@ -343,8 +352,8 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
             <div 
               className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full"
               style={{ 
-                backgroundColor: getThreadColorCSS('paper'),
-                color: getThreadTextColorCSS('paper')
+                backgroundColor: getThreadColorCSS(selectedColor),
+                color: getThreadTextColorCSS(selectedColor)
               }}
             >
               <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px]">
@@ -356,7 +365,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                   placeholder="Space name"
                   className="w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center placeholder:text-[var(--color-pebble-grey)]"
                   style={{ 
-                    color: getThreadTextColorCSS('paper')
+                    color: getThreadTextColorCSS(selectedColor)
                   }}
                 />
               </div>
@@ -365,6 +374,30 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
             {/* Content area */}
             <div className="basis-0 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-px min-w-px overflow-clip relative shrink-0 w-full">
               <div className="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
+                
+                {/* Color selection */}
+                <div className="color-selection flex gap-2 items-center justify-start w-full">
+                  {THREAD_COLORS.map((color) => (
+                    <button 
+                      key={color}
+                      type="button"
+                      onClick={() => setSelectedColor(color)}
+                      className={`relative rounded-xl size-10 cursor-pointer transition-all duration-200 ${
+                        selectedColor === color ? 'ring-2 ring-[var(--color-deep-grey)] ring-offset-2' : ''
+                      }`}
+                      style={{ backgroundColor: getThreadColorCSS(color) }}
+                    >
+                      {/* Check icon for selected color */}
+                      {selectedColor === color && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <svg className="size-5" style={{ color: getThreadTextColorCSS(color) }} fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
                 
                 {/* Space type selection with dropdown */}
                 <div className="w-full">

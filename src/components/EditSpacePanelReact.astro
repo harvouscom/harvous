@@ -4,16 +4,18 @@ import EditSpacePanel from './react/EditSpacePanel';
 export interface Props {
   spaceId: string;
   initialTitle?: string;
+  initialColor?: string;
   onClose?: () => void;
 }
 
-const { spaceId, initialTitle = '', onClose } = Astro.props;
+const { spaceId, initialTitle = '', initialColor = 'paper', onClose } = Astro.props;
 ---
 
 <!-- Simple wrapper that uses React component -->
 <EditSpacePanel 
   spaceId={spaceId}
   initialTitle={initialTitle}
+  initialColor={initialColor as any}
   onClose={() => {
     // Dispatch close event to Layout
     window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));

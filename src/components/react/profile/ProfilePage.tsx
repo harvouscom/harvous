@@ -7,6 +7,7 @@ import EditNameColorPanel from '@/components/react/EditNameColorPanel';
 import EmailPasswordPanel from '@/components/react/EmailPasswordPanel';
 import MyDataPanel from '@/components/react/MyDataPanel';
 import MyChurchPanel from '@/components/react/MyChurchPanel';
+import MySpacesPanel from '@/components/react/MySpacesPanel';
 import GetSupportPanel from '@/components/react/GetSupportPanel';
 
 // Type definitions for props
@@ -21,7 +22,7 @@ export interface ProfilePageProps {
 }
 
 // Type definition for a panel name
-type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'myData' | 'getSupport' | null;
+type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'getSupport' | null;
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
   displayName,
@@ -346,6 +347,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         return <EmailPasswordPanel />;
       case 'myChurch':
         return <MyChurchPanel />;
+      case 'mySpaces':
+        return <MySpacesPanel />;
       case 'myData':
         return <MyDataPanel />;
       case 'getSupport':

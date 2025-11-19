@@ -57,6 +57,7 @@ export default function MobileAdditional({
           'getSupport': 'getSupport',
           'emailPassword': 'emailPassword',
           'myChurch': 'myChurch',
+          'mySpaces': 'mySpaces',
           'myData': 'myData'
         };
 
