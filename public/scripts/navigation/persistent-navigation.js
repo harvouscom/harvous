@@ -139,7 +139,7 @@ function loadPersistentNavigation(retryCount) {
       
       // Create SpaceButton element using Tailwind classes like the actual component
       const button = document.createElement('button');
-      button.className = 'space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full';
+      button.className = 'space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 group w-full';
       
       // Determine background and text color
       let backgroundGradient = item.backgroundGradient;

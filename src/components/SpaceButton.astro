@@ -47,7 +47,7 @@ const textColor = getTextColor(backgroundGradient, isActive);
 
 {state === "WithArrow" ? (
     <button 
-        class={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        class={`space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
@@ -72,7 +72,7 @@ const textColor = getTextColor(backgroundGradient, isActive);
     </button>
 ) : (
     <button 
-        class={`space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 px-4 ${className}`}
+        class={`space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 px-4 ${className}`}
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
