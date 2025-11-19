@@ -191,14 +191,14 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
         </section>
 
         <!-- Main Column -->
-        <section class="h-full min-h-0 overflow-hidden">
-          <div class="h-full min-h-0 overflow-hidden">
+        <section class="h-full min-h-0">
+          <div class="h-full min-h-0">
             <slot name="main" />
           </div>
         </section>
 
         <!-- Additional Column -->
-        <section class="h-full min-h-0 overflow-hidden desktop-additional-column">
+        <section class="h-full min-h-0 desktop-additional-column">
           <slot name="additional">
             <!-- React Panel Management -->
             <div class="flex flex-col items-left h-full min-h-0 overflow-hidden" style="max-height: 100%;">
@@ -286,10 +286,14 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
 
 <!-- Custom Toast event listener -->
 <script>
-  window.addEventListener('showToast', (event) => {
-    const { message, type } = event.detail;
-    if (window.toast && typeof window.toast[type] === 'function') {
-      window.toast[type](message);
+  window.addEventListener('showToast', (event: Event) => {
+    const customEvent = event as CustomEvent<{ message: string; type: 'success' | 'error' | 'info' | 'warning' }>;
+    const { message, type } = customEvent.detail;
+    if (window.toast && type in window.toast) {
+      const toastMethod = window.toast[type as keyof typeof window.toast];
+      if (typeof toastMethod === 'function') {
+        toastMethod(message);
+      }
     } else {
       console.warn('Toast system not available to handle showToast event.');
     }
