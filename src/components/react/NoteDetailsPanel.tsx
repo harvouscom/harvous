@@ -74,15 +74,11 @@ export default function NoteDetailsPanel({
   }, [noteId]);
 
   const fetchNoteDetails = async () => {
-    console.log('NoteDetailsPanel: Fetching note details for:', noteId);
     setIsLoading(true);
     try {
       const response = await fetch(`/api/notes/${noteId}/details`);
-      console.log('NoteDetailsPanel: Details API response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('NoteDetailsPanel: Details API response data:', data);
-        console.log('NoteDetailsPanel: Threads from API:', data.threads?.length || 0);
         // Use the new threads array from the API response
         setLocalThreads(data.threads || []);
         setLocalAllUserThreads(data.allUserThreads || []);
@@ -94,14 +90,9 @@ export default function NoteDetailsPanel({
           setNoteSimpleId(data.note.simpleNoteId || null);
           setNoteVersion(data.note.version || null);
         }
-        console.log('NoteDetailsPanel: Updated local threads to:', data.threads?.length || 0);
-        console.log('NoteDetailsPanel: Thread titles from API:', data.threads?.map(t => t.title) || []);
-        console.log('NoteDetailsPanel: Thread objects with counts:', data.threads?.map(t => ({ title: t.title, count: t.count })) || []);
-      } else {
-        console.error('NoteDetailsPanel: Details API error:', response.status);
       }
     } catch (error) {
-      console.error('NoteDetailsPanel: Error fetching note details:', error);
+      // Error fetching note details
     } finally {
       setIsLoading(false);
     }
@@ -121,11 +112,8 @@ export default function NoteDetailsPanel({
   };
 
   const handleAddToThread = async (threadId: string) => {
-    console.log('NoteDetailsPanel: Adding note to thread:', noteId, threadId);
-    console.log('NoteDetailsPanel: Current threads before add:', localThreads.length);
     setIsMovingThread(true);
     try {
-      console.log('NoteDetailsPanel: Making API call to add-thread...');
       const response = await fetch(`/api/notes/${noteId}/add-thread`, {
         method: 'POST',
         headers: {
@@ -134,12 +122,9 @@ export default function NoteDetailsPanel({
         body: JSON.stringify({ threadId }),
         credentials: 'include'
       });
-
-      console.log('NoteDetailsPanel: API response status:', response.status);
       
       if (response.ok) {
         const result = await response.json();
-        console.log('NoteDetailsPanel: API response data:', result);
         
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -150,17 +135,14 @@ export default function NoteDetailsPanel({
         }));
 
         // Refresh the note details to show updated threads
-        console.log('NoteDetailsPanel: Refreshing note details...');
         await fetchNoteDetails();
         
         // Dispatch note added to thread event
-        console.log('🟢 NoteDetailsPanel: Dispatching noteAddedToThread event:', { noteId, threadId });
         window.dispatchEvent(new CustomEvent('noteAddedToThread', {
           detail: { noteId, threadId }
         }));
       } else {
         const error = await response.json();
-        console.error('NoteDetailsPanel: API error response:', error);
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
             message: error.error || 'Error adding note to thread',
@@ -169,7 +151,6 @@ export default function NoteDetailsPanel({
         }));
       }
     } catch (error) {
-      console.error('Error adding note to thread:', error);
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
           message: 'Error adding note to thread. Please try again.',
@@ -182,9 +163,6 @@ export default function NoteDetailsPanel({
   };
 
   const handleRemoveFromThread = async (threadId: string) => {
-    console.log('NoteDetailsPanel: Removing note from thread:', noteId, threadId);
-    console.log('NoteDetailsPanel: Current threads before remove:', localThreads.length);
-    
     // If this is the last thread, show confirmation dialog
     if (localThreads.length === 1) {
       setThreadToRemove(threadId);
@@ -194,7 +172,6 @@ export default function NoteDetailsPanel({
     
     setIsMovingThread(true);
     try {
-      console.log('NoteDetailsPanel: Making API call to remove-thread...');
       const response = await fetch(`/api/notes/${noteId}/remove-thread`, {
         method: 'POST',
         headers: {
@@ -203,12 +180,9 @@ export default function NoteDetailsPanel({
         body: JSON.stringify({ threadId }),
         credentials: 'include'
       });
-
-      console.log('NoteDetailsPanel: Remove API response status:', response.status);
       
       if (response.ok) {
         const result = await response.json();
-        console.log('NoteDetailsPanel: Remove API response data:', result);
         
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -219,11 +193,9 @@ export default function NoteDetailsPanel({
         }));
 
         // Refresh the note details to show updated threads
-        console.log('NoteDetailsPanel: Refreshing note details after remove...');
         await fetchNoteDetails();
         
         // Dispatch note removed from thread event
-        console.log('🟢 NoteDetailsPanel: Dispatching noteRemovedFromThread event:', { noteId, threadId });
         window.dispatchEvent(new CustomEvent('noteRemovedFromThread', {
           detail: { noteId, threadId }
         }));
@@ -237,7 +209,6 @@ export default function NoteDetailsPanel({
         }));
       }
     } catch (error) {
-      console.error('Error removing note from thread:', error);
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
           message: 'Error removing note from thread. Please try again.',
@@ -256,7 +227,6 @@ export default function NoteDetailsPanel({
     setIsMovingThread(true);
     
     try {
-      console.log('NoteDetailsPanel: Confirmed removal of last thread:', threadToRemove);
       const response = await fetch(`/api/notes/${noteId}/remove-thread`, {
         method: 'POST',
         headers: {
@@ -265,12 +235,9 @@ export default function NoteDetailsPanel({
         body: JSON.stringify({ threadId: threadToRemove }),
         credentials: 'include'
       });
-
-      console.log('NoteDetailsPanel: Remove API response status:', response.status);
       
       if (response.ok) {
         const result = await response.json();
-        console.log('NoteDetailsPanel: Remove API response data:', result);
         
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -281,22 +248,17 @@ export default function NoteDetailsPanel({
         }));
 
         // Refresh the note details to show updated threads
-        console.log('NoteDetailsPanel: Refreshing note details after remove...');
         await fetchNoteDetails();
-        console.log('NoteDetailsPanel: After refresh, localThreads count:', localThreads.length);
         
         // Dispatch note removed from thread event
-        console.log('🟢 NoteDetailsPanel: Dispatching noteRemovedFromThread event:', { noteId, threadId: threadToRemove });
         window.dispatchEvent(new CustomEvent('noteRemovedFromThread', {
           detail: { noteId, threadId: threadToRemove }
         }));
       } else {
         const error = await response.json();
-        console.error('NoteDetailsPanel: Remove API error response:', error);
         
         // If the note is not in this thread, just remove it from UI
         if (error.error === 'Note is not in this thread') {
-          console.log('NoteDetailsPanel: Note not in junction table, removing from UI only');
           setLocalThreads(prev => prev.filter(t => t.id !== threadToRemove));
           window.dispatchEvent(new CustomEvent('toast', {
             detail: {
@@ -314,7 +276,6 @@ export default function NoteDetailsPanel({
         }
       }
     } catch (error) {
-      console.error('Error removing note from thread:', error);
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
           message: 'Error removing note from thread. Please try again.',
@@ -384,7 +345,6 @@ export default function NoteDetailsPanel({
         toast.error(error.error || 'Error removing tag from note');
       }
     } catch (error) {
-      console.error('Error removing tag from note:', error);
       toast.error('Error removing tag from note. Please try again.');
     }
   };
@@ -480,8 +440,8 @@ export default function NoteDetailsPanel({
           
           {/* Content area */}
           <div className="basis-0 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-px min-w-px overflow-clip relative shrink-0 w-full">
-            <div className="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
-              <div className="basis-0 grow min-h-px min-w-px shrink-0 w-full">
+            <div className="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-hidden p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
+              <div className="basis-0 grow min-h-px min-w-px shrink-0 w-full flex flex-col min-h-0">
 
                 {/* Note Metadata - ID and Date */}
                 {(noteCreatedAt || noteSimpleId) && (
@@ -495,7 +455,6 @@ export default function NoteDetailsPanel({
                               await navigator.clipboard.writeText(noteIdText);
                               toast.success(`Copied ${noteIdText} to clipboard`);
                             } catch (err) {
-                              console.error('Failed to copy:', err);
                               toast.error('Failed to copy note ID');
                             }
                           }}
@@ -578,41 +537,43 @@ export default function NoteDetailsPanel({
                 {isLoading ? (
                   <div className="text-center py-4 text-gray-500">Loading...</div>
                 ) : (
-                  <div className="tab-content flex-1 overflow-y-auto p-3">
+                  <div className="tab-content flex-1 p-3 flex flex-col min-h-0 overflow-y-auto">
                 {activeTab === 'threads' && (
-                  <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-3 min-h-0">
                     {/* Current Threads - directly below tab */}
-                    {localThreads.length === 0 ? (
-                      <div className="text-center py-4 text-gray-500">No threads found for this note.</div>
-                    ) : (
-                      <div className="space-y-3">
-                        {localThreads.map(thread => (
-                          <div key={thread.id} className="relative group">
-                            <a 
-                              href={`/${thread.id}`}
-                              className="block transition-transform duration-200 hover:scale-[1.002]"
-                              aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
-                            >
-                              <CardThread thread={thread} />
-                            </a>
-                            {/* Remove from thread button */}
-                            <ActionButton
-                              variant="Close"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleRemoveFromThread(thread.id);
-                              }}
-                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
-                              disabled={isMovingThread}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="shrink-0">
+                      {localThreads.length === 0 ? (
+                        <div className="text-center py-4 text-gray-500">No threads found for this note.</div>
+                      ) : (
+                        <div className="space-y-3">
+                          {localThreads.map(thread => (
+                            <div key={thread.id} className="relative group">
+                              <a 
+                                href={`/${thread.id}`}
+                                className="block transition-transform duration-200 hover:scale-[1.002]"
+                                aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
+                              >
+                                <CardThread thread={thread} />
+                              </a>
+                              {/* Remove from thread button */}
+                              <ActionButton
+                                variant="Close"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleRemoveFromThread(thread.id);
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                disabled={isMovingThread}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
-                    {/* Add to Thread Section - at the bottom */}
-                    <div className="mt-auto">
+                    {/* Add to Thread Section - fills remaining space */}
+                    <div className="flex-1 min-h-0 flex flex-col" style={{ minHeight: 0 }}>
                       <AddToSection
                         allItems={localAllUserThreads.filter(thread => thread.id !== 'thread_unorganized')}
                         currentItems={localThreads}
@@ -620,7 +581,7 @@ export default function NoteDetailsPanel({
                         isLoading={isMovingThread}
                         loadingText="Adding to thread..."
                         title="Add to Thread"
-                        placeholder="Search threads to add to..."
+                        placeholder="Find threads to add to..."
                         emptyMessage="No threads found"
                       />
                     </div>
@@ -651,7 +612,6 @@ export default function NoteDetailsPanel({
                                     onClick={(e: React.MouseEvent) => {
                                       e.stopPropagation();
                                       e.preventDefault();
-                                      console.log('Close icon clicked for tag:', tag.id);
                                       removeTagFromNote(tag.id);
                                     }}
                                     className="tag-close-icon absolute top-1/2 right-3 transform -translate-y-1/2 flex items-center justify-center w-4 h-4 cursor-pointer"
