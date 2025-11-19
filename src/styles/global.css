@@ -329,6 +329,11 @@
   animation: none !important;
 }
 
+/* Allow icon opacity in ThreadCombobox dropdown items */
+.new-note-panel svg.opacity-30 {
+  opacity: 0.3 !important;
+}
+
 /* Override any React component unmount transitions */
 .new-note-panel[data-astro-cid] {
   transition: none !important;
