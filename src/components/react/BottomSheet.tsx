@@ -278,6 +278,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           paddingTop: '20px',
           transform: 'translateY(100%)'
         }}
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {/* Content */}
         <div className="h-full flex flex-col min-h-0 px-3">

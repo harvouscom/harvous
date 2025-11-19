@@ -108,41 +108,74 @@ const {
     /* Remove focus outline from SheetContent itself */
     [data-radix-dialog-content] {
       outline: none !important;
+      box-shadow: none !important;
     }
     
-    /* Remove focus outlines from all elements inside bottom sheet */
+    /* Remove focus outlines from all elements inside bottom sheet - comprehensive coverage */
     [data-radix-dialog-content] *:focus,
     [data-radix-dialog-content] *:focus-visible,
-    [data-radix-dialog-content] *:focus-within {
+    [data-radix-dialog-content] *:focus-within,
+    [data-radix-dialog-content] *:active:focus,
+    [data-radix-dialog-content] *:active:focus-visible {
       outline: none !important;
       box-shadow: none !important;
+      border-color: inherit !important;
     }
     
     /* Remove focus ring styles that might show blue borders */
     [data-radix-dialog-content] *:focus-visible {
       outline: none !important;
       box-shadow: none !important;
+      ring-width: 0 !important;
+      ring-color: transparent !important;
     }
     
-    /* Ensure no focus styles on interactive elements */
+    /* Ensure no focus styles on interactive elements - comprehensive list */
     [data-radix-dialog-content] button:focus,
     [data-radix-dialog-content] button:focus-visible,
+    [data-radix-dialog-content] button:active:focus,
     [data-radix-dialog-content] input:focus,
     [data-radix-dialog-content] input:focus-visible,
+    [data-radix-dialog-content] input:active:focus,
     [data-radix-dialog-content] textarea:focus,
     [data-radix-dialog-content] textarea:focus-visible,
+    [data-radix-dialog-content] textarea:active:focus,
     [data-radix-dialog-content] select:focus,
     [data-radix-dialog-content] select:focus-visible,
+    [data-radix-dialog-content] select:active:focus,
     [data-radix-dialog-content] [contenteditable]:focus,
-    [data-radix-dialog-content] [contenteditable]:focus-visible {
+    [data-radix-dialog-content] [contenteditable]:focus-visible,
+    [data-radix-dialog-content] [contenteditable]:active:focus,
+    [data-radix-dialog-content] a:focus,
+    [data-radix-dialog-content] a:focus-visible,
+    [data-radix-dialog-content] a:active:focus {
       outline: none !important;
       box-shadow: none !important;
+      border-color: inherit !important;
+      ring-width: 0 !important;
+      ring-color: transparent !important;
     }
     
     /* Remove any blue focus borders from Radix UI */
-    [data-radix-dialog-content][data-focus-visible-added] {
+    [data-radix-dialog-content][data-focus-visible-added],
+    [data-radix-dialog-content][data-focus-visible-added] * {
       outline: none !important;
       box-shadow: none !important;
+    }
+    
+    /* Remove browser-specific focus styles (webkit, moz) */
+    [data-radix-dialog-content] *::-webkit-focus-ring-color,
+    [data-radix-dialog-content] *::-moz-focus-inner {
+      outline: none !important;
+      border: none !important;
+    }
+    
+    /* Prevent any focus ring utilities from applying */
+    [data-radix-dialog-content] .focus\:ring-0,
+    [data-radix-dialog-content] .focus\:ring-transparent,
+    [data-radix-dialog-content] .focus-visible\:ring-0 {
+      ring-width: 0 !important;
+      ring-color: transparent !important;
     }
   }
 </style>
