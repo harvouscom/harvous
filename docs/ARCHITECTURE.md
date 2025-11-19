@@ -23,10 +23,11 @@ Harvous uses a hierarchical content organization system to help users structure 
 
 **Space Creation:**
 - Full customization with color selection (same palette as threads)
-- Private/Shared type selection during creation
+- Private spaces enabled - users can create and organize private spaces
+- Shared spaces coming soon (disabled in UI with "Coming Soon" indicator)
 - Persistent form state with localStorage
 - Real-time preview of selected color in header
-- **🚧 TEMPORARILY DISABLED**: New Space button is currently disabled (shows with opacity and no-click styling) while spaces functionality is being figured out (Jan 28, 2025)
+- New Space button enabled in both desktop and mobile navigation
 
 ### Data Structure
 

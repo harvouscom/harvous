@@ -569,18 +569,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               
               {/* New Space Button */}
               <div className="border-t border-gray-200 my-2"></div>
-              <button
-                type="button"
-                disabled
-                className="block w-full cursor-not-allowed opacity-50"
-              >
-                <div className="flex items-center justify-between p-2 rounded">
+              <a href="/new-space" className="block w-full" onClick={handleItemClick}>
+                <div className="flex items-center justify-between p-2 rounded cursor-pointer hover:bg-gray-50 transition-colors">
                   <span className="text-sm font-medium text-[var(--color-deep-grey)]">New Space</span>
                   <svg className="w-4 h-4 text-[var(--color-deep-grey)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                   </svg>
                 </div>
-              </button>
+              </a>
             </div>
           </div>
         )}

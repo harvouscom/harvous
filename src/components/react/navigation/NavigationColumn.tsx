@@ -245,9 +245,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         
         {/* Bottom Section with New Space Button, Search, and Avatar/Back Button */}
         <div className="flex gap-3 items-center justify-start w-full shrink-0">
-          {/* TEMPORARILY DISABLED: New Space button - need to figure out spaces */}
           <div className="flex-1">
-            <SpaceButton text="New Space" className="w-full" disabled={true} />
+            <a href="/new-space" className="w-full">
+              <SpaceButton text="New Space" className="w-full" />
+            </a>
           </div>
           <a href="/find" aria-label="Search">
             <SquareButton variant="Find" />

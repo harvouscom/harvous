@@ -126,7 +126,7 @@ const contentId = "new-space";
     activeThread={null}
     currentSpace={null}
     isNote={false}
-    currentId={undefined}
+    currentId="new-space"
     showProfile={false}
     initials={initials}
     userColor={userColor}
@@ -193,7 +193,7 @@ const contentId = "new-space";
       <!-- Hidden form fields -->
       <input type="hidden" name="title" x-model="title" />
       <input type="hidden" name="color" x-model="selectedColor" />
-      <input type="hidden" name="isPublic" x-bind:value="selectedType === 'Shared'" />
+      <input type="hidden" name="isPublic" value="false" />
 
       <!-- Content area that expands to fill available space -->
       <div class="flex-1 flex flex-col min-h-0">
@@ -277,32 +277,22 @@ const contentId = "new-space";
                     class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
                     style="background-image: linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%);"
                   >
-                    <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                    <div class="flex items-center justify-start relative w-full h-full pl-2 pr-0 transition-transform duration-125">
                       <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Private</span>
-                      <div class="p-[20px]">
-                        <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                          <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                            0
-                          </span>
-                        </div>
-                      </div>
                     </div>
                   </button>
                   
+                  <!-- Shared option - disabled -->
                   <button 
                     type="button"
-                    @click="selectedType = 'Shared'; isOpen = false"
-                    class="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                    disabled
+                    class="space-button relative rounded-xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
                     style="background-image: linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%);"
                   >
-                    <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                      <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
-                      <div class="p-[20px]">
-                        <div class="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                          <span class="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                            0
-                          </span>
-                        </div>
+                    <div class="flex items-center justify-start relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                      <div class="flex flex-col items-start">
+                        <span class="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
+                        <span class="text-[12px] text-[var(--color-pebble-grey)] font-medium">Coming Soon</span>
                       </div>
                     </div>
                   </button>
