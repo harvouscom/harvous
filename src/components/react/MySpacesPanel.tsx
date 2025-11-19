@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import SquareButton from './SquareButton';
 import SearchInput from './SearchInput';
 import { getThreadGradientCSS } from '@/utils/colors';
@@ -25,14 +25,26 @@ export default function MySpacesPanel({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastFetchTimeRef = useRef<number>(0);
 
-  const fetchSpaces = useCallback(async () => {
+  const fetchSpaces = useCallback(async (force = false) => {
+    // Debounce: prevent duplicate fetches within 500ms (unless forced)
+    const now = Date.now();
+    if (!force && now - lastFetchTimeRef.current < 500) {
+      return;
+    }
+    lastFetchTimeRef.current = now;
+
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch('/api/navigation/data', {
-        credentials: 'include'
+      // Add cache-busting query parameter to ensure fresh data
+      const cacheBuster = Date.now();
+      const response = await fetch(`/api/navigation/data?t=${cacheBuster}`, {
+        credentials: 'include',
+        cache: 'no-store'
       });
 
       if (!response.ok) {
@@ -57,7 +69,77 @@ export default function MySpacesPanel({
   }, []);
 
   useEffect(() => {
-    fetchSpaces();
+    // Force fetch on mount to ensure fresh data
+    fetchSpaces(true);
+  }, [fetchSpaces]);
+
+  // Visibility-based refetch: refetch when panel becomes visible (backup mechanism)
+  // This is a fallback in case the panel activation listener doesn't fire
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    let timeoutId: NodeJS.Timeout | null = null;
+    let hasFetchedOnVisible = false;
+    const mountTime = Date.now();
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          // When panel becomes visible, refetch spaces to ensure latest data
+          // Only trigger if it's been more than 500ms since mount (to avoid duplicate with mount fetch)
+          if (entry.isIntersecting && entry.intersectionRatio > 0 && !hasFetchedOnVisible) {
+            const timeSinceMount = Date.now() - mountTime;
+            if (timeSinceMount > 500) {
+              hasFetchedOnVisible = true;
+              // Force fetch to bypass debounce
+              timeoutId = setTimeout(() => {
+                fetchSpaces(true);
+              }, 100);
+            }
+          } else if (!entry.isIntersecting) {
+            // Reset flag when panel becomes hidden so it can refetch when shown again
+            hasFetchedOnVisible = false;
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+          }
+        });
+      },
+      {
+        threshold: 0.1, // Trigger when at least 10% visible
+        rootMargin: '0px'
+      }
+    );
+
+    observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [fetchSpaces]);
+
+  // Panel activation listener: refetch when panel is opened via event
+  useEffect(() => {
+    const handlePanelOpened = (event: CustomEvent) => {
+      const panelName = event.detail?.panelName;
+      // Refetch when this specific panel is opened
+      if (panelName === 'mySpaces') {
+        // Small delay to ensure panel is mounted before fetching, force to bypass debounce
+        setTimeout(() => {
+          fetchSpaces(true);
+        }, 200);
+      }
+    };
+
+    window.addEventListener('openProfilePanel', handlePanelOpened as EventListener);
+
+    return () => {
+      window.removeEventListener('openProfilePanel', handlePanelOpened as EventListener);
+    };
   }, [fetchSpaces]);
 
   // Listen for space deletion events to refresh the list
@@ -79,8 +161,9 @@ export default function MySpacesPanel({
       const space = event.detail?.space;
       if (space) {
         // Refetch spaces to get the new space with proper counts
+        // Force fetch to bypass debounce and ensure we get the new space
         setTimeout(() => {
-          fetchSpaces();
+          fetchSpaces(true);
         }, 300);
       }
     };
@@ -188,7 +271,7 @@ export default function MySpacesPanel({
   };
 
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <div ref={containerRef} className="h-full flex flex-col min-h-0">
       {/* Loading indicator - progress bar at top */}
       {isLoading && (
         <div className="absolute top-0 left-0 right-0 h-0.5 bg-[var(--color-gray)] overflow-hidden rounded-t-[24px] z-50 pointer-events-none">

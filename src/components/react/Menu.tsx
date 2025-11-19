@@ -351,7 +351,11 @@ export default function Menu({
               Are you sure?
             </h3>
             <p className="text-[var(--color-pebble-grey)] mb-6">
-              Are you sure you want to erase this {contentType}?
+              {contentType === 'space' ? (
+                <>When you erase a space your notes and threads will stay in your Harvous. Only the space will be erased.</>
+              ) : (
+                <>Are you sure you want to erase this {contentType}?</>
+              )}
             </p>
             <EraseConfirmDialog
               contentType={contentType}

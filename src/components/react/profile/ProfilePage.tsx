@@ -34,6 +34,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   version = '0.10.0',
 }) => {
   const [activePanel, setActivePanel] = useState<PanelName>(null);
+  const [panelOpenTime, setPanelOpenTime] = useState<number>(0);
   const [profileData, setProfileData] = useState({
     displayName,
     userColor,
@@ -314,7 +315,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
 
     const handleOpenPanelEvent = (event: CustomEvent) => {
       if (window.innerWidth >= 1160) {
-        setActivePanel(event.detail.panelName);
+        const panelName = event.detail.panelName;
+        setActivePanel(panelName);
+        // Update timestamp when panel opens to force remount
+        if (panelName === 'mySpaces') {
+          setPanelOpenTime(Date.now());
+        }
       }
     };
 
@@ -348,7 +354,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       case 'myChurch':
         return <MyChurchPanel />;
       case 'mySpaces':
-        return <MySpacesPanel />;
+        return <MySpacesPanel key={`mySpaces-${panelOpenTime}`} />;
       case 'myData':
         return <MyDataPanel />;
       case 'getSupport':
