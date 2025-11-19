@@ -126,17 +126,25 @@ const PersistentNavigation: React.FC = () => {
       
       {/* Add CSS for hover states and active shadow */}
       <style>{`
-        .nav-item-container:has(.close-icon) .badge-count:hover .badge-number {
-          display: none !important;
+        /* Close icon hover states - only for inactive items that have a close icon (itemId) */
+        .nav-item-container:not(.active):has(.close-icon) .badge-count {
+          position: relative;
         }
-        .nav-item-container:has(.close-icon) .badge-count:hover {
-          background-color: transparent !important;
+        .nav-item-container:not(.active):has(.close-icon) .badge-number {
+          opacity: 1;
+          transition: opacity 0.2s ease-out;
         }
-        .nav-item-container:has(.close-icon) .badge-count:hover .close-icon {
-          display: flex !important;
+        .nav-item-container:not(.active):has(.close-icon) .badge-count:hover .badge-number {
+          opacity: 0;
         }
-        .close-icon {
+        .nav-item-container:not(.active):has(.close-icon) .close-icon {
           display: none;
+          opacity: 0;
+          transition: opacity 0.2s ease-out;
+        }
+        .nav-item-container:not(.active):has(.close-icon) .badge-count:hover .close-icon {
+          display: flex !important;
+          opacity: 1;
         }
         .space-button[style*="background-image"] {
           /* Shadow removed - handled by global CSS */

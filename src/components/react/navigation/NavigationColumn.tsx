@@ -48,7 +48,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   userColor = "paper",
   pathname = '/'
 }) => {
-  const { removeFromNavigationHistory, navigationHistory } = useNavigation();
+  const { removeFromNavigationHistory } = useNavigation();
   const [profileData, setProfileData] = useState({
     initials: initials,
     userColor: userColor,
@@ -59,44 +59,6 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     return pathname.substring(1) || '';
   });
   const [updatedActiveThread, setUpdatedActiveThread] = useState<ActiveThread | null>(activeThread);
-  
-  // Compute filtered spaces - only show spaces not in navigation history
-  // Use useMemo to ensure it updates when navigationHistory changes
-  // This prevents duplicates - spaces in navigation history are shown by PersistentNavigation
-  const filteredSpaces = useMemo(() => {
-    if (typeof window === 'undefined') return spaces;
-    
-    // Get navigation history IDs for quick lookup
-    const historyIds = new Set(navigationHistory.map(item => item.id));
-    
-    // Always check localStorage directly as the source of truth (in case context hasn't updated yet)
-    // This is critical to prevent duplicates when a space is just created
-    try {
-      const stored = localStorage.getItem('harvous-navigation-history-v2');
-      if (stored) {
-        const storedHistory = JSON.parse(stored);
-        storedHistory.forEach((item: any) => {
-          if (item.id) {
-            historyIds.add(item.id);
-          }
-        });
-      }
-    } catch (error) {
-      // Ignore localStorage errors
-    }
-    
-    // Also exclude the current space if we're on a space page
-    if (currentSpace?.id) {
-      historyIds.add(currentSpace.id);
-    }
-    
-    // Filter out spaces that are in navigation history or are the current space
-    // This ensures spaces only appear once - either in PersistentNavigation (if in history) or here (if not)
-    return spaces.filter(space => {
-      // Double-check: exclude if in history IDs set
-      return !historyIds.has(space.id);
-    });
-  }, [spaces, navigationHistory, currentSpace]);
   
   // Determine if we're on the dashboard page
   // Use pathname prop which is available on both server and client (from Astro.url.pathname)
@@ -260,45 +222,6 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             {/* Persistent Navigation - shows recently accessed items */}
             <PersistentNavigation />
             
-            {/* Show created spaces - filter out spaces already in persistent navigation */}
-            {filteredSpaces.map(space => (
-              <div key={space.id} data-navigation-item={space.id} className="w-full nav-item-container">
-                <div className="relative w-full">
-                  <a href={`/${space.id}`} className="w-full relative block">
-                    <SpaceButton 
-                      text={space.title} 
-                      count={space.totalItemCount} 
-                      state="WithCount" 
-                      className="w-full" 
-                      backgroundGradient="var(--color-paper)"
-                      isActive={currentSpace?.id === space.id}
-                      itemId={space.id}
-                    />
-                  </a>
-                  {/* Close icon positioned outside the link element, aligned with badge count center */}
-                  {/* Show close icon for all items (active items can be closed too) */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      removeFromNavigationHistory(space.id);
-                    }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
-                    className="close-icon absolute top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center bg-transparent border-none p-0"
-                    style={{ right: '16px' }} // Move 16px left to align with badge count center
-                    data-item-id={space.id}
-                    aria-label={`Close ${space.title || 'space'}`}
-                  >
-                    <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]" aria-hidden="true"></i>
-                  </button>
-                </div>
-              </div>
-            ))}
-            
             {/* Show active thread if any - but only if it's not already in persistent navigation */}
             {(updatedActiveThread || activeThread) && showActiveThread ? (
               <a href={`/${(updatedActiveThread || activeThread)!.id}`} className="w-full">
@@ -390,20 +313,25 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           transform: scale(0.95);
         }
 
-        /* Close icon hover states - for all items that have a close icon */
-        /* Works with both paper and colored backgrounds */
-        .nav-item-container:has(.close-icon) .badge-count:hover .badge-number {
-          display: none !important;
+        /* Close icon hover states - only for inactive items that have a close icon (itemId) */
+        .nav-item-container:not(.active):has(.close-icon) .badge-count {
+          position: relative;
         }
-        .nav-item-container:has(.close-icon) .badge-count:hover {
-          background-color: transparent !important;
+        .nav-item-container:not(.active):has(.close-icon) .badge-number {
+          opacity: 1;
+          transition: opacity 0.2s ease-out;
         }
-        /* Show close icon when hovering over nav-item-container - works for both paper and colored backgrounds */
-        .nav-item-container:has(.close-icon):hover .close-icon {
-          display: flex !important;
+        .nav-item-container:not(.active):has(.close-icon) .badge-count:hover .badge-number {
+          opacity: 0;
         }
-        .close-icon {
+        .nav-item-container:not(.active):has(.close-icon) .close-icon {
           display: none;
+          opacity: 0;
+          transition: opacity 0.2s ease-out;
+        }
+        .nav-item-container:not(.active):has(.close-icon) .badge-count:hover .close-icon {
+          display: flex !important;
+          opacity: 1;
         }
       `}</style>
     </div>
