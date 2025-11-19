@@ -101,17 +101,25 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     const handlePageLoad = () => {
       // Update currentItemId when page changes via Astro transitions
       if (typeof window !== 'undefined') {
-        setCurrentItemId(window.location.pathname.substring(1) || '');
+        const newPath = window.location.pathname.substring(1) || '';
+        setCurrentItemId(newPath);
+        
+        // Force a re-render to ensure component updates after View Transition
+        // This helps ensure the navigation column is properly displayed
+        setUpdatedActiveThread(activeThread);
       }
     };
 
     // Listen for Astro page transitions
     document.addEventListener('astro:page-load', handlePageLoad);
+    // Also listen for after-swap to catch early updates
+    document.addEventListener('astro:after-swap', handlePageLoad);
     
     return () => {
       document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('astro:after-swap', handlePageLoad);
     };
-  }, [pathname]);
+  }, [pathname, activeThread]);
   
   // Check if active thread is in persistent navigation on client side
   useEffect(() => {

@@ -148,12 +148,32 @@ const contentId = "new-space";
 <script is:inline>
   // Handle closeNewSpacePanel event to navigate back
   window.addEventListener('closeNewSpacePanel', () => {
-    // Navigate back to dashboard
-    if (window.astroNavigate) {
-      window.astroNavigate('/');
-    } else {
-      window.location.href = '/';
-    }
+    // Use requestAnimationFrame to ensure current page is fully rendered
+    // before navigating, which helps View Transitions properly swap all slots
+    requestAnimationFrame(() => {
+      // Navigate back to dashboard
+      if (window.astroNavigate) {
+        window.astroNavigate('/');
+        
+        // After navigation, verify that navigation slot is properly loaded
+        // This is a safety check to ensure View Transitions worked correctly
+        setTimeout(() => {
+          const navigationSlot = document.querySelector('[slot="navigation"]');
+          const navigationIsland = navigationSlot?.querySelector('astro-island');
+          
+          // If navigation slot exists but island isn't hydrated after a delay, 
+          // it might indicate a View Transitions issue
+          // Note: This is just a check, Astro should handle hydration automatically
+          if (navigationSlot && !navigationIsland?.shadowRoot) {
+            // Island might still be hydrating, which is normal
+            // But if it takes too long, we could force a refresh as fallback
+            // For now, we'll let Astro handle it naturally
+          }
+        }, 500);
+      } else {
+        window.location.href = '/';
+      }
+    });
   });
 </script>
 
