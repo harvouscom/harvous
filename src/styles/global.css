@@ -53,6 +53,19 @@
     background-color: var(--color-paper) !important;
 }
 
+/* Active state inner shadow for space buttons - shows shadow when button has active-state class */
+.space-button.active-state {
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+}
+
+/* Active state inner shadow for space buttons when pressed */
+.space-button.active-state:active {
+  filter: brightness(0.97);
+  box-shadow: 
+    0px -1px 0px 0px #78766F33 inset,
+    0px 1px 0px 0px #78766F33 inset;
+}
+
 /* Text selection styles - vibrant highlighter yellow */
 /* Using #FFEB3B (Yellow) at 40% opacity for realistic highlighter effect */
 /* Include webkit prefix for iOS Safari compatibility */

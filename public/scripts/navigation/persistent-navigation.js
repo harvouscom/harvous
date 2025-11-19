@@ -145,7 +145,7 @@ function loadPersistentNavigation(retryCount) {
       let backgroundGradient = item.backgroundGradient;
       let buttonTextColor = 'var(--color-deep-grey)';
       
-      // Apply active styling if this is the current page
+        // Apply active styling if this is the current page
       if (isCurrentPage) {
         // Use thread's background color or paper color for spaces
         if (item.id.startsWith('space_')) {
@@ -157,7 +157,6 @@ function loadPersistentNavigation(retryCount) {
           button.style.backgroundImage = item.backgroundGradient;
           backgroundGradient = item.backgroundGradient;
         }
-        button.style.boxShadow = '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset';
         button.classList.add('active-state');
         
         // Set text color - only white if active AND background is colored
@@ -303,6 +302,14 @@ function loadPersistentNavigation(retryCount) {
       innerDiv.appendChild(titleWrapper);
       innerDiv.appendChild(badgeContainer);
       button.appendChild(innerDiv);
+      
+      // Add shadow overlay when active - matching SpaceButton component pattern
+      if (isCurrentPage) {
+        const shadowOverlay = document.createElement('div');
+        shadowOverlay.className = 'absolute inset-0 pointer-events-none rounded-3xl';
+        shadowOverlay.style.boxShadow = '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset';
+        button.appendChild(shadowOverlay);
+      }
       
       // Wrap in nav-item-container div
       const navItemContainer = document.createElement('div');
