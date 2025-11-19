@@ -1,0 +1,28 @@
+---
+import NewSpacePanel from './react/NewSpacePanel';
+
+export interface Props {
+  onClose?: () => void;
+  onSpaceCreated?: () => void;
+}
+
+const { onClose, onSpaceCreated } = Astro.props;
+---
+
+<!-- Simple wrapper that uses React component -->
+<NewSpacePanel 
+  onClose={() => {
+    // Dispatch close event to Layout
+    window.dispatchEvent(new CustomEvent('closeNewSpacePanel'));
+    if (onClose) {
+      onClose();
+    }
+  }}
+  onSpaceCreated={() => {
+    if (onSpaceCreated) {
+      onSpaceCreated();
+    }
+  }}
+  client:only="react" 
+/>
+
