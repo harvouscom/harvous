@@ -201,7 +201,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
         <section class="h-full min-h-0 desktop-additional-column">
           <slot name="additional">
             <!-- React Panel Management -->
-            <div class="flex flex-col items-left h-full min-h-0 overflow-hidden" style="max-height: 100%;">
+            <div class="flex flex-col items-left h-full min-h-0" style="max-height: 100%;">
               <!-- SquareButtons (shown when no panel is open) -->
               <div id="square-buttons-container" class={`flex flex-col items-left h-full ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
                 {showMoreButton && (

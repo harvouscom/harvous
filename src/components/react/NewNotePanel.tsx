@@ -1426,9 +1426,9 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       </div>
 
       {/* Note Content - Type-specific layouts */}
-      <div className="flex-1 flex flex-col min-h-0 mb-3.5 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 mb-3.5">
         {noteType === 'default' && (
-          <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
+          <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
             {/* Default Note Layout */}
             <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
               <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
@@ -1507,7 +1507,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
 
         {/* Scripture note type */}
         {noteType === 'scripture' && (
-          <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
+          <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
             {/* Scripture Note Layout */}
             <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
               <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">

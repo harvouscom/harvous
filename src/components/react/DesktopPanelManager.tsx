@@ -281,7 +281,7 @@ export default function DesktopPanelManager({
   
 
   return (
-    <div className="flex flex-col items-left h-full min-h-0 overflow-hidden" style={{ maxHeight: '100%' }}>
+    <div className="flex flex-col items-left h-full min-h-0" style={{ maxHeight: '100%' }}>
       {/* New Note Panel - Desktop Only */}
       {state.activePanel === 'newNote' && (
         <div className="h-full new-note-panel-container hidden min-[1160px]:block">
