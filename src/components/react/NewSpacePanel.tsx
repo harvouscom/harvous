@@ -482,7 +482,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                               </a>
                               {/* Remove from selection button */}
                               <ActionButton
-                                variant="Close"
+                                variant="Remove"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
@@ -509,7 +509,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                               </a>
                               {/* Remove from selection button */}
                               <ActionButton
-                                variant="Close"
+                                variant="Remove"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();

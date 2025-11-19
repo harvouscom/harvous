@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface ActionButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "Add" | "Close" | "default";
+  variant?: "Add" | "Close" | "Remove" | "default";
   children?: React.ReactNode;
 }
 
@@ -22,6 +22,7 @@ export default function ActionButton({
   const getAriaLabel = () => {
     if (variant === "Add") return "Add";
     if (variant === "Close") return "Close";
+    if (variant === "Remove") return "Remove";
     return props['aria-label'] || undefined;
   };
 
@@ -50,6 +51,14 @@ export default function ActionButton({
               xmlns="http://www.w3.org/2000/svg"
             >
               <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+            </svg>
+          ) : variant === "Remove" ? (
+            <svg
+              className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125"
+              viewBox="0 0 448 512"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path d="M432 256c0 17.7-14.3 32-32 32H48c-17.7 0-32-14.3-32-32s14.3-32 32-32H400c17.7 0 32 14.3 32 32z"/>
             </svg>
           ) : (
             children

@@ -11,6 +11,7 @@ import NewThreadPanel from './NewThreadPanel';
 import NoteDetailsPanel from './NoteDetailsPanel';
 import EditNameColorPanel from './EditNameColorPanel';
 import EditThreadPanel from './EditThreadPanel';
+import EditSpacePanel from './EditSpacePanel';
 import EmailPasswordPanel from './EmailPasswordPanel';
 import MyChurchPanel from './MyChurchPanel';
 import MySpacesPanel from './MySpacesPanel';
@@ -37,7 +38,7 @@ export interface BottomSheetProps {
   version?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'editThread' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'inboxPreview';
+type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'inboxPreview';
 
 interface InboxItem {
   id: string;
@@ -190,7 +191,14 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }
     };
     
+    const handleOpenEditSpacePanel = () => {
+      if (isMobile) {
+        openBottomSheet('editSpace');
+      }
+    };
+    
     window.addEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
+    window.addEventListener('openEditSpacePanel', handleOpenEditSpacePanel);
     
     // Listen for panel close events
     window.addEventListener('closeNewNotePanel', handleCloseBottomSheet);
@@ -198,6 +206,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     window.addEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
     window.addEventListener('closeProfilePanel', handleCloseBottomSheet);
     window.addEventListener('closeEditThreadPanel', handleCloseBottomSheet);
+    window.addEventListener('closeEditSpacePanel', handleCloseBottomSheet);
     window.addEventListener('closeInboxPreview', handleCloseBottomSheet);
 
     return () => {
@@ -210,6 +219,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
       window.removeEventListener('closeProfilePanel', handleCloseBottomSheet);
       window.removeEventListener('closeEditThreadPanel', handleCloseBottomSheet);
+      window.removeEventListener('openEditSpacePanel', handleOpenEditSpacePanel);
+      window.removeEventListener('closeEditSpacePanel', handleCloseBottomSheet);
       window.removeEventListener('closeInboxPreview', handleCloseBottomSheet);
     };
   }, [openBottomSheet, closeBottomSheet, isMobile]);
@@ -350,6 +361,23 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   initialColor={currentThread.color}
                   onClose={() => {
                     window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+                  }}
+                  inBottomSheet={true}
+                />
+              )}
+            </div>
+          )}
+          
+          {/* Edit Space Panel */}
+          {drawerType === 'editSpace' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              {contentType === 'space' && currentSpace && (
+                <EditSpacePanel 
+                  spaceId={currentSpace.id}
+                  initialTitle={currentSpace.title}
+                  initialColor={currentSpace.color}
+                  onClose={() => {
+                    window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));
                   }}
                   inBottomSheet={true}
                 />

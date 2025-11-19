@@ -557,7 +557,7 @@ export default function NoteDetailsPanel({
                               </a>
                               {/* Remove from thread button */}
                               <ActionButton
-                                variant="Close"
+                                variant="Remove"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();

@@ -3,6 +3,7 @@ import NewNotePanel from './NewNotePanel';
 import NewThreadPanel from './NewThreadPanel';
 import NoteDetailsPanel from './NoteDetailsPanel';
 import EditThreadPanel from './EditThreadPanel';
+import EditSpacePanel from './EditSpacePanel';
 import InboxItemPreviewPanel from './InboxItemPreviewPanel';
 
 interface DesktopPanelManagerProps {
@@ -12,7 +13,7 @@ interface DesktopPanelManagerProps {
   contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile';
 }
 
-type PanelType = 'newNote' | 'newThread' | 'noteDetails' | 'editThread' | 'inboxPreview' | null;
+type PanelType = 'newNote' | 'newThread' | 'noteDetails' | 'editThread' | 'editSpace' | 'inboxPreview' | null;
 
 interface InboxItem {
   id: string;
@@ -44,6 +45,8 @@ type PanelAction =
   | { type: 'CLOSE_NOTE_DETAILS' }
   | { type: 'OPEN_EDIT_THREAD' }
   | { type: 'CLOSE_EDIT_THREAD' }
+  | { type: 'OPEN_EDIT_SPACE' }
+  | { type: 'CLOSE_EDIT_SPACE' }
   | { type: 'OPEN_INBOX_PREVIEW' }
   | { type: 'CLOSE_INBOX_PREVIEW' }
   | { type: 'LOAD_FROM_STORAGE' };
@@ -84,6 +87,13 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       return { activePanel: 'editThread', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_EDIT_THREAD':
+      return { activePanel: null, panelKey: state.panelKey };
+    
+    case 'OPEN_EDIT_SPACE':
+      // Close all other panels and open EditSpace
+      return { activePanel: 'editSpace', panelKey: state.panelKey + 1 };
+    
+    case 'CLOSE_EDIT_SPACE':
       return { activePanel: null, panelKey: state.panelKey };
     
     case 'OPEN_INBOX_PREVIEW':
@@ -196,6 +206,15 @@ export default function DesktopPanelManager({
       dispatch({ type: 'CLOSE_EDIT_THREAD' });
     };
 
+    const handleOpenEditSpace = () => {
+      dispatch({ type: 'OPEN_EDIT_SPACE' });
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+    };
+
+    const handleCloseEditSpace = () => {
+      dispatch({ type: 'CLOSE_EDIT_SPACE' });
+    };
+
     const handleOpenInboxPreview = (event: CustomEvent) => {
       const item = event.detail?.item;
       if (item) {
@@ -219,6 +238,8 @@ export default function DesktopPanelManager({
     window.addEventListener('closeNoteDetailsPanel', handleCloseNoteDetails);
     window.addEventListener('openEditThreadPanel', handleOpenEditThread);
     window.addEventListener('closeEditThreadPanel', handleCloseEditThread);
+    window.addEventListener('openEditSpacePanel', handleOpenEditSpace);
+    window.addEventListener('closeEditSpacePanel', handleCloseEditSpace);
     window.addEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
     window.addEventListener('closeInboxPreview', handleCloseInboxPreview);
 
@@ -232,6 +253,8 @@ export default function DesktopPanelManager({
       window.removeEventListener('closeNoteDetailsPanel', handleCloseNoteDetails);
       window.removeEventListener('openEditThreadPanel', handleOpenEditThread);
       window.removeEventListener('closeEditThreadPanel', handleCloseEditThread);
+      window.removeEventListener('openEditSpacePanel', handleOpenEditSpace);
+      window.removeEventListener('closeEditSpacePanel', handleCloseEditSpace);
       window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
       window.removeEventListener('closeInboxPreview', handleCloseInboxPreview);
     };
@@ -255,6 +278,11 @@ export default function DesktopPanelManager({
   // Handler for closing EditThreadPanel
   const handleCloseEditThread = useCallback(() => {
     window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+  }, []);
+
+  // Handler for closing EditSpacePanel
+  const handleCloseEditSpace = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));
   }, []);
 
   // Handler for closing InboxItemPreviewPanel
@@ -327,6 +355,18 @@ export default function DesktopPanelManager({
             initialTitle={currentThread.title}
             initialColor={currentThread.color}
             onClose={handleCloseEditThread}
+          />
+        </div>
+      )}
+
+      {/* Edit Space Panel (spaces only) - Desktop Only */}
+      {state.activePanel === 'editSpace' && contentType === 'space' && currentSpace && (
+        <div className="h-full hidden min-[1160px]:block">
+          <EditSpacePanel 
+            spaceId={currentSpace.id}
+            initialTitle={currentSpace.title}
+            initialColor={currentSpace.color}
+            onClose={handleCloseEditSpace}
           />
         </div>
       )}

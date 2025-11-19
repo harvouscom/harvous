@@ -51,9 +51,12 @@ export default function EditSpacePanel({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [allThreads, setAllThreads] = useState<Thread[]>([]);
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [currentSpaceNotes, setCurrentSpaceNotes] = useState<Note[]>([]);
+  const [currentSpaceThreads, setCurrentSpaceThreads] = useState<Thread[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
+  const [isLoadingCurrentItems, setIsLoadingCurrentItems] = useState(true);
   const [isAddingItems, setIsAddingItems] = useState(false);
+  const [isRemovingItem, setIsRemovingItem] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -72,7 +75,7 @@ export default function EditSpacePanel({
     };
   }, [isDropdownOpen]);
 
-  // Fetch all notes and threads on mount
+  // Fetch all notes and threads on mount (for AddToSpaceSection)
   useEffect(() => {
     const fetchItems = async () => {
       setIsLoadingItems(true);
@@ -101,6 +104,39 @@ export default function EditSpacePanel({
 
     fetchItems();
   }, []);
+
+  // Fetch current items in the space
+  const fetchCurrentSpaceItems = async () => {
+    setIsLoadingCurrentItems(true);
+    try {
+      const response = await fetch(`/api/spaces/${spaceId}/items`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentSpaceNotes(data.notes || []);
+        setCurrentSpaceThreads(data.threads || []);
+      } else {
+        console.error('Failed to fetch current space items');
+        setCurrentSpaceNotes([]);
+        setCurrentSpaceThreads([]);
+      }
+    } catch (error) {
+      console.error('Error fetching current space items:', error);
+      setCurrentSpaceNotes([]);
+      setCurrentSpaceThreads([]);
+    } finally {
+      setIsLoadingCurrentItems(false);
+    }
+  };
+
+  // Fetch current space items on mount and when spaceId changes
+  useEffect(() => {
+    if (spaceId) {
+      fetchCurrentSpaceItems();
+    }
+  }, [spaceId]);
 
   // Validate form data
   const validateForm = () => {
@@ -158,11 +194,6 @@ export default function EditSpacePanel({
       if (response.ok) {
         console.log('✅ EditSpacePanel: Space updated successfully');
         
-        // Add selected items to the space
-        if (selectedItems.length > 0) {
-          await addItemsToSpace();
-        }
-        
         // Close panel after a short delay
         setTimeout(() => {
           if (onClose) {
@@ -203,63 +234,57 @@ export default function EditSpacePanel({
     }
   };
 
-  // Add selected items to the space
-  const addItemsToSpace = async () => {
-    if (selectedItems.length === 0) return;
-
-    setIsAddingItems(true);
+  // Remove items from space
+  const handleRemoveFromSpace = async (itemId: string, itemType: 'note' | 'thread') => {
+    setIsRemovingItem(true);
     try {
-      const selectedNoteIds: string[] = [];
-      const selectedThreadIds: string[] = [];
-      
-      // Separate selected items into notes and threads
-      selectedItems.forEach(itemId => {
-        const isNote = allNotes.some(note => note.id === itemId);
-        const isThread = allThreads.some(thread => thread.id === itemId);
-        
-        if (isNote) {
-          selectedNoteIds.push(itemId);
-        } else if (isThread) {
-          selectedThreadIds.push(itemId);
-        }
-      });
+      const noteIds = itemType === 'note' ? [itemId] : [];
+      const threadIds = itemType === 'thread' ? [itemId] : [];
 
-      const response = await fetch(`/api/spaces/${spaceId}/add-items`, {
+      const response = await fetch(`/api/spaces/${spaceId}/remove-items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          noteIds: selectedNoteIds,
-          threadIds: selectedThreadIds
+          noteIds,
+          threadIds
         }),
         credentials: 'include'
       });
 
       if (response.ok) {
         const result = await response.json();
-        console.log('Items added to space:', result);
-        setSelectedItems([]); // Clear selected items after successful addition
-      } else {
-        const error = await response.json();
-        console.error('Failed to add items to space:', error);
+        
+        // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: error.error || 'Failed to add items to space',
+            message: itemType === 'note' ? 'Note removed from space' : 'Thread removed from space',
+            type: 'success'
+          }
+        }));
+
+        // Refresh current space items
+        await fetchCurrentSpaceItems();
+      } else {
+        const error = await response.json();
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: error.error || `Error removing ${itemType} from space`,
             type: 'error'
           }
         }));
       }
     } catch (error) {
-      console.error('Error adding items to space:', error);
+      console.error('Error removing item from space:', error);
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
-          message: 'Error adding items to space',
+          message: `Error removing ${itemType} from space. Please try again.`,
           type: 'error'
         }
       }));
     } finally {
-      setIsAddingItems(false);
+      setIsRemovingItem(false);
     }
   };
 
@@ -291,16 +316,58 @@ export default function EditSpacePanel({
     }
   };
 
-  const handleItemSelect = (itemId: string, itemType: 'note' | 'thread') => {
-    setSelectedItems(prev => {
-      if (prev.includes(itemId)) {
-        // Remove if already selected
-        return prev.filter(id => id !== itemId);
+  // Handle item selection - immediately add to space
+  const handleItemSelect = async (itemId: string, itemType: 'note' | 'thread') => {
+    setIsAddingItems(true);
+    try {
+      const noteIds = itemType === 'note' ? [itemId] : [];
+      const threadIds = itemType === 'thread' ? [itemId] : [];
+
+      const response = await fetch(`/api/spaces/${spaceId}/add-items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          noteIds,
+          threadIds
+        }),
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Show success toast
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: itemType === 'note' ? 'Note added to space' : 'Thread added to space',
+            type: 'success'
+          }
+        }));
+
+        // Refresh current space items to show the newly added item
+        await fetchCurrentSpaceItems();
       } else {
-        // Add if not selected
-        return [...prev, itemId];
+        const error = await response.json();
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: error.error || `Failed to add ${itemType} to space`,
+            type: 'error'
+          }
+        }));
       }
-    });
+    } catch (error) {
+      console.error('Error adding item to space:', error);
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: `Error adding ${itemType} to space. Please try again.`,
+          type: 'error'
+        }
+      }));
+    } finally {
+      setIsAddingItems(false);
+    }
   };
 
   // Helper function to strip HTML from content
@@ -445,67 +512,61 @@ export default function EditSpacePanel({
                   </div>
                 </div>
 
-                {/* Selected Items - displayed above AddToSpaceSection */}
-                {selectedItems.length > 0 && !isLoadingItems && (
+                {/* Current Items in Space - displayed above AddToSpaceSection */}
+                {!isLoadingCurrentItems && (currentSpaceNotes.length > 0 || currentSpaceThreads.length > 0) && (
                   <div className="w-full shrink-0 mb-3">
                     <div className="flex flex-col gap-3">
-                      {selectedItems.map(itemId => {
-                        const thread = allThreads.find(t => t.id === itemId);
-                        const note = allNotes.find(n => n.id === itemId);
-                        
-                        if (thread) {
-                          return (
-                            <div key={thread.id} className="relative group">
-                              <a 
-                                href={`/${thread.id}`}
-                                className="block transition-transform duration-200 hover:scale-[1.002]"
-                                aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
-                              >
-                                <CardThread thread={thread} />
-                              </a>
-                              {/* Remove from selection button */}
-                              <ActionButton
-                                variant="Close"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleItemSelect(thread.id, 'thread');
-                                }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
-                                disabled={isAddingItems}
-                              />
-                            </div>
-                          );
-                        } else if (note) {
-                          return (
-                            <div key={note.id} className="relative group">
-                              <a 
-                                href={`/${note.id}`}
-                                className="block transition-transform duration-200 hover:scale-[1.002]"
-                                aria-label={`View note: ${note.title || 'Untitled note'}`}
-                              >
-                                <CardNote 
-                                  title={note.title || "Untitled Note"}
-                                  content={stripHtml(note.content)}
-                                  noteType={note.noteType || 'default'}
-                                />
-                              </a>
-                              {/* Remove from selection button */}
-                              <ActionButton
-                                variant="Close"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleItemSelect(note.id, 'note');
-                                }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
-                                disabled={isAddingItems}
-                              />
-                            </div>
-                          );
-                        }
-                        return null;
-                      })}
+                      {/* Current Threads */}
+                      {currentSpaceThreads.map(thread => (
+                        <div key={thread.id} className="relative group">
+                          <a 
+                            href={`/${thread.id}`}
+                            className="block transition-transform duration-200 hover:scale-[1.002]"
+                            aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
+                          >
+                            <CardThread thread={thread} />
+                          </a>
+                          {/* Remove from space button */}
+                          <ActionButton
+                            variant="Remove"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRemoveFromSpace(thread.id, 'thread');
+                            }}
+                            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                            disabled={isRemovingItem}
+                          />
+                        </div>
+                      ))}
+                      
+                      {/* Current Notes */}
+                      {currentSpaceNotes.map(note => (
+                        <div key={note.id} className="relative group">
+                          <a 
+                            href={`/${note.id}`}
+                            className="block transition-transform duration-200 hover:scale-[1.002]"
+                            aria-label={`View note: ${note.title || 'Untitled note'}`}
+                          >
+                            <CardNote 
+                              title={note.title || "Untitled Note"}
+                              content={stripHtml(note.content)}
+                              noteType={note.noteType || 'default'}
+                            />
+                          </a>
+                          {/* Remove from space button */}
+                          <ActionButton
+                            variant="Remove"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRemoveFromSpace(note.id, 'note');
+                            }}
+                            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                            disabled={isRemovingItem}
+                          />
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -522,7 +583,7 @@ export default function EditSpacePanel({
                       allThreads={allThreads}
                       currentSpaceId={spaceId}
                       onItemSelect={handleItemSelect}
-                      selectedItems={selectedItems}
+                      selectedItems={[]}
                       isLoading={isAddingItems}
                       placeholder="Search to add notes and threads..."
                       emptyMessage="No items found"
