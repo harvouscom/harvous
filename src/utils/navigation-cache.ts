@@ -101,21 +101,28 @@ export async function fetchNavigationData(): Promise<Omit<NavigationCache, 'time
 /**
  * Get navigation data with caching strategy:
  * 1. Return cached data immediately if available and fresh
- * 2. Fetch fresh data in background if cache is stale
+ * 2. Only fetch fresh data if cache is truly stale (not just "getting stale")
  * 3. Return fresh data if no cache exists
  */
 export async function getNavigationDataWithCache(): Promise<Omit<NavigationCache, 'timestamp'>> {
   const cached = getCachedNavigationData();
   
   if (cached) {
-    // Cache is fresh, use it and refresh in background if needed
+    // Cache is fresh, use it immediately
+    // Only refresh in background if cache is close to expiring (within 5 seconds of expiry)
     const { timestamp, ...data } = cached;
+    const age = Date.now() - timestamp;
+    const timeUntilStale = CACHE_DURATION - age;
     
-    // Refresh in background if cache is getting stale (more than 20 seconds old)
-    if (Date.now() - timestamp > 20 * 1000) {
+    // Only refresh in background if cache is about to expire (within 5 seconds)
+    // This prevents unnecessary API calls while still keeping cache fresh
+    if (timeUntilStale > 0 && timeUntilStale < 5 * 1000) {
+      // Refresh in background without blocking
       fetchNavigationData()
         .then(freshData => setCachedNavigationData(freshData))
-        .catch(err => console.warn('Background navigation data refresh failed:', err));
+        .catch(() => {
+          // Silently fail - cache is still valid
+        });
     }
     
     return data;

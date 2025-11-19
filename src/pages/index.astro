@@ -408,10 +408,15 @@ try {
     // Initialize cache with server-rendered data
     initNavigationCache(threads, spaces, inboxItemCount);
     
-    // Re-initialize after View Transitions
+    // Re-initialize after View Transitions (debounced to avoid multiple calls)
+    let navigationCacheTimeout = null;
     document.addEventListener('astro:page-load', () => {
-      // Try to get data from the new page, or use cached data
-      initNavigationCache(threads, spaces, inboxItemCount);
+      // Debounce to avoid multiple rapid calls
+      if (navigationCacheTimeout) clearTimeout(navigationCacheTimeout);
+      navigationCacheTimeout = setTimeout(() => {
+        // Try to get data from the new page, or use cached data
+        initNavigationCache(threads, spaces, inboxItemCount);
+      }, 50);
     });
   }
 </script>
@@ -467,9 +472,11 @@ try {
       }
     });
     
-    // Also listen for View Transitions
+    // Also listen for View Transitions (debounced)
+    let inboxArchiveTimeout = null;
     document.addEventListener('astro:page-load', function() {
-      setTimeout(updateInboxArchiveText, 100);
+      if (inboxArchiveTimeout) clearTimeout(inboxArchiveTimeout);
+      inboxArchiveTimeout = setTimeout(updateInboxArchiveText, 50);
     });
   }
 </script>

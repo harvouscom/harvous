@@ -6,4 +6,4 @@ import packageJson from '../../package.json';
 export type Props = ProfilePageProps;
 ---
 
-<ProfilePage client:load {...Astro.props} version={packageJson.version} />
+<ProfilePage client:visible {...Astro.props} version={packageJson.version} />

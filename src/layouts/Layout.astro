@@ -159,7 +159,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
   >
     <ToastProvider client:load />
     <KeyboardShortcutsInit client:load />
-    <PostHogUserInit client:load userId={userId} userData={userData} />
+    <PostHogUserInit client:idle userId={userId} userData={userData} />
 
     <div class="h-[100svh] p-3 min-[1160px]:p-6" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->

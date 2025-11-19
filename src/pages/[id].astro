@@ -799,13 +799,18 @@ if (!content) {
     // Prefetch dashboard data since we're on a thread/note/space page
     initPrefetching(window.location.pathname);
     
-    // Re-initialize after View Transitions
+    // Re-initialize after View Transitions (debounced to avoid multiple calls)
+    let pageLoadTimeout = null;
     document.addEventListener('astro:page-load', () => {
-      // Try to get data from the new page, or use cached data
-      initNavigationCache(threads, spaces, inboxCount);
-      
-      // Prefetch dashboard if we're still on a thread/note/space page
-      initPrefetching(window.location.pathname);
+      // Debounce to avoid multiple rapid calls
+      if (pageLoadTimeout) clearTimeout(pageLoadTimeout);
+      pageLoadTimeout = setTimeout(() => {
+        // Try to get data from the new page, or use cached data
+        initNavigationCache(threads, spaces, inboxCount);
+        
+        // Prefetch dashboard if we're still on a thread/note/space page
+        initPrefetching(window.location.pathname);
+      }, 50);
     });
   }
 </script>

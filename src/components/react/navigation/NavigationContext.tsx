@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 
 // Navigation item interface
 export interface NavigationItem {
@@ -497,6 +497,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
     
+    // Skip pages that don't have navigation data (profile, find, etc.)
+    const pagesWithoutNavigationData = ['profile', 'find', 'new-space', 'new-thread'];
+    if (pagesWithoutNavigationData.includes(currentItemId)) {
+      return;
+    }
+    
     // Skip specific test items
     const testItemIds = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
     if (testItemIds.some(testId => currentItemId.includes(testId))) {
@@ -589,8 +595,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }, 300);
       }
     } else if (retryCount >= 3) {
-      // If we've exhausted retries and still can't find data, log a warning
-      console.warn('NavigationContext: Could not extract navigation data after retries for:', currentItemId);
+      // If we've exhausted retries and still can't find data, silently skip
+      // This can happen for pages that don't have navigation data (notes without threads, etc.)
+      // No need to log as it's expected behavior for some page types
     }
   };
 
@@ -667,9 +674,41 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  // Validation cache to prevent redundant API calls
+  const validationCache = useRef<{ timestamp: number; threadIds: Set<string> } | null>(null);
+  const VALIDATION_CACHE_DURATION = 60 * 1000; // 1 minute cache
+  const VALIDATION_DEBOUNCE_DELAY = 2000; // 2 seconds debounce
+  const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Function to validate navigation history and remove deleted threads
-  const validateNavigationHistory = async () => {
+  const validateNavigationHistory = async (force = false) => {
     try {
+      // Check cache first - skip if recent validation exists and not forced
+      const now = Date.now();
+      if (!force && validationCache.current && (now - validationCache.current.timestamp) < VALIDATION_CACHE_DURATION) {
+        // Use cached thread IDs
+        const threadIds = validationCache.current.threadIds;
+        const history = getNavigationHistory();
+        const thirtySecondsAgo = Date.now() - 30000;
+
+        const validatedHistory = history.filter((item: NavigationItem) => {
+          if (item.firstAccessed > thirtySecondsAgo) return true;
+          if (item.id.startsWith('space_')) return true;
+          if (item.id === 'thread_unorganized') return true;
+          if (item.id.startsWith('thread_')) {
+            return threadIds.has(item.id);
+          }
+          return true;
+        });
+
+        if (validatedHistory.length < history.length) {
+          saveNavigationHistory(validatedHistory);
+          setNavigationHistory(validatedHistory);
+          window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+        }
+        return;
+      }
+
       // Fetch current threads from API
       const response = await fetch('/api/threads/list', {
         credentials: 'include'
@@ -679,6 +718,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       const threads = await response.json();
       const threadIds = new Set(threads.map((t: any) => t.id));
+      
+      // Update cache
+      validationCache.current = {
+        timestamp: now,
+        threadIds
+      };
       
       // Get current history from localStorage (source of truth)
       const history = getNavigationHistory();
@@ -722,6 +767,16 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  // Debounced validation function
+  const debouncedValidate = (force = false) => {
+    if (validationTimeoutRef.current) {
+      clearTimeout(validationTimeoutRef.current);
+    }
+    validationTimeoutRef.current = setTimeout(() => {
+      validateNavigationHistory(force);
+    }, VALIDATION_DEBOUNCE_DELAY);
+  };
+
   // Initialize navigation history on mount and refresh it
   // This ensures we have the latest data even if localStorage was updated right before navigation
   useEffect(() => {
@@ -732,34 +787,27 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setNavigationHistory(history);
       };
     
-    // Refresh immediately
+    // Refresh immediately - single refresh is sufficient
     refreshHistory();
-    
-    // Also refresh after delays to catch any late localStorage updates
-    // This handles cases where localStorage was updated right before navigation
-    const timeoutId1 = setTimeout(() => {
-      refreshHistory();
-    }, 50);
-    
-    const timeoutId2 = setTimeout(() => {
-      refreshHistory();
-    }, 200);
-    
-    const timeoutId3 = setTimeout(() => {
-      refreshHistory();
-    }, 500);
     
     // Track current page access
     trackNavigationAccess();
     
-    // Validate navigation history to remove deleted threads immediately
-    // Run without delay for instant feedback
-    validateNavigationHistory();
+    // Delay validation to avoid blocking initial render
+    // Use requestIdleCallback if available, otherwise setTimeout
+    const scheduleValidation = () => {
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(() => {
+          debouncedValidate();
+        }, { timeout: 3000 });
+      } else {
+        setTimeout(() => {
+          debouncedValidate();
+        }, 2000);
+      }
+    };
     
-    // Also run again after a short delay as a safety net
-    const validationTimeoutId = setTimeout(() => {
-      validateNavigationHistory();
-    }, 5000); // Increased delay to 5 seconds
+    scheduleValidation();
     
     // Listen for View Transitions and page loads
     const handlePageLoad = () => {
@@ -768,13 +816,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       refreshHistory();
       trackNavigationAccess();
       
-      // Validate to remove deleted threads immediately on page load
-      validateNavigationHistory();
-      
-      // Also run again after a short delay as a safety net
-      setTimeout(() => {
-        validateNavigationHistory();
-      }, 200);
+      // Only validate if cache is stale - don't validate on every page load
+      // Validation will happen automatically via debouncedValidate if needed
     };
     
     // Listen for space creation events
@@ -814,9 +857,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Remove the thread from navigation history immediately
         removeFromNavigationHistory(threadId);
         
-        // Also validate the entire history to catch any edge cases
-        // Run immediately since the thread is already deleted
-        validateNavigationHistory();
+        // Force validation to catch any edge cases and clear cache
+        // This is necessary after deletion to ensure consistency
+        validateNavigationHistory(true);
       }
     };
 
@@ -1106,10 +1149,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     (window as any).refreshNavigation = refreshNavigation;
     
     return () => {
-      clearTimeout(timeoutId1);
-      clearTimeout(timeoutId2);
-      clearTimeout(timeoutId3);
-      clearTimeout(validationTimeoutId);
+      // Clean up validation timeout if it exists
+      if (validationTimeoutRef.current) {
+        clearTimeout(validationTimeoutRef.current);
+      }
       document.removeEventListener('astro:page-load', handlePageLoad);
       document.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
       window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);

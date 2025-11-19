@@ -626,7 +626,7 @@ if (query.trim()) {
             <div class="flex flex-col gap-6">
 
               <!-- Recent Searches -->
-              <RecentSearches client:load="react" />
+              <RecentSearches client:visible="react" />
             </div>
           )}
         </div>
@@ -773,9 +773,11 @@ if (query.trim()) {
     }
   });
   
-  // Also run after View Transitions
+  // Also run after View Transitions (debounced)
+  let searchCountTimeout = null;
   document.addEventListener('astro:page-load', () => {
-    setTimeout(updateCurrentSearchCount, 200);
+    if (searchCountTimeout) clearTimeout(searchCountTimeout);
+    searchCountTimeout = setTimeout(updateCurrentSearchCount, 100);
   });
 </script>
 

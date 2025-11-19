@@ -8,22 +8,18 @@ import { setCachedNavigationData, getCachedNavigationData, fetchNavigationData, 
 /**
  * Initialize navigation cache on page load
  * Caches the navigation data that was server-rendered
+ * Uses server-rendered data immediately without making API calls
  */
 export function initNavigationCache(threads: any[], spaces: any[], inboxCount: number): void {
   if (typeof window === 'undefined') return;
   
-  // Cache the navigation data from server
+  // Cache the navigation data from server immediately
+  // This is fresh data from the server, so no need to refresh immediately
   setCachedNavigationData({ threads, spaces, inboxCount });
   
-  // Refresh cache in background if it's getting stale
-  const cached = getCachedNavigationData();
-  if (cached) {
-    const age = Date.now() - cached.timestamp;
-    // If cache is more than 20 seconds old, refresh in background
-    if (age > 20 * 1000) {
-      refreshNavigationCache();
-    }
-  }
+  // Don't refresh immediately after init - server data is fresh
+  // Background refresh will happen automatically via getNavigationDataWithCache
+  // when cache is close to expiring
 }
 
 /**
