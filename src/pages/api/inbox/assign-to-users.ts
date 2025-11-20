@@ -49,8 +49,8 @@ async function assignInboxItems() {
       // Determine which users should have this item
       let usersToAssign = [];
       
-      if (inboxItem.targetAudience === 'all_users' || inboxItem.targetAudience === 'all_new_users') {
-        // Assign to all existing users (treat 'all_new_users' as 'all_users' for existing users)
+      if (inboxItem.targetAudience === 'all_users') {
+        // Assign to all existing users
         usersToAssign = allUsers;
       } else {
         continue; // Skip items with other target audiences

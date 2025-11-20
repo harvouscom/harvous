@@ -77,7 +77,7 @@ https://your-domain.com/api/webflow/webhook
 
 - All threads synced from Webflow are set to `targetAudience: 'all_users'` and assigned to all existing users
 - Each user gets a `UserInboxItems` record with `createdAt` timestamp (used for relative time display)
-- Note: The system still supports `targetAudience: 'all_new_users'` for programmatic use (e.g., new user onboarding), but Webflow-synced items always use `'all_users'`
+- New users automatically receive all active `all_users` items when they sign up
 
 ## Troubleshooting
 

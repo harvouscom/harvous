@@ -91,9 +91,9 @@ export const POST: APIRoute = async ({ request }) => {
     let webflowNativeItems: WebflowNativeItem[] = items || [];
 
     if (!items && collectionId && siteId) {
-      // Fetch from Webflow API
+      // Fetch from Webflow CDN API for better performance (cached, 2-5min delay acceptable for manual syncs)
       const response = await fetch(
-        `https://api.webflow.com/v2/collections/${collectionId}/items`,
+        `https://api-cdn.webflow.com/v2/collections/${collectionId}/items`,
         {
           headers: {
             'Authorization': `Bearer ${webflowToken}`,
@@ -470,18 +470,17 @@ export const POST: APIRoute = async ({ request }) => {
         syncedItems.push(inboxItemId);
 
         // Auto-assign to users based on targetAudience
-        // Always assign if targetAudience is 'all_users' or 'all_new_users'
+        // Always assign if targetAudience is 'all_users'
         // This ensures items are assigned even if UserInboxItems entries were deleted
         const targetAudience = inboxItemData.targetAudience || 'all_users';
-        if (targetAudience === 'all_users' || targetAudience === 'all_new_users') {
+        if (targetAudience === 'all_users') {
           try {
             // Get all existing users
             const allUsers = await db.select().from(UserMetadata).all();
             
             let assignedCount = 0;
             // Create UserInboxItems for all existing users
-            // Note: 'all_new_users' items are also assigned to existing users
-            // (new users will get them via the user creation middleware)
+            // New users will get them via the user creation middleware
             for (const user of allUsers) {
               const existingUserInboxItem = await db
                 .select()
@@ -513,7 +512,6 @@ export const POST: APIRoute = async ({ request }) => {
         } else {
           console.log(`⚠️ Skipping assignment for inbox item ${inboxItemId} - targetAudience: ${targetAudience}`);
         }
-        // Note: 'all_new_users' is also handled in the user creation middleware for future new users
 
       } catch (error: any) {
         console.error(`Error syncing item ${webflowItem._id}:`, error);
@@ -644,9 +642,9 @@ export const GET: APIRoute = async ({ url, request }) => {
       });
     }
 
-    // Fetch from Webflow API
+    // Fetch from Webflow CDN API for better performance (cached, 2-5min delay acceptable for manual syncs)
     const response = await fetch(
-      `https://api.webflow.com/v2/collections/${collectionId}/items`,
+      `https://api-cdn.webflow.com/v2/collections/${collectionId}/items`,
       {
         headers: {
           'Authorization': `Bearer ${webflowToken}`,

@@ -221,19 +221,20 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       const { addInboxItemToUser } = await import('@/utils/inbox-data');
       const { db: dbImport, InboxItems, UserInboxItems, eq, and } = await import('astro:db');
       
-      // Find all active inbox items targeted to new users
-      const newUserInboxItems = await dbImport
+      // Find all active inbox items targeted to all users
+      // All active inbox items should be available to new users
+      const allUserInboxItems = await dbImport
         .select()
         .from(InboxItems)
         .where(
           and(
-            eq(InboxItems.targetAudience, 'all_new_users'),
+            eq(InboxItems.targetAudience, 'all_users'),
             eq(InboxItems.isActive, true)
           )
         );
 
       // Create UserInboxItems for each item
-      for (const inboxItem of newUserInboxItems) {
+      for (const inboxItem of allUserInboxItems) {
         // Check if already exists (shouldn't, but just in case)
         const existing = await dbImport
           .select()
