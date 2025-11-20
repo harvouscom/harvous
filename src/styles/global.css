@@ -117,8 +117,21 @@
     @apply font-mono font-medium text-[10px] leading-[100%] tracking-normal;
 }
 
-/* Text wrap pretty - progressive enhancement */
-/* Gracefully degrades to normal wrapping if not supported */
+/* Text wrap balance - good browser support */
+/* Supported in Chrome 114+, Safari 17.5+, Firefox 121+, Edge 114+ */
+.text-wrap-balance {
+    text-wrap: balance;
+}
+
+/* Text wrap with progressive enhancement */
+/* Uses balance (better browser support) with pretty as enhancement */
+.text-wrap-pretty {
+    /* Base: balance - supported in Chrome 114+, Safari 17.5+, Firefox 121+ */
+    text-wrap: balance;
+}
+
+/* Enhancement: pretty - prevents orphans, better for short descriptive text */
+/* Supported in Chrome 117+, Safari 17.2+ */
 @supports (text-wrap: pretty) {
     .text-wrap-pretty {
         text-wrap: pretty;
