@@ -41,6 +41,7 @@ const Notes = defineTable({
     spaceId: column.text({ optional: true }), // Optional: direct reference to space
     simpleNoteId: column.number({ optional: true }), // User-friendly sequential note ID (1, 2, 3, etc.)
     noteType: column.text({ default: 'default' }), // 'default', 'scripture', 'resource'
+    addedBy: column.text({ default: 'user' }), // 'user', 'harvous', etc. - tracks source/creator of note
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
     userId: column.text(), // Clerk user id

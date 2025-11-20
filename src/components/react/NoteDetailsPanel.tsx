@@ -63,6 +63,7 @@ export default function NoteDetailsPanel({
   const [noteCreatedAt, setNoteCreatedAt] = useState<Date | null>(null);
   const [noteSimpleId, setNoteSimpleId] = useState<number | null>(null);
   const [noteVersion, setNoteVersion] = useState<string | null>(null);
+  const [noteAddedBy, setNoteAddedBy] = useState<string | null>(null);
   const [showNewTagPanel, setShowNewTagPanel] = useState(false);
   const [showNewThreadPanel, setShowNewThreadPanel] = useState(false);
 
@@ -89,6 +90,7 @@ export default function NoteDetailsPanel({
           setNoteCreatedAt(data.note.createdAt ? new Date(data.note.createdAt) : null);
           setNoteSimpleId(data.note.simpleNoteId || null);
           setNoteVersion(data.note.version || null);
+          setNoteAddedBy(data.note.addedBy || 'user');
         }
       }
     } catch (error) {
@@ -443,8 +445,8 @@ export default function NoteDetailsPanel({
             <div className="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-hidden p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
               <div className="basis-0 grow min-h-px min-w-px shrink-0 w-full flex flex-col min-h-0">
 
-                {/* Note Metadata - ID and Date */}
-                {(noteCreatedAt || noteSimpleId) && (
+                {/* Note Metadata - ID, Source, and Date */}
+                {(noteCreatedAt || noteSimpleId || noteAddedBy) && (
                   <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full mb-2">
                     <div className="relative shrink-0">
                       {noteSimpleId && (
@@ -465,10 +467,18 @@ export default function NoteDetailsPanel({
                         </button>
                       )}
                     </div>
-                    <div className="relative shrink-0">
+                    <div className="relative shrink-0 flex items-center gap-2">
                       {noteCreatedAt && (
                         <span className="leading-[normal] text-nowrap">
                           {noteCreatedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      )}
+                      {noteCreatedAt && noteAddedBy && (
+                        <span className="leading-[normal]" style={{ color: 'rgba(136, 134, 128, 0.3)' }}>|</span>
+                      )}
+                      {noteAddedBy && (
+                        <span className="leading-[normal] text-nowrap">
+                          {noteAddedBy === 'harvous' ? 'Created by Harvous' : 'Created by you'}
                         </span>
                       )}
                     </div>

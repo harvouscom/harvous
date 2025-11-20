@@ -186,6 +186,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
         noteType: note.noteType || 'default',
         isPublic: note.isPublic,
         isFeatured: note.isFeatured,
+        addedBy: note.addedBy || 'user',
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
         version: version

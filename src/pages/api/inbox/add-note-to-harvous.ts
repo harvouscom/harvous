@@ -93,6 +93,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         simpleNoteId: nextSimpleNoteId,
         userId: userId,
         isPublic: false,
+        addedBy: 'harvous',
         createdAt: new Date(),
       })
       .returning()

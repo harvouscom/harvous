@@ -217,6 +217,7 @@ export async function processScriptureReferences(
               noteType: 'scripture',
               userId, 
               isPublic: false,
+              addedBy: 'harvous',
               createdAt: new Date() 
             })
             .returning()
