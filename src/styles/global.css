@@ -640,8 +640,8 @@ button[disabled] {
     }
     
     [data-sonner-toast] {
-        min-width: 280px !important;
-        width: auto !important;
+        min-width: 0 !important;
+        width: 75% !important;
         max-width: calc(100vw - 32px) !important;
         margin-left: 0 !important;
         margin-right: 0 !important;
