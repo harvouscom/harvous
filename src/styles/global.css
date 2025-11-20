@@ -117,6 +117,14 @@
     @apply font-mono font-medium text-[10px] leading-[100%] tracking-normal;
 }
 
+/* Text wrap pretty - progressive enhancement */
+/* Gracefully degrades to normal wrapping if not supported */
+@supports (text-wrap: pretty) {
+    .text-wrap-pretty {
+        text-wrap: pretty;
+    }
+}
+
 /* View Transitions Loading States */
 /* Subtle loading indicator during page transitions */
 ::view-transition-old(root),
