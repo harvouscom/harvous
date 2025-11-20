@@ -72,7 +72,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const body = await request.json();
-    const { items, collectionId, siteId } = body;
+    const { items, collectionId, siteId, hardRefresh } = body;
 
     // Threads collection ID: 690ed2f0edd9bab40a4eb397
     // Notes collection ID: 690ed346b73a1ff102283b32
@@ -84,6 +84,32 @@ export const POST: APIRoute = async ({ request }) => {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
+    }
+
+    // HARD REFRESH: Clear all UserInboxItems and mark InboxItems as inactive before syncing
+    if (hardRefresh === true) {
+      console.log('🔄 Hard refresh enabled - clearing all UserInboxItems and marking InboxItems as inactive...');
+      try {
+        // Delete all UserInboxItems for all users
+        const allUserInboxItems = await db.select().from(UserInboxItems).all();
+        for (const userInboxItem of allUserInboxItems) {
+          await db.delete(UserInboxItems).where(eq(UserInboxItems.id, userInboxItem.id));
+        }
+        console.log(`✅ Cleared ${allUserInboxItems.length} UserInboxItems entries`);
+        
+        // Mark all existing InboxItems as inactive (they'll be reactivated if found in Webflow)
+        const allInboxItems = await db.select().from(InboxItems).all();
+        for (const inboxItem of allInboxItems) {
+          await db
+            .update(InboxItems)
+            .set({ isActive: false, updatedAt: new Date() })
+            .where(eq(InboxItems.id, inboxItem.id));
+        }
+        console.log(`✅ Marked ${allInboxItems.length} InboxItems as inactive (will be reactivated if found in Webflow)`);
+      } catch (error) {
+        console.error('Error during hard refresh cleanup:', error);
+        // Continue with sync even if cleanup fails
+      }
     }
 
     // If items are provided directly, use them
@@ -624,6 +650,7 @@ export const GET: APIRoute = async ({ url, request }) => {
 
     const collectionId = url.searchParams.get('collectionId');
     const siteId = url.searchParams.get('siteId');
+    const hardRefresh = url.searchParams.get('hardRefresh') === 'true';
 
     if (!collectionId || !siteId) {
       return new Response(JSON.stringify({ error: 'collectionId and siteId are required' }), {
@@ -674,7 +701,7 @@ export const GET: APIRoute = async ({ url, request }) => {
         'Content-Type': 'application/json',
         'Accept': acceptHeader,
       },
-      body: JSON.stringify({ items, collectionId, siteId }),
+      body: JSON.stringify({ items, collectionId, siteId, hardRefresh }),
     });
 
     return POST({ request: postRequest } as any);
