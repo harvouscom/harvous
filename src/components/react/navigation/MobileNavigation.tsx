@@ -316,10 +316,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 w-full min-w-0 h-[64px]">
       {/* Search Icon Button (Column 1: auto) */}
       <div className="flex items-center justify-center h-[64px]">
-        <a href="/find" className="block">
+        <a 
+          href="/find" 
+          className="block"
+          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+        >
           <button
             className="[&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
-            style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+            style={{ backgroundImage: 'var(--color-gradient-gray)', touchAction: 'manipulation' }}
           >
             <div className="flex flex-row items-center justify-center relative w-full h-full">
               <div className="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-[18px] px-4 relative w-full h-full">
@@ -358,7 +362,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           >
             <div className="p-2">
               {/* For You */}
-              <a href="/" className="block w-full" onClick={handleItemClick}>
+              <a 
+                href="/" 
+                className="block w-full" 
+                onClick={handleItemClick}
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              >
                 <div className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center" style={{ backgroundImage: !currentSpace && !currentThread && !currentItemId ? "var(--color-paper)" : undefined }}>
                   <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                     <div className="flex-1 min-w-0 overflow-hidden text-left">
@@ -390,7 +399,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     
                     return (
                       <div key={space.id} className="relative group nav-item-container w-full">
-                        <a href={`/${space.id}`} className="block w-full" onClick={() => handleItemClick(space.id)}>
+                        <a 
+                          href={`/${space.id}`} 
+                          className="block w-full" 
+                          onClick={() => handleItemClick(space.id)}
+                          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                        >
                           <div 
                             className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
                             style={isActive ? {
@@ -445,7 +459,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     
                     return (
                       <div key={thread.id} className="relative group nav-item-container w-full">
-                        <a href={`/${thread.id}`} className="block w-full" onClick={() => handleItemClick(thread.id)}>
+                        <a 
+                          href={`/${thread.id}`} 
+                          className="block w-full" 
+                          onClick={() => handleItemClick(thread.id)}
+                          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                        >
                           <div 
                             className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
                             style={isActive ? {
@@ -503,7 +522,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   {spaces.map(space => {
                     const isSpaceActive = currentSpace?.id === space.id;
                     return (
-                      <a key={space.id} href={`/${space.id}`} className="block w-full" onClick={handleItemClick}>
+                      <a 
+                        key={space.id} 
+                        href={`/${space.id}`} 
+                        className="block w-full" 
+                        onClick={handleItemClick}
+                        style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                      >
                         <div 
                           className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
                           style={isSpaceActive ? {
@@ -539,7 +564,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               {(updatedCurrentThread || currentThread) && !persistentItems.some(item => item.id === (updatedCurrentThread || currentThread)!.id) && (
                 <>
                   <div className="border-t border-gray-200 my-2"></div>
-                  <a href={`/${(updatedCurrentThread || currentThread)!.id}`} className="block w-full" onClick={handleItemClick}>
+                  <a 
+                    href={`/${(updatedCurrentThread || currentThread)!.id}`} 
+                    className="block w-full" 
+                    onClick={handleItemClick}
+                    style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                  >
                     <div 
                       className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
                       style={{
@@ -569,7 +599,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               
               {/* New Space Button */}
               <div className="border-t border-gray-200 my-2"></div>
-              <a href="/new-space" className="block w-full" onClick={handleItemClick}>
+              <a 
+                href="/new-space" 
+                className="block w-full" 
+                onClick={handleItemClick}
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              >
                 <div className="flex items-center justify-between p-2 rounded cursor-pointer hover:bg-gray-50 transition-colors">
                   <span className="text-sm font-medium text-[var(--color-deep-grey)]">New Space</span>
                   <svg className="w-4 h-4 text-[var(--color-deep-grey)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">

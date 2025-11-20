@@ -91,6 +91,21 @@
     height: 100% !important;
 }
 
+/* Mobile touch optimization for navigation links */
+/* Eliminates 300ms click delay on mobile devices */
+a[href^="/"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Navigation buttons and links - optimize for mobile touch */
+.space-button,
+.nav-item-container a,
+nav a {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
 @theme {
     --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
     --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

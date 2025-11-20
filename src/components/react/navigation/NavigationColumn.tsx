@@ -98,16 +98,24 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   useEffect(() => {
     setCurrentItemId(pathname.substring(1) || '');
     
+    // Debounce to avoid multiple rapid updates during navigation
+    let timeoutRef: ReturnType<typeof setTimeout> | null = null;
+    
     const handlePageLoad = () => {
-      // Update currentItemId when page changes via Astro transitions
-      if (typeof window !== 'undefined') {
-        const newPath = window.location.pathname.substring(1) || '';
-        setCurrentItemId(newPath);
-        
-        // Force a re-render to ensure component updates after View Transition
-        // This helps ensure the navigation column is properly displayed
-        setUpdatedActiveThread(activeThread);
-      }
+      // Clear any pending updates
+      if (timeoutRef) clearTimeout(timeoutRef);
+      
+      // Use requestAnimationFrame for immediate visual update
+      requestAnimationFrame(() => {
+        if (typeof window !== 'undefined') {
+          const newPath = window.location.pathname.substring(1) || '';
+          setCurrentItemId(newPath);
+          
+          // Force a re-render to ensure component updates after View Transition
+          // This helps ensure the navigation column is properly displayed
+          setUpdatedActiveThread(activeThread);
+        }
+      });
     };
 
     // Listen for Astro page transitions
@@ -116,6 +124,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     document.addEventListener('astro:after-swap', handlePageLoad);
     
     return () => {
+      if (timeoutRef) clearTimeout(timeoutRef);
       document.removeEventListener('astro:page-load', handlePageLoad);
       document.removeEventListener('astro:after-swap', handlePageLoad);
     };
@@ -216,7 +225,11 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         <div className="flex flex-col gap-12 items-start justify-start w-full flex-1 min-h-0">
           {/* Navigation Buttons */}
           <div className="flex flex-col items-start justify-start w-full">
-            <a href="/" className="w-full">
+            <a 
+              href="/" 
+              className="w-full"
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            >
               <SpaceButton 
                 text="For You" 
                 count={inboxCount} 
@@ -232,7 +245,11 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             
             {/* Show active thread if any - but only if it's not already in persistent navigation */}
             {(updatedActiveThread || activeThread) && showActiveThread ? (
-              <a href={`/${(updatedActiveThread || activeThread)!.id}`} className="w-full">
+              <a 
+                href={`/${(updatedActiveThread || activeThread)!.id}`} 
+                className="w-full"
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              >
                 <SpaceButton 
                   text={(updatedActiveThread || activeThread)!.title} 
                   count={(updatedActiveThread || activeThread)!.noteCount} 
@@ -252,19 +269,35 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         {/* Bottom Section with New Space Button, Search, and Avatar/Back Button */}
         <div className="flex gap-3 items-center justify-start w-full shrink-0">
           <div className="flex-1">
-            <a href="/new-space" className="w-full">
+            <a 
+              href="/new-space" 
+              className="w-full"
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            >
               <SpaceButton text="New Space" className="w-full" />
             </a>
           </div>
-          <a href="/find" aria-label="Search">
+          <a 
+            href="/find" 
+            aria-label="Search"
+            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+          >
             <SquareButton variant="Find" />
           </a>
           {showProfile ? (
-            <a href="/" aria-label="Go to dashboard">
+            <a 
+              href="/" 
+              aria-label="Go to dashboard"
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            >
               <SquareButton variant="Back" />
             </a>
           ) : (
-            <a href="/profile" aria-label="Go to profile">
+            <a 
+              href="/profile" 
+              aria-label="Go to profile"
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            >
               <Avatar initials={profileData.initials} color={profileData.userColor} />
             </a>
           )}

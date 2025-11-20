@@ -810,14 +810,18 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     scheduleValidation();
     
     // Listen for View Transitions and page loads
+    // Use requestAnimationFrame to ensure updates happen after DOM is ready
     const handlePageLoad = () => {
-      // Refresh navigation history from localStorage on page load
-      // This ensures we have the latest data after navigation
-      refreshHistory();
-      trackNavigationAccess();
-      
-      // Only validate if cache is stale - don't validate on every page load
-      // Validation will happen automatically via debouncedValidate if needed
+      // Use requestAnimationFrame for immediate visual updates
+      requestAnimationFrame(() => {
+        // Refresh navigation history from localStorage on page load
+        // This ensures we have the latest data after navigation
+        refreshHistory();
+        trackNavigationAccess();
+        
+        // Only validate if cache is stale - don't validate on every page load
+        // Validation will happen automatically via debouncedValidate if needed
+      });
     };
     
     // Listen for space creation events

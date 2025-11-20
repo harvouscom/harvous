@@ -270,20 +270,11 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
   
   // Ensure React islands properly re-hydrate after View Transitions
   // This is especially important for navigation slot updates
+  // Use requestIdleCallback for non-critical hydration checks to avoid blocking navigation
   document.addEventListener('astro:after-swap', () => {
-    // Small delay to ensure DOM is fully swapped and ready
-    requestAnimationFrame(() => {
-      // Check if navigation slot exists and has content
-      const navigationSlot = document.querySelector('[slot="navigation"]');
-      if (navigationSlot) {
-        // Ensure any React islands within the navigation slot are properly hydrated
-        const islands = navigationSlot.querySelectorAll('astro-island');
-        islands.forEach((island) => {
-          // Astro automatically handles hydration, but we ensure timing is correct
-          // The island should already be hydrating, this just ensures it completes
-        });
-      }
-    });
+    // Astro automatically handles hydration, so we don't need to do anything here
+    // The requestAnimationFrame was unnecessary - Astro handles timing correctly
+    // Removed unnecessary DOM queries that could slow down navigation
   });
 </script>
 

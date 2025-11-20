@@ -62,6 +62,41 @@ const isUICriticalAsset = (url) => {
   return UI_CRITICAL_ASSETS.some(criticalPath => path.startsWith(criticalPath));
 };
 
+// Helper to determine if a request is for a navigation route
+// Navigation routes should use cache-first strategy for faster mobile performance
+const isNavigationRoute = (url) => {
+  const path = new URL(url).pathname;
+  
+  // Static navigation routes
+  if (path === '/' || 
+      path === '/find' || 
+      path === '/profile' || 
+      path === '/new-space') {
+    return true;
+  }
+  
+  // Dynamic routes (threads, spaces, notes)
+  // Pattern: /{id} where id is not an API route or static asset
+  // Exclude API routes, static assets, and special paths
+  if (path.startsWith('/api/') || 
+      path.startsWith('/_astro/') ||
+      path.startsWith('/scripts/') ||
+      path.startsWith('/icons/') ||
+      path.includes('.') || // Files with extensions
+      path.startsWith('/sign-in') ||
+      path.startsWith('/sign-up')) {
+    return false;
+  }
+  
+  // If it's a simple path like /thread_123 or /space_456 or /note_789, it's a navigation route
+  // Also handles routes like /thread_unorganized
+  if (path.length > 1 && path.length < 100 && !path.includes('/')) {
+    return true;
+  }
+  
+  return false;
+};
+
 // Fetch event - with optimized strategy based on asset type
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
@@ -147,6 +182,52 @@ self.addEventListener('fetch', (event) => {
                 cache.put(event.request, responseClone);
               });
               return response;
+            });
+        })
+    );
+    return;
+  }
+
+  // For navigation routes (threads, spaces, notes, find, profile, new-space, dashboard)
+  // Use cache-first strategy for faster mobile performance
+  if (event.request.mode === 'navigate' || isNavigationRoute(event.request.url)) {
+    event.respondWith(
+      caches.match(event.request)
+        .then((cachedResponse) => {
+          if (cachedResponse) {
+            // Return cached response immediately for instant navigation
+            // Refresh cache in the background
+            fetch(event.request)
+              .then(response => {
+                if (response.ok) {
+                  const responseClone = response.clone();
+                  caches.open(CACHE_NAME).then(cache => {
+                    cache.put(event.request, responseClone);
+                  });
+                }
+              })
+              .catch(() => { /* Ignore errors */ });
+            
+            return cachedResponse;
+          }
+          
+          // If not in cache, get from network and cache
+          return fetch(event.request)
+            .then(response => {
+              if (response.ok) {
+                const responseClone = response.clone();
+                caches.open(CACHE_NAME).then(cache => {
+                  cache.put(event.request, responseClone);
+                });
+              }
+              return response;
+            })
+            .catch(() => {
+              // If network fails and we have stale cache, use it
+              return cachedResponse || new Response('Network error', {
+                status: 503,
+                statusText: 'Service Unavailable'
+              });
             });
         })
     );

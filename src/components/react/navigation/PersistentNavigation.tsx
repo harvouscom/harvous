@@ -14,20 +14,33 @@ const PersistentNavigation: React.FC = () => {
 
   // Listen for page changes to update current item
   useEffect(() => {
+    // Debounce to avoid multiple rapid re-renders during navigation
+    let timeoutRef: ReturnType<typeof setTimeout> | null = null;
+    
     const handlePageLoad = () => {
-      // Re-render when page changes to re-evaluate active state
-      setRenderKey(prev => prev + 1);
+      // Clear any pending updates
+      if (timeoutRef) clearTimeout(timeoutRef);
+      
+      // Use requestAnimationFrame for immediate visual update, then debounce state update
+      requestAnimationFrame(() => {
+        setRenderKey(prev => prev + 1);
+      });
     };
     
     // Listen for navigation history updates from validation
     const handleNavigationUpdate = () => {
-      setRenderKey(prev => prev + 1);
+      // Debounce navigation history updates to avoid rapid re-renders
+      if (timeoutRef) clearTimeout(timeoutRef);
+      timeoutRef = setTimeout(() => {
+        setRenderKey(prev => prev + 1);
+      }, 50);
     };
 
     document.addEventListener('astro:page-load', handlePageLoad);
     window.addEventListener('navigationHistoryUpdated', handleNavigationUpdate);
     
     return () => {
+      if (timeoutRef) clearTimeout(timeoutRef);
       document.removeEventListener('astro:page-load', handlePageLoad);
       window.removeEventListener('navigationHistoryUpdated', handleNavigationUpdate);
     };
@@ -88,7 +101,11 @@ const PersistentNavigation: React.FC = () => {
         return (
           <div key={item.id} data-navigation-item={item.id} className="w-full nav-item-container">
             <div className="relative w-full">
-              <a href={`/${item.id}`} className="w-full relative block">
+              <a 
+                href={`/${item.id}`} 
+                className="w-full relative block"
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              >
                 <SpaceButton
                   text={item.title}
                   count={item.count || 0}
