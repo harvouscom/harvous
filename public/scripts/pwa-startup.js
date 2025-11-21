@@ -35,12 +35,19 @@ function warmUpApp() {
     
     // Warm up API endpoints to prevent cold start delays
     // This is critical for preventing the first-action delay
+    // Add delay to allow Clerk auth to establish after sign-in redirect
     if ('requestIdleCallback' in window) {
       requestIdleCallback(() => {
-        warmUpAPI();
+        // Additional delay to ensure auth is ready after sign-in
+        setTimeout(() => {
+          warmUpAPI();
+        }, 500);
       }, { timeout: 2000 });
     } else {
-      setTimeout(warmUpAPI, 1000);
+      // Additional delay to ensure auth is ready after sign-in
+      setTimeout(() => {
+        warmUpAPI();
+      }, 1500);
     }
     
     // Tell the service worker to warm up
@@ -156,11 +163,34 @@ function warmUpLocalData() {
 }
 
 /**
+ * Check if Clerk authentication is ready
+ * Returns true if auth cookies/tokens are present
+ */
+function isAuthReady() {
+  // Check for Clerk session cookie or token
+  // Clerk typically sets cookies like __clerk_db_jwt, __session, etc.
+  const cookies = document.cookie.split(';');
+  const hasClerkCookie = cookies.some(cookie => 
+    cookie.trim().startsWith('__clerk') || 
+    cookie.trim().startsWith('__session')
+  );
+  
+  // Also check if we're on a protected route (not sign-in/sign-up)
+  const isProtectedRoute = !window.location.pathname.includes('/sign-in') && 
+                          !window.location.pathname.includes('/sign-up');
+  
+  return hasClerkCookie || isProtectedRoute;
+}
+
+/**
  * Warm up API endpoints to prevent cold start delays
  * This proactively calls a lightweight API endpoint to warm up
  * serverless functions and database connections
+ * 
+ * Now includes auth readiness check and retry logic to prevent
+ * race conditions after sign-in redirect
  */
-function warmUpAPI() {
+function warmUpAPI(retryCount = 0) {
   // Only warm up if we haven't done so recently (within last 5 minutes)
   const lastWarmup = sessionStorage.getItem('lastAPIWarmup');
   const now = Date.now();
@@ -171,19 +201,53 @@ function warmUpAPI() {
     return;
   }
   
-  // Call a lightweight API endpoint to warm up the serverless function
-  // This endpoint is cached and lightweight, perfect for warming up
-  fetch('/api/navigation/data', {
-    method: 'GET',
-    credentials: 'include'
-  })
-    .then(() => {
-      // Mark that we've warmed up
-      sessionStorage.setItem('lastAPIWarmup', now.toString());
+  // Check if auth is ready before making API call
+  // After sign-in redirect, auth may not be fully established yet
+  if (!isAuthReady() && retryCount < 3) {
+    // Wait for auth to establish with exponential backoff
+    const delay = Math.min(500 * Math.pow(2, retryCount), 2000);
+    setTimeout(() => {
+      warmUpAPI(retryCount + 1);
+    }, delay);
+    return;
+  }
+  
+  // Add additional delay after sign-in to ensure auth is fully propagated
+  // This prevents race conditions where API is called before auth is ready
+  const initialDelay = retryCount === 0 ? 500 : 0;
+  
+  setTimeout(() => {
+    // Call a lightweight API endpoint to warm up the serverless function
+    // This endpoint is cached and lightweight, perfect for warming up
+    fetch('/api/navigation/data', {
+      method: 'GET',
+      credentials: 'include'
     })
-    .catch(() => {
-      // Silently fail - this is just a warmup, not critical
-    });
+      .then((response) => {
+        if (response.ok) {
+          // Mark that we've warmed up successfully
+          sessionStorage.setItem('lastAPIWarmup', now.toString());
+        } else if (response.status === 401 && retryCount < 2) {
+          // Auth not ready yet, retry with exponential backoff
+          const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 3000);
+          setTimeout(() => {
+            warmUpAPI(retryCount + 1);
+          }, retryDelay);
+        }
+        // Silently handle 401 errors - auth will establish soon
+        // Don't show errors for warmup failures
+      })
+      .catch(() => {
+        // Silently fail - this is just a warmup, not critical
+        // Only retry on network errors if we haven't retried too many times
+        if (retryCount < 2) {
+          const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 3000);
+          setTimeout(() => {
+            warmUpAPI(retryCount + 1);
+          }, retryDelay);
+        }
+      });
+  }, initialDelay);
 }
 
 /**

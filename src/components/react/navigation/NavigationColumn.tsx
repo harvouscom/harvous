@@ -5,6 +5,27 @@ import Avatar from './Avatar';
 import SquareButton from './SquareButton';
 import { useNavigation } from './NavigationContext';
 
+/**
+ * Check if Clerk authentication is ready
+ * Returns true if auth cookies/tokens are present
+ */
+function isAuthReady(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  // Check for Clerk session cookie or token
+  const cookies = document.cookie.split(';');
+  const hasClerkCookie = cookies.some(cookie => 
+    cookie.trim().startsWith('__clerk') || 
+    cookie.trim().startsWith('__session')
+  );
+  
+  // Also check if we're on a protected route (not sign-in/sign-up)
+  const isProtectedRoute = !window.location.pathname.includes('/sign-in') && 
+                          !window.location.pathname.includes('/sign-up');
+  
+  return hasClerkCookie || isProtectedRoute;
+}
+
 interface Space {
   id: string;
   title: string;
@@ -154,11 +175,23 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     if (!activeThread) return;
 
     const refreshActiveThreadCount = async () => {
+      // Check if auth is ready before making API call
+      if (!isAuthReady()) {
+        // Auth not ready yet, skip silently
+        return;
+      }
+
       try {
         // Fetch current thread data from API
         const response = await fetch('/api/threads/list', {
           credentials: 'include'
         });
+
+        // Handle 401 errors gracefully - auth may not be fully established yet
+        if (response.status === 401) {
+          // Silently fail - auth will establish soon
+          return;
+        }
 
         if (response.ok) {
           const threads = await response.json();
@@ -178,7 +211,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           }
         }
       } catch (error) {
-        console.error('Error refreshing active thread count:', error);
+        // Silently fail - network errors are expected during auth establishment
+        // Don't log errors during initial load
       }
     };
 

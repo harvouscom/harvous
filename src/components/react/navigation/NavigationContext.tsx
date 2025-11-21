@@ -33,6 +33,57 @@ const defaultContextValue: NavigationContextType = {
   getCurrentActiveItemId: () => ''
 };
 
+/**
+ * Check if Clerk authentication is ready
+ * Returns true if auth cookies/tokens are present
+ */
+function isAuthReady(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  // Check for Clerk session cookie or token
+  const cookies = document.cookie.split(';');
+  const hasClerkCookie = cookies.some(cookie => 
+    cookie.trim().startsWith('__clerk') || 
+    cookie.trim().startsWith('__session')
+  );
+  
+  // Also check if we're on a protected route (not sign-in/sign-up)
+  const isProtectedRoute = !window.location.pathname.includes('/sign-in') && 
+                          !window.location.pathname.includes('/sign-up');
+  
+  return hasClerkCookie || isProtectedRoute;
+}
+
+/**
+ * Safe fetch wrapper that checks auth and handles 401 errors gracefully
+ * Returns null if auth is not ready or if 401 error occurs
+ */
+async function safeFetch(url: string, options: RequestInit = {}): Promise<Response | null> {
+  // Check if auth is ready before making API call
+  if (!isAuthReady()) {
+    // Auth not ready yet, return null silently
+    return null;
+  }
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      credentials: 'include'
+    });
+    
+    // Handle 401 errors gracefully - auth may not be fully established yet
+    if (response.status === 401) {
+      // Silently fail - auth will establish soon
+      return null;
+    }
+    
+    return response;
+  } catch (error) {
+    // Network errors - silently fail
+    return null;
+  }
+}
+
 // Provider component
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Storage utility - must be defined before getInitialHistory
@@ -614,16 +665,20 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
+    // Check if auth is ready before making API call
+    if (!isAuthReady()) {
+      // Auth not ready yet, skip silently
+      return;
+    }
+
     try {
       console.log('NavigationContext: Refreshing thread counts from API...');
       
-      // Fetch current thread counts from API
-      const response = await fetch('/api/threads/list', {
-        credentials: 'include'
-      });
+      // Fetch current thread counts from API with safe fetch
+      const response = await safeFetch('/api/threads/list');
 
-      if (!response.ok) {
-        console.error('NavigationContext: Failed to fetch thread counts:', response.status);
+      if (!response || !response.ok) {
+        // Silently fail if auth not ready or error occurred
         return;
       }
 
@@ -709,12 +764,19 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return;
       }
 
-      // Fetch current threads from API
-      const response = await fetch('/api/threads/list', {
-        credentials: 'include'
-      });
+      // Check if auth is ready before making API call
+      if (!isAuthReady()) {
+        // Auth not ready yet, skip validation silently
+        return;
+      }
+
+      // Fetch current threads from API with safe fetch
+      const response = await safeFetch('/api/threads/list');
       
-      if (!response.ok) return;
+      if (!response || !response.ok) {
+        // Silently fail if auth not ready or error occurred
+        return;
+      }
       
       const threads = await response.json();
       const threadIds = new Set(threads.map((t: any) => t.id));
@@ -896,16 +958,26 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           // Thread not in history - we need to fetch it and add it
           // Return current state for now, then fetch and add asynchronously
           // Fetch thread data asynchronously and add it
-          fetch('/api/threads/list', {
-            credentials: 'include'
-          })
+          // Check auth before making API call
+          if (!isAuthReady()) {
+            // Auth not ready yet, skip silently
+            return;
+          }
+          
+          safeFetch('/api/threads/list')
             .then(response => {
-              if (response.ok) {
+              if (response && response.ok) {
                 return response.json();
               }
-              throw new Error(`Failed to fetch: ${response.status}`);
+              // Silently fail if auth not ready or error occurred
+              return null;
             })
             .then(threads => {
+              if (!threads) {
+                // Auth not ready or error occurred, skip silently
+                return;
+              }
+              
               const threadData = threads.find((t: any) => t.id === actualThreadId);
               
               if (threadData) {
@@ -1003,22 +1075,25 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setTimeout(async () => {
           await refreshThreadCounts();
           // Check if unorganized should be reopened if it was closed
-          const history = getNavigationHistory();
-          const unorganizedInHistory = history.find(i => i.id === 'thread_unorganized');
-          if (!unorganizedInHistory && isItemClosed('thread_unorganized')) {
-            // It's closed, let's get the count and see if we should reopen
-            const response = await fetch('/api/threads/list', { credentials: 'include' });
-            if (response.ok) {
-              const threads = await response.json();
-              const unorganizedThread = threads.find((t: any) => t.id === 'thread_unorganized');
-              if (unorganizedThread && unorganizedThread.noteCount > 0) {
-                // Reopen it
-                addToNavigationHistory({
-                  id: 'thread_unorganized',
-                  title: 'Unorganized',
-                  count: unorganizedThread.noteCount,
-                  backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
-                });
+          // Check auth before making API call
+          if (isAuthReady()) {
+            const history = getNavigationHistory();
+            const unorganizedInHistory = history.find(i => i.id === 'thread_unorganized');
+            if (!unorganizedInHistory && isItemClosed('thread_unorganized')) {
+              // It's closed, let's get the count and see if we should reopen
+              const response = await safeFetch('/api/threads/list');
+              if (response && response.ok) {
+                const threads = await response.json();
+                const unorganizedThread = threads.find((t: any) => t.id === 'thread_unorganized');
+                if (unorganizedThread && unorganizedThread.noteCount > 0) {
+                  // Reopen it
+                  addToNavigationHistory({
+                    id: 'thread_unorganized',
+                    title: 'Unorganized',
+                    count: unorganizedThread.noteCount,
+                    backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+                  });
+                }
               }
             }
           }
