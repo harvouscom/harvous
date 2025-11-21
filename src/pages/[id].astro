@@ -735,7 +735,7 @@ if (!content) {
                       {content.sortedAllItems && content.sortedAllItems.length > 0 ? (
                         content.sortedAllItems.map((item: any, index: number) => (
                           item.itemType === 'thread' ? (
-                            <div class="content-item thread-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
+                            <div class="content-item thread-item mb-3 card-enter" style={`animation-delay: ${index * 50}ms;`}>
                               <a 
                                 href={`/${item.id}`}
                                 class="block transition-transform duration-200 hover:scale-[1.002]"
@@ -751,7 +751,7 @@ if (!content) {
                               </a>
                             </div>
                           ) : (
-                            <div class="content-item note-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
+                            <div class="content-item note-item mb-3 card-enter" style={`animation-delay: ${index * 50}ms;`}>
                               <a 
                                 href={`/${item.id}`}
                                 class="block transition-transform duration-200 hover:scale-[1.002]"
@@ -779,7 +779,7 @@ if (!content) {
                     <div class="organized-content flex flex-col hidden" data-tab-content="threads">
                       {content.threads && content.threads.length > 0 ? (
                         content.threads.map((thread: any, index: number) => (
-                          <div class="content-item thread-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
+                          <div class="content-item thread-item mb-3 card-enter" style={`animation-delay: ${index * 50}ms;`}>
                             <a 
                               href={`/${thread.id}`}
                               class="block transition-transform duration-200 hover:scale-[1.002]"
@@ -806,7 +806,7 @@ if (!content) {
                     <div class="organized-content flex flex-col hidden" data-tab-content="notes">
                       {content.notes && content.notes.length > 0 ? (
                         content.notes.map((note: any, index: number) => (
-                          <div class="content-item note-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
+                          <div class="content-item note-item mb-3 card-enter" style={`animation-delay: ${index * 50}ms;`}>
                             <a 
                               href={`/${note.id}`}
                               class="block transition-transform duration-200 hover:scale-[1.002]"
