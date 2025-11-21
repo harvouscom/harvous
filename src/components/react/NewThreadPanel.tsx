@@ -5,6 +5,7 @@ import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextCo
 import SquareButton from './SquareButton';
 import ChevronDownIcon from '@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg';
 import { captureException } from '@/utils/posthog';
+import { navigate } from 'astro:transitions/client';
 
 interface NewThreadPanelProps {
   currentSpace?: any;
@@ -197,12 +198,11 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             onClose();
           }
           
-          // Refresh the page to show updated thread with URL-based toast
+          // Navigate to show updated thread with URL-based toast using View Transitions
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.set('toast', 'success');
           currentUrl.searchParams.set('message', encodeURIComponent('Thread updated successfully!'));
-          window.history.replaceState({}, '', currentUrl.toString());
-          window.location.reload();
+          navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         } else {
           const errorText = await response.text();
           console.error('NewThreadPanel: API error response:', errorText);

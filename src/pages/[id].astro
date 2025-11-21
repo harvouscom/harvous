@@ -932,15 +932,16 @@ if (!content) {
     }
   };
   
-  // Listen for note thread changes and refresh the page
+  // Listen for note thread changes and refresh the page using View Transitions
   document.addEventListener('noteAddedToThread', async (event) => {
     const { noteId, threadId } = event.detail;
     
     // Check if we're on the affected thread page
     const currentThreadId = window.location.pathname.substring(1);
     if (currentThreadId === threadId) {
-      // Refresh the page to show updated note list
-      window.location.reload();
+      // Navigate using View Transitions to show updated note list
+      const { navigate } = await import('astro:transitions/client');
+      navigate(window.location.pathname + window.location.search, { history: 'replace' });
     }
   });
   
@@ -950,8 +951,9 @@ if (!content) {
     // Check if we're on the affected thread page
     const currentThreadId = window.location.pathname.substring(1);
     if (currentThreadId === threadId) {
-      // Refresh the page to show updated note list
-      window.location.reload();
+      // Navigate using View Transitions to show updated note list
+      const { navigate } = await import('astro:transitions/client');
+      navigate(window.location.pathname + window.location.search, { history: 'replace' });
     }
   });
   

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import CardFeat from './CardFeat';
 import { toast } from '@/utils/toast';
+import { navigate } from 'astro:transitions/client';
 
 interface InboxItem {
   id: string;
@@ -90,12 +91,11 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
           }
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
-          // Reload with URL-based toast
+          // Navigate with URL-based toast using View Transitions
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.set('toast', 'success');
           currentUrl.searchParams.set('message', encodeURIComponent('Added to Harvous'));
-          window.history.replaceState({}, '', currentUrl.toString());
-          window.location.reload();
+          navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         }
       } catch (error) {
         console.error('Error adding to Harvous:', error);
@@ -132,7 +132,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
           }
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
-          // Reload with URL-based toast
+          // Navigate with URL-based toast using View Transitions
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.set('toast', 'success');
           // Use contentType from API response, fallback to items array lookup, then generic message
@@ -143,8 +143,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
             ? 'Note moved to archive' 
             : 'Item archived'; // Fallback if contentType not available
           currentUrl.searchParams.set('message', encodeURIComponent(message));
-          window.history.replaceState({}, '', currentUrl.toString());
-          window.location.reload();
+          navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         }
       } catch (error) {
         console.error('Error archiving:', error);
@@ -181,7 +180,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
           }
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
-          // Reload with URL-based toast
+          // Navigate with URL-based toast using View Transitions
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.set('toast', 'success');
           // Use contentType from API response, fallback to items array lookup, then generic message
@@ -192,8 +191,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
             ? 'Note moved back to inbox' 
             : 'Item unarchived'; // Fallback if contentType not available
           currentUrl.searchParams.set('message', encodeURIComponent(message));
-          window.history.replaceState({}, '', currentUrl.toString());
-          window.location.reload();
+          navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         }
       } catch (error) {
         console.error('Error unarchiving:', error);
