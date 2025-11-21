@@ -598,6 +598,20 @@ let inboxCount: number = 0;
           backgroundGradient: spaceData.backgroundGradient || getThreadGradientCSS(spaceData.color || 'paper')
         };
         
+        // Create combined and sorted array for "All" tab (most recent first)
+        const allItems = [
+          ...spaceThreads.map((thread: any) => ({ ...thread, itemType: 'thread' as const })),
+          ...spaceNotes.map((note: any) => ({ ...note, itemType: 'note' as const }))
+        ].sort((a, b) => {
+          const aTime = a.lastUpdated || a.updatedAt || a.createdAt;
+          const bTime = b.lastUpdated || b.updatedAt || b.createdAt;
+          const aDate = aTime instanceof Date ? aTime : new Date(aTime);
+          const bDate = bTime instanceof Date ? bTime : new Date(bTime);
+          return bDate.getTime() - aDate.getTime(); // Descending order (newest first)
+        });
+        
+        content.sortedAllItems = allItems;
+        
         threads = spaceThreads;
         pageTitle = spaceData.title;
         pageContent = `${spaceData.totalItemCount} items`;
@@ -688,13 +702,13 @@ if (!content) {
           ) : (
             <CardStack 
               title={pageTitle} 
-              subtitle={isThread ? undefined : pageContent} 
+              subtitle={undefined} 
               headerBgColor={
                 isThread && currentThread?.color 
                   ? `var(--color-${currentThread.color})` 
                   : (currentSpace?.color ? `var(--color-${currentSpace.color})` : "var(--color-paper)")
               }
-              centerTitle={isThread}
+              centerTitle={true}
             >
               <div class="flex flex-col gap-6">
                 
@@ -706,50 +720,114 @@ if (!content) {
                   />
                 ) : isSpace && content ? (
                   <div class="flex flex-col gap-3">
-                    {/* Show threads in this space */}
-                    {content.threads && content.threads.length > 0 && content.threads.map((thread: any, index: number) => (
-                      <div class="content-item thread-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
-                        <a 
-                          href={`/${thread.id}`}
-                          class="block transition-transform duration-200 hover:scale-[1.002]"
-                        >
-                          <CardThread 
-                            title={thread.title}
-                            subtitle={thread.subtitle || `${thread.noteCount} notes`}
-                            count={thread.noteCount}
-                            accentColor={thread.accentColor}
-                            lastUpdated={thread.lastUpdated}
-                            isPrivate={!thread.isPublic}
-                          />
-                        </a>
-                      </div>
-                    ))}
+                    {/* Tab Navigation */}
+                    <TabNav 
+                      tabs={[
+                        { id: "all", label: "All", isActive: true },
+                        { id: "threads", label: "Threads", isActive: false },
+                        { id: "notes", label: "Notes", isActive: false }
+                      ]}
+                      class="content-tabs"
+                    />
                     
-                    {/* Show standalone notes in this space */}
-                    {content.notes && content.notes.length > 0 && content.notes.map((note: any, index: number) => (
-                      <div class="content-item note-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
-                        <a 
-                          href={`/${note.id}`}
-                          class="block transition-transform duration-200 hover:scale-[1.002]"
-                        >
-                          <CardNote 
-                            title={note.title || "Untitled Note"}
-                            content={(() => {
-                              const cleanContent = stripHtml(note.content);
-                              return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
-                            })()}
-                            noteType={note.noteType || 'default'}
-                          />
-                        </a>
-                      </div>
-                    ))}
+                    {/* All Content */}
+                    <div class="organized-content flex flex-col" data-tab-content="all">
+                      {content.sortedAllItems && content.sortedAllItems.length > 0 ? (
+                        content.sortedAllItems.map((item: any, index: number) => (
+                          item.itemType === 'thread' ? (
+                            <div class="content-item thread-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
+                              <a 
+                                href={`/${item.id}`}
+                                class="block transition-transform duration-200 hover:scale-[1.002]"
+                              >
+                                <CardThread 
+                                  title={item.title}
+                                  subtitle={item.subtitle || `${item.noteCount} notes`}
+                                  count={item.noteCount}
+                                  accentColor={item.accentColor}
+                                  lastUpdated={item.lastUpdated}
+                                  isPrivate={!item.isPublic}
+                                />
+                              </a>
+                            </div>
+                          ) : (
+                            <div class="content-item note-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
+                              <a 
+                                href={`/${item.id}`}
+                                class="block transition-transform duration-200 hover:scale-[1.002]"
+                              >
+                                <CardNote 
+                                  title={item.title || "Untitled Note"}
+                                  content={(() => {
+                                    const cleanContent = stripHtml(item.content);
+                                    return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
+                                  })()}
+                                  noteType={item.noteType || 'default'}
+                                />
+                              </a>
+                            </div>
+                          )
+                        ))
+                      ) : (
+                        <div class="text-center py-12">
+                          <p class="text-[var(--color-pebble-grey)] text-lg">No content found in this space.</p>
+                        </div>
+                      )}
+                    </div>
                     
-                    {/* Show empty state if no threads and no notes */}
-                    {(!content.threads || content.threads.length === 0) && (!content.notes || content.notes.length === 0) && (
-                      <div class="text-center py-12">
-                        <p class="text-[var(--color-pebble-grey)] text-lg">No content found in this space.</p>
-                      </div>
-                    )}
+                    {/* Threads Only Content */}
+                    <div class="organized-content flex flex-col hidden" data-tab-content="threads">
+                      {content.threads && content.threads.length > 0 ? (
+                        content.threads.map((thread: any, index: number) => (
+                          <div class="content-item thread-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
+                            <a 
+                              href={`/${thread.id}`}
+                              class="block transition-transform duration-200 hover:scale-[1.002]"
+                            >
+                              <CardThread 
+                                title={thread.title}
+                                subtitle={thread.subtitle || `${thread.noteCount} notes`}
+                                count={thread.noteCount}
+                                accentColor={thread.accentColor}
+                                lastUpdated={thread.lastUpdated}
+                                isPrivate={!thread.isPublic}
+                              />
+                            </a>
+                          </div>
+                        ))
+                      ) : (
+                        <div class="text-center py-12">
+                          <p class="text-[var(--color-pebble-grey)] text-lg">No threads found in this space.</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Notes Only Content */}
+                    <div class="organized-content flex flex-col hidden" data-tab-content="notes">
+                      {content.notes && content.notes.length > 0 ? (
+                        content.notes.map((note: any, index: number) => (
+                          <div class="content-item note-item card-enter" style={`animation-delay: ${index * 50}ms;`}>
+                            <a 
+                              href={`/${note.id}`}
+                              class="block transition-transform duration-200 hover:scale-[1.002]"
+                            >
+                              <CardNote 
+                                title={note.title || "Untitled Note"}
+                                content={(() => {
+                                  const cleanContent = stripHtml(note.content);
+                                  return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
+                                })()}
+                                noteType={note.noteType || 'default'}
+                              />
+                            </a>
+                          </div>
+                        ))
+                      ) : (
+                        <div class="text-center py-12">
+                          <p class="text-[var(--color-pebble-grey)] text-lg">No notes found in this space.</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : isThread ? (
                   <div class="text-center py-12">
