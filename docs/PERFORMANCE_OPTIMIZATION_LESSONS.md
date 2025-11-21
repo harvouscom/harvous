@@ -349,3 +349,110 @@ When optimizing performance, always test:
 4. **Database query optimization** - Reduce query complexity, add indexes
 5. **Component lazy loading** - More aggressive use of `client:visible` and `client:idle`
 
+---
+
+## Build Configuration Lessons (January 2025)
+
+### Issue: Performance Optimizations Caused Build Failures
+
+**Context:**
+After implementing comprehensive performance optimizations (lazy loading, React.memo, bundle splitting), the build started failing with cryptic errors:
+- `Cannot access 'ASTRO_VERSION' before initialization` (temporal dead zone error)
+- `Uncaught ReferenceError: __DEFINES__ is not defined` (runtime error)
+
+**Root Causes Identified:**
+
+#### 1. Complex `manualChunks` Function Breaks Astro's Internal Bundling
+
+**Problem:**
+- Implemented a complex `manualChunks` function with route-based splitting
+- Function included conditional logic for React, Tiptap, Clerk, Font Awesome, and route-based chunks
+- This interfered with how Astro bundles its own internal code
+
+**Error:**
+```
+Cannot access 'ASTRO_VERSION' before initialization
+```
+
+**Solution:**
+- Reverted to simple `manualChunks` object: `{ editor: ['isomorphic-dompurify'] }`
+- Removed all route-based and complex vendor splitting logic
+
+**Lesson Learned:**
+> **Be cautious with complex bundle splitting in Astro.** Astro's internal code needs to be bundled correctly, and overly complex `manualChunks` functions can interfere with how Astro bundles itself. Start simple and only add complexity if needed and tested.
+
+#### 2. Vite `define` Section Conflicts with Astro's Environment Variables
+
+**Problem:**
+- Added a `define` section in `astro.config.mjs` to "fix MIME type issues"
+- Included `_DEFINES_: JSON.stringify({})` and environment variable overrides
+- This conflicted with Astro's internal environment variable handling
+
+**Error:**
+```
+Uncaught ReferenceError: __DEFINES__ is not defined
+at env.mjs:12:17
+```
+
+**Solution:**
+- Removed the entire `define` section from `astro.config.mjs`
+- Let Astro handle environment variables internally (it does this automatically)
+
+**Lesson Learned:**
+> **Don't override Astro's internal mechanisms.** Astro handles environment variables and defines automatically. Adding manual `define` overrides can break Astro's internal code that expects specific patterns. Only add `define` if you have a specific, tested need.
+
+#### 3. When to Revert vs. Debug
+
+**Problem:**
+- Multiple build errors after performance optimizations
+- Errors were cryptic and hard to debug
+- Time spent debugging could have been better used
+
+**Solution:**
+- Reverted to a known working commit (`9f357da`)
+- Selectively preserved improvements (toast styles) that didn't cause issues
+- Documented what broke so we can avoid it in the future
+
+**Lesson Learned:**
+> **Sometimes reverting is the right call.** If optimizations introduce build-breaking errors and debugging is taking too long, revert to a working state. You can always re-implement optimizations more carefully later. It's better to have a working app than a broken one with great performance.
+
+#### 4. Selective Preservation When Reverting
+
+**What We Did:**
+- Reverted all files to working commit `9f357da`
+- Preserved toast style improvements from commit `48ee0ec` (min-width: 0, width: 75% for mobile)
+- This gave us a working state with the improvements we wanted to keep
+
+**Lesson Learned:**
+> **Cherry-pick improvements when reverting.** Not all changes in a problematic commit are bad. When reverting, identify what works and preserve it. Use `git show <commit>:<file>` to extract specific changes.
+
+### Build Configuration Best Practices
+
+1. **Test builds after every optimization** - Run `npm run build` before committing
+2. **Start simple with bundle splitting** - Use simple `manualChunks` objects before complex functions
+3. **Don't override Astro internals** - Avoid `define` sections unless absolutely necessary
+4. **Version compatibility matters** - Ensure Astro and adapter versions are compatible
+5. **Keep optimizations incremental** - Make one optimization at a time, test, then move on
+
+### What We Reverted
+
+The following optimizations were reverted because they caused build errors:
+- Complex `manualChunks` function with route-based splitting
+- Vite `define` section for environment variables
+- Lazy loading components (TiptapEditorLazy, etc.)
+- React.memo optimizations
+- Error Boundaries
+- Performance monitoring utilities
+- Hydration tracking hooks
+
+**Note:** These optimizations may be re-implemented in the future, but with more careful testing and simpler approaches.
+
+### What We Preserved
+
+- Toast style improvements (mobile responsiveness)
+- All other working functionality from the base commit
+
+### Key Takeaway
+
+> **Performance optimizations are great, but a working build is essential.** Always test builds after configuration changes, and be prepared to revert if optimizations break core functionality. It's better to have a slightly slower working app than a fast broken one.
+
