@@ -7,8 +7,20 @@ import SquareButton from "@/components/SquareButton.astro";
 <EmptyLayout title="Sign Up">
   <div class="min-h-[100svh] max-h-[100svh] p-3 flex flex-col">
     <div class="flex-1 flex flex-col lg:flex-row gap-6">
-      <!-- Top Row (Mobile) / Left Column (Desktop): Thread Colors Mesh Gradient -->
+      <!-- Top Row (Mobile) / Left Column (Desktop): Video Background -->
       <div class="flex flex-1 thread-colors-mesh-gradient relative overflow-hidden rounded-[12px]">
+        <!-- Video background -->
+        <video 
+          autoplay 
+          loop 
+          muted 
+          playsinline
+          class="absolute inset-0 w-full h-full object-cover"
+          aria-hidden="true"
+        >
+          <source src="/videos/harvous-harvest.mp4" type="video/mp4" />
+        </video>
+        
         <div class="relative z-10 flex flex-col p-3 w-full h-full">
           <!-- Back to home link using SquareButton Back variant -->
           <a href="https://harvous.com" class="block w-fit">
@@ -134,78 +146,10 @@ import SquareButton from "@/components/SquareButton.astro";
     gap: 12px !important;
   }
 
-  /* Mesh gradient using all thread colors with subtle movement */
+  /* Video background container */
   .thread-colors-mesh-gradient {
     position: relative;
     overflow: hidden;
-  }
-
-  .thread-colors-mesh-gradient::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: 
-      radial-gradient(circle at 20% 30%, var(--color-blue) 0%, transparent 50%),
-      radial-gradient(circle at 80% 20%, var(--color-purple) 0%, transparent 50%),
-      radial-gradient(circle at 40% 70%, var(--color-pink) 0%, transparent 50%),
-      radial-gradient(circle at 60% 80%, var(--color-orange) 0%, transparent 50%),
-      radial-gradient(circle at 10% 60%, var(--color-yellow) 0%, transparent 50%),
-      radial-gradient(circle at 90% 50%, var(--color-green) 0%, transparent 50%);
-    background-size: 100% 100%;
-    animation: mesh-movement 8s ease-in-out infinite;
-    opacity: 0.8;
-  }
-
-  .thread-colors-mesh-gradient::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: 
-      radial-gradient(circle at 70% 40%, var(--color-pink) 0%, transparent 40%),
-      radial-gradient(circle at 30% 90%, var(--color-yellow) 0%, transparent 40%),
-      radial-gradient(circle at 50% 10%, var(--color-blue) 0%, transparent 40%),
-      radial-gradient(circle at 15% 50%, var(--color-green) 0%, transparent 40%),
-      radial-gradient(circle at 85% 70%, var(--color-purple) 0%, transparent 40%),
-      radial-gradient(circle at 60% 30%, var(--color-orange) 0%, transparent 40%);
-    background-size: 100% 100%;
-    animation: mesh-movement-reverse 10s ease-in-out infinite;
-    opacity: 0.6;
-  }
-
-  @keyframes mesh-movement {
-    0%, 100% {
-      transform: translate(0, 0) scale(1);
-    }
-    25% {
-      transform: translate(5%, 3%) scale(1.05);
-    }
-    50% {
-      transform: translate(-3%, 5%) scale(1.1);
-    }
-    75% {
-      transform: translate(3%, -2%) scale(1.05);
-    }
-  }
-
-  @keyframes mesh-movement-reverse {
-    0%, 100% {
-      transform: translate(0, 0) scale(1);
-    }
-    25% {
-      transform: translate(-4%, -3%) scale(1.08);
-    }
-    50% {
-      transform: translate(4%, -5%) scale(1.12);
-    }
-    75% {
-      transform: translate(-2%, 3%) scale(1.06);
-    }
   }
 
   /* Ensure SquareButton Back variant has proper shadow styling */
