@@ -156,11 +156,11 @@ export default function AddToSpaceSection({
       return bTime - aTime; // Newest first
     });
 
-    // Take top 8 for recent items
-    const recent = sortedItems.slice(0, 8);
+    // Take top 3 for recent items
+    const recent = sortedItems.slice(0, 3);
     
     // Remaining items go to other items (also sorted by updatedAt)
-    const others = sortedItems.slice(8);
+    const others = sortedItems.slice(3);
 
     return {
       recentItems: recent,
