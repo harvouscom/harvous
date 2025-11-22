@@ -259,6 +259,59 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
 <!-- Service Worker Registration for PWA -->
 <script is:inline src="/scripts/service-worker-manager.js"></script>
 
+<!-- Pre-caching for offline reading -->
+<script>
+  import { precacheRecentContent } from '@/utils/precache-user-data';
+  
+  if (typeof window !== 'undefined') {
+    // Check if already precached this session
+    if (!sessionStorage.getItem('harvous-precached')) {
+      // Helper to check if auth is ready
+      function isAuthReady() {
+        const cookies = document.cookie.split(';');
+        const hasClerkCookie = cookies.some(cookie => 
+          cookie.trim().startsWith('__clerk') || 
+          cookie.trim().startsWith('__session')
+        );
+        const isProtectedRoute = !window.location.pathname.includes('/sign-in') && 
+                                !window.location.pathname.includes('/sign-up');
+        return hasClerkCookie || isProtectedRoute;
+      }
+      
+      // Wait for auth to be ready, then pre-cache
+      const checkAuthAndPrecache = () => {
+        if (isAuthReady()) {
+          // Use idle callback to avoid blocking page load
+          if ('requestIdleCallback' in window) {
+            requestIdleCallback(() => {
+              precacheRecentContent().then(() => {
+                sessionStorage.setItem('harvous-precached', 'true');
+              }).catch(err => {
+                console.warn('Pre-caching failed:', err);
+              });
+            }, { timeout: 5000 });
+          } else {
+            // Fallback for browsers without requestIdleCallback
+            setTimeout(() => {
+              precacheRecentContent().then(() => {
+                sessionStorage.setItem('harvous-precached', 'true');
+              }).catch(err => {
+                console.warn('Pre-caching failed:', err);
+              });
+            }, 2000);
+          }
+        } else {
+          // Retry after delay if auth not ready yet
+          setTimeout(checkAuthAndPrecache, 1000);
+        }
+      };
+      
+      // Start checking after a short delay to let page load
+      setTimeout(checkAuthAndPrecache, 500);
+    }
+  }
+</script>
+
 <!-- Global Alpine.js re-initialization for View Transitions -->
 <script>
   // Simple Alpine.js re-initialization after View Transitions

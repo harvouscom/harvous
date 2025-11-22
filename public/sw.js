@@ -1,11 +1,11 @@
 // Service Worker for Harvous PWA
 // Improves initial load and re-engagement performance
 
-const CACHE_NAME = 'harvous-cache-v4'; // Increment version to invalidate old cache
+const CACHE_NAME = 'harvous-cache-v5'; // Increment version to invalidate old cache
 const OFFLINE_URL = '/';
-const NAV_API_CACHE = 'harvous-nav-api-v2'; // Increment version to invalidate old cache
-const CACHE_MAX_AGE = 30 * 60 * 1000; // 30 minutes for navigation API
-const PAGE_CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes for page cache
+const NAV_API_CACHE = 'harvous-nav-api-v3'; // Increment version to invalidate old cache
+const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours for navigation API
+const PAGE_CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours for page cache
 
 // Resources to pre-cache for faster initial load
 // Note: Removed '/dashboard' to prevent auth conflicts - authenticated routes should use network-first
@@ -323,11 +323,19 @@ self.addEventListener('fetch', (event) => {
               if (cachedResponse) {
                 return cachedResponse;
               }
-              // No cache at all - return error
-              return new Response('Network error', {
-                status: 503,
-                statusText: 'Service Unavailable'
-              });
+              // Try to serve cached dashboard first
+              return caches.match('/dashboard')
+                .then(cachedDashboard => {
+                  if (cachedDashboard) {
+                    // Return cached dashboard with offline indicator
+                    return cachedDashboard;
+                  }
+                  // Fallback to offline page
+                  return caches.match(OFFLINE_URL) || new Response('Network error', {
+                    status: 503,
+                    statusText: 'Service Unavailable'
+                  });
+                });
             });
         })
     );
@@ -356,9 +364,15 @@ self.addEventListener('fetch', (event) => {
               return cachedResponse;
             }
             
-            // If it's a navigation, serve the offline page
+            // If it's a navigation, try cached dashboard first, then offline page
             if (event.request.mode === 'navigate') {
-              return caches.match(OFFLINE_URL);
+              return caches.match('/dashboard')
+                .then(cachedDashboard => {
+                  if (cachedDashboard) {
+                    return cachedDashboard;
+                  }
+                  return caches.match(OFFLINE_URL);
+                });
             }
             
             // Otherwise, return a 404-like response

@@ -52,6 +52,18 @@ All features documented here are **deferred to v1.1+** (post-V1 launch). The arc
   - Use cases for each
   - Implementation status
 
+### User Experience
+
+- **`OFFLINE_MODE_IMPLEMENTATION.md`** - Complete offline mode architecture
+  - Full offline read/write support with IndexedDB
+  - Data synchronization strategies
+  - Conflict resolution approaches
+  - Dexie.js implementation guide
+  - UI/UX considerations (offline indicators, sync status, conflict resolution)
+  - 4-week implementation plan
+  - Storage limits and data pruning strategies
+  - Note: Enhanced caching (24-hour TTL + pre-caching) is already implemented in V1
+
 ## 🎯 Implementation Priority
 
 ### Phase 1: Public Share Links (High Priority)
@@ -68,6 +80,12 @@ All features documented here are **deferred to v1.1+** (post-V1 launch). The arc
 - Real-time group study
 - Enhanced shared spaces
 - Better collaboration features
+
+### Phase 4: Full Offline Mode (User Experience)
+- Offline read/write support
+- Data synchronization
+- Conflict resolution
+- Enhanced user experience for mobile users
 
 ## 🗄️ Database Schema
 

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, eq, desc } from 'astro:db';
 
-export const GET: APIRoute = async ({ locals }) => {
+export const GET: APIRoute = async ({ request, locals }) => {
   try {
     const { userId } = locals.auth();
     
@@ -11,6 +11,12 @@ export const GET: APIRoute = async ({ locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
+
+    // Get limit from query parameter, default to 50, max 100
+    const url = new URL(request.url);
+    const limitParam = url.searchParams.get('limit');
+    const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;
+    const maxLimit = Math.max(1, limit); // Ensure at least 1
 
     // Fetch recent notes for the user
     const notes = await db
@@ -29,7 +35,7 @@ export const GET: APIRoute = async ({ locals }) => {
       .from(Notes)
       .where(eq(Notes.userId, userId))
       .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt))
-      .limit(10);
+      .limit(maxLimit);
 
     // Format the response
     const formattedNotes = notes.map(note => ({
