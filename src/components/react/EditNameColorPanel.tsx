@@ -86,6 +86,9 @@ export default function EditNameColorPanel({
     loadUserData();
   }, []);
 
+  // Note: Header resize handling is now done by ProfileCardStackHeader React component
+  // which manages its own state and persists across resizes automatically
+
   const loadUserData = async () => {
     console.log('📥 EditNameColorPanel: loadUserData called');
     setIsLoading(true);
@@ -210,10 +213,15 @@ export default function EditNameColorPanel({
 
         // Update all avatars on the page
         const newInitials = `${formData.firstName.charAt(0) || ''}${formData.lastName.charAt(0) || ''}`.toUpperCase();
+        const newDisplayName = `${formData.firstName.trim()} ${formData.lastName.trim().charAt(0)}`.trim();
+        
         if ((window as any).updateAllAvatars) {
           const result = await (window as any).updateAllAvatars(formData.selectedColor, newInitials);
           console.log(`✅ EditNameColorPanel: Updated ${result.updatedCount} avatars`);
         }
+
+        // Note: Header update is now handled by ProfileCardStackHeader React component
+        // which listens for the updateProfile event and updates reactively
 
         // Update unified cache with saved data
         updateCachedProfileData({
@@ -236,7 +244,7 @@ export default function EditNameColorPanel({
           lastName: formData.lastName.trim(),
           color: formData.selectedColor,
           initials: newInitials,
-          displayName: `${formData.firstName.trim()} ${formData.lastName.trim().charAt(0)}`.trim(),
+          displayName: newDisplayName,
           timestamp: Date.now()
         }));
 

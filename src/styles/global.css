@@ -66,6 +66,39 @@
     0px 1px 0px 0px #78766F33 inset;
 }
 
+/* Profile header color fallback using data attribute - !important to override server-rendered styles */
+#profile-cardstack > div:first-child[data-profile-color] {
+  background-color: var(--color-blue) !important;
+}
+
+#profile-cardstack > div:first-child[data-profile-color="blue"] {
+  background-color: var(--color-blue) !important;
+}
+
+#profile-cardstack > div:first-child[data-profile-color="yellow"] {
+  background-color: var(--color-yellow) !important;
+}
+
+#profile-cardstack > div:first-child[data-profile-color="green"] {
+  background-color: var(--color-green) !important;
+}
+
+#profile-cardstack > div:first-child[data-profile-color="pink"] {
+  background-color: var(--color-pink) !important;
+}
+
+#profile-cardstack > div:first-child[data-profile-color="orange"] {
+  background-color: var(--color-orange) !important;
+}
+
+#profile-cardstack > div:first-child[data-profile-color="purple"] {
+  background-color: var(--color-purple) !important;
+}
+
+#profile-cardstack > div:first-child[data-profile-color="paper"] {
+  background-color: var(--color-paper) !important;
+}
+
 /* Text selection styles - vibrant highlighter yellow */
 /* Using #FFEB3B (Yellow) at 40% opacity for realistic highlighter effect */
 /* Include webkit prefix for iOS Safari compatibility */

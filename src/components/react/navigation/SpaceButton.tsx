@@ -141,7 +141,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       >
         <div className="flex items-center justify-start relative w-full h-full pl-2 pr-2 transition-transform duration-125 min-w-0">
           <div className="flex-1 min-w-0 overflow-hidden text-left">
-            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`} style={{textAlign: 'left'}}>
+            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`} style={{textAlign: 'left'}}>
               {text}
             </span>
           </div>

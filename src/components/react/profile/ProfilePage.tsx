@@ -74,27 +74,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     }
   };
 
-  // Function to update the CardStack header color and title
-  const updateCardStackHeader = (color: string, displayName: string) => {
-    const cardStack = document.getElementById('profile-cardstack');
-    if (cardStack) {
-      // Find the header div (first child div with style attribute)
-      const headerElement = cardStack.querySelector('div[style*="background-color"]') as HTMLElement | null;
-      if (headerElement) {
-        // Update the background color
-        headerElement.style.backgroundColor = `var(--color-${color})`;
-        // Text color is always deep-grey for all thread colors
-        headerElement.style.color = 'var(--color-deep-grey)';
-      }
-      
-      // Update the title text (p tag inside the header)
-      const titleElement = cardStack.querySelector('p');
-      if (titleElement) {
-        titleElement.textContent = displayName;
-      }
-    }
-  };
-
   const handleProfileUpdateRequest = async (detail: { firstName: string; lastName: string; color: string; }) => {
     console.log('React component: updateProfileRequest received:', detail);
     try {
@@ -127,8 +106,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             initials: newInitials
         });
 
-        // Update the CardStack header immediately
-        updateCardStackHeader(color, newDisplayName);
+        // ProfileCardStackHeader component will handle header updates via updateProfile event
 
         // @ts-ignore
         if (window.updateAllAvatars) {
@@ -249,8 +227,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             lastName: cached.lastName,
             initials: newInitials,
         });
-        // Update the CardStack header immediately
-        updateCardStackHeader(cached.userColor, newDisplayName);
+        // ProfileCardStackHeader component will handle header updates
     } else {
         // Fallback: Check legacy sessionStorage for backward compatibility
         const storedProfileData = sessionStorage.getItem('userProfileData');
@@ -265,8 +242,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
                     lastName: parsedData.lastName,
                     initials: parsedData.initials,
                 });
-                // Update the CardStack header immediately
-                updateCardStackHeader(parsedData.color, parsedData.displayName);
+                // ProfileCardStackHeader component will handle header updates
                 
                 // Migrate to unified cache
                 updateCachedProfileData({
@@ -295,8 +271,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
                 lastName: detail.lastName,
                 initials: `${detail.firstName.charAt(0) || ''}${detail.lastName.charAt(0) || ''}`.toUpperCase(),
             });
-            // Update the CardStack header immediately
-            updateCardStackHeader(newColor, newDisplayName);
+            
+            // ProfileCardStackHeader component will handle header updates
             
             // Update unified cache
             updateCachedProfileData({

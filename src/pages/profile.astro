@@ -10,6 +10,7 @@ import { getThreadGradientCSS } from "@/utils/colors";
 import { getCachedUserData, type CachedUserData } from '@/utils/user-cache';
 import ProfilePageReact from "@/components/ProfilePageReact.astro";
 import ProfileContent from "@/components/profile/ProfileContent.astro";
+import ProfileCardStackHeader from "@/components/react/ProfileCardStackHeader.tsx";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -116,12 +117,16 @@ const contentId = "profile";
     <div class="flex flex-col h-full">
       <div class="flex-1 min-h-0">
         <CardStack 
-          title={displayName}
-          headerBgColor={`var(--color-${userColor})`}
           centerTitle={true}
           class="h-full"
           id="profile-cardstack"
         >
+          <ProfileCardStackHeader 
+            slot="header"
+            initialColor={userColor}
+            initialDisplayName={displayName}
+            client:load
+          />
           <ProfileContent joinDate={joinDate} userXP={userXP} />
         </CardStack>
       </div>

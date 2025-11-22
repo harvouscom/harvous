@@ -67,6 +67,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [updatedCurrentThread, setUpdatedCurrentThread] = useState(currentThread);
   // Track which items are in "close mode" (showing close icon instead of badge)
   const [itemsInCloseMode, setItemsInCloseMode] = useState<Set<string>>(new Set());
+  // Profile data state for avatar updates
+  const [profileData, setProfileData] = useState({
+    initials: initials,
+    userColor: userColor,
+  });
 
   // Sync updatedCurrentThread when currentThread prop changes
   useEffect(() => {
@@ -194,6 +199,26 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
     };
   }, [currentThread, isClient]);
+
+  // Listen for profile updates to update avatar
+  useEffect(() => {
+    const handleProfileUpdate = (event: CustomEvent) => {
+      const { firstName, lastName, selectedColor } = event.detail;
+      if (firstName && lastName && selectedColor) {
+        const newInitials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase();
+        setProfileData({
+          initials: newInitials,
+          userColor: selectedColor
+        });
+      }
+    };
+
+    window.addEventListener('updateProfile', handleProfileUpdate as EventListener);
+
+    return () => {
+      window.removeEventListener('updateProfile', handleProfileUpdate as EventListener);
+    };
+  }, []);
   
   // Determine what the current active thread/space is - only on client
   const getCurrentActiveItemId = () => {
@@ -654,7 +679,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       {/* Avatar (Column 3: auto) */}
       <div className="flex items-center justify-center h-[64px]">
         <a href="/profile">
-          <Avatar initials={initials} color={userColor} id="mobile-navigation-avatar" />
+          <Avatar initials={profileData.initials} color={profileData.userColor} id="mobile-navigation-avatar" />
         </a>
       </div>
 
