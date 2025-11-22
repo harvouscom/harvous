@@ -2,6 +2,7 @@ import { Mark } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from 'prosemirror-state';
 import { ReplaceStep } from 'prosemirror-transform';
 import { Slice, Fragment } from 'prosemirror-model';
+import { navigate } from 'astro:transitions/client';
 
 export interface ScripturePillOptions {
   HTMLAttributes: Record<string, any>;
@@ -750,7 +751,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           }
           
           // Navigate to note (either original or recreated)
-          window.location.href = `/${targetNoteId}`;
+          navigate(`/${targetNoteId}`, { history: 'replace' });
           return true;
         }
 
@@ -894,7 +895,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
               console.error('Error checking/restoring note:', error);
             }
             
-            window.location.href = `/${targetNoteId}`;
+            navigate(`/${targetNoteId}`, { history: 'replace' });
             return true;
           }
         }

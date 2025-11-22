@@ -301,7 +301,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
               const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
               // Add a small delay to ensure localStorage is updated before navigation
               setTimeout(() => {
-                window.location.href = redirectUrl;
+                navigate(redirectUrl, { history: 'replace' });
               }, 50);
             }
           }
@@ -564,7 +564,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                                   title={note.title}
                                   content={note.content}
                                   onClick={() => {
-                                    window.location.href = `/note_${note.id}`;
+                                    navigate(`/note_${note.id}`, { history: 'replace' });
                                   }}
                                 />
                               ))}

@@ -12,6 +12,7 @@ import { BoldCustom } from './TiptapBoldCustom.ts';
 import { HighlightCustom } from './TiptapHighlightCustom.ts';
 import ButtonSmall from './ButtonSmall';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
+import { navigate } from 'astro:transitions/client';
 
 // Define a global toast function
 declare global {
@@ -1370,7 +1371,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (noteId) {
           event.preventDefault();
           event.stopPropagation();
-          window.location.href = `/${noteId}`;
+          navigate(`/${noteId}`, { history: 'replace' });
         }
       }
     };

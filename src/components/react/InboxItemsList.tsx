@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import CardFeat from './CardFeat';
 import { toast } from '@/utils/toast';
 import { navigate } from 'astro:transitions/client';
@@ -26,6 +26,43 @@ interface InboxItemsListProps {
 }
 
 export default function InboxItemsList({ items, onItemAdded, onItemArchived }: InboxItemsListProps) {
+  const [filteredItems, setFilteredItems] = useState<InboxItem[]>(items);
+
+  // Update filtered items when items prop changes
+  useEffect(() => {
+    setFilteredItems(items);
+  }, [items]);
+
+  // Listen for deletion events to optimistically remove items
+  useEffect(() => {
+    const handleNoteDeleted = (event: CustomEvent) => {
+      const { noteId } = event.detail;
+      if (noteId) {
+        setFilteredItems(prev => prev.filter(item => 
+          // Check both item.id and item.noteId to handle different ID formats
+          item.id !== noteId && item.noteId !== noteId
+        ));
+      }
+    };
+
+    const handleThreadDeleted = (event: CustomEvent) => {
+      const { threadId } = event.detail;
+      if (threadId) {
+        setFilteredItems(prev => prev.filter(item => 
+          // Check both item.id and item.threadId to handle different ID formats
+          item.id !== threadId && item.threadId !== threadId
+        ));
+      }
+    };
+
+    window.addEventListener('noteDeleted', handleNoteDeleted as EventListener);
+    window.addEventListener('threadDeleted', handleThreadDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
+      window.removeEventListener('threadDeleted', handleThreadDeleted as EventListener);
+    };
+  }, []);
 
   const handleItemClick = async (item: InboxItem, e: React.MouseEvent) => {
     e.preventDefault();
@@ -281,7 +318,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
   return (
     <>
       <div className="flex gap-3 overflow-auto">
-        {items.map((item, index) => (
+        {filteredItems.map((item, index) => (
           <div
             key={item.id}
             className="inbox-item-enter"

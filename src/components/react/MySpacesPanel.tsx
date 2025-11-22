@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import SquareButton from './SquareButton';
 import SearchInput from './SearchInput';
 import { getThreadGradientCSS } from '@/utils/colors';
+import { navigate } from 'astro:transitions/client';
 
 interface Space {
   id: string;
@@ -198,12 +199,8 @@ export default function MySpacesPanel({
   const handleSpaceClick = (spaceId: string) => {
     const spacePath = `/${spaceId}`;
     
-    // Use Astro's navigate function if available (for View Transitions)
-    if ((window as any).astroNavigate) {
-      (window as any).astroNavigate(spacePath);
-    } else {
-      window.location.href = spacePath;
-    }
+    // Use View Transitions for smooth navigation
+    navigate(spacePath, { history: 'replace' });
   };
 
   // Render space item in AddToSpaceSection style

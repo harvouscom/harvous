@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TiptapEditor, { convertScriptureReferencesToPills } from './TiptapEditor';
 import ButtonSmall from './ButtonSmall';
+import { navigate } from 'astro:transitions/client';
 
 interface CardFullEditableProps {
   title: string;
@@ -536,7 +537,7 @@ export default function CardFullEditable({
           console.error('Error checking/restoring note:', error);
         }
         
-        window.location.href = `/${targetNoteId}`;
+        navigate(`/${targetNoteId}`, { history: 'replace' });
         return;
       }
     }

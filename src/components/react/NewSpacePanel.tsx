@@ -7,6 +7,7 @@ import { captureException } from '@/utils/posthog';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import ActionButton from './ActionButton';
+import { navigate } from 'astro:transitions/client';
 
 interface Note {
   id: string;
@@ -238,11 +239,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
             const redirectUrl = `/${result.space.id}?toast=success&message=${encodeURIComponent('Space created successfully!')}`;
             // Add a small delay to ensure localStorage is updated before navigation
             setTimeout(() => {
-              if ((window as any).astroNavigate) {
-                (window as any).astroNavigate(redirectUrl);
-              } else {
-                window.location.href = redirectUrl;
-              }
+              navigate(redirectUrl, { history: 'replace' });
             }, 100);
           }
         }

@@ -1,4 +1,5 @@
 import { Mark } from '@tiptap/core';
+import { navigate } from 'astro:transitions/client';
 
 export interface NoteLinkOptions {
   HTMLAttributes: Record<string, any>;
@@ -107,7 +108,7 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
         if (noteId) {
           event.preventDefault();
           // Navigate to note using Astro view transitions
-          window.location.href = `/${noteId}`;
+          navigate(`/${noteId}`, { history: 'replace' });
           return true;
         }
 
@@ -117,7 +118,7 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
           const clickedNoteId = target.getAttribute('data-note-id');
           if (clickedNoteId) {
             event.preventDefault();
-            window.location.href = `/${clickedNoteId}`;
+            navigate(`/${clickedNoteId}`, { history: 'replace' });
             return true;
           }
         }

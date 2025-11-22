@@ -28,10 +28,20 @@ export default function InfiniteScrollList<T>({
   const loadingRef = useRef(false);
 
   // Reset items when initialItems change (e.g., on page navigation)
+  // Use a ref to track the previous initialItems to avoid unnecessary updates
+  const prevInitialItemsRef = useRef<string>('');
+  
   useEffect(() => {
-    setItems(initialItems);
-    setHasMore(initialItems.length >= limit);
-    setError(null);
+    // Create a stable key from initialItems to detect actual changes
+    const itemsKey = JSON.stringify(initialItems.map((item: any) => item.id || item));
+    
+    // Only update if items actually changed (not just reference)
+    if (itemsKey !== prevInitialItemsRef.current) {
+      setItems(initialItems);
+      setHasMore(initialItems.length >= limit);
+      setError(null);
+      prevInitialItemsRef.current = itemsKey;
+    }
   }, [initialItems, limit]);
 
   const handleLoadMore = useCallback(async () => {

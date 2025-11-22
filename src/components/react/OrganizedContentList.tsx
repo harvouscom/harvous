@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
 import CardThread from './CardThread';
@@ -27,7 +27,69 @@ export default function OrganizedContentList({
   initialItems, 
   filter = 'all' 
 }: OrganizedContentListProps) {
-  const loadMore = async (offset: number, limit: number) => {
+  const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
+  const deletedItemIdsRef = useRef<Set<string>>(new Set());
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    deletedItemIdsRef.current = deletedItemIds;
+  }, [deletedItemIds]);
+
+  // Listen for deletion events to track deleted items
+  useEffect(() => {
+    const handleNoteDeleted = (event: CustomEvent) => {
+      const { noteId } = event.detail;
+      if (noteId) {
+        setDeletedItemIds(prev => {
+          const newSet = new Set([...prev, noteId]);
+          deletedItemIdsRef.current = newSet;
+          return newSet;
+        });
+      }
+    };
+
+    const handleThreadDeleted = (event: CustomEvent) => {
+      const { threadId } = event.detail;
+      if (threadId) {
+        setDeletedItemIds(prev => {
+          const newSet = new Set([...prev, threadId]);
+          deletedItemIdsRef.current = newSet;
+          return newSet;
+        });
+      }
+    };
+
+    const handleSpaceDeleted = (event: CustomEvent) => {
+      const { spaceId } = event.detail;
+      if (spaceId) {
+        // When a space is deleted, we need to remove all threads/notes that belong to it
+        // This is handled by filtering in the loadMore function
+        setDeletedItemIds(prev => {
+          const newSet = new Set([...prev, spaceId]);
+          deletedItemIdsRef.current = newSet;
+          return newSet;
+        });
+      }
+    };
+
+    window.addEventListener('noteDeleted', handleNoteDeleted as EventListener);
+    window.addEventListener('threadDeleted', handleThreadDeleted as EventListener);
+    window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
+      window.removeEventListener('threadDeleted', handleThreadDeleted as EventListener);
+      window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
+    };
+  }, []);
+
+  // Filter out deleted items from initialItems
+  const filteredInitialItems = initialItems.filter(item => {
+    // Use item.id as the primary identifier (it's always present)
+    return !deletedItemIds.has(item.id);
+  });
+
+  const loadMore = useCallback(async (offset: number, limit: number) => {
     const url = new URL('/api/content/load-more', window.location.origin);
     url.searchParams.set('offset', offset.toString());
     url.searchParams.set('limit', limit.toString());
@@ -42,11 +104,16 @@ export default function OrganizedContentList({
     }
 
     const data = await response.json();
+    // Filter out deleted items from loaded items using ref to get latest state
+    const filteredItems = data.items.filter((item: OrganizedContentItem) => {
+      // Use item.id as the primary identifier (it's always present)
+      return !deletedItemIdsRef.current.has(item.id);
+    });
     return {
-      items: data.items,
+      items: filteredItems,
       hasMore: data.hasMore
     };
-  };
+  }, [filter]);
 
   const renderItem = (item: OrganizedContentItem, index: number) => {
     const href = item.type === 'thread' 
@@ -88,7 +155,7 @@ export default function OrganizedContentList({
 
   return (
     <InfiniteScrollList
-      initialItems={initialItems}
+      initialItems={filteredInitialItems}
       loadMore={loadMore}
       renderItem={renderItem}
       itemKey={(item) => item.id}

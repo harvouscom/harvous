@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { navigate } from 'astro:transitions/client';
 import EraseConfirmDialog from './EraseConfirmDialog';
 
 export interface MenuOption {
@@ -247,7 +248,8 @@ export default function Menu({
           // For threads and spaces, redirect to dashboard
           redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
         }
-        window.location.href = redirectUrl;
+        // Use View Transitions instead of hard redirect to maintain React state
+        navigate(redirectUrl, { history: 'replace' });
       } else {
         // Show error toast immediately (no redirect on error)
         console.error('Delete failed:', data.error);

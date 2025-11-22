@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
 
@@ -38,7 +38,39 @@ export default function ThreadNotesList({
   initialNotes, 
   threadId 
 }: ThreadNotesListProps) {
-  const loadMore = async (offset: number, limit: number) => {
+  const [deletedNoteIds, setDeletedNoteIds] = useState<Set<string>>(new Set());
+  const deletedNoteIdsRef = useRef<Set<string>>(new Set());
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    deletedNoteIdsRef.current = deletedNoteIds;
+  }, [deletedNoteIds]);
+
+  // Listen for note deletion events
+  useEffect(() => {
+    const handleNoteDeleted = (event: CustomEvent) => {
+      const { noteId, threadId: deletedThreadId } = event.detail;
+      // Only remove if the note belongs to this thread or if threadId matches
+      if (noteId && (deletedThreadId === threadId || !deletedThreadId)) {
+        setDeletedNoteIds(prev => {
+          const newSet = new Set([...prev, noteId]);
+          deletedNoteIdsRef.current = newSet;
+          return newSet;
+        });
+      }
+    };
+
+    window.addEventListener('noteDeleted', handleNoteDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
+    };
+  }, [threadId]);
+
+  // Filter out deleted notes from initialNotes
+  const filteredInitialNotes = initialNotes.filter(note => !deletedNoteIds.has(note.id));
+
+  const loadMore = useCallback(async (offset: number, limit: number) => {
     const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
     url.searchParams.set('offset', offset.toString());
     url.searchParams.set('limit', limit.toString());
@@ -52,11 +84,13 @@ export default function ThreadNotesList({
     }
 
     const data = await response.json();
+    // Filter out deleted notes from loaded notes using ref to get latest state
+    const filteredNotes = data.notes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
     return {
-      items: data.notes,
+      items: filteredNotes,
       hasMore: data.hasMore
     };
-  };
+  }, [threadId]);
 
   const renderItem = (note: Note, index: number) => {
     const cleanContent = stripHtml(note.content);
@@ -83,7 +117,7 @@ export default function ThreadNotesList({
 
   return (
     <InfiniteScrollList
-      initialItems={initialNotes}
+      initialItems={filteredInitialNotes}
       loadMore={loadMore}
       renderItem={renderItem}
       itemKey={(note) => note.id}

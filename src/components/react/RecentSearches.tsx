@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
+import { navigate } from 'astro:transitions/client';
 
 interface RecentSearch {
   term: string;
@@ -100,7 +101,7 @@ const RecentSearches: React.FC = () => {
                     return;
                   }
                   // Navigate to search results
-                  window.location.href = `/find?q=${encodeURIComponent(search.term)}`;
+                  navigate(`/find?q=${encodeURIComponent(search.term)}`, { history: 'replace' });
                 }}
               >
                 <div className="flex items-center">
