@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
 
@@ -21,21 +21,14 @@ interface Thread {
   [key: string]: any;
 }
 
-interface NavigationHistoryItem {
-  id: string;
-  title: string;
-  lastAccessed?: number;
-  firstAccessed?: number;
-  count?: number;
-  [key: string]: any;
-}
-
 interface SpaceItem {
   id: string;
   title: string;
   type: 'note' | 'thread';
   spaceId: string | null;
   lastAccessed?: number;
+  updatedAt?: Date | string;
+  createdAt?: Date | string;
   color?: string;
   isPublic?: boolean;
   subtitle?: string;
@@ -66,21 +59,6 @@ export default function AddToSpaceSection({
   emptyMessage = "No items found"
 }: AddToSpaceSectionProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [navigationHistory, setNavigationHistory] = useState<NavigationHistoryItem[]>([]);
-
-  // Get navigation history from localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('harvous-navigation-history-v2');
-        const history = stored ? JSON.parse(stored) : [];
-        setNavigationHistory(history);
-      } catch (error) {
-        console.error('Error loading navigation history:', error);
-        setNavigationHistory([]);
-      }
-    }
-  }, []);
 
   // Combine notes and threads into unified items, filtered by space
   const availableItems = useMemo(() => {
@@ -96,6 +74,8 @@ export default function AddToSpaceSection({
           type: 'note',
           spaceId: note.spaceId,
           content: note.content,
+          updatedAt: note.updatedAt,
+          createdAt: note.createdAt,
           lastAccessed: undefined
         });
       } else {
@@ -107,6 +87,8 @@ export default function AddToSpaceSection({
             type: 'note',
             spaceId: note.spaceId,
             content: note.content,
+            updatedAt: note.updatedAt,
+            createdAt: note.createdAt,
             lastAccessed: undefined
           });
         }
@@ -129,6 +111,8 @@ export default function AddToSpaceSection({
           isPublic: thread.isPublic,
           subtitle: thread.subtitle,
           count: thread.count,
+          updatedAt: thread.updatedAt,
+          createdAt: thread.createdAt,
           lastAccessed: undefined
         });
       } else {
@@ -143,6 +127,8 @@ export default function AddToSpaceSection({
             isPublic: thread.isPublic,
             subtitle: thread.subtitle,
             count: thread.count,
+            updatedAt: thread.updatedAt,
+            createdAt: thread.createdAt,
             lastAccessed: undefined
           });
         }
@@ -153,47 +139,34 @@ export default function AddToSpaceSection({
     return items.filter(item => !selectedItems.includes(item.id));
   }, [allNotes, allThreads, currentSpaceId, selectedItems]);
 
-  // Sort and categorize items by navigation history
+  // Sort and categorize items by updatedAt (newest first)
   const { recentItems, otherItems } = useMemo(() => {
-    // Create a map of navigation history by item ID for quick lookup
-    const historyMap = new Map<string, NavigationHistoryItem>();
-    navigationHistory.forEach(item => {
-      if (item.id && item.lastAccessed) {
-        historyMap.set(item.id, item);
-      }
+    // Helper function to get timestamp from date (handles both Date objects and strings)
+    const getTimestamp = (date: Date | string | undefined): number => {
+      if (!date) return 0;
+      if (date instanceof Date) return date.getTime();
+      if (typeof date === 'string') return new Date(date).getTime();
+      return 0;
+    };
+
+    // Sort all items by updatedAt (newest first), fallback to createdAt
+    const sortedItems = [...availableItems].sort((a, b) => {
+      const aTime = getTimestamp(a.updatedAt) || getTimestamp(a.createdAt) || 0;
+      const bTime = getTimestamp(b.updatedAt) || getTimestamp(b.createdAt) || 0;
+      return bTime - aTime; // Newest first
     });
 
-    // Separate items into recent and others
-    const recent: SpaceItem[] = [];
-    const others: SpaceItem[] = [];
-
-    availableItems.forEach(item => {
-      const historyItem = historyMap.get(item.id);
-      if (historyItem && historyItem.lastAccessed) {
-        recent.push({ ...item, lastAccessed: historyItem.lastAccessed });
-      } else {
-        others.push(item);
-      }
-    });
-
-    // Sort recent items by lastAccessed (most recent first)
-    recent.sort((a, b) => {
-      const aLast = a.lastAccessed || 0;
-      const bLast = b.lastAccessed || 0;
-      return bLast - aLast;
-    });
-
-    // Sort other items alphabetically
-    others.sort((a, b) => a.title.localeCompare(b.title));
-
-    // Limit recent items to 8
-    const limitedRecent = recent.slice(0, 8);
+    // Take top 8 for recent items
+    const recent = sortedItems.slice(0, 8);
+    
+    // Remaining items go to other items (also sorted by updatedAt)
+    const others = sortedItems.slice(8);
 
     return {
-      recentItems: limitedRecent,
+      recentItems: recent,
       otherItems: others
     };
-  }, [availableItems, navigationHistory]);
+  }, [availableItems]);
 
   // Filter items based on search query
   const filteredItems = useMemo(() => {
