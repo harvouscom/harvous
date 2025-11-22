@@ -99,7 +99,7 @@ export default function FindSearchInput({
             <svg 
               width="20" 
               height="20"
-              className="fill-[var(--color-deep-grey)]" 
+              className="fill-[var(--color-pebble-grey)]" 
               viewBox="0 0 384 512"
               aria-hidden="true"
             >
