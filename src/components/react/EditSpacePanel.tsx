@@ -590,7 +590,7 @@ export default function EditSpacePanel({
                       onItemSelect={handleItemSelect}
                       selectedItems={[]}
                       isLoading={isAddingItems}
-                      placeholder="Search to add notes and threads..."
+                      placeholder="Search notes and threads"
                       emptyMessage="No items found"
                     />
                   )}

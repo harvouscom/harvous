@@ -55,7 +55,7 @@ export default function AddToSpaceSection({
   onItemSelect,
   selectedItems,
   isLoading = false,
-  placeholder = "Search to add...",
+  placeholder = "Search notes and threads",
   emptyMessage = "No items found"
 }: AddToSpaceSectionProps) {
   const [searchQuery, setSearchQuery] = useState("");

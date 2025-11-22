@@ -538,7 +538,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                       onItemSelect={handleItemSelect}
                       selectedItems={selectedItems}
                       isLoading={isSubmitting}
-                      placeholder="Search to add notes and threads..."
+                      placeholder="Search notes and threads"
                       emptyMessage="No items found"
                     />
                   )}
