@@ -345,6 +345,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     }
   };
 
+  const handleItemClickWrapper = (e: React.MouseEvent<HTMLAnchorElement>, itemId?: string) => {
+    handleItemClick(itemId);
+    // Don't prevent default - let the link navigate naturally
+    // The link will handle navigation via href
+  };
+
   // Toggle close mode for an item (show close icon instead of badge)
   const toggleCloseMode = (itemId: string) => {
     setItemsInCloseMode(prev => {
@@ -402,78 +408,284 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       </div>
 
       {/* Spaces Dropdown (Column 2: 1fr) */}
-      <div className="relative min-w-0 h-[64px] flex items-center">
-        <SpaceButton 
-          text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "For You"}
-          count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
-          state="DropdownTrigger"
-          className="w-full min-w-0"
-          backgroundGradient={currentThread?.backgroundGradient || getThreadGradientCSS('paper')}
-          onClick={handleDropdownToggle}
-          hideDropdownIcon={true}
-        />
+      <div className="relative min-w-0 h-[64px] w-full">
+        {!isDropdownOpen && (
+          <SpaceButton 
+            text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "For You"}
+            count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
+            state="DropdownTrigger"
+            className="w-full min-w-0"
+            backgroundGradient={currentThread?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
+            onClick={handleDropdownToggle}
+            hideDropdownIcon={true}
+          />
+        )}
         
         {/* Dropdown Menu */}
         {isDropdownOpen && (
           <div 
-            className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999]"
+            className="absolute top-0 left-0 w-full bg-white rounded-3xl shadow-lg z-[9999] max-h-[352px] relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-2">
-              {/* For You */}
-              <a 
-                href="/" 
-                className="block w-full" 
-                onClick={handleItemClick}
-                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-              >
-                <div className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center" style={{ backgroundImage: !currentSpace && !currentThread && !currentItemId ? "var(--color-paper)" : undefined }}>
-                  <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                    <div className="flex-1 min-w-0 overflow-hidden text-left">
-                      <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">For You</span>
+            {/* Scrollable Nav Items */}
+            <div className="overflow-y-auto max-h-[352px] pb-[64px] rounded-t-3xl">
+              {/* Active Item - Always First */}
+              {(() => {
+                const isForYouActive = !currentSpace && !currentThread && !currentItemId;
+                const activeSpace = currentSpace && currentSpace.id === currentActiveItemId ? currentSpace : null;
+                const activeThread = (updatedCurrentThread || currentThread) && (updatedCurrentThread || currentThread)!.id === currentActiveItemId ? (updatedCurrentThread || currentThread) : null;
+                const activePersistentSpace = persistentSpaces.find(space => space.id === currentActiveItemId);
+                const activePersistentThread = persistentThreads.find(thread => thread.id === currentActiveItemId);
+                
+                // Render active item first
+                if (isForYouActive) {
+                  return (
+                    <a 
+                      key="for-you-active"
+                      href="/" 
+                      className="block w-full"
+                      onClick={(e) => handleItemClickWrapper(e)}
+                      style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                    >
+                      <div className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center" style={{ backgroundImage: getThreadGradientCSS('paper') }}>
+                        <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                          <div className="flex-1 min-w-0 overflow-hidden text-left">
+                            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">For You</span>
+                          </div>
+                          <div className="p-[20px] flex-shrink-0">
+                            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                              <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                                {inboxCount}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                      </div>
+                    </a>
+                  );
+                } else if (activeSpace) {
+                  return (
+                    <a 
+                      key={`active-space-${activeSpace.id}`}
+                      href={`/${activeSpace.id}`} 
+                      className="block w-full"
+                      onClick={(e) => handleItemClickWrapper(e)}
+                      style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                    >
+                      <div 
+                        className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                        style={{
+                          backgroundImage: activeSpace.backgroundGradient?.includes('gradient') ? activeSpace.backgroundGradient : undefined,
+                          backgroundColor: activeSpace.backgroundGradient?.includes('gradient') ? undefined : (activeSpace.backgroundGradient || undefined)
+                        }}
+                      >
+                        <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                          <div className="flex-1 min-w-0 overflow-hidden text-left">
+                            <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(activeSpace.backgroundGradient, true) }}>
+                              {activeSpace.title}
+                            </span>
+                          </div>
+                          <div className="p-[20px] flex-shrink-0">
+                            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                              <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(activeSpace.backgroundGradient, true) }}>
+                                {activeSpace.totalItemCount}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                      </div>
+                    </a>
+                  );
+                } else if (activeThread) {
+                  return (
+                    <a 
+                      key={`active-thread-${activeThread.id}`}
+                      href={`/${activeThread.id}`} 
+                      className="block w-full"
+                      onClick={(e) => handleItemClickWrapper(e)}
+                      style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                    >
+                    <div 
+                      className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                      style={{
+                        backgroundImage: activeThread.backgroundGradient?.includes('gradient') ? activeThread.backgroundGradient : undefined,
+                        backgroundColor: activeThread.backgroundGradient?.includes('gradient') ? undefined : (activeThread.backgroundGradient || undefined)
+                      }}
+                    >
+                        <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                          <div className="flex-1 min-w-0 overflow-hidden text-left">
+                            <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(activeThread.backgroundGradient, true) }}>
+                              {activeThread.title}
+                            </span>
+                          </div>
+                          <div className="p-[20px] flex-shrink-0">
+                            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                              <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(activeThread.backgroundGradient, true) }}>
+                                {activeThread.noteCount}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                      </div>
+                    </a>
+                  );
+                } else if (activePersistentSpace) {
+                  const isActive = activePersistentSpace.id === currentActiveItemId;
+                  return (
+                    <div key={`active-persistent-space-${activePersistentSpace.id}`} className="relative group nav-item-container w-full">
+                      <a 
+                        href={`/${activePersistentSpace.id}`} 
+                        className="block w-full" 
+                        onClick={() => handleItemClick(activePersistentSpace.id)}
+                        style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                      >
+                        <div 
+                          className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                          style={isActive ? {
+                            backgroundImage: activePersistentSpace.backgroundGradient?.includes('gradient') ? activePersistentSpace.backgroundGradient : undefined,
+                            backgroundColor: activePersistentSpace.backgroundGradient?.includes('gradient') ? undefined : (activePersistentSpace.backgroundGradient || undefined)
+                          } : {}}
+                        >
+                          <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                            <div className="flex-1 min-w-0 overflow-hidden text-left">
+                              <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}>
+                                {activePersistentSpace.title}
+                              </span>
+                            </div>
+                            <div className="p-[20px] flex-shrink-0">
+                              <div 
+                                className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
+                                data-close-item={activePersistentSpace.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  if (itemsInCloseMode.has(activePersistentSpace.id)) {
+                                    handleCloseClick(activePersistentSpace.id, e);
+                                  } else {
+                                    toggleCloseMode(activePersistentSpace.id);
+                                  }
+                                }}
+                              >
+                                {itemsInCloseMode.has(activePersistentSpace.id) ? (
+                                  <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}></i>
+                                ) : (
+                                  <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}>
+                                    {activePersistentSpace.count || 0}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {isActive && (
+                            <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                          )}
+                        </div>
+                      </a>
                     </div>
-                    <div className="p-[20px] flex-shrink-0">
-                      <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                        <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                          {inboxCount}
-                        </span>
+                  );
+                } else if (activePersistentThread) {
+                  const isActive = activePersistentThread.id === currentActiveItemId;
+                  return (
+                    <div key={`active-persistent-thread-${activePersistentThread.id}`} className="relative group nav-item-container w-full">
+                      <a 
+                        href={`/${activePersistentThread.id}`} 
+                        className="block w-full" 
+                        onClick={() => handleItemClick(activePersistentThread.id)}
+                        style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                      >
+                        <div 
+                          className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                          style={isActive ? {
+                            backgroundImage: activePersistentThread.backgroundGradient?.includes('gradient') ? activePersistentThread.backgroundGradient : undefined,
+                            backgroundColor: activePersistentThread.backgroundGradient?.includes('gradient') ? undefined : (activePersistentThread.backgroundGradient || undefined)
+                          } : {}}
+                        >
+                          <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                            <div className="flex-1 min-w-0 overflow-hidden text-left">
+                              <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
+                                {activePersistentThread.title}
+                              </span>
+                            </div>
+                            <div className="p-[20px] flex-shrink-0">
+                              <div 
+                                className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
+                                data-close-item={activePersistentThread.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  if (itemsInCloseMode.has(activePersistentThread.id)) {
+                                    handleCloseClick(activePersistentThread.id, e);
+                                  } else {
+                                    toggleCloseMode(activePersistentThread.id);
+                                  }
+                                }}
+                              >
+                                {itemsInCloseMode.has(activePersistentThread.id) ? (
+                                  <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}></i>
+                                ) : (
+                                  <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
+                                    {activePersistentThread.count || 0}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {isActive && (
+                            <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                          )}
+                        </div>
+                      </a>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              
+              {/* For You - Only if not active */}
+              {currentSpace || currentThread || currentItemId ? (
+                <a 
+                  href="/" 
+                  className="block w-full opacity-50"
+                  onClick={(e) => handleItemClickWrapper(e)}
+                  style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                >
+                  <div className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center">
+                    <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                      <div className="flex-1 min-w-0 overflow-hidden text-left">
+                        <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">For You</span>
+                      </div>
+                      <div className="p-[20px] flex-shrink-0">
+                        <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                          <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                            {inboxCount}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  {!currentSpace && !currentThread && !currentItemId && (
-                    <div className="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
-                  )}
-                </div>
-              </a>
+                </a>
+              ) : null}
               
-              {/* Persistent Navigation Items - Hierarchical Display */}
+              {/* Persistent Navigation Items - Excluding Active */}
               {isClient && persistentItems.length > 0 && (
                 <>
-                  {/* Divider */}
-                  <div className="border-t border-gray-200 my-2"></div>
-                  
-                  {/* Persistent Spaces */}
-                  {persistentSpaces.map((space) => {
-                    const isActive = space.id === currentActiveItemId;
-                    
+                  {/* Persistent Spaces - Excluding Active */}
+                  {persistentSpaces.filter(space => space.id !== currentActiveItemId).map((space) => {
                     return (
-                      <div key={space.id} className="relative group nav-item-container w-full">
+                      <div key={space.id} className="relative group nav-item-container w-full opacity-50">
                         <a 
                           href={`/${space.id}`} 
                           className="block w-full" 
                           onClick={() => handleItemClick(space.id)}
                           style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                         >
-                          <div 
-                            className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
-                            style={isActive ? {
-                              backgroundImage: space.backgroundGradient?.includes('gradient') ? space.backgroundGradient : undefined,
-                              backgroundColor: space.backgroundGradient?.includes('gradient') ? undefined : (space.backgroundGradient || undefined)
-                            } : {}}
-                          >
+                          <div className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center">
                             <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                               <div className="flex-1 min-w-0 overflow-hidden text-left">
-                                <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(space.backgroundGradient, isActive) }}>
+                                <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(space.backgroundGradient, false) }}>
                                   {space.title}
                                 </span>
                               </div>
@@ -494,46 +706,35 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   }}
                                 >
                                   {itemsInCloseMode.has(space.id) ? (
-                                    <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(space.backgroundGradient, isActive) }}></i>
+                                    <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(space.backgroundGradient, false) }}></i>
                                   ) : (
-                                    <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, isActive) }}>
+                                    <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, false) }}>
                                       {space.count || 0}
                                     </span>
                                   )}
                                 </div>
                               </div>
                             </div>
-                            {isActive && (
-                              <div className="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
-                            )}
                           </div>
                         </a>
                       </div>
                     );
                   })}
                   
-                  {/* Persistent Threads */}
-                  {persistentThreads.map((thread) => {
-                    const isActive = thread.id === currentActiveItemId;
-                    
+                  {/* Persistent Threads - Excluding Active */}
+                  {persistentThreads.filter(thread => thread.id !== currentActiveItemId).map((thread) => {
                     return (
-                      <div key={thread.id} className="relative group nav-item-container w-full">
+                      <div key={thread.id} className="relative group nav-item-container w-full opacity-50">
                         <a 
                           href={`/${thread.id}`} 
                           className="block w-full" 
                           onClick={() => handleItemClick(thread.id)}
                           style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                         >
-                          <div 
-                            className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
-                            style={isActive ? {
-                              backgroundImage: thread.backgroundGradient?.includes('gradient') ? thread.backgroundGradient : undefined,
-                              backgroundColor: thread.backgroundGradient?.includes('gradient') ? undefined : (thread.backgroundGradient || undefined)
-                            } : {}}
-                          >
+                          <div className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center">
                             <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                               <div className="flex-1 min-w-0 overflow-hidden text-left">
-                                <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
+                                <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
                                   {thread.title}
                                 </span>
                               </div>
@@ -554,18 +755,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   }}
                                 >
                                   {itemsInCloseMode.has(thread.id) ? (
-                                    <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}></i>
+                                    <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(thread.backgroundGradient, false) }}></i>
                                   ) : (
-                                    <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
+                                    <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
                                       {thread.count || 0}
                                     </span>
                                   )}
                                 </div>
                               </div>
                             </div>
-                            {isActive && (
-                              <div className="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
-                            )}
                           </div>
                         </a>
                       </div>
@@ -574,101 +772,52 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 </>
               )}
               
-              {/* Created Spaces */}
-              {spaces.length > 0 && (
-                <>
-                  <div className="border-t border-gray-200 my-2"></div>
-                  {spaces.map(space => {
-                    const isSpaceActive = currentSpace?.id === space.id;
-                    return (
-                      <a 
-                        key={space.id} 
-                        href={`/${space.id}`} 
-                        className="block w-full" 
-                        onClick={handleItemClick}
-                        style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                      >
-                        <div 
-                          className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
-                          style={isSpaceActive ? {
-                            backgroundImage: space.backgroundGradient?.includes('gradient') ? space.backgroundGradient : undefined,
-                            backgroundColor: space.backgroundGradient?.includes('gradient') ? undefined : (space.backgroundGradient || undefined)
-                          } : {}}
-                        >
-                          <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                            <div className="flex-1 min-w-0 overflow-hidden text-left">
-                              <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(space.backgroundGradient, isSpaceActive) }}>
-                                {space.title}
-                              </span>
-                            </div>
-                            <div className="p-[20px] flex-shrink-0">
-                              <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                                <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, isSpaceActive) }}>
-                                  {space.totalItemCount}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          {isSpaceActive && (
-                            <div className="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
-                          )}
-                        </div>
-                      </a>
-                    );
-                  })}
-                </>
-              )}
-              
-              {/* Active Thread (if not in persistent navigation) */}
-              {(updatedCurrentThread || currentThread) && !persistentItems.some(item => item.id === (updatedCurrentThread || currentThread)!.id) && (
-                <>
-                  <div className="border-t border-gray-200 my-2"></div>
+              {/* Created Spaces - Excluding Active */}
+              {spaces.filter(space => space.id !== currentActiveItemId).map(space => {
+                return (
                   <a 
-                    href={`/${(updatedCurrentThread || currentThread)!.id}`} 
-                    className="block w-full" 
-                    onClick={handleItemClick}
+                    key={space.id} 
+                    href={`/${space.id}`} 
+                    className="block w-full opacity-50"
+                    onClick={(e) => handleItemClickWrapper(e)}
                     style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                   >
-                    <div 
-                      className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
-                      style={{
-                        backgroundImage: (updatedCurrentThread || currentThread)!.backgroundGradient?.includes('gradient') ? (updatedCurrentThread || currentThread)!.backgroundGradient : undefined,
-                        backgroundColor: (updatedCurrentThread || currentThread)!.backgroundGradient?.includes('gradient') ? undefined : ((updatedCurrentThread || currentThread)!.backgroundGradient || undefined)
-                      }}
-                    >
+                    <div className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center">
                       <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                         <div className="flex-1 min-w-0 overflow-hidden text-left">
-                          <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor((updatedCurrentThread || currentThread)!.backgroundGradient, true) }}>
-                            {(updatedCurrentThread || currentThread)!.title}
+                          <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(space.backgroundGradient, false) }}>
+                            {space.title}
                           </span>
                         </div>
                         <div className="p-[20px] flex-shrink-0">
                           <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                            <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor((updatedCurrentThread || currentThread)!.backgroundGradient, true) }}>
-                              {(updatedCurrentThread || currentThread)!.noteCount}
+                            <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, false) }}>
+                              {space.totalItemCount}
                             </span>
                           </div>
                         </div>
                       </div>
-                      <div className="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
                     </div>
                   </a>
-                </>
-              )}
-              
-              {/* New Space Button */}
-              <div className="border-t border-gray-200 my-2"></div>
+                );
+              })}
+            </div>
+            
+            {/* New Space Button - Absolutely Positioned */}
+            <div className="absolute bottom-0 left-0 right-0 z-10 rounded-b-3xl">
               <a 
                 href="/new-space" 
                 className="block w-full" 
-                onClick={handleItemClick}
+                onClick={(e) => handleItemClickWrapper(e)}
                 style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
               >
-                <div className="flex items-center justify-between p-2 rounded cursor-pointer hover:bg-gray-50 transition-colors">
-                  <span className="text-sm font-medium text-[var(--color-deep-grey)]">New Space</span>
-                  <svg className="w-4 h-4 text-[var(--color-deep-grey)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                  </svg>
+                <div className="new-space-button">
+                  <SpaceButton 
+                    text="New Space"
+                    state="Default"
+                    className="w-full"
+                    backgroundGradient="linear-gradient(126.64deg, rgba(255, 255, 255, 0.8) 11.71%, rgba(248, 248, 248, 0.8) 71.33%)"
+                  />
                 </div>
               </a>
             </div>
@@ -679,7 +828,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       {/* Avatar (Column 3: auto) */}
       <div className="flex items-center justify-center h-[64px]">
         <a href="/profile">
-          <Avatar initials={profileData.initials} color={profileData.userColor} id="mobile-navigation-avatar" />
+          <Avatar initials={profileData.initials} color={profileData.userColor} />
         </a>
       </div>
 
@@ -703,6 +852,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           display: flex;
           align-items: center;
           justify-content: center;
+        }
+        /* Center align New Space button text */
+        .new-space-button .space-button > div {
+          justify-content: center !important;
+        }
+        .new-space-button .space-button > div > div {
+          text-align: center !important;
+        }
+        .new-space-button .space-button > div > div > span {
+          text-align: center !important;
         }
       `}</style>
     </div>
