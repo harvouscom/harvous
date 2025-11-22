@@ -946,13 +946,145 @@ if (!content) {
   });
   
   document.addEventListener('noteRemovedFromThread', async (event) => {
-    const { noteId, threadId } = event.detail;
+    const { noteId, threadId, remainingThreadIds } = event.detail;
+    const { navigate } = await import('astro:transitions/client');
     
     // Check if we're on the affected thread page
     const currentThreadId = window.location.pathname.substring(1);
     if (currentThreadId === threadId) {
       // Navigate using View Transitions to show updated note list
-      const { navigate } = await import('astro:transitions/client');
+      navigate(window.location.pathname + window.location.search, { history: 'replace' });
+      return;
+    }
+    
+    // Check if we're viewing the note that was removed from thread
+    const noteContainer = document.querySelector('[data-note-id]');
+    const currentNoteId = noteContainer?.getAttribute('data-note-id');
+    const currentSelectedThreadId = noteContainer?.getAttribute('data-selected-thread-id');
+    
+    if (currentNoteId === noteId && currentSelectedThreadId === threadId) {
+      // We're viewing the note and it was removed from the current thread context
+      // Need to navigate to another thread or unorganized/dashboard
+      
+      let targetUrl = '/';
+      
+      // If remainingThreadIds provided in event, use them
+      if (remainingThreadIds && remainingThreadIds.length > 0) {
+        // Navigate to the first remaining thread
+        targetUrl = `/${remainingThreadIds[0]}`;
+      } else {
+        // Fetch remaining threads for the note
+        try {
+          const response = await fetch(`/api/notes/${noteId}/details`, {
+            credentials: 'include'
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const threads = data.threads || [];
+            
+            if (threads.length > 0) {
+              // Navigate to first remaining thread
+              targetUrl = `/${threads[0].id}`;
+            } else {
+              // No threads remaining, navigate to unorganized or dashboard
+              targetUrl = '/thread_unorganized';
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching note details for navigation:', error);
+          // Fallback to unorganized
+          targetUrl = '/thread_unorganized';
+        }
+      }
+      
+      // Navigate to the target URL
+      navigate(targetUrl, { history: 'replace' });
+    }
+  });
+  
+  // Listen for thread deletion - navigate if viewing note in that thread
+  document.addEventListener('threadDeleted', async (event) => {
+    const { threadId } = event.detail;
+    const { navigate } = await import('astro:transitions/client');
+    
+    // Check if we're viewing a note that might have been in the deleted thread
+    const noteContainer = document.querySelector('[data-note-id]');
+    if (noteContainer) {
+      const currentSelectedThreadId = noteContainer?.getAttribute('data-selected-thread-id');
+      
+      // If the deleted thread matches the current thread context, navigate away
+      if (currentSelectedThreadId === threadId) {
+        const noteId = noteContainer.getAttribute('data-note-id');
+        
+        // Fetch remaining threads for the note
+        let targetUrl = '/thread_unorganized';
+        
+        try {
+          const response = await fetch(`/api/notes/${noteId}/details`, {
+            credentials: 'include'
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const threads = data.threads || [];
+            
+            if (threads.length > 0) {
+              // Navigate to first remaining thread
+              targetUrl = `/${threads[0].id}`;
+            } else {
+              // No threads remaining, navigate to unorganized
+              targetUrl = '/thread_unorganized';
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching note details for navigation:', error);
+          // Fallback to unorganized
+          targetUrl = '/thread_unorganized';
+        }
+        
+        // Navigate to the target URL
+        navigate(targetUrl, { history: 'replace' });
+      }
+    }
+  });
+  
+  // Listen for space deletion - navigate if viewing space or content within it
+  document.addEventListener('spaceDeleted', async (event) => {
+    const { spaceId } = event.detail;
+    const { navigate } = await import('astro:transitions/client');
+    
+    const currentPath = window.location.pathname;
+    const currentId = currentPath.substring(1);
+    
+    // Check if we're viewing the deleted space
+    if (currentId === spaceId) {
+      // Navigate to dashboard
+      navigate('/', { history: 'replace' });
+      return;
+    }
+    
+    // Check if we're viewing a thread or note that belongs to the deleted space
+    // We can check data attributes or fetch to verify
+    const spaceContainer = document.querySelector('[data-space-id]');
+    const currentSpaceId = spaceContainer?.getAttribute('data-space-id');
+    
+    if (currentSpaceId === spaceId) {
+      // Navigate to dashboard
+      navigate('/', { history: 'replace' });
+    }
+  });
+  
+  // Listen for items removed from space - refresh space page if viewing it
+  document.addEventListener('itemRemovedFromSpace', async (event) => {
+    const { spaceId } = event.detail;
+    const { navigate } = await import('astro:transitions/client');
+    
+    const currentPath = window.location.pathname;
+    const currentId = currentPath.substring(1);
+    
+    // If viewing the space, refresh it to show updated content
+    if (currentId === spaceId) {
       navigate(window.location.pathname + window.location.search, { history: 'replace' });
     }
   });

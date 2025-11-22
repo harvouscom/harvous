@@ -264,6 +264,11 @@ export default function EditSpacePanel({
           }
         }));
 
+        // Dispatch event for item removed from space
+        window.dispatchEvent(new CustomEvent('itemRemovedFromSpace', {
+          detail: { itemId, itemType, spaceId }
+        }));
+
         // Refresh current space items
         await fetchCurrentSpaceItems();
       } else {

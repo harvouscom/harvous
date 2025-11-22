@@ -431,11 +431,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Use spread operator to create new array reference for React
       setNavigationHistory([...filteredHistory]);
       
-      // Navigate to next item or dashboard
+      // Navigate to next item or dashboard using View Transitions
       const targetUrl = nextItem ? `/${nextItem.id}` : '/';
       
-      // Use replace to avoid adding to browser history
-      window.location.replace(targetUrl);
+      // Use View Transitions for smooth navigation
+      import('astro:transitions/client').then(({ navigate }) => {
+        navigate(targetUrl, { history: 'replace' });
+      });
       return; // Exit early since we're navigating
     }
     

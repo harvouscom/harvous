@@ -195,11 +195,30 @@ export default function NoteDetailsPanel({
         }));
 
         // Refresh the note details to show updated threads
-        await fetchNoteDetails();
+        const fetchResponse = await fetch(`/api/notes/${noteId}/details`);
+        let remainingThreadIds: string[] = [];
         
-        // Dispatch note removed from thread event
+        if (fetchResponse.ok) {
+          const data = await fetchResponse.json();
+          // Update local threads state
+          setLocalThreads(data.threads || []);
+          setLocalAllUserThreads(data.allUserThreads || []);
+          setLocalComments(data.comments || []);
+          setLocalTags(data.tags || []);
+          
+          // Get remaining thread IDs from the updated data
+          remainingThreadIds = (data.threads || []).map((t: any) => t.id);
+        } else {
+          // Fallback: update state from current localThreads
+          await fetchNoteDetails();
+          remainingThreadIds = localThreads
+            .filter(t => t.id !== threadId)
+            .map(t => t.id);
+        }
+        
+        // Dispatch note removed from thread event with remaining threads
         window.dispatchEvent(new CustomEvent('noteRemovedFromThread', {
-          detail: { noteId, threadId }
+          detail: { noteId, threadId, remainingThreadIds }
         }));
       } else {
         const error = await response.json();
@@ -250,11 +269,30 @@ export default function NoteDetailsPanel({
         }));
 
         // Refresh the note details to show updated threads
-        await fetchNoteDetails();
+        const fetchResponse = await fetch(`/api/notes/${noteId}/details`);
+        let remainingThreadIds: string[] = [];
         
-        // Dispatch note removed from thread event
+        if (fetchResponse.ok) {
+          const data = await fetchResponse.json();
+          // Update local threads state
+          setLocalThreads(data.threads || []);
+          setLocalAllUserThreads(data.allUserThreads || []);
+          setLocalComments(data.comments || []);
+          setLocalTags(data.tags || []);
+          
+          // Get remaining thread IDs from the updated data
+          remainingThreadIds = (data.threads || []).map((t: any) => t.id);
+        } else {
+          // Fallback: update state from current localThreads
+          await fetchNoteDetails();
+          remainingThreadIds = localThreads
+            .filter(t => t.id !== threadToRemove)
+            .map(t => t.id);
+        }
+        
+        // Dispatch note removed from thread event with remaining threads
         window.dispatchEvent(new CustomEvent('noteRemovedFromThread', {
-          detail: { noteId, threadId: threadToRemove }
+          detail: { noteId, threadId: threadToRemove, remainingThreadIds }
         }));
       } else {
         const error = await response.json();
