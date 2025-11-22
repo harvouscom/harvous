@@ -8,6 +8,7 @@ import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { useNavigation } from './navigation/NavigationContext';
 import { captureException } from '@/utils/posthog';
 import { navigate } from 'astro:transitions/client';
+import { getThreadGradientCSS, getThreadTextColorCSS } from '@/utils/colors';
 
 interface Thread {
   id: string;
@@ -19,10 +20,11 @@ interface Thread {
 
 interface NewNotePanelProps {
   currentThread?: any;
+  currentSpace?: any;
   onClose?: () => void;
 }
 
-export default function NewNotePanel({ currentThread, onClose }: NewNotePanelProps) {
+export default function NewNotePanel({ currentThread, currentSpace, onClose }: NewNotePanelProps) {
   // Get navigation context - will use default (no-op) values if NavigationProvider not available
   const navigation = useNavigation();
   const { addToNavigationHistory, navigationHistory, trackNavigationAccess } = navigation;
@@ -41,6 +43,7 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
   const [sourceNoteId, setSourceNoteId] = useState<string | null>(null);
   const [sourceSelectionFrom, setSourceSelectionFrom] = useState<number | null>(null);
   const [sourceSelectionTo, setSourceSelectionTo] = useState<number | null>(null);
+  const [addToSpace, setAddToSpace] = useState(false);
   const [threadOptions, setThreadOptions] = useState<Thread[]>([
     {
       id: 'thread_unorganized',
@@ -177,6 +180,13 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       localStorage.removeItem('newNoteThread');
     }
   }, []); // Empty deps - only run on mount
+
+  // Initialize space checkbox when currentSpace is provided
+  useEffect(() => {
+    if (currentSpace && currentSpace.id) {
+      setAddToSpace(true);
+    }
+  }, [currentSpace]);
 
   // Client-side thread detection from URL/navigation context
   const detectThreadFromContext = (): { id: string; title: string } | null => {
@@ -876,6 +886,11 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
       formData.set('threadId', getSelectedThread().id);
       formData.set('noteType', noteType);
       
+      // Add spaceId if checkbox is checked and currentSpace exists
+      if (addToSpace && currentSpace && currentSpace.id) {
+        formData.set('spaceId', currentSpace.id);
+      }
+      
       // Add type-specific metadata
       if (noteType === 'scripture') {
         // Convert display format back to API format (commas for API)
@@ -1453,6 +1468,43 @@ export default function NewNotePanel({ currentThread, onClose }: NewNotePanelPro
           placeholder="Select thread..."
         />
       </div>
+
+      {/* Space Checkbox - Only show when currentSpace is provided */}
+      {currentSpace && currentSpace.id && (
+        <div className="mb-3.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setAddToSpace(!addToSpace)}
+            className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+            style={{ 
+              backgroundImage: addToSpace 
+                ? (currentSpace.backgroundGradient || getThreadGradientCSS(currentSpace.color || 'paper'))
+                : 'var(--color-gradient-gray)'
+            }}
+          >
+            <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+              <span 
+                className="font-sans text-[18px] font-semibold whitespace-nowrap"
+                style={{ 
+                  color: addToSpace 
+                    ? getThreadTextColorCSS(currentSpace.color || 'paper')
+                    : 'var(--color-deep-grey)'
+                }}
+              >
+                Add to {currentSpace.title}
+              </span>
+              {addToSpace && (
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                  <i 
+                    className="fa-solid fa-check text-[20px]" 
+                    style={{ color: getThreadTextColorCSS(currentSpace.color || 'paper') }}
+                  />
+                </div>
+              )}
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Note Content - Type-specific layouts */}
       <div className="flex-1 flex flex-col min-h-0 mb-3.5">

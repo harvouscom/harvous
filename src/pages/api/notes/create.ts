@@ -25,6 +25,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const noteType = formData.get('noteType') as string;
     const scriptureReference = formData.get('scriptureReference') as string | null;
     const scriptureVersion = formData.get('scriptureVersion') as string | null;
+    const spaceId = formData.get('spaceId') as string | null;
 
     console.log("Creating note with userId:", userId, "title:", title, "content:", content?.substring(0, 50), "noteType:", noteType);
 
@@ -98,13 +99,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // This ensures we never reuse deleted IDs
     const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
     
+    // Make spaceId optional - if not provided or is empty, set to null
+    let finalSpaceId = null;
+    if (spaceId && spaceId.trim() && spaceId !== 'default_space') {
+      finalSpaceId = spaceId;
+    }
+    
     const newNote = await db.insert(Notes)
       .values({ 
         id: generateNoteId(),
         content: capitalizedContent, 
         title: capitalizedTitle, 
         threadId: finalThreadId,
-        spaceId: null,
+        spaceId: finalSpaceId,
         simpleNoteId: nextSimpleNoteId,
         noteType: finalNoteType,
         userId, 

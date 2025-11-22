@@ -316,6 +316,7 @@ export default function DesktopPanelManager({
           <NewNotePanel
             key={`new-note-${state.panelKey}`}
             currentThread={currentThread}
+            currentSpace={currentSpace}
             onClose={handleCloseNewNote}
           />
         </div>

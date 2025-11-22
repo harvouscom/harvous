@@ -27,6 +27,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   // const [recentNotes, setRecentNotes] = useState<any[]>([]);
   // const [isLoadingNotes, setIsLoadingNotes] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [addToSpace, setAddToSpace] = useState(false);
   // Shared functionality disabled for now
   // const [isShared, setIsShared] = useState(false);
   // const [sharedSettings, setSharedSettings] = useState({
@@ -64,6 +65,12 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     }
   }, [isEditMode, initialTitle, initialColor]);
 
+  // Initialize space checkbox when currentSpace is provided (create mode only)
+  useEffect(() => {
+    if (!isEditMode && currentSpace && currentSpace.id) {
+      setAddToSpace(true);
+    }
+  }, [currentSpace, isEditMode]);
 
   // Save data to localStorage on change (create mode only)
   useEffect(() => {
@@ -125,6 +132,16 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     }, 100);
 
     return () => clearTimeout(timer);
+  }, []);
+
+  // Load Font Awesome for icons
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
+    if (!document.querySelector(`link[href="${link.href}"]`)) {
+      document.head.appendChild(link);
+    }
   }, []);
 
   // Tab navigation disabled for v1
@@ -209,7 +226,10 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
         }
       } else {
         // Create mode
-        formData.append('spaceId', currentSpace?.id || '');
+        // Only add spaceId if checkbox is checked and currentSpace exists
+        if (addToSpace && currentSpace && currentSpace.id) {
+          formData.append('spaceId', currentSpace.id);
+        }
         
         console.log('NewThreadPanel: Sending request to /api/threads/create');
         console.log('Form data:', {
@@ -445,6 +465,43 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                   ))}
                 </div>
                 
+                {/* Space Checkbox - Only show when currentSpace is provided (create mode only) */}
+                {!isEditMode && currentSpace && currentSpace.id && (
+                  <div className="w-full">
+                    <button
+                      type="button"
+                      onClick={() => setAddToSpace(!addToSpace)}
+                      className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                      style={{ 
+                        backgroundImage: addToSpace 
+                          ? (currentSpace.backgroundGradient || getThreadGradientCSS(currentSpace.color || 'paper'))
+                          : 'var(--color-gradient-gray)'
+                      }}
+                    >
+                      <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                        <span 
+                          className="font-sans text-[18px] font-semibold whitespace-nowrap"
+                          style={{ 
+                            color: addToSpace 
+                              ? getThreadTextColorCSS(currentSpace.color || 'paper')
+                              : 'var(--color-deep-grey)'
+                          }}
+                        >
+                          Add to {currentSpace.title}
+                        </span>
+                        {addToSpace && (
+                          <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                            <i 
+                              className="fa-solid fa-check text-[20px]" 
+                              style={{ color: getThreadTextColorCSS(currentSpace.color || 'paper') }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+                )}
+                
                 {/* Thread type selection with dropdown */}
                 <div className="w-full">
                   <div className="relative dropdown-container">
@@ -453,7 +510,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                       className="w-full cursor-pointer"
                     >
                       <div className="relative w-full">
-                        <div className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                        <div className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
                              style={{ backgroundImage: 'var(--color-gradient-gray)' }}>
                           <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
                             <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
@@ -482,7 +539,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                               setSelectedType('Private');
                               setIsDropdownOpen(false);
                             }}
-                            className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                            className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
                             style={{ backgroundImage: 'var(--color-gradient-gray)' }}
                           >
                             <div className="flex items-center justify-start relative w-full h-full pl-2 pr-0 transition-transform duration-125">
@@ -494,7 +551,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                           <button 
                             type="button"
                             disabled
-                            className="space-button relative rounded-xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
+                            className="space-button relative rounded-3xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
                             style={{ backgroundImage: 'var(--color-gradient-gray)' }}
                           >
                             <div className="flex items-center justify-start relative w-full h-full pl-2 pr-0 transition-transform duration-125">

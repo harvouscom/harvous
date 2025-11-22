@@ -300,6 +300,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
               <NewNotePanel
                 key={`mobile-note-${panelKey}`}
                 currentThread={currentThread}
+                currentSpace={currentSpace}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
                 }}
