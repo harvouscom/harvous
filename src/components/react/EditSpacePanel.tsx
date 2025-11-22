@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
-import ChevronDownIcon from '@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg';
 import AddToSpaceSection from './AddToSpaceSection';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
@@ -469,7 +468,9 @@ export default function EditSpacePanel({
                               {formData.selectedType}
                             </span>
                             <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                              <img src={ChevronDownIcon.src} alt="Dropdown" className="w-5 h-5" />
+                              <svg className="w-5 h-5 fill-[var(--color-deep-grey)]" viewBox="0 0 512 512">
+                                <path d="M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z"/>
+                              </svg>
                             </div>
                           </div>
                         </div>

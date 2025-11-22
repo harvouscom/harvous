@@ -6,8 +6,6 @@ import EraseIcon from "@fortawesome/fontawesome-free/svgs/solid/eraser.svg";
 import CircleInfoIcon from "@fortawesome/fontawesome-free/svgs/solid/circle-info.svg";
 import XmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 import PlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
-import EllipsisIcon from "@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg";
-import MagnifyingGlassIcon from "@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg";
 import Menu from './Menu';
 import { getMenuOptions } from "@/utils/menu-options";
 
@@ -165,11 +163,9 @@ export default function SquareButton({
         );
       }
       return (
-        <img
-          src={EllipsisIcon.src}
-          alt="More"
-          className="rotate-90 -translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125"
-        />
+        <svg className="rotate-90 -translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
+          <path d="M8 256a56 56 0 1 1 112 0A56 56 0 1 1 8 256zm160 0a56 56 0 1 1 112 0 56 56 0 1 1 -112 0zm216-56a56 56 0 1 1 0 112 56 56 0 1 1 0-112z"/>
+        </svg>
       );
     }
 
@@ -213,20 +209,15 @@ export default function SquareButton({
         );
       case "Find":
         return (
-          <img
-            src={MagnifyingGlassIcon.src}
-            alt="Find"
-            className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none transition-transform duration-125"
-            style={{ width: '20px', height: '20px' }}
-          />
+          <svg className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none transition-transform duration-125" style={{ width: '20px', height: '20px' }} viewBox="0 0 512 512">
+            <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
+          </svg>
         );
       case "More":
         return (
-          <img
-            src={EllipsisIcon.src}
-            alt="More"
-            className="rotate-90 -translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125"
-          />
+          <svg className="rotate-90 -translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
+            <path d="M8 256a56 56 0 1 1 112 0A56 56 0 1 1 8 256zm160 0a56 56 0 1 1 112 0 56 56 0 1 1 -112 0zm216-56a56 56 0 1 1 0 112 56 56 0 1 1 0-112z"/>
+          </svg>
         );
       default:
         return null;

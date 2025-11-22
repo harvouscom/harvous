@@ -1,6 +1,4 @@
 import React from 'react';
-import FaAngleDownIcon from "@fortawesome/fontawesome-free/svgs/solid/angle-down.svg";
-import FaXmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
 import { useNavigation } from './NavigationContext';
 import { getThreadTextColorCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 
@@ -214,7 +212,9 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
                   <div className="flex items-center justify-center relative shrink-0">
                     <div className="flex-none scale-y-[-100%]">
                       <div className="relative size-5">
-                        <img src={FaAngleDownIcon.src} alt="Dropdown" className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" />
+                        <svg className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
+                          <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                        </svg>
                       </div>
                     </div>
                   </div>
@@ -255,7 +255,9 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
                 <div className="flex items-center justify-center relative shrink-0">
                   <div className="flex-none scale-y-[-100%]">
                     <div className="relative size-5">
-                      <img src={FaAngleDownIcon.src} alt="Dropdown" className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" />
+                      <svg className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
+                        <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                      </svg>
                     </div>
                   </div>
                 </div>
@@ -307,7 +309,9 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
             data-item-id={itemId}
             aria-label={`Close ${text || 'item'}`}
           >
-            <img src={FaXmarkIcon.src} alt="" className="w-4 h-4" style={{color: closeIconColor}} aria-hidden="true" />
+            <svg className="w-4 h-4 fill-[var(--color-deep-grey)]" viewBox="0 0 384 512" aria-hidden="true">
+              <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+            </svg>
           </button>
         )}
       </div>
@@ -344,7 +348,9 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
           data-item-id={itemId}
           aria-label={`Remove tag ${text || 'item'}`}
         >
-          <img src={FaXmarkIcon.src} alt="" className="w-4 h-4" style={{color: closeIconColor}} aria-hidden="true" />
+          <svg className="w-4 h-4 fill-[var(--color-deep-grey)]" viewBox="0 0 384 512" aria-hidden="true">
+            <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+          </svg>
         </button>
       </div>
     );
@@ -409,7 +415,9 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
               <div className="flex items-center justify-center relative shrink-0">
                 <div className="flex-none scale-y-[-100%]">
                   <div className="relative size-5">
-                    <img src={FaAngleDownIcon.src} alt="Dropdown" className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" />
+                    <svg className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
+                      <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                    </svg>
                   </div>
                 </div>
               </div>
