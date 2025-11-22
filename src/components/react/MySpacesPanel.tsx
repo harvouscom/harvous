@@ -347,7 +347,7 @@ export default function MySpacesPanel({
                   {!isLoading && !error && spaces.length === 0 && (
                     <div className="w-full p-8 text-center">
                       <p className="text-[var(--color-pebble-grey)] text-[16px]">
-                        You don't have any spaces yet. Create your first space to get started!
+                        No spaces yet. Create your first space and you'll see it here.
                       </p>
                     </div>
                   )}
