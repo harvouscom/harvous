@@ -1,5 +1,106 @@
 // Simple Navigation History - Clean and Working
 
+// Helper to check if error is quota exceeded
+function isQuotaExceededError(error) {
+  if (!error) return false;
+  return (
+    error.name === 'QuotaExceededError' ||
+    error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    error.code === 22 ||
+    error.code === 1014 ||
+    (error.message && error.message.toLowerCase().includes('quota'))
+  );
+}
+
+// Helper to clean up oldest navigation history items
+function cleanupNavigationHistory(storage, targetSize) {
+  try {
+    const historyKey = 'harvous-navigation-history-v2';
+    const stored = storage.getItem(historyKey);
+    
+    if (!stored) return;
+    
+    const history = JSON.parse(stored);
+    if (!Array.isArray(history) || history.length === 0) return;
+    
+    // Sort by lastAccessed (oldest first)
+    const sorted = [...history].sort((a, b) => {
+      const aTime = a.lastAccessed || a.firstAccessed || 0;
+      const bTime = b.lastAccessed || b.firstAccessed || 0;
+      return aTime - bTime;
+    });
+    
+    // Remove oldest items until we're under target size
+    let cleaned = [...sorted];
+    while (cleaned.length > 0) {
+      const testData = JSON.stringify(cleaned);
+      if (testData.length < targetSize) {
+        break;
+      }
+      cleaned.shift(); // Remove oldest
+    }
+    
+    // Save cleaned history
+    if (cleaned.length < sorted.length) {
+      storage.setItem(historyKey, JSON.stringify(cleaned));
+      console.log('Cleaned up ' + (sorted.length - cleaned.length) + ' old navigation items');
+    }
+  } catch (error) {
+    console.error('Error cleaning up navigation history:', error);
+  }
+}
+
+// Safe setItem with quota error handling
+function safeSetItem(key, value, options) {
+  options = options || {};
+  const maxSize = options.maxSize || 4 * 1024 * 1024; // 4MB default
+  const fallbackToSession = options.fallbackToSession !== false;
+  const cleanupOldest = options.cleanupOldest !== false;
+  
+  let storage = getStorage();
+  
+  try {
+    storage.setItem(key, value);
+    return true;
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      console.warn('Storage quota exceeded for key: ' + key);
+      
+      // Try cleanup if enabled
+      if (cleanupOldest && storage === localStorage) {
+        const targetSize = maxSize * 0.8; // Target 80% of max
+        cleanupNavigationHistory(storage, targetSize);
+        
+        // Try again after cleanup
+        try {
+          storage.setItem(key, value);
+          return true;
+        } catch (retryError) {
+          // Cleanup didn't help, continue to fallback
+        }
+      }
+      
+      // Fallback to sessionStorage if enabled
+      if (fallbackToSession && storage === localStorage) {
+        try {
+          sessionStorage.setItem(key, value);
+          console.log('Fell back to sessionStorage for key: ' + key);
+          return true;
+        } catch (sessionError) {
+          console.error('SessionStorage also failed:', sessionError);
+          return false;
+        }
+      }
+      
+      return false;
+    } else {
+      // Other errors (security, etc.)
+      console.error('Storage error (not quota):', error);
+      return false;
+    }
+  }
+}
+
 // Storage utility with localStorage fallback to sessionStorage
 function getStorage() {
   try {
@@ -47,19 +148,25 @@ function getNavigationHistory() {
 // Save navigation history to storage (localStorage or sessionStorage)
 function saveNavigationHistory(history) {
   try {
-    const storage = getStorage();
     const jsonString = JSON.stringify(history);
-    storage.setItem('harvous-navigation-history-v2', jsonString);
+    const success = safeSetItem('harvous-navigation-history-v2', jsonString, {
+      cleanupOldest: true,
+      fallbackToSession: true,
+    });
     
     // Also update the backup
     window.navigationHistoryBackup = [...history];
     
-    // Verify the save worked
-    const verification = storage.getItem('harvous-navigation-history-v2');
-    
-    if (verification !== jsonString) {
-      console.error('💾 saveNavigationHistory - SAVE FAILED! Data mismatch');
+    if (!success) {
+      console.error('💾 saveNavigationHistory - SAVE FAILED! Could not save to storage');
     } else {
+      // Verify the save worked
+      const storage = getStorage();
+      const verification = storage.getItem('harvous-navigation-history-v2');
+      
+      if (verification !== jsonString) {
+        console.error('💾 saveNavigationHistory - SAVE FAILED! Data mismatch');
+      }
     }
   } catch (error) {
     console.error('Error saving navigation history:', error);
@@ -108,7 +215,10 @@ function removeFromNavigationHistory(itemId) {
   
   // Special handling for unorganized thread
   if (itemId === 'thread_unorganized') {
-    localStorage.setItem('unorganized-thread-closed', 'true');
+    safeSetItem('unorganized-thread-closed', 'true', {
+      cleanupOldest: false,
+      fallbackToSession: true,
+    });
   }
   
   saveNavigationHistory(filteredHistory);
@@ -125,8 +235,14 @@ function trackThreadContext(threadId) {
     const contextKey = 'harvous-current-thread-context';
     const timestampKey = 'harvous-thread-context-timestamp';
     
-    localStorage.setItem(contextKey, threadId);
-    localStorage.setItem(timestampKey, Date.now().toString());
+    safeSetItem(contextKey, threadId, {
+      cleanupOldest: false,
+      fallbackToSession: true,
+    });
+    safeSetItem(timestampKey, Date.now().toString(), {
+      cleanupOldest: false,
+      fallbackToSession: true,
+    });
   } catch (error) {
     // Silent failure for thread context tracking
   }
@@ -165,7 +281,10 @@ function trackBreadcrumbNavigation(fromThreadId, toNoteId) {
       timestamp: Date.now()
     };
     
-    localStorage.setItem(breadcrumbKey, JSON.stringify(breadcrumbData));
+    safeSetItem(breadcrumbKey, JSON.stringify(breadcrumbData), {
+      cleanupOldest: false,
+      fallbackToSession: true,
+    });
   } catch (error) {
     // Silent failure for breadcrumb tracking
   }

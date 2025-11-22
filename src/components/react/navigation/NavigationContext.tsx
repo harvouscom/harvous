@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { safeSetItem, safeGetItem, safeRemoveItem, getStorage } from '@/utils/safe-storage';
 
 // Navigation item interface
 export interface NavigationItem {
@@ -57,11 +58,15 @@ function isAuthReady(): boolean {
 /**
  * Safe fetch wrapper that checks auth and handles 401 errors gracefully
  * Returns null if auth is not ready or if 401 error occurs
+ * Logs errors for debugging but doesn't throw
  */
 async function safeFetch(url: string, options: RequestInit = {}): Promise<Response | null> {
   // Check if auth is ready before making API call
   if (!isAuthReady()) {
-    // Auth not ready yet, return null silently
+    // Auth not ready yet - log for debugging but don't spam console
+    if (import.meta.env.DEV) {
+      console.debug('safeFetch: Auth not ready yet for', url);
+    }
     return null;
   }
   
@@ -73,46 +78,38 @@ async function safeFetch(url: string, options: RequestInit = {}): Promise<Respon
     
     // Handle 401 errors gracefully - auth may not be fully established yet
     if (response.status === 401) {
-      // Silently fail - auth will establish soon
+      if (import.meta.env.DEV) {
+        console.debug('safeFetch: 401 Unauthorized for', url, '- auth may not be fully established');
+      }
       return null;
+    }
+    
+    // Log other error statuses for debugging
+    if (!response.ok && response.status >= 500) {
+      console.error('safeFetch: Server error', response.status, 'for', url);
+    } else if (!response.ok && response.status >= 400) {
+      if (import.meta.env.DEV) {
+        console.warn('safeFetch: Client error', response.status, 'for', url);
+      }
     }
     
     return response;
   } catch (error) {
-    // Network errors - silently fail
+    // Network errors - log for debugging
+    console.error('safeFetch: Network error for', url, error);
     return null;
   }
 }
 
 // Provider component
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Storage utility - must be defined before getInitialHistory
-  const getStorage = () => {
-    try {
-      // Test localStorage first
-      const testKey = 'test-storage-' + Date.now();
-      localStorage.setItem(testKey, 'test');
-      const retrieved = localStorage.getItem(testKey);
-      localStorage.removeItem(testKey);
-      
-      if (retrieved === 'test') {
-        return localStorage;
-      } else {
-        throw new Error('localStorage test failed');
-      }
-    } catch (error) {
-      return sessionStorage;
-    }
-  };
-
   // Helper functions for closed items tracking
   const getClosedItems = (): string[] => {
     if (typeof window === 'undefined') {
       return [];
     }
     try {
-      const storage = getStorage();
-      const stored = storage.getItem('harvous-closed-navigation-items');
+      const stored = safeGetItem('harvous-closed-navigation-items');
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
       console.error('Error getting closed items:', error);
@@ -125,11 +122,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
     try {
-      const storage = getStorage();
       const closedItems = getClosedItems();
       if (!closedItems.includes(itemId)) {
         closedItems.push(itemId);
-        storage.setItem('harvous-closed-navigation-items', JSON.stringify(closedItems));
+        safeSetItem('harvous-closed-navigation-items', JSON.stringify(closedItems), {
+          cleanupOldest: true,
+          fallbackToSession: true,
+        });
       }
     } catch (error) {
       console.error('Error adding to closed items:', error);
@@ -141,10 +140,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
     try {
-      const storage = getStorage();
       const closedItems = getClosedItems();
       const filtered = closedItems.filter(id => id !== itemId);
-      storage.setItem('harvous-closed-navigation-items', JSON.stringify(filtered));
+      safeSetItem('harvous-closed-navigation-items', JSON.stringify(filtered), {
+        cleanupOldest: true,
+        fallbackToSession: true,
+      });
     } catch (error) {
       console.error('Error removing from closed items:', error);
     }
@@ -156,7 +157,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     // Special handling for unorganized thread - check the legacy flag too
     if (itemId === 'thread_unorganized') {
-      return localStorage.getItem('unorganized-thread-closed') === 'true' || getClosedItems().includes(itemId);
+      return safeGetItem('unorganized-thread-closed') === 'true' || getClosedItems().includes(itemId);
     }
     return getClosedItems().includes(itemId);
   };
@@ -168,8 +169,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return [];
     }
     try {
-      const storage = getStorage();
-      let stored = storage.getItem('harvous-navigation-history-v2');
+      let stored = safeGetItem('harvous-navigation-history-v2');
       let parsed = stored ? JSON.parse(stored) : [];
       
       // Check for pending thread in sessionStorage (set by NewNotePanel before navigation)
@@ -183,8 +183,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const exists = parsed.some((item: NavigationItem) => item.id === pendingThread.id);
           if (!exists) {
             parsed.push(pendingThread);
-            // Update localStorage immediately
-            storage.setItem('harvous-navigation-history-v2', JSON.stringify(parsed));
+            // Update storage immediately using safe storage
+            safeSetItem('harvous-navigation-history-v2', JSON.stringify(parsed), {
+              cleanupOldest: true,
+              fallbackToSession: true,
+            });
           }
           // Clear sessionStorage after use
           sessionStorage.removeItem('harvous-pending-thread');
@@ -213,8 +216,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     try {
-      const storage = getStorage();
-      const stored = storage.getItem('harvous-navigation-history-v2');
+      const stored = safeGetItem('harvous-navigation-history-v2');
       
       let parsed = stored ? JSON.parse(stored) : [];
       
@@ -225,7 +227,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Filter out specific test items (exact title matches only)
       const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
-      const filteredItems = parsed.filter(item => 
+      const filteredItems = parsed.filter((item: NavigationItem) => 
         !testItemTitles.includes(item.title)
       );
       
@@ -236,7 +238,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Filter out specific test items from backup too (exact title matches only)
       const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
-      const filteredBackup = backup.filter(item => 
+      const filteredBackup = backup.filter((item: NavigationItem) => 
         !testItemTitles.includes(item.title)
       );
       
@@ -252,18 +254,23 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     try {
-      const storage = getStorage();
       const jsonString = JSON.stringify(history);
-      storage.setItem('harvous-navigation-history-v2', jsonString);
+      const success = safeSetItem('harvous-navigation-history-v2', jsonString, {
+        cleanupOldest: true,
+        fallbackToSession: true,
+      });
       
       // Also update the backup
       (window as any).navigationHistoryBackup = [...history];
       
-      // Verify the save worked
-      const verification = storage.getItem('harvous-navigation-history-v2');
-      
-      if (verification !== jsonString) {
-        console.error('💾 saveNavigationHistory - SAVE FAILED! Data mismatch');
+      if (!success) {
+        console.error('💾 saveNavigationHistory - SAVE FAILED! Could not save to storage');
+      } else {
+        // Verify the save worked
+        const verification = safeGetItem('harvous-navigation-history-v2');
+        if (verification !== jsonString) {
+          console.error('💾 saveNavigationHistory - SAVE FAILED! Data mismatch');
+        }
       }
     } catch (error) {
       console.error('Error saving navigation history:', error);
@@ -423,7 +430,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Special handling for unorganized thread
       if (itemId === 'thread_unorganized') {
-        localStorage.setItem('unorganized-thread-closed', 'true');
+        safeSetItem('unorganized-thread-closed', 'true', {
+          cleanupOldest: false,
+          fallbackToSession: true,
+        });
       }
       
       // Save the updated history
@@ -449,7 +459,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     // Special handling for unorganized thread
     if (itemId === 'thread_unorganized') {
-      localStorage.setItem('unorganized-thread-closed', 'true');
+      safeSetItem('unorganized-thread-closed', 'true', {
+        cleanupOldest: false,
+        fallbackToSession: true,
+      });
     }
     
     saveNavigationHistory(filteredHistory);
@@ -583,7 +596,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (itemData) {
       // Special handling for unorganized thread
       if (currentItemId === 'thread_unorganized' || itemData.id === 'thread_unorganized') {
-        localStorage.removeItem('unorganized-thread-closed');
+        safeRemoveItem('unorganized-thread-closed');
         // Also remove from closed items list if it was there
         removeFromClosedItems('thread_unorganized');
       }
@@ -781,7 +794,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       
       const threads = await response.json();
-      const threadIds = new Set(threads.map((t: any) => t.id));
+      const threadIds = new Set<string>(threads.map((t: any) => t.id as string));
       
       // Update cache
       validationCache.current = {
@@ -963,7 +976,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           // Check auth before making API call
           if (!isAuthReady()) {
             // Auth not ready yet, skip silently
-            return;
+            return currentHistory;
           }
           
           safeFetch('/api/threads/list')
@@ -1218,10 +1231,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
     document.addEventListener('threadCreated', handleThreadCreated as EventListener);
     window.addEventListener('threadDeleted', handleThreadDeleted as EventListener);
-    window.addEventListener('noteCreated', handleNoteCreated as EventListener);
-    window.addEventListener('noteDeleted', handleNoteDeleted as EventListener);
-    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
-    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+    window.addEventListener('noteCreated', handleNoteCreated as unknown as EventListener);
+    window.addEventListener('noteDeleted', handleNoteDeleted as unknown as EventListener);
+    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
     
     // Expose functions to global scope for non-React code
     (window as any).removeFromNavigationHistory = removeFromNavigationHistory;
@@ -1239,10 +1252,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
       document.removeEventListener('threadCreated', handleThreadCreated as EventListener);
       window.removeEventListener('threadDeleted', handleThreadDeleted as EventListener);
-      window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
-      window.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
-      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
-      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+      window.removeEventListener('noteCreated', handleNoteCreated as unknown as EventListener);
+      window.removeEventListener('noteDeleted', handleNoteDeleted as unknown as EventListener);
+      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
     };
   }, []);
 

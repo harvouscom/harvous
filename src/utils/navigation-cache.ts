@@ -3,6 +3,8 @@
  * Stores threads, spaces, and inboxCount in localStorage for fast navigation
  */
 
+import { deduplicatedFetch } from './request-deduplication';
+
 export interface NavigationCache {
   threads: any[];
   spaces: any[];
@@ -12,6 +14,7 @@ export interface NavigationCache {
 
 const CACHE_KEY = 'harvous_navigation_cache';
 const CACHE_DURATION = 30 * 1000; // 30 seconds
+const NAVIGATION_API_URL = '/api/navigation/data';
 
 /**
  * Get cached navigation data from localStorage
@@ -75,27 +78,30 @@ export function clearNavigationCache(): void {
 
 /**
  * Get navigation data from API endpoint
+ * Uses request deduplication to prevent multiple simultaneous requests
  */
 export async function fetchNavigationData(): Promise<Omit<NavigationCache, 'timestamp'>> {
-  try {
-    const response = await fetch('/api/navigation/data', {
-      credentials: 'include'
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch navigation data: ${response.statusText}`);
+  return deduplicatedFetch(NAVIGATION_API_URL, async () => {
+    try {
+      const response = await fetch(NAVIGATION_API_URL, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch navigation data: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return {
+        threads: data.threads || [],
+        spaces: data.spaces || [],
+        inboxCount: data.inboxCount || 0
+      };
+    } catch (error) {
+      console.error('Error fetching navigation data:', error);
+      throw error;
     }
-    
-    const data = await response.json();
-    return {
-      threads: data.threads || [],
-      spaces: data.spaces || [],
-      inboxCount: data.inboxCount || 0
-    };
-  } catch (error) {
-    console.error('Error fetching navigation data:', error);
-    throw error;
-  }
+  });
 }
 
 /**
@@ -116,12 +122,16 @@ export async function getNavigationDataWithCache(): Promise<Omit<NavigationCache
     
     // Only refresh in background if cache is about to expire (within 5 seconds)
     // This prevents unnecessary API calls while still keeping cache fresh
+    // Request deduplication ensures we don't make multiple simultaneous requests
     if (timeUntilStale > 0 && timeUntilStale < 5 * 1000) {
       // Refresh in background without blocking
       fetchNavigationData()
         .then(freshData => setCachedNavigationData(freshData))
-        .catch(() => {
-          // Silently fail - cache is still valid
+        .catch((error) => {
+          // Log error but don't throw - cache is still valid
+          if (import.meta.env.DEV) {
+            console.debug('Background navigation data refresh failed:', error);
+          }
         });
     }
     

@@ -1,9 +1,11 @@
 // Service Worker for Harvous PWA
 // Improves initial load and re-engagement performance
 
-const CACHE_NAME = 'harvous-cache-v3';
+const CACHE_NAME = 'harvous-cache-v4'; // Increment version to invalidate old cache
 const OFFLINE_URL = '/';
-const NAV_API_CACHE = 'harvous-nav-api-v1';
+const NAV_API_CACHE = 'harvous-nav-api-v2'; // Increment version to invalidate old cache
+const CACHE_MAX_AGE = 30 * 60 * 1000; // 30 minutes for navigation API
+const PAGE_CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes for page cache
 
 // Resources to pre-cache for faster initial load
 // Note: Removed '/dashboard' to prevent auth conflicts - authenticated routes should use network-first
@@ -21,15 +23,43 @@ const UI_CRITICAL_ASSETS = [
   '/dashboard/threads'
 ];
 
+// Helper to cache assets individually, continuing even if some fail
+const cacheAssetsIndividually = async (cache, assets) => {
+  const results = await Promise.allSettled(
+    assets.map(url => 
+      cache.add(url).catch(err => {
+        console.warn(`Failed to cache asset: ${url}`, err);
+        return null; // Continue with other assets
+      })
+    )
+  );
+  
+  const successful = results.filter(r => r.status === 'fulfilled' && r.value !== null).length;
+  const failed = results.length - successful;
+  
+  if (failed > 0) {
+    console.warn(`Service Worker: Cached ${successful}/${assets.length} assets (${failed} failed)`);
+  } else {
+    console.log(`Service Worker: Successfully cached all ${assets.length} assets`);
+  }
+  
+  return results;
+};
+
 // Install event - precache critical assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Caching critical assets');
-        return cache.addAll(CRITICAL_ASSETS);
+        return cacheAssetsIndividually(cache, CRITICAL_ASSETS);
       })
-      .then(() => self.skipWaiting()) // Activate immediately
+      .then(() => self.skipWaiting()) // Activate immediately even if some assets failed
+      .catch((err) => {
+        console.error('Service Worker install error:', err);
+        // Still activate even on error
+        return self.skipWaiting();
+      })
   );
 });
 
@@ -50,8 +80,11 @@ self.addEventListener('activate', (event) => {
     }).then(() => {
       // After activation and claiming clients, cache UI critical assets
       return caches.open(CACHE_NAME).then((cache) => {
-        return cache.addAll(UI_CRITICAL_ASSETS);
+        return cacheAssetsIndividually(cache, UI_CRITICAL_ASSETS);
       });
+    }).catch((err) => {
+      console.error('Service Worker activate error:', err);
+      // Continue even if caching fails
     })
   );
 });
@@ -108,6 +141,40 @@ const shouldCacheResponse = (response) => {
   return status >= 200 && status < 300;
 };
 
+// Helper to check if cached response is stale
+const isCacheStale = (cachedResponse, maxAge) => {
+  if (!cachedResponse) return true;
+  
+  // Check if response has a Date header
+  const dateHeader = cachedResponse.headers.get('date');
+  if (!dateHeader) return false; // Can't determine age, assume fresh
+  
+  try {
+    const cacheDate = new Date(dateHeader);
+    const age = Date.now() - cacheDate.getTime();
+    return age > maxAge;
+  } catch (error) {
+    return false; // Error parsing date, assume fresh
+  }
+};
+
+// Helper to add cache timestamp to response
+const addCacheTimestamp = (response) => {
+  if (!response) return response;
+  
+  // Clone response to add Date header if missing
+  const headers = new Headers(response.headers);
+  if (!headers.has('date')) {
+    headers.set('date', new Date().toUTCString());
+  }
+  
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: headers
+  });
+};
+
 // Fetch event - with optimized strategy based on asset type
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
@@ -122,33 +189,44 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.open(NAV_API_CACHE).then((cache) => {
         return cache.match(event.request).then((cachedResponse) => {
-          // Return cached response immediately if available
-          // Cache is considered fresh for 30 seconds (handled by client-side cache)
-          if (cachedResponse) {
+          const isStale = isCacheStale(cachedResponse, CACHE_MAX_AGE);
+          
+          // Return cached response immediately if available and fresh
+          if (cachedResponse && !isStale) {
             // Refresh in background
             fetch(event.request)
               .then((response) => {
                 if (shouldCacheResponse(response)) {
-                  cache.put(event.request, response.clone());
+                  const timestampedResponse = addCacheTimestamp(response);
+                  cache.put(event.request, timestampedResponse.clone());
                 }
               })
               .catch(() => { /* Ignore errors */ });
             return cachedResponse;
           }
           
-          // Fetch fresh data and cache it
+          // Cache is stale or missing - fetch fresh data
           return fetch(event.request)
             .then((response) => {
               if (shouldCacheResponse(response)) {
-                cache.put(event.request, response.clone());
+                const timestampedResponse = addCacheTimestamp(response);
+                cache.put(event.request, timestampedResponse.clone());
+                return timestampedResponse;
               }
               return response;
             })
             .catch(() => {
               // If network fails and we have stale cache, use it
-              return cachedResponse || new Response(JSON.stringify({ threads: [], spaces: [], inboxCount: 0 }), {
+              if (cachedResponse) {
+                return cachedResponse;
+              }
+              // No cache at all - return empty data
+              return new Response(JSON.stringify({ threads: [], spaces: [], inboxCount: 0 }), {
                 status: 200,
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'date': new Date().toUTCString()
+                }
               });
             });
         });
@@ -209,15 +287,17 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(event.request)
         .then((cachedResponse) => {
-          if (cachedResponse) {
+          const isStale = isCacheStale(cachedResponse, PAGE_CACHE_MAX_AGE);
+          
+          if (cachedResponse && !isStale) {
             // Return cached response immediately for instant navigation
             // Refresh cache in the background
             fetch(event.request)
               .then(response => {
                 if (shouldCacheResponse(response)) {
-                  const responseClone = response.clone();
+                  const timestampedResponse = addCacheTimestamp(response);
                   caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, responseClone);
+                    cache.put(event.request, timestampedResponse.clone());
                   });
                 }
               })
@@ -226,20 +306,25 @@ self.addEventListener('fetch', (event) => {
             return cachedResponse;
           }
           
-          // If not in cache, get from network and cache
+          // Cache is stale or missing - fetch fresh data
           return fetch(event.request)
             .then(response => {
               if (shouldCacheResponse(response)) {
-                const responseClone = response.clone();
+                const timestampedResponse = addCacheTimestamp(response);
                 caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, responseClone);
+                  cache.put(event.request, timestampedResponse.clone());
                 });
+                return timestampedResponse;
               }
               return response;
             })
             .catch(() => {
               // If network fails and we have stale cache, use it
-              return cachedResponse || new Response('Network error', {
+              if (cachedResponse) {
+                return cachedResponse;
+              }
+              // No cache at all - return error
+              return new Response('Network error', {
                 status: 503,
                 statusText: 'Service Unavailable'
               });
@@ -255,10 +340,11 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         // Cache the fresh response only if it's successful
         if (shouldCacheResponse(response)) {
-          const clonedResponse = response.clone();
+          const timestampedResponse = addCacheTimestamp(response);
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clonedResponse);
+            cache.put(event.request, timestampedResponse.clone());
           });
+          return timestampedResponse;
         }
         return response;
       })
@@ -301,7 +387,8 @@ self.addEventListener('message', (event) => {
       const criticalFetches = [
         fetch('/').then(response => {
           if (shouldCacheResponse(response)) {
-            cache.put('/', response);
+            const timestampedResponse = addCacheTimestamp(response);
+            cache.put('/', timestampedResponse);
           }
         }).catch(() => {})
       ];
@@ -311,11 +398,62 @@ self.addEventListener('message', (event) => {
       
       // Then schedule less critical pre-fetches
       setTimeout(() => {
-        cache.addAll([
+        cacheAssetsIndividually(cache, [
           '/find',
           '/profile'
         ]).catch(() => {});
       }, 1000);
     });
   }
+});
+
+// Handle online/offline events for mobile devices
+self.addEventListener('online', () => {
+  console.log('Service Worker: Online - refreshing stale cache');
+  
+  // Clear stale cache entries when coming back online
+  caches.open(CACHE_NAME).then((cache) => {
+    cache.keys().then((keys) => {
+      keys.forEach((request) => {
+        cache.match(request).then((cachedResponse) => {
+          if (cachedResponse && isCacheStale(cachedResponse, PAGE_CACHE_MAX_AGE)) {
+            // Delete stale cache entry
+            cache.delete(request).catch(() => {});
+          }
+        });
+      });
+    });
+  });
+  
+  // Refresh navigation API cache
+  caches.open(NAV_API_CACHE).then((cache) => {
+    cache.keys().then((keys) => {
+      keys.forEach((request) => {
+        cache.match(request).then((cachedResponse) => {
+          if (cachedResponse && isCacheStale(cachedResponse, CACHE_MAX_AGE)) {
+            // Delete stale cache entry
+            cache.delete(request).catch(() => {});
+          }
+        });
+      });
+    });
+  });
+  
+  // Notify clients that we're online
+  self.clients.matchAll().then((clients) => {
+    clients.forEach((client) => {
+      client.postMessage({ type: 'online' });
+    });
+  });
+});
+
+self.addEventListener('offline', () => {
+  console.log('Service Worker: Offline - using cached content');
+  
+  // Notify clients that we're offline
+  self.clients.matchAll().then((clients) => {
+    clients.forEach((client) => {
+      client.postMessage({ type: 'offline' });
+    });
+  });
 }); 
