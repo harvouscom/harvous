@@ -17,47 +17,92 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const body = await request.json();
     const { churchName, churchCity, churchState } = body;
 
-    console.log('📥 Church update data:', { churchName, churchCity, churchState });
+    // Normalize input: trim strings and convert empty strings to null
+    const normalizedChurchName = typeof churchName === 'string' ? (churchName.trim() || null) : (churchName ?? null);
+    const normalizedChurchCity = typeof churchCity === 'string' ? (churchCity.trim() || null) : (churchCity ?? null);
+    const normalizedChurchState = typeof churchState === 'string' ? (churchState.trim() || null) : (churchState ?? null);
+
+    console.log('📥 Church update data received:', { 
+      raw: { churchName, churchCity, churchState },
+      normalized: { churchName: normalizedChurchName, churchCity: normalizedChurchCity, churchState: normalizedChurchState }
+    });
 
     // All fields are optional, but we should update the database
     try {
-      // Check if UserMetadata record exists
+      // Get existing record to preserve other fields and for logging
       const existingRecord = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1);
       
       if (existingRecord.length > 0) {
-        // Update existing record
+        const existing = existingRecord[0];
+        console.log('📊 Existing church data before update:', {
+          churchName: existing.churchName,
+          churchCity: existing.churchCity,
+          churchState: existing.churchState
+        });
+        
+        // Update existing record - only update church fields, preserve all other fields
+        // Astro DB .set() only updates specified fields, but we're being explicit
         await db.update(UserMetadata)
           .set({
-            churchName: churchName || null,
-            churchCity: churchCity || null,
-            churchState: churchState || null,
+            churchName: normalizedChurchName,
+            churchCity: normalizedChurchCity,
+            churchState: normalizedChurchState,
             updatedAt: new Date()
           })
           .where(eq(UserMetadata.userId, userId));
-        console.log('✅ Church data updated in existing UserMetadata record');
+        
+        console.log('✅ Church data updated in existing UserMetadata record', {
+          before: {
+            churchName: existing.churchName,
+            churchCity: existing.churchCity,
+            churchState: existing.churchState
+          },
+          after: {
+            churchName: normalizedChurchName,
+            churchCity: normalizedChurchCity,
+            churchState: normalizedChurchState
+          }
+        });
       } else {
         // Create new record (shouldn't happen in normal flow, but handle it)
+        // Note: This will only have church fields, other fields will be defaults
+        // In practice, UserMetadata should already exist from user creation
+        console.log('⚠️ Creating new UserMetadata record (unexpected - should already exist)');
         await db.insert(UserMetadata).values({
           id: crypto.randomUUID(),
           userId,
-          churchName: churchName || null,
-          churchCity: churchCity || null,
-          churchState: churchState || null,
+          churchName: normalizedChurchName,
+          churchCity: normalizedChurchCity,
+          churchState: normalizedChurchState,
+          highestSimpleNoteId: 0,
+          userColor: 'paper',
           createdAt: new Date(),
           updatedAt: new Date()
         });
         console.log('✅ Church data inserted in new UserMetadata record');
       }
 
-      console.log('✅ Church data updated successfully in database');
+      // Verify the update by reading back from database
+      const verifyRecord = await db.select()
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, userId))
+        .get();
+      
+      console.log('✅ Church data updated successfully in database', {
+        verified: {
+          churchName: verifyRecord?.churchName,
+          churchCity: verifyRecord?.churchCity,
+          churchState: verifyRecord?.churchState
+        }
+      });
       
       return new Response(JSON.stringify({ 
         success: true, 
         message: 'Church information updated successfully',
         church: {
-          churchName: churchName || null,
-          churchCity: churchCity || null,
-          churchState: churchState || null
+          churchName: normalizedChurchName,
+          churchCity: normalizedChurchCity,
+          churchState: normalizedChurchState
         }
       }), {
         status: 200,

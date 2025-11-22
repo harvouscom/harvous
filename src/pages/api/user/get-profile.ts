@@ -44,14 +44,28 @@ export const GET: APIRoute = async ({ locals }) => {
         .get();
       
       if (userMetadata) {
+        // Preserve actual database values (null or string) - don't convert empty strings to null
+        // Empty strings shouldn't exist in DB, but if they do, preserve them
         churchData = {
-          churchName: userMetadata.churchName || null,
-          churchCity: userMetadata.churchCity || null,
-          churchState: userMetadata.churchState || null
+          churchName: userMetadata.churchName ?? null,
+          churchCity: userMetadata.churchCity ?? null,
+          churchState: userMetadata.churchState ?? null
         };
+        
+        console.log('📊 Church data retrieved from database:', {
+          raw: {
+            churchName: userMetadata.churchName,
+            churchCity: userMetadata.churchCity,
+            churchState: userMetadata.churchState
+          },
+          processed: churchData,
+          hasData: !!(churchData.churchName || churchData.churchCity || churchData.churchState)
+        });
+      } else {
+        console.log('⚠️ No UserMetadata record found for userId:', userId);
       }
     } catch (error) {
-      console.error('Error fetching church data from database:', error);
+      console.error('❌ Error fetching church data from database:', error);
       // Don't fail the request if church data fetch fails
     }
     
@@ -77,18 +91,7 @@ export const GET: APIRoute = async ({ locals }) => {
       console.error('Error fetching email verification from Clerk:', error);
     }
     
-    console.log('get-profile API - returning:', { 
-      firstName: userData.firstName, 
-      lastName: userData.lastName, 
-      userColor: userData.userColor, 
-      email: userData.email, 
-      emailVerified,
-      churchName: churchData.churchName,
-      churchCity: churchData.churchCity,
-      churchState: churchData.churchState
-    });
-
-    return new Response(JSON.stringify({ 
+    const responseData = {
       firstName: userData.firstName,
       lastName: userData.lastName,
       userColor: userData.userColor,
@@ -97,7 +100,14 @@ export const GET: APIRoute = async ({ locals }) => {
       churchName: churchData.churchName,
       churchCity: churchData.churchCity,
       churchState: churchData.churchState
-    }), {
+    };
+    
+    console.log('✅ get-profile API - returning data:', { 
+      ...responseData,
+      churchDataExists: !!(churchData.churchName || churchData.churchCity || churchData.churchState)
+    });
+
+    return new Response(JSON.stringify(responseData), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });

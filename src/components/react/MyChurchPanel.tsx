@@ -38,23 +38,36 @@ export default function MyChurchPanel({
     
     // Check cache first
     const cached = getCachedProfileData();
-    if (cached && (cached.churchName || cached.churchCity || cached.churchState !== undefined)) {
-      console.log('📦 MyChurchPanel: Using cached church data');
+    // Check if cache exists and has church data (any field is not null/undefined)
+    const hasCachedChurchData = cached && (
+      cached.churchName !== null && cached.churchName !== undefined ||
+      cached.churchCity !== null && cached.churchCity !== undefined ||
+      cached.churchState !== null && cached.churchState !== undefined
+    );
+    
+    if (hasCachedChurchData) {
+      console.log('📦 MyChurchPanel: Using cached church data', {
+        churchName: cached.churchName,
+        churchCity: cached.churchCity,
+        churchState: cached.churchState
+      });
+      // Preserve null values - only convert to empty string for form display
       const cachedData = {
-        churchName: cached.churchName || '',
-        churchCity: cached.churchCity || '',
-        churchState: cached.churchState || ''
+        churchName: cached.churchName ?? '',
+        churchCity: cached.churchCity ?? '',
+        churchState: cached.churchState ?? ''
       };
       
       setFormData(cachedData);
       setOriginalFormData(cachedData);
       
+      // Check if any church data exists (not null/undefined/empty)
       const hasData = !!(cached.churchName || cached.churchCity || cached.churchState);
       setHasExistingData(hasData);
       setViewMode(hasData ? 'view' : 'edit');
-      console.log('✅ MyChurchPanel: Form data updated from cache');
+      console.log('✅ MyChurchPanel: Form data updated from cache, hasData:', hasData);
     } else {
-      console.log('📥 MyChurchPanel: No cache found, loading from API');
+      console.log('📥 MyChurchPanel: No cache found or no church data in cache, loading from API');
       loadChurchData();
     }
   }, []);
@@ -84,34 +97,45 @@ export default function MyChurchPanel({
       console.log('📥 MyChurchPanel: Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('📥 MyChurchPanel: Received data:', data);
-        const churchName = data.churchName || '';
-        const churchCity = data.churchCity || '';
-        const churchState = data.churchState || '';
+        console.log('📥 MyChurchPanel: Received data:', {
+          churchName: data.churchName,
+          churchCity: data.churchCity,
+          churchState: data.churchState
+        });
         
-        const loadedData = {
-          churchName,
-          churchCity,
-          churchState
+        // Preserve null values from API - only convert to empty string for form display
+        // Store original API values (null or string) for cache
+        const apiChurchName = data.churchName ?? null;
+        const apiChurchCity = data.churchCity ?? null;
+        const apiChurchState = data.churchState ?? null;
+        
+        // Convert to empty strings for form inputs (null -> '', string -> string)
+        const formData = {
+          churchName: apiChurchName ?? '',
+          churchCity: apiChurchCity ?? '',
+          churchState: apiChurchState ?? ''
         };
         
-        setFormData(loadedData);
-        // Store original data for unsaved changes detection
-        setOriginalFormData(loadedData);
+        setFormData(formData);
+        // Store original form data for unsaved changes detection
+        setOriginalFormData(formData);
         
-        // Check if any church data exists
-        const hasData = !!(churchName || churchCity || churchState);
+        // Check if any church data exists (not null/undefined/empty)
+        const hasData = !!(apiChurchName || apiChurchCity || apiChurchState);
         setHasExistingData(hasData);
         // Set view mode based on whether data exists
         setViewMode(hasData ? 'view' : 'edit');
         
-        // Update cache with fetched data
+        // Update cache with actual API values (preserve null, not empty strings)
         updateCachedProfileData({
-          churchName: churchName || null,
-          churchCity: churchCity || null,
-          churchState: churchState || null
+          churchName: apiChurchName,
+          churchCity: apiChurchCity,
+          churchState: apiChurchState
         });
-        console.log('✅ MyChurchPanel: Form data updated and cache refreshed');
+        console.log('✅ MyChurchPanel: Form data updated and cache refreshed', {
+          hasData,
+          cached: { churchName: apiChurchName, churchCity: apiChurchCity, churchState: apiChurchState }
+        });
       } else {
         console.error('❌ MyChurchPanel: API call failed:', response.status);
       }

@@ -75,6 +75,10 @@ export function clearCachedProfileData(): void {
 /**
  * Update specific fields in the cache without replacing the entire cache
  * Useful for partial updates (e.g., only church data or only email)
+ * 
+ * IMPORTANT: For church fields, only updates if explicitly provided in updates.
+ * If church fields are not in updates, preserves existing values.
+ * This prevents accidentally overwriting church data with null.
  */
 export function updateCachedProfileData(updates: Partial<CachedProfileData>): void {
   if (typeof window === 'undefined') {
@@ -84,7 +88,16 @@ export function updateCachedProfileData(updates: Partial<CachedProfileData>): vo
   try {
     const existing = getCachedProfileData();
     if (existing) {
-      const updated = { ...existing, ...updates };
+      // Merge updates, but preserve existing church data if not explicitly updated
+      const updated: CachedProfileData = {
+        ...existing,
+        ...updates,
+        // Only update church fields if they're explicitly provided in updates
+        // This prevents overwriting existing church data with null when updating other fields
+        churchName: updates.hasOwnProperty('churchName') ? (updates.churchName ?? null) : existing.churchName,
+        churchCity: updates.hasOwnProperty('churchCity') ? (updates.churchCity ?? null) : existing.churchCity,
+        churchState: updates.hasOwnProperty('churchState') ? (updates.churchState ?? null) : existing.churchState,
+      };
       setCachedProfileData(updated);
     } else {
       // If no cache exists, create new cache with the updates
