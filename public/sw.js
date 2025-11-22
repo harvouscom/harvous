@@ -97,6 +97,17 @@ const isNavigationRoute = (url) => {
   return false;
 };
 
+// Helper to determine if a response should be cached
+// Only cache successful responses (200-299)
+// Do not cache redirects (300-399) or errors (400+)
+const shouldCacheResponse = (response) => {
+  if (!response) return false;
+  const status = response.status;
+  // Only cache successful responses (200-299)
+  // Redirects (300-399) and errors (400+) should not be cached
+  return status >= 200 && status < 300;
+};
+
 // Fetch event - with optimized strategy based on asset type
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
@@ -117,7 +128,7 @@ self.addEventListener('fetch', (event) => {
             // Refresh in background
             fetch(event.request)
               .then((response) => {
-                if (response.ok) {
+                if (shouldCacheResponse(response)) {
                   cache.put(event.request, response.clone());
                 }
               })
@@ -128,7 +139,7 @@ self.addEventListener('fetch', (event) => {
           // Fetch fresh data and cache it
           return fetch(event.request)
             .then((response) => {
-              if (response.ok) {
+              if (shouldCacheResponse(response)) {
                 cache.put(event.request, response.clone());
               }
               return response;
@@ -161,10 +172,12 @@ self.addEventListener('fetch', (event) => {
             // And refresh cache in the background
             const fetchPromise = fetch(event.request)
               .then(response => {
-                const responseClone = response.clone();
-                caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, responseClone);
-                });
+                if (shouldCacheResponse(response)) {
+                  const responseClone = response.clone();
+                  caches.open(CACHE_NAME).then(cache => {
+                    cache.put(event.request, responseClone);
+                  });
+                }
                 return response;
               })
               .catch(() => { /* Ignore errors */ });
@@ -177,10 +190,12 @@ self.addEventListener('fetch', (event) => {
           // If not in cache, get from network and cache
           return fetch(event.request)
             .then(response => {
-              const responseClone = response.clone();
-              caches.open(CACHE_NAME).then(cache => {
-                cache.put(event.request, responseClone);
-              });
+              if (shouldCacheResponse(response)) {
+                const responseClone = response.clone();
+                caches.open(CACHE_NAME).then(cache => {
+                  cache.put(event.request, responseClone);
+                });
+              }
               return response;
             });
         })
@@ -199,7 +214,7 @@ self.addEventListener('fetch', (event) => {
             // Refresh cache in the background
             fetch(event.request)
               .then(response => {
-                if (response.ok) {
+                if (shouldCacheResponse(response)) {
                   const responseClone = response.clone();
                   caches.open(CACHE_NAME).then(cache => {
                     cache.put(event.request, responseClone);
@@ -214,7 +229,7 @@ self.addEventListener('fetch', (event) => {
           // If not in cache, get from network and cache
           return fetch(event.request)
             .then(response => {
-              if (response.ok) {
+              if (shouldCacheResponse(response)) {
                 const responseClone = response.clone();
                 caches.open(CACHE_NAME).then(cache => {
                   cache.put(event.request, responseClone);
@@ -238,11 +253,13 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache the fresh response
-        const clonedResponse = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, clonedResponse);
-        });
+        // Cache the fresh response only if it's successful
+        if (shouldCacheResponse(response)) {
+          const clonedResponse = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, clonedResponse);
+          });
+        }
         return response;
       })
       .catch(() => {
@@ -283,7 +300,9 @@ self.addEventListener('message', (event) => {
       // Pre-fetch common navigation targets with high priority
       const criticalFetches = [
         fetch('/').then(response => {
-          cache.put('/', response);
+          if (shouldCacheResponse(response)) {
+            cache.put('/', response);
+          }
         }).catch(() => {})
       ];
       
