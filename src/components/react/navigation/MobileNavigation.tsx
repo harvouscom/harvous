@@ -61,8 +61,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   userColor = 'paper'
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isClient, setIsClient] = useState(false);
-  const [currentItemId, setCurrentItemId] = useState('');
+  const [currentItemId, setCurrentItemId] = useState(() => {
+    // Initialize from window.location if available (client-side only)
+    if (typeof window !== 'undefined') {
+      return window.location.pathname.substring(1);
+    }
+    return '';
+  });
   const { navigationHistory, removeFromNavigationHistory } = useNavigation();
   const [updatedCurrentThread, setUpdatedCurrentThread] = useState(currentThread);
   // Track which items are in "close mode" (showing close icon instead of badge)
@@ -93,18 +98,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return 'var(--color-deep-grey)';
   };
 
-  // Handle SSR - only run client-side code after hydration
+  // Initialize current item ID on mount (component is client-only, so window is always available)
   useEffect(() => {
     console.log('🚀 MobileNavigation component mounted and hydrated!');
-    setIsClient(true);
-    // Initialize current item ID
     setCurrentItemId(window.location.pathname.substring(1));
   }, []);
 
   // Listen for page changes to update current item
   useEffect(() => {
-    if (!isClient) return;
-
     const handlePageLoad = () => {
       // Update current item ID when page changes
       setCurrentItemId(window.location.pathname.substring(1));
@@ -115,11 +116,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return () => {
       document.removeEventListener('astro:page-load', handlePageLoad);
     };
-  }, [isClient]);
+  }, []);
 
   // Listen for note count changes to refresh currentThread count
   useEffect(() => {
-    if (!currentThread || !isClient) return;
+    if (!currentThread) return;
 
     const refreshCurrentThreadCount = async () => {
       // Check if auth is ready before making API call
@@ -198,7 +199,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
     };
-  }, [currentThread, isClient]);
+  }, [currentThread]);
 
   // Listen for profile updates to update avatar
   useEffect(() => {
@@ -220,10 +221,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     };
   }, []);
   
-  // Determine what the current active thread/space is - only on client
+  // Determine what the current active thread/space is
   const getCurrentActiveItemId = () => {
-    if (!isClient) return '';
-    
     let currentActiveItemId = currentItemId;
     
     // If we're on a note page, we need to determine the parent thread
@@ -258,8 +257,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   
   // Filter out items that shouldn't be shown in persistent navigation
   const getPersistentItems = () => {
-    if (!isClient) return [];
-    
     let persistentItems = navigationHistory.filter((item) => {
       // Show all items, including active ones, to match desktop behavior
       // This allows users to see active items and close them if needed
@@ -296,7 +293,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   // Organize persistent items hierarchically (spaces with threads nested)
   const organizePersistentItems = () => {
-    if (!isClient || persistentItems.length === 0) return { spaces: [], threads: [] };
+    if (persistentItems.length === 0) return { spaces: [], threads: [] };
     
     const spaces = persistentItems.filter(item => item.id.startsWith('space_'));
     const threads = persistentItems.filter(item => item.id.startsWith('thread_'));
@@ -670,7 +667,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               ) : null}
               
               {/* Persistent Navigation Items - Excluding Active */}
-              {isClient && persistentItems.length > 0 && (
+              {persistentItems.length > 0 && (
                 <>
                   {/* Persistent Spaces - Excluding Active */}
                   {persistentSpaces.filter(space => space.id !== currentActiveItemId).map((space) => {

@@ -7,10 +7,28 @@ interface RecentSearch {
 }
 
 const RecentSearches: React.FC = () => {
-  const [isClient, setIsClient] = useState(false);
-  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
+  // Initialize from localStorage if available (component is client-only, so window is always available)
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
+        // Handle both old format (strings) and new format (objects)
+        return stored.map((item: any) => {
+          if (typeof item === 'string') {
+            return { term: item, count: 0 };
+          }
+          return item;
+        }).slice(0, 5);
+      } catch (error) {
+        return [];
+      }
+    }
+    return [];
+  });
 
   const updateRecentSearches = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    
     const stored = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
     // Handle both old format (strings) and new format (objects)
     const searches = stored.map((item: any) => {
@@ -24,6 +42,8 @@ const RecentSearches: React.FC = () => {
   }, []);
 
   const removeFromRecentSearches = useCallback((searchTerm: string) => {
+    if (typeof window === 'undefined') return;
+    
     console.log('Removing search term:', searchTerm);
     const stored = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
     console.log('Current searches:', stored);
@@ -51,9 +71,8 @@ const RecentSearches: React.FC = () => {
     window.dispatchEvent(new CustomEvent('recent-searches-updated'));
   }, []);
 
-  // Handle SSR - only run client-side code after hydration
+  // Update recent searches on mount and listen for updates
   useEffect(() => {
-    setIsClient(true);
     updateRecentSearches();
     
     // Listen for updates when items are removed or counts are updated
@@ -67,12 +86,6 @@ const RecentSearches: React.FC = () => {
       window.removeEventListener('recent-searches-updated', handleUpdate);
     };
   }, [updateRecentSearches]);
-
-
-  // Don't render during SSR
-  if (!isClient) {
-    return null;
-  }
 
   if (recentSearches.length === 0) {
     return null;

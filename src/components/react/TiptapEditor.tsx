@@ -639,7 +639,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   onEditorReady
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isClient, setIsClient] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
   const [activeStates, setActiveStates] = useState({
     bold: false,
@@ -652,11 +651,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
-
-  // Check if we're on the client side
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   // Restore scroll position when provided
   useEffect(() => {
@@ -1478,7 +1472,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
   }, []);
 
-  if (!isClient || !editor) {
+  // Show loading state if editor is not ready yet
+  // Component is client-only, so we don't need isClient check
+  if (!editor) {
     return (
       <div className="tiptap-editor-container">
         <input

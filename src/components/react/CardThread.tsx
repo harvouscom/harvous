@@ -36,32 +36,29 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
   const threadAccentColor = accentColor || (color ? `var(--color-${color})` : "var(--color-purple)");
 
   // Format the timestamp properly - prioritize time over note count (subtitle)
-  // Calculate relative time immediately, prioritizing lastUpdated or createdAt dates
+  // Calculate relative time consistently to avoid hydration mismatch
   const displaySubtitle = React.useMemo(() => {
-    // On server, use a safe placeholder to avoid hydration mismatch
-    // On client, calculate relative time immediately
-    if (typeof window === 'undefined') {
-      // Server: use lastUpdated if it's already a relative time string, otherwise placeholder
-      if (lastUpdated && typeof lastUpdated === 'string' && 
-          (lastUpdated.includes('ago') || lastUpdated.includes('day') || lastUpdated.includes('hour') || lastUpdated.includes('minute'))) {
-        return lastUpdated;
-      }
-      // Use a generic placeholder on server - will be replaced on client
-      return "recently";
+    // Always use a consistent approach that works on both server and client
+    // If lastUpdated is already a relative time string, use it directly
+    if (lastUpdated && typeof lastUpdated === 'string' && 
+        (lastUpdated.includes('ago') || lastUpdated.includes('day') || lastUpdated.includes('hour') || 
+         lastUpdated.includes('minute') || lastUpdated.includes('Just now') || lastUpdated.includes('recently'))) {
+      return lastUpdated;
     }
     
-    // Client: calculate relative time immediately from dates
+    // If we have date strings, calculate relative time
+    // This works on both server and client if dates are provided
     if (lastUpdated) {
       try {
-        // Check if it's already a relative time string
-        if (typeof lastUpdated === 'string' && 
-            (lastUpdated.includes('ago') || lastUpdated.includes('day') || lastUpdated.includes('hour') || lastUpdated.includes('minute') || lastUpdated.includes('Just now'))) {
-          return lastUpdated;
-        }
-        // Otherwise treat as date string and calculate
         const date = new Date(lastUpdated);
         if (!isNaN(date.getTime())) {
-          return getRelativeTime(date);
+          // Only calculate if we're on client (where getRelativeTime is available)
+          // On server, return a safe placeholder
+          if (typeof window !== 'undefined') {
+            return getRelativeTime(date);
+          }
+          // Server: return a safe placeholder that won't cause mismatch
+          return "recently";
         }
       } catch (error) {
         // Fall through
@@ -72,14 +69,19 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
       try {
         const date = new Date(createdAt);
         if (!isNaN(date.getTime())) {
-          return getRelativeTime(date);
+          // Only calculate if we're on client
+          if (typeof window !== 'undefined') {
+            return getRelativeTime(date);
+          }
+          // Server: return a safe placeholder
+          return "recently";
         }
       } catch (error) {
         // Fall through
       }
     }
     
-    // Fallback - but avoid showing note count (subtitle)
+    // Fallback - consistent on both server and client
     return "recently";
   }, [lastUpdated, createdAt]);
 
