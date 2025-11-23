@@ -890,6 +890,16 @@ if (!content) {
     // Initialize cache with server-rendered data
     setCachedNavigationData({ threads, spaces, inboxCount });
     
+    // Prefetch dashboard data using requestIdleCallback
+    // Define schedulePrefetch outside conditional block so it's always available
+    const schedulePrefetch = (callback) => {
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(callback, { timeout: 2000 });
+      } else {
+        setTimeout(callback, 1000);
+      }
+    };
+    
     // Prefetch dashboard data in background (if on thread/note/space page)
     const currentPath = window.location.pathname;
     const isThreadPage = currentPath.startsWith('/thread_');
@@ -897,15 +907,6 @@ if (!content) {
     const isSpacePage = currentPath.startsWith('/space_');
     
     if (isThreadPage || isNotePage || isSpacePage) {
-      // Prefetch dashboard data using requestIdleCallback
-      const schedulePrefetch = (callback) => {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(callback, { timeout: 2000 });
-        } else {
-          setTimeout(callback, 1000);
-        }
-      };
-      
       schedulePrefetch(async () => {
         try {
           const response = await fetch('/api/navigation/data', { credentials: 'include' });

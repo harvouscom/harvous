@@ -36,29 +36,35 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
   const threadAccentColor = accentColor || (color ? `var(--color-${color})` : "var(--color-purple)");
 
   // Format the timestamp properly - prioritize time over note count (subtitle)
-  // Calculate relative time consistently to avoid hydration mismatch
-  const displaySubtitle = React.useMemo(() => {
-    // Always use a consistent approach that works on both server and client
-    // If lastUpdated is already a relative time string, use it directly
+  // Use useState/useEffect to avoid hydration mismatch
+  // Start with "recently" (matches server render), then update after mount
+  const [displaySubtitle, setDisplaySubtitle] = React.useState<string>(() => {
+    // Initial state: check if lastUpdated is already a relative time string
     if (lastUpdated && typeof lastUpdated === 'string' && 
         (lastUpdated.includes('ago') || lastUpdated.includes('day') || lastUpdated.includes('hour') || 
          lastUpdated.includes('minute') || lastUpdated.includes('Just now') || lastUpdated.includes('recently'))) {
       return lastUpdated;
     }
+    // Default to "recently" to match server render
+    return "recently";
+  });
+
+  // Update timestamp after hydration to show actual relative time
+  React.useEffect(() => {
+    // If lastUpdated is already a relative time string, keep it
+    if (lastUpdated && typeof lastUpdated === 'string' && 
+        (lastUpdated.includes('ago') || lastUpdated.includes('day') || lastUpdated.includes('hour') || 
+         lastUpdated.includes('minute') || lastUpdated.includes('Just now') || lastUpdated.includes('recently'))) {
+      return; // Already set correctly
+    }
     
-    // If we have date strings, calculate relative time
-    // This works on both server and client if dates are provided
+    // Calculate relative time from date strings
     if (lastUpdated) {
       try {
         const date = new Date(lastUpdated);
         if (!isNaN(date.getTime())) {
-          // Only calculate if we're on client (where getRelativeTime is available)
-          // On server, return a safe placeholder
-          if (typeof window !== 'undefined') {
-            return getRelativeTime(date);
-          }
-          // Server: return a safe placeholder that won't cause mismatch
-          return "recently";
+          setDisplaySubtitle(getRelativeTime(date));
+          return;
         }
       } catch (error) {
         // Fall through
@@ -69,20 +75,13 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
       try {
         const date = new Date(createdAt);
         if (!isNaN(date.getTime())) {
-          // Only calculate if we're on client
-          if (typeof window !== 'undefined') {
-            return getRelativeTime(date);
-          }
-          // Server: return a safe placeholder
-          return "recently";
+          setDisplaySubtitle(getRelativeTime(date));
+          return;
         }
       } catch (error) {
         // Fall through
       }
     }
-    
-    // Fallback - consistent on both server and client
-    return "recently";
   }, [lastUpdated, createdAt]);
 
   return (
