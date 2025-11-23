@@ -27,7 +27,7 @@ function isAuthReady(): boolean {
 /**
  * Cache a single URL in the service worker cache
  */
-async function cacheUrl(url: string, cacheName: string = 'harvous-cache-v5'): Promise<boolean> {
+async function cacheUrl(url: string, cacheName: string = 'harvous-cache-v6'): Promise<boolean> {
   try {
     if (!('caches' in window)) return false;
     
@@ -53,7 +53,7 @@ async function cacheUrl(url: string, cacheName: string = 'harvous-cache-v5'): Pr
 /**
  * Cache multiple URLs in parallel with rate limiting
  */
-async function cacheUrls(urls: string[], cacheName: string = 'harvous-cache-v5', batchSize: number = 5): Promise<number> {
+async function cacheUrls(urls: string[], cacheName: string = 'harvous-cache-v6', batchSize: number = 5): Promise<number> {
   let cached = 0;
   
   // Process in batches to avoid overwhelming the network

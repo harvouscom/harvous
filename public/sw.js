@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Improves initial load and re-engagement performance
 
-const CACHE_NAME = 'harvous-cache-v5'; // Increment version to invalidate old cache
+const CACHE_NAME = 'harvous-cache-v6'; // Increment version to invalidate old cache
 const OFFLINE_URL = '/';
 const NAV_API_CACHE = 'harvous-nav-api-v3'; // Increment version to invalidate old cache
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours for navigation API
@@ -95,6 +95,13 @@ const isUICriticalAsset = (url) => {
   return UI_CRITICAL_ASSETS.some(criticalPath => path.startsWith(criticalPath));
 };
 
+// Helper to determine if a request is for an Astro asset (CSS, JS, etc.)
+// These should use cache-first strategy for reliable style loading
+const isAstroAsset = (url) => {
+  const path = new URL(url).pathname;
+  return path.startsWith('/_astro/');
+};
+
 // Helper to determine if a request is for a navigation route
 // Navigation routes should use cache-first strategy for faster mobile performance
 const isNavigationRoute = (url) => {
@@ -159,18 +166,23 @@ const isCacheStale = (cachedResponse, maxAge) => {
 };
 
 // Helper to add cache timestamp to response
+// IMPORTANT: Response body can only be read once, so we must clone BEFORE processing
 const addCacheTimestamp = (response) => {
   if (!response) return response;
   
-  // Clone response to add Date header if missing
-  const headers = new Headers(response.headers);
+  // Clone response first to avoid consuming the body stream
+  const clonedResponse = response.clone();
+  
+  // Create new headers with Date if missing
+  const headers = new Headers(clonedResponse.headers);
   if (!headers.has('date')) {
     headers.set('date', new Date().toUTCString());
   }
   
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
+  // Create new response with cloned body
+  return new Response(clonedResponse.body, {
+    status: clonedResponse.status,
+    statusText: clonedResponse.statusText,
     headers: headers
   });
 };
@@ -197,8 +209,10 @@ self.addEventListener('fetch', (event) => {
             fetch(event.request)
               .then((response) => {
                 if (shouldCacheResponse(response)) {
-                  const timestampedResponse = addCacheTimestamp(response);
-                  cache.put(event.request, timestampedResponse.clone());
+                  // Clone before processing to avoid body consumption
+                  const responseClone = response.clone();
+                  const timestampedResponse = addCacheTimestamp(responseClone);
+                  cache.put(event.request, timestampedResponse);
                 }
               })
               .catch(() => { /* Ignore errors */ });
@@ -209,8 +223,10 @@ self.addEventListener('fetch', (event) => {
           return fetch(event.request)
             .then((response) => {
               if (shouldCacheResponse(response)) {
-                const timestampedResponse = addCacheTimestamp(response);
-                cache.put(event.request, timestampedResponse.clone());
+                // Clone before processing to avoid body consumption
+                const responseClone = response.clone();
+                const timestampedResponse = addCacheTimestamp(responseClone);
+                cache.put(event.request, timestampedResponse);
                 return timestampedResponse;
               }
               return response;
@@ -240,6 +256,57 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // For Astro assets (CSS, JS), use cache-first strategy for reliable style loading
+  // This ensures styles persist even after long periods or service worker updates
+  if (isAstroAsset(event.request.url)) {
+    event.respondWith(
+      caches.match(event.request)
+        .then((cachedResponse) => {
+          if (cachedResponse) {
+            // Return cached response immediately for instant loading
+            // Refresh cache in the background
+            fetch(event.request)
+              .then(response => {
+                if (shouldCacheResponse(response)) {
+                  // Clone before processing to avoid body consumption
+                  const responseClone = response.clone();
+                  const timestampedResponse = addCacheTimestamp(responseClone);
+                  caches.open(CACHE_NAME).then(cache => {
+                    cache.put(event.request, timestampedResponse);
+                  });
+                }
+              })
+              .catch(() => { /* Ignore errors - use cached version */ });
+            
+            return cachedResponse;
+          }
+          
+          // If not in cache, get from network and cache
+          return fetch(event.request)
+            .then(response => {
+              if (shouldCacheResponse(response)) {
+                // Clone before caching to avoid body consumption
+                const responseClone = response.clone();
+                const timestampedResponse = addCacheTimestamp(responseClone);
+                caches.open(CACHE_NAME).then(cache => {
+                  cache.put(event.request, timestampedResponse);
+                });
+                return timestampedResponse;
+              }
+              return response;
+            })
+            .catch(() => {
+              // If network fails, try to return cached version even if stale
+              return cachedResponse || new Response('Asset not available', {
+                status: 503,
+                statusText: 'Service Unavailable'
+              });
+            });
+        })
+    );
+    return;
+  }
+
   // For UI critical assets, use cache-first for immediate response
   if (isUICriticalAsset(event.request.url)) {
     event.respondWith(
@@ -251,9 +318,11 @@ self.addEventListener('fetch', (event) => {
             const fetchPromise = fetch(event.request)
               .then(response => {
                 if (shouldCacheResponse(response)) {
+                  // Clone before caching to avoid body consumption
                   const responseClone = response.clone();
+                  const timestampedResponse = addCacheTimestamp(responseClone);
                   caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, responseClone);
+                    cache.put(event.request, timestampedResponse);
                   });
                 }
                 return response;
@@ -269,10 +338,13 @@ self.addEventListener('fetch', (event) => {
           return fetch(event.request)
             .then(response => {
               if (shouldCacheResponse(response)) {
+                // Clone before caching to avoid body consumption
                 const responseClone = response.clone();
+                const timestampedResponse = addCacheTimestamp(responseClone);
                 caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, responseClone);
+                  cache.put(event.request, timestampedResponse);
                 });
+                return response;
               }
               return response;
             });
@@ -295,9 +367,11 @@ self.addEventListener('fetch', (event) => {
             fetch(event.request)
               .then(response => {
                 if (shouldCacheResponse(response)) {
-                  const timestampedResponse = addCacheTimestamp(response);
+                  // Clone before processing to avoid body consumption
+                  const responseClone = response.clone();
+                  const timestampedResponse = addCacheTimestamp(responseClone);
                   caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, timestampedResponse.clone());
+                    cache.put(event.request, timestampedResponse);
                   });
                 }
               })
@@ -310,9 +384,11 @@ self.addEventListener('fetch', (event) => {
           return fetch(event.request)
             .then(response => {
               if (shouldCacheResponse(response)) {
-                const timestampedResponse = addCacheTimestamp(response);
+                // Clone before processing to avoid body consumption
+                const responseClone = response.clone();
+                const timestampedResponse = addCacheTimestamp(responseClone);
                 caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, timestampedResponse.clone());
+                  cache.put(event.request, timestampedResponse);
                 });
                 return timestampedResponse;
               }
@@ -348,9 +424,11 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         // Cache the fresh response only if it's successful
         if (shouldCacheResponse(response)) {
-          const timestampedResponse = addCacheTimestamp(response);
+          // Clone before processing to avoid body consumption
+          const responseClone = response.clone();
+          const timestampedResponse = addCacheTimestamp(responseClone);
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, timestampedResponse.clone());
+            cache.put(event.request, timestampedResponse);
           });
           return timestampedResponse;
         }
@@ -401,7 +479,9 @@ self.addEventListener('message', (event) => {
       const criticalFetches = [
         fetch('/').then(response => {
           if (shouldCacheResponse(response)) {
-            const timestampedResponse = addCacheTimestamp(response);
+            // Clone before processing to avoid body consumption
+            const responseClone = response.clone();
+            const timestampedResponse = addCacheTimestamp(responseClone);
             cache.put('/', timestampedResponse);
           }
         }).catch(() => {})
