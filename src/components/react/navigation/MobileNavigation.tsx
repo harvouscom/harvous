@@ -771,36 +771,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   })}
                 </>
               )}
-              
-              {/* Created Spaces - Excluding Active */}
-              {spaces.filter(space => space.id !== currentActiveItemId).map(space => {
-                return (
-                  <a 
-                    key={space.id} 
-                    href={`/${space.id}`} 
-                    className="block w-full opacity-50"
-                    onClick={(e) => handleItemClickWrapper(e)}
-                    style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                  >
-                    <div className="relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center">
-                      <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                        <div className="flex-1 min-w-0 overflow-hidden text-left">
-                          <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(space.backgroundGradient, false) }}>
-                            {space.title}
-                          </span>
-                        </div>
-                        <div className="p-[20px] flex-shrink-0">
-                          <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                            <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, false) }}>
-                              {space.totalItemCount}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </a>
-                );
-              })}
             </div>
             
             {/* New Space Button - Absolutely Positioned */}
