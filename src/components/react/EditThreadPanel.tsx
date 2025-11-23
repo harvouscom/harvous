@@ -469,7 +469,7 @@ export default function EditThreadPanel({
                               <CardNote 
                                 title={note.title || "Untitled Note"}
                                 content={stripHtml(note.content)}
-                                noteType={note.noteType || 'default'}
+                                noteType={(note.noteType === 'resource' || note.noteType === 'scripture') ? note.noteType : 'default'}
                               />
                             </a>
                             {/* Remove from thread button */}
@@ -508,7 +508,7 @@ export default function EditThreadPanel({
                                 <CardNote 
                                   title={note.title || "Untitled Note"}
                                   content={stripHtml(note.content)}
-                                  noteType={note.noteType || 'default'}
+                                  noteType={(note.noteType === 'resource' || note.noteType === 'scripture') ? note.noteType : 'default'}
                                 />
                               </a>
                               {/* Remove from selection button */}
