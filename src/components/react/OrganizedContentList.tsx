@@ -30,9 +30,49 @@ export default function OrganizedContentList({
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const deletedItemIdsRef = useRef<Set<string>>(new Set());
   // Initialize currentItems directly from initialItems
-  const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(initialItems);
+  const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(initialItems || []);
   const isRefreshingRef = useRef(false);
   const isMountedRef = useRef(true);
+
+  // Refresh content by fetching fresh data from API
+  const refreshContent = useCallback(async () => {
+    // Guard against SSR and ensure browser APIs are available
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    if (isRefreshingRef.current || !isMountedRef.current) return;
+    
+    isRefreshingRef.current = true;
+    try {
+      const url = new URL('/api/content/load-more', window.location.origin);
+      url.searchParams.set('offset', '0');
+      url.searchParams.set('limit', '20');
+      url.searchParams.set('filter', filter);
+
+      const response = await fetch(url.toString(), {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to refresh content');
+      }
+
+      const data = await response.json();
+      // Filter out deleted items from refreshed items
+      const filteredItems = data.items.filter((item: OrganizedContentItem) => {
+        return !deletedItemIdsRef.current.has(item.id);
+      });
+      
+      if (isMountedRef.current) {
+        setCurrentItems(filteredItems);
+      }
+    } catch (error) {
+      console.error('Error refreshing content:', error);
+      // Don't update state on error - keep existing items
+    } finally {
+      if (isMountedRef.current) {
+        isRefreshingRef.current = false;
+      }
+    }
+  }, [filter]);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -41,12 +81,18 @@ export default function OrganizedContentList({
 
   // Update currentItems when initialItems change (e.g., after navigation)
   useEffect(() => {
-    const filtered = initialItems.filter(item => !deletedItemIds.has(item.id));
+    if (!initialItems || !Array.isArray(initialItems)) {
+      setCurrentItems([]);
+      return;
+    }
+    const filtered = initialItems.filter(item => item && item.id && !deletedItemIds.has(item.id));
     setCurrentItems(filtered);
   }, [initialItems, deletedItemIds]);
 
   // Listen for deletion events to track deleted items
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     const handleNoteDeleted = (event: CustomEvent) => {
       const { noteId } = event.detail;
       if (noteId) {
@@ -95,17 +141,23 @@ export default function OrganizedContentList({
 
   // Listen for content creation events to refresh the list
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     const handleNoteCreated = () => {
       // Small delay to ensure database is updated
       setTimeout(() => {
-        refreshContent();
+        if (isMountedRef.current) {
+          refreshContent();
+        }
       }, 300);
     };
 
     const handleThreadCreated = () => {
       // Small delay to ensure database is updated
       setTimeout(() => {
-        refreshContent();
+        if (isMountedRef.current) {
+          refreshContent();
+        }
       }, 300);
     };
 
@@ -120,7 +172,19 @@ export default function OrganizedContentList({
 
   // Listen for page load to refresh when navigating to dashboard via View Transitions
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    
+    let isInitialMount = true;
+    
     const handlePageLoad = () => {
+      // Skip refresh on initial mount - server data is fresh
+      if (isInitialMount) {
+        isInitialMount = false;
+        return;
+      }
+      
+      if (!isMountedRef.current) return;
+      
       // Check if we're on the dashboard/for you page
       const dashboardContent = document.getElementById('dashboard-content');
       const isDashboard = dashboardContent !== null || window.location.pathname === '/';
@@ -128,7 +192,9 @@ export default function OrganizedContentList({
       if (isDashboard) {
         // Small delay to ensure page is fully loaded and database is ready
         setTimeout(() => {
-          refreshContent();
+          if (isMountedRef.current) {
+            refreshContent();
+          }
         }, 200);
       }
     };
@@ -148,51 +214,18 @@ export default function OrganizedContentList({
     };
   }, []);
 
-  // Refresh content by fetching fresh data from API
-  const refreshContent = useCallback(async () => {
-    if (isRefreshingRef.current || !isMountedRef.current) return;
-    
-    isRefreshingRef.current = true;
-    try {
-      const url = new URL('/api/content/load-more', window.location.origin);
-      url.searchParams.set('offset', '0');
-      url.searchParams.set('limit', '20');
-      url.searchParams.set('filter', filter);
-
-      const response = await fetch(url.toString(), {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to refresh content');
-      }
-
-      const data = await response.json();
-      // Filter out deleted items from refreshed items
-      const filteredItems = data.items.filter((item: OrganizedContentItem) => {
-        return !deletedItemIdsRef.current.has(item.id);
-      });
-      
-      if (isMountedRef.current) {
-        setCurrentItems(filteredItems);
-      }
-    } catch (error) {
-      console.error('Error refreshing content:', error);
-      // Don't update state on error - keep existing items
-    } finally {
-      if (isMountedRef.current) {
-        isRefreshingRef.current = false;
-      }
-    }
-  }, [filter]);
-
   // Filter out deleted items from currentItems for display
-  const filteredInitialItems = currentItems.filter(item => {
+  const filteredInitialItems = (currentItems || []).filter(item => {
     // Use item.id as the primary identifier (it's always present)
-    return !deletedItemIds.has(item.id);
+    return item && item.id && !deletedItemIds.has(item.id);
   });
 
   const loadMore = useCallback(async (offset: number, limit: number) => {
+    // Guard against SSR
+    if (typeof window === 'undefined') {
+      return { items: [], hasMore: false };
+    }
+    
     const url = new URL('/api/content/load-more', window.location.origin);
     url.searchParams.set('offset', offset.toString());
     url.searchParams.set('limit', limit.toString());
