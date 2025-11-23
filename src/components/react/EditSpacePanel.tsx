@@ -6,6 +6,8 @@ import CardThread from './CardThread';
 import CardNote from './CardNote';
 import ActionButton from './ActionButton';
 import { navigate } from 'astro:transitions/client';
+import { ButtonGroup } from '@/components/ui/button-group';
+import SimpleTooltip from './SimpleTooltip';
 
 interface Note {
   id: string;
@@ -48,7 +50,6 @@ export default function EditSpacePanel({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [allThreads, setAllThreads] = useState<Thread[]>([]);
   const [currentSpaceNotes, setCurrentSpaceNotes] = useState<Note[]>([]);
@@ -58,51 +59,45 @@ export default function EditSpacePanel({
   const [isAddingItems, setIsAddingItems] = useState(false);
   const [isRemovingItem, setIsRemovingItem] = useState(false);
 
-  // Close dropdown when clicking outside
+  // Load Font Awesome for icons
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isDropdownOpen) {
-        const target = event.target as HTMLElement;
-        if (!target.closest('.dropdown-container')) {
-          setIsDropdownOpen(false);
-        }
-      }
-    };
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
+    if (!document.querySelector(`link[href="${link.href}"]`)) {
+      document.head.appendChild(link);
+    }
+  }, []);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isDropdownOpen]);
-
-  // Fetch all notes and threads on mount (for AddToSpaceSection)
-  useEffect(() => {
-    const fetchItems = async () => {
-      setIsLoadingItems(true);
-      try {
-        const response = await fetch('/api/spaces/items', {
-          credentials: 'include'
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setAllNotes(data.notes || []);
-          setAllThreads(data.threads || []);
-        } else {
-          console.error('Failed to fetch items');
-          setAllNotes([]);
-          setAllThreads([]);
-        }
-      } catch (error) {
-        console.error('Error fetching items:', error);
+  // Fetch all notes and threads (for AddToSpaceSection)
+  const fetchAllItems = async () => {
+    setIsLoadingItems(true);
+    try {
+      const response = await fetch('/api/spaces/items', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAllNotes(data.notes || []);
+        setAllThreads(data.threads || []);
+      } else {
+        console.error('Failed to fetch items');
         setAllNotes([]);
         setAllThreads([]);
-      } finally {
-        setIsLoadingItems(false);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching items:', error);
+      setAllNotes([]);
+      setAllThreads([]);
+    } finally {
+      setIsLoadingItems(false);
+    }
+  };
 
-    fetchItems();
+  // Fetch all notes and threads on mount
+  useEffect(() => {
+    fetchAllItems();
   }, []);
 
   // Fetch current items in the space
@@ -268,8 +263,11 @@ export default function EditSpacePanel({
           detail: { itemId, itemType, spaceId }
         }));
 
-        // Refresh current space items
-        await fetchCurrentSpaceItems();
+        // Refresh current space items and all items (so removed item appears in available list)
+        await Promise.all([
+          fetchCurrentSpaceItems(),
+          fetchAllItems()
+        ]);
       } else {
         const error = await response.json();
         window.dispatchEvent(new CustomEvent('toast', {
@@ -350,8 +348,11 @@ export default function EditSpacePanel({
           }
         }));
 
-        // Refresh current space items to show the newly added item
-        await fetchCurrentSpaceItems();
+        // Refresh current space items and all items (so added item disappears from available list)
+        await Promise.all([
+          fetchCurrentSpaceItems(),
+          fetchAllItems()
+        ]);
       } else {
         const error = await response.json();
         window.dispatchEvent(new CustomEvent('toast', {
@@ -453,69 +454,43 @@ export default function EditSpacePanel({
                   ))}
                 </div>
 
-                {/* Space type selection with dropdown */}
+                {/* Space type selection with ButtonGroup */}
                 <div className="w-full">
-                  <div className="relative dropdown-container">
-                    <div 
-                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                      className="w-full cursor-pointer"
+                  <ButtonGroup className="w-full gap-0">
+                    {/* Private button */}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, selectedType: 'Private' }))}
+                      className={`space-button relative rounded-tl-3xl rounded-bl-3xl rounded-tr-none rounded-br-none h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-4 w-1/2 ${
+                        formData.selectedType === 'Private' ? 'ring-2 ring-[var(--color-bold-blue)] ring-offset-2' : ''
+                      }`}
+                      style={{ backgroundImage: 'var(--color-gradient-gray)' }}
                     >
-                      <div className="relative w-full">
-                        <div className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                             style={{ backgroundImage: 'var(--color-gradient-gray)' }}>
-                          <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-                              {formData.selectedType}
-                            </span>
-                            <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                              <svg className="w-5 h-5 fill-[var(--color-deep-grey)]" viewBox="0 0 512 512">
-                                <path d="M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z"/>
-                              </svg>
-                            </div>
-                          </div>
+                      <div className="flex items-center justify-center gap-3 relative w-full h-full transition-transform duration-125">
+                        <div className="size-4 flex items-center justify-center shrink-0">
+                          <i className="fas fa-user text-[var(--color-deep-grey)]" style={{ fontSize: '16px', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}></i>
                         </div>
+                        <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Private</span>
                       </div>
-                    </div>
+                    </button>
                     
-                    {/* Dropdown content */}
-                    {isDropdownOpen && (
-                      <div className="absolute top-full left-0 right-0 mt-2 z-10"
-                           style={{ minWidth: '223px' }}
-                           onClick={(e) => e.stopPropagation()}>
-                        <div>
-                          {/* Private option */}
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              setFormData(prev => ({ ...prev, selectedType: 'Private' }));
-                              setIsDropdownOpen(false);
-                            }}
-                            className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                            style={{ backgroundImage: 'var(--color-gradient-gray)' }}
-                          >
-                            <div className="flex items-center justify-start relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                              <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Private</span>
-                            </div>
-                          </button>
-                          
-                          {/* Shared option - disabled */}
-                          <button 
-                            type="button"
-                            disabled
-                            className="space-button relative rounded-3xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
-                            style={{ backgroundImage: 'var(--color-gradient-gray)' }}
-                          >
-                            <div className="flex items-center justify-start relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-                              <div className="flex flex-col items-start">
-                                <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
-                                <span className="text-[12px] text-[var(--color-pebble-grey)] font-medium">Coming Soon</span>
-                              </div>
-                            </div>
-                          </button>
+                    {/* Shared button - disabled with tooltip */}
+                    <SimpleTooltip content="Coming Soon" enableTooltip={true} className="w-1/2">
+                      <button
+                        type="button"
+                        disabled
+                        className="space-button relative rounded-tr-3xl rounded-br-3xl rounded-tl-none rounded-bl-none h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-4 w-full opacity-50"
+                        style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                      >
+                        <div className="flex items-center justify-center gap-3 relative w-full h-full transition-transform duration-125">
+                          <div className="size-4 flex items-center justify-center shrink-0">
+                            <i className="fas fa-user-group text-[var(--color-deep-grey)]" style={{ fontSize: '16px', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}></i>
+                          </div>
+                          <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      </button>
+                    </SimpleTooltip>
+                  </ButtonGroup>
                 </div>
 
                 {/* Current Items in Space - displayed above AddToSpaceSection */}

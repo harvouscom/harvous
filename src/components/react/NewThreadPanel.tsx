@@ -1,12 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
-// Tab navigation disabled for v1
-// import CardNote from '@/components/react/CardNote';
+import CardNote from '@/components/react/CardNote';
 import SquareButton from './SquareButton';
+import ActionButton from './ActionButton';
+import AddToSpaceSection from './AddToSpaceSection';
 import { captureException } from '@/utils/posthog';
 import { navigate } from 'astro:transitions/client';
 import { ButtonGroup } from '@/components/ui/button-group';
 import SimpleTooltip from './SimpleTooltip';
+
+interface Note {
+  id: string;
+  title: string | null;
+  content: string;
+  spaceId: string | null;
+  noteType?: string;
+  [key: string]: any;
+}
 
 interface NewThreadPanelProps {
   currentSpace?: any;
@@ -29,6 +39,9 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   // const [recentNotes, setRecentNotes] = useState<any[]>([]);
   // const [isLoadingNotes, setIsLoadingNotes] = useState(false);
   const [addToSpace, setAddToSpace] = useState(false);
+  const [allNotes, setAllNotes] = useState<Note[]>([]);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
   // Shared functionality disabled for now
   // const [isShared, setIsShared] = useState(false);
   // const [sharedSettings, setSharedSettings] = useState({
@@ -105,6 +118,35 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   //     fetchRecentNotes();
   //   }
   // }, [activeTab]);
+
+  // Fetch all notes on mount (create mode only)
+  useEffect(() => {
+    if (!isEditMode) {
+      const fetchItems = async () => {
+        setIsLoadingItems(true);
+        try {
+          const response = await fetch('/api/spaces/items', {
+            credentials: 'include'
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            setAllNotes(data.notes || []);
+          } else {
+            console.error('Failed to fetch items');
+            setAllNotes([]);
+          }
+        } catch (error) {
+          console.error('Error fetching items:', error);
+          setAllNotes([]);
+        } finally {
+          setIsLoadingItems(false);
+        }
+      };
+
+      fetchItems();
+    }
+  }, [isEditMode]);
 
   // Auto-focus the thread name input when component mounts
   useEffect(() => {
@@ -215,12 +257,28 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           formData.append('spaceId', currentSpace.id);
         }
         
+        // Add selected notes
+        const selectedNoteIds: string[] = [];
+        
+        // Filter selected items to only include notes
+        selectedItems.forEach(itemId => {
+          const isNote = allNotes.some(note => note.id === itemId);
+          if (isNote) {
+            selectedNoteIds.push(itemId);
+          }
+        });
+        
+        if (selectedNoteIds.length > 0) {
+          formData.append('selectedNoteIds', JSON.stringify(selectedNoteIds));
+        }
+        
         console.log('NewThreadPanel: Sending request to /api/threads/create');
         console.log('Form data:', {
           title: title.trim(),
           color: selectedColor,
           isPublic: false,
           spaceId: currentSpace?.id || null,
+          selectedNoteIds: selectedNoteIds,
         });
         
         const response = await fetch('/api/threads/create', {
@@ -240,6 +298,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           setTitle('');
           setSelectedColor('paper');
           setSelectedType('Private');
+          setSelectedItems([]);
           // Tab navigation disabled for v1
           // setActiveTab('recent');
           localStorage.removeItem('newThreadTitle');
@@ -349,7 +408,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   };
 
   const handleClose = () => {
-    if (title.trim()) {
+    if (title.trim() || selectedItems.length > 0) {
       setShowUnsavedDialog(true);
     } else {
       // Dispatch close event for event system
@@ -365,6 +424,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     setTitle('');
     setSelectedColor('paper');
     setSelectedType('Private');
+    setSelectedItems([]);
     // Tab navigation disabled for v1
     // setActiveTab('recent');
     localStorage.removeItem('newThreadTitle');
@@ -388,6 +448,30 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     if (form) {
       form.requestSubmit();
     }
+  };
+
+  const handleItemSelect = (itemId: string, itemType: 'note' | 'thread') => {
+    setSelectedItems(prev => {
+      const newItems = prev.includes(itemId)
+        ? prev.filter(id => id !== itemId) // Remove if already selected
+        : [...prev, itemId]; // Add if not selected
+      return newItems;
+    });
+  };
+
+  // Helper function to strip HTML from content
+  const stripHtml = (html: string): string => {
+    if (!html) return '';
+    return html
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .trim()
+      .substring(0, 150);
   };
 
   return (
@@ -524,6 +608,70 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                     </SimpleTooltip>
                   </ButtonGroup>
                 </div>
+
+                {/* Selected Notes - displayed above AddToSpaceSection (create mode only) */}
+                {!isEditMode && selectedItems.length > 0 && !isLoadingItems && (
+                  <div className="w-full shrink-0 mb-3">
+                    <div className="flex flex-col gap-3">
+                      {selectedItems.map(itemId => {
+                        const note = allNotes.find(n => n.id === itemId);
+                        
+                        if (note) {
+                          return (
+                            <div key={note.id} className="relative group">
+                              <a 
+                                href={`/${note.id}`}
+                                className="block transition-transform duration-200 hover:scale-[1.002]"
+                                aria-label={`View note: ${note.title || 'Untitled note'}`}
+                              >
+                                <CardNote 
+                                  title={note.title || "Untitled Note"}
+                                  content={stripHtml(note.content)}
+                                  noteType={note.noteType || 'default'}
+                                />
+                              </a>
+                              {/* Remove from selection button */}
+                              <ActionButton
+                                variant="Remove"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleItemSelect(note.id, 'note');
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                disabled={isSubmitting}
+                              />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* AddToSpaceSection - for selecting notes to add to thread (create mode only) */}
+                {!isEditMode && (
+                  <div className="w-full flex-1 min-h-0">
+                    {isLoadingItems ? (
+                      <div className="text-center py-8 text-[var(--color-stone-grey)]">
+                        Loading notes...
+                      </div>
+                    ) : (
+                      <AddToSpaceSection
+                        allNotes={allNotes}
+                        allThreads={[]}
+                        currentSpaceId={null}
+                        onItemSelect={handleItemSelect}
+                        selectedItems={selectedItems}
+                        isLoading={isSubmitting}
+                        placeholder="Search notes"
+                        emptyMessage="No notes found"
+                        itemsToShow="notes"
+                      />
+                    )}
+                  </div>
+                )}
 
                 {/* Tab navigation disabled for v1 */}
                 {/* <div className="w-full">

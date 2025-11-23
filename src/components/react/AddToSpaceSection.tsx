@@ -41,22 +41,28 @@ interface AddToSpaceSectionProps {
   allNotes: Note[];
   allThreads: Thread[];
   currentSpaceId: string | null; // null for new space, spaceId for editing
+  currentThreadId?: string | null; // null for new thread, threadId for editing thread
   onItemSelect: (itemId: string, itemType: 'note' | 'thread') => void;
   selectedItems: string[]; // Array of selected IDs (notes and threads)
   isLoading?: boolean;
   placeholder?: string;
   emptyMessage?: string;
+  itemsToShow?: 'notes' | 'all'; // Filter to show only notes or all items
+  currentThreadNoteIds?: string[]; // Array of note IDs already in the thread (for filtering)
 }
 
 export default function AddToSpaceSection({
   allNotes,
   allThreads,
   currentSpaceId,
+  currentThreadId = null,
   onItemSelect,
   selectedItems,
   isLoading = false,
   placeholder = "Search notes and threads",
-  emptyMessage = "No items found"
+  emptyMessage = "No items found",
+  itemsToShow = 'all',
+  currentThreadNoteIds = []
 }: AddToSpaceSectionProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -64,10 +70,15 @@ export default function AddToSpaceSection({
   const availableItems = useMemo(() => {
     const items: SpaceItem[] = [];
 
-    // Filter notes: show notes that don't belong to current space
+    // Filter notes: show notes that don't belong to current space and aren't already in current thread
     allNotes.forEach(note => {
+      // Skip notes that are already in the current thread
+      if (currentThreadId && currentThreadNoteIds.includes(note.id)) {
+        return;
+      }
+      
       if (currentSpaceId === null) {
-        // For new space, show all notes
+        // For new space, show all notes (that aren't in the thread)
         items.push({
           id: note.id,
           title: note.title || 'Untitled Note',
@@ -79,7 +90,7 @@ export default function AddToSpaceSection({
           lastAccessed: undefined
         });
       } else {
-        // For editing space, show notes from other spaces or no space
+        // For editing space, show notes from other spaces or no space (that aren't in the thread)
         if (note.spaceId !== currentSpaceId) {
           items.push({
             id: note.id,
@@ -95,29 +106,14 @@ export default function AddToSpaceSection({
       }
     });
 
-    // Filter threads: show threads that don't belong to current space
-    allThreads.forEach(thread => {
-      // Exclude unorganized thread
-      if (thread.id === 'thread_unorganized') return;
-      
-      if (currentSpaceId === null) {
-        // For new space, show all threads
-        items.push({
-          id: thread.id,
-          title: thread.title,
-          type: 'thread',
-          spaceId: thread.spaceId,
-          color: thread.color,
-          isPublic: thread.isPublic,
-          subtitle: thread.subtitle,
-          count: thread.count,
-          updatedAt: thread.updatedAt,
-          createdAt: thread.createdAt,
-          lastAccessed: undefined
-        });
-      } else {
-        // For editing space, show threads from other spaces or no space
-        if (thread.spaceId !== currentSpaceId) {
+    // Filter threads: show threads that don't belong to current space (only if itemsToShow is 'all')
+    if (itemsToShow === 'all') {
+      allThreads.forEach(thread => {
+        // Exclude unorganized thread
+        if (thread.id === 'thread_unorganized') return;
+        
+        if (currentSpaceId === null) {
+          // For new space, show all threads
           items.push({
             id: thread.id,
             title: thread.title,
@@ -131,13 +127,30 @@ export default function AddToSpaceSection({
             createdAt: thread.createdAt,
             lastAccessed: undefined
           });
+        } else {
+          // For editing space, show threads from other spaces or no space
+          if (thread.spaceId !== currentSpaceId) {
+            items.push({
+              id: thread.id,
+              title: thread.title,
+              type: 'thread',
+              spaceId: thread.spaceId,
+              color: thread.color,
+              isPublic: thread.isPublic,
+              subtitle: thread.subtitle,
+              count: thread.count,
+              updatedAt: thread.updatedAt,
+              createdAt: thread.createdAt,
+              lastAccessed: undefined
+            });
+          }
         }
-      }
-    });
+      });
+    }
 
     // Filter out already selected items
     return items.filter(item => !selectedItems.includes(item.id));
-  }, [allNotes, allThreads, currentSpaceId, selectedItems]);
+  }, [allNotes, allThreads, currentSpaceId, currentThreadId, currentThreadNoteIds, selectedItems, itemsToShow]);
 
   // Sort and categorize items by updatedAt (newest first)
   const { recentItems, otherItems } = useMemo(() => {
@@ -352,7 +365,7 @@ export default function AddToSpaceSection({
       {/* Search Input */}
       <div className="mb-3">
         <SearchInput
-          placeholder={placeholder}
+          placeholder={placeholder || (itemsToShow === 'notes' ? "Search notes" : "Search notes and threads")}
           value={searchQuery}
           onChange={setSearchQuery}
         />

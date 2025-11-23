@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Threads, eq, and } from 'astro:db';
+import { db, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
 import { generateThreadId } from '@/utils/ids';
 import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
 import { awardThreadCreatedXP } from '@/utils/xp-system';
@@ -22,8 +22,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const color = formData.get('color') as string;
     const isPublic = formData.get('isPublic') === 'true';
     const spaceId = formData.get('spaceId') as string;
+    const selectedNoteIdsStr = formData.get('selectedNoteIds') as string | null;
 
-    console.log("Creating thread with userId:", userId, "title:", title, "color:", color, "isPublic:", isPublic, "spaceId:", spaceId);
+    // Parse selected note IDs
+    let selectedNoteIds: string[] = [];
+    if (selectedNoteIdsStr) {
+      try {
+        selectedNoteIds = JSON.parse(selectedNoteIdsStr);
+      } catch (e) {
+        console.error('Error parsing selectedNoteIds:', e);
+        selectedNoteIds = [];
+      }
+    }
+
+    console.log("Creating thread with userId:", userId, "title:", title, "color:", color, "isPublic:", isPublic, "spaceId:", spaceId, "selectedNoteIds:", selectedNoteIds);
 
     // Default to "Untitled Thread" if title is empty or whitespace
     const finalTitle = (!title || !title.trim()) ? 'Untitled Thread' : title.trim();
@@ -61,6 +73,72 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .get();
 
     console.log("Thread created successfully:", newThread);
+
+    // Add selected notes to the thread via junction table
+    if (selectedNoteIds.length > 0) {
+      console.log(`Adding ${selectedNoteIds.length} notes to thread ${newThread.id}`);
+      
+      for (const noteId of selectedNoteIds) {
+        try {
+          // Verify note exists and belongs to user
+          const note = await db.select()
+            .from(Notes)
+            .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
+            .get();
+          
+          if (!note) {
+            console.warn(`Note ${noteId} not found or doesn't belong to user, skipping`);
+            continue;
+          }
+
+          // Check if note is already in this thread
+          const existingRelation = await db.select()
+            .from(NoteThreads)
+            .where(and(eq(NoteThreads.noteId, noteId), eq(NoteThreads.threadId, newThread.id)))
+            .get();
+
+          if (existingRelation) {
+            console.log(`Note ${noteId} is already in thread ${newThread.id}, skipping`);
+            continue;
+          }
+
+          // Check if note is currently in unorganized (no NoteThreads entries)
+          const existingThreadRelations = await db.select()
+            .from(NoteThreads)
+            .where(eq(NoteThreads.noteId, noteId))
+            .all();
+          
+          const isInUnorganized = existingThreadRelations.length === 0 || note.threadId === 'thread_unorganized';
+
+          // Add the note to the thread via junction table
+          const noteThreadId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          await db.insert(NoteThreads).values({
+            id: noteThreadId,
+            noteId: noteId,
+            threadId: newThread.id,
+            createdAt: new Date()
+          });
+          
+          console.log(`Note ${noteId} added to thread ${newThread.id} successfully`);
+
+          // If note was in unorganized, update the legacy threadId field to the new thread
+          if (isInUnorganized && newThread.id !== 'thread_unorganized') {
+            await db.update(Notes)
+              .set({ threadId: newThread.id })
+              .where(eq(Notes.id, noteId));
+            console.log(`Note ${noteId} removed from unorganized and added to thread ${newThread.id}`);
+          }
+        } catch (error: any) {
+          // Log error but continue with other notes
+          console.error(`Error adding note ${noteId} to thread:`, error);
+        }
+      }
+
+      // Update thread timestamp after adding notes
+      await db.update(Threads)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(Threads.id, newThread.id), eq(Threads.userId, userId)));
+    }
 
     // Award XP for thread creation (pass title for validation)
     await awardThreadCreatedXP(userId, newThread.id, capitalizedTitle, null);
