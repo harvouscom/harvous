@@ -18,7 +18,7 @@ export default function Counter({ initialValue = 0, label = "Counter" }: Counter
         >
           -
         </button>
-        <span className="text-2xl font-bold min-w-[3rem] text-center">{count}</span>
+        <span className="text-2xl font-bold min-w-[3rem] text-center">{String(count ?? 0)}</span>
         <button
           onClick={() => setCount(count + 1)}
           className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"

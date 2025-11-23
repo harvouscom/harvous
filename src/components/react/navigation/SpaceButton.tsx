@@ -164,7 +164,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
           <div className="p-[20px] flex-shrink-0">
             <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
               <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                {count}
+                {String(count ?? 0)}
               </span>
             </div>
           </div>
@@ -197,7 +197,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
             <div className="p-[20px] flex-shrink-0">
               <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
                 <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                  {count}
+                  {String(count ?? 0)}
                 </span>
               </div>
             </div>
@@ -242,7 +242,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
             </div>
             <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
               <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                {count}
+                {String(count ?? 0)}
               </span>
             </div>
           </div>
@@ -287,7 +287,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
               {/* Badge count - show when not hovering */}
               <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
                 <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                  {count}
+                  {String(count ?? 0)}
                 </span>
               </div>
             </div>
@@ -402,7 +402,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
           </div>
           <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
             <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-              {count}
+              {String(count ?? 0)}
             </span>
           </div>
         </div>

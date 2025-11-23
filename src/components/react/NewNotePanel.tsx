@@ -61,6 +61,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   const hasInitializedFromCurrentThread = useRef(false);
   // Track if we're loading from localStorage to prevent auto-detection toast on mount
   const isLoadingFromLocalStorage = useRef(false);
+  // Track if user has manually selected a thread (to prevent automatic resets)
+  const hasManualSelection = useRef(false);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -227,6 +229,11 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   // Separate effect to handle currentThread when it becomes available
   // This handles the case where currentThread is null on mount but becomes available later
   useEffect(() => {
+    // Don't override manual user selections
+    if (hasManualSelection.current) {
+      return;
+    }
+    
     if (currentThread && currentThread.id) {
       // If we haven't initialized yet, or if we're still on default "Unorganized" and currentThread is available
       if (!hasInitializedFromCurrentThread.current || 
@@ -339,6 +346,10 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     // Priority 4: Default to Unorganized (already set in initial state)
   }, [currentThread, threadOptions, hasSetThreadFromSaved, navigationHistory]); // Added navigationHistory for client-side detection
 
+  // Reset manual selection flag when currentThread prop changes
+  useEffect(() => {
+    hasManualSelection.current = false;
+  }, [currentThread?.id]);
 
   // Save to localStorage when values change
   useEffect(() => {
@@ -718,6 +729,12 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   // Get selected thread object
   const getSelectedThread = () => {
     return threadOptions.find(thread => thread.title === selectedThread) || threadOptions[0];
+  };
+
+  // Handle manual thread selection from user
+  const handleThreadSelect = (threadTitle: string) => {
+    hasManualSelection.current = true;
+    setSelectedThread(threadTitle);
   };
 
   // Cycle through note types - DISABLED until designs are ready
@@ -1275,6 +1292,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     // Don't reset selectedThread - keep the current thread selection
     setIsSubmitting(false);
     setShowUnsavedDialog(false);
+    // Reset manual selection flag when panel closes
+    hasManualSelection.current = false;
     
     if (onClose) {
       onClose();
@@ -1453,7 +1472,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       <div className="mb-3.5 shrink-0">
         <ThreadCombobox
           selectedThread={selectedThread}
-          onThreadSelect={setSelectedThread}
+          onThreadSelect={handleThreadSelect}
           threads={threadOptions}
           placeholder="Select thread..."
         />

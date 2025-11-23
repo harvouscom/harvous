@@ -206,7 +206,7 @@ export default function AddToSection({
                   {item.count !== undefined && item.count !== null && (
                     <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl px-2 h-5 flex-shrink-0">
                       <span className="text-[11px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                        {item.count}
+                        {String(item.count ?? 0)}
                       </span>
                     </div>
                   )}
