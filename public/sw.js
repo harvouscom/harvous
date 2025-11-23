@@ -138,14 +138,15 @@ const isNavigationRoute = (url) => {
 };
 
 // Helper to determine if a response should be cached
-// Only cache successful responses (200-299)
+// Only cache successful responses (200-299), but exclude 206 (Partial Content)
+// The Cache API doesn't support partial responses
 // Do not cache redirects (300-399) or errors (400+)
 const shouldCacheResponse = (response) => {
   if (!response) return false;
   const status = response.status;
-  // Only cache successful responses (200-299)
+  // Only cache successful responses (200-299), but exclude 206 (Partial Content)
   // Redirects (300-399) and errors (400+) should not be cached
-  return status >= 200 && status < 300;
+  return status >= 200 && status < 300 && status !== 206;
 };
 
 // Helper to check if cached response is stale
@@ -187,12 +188,43 @@ const addCacheTimestamp = (response) => {
   });
 };
 
+// Helper to safely cache a response with error handling
+// Gracefully handles 206 errors and other cache failures without breaking the service worker
+const safeCachePut = async (cache, request, response) => {
+  try {
+    await cache.put(request, response);
+  } catch (error) {
+    // Log warning but don't throw - cache failures shouldn't break the app
+    // Common causes: 206 status codes, quota exceeded, or invalid responses
+    if (error.message && error.message.includes('206')) {
+      console.warn(`Service Worker: Skipped caching 206 (Partial Content) response for ${request.url}`);
+    } else {
+      console.warn(`Service Worker: Failed to cache response for ${request.url}:`, error.message || error);
+    }
+  }
+};
+
 // Fetch event - with optimized strategy based on asset type
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
   // Skip cross-origin requests
   if (!url.origin.includes(self.location.origin)) {
+    return;
+  }
+  
+  // Always bypass cache for authentication routes to prevent sign-in page flash
+  // These routes should always use network-first to ensure fresh authentication state
+  if (url.pathname.startsWith('/sign-in') || url.pathname.startsWith('/sign-up')) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // If network fails, return a basic error response instead of cached sign-in page
+        return new Response('Authentication page unavailable', {
+          status: 503,
+          statusText: 'Service Unavailable'
+        });
+      })
+    );
     return;
   }
   
@@ -214,7 +246,7 @@ self.addEventListener('fetch', (event) => {
                   const timestampedResponse = addCacheTimestamp(responseClone);
                   // Clone before caching (background refresh, but clone to be safe)
                   const cacheClone = timestampedResponse.clone();
-                  cache.put(event.request, cacheClone);
+                  safeCachePut(cache, event.request, cacheClone);
                 }
               })
               .catch(() => { /* Ignore errors */ });
@@ -230,7 +262,7 @@ self.addEventListener('fetch', (event) => {
                 const timestampedResponse = addCacheTimestamp(responseClone);
                 // Clone timestamped response before caching (since we're also returning it)
                 const cacheClone = timestampedResponse.clone();
-                cache.put(event.request, cacheClone);
+                safeCachePut(cache, event.request, cacheClone);
                 return timestampedResponse;
               }
               return response;
@@ -278,7 +310,7 @@ self.addEventListener('fetch', (event) => {
                   // Clone before caching (background refresh, but clone to be safe)
                   const cacheClone = timestampedResponse.clone();
                   caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, cacheClone);
+                    safeCachePut(cache, event.request, cacheClone);
                   });
                 }
               })
@@ -297,7 +329,7 @@ self.addEventListener('fetch', (event) => {
                 // Clone timestamped response before caching (since we're also returning it)
                 const cacheClone = timestampedResponse.clone();
                 caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, cacheClone);
+                  safeCachePut(cache, event.request, cacheClone);
                 });
                 return timestampedResponse;
               }
@@ -332,7 +364,7 @@ self.addEventListener('fetch', (event) => {
                   // Clone before caching (background refresh, but clone to be safe)
                   const cacheClone = timestampedResponse.clone();
                   caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, cacheClone);
+                    safeCachePut(cache, event.request, cacheClone);
                   });
                 }
                 return response;
@@ -354,7 +386,7 @@ self.addEventListener('fetch', (event) => {
                 // Clone before caching (we return original response, but clone to be safe)
                 const cacheClone = timestampedResponse.clone();
                 caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, cacheClone);
+                  safeCachePut(cache, event.request, cacheClone);
                 });
                 return response;
               }
@@ -385,7 +417,7 @@ self.addEventListener('fetch', (event) => {
                   // Clone before caching (background refresh, but clone to be safe)
                   const cacheClone = timestampedResponse.clone();
                   caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, cacheClone);
+                    safeCachePut(cache, event.request, cacheClone);
                   });
                 }
               })
@@ -404,7 +436,7 @@ self.addEventListener('fetch', (event) => {
                 // Clone timestamped response before caching (since we're also returning it)
                 const cacheClone = timestampedResponse.clone();
                 caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, cacheClone);
+                  safeCachePut(cache, event.request, cacheClone);
                 });
                 return timestampedResponse;
               }
@@ -446,7 +478,7 @@ self.addEventListener('fetch', (event) => {
           // Clone timestamped response before caching (since we're also returning it)
           const cacheClone = timestampedResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, cacheClone);
+            safeCachePut(cache, event.request, cacheClone);
           });
           return timestampedResponse;
         }
@@ -502,7 +534,7 @@ self.addEventListener('message', (event) => {
             const timestampedResponse = addCacheTimestamp(responseClone);
             // Clone before caching (warmup, but clone to be safe)
             const cacheClone = timestampedResponse.clone();
-            cache.put('/', cacheClone);
+            safeCachePut(cache, '/', cacheClone);
           }
         }).catch(() => {})
       ];
