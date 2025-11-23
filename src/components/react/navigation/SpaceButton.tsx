@@ -186,23 +186,25 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "DropdownTrigger") {
     return (
       <button 
-        className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 ${hideDropdownIcon ? 'pr-4' : 'pr-0'} ${className}`}
+        className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         {...props}
       >
-        <div className={`flex items-center relative w-full h-full pl-2 ${hideDropdownIcon ? 'pr-2' : 'pr-0'} transition-transform duration-125 min-w-0`}>
+        <div className={`flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0`}>
           <div className="flex-1 min-w-0 overflow-hidden text-left">
             <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`}>
               {text}
             </span>
           </div>
           {count !== undefined && count !== null && (
-            <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 ml-3">
-              <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                {count}
-              </span>
+            <div className="p-[20px] flex-shrink-0">
+              <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                  {count}
+                </span>
+              </div>
             </div>
           )}
           {!hideDropdownIcon && (
