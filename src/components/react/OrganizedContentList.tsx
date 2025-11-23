@@ -29,7 +29,8 @@ export default function OrganizedContentList({
 }: OrganizedContentListProps) {
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const deletedItemIdsRef = useRef<Set<string>>(new Set());
-  const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>([]);
+  // Initialize currentItems directly from initialItems
+  const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(initialItems);
   const isRefreshingRef = useRef(false);
   const isMountedRef = useRef(true);
 
@@ -38,7 +39,7 @@ export default function OrganizedContentList({
     deletedItemIdsRef.current = deletedItemIds;
   }, [deletedItemIds]);
 
-  // Initialize currentItems from initialItems when component mounts or initialItems change
+  // Update currentItems when initialItems change (e.g., after navigation)
   useEffect(() => {
     const filtered = initialItems.filter(item => !deletedItemIds.has(item.id));
     setCurrentItems(filtered);
