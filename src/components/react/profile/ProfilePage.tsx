@@ -45,37 +45,27 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
 
   const handleLogout = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    console.log('Logout button clicked');
     
     try {
       // @ts-ignore
       if (window.Clerk && window.Clerk.signOut) {
         // @ts-ignore
-        console.log('Using Clerk signOut');
-        // @ts-ignore
         await window.Clerk.signOut();
-      } else {
-        console.log('Clerk not available, using direct redirect');
       }
       
       sessionStorage.removeItem('userProfileData');
-      console.log('Cleared profile data from sessionStorage');
       
       // Clear unified profile cache
       clearCachedProfileData();
-      console.log('Cleared unified profile cache');
       
-      console.log('Redirecting to sign-in page');
       window.location.href = '/sign-in';
     } catch (error) {
       console.error('Logout failed:', error);
-      console.log('Fallback: redirecting to sign-in page');
       window.location.href = '/sign-in';
     }
   };
 
   const handleProfileUpdateRequest = async (detail: { firstName: string; lastName: string; color: string; }) => {
-    console.log('React component: updateProfileRequest received:', detail);
     try {
       const { firstName, lastName, color } = detail;
       
@@ -94,7 +84,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       const data = await response.json();
 
       if (response.ok) {
-        console.log('✅ React component: Profile updated successfully');
         const newInitials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase();
         const newDisplayName = `${firstName} ${lastName.charAt(0)}`.trim();
 
@@ -120,7 +109,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
           lastName,
           userColor: color
         });
-        console.log('✅ ProfilePage: Cache updated after profile update');
         
         // Also update legacy sessionStorage for backward compatibility
         sessionStorage.setItem('userProfileData', JSON.stringify({
@@ -138,13 +126,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         toast.success('Name and color updated successfully!');
 
       } else {
-        console.error('❌ React component: Profile update failed:', data);
+        console.error('React component: Profile update failed:', data);
         // Wait before showing error toast
         await new Promise(resolve => setTimeout(resolve, 250));
         toast.error('Failed to save profile. Please try again.');
       }
     } catch (error) {
-      console.error('❌ React component: Error updating profile:', error);
+      console.error('React component: Error updating profile:', error);
       // Wait before showing error toast
       await new Promise(resolve => setTimeout(resolve, 250));
       toast.error('Error saving profile. Please try again.');
@@ -152,7 +140,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   };
 
   const handleCredentialsUpdateRequest = async (detail: { newEmail?: string; currentPassword?: string; newPassword?: string; }) => {
-    console.log('React component: updateCredentialsRequest received:', detail);
     try {
         const response = await fetch('/api/user/update-credentials', {
             method: 'POST',
@@ -165,8 +152,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         const data = await response.json();
 
         if (response.ok) {
-            console.log('✅ React component: Credentials updated successfully');
-            
             // Determine what was updated for more specific toast message
             const updatedFields: string[] = [];
             if (detail.newEmail?.trim()) {
@@ -188,22 +173,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             // Update cache if email was changed (we need to fetch new email from API)
             // For now, we'll let the EmailPasswordPanel update the cache when it loads
             // But we can trigger a cache refresh by dispatching an event
-            if (detail.newEmail?.trim()) {
-                // Cache will be updated when EmailPasswordPanel loads next time
-                // Or we could fetch the profile again here, but that's an extra API call
-                console.log('📝 ProfilePage: Email updated, cache will refresh on next panel load');
-            }
+            // Cache will be updated when EmailPasswordPanel loads next time
             
             // Close the panel after a short delay to show the toast
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('closeProfilePanel'));
             }, 1000);
         } else {
-            console.error('❌ React component: Credentials update failed:', data);
+            console.error('React component: Credentials update failed:', data);
             toast.error(data.error || 'Failed to update credentials. Please try again.');
         }
     } catch (error) {
-        console.error('❌ React component: Error updating credentials:', error);
+        console.error('React component: Error updating credentials:', error);
         toast.error('Error updating credentials. Please try again.');
     }
   };
@@ -217,7 +198,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     // Check unified cache first
     const cached = getCachedProfileData();
     if (cached && (cached.firstName || cached.lastName)) {
-        console.log('🔄 Found cached profile data');
         const newDisplayName = `${cached.firstName} ${cached.lastName.charAt(0)}`.trim();
         const newInitials = `${cached.firstName.charAt(0) || ''}${cached.lastName.charAt(0) || ''}`.toUpperCase();
         setProfileData({
@@ -234,7 +214,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         if (storedProfileData) {
             try {
                 const parsedData = JSON.parse(storedProfileData);
-                console.log('🔄 Found legacy profile data in sessionStorage, migrating to cache');
                 setProfileData({
                     displayName: parsedData.displayName,
                     userColor: parsedData.color,
@@ -280,7 +259,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
                 lastName: detail.lastName,
                 userColor: newColor
             });
-            console.log('✅ ProfilePage: Cache updated after profile update event');
         }
     };
 

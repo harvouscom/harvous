@@ -44,9 +44,7 @@ const RecentSearches: React.FC = () => {
   const removeFromRecentSearches = useCallback((searchTerm: string) => {
     if (typeof window === 'undefined') return;
     
-    console.log('Removing search term:', searchTerm);
     const stored = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
-    console.log('Current searches:', stored);
     
     const updatedSearches = stored.filter((search: any) => {
       // Handle both old format (strings) and new format (objects)
@@ -54,7 +52,6 @@ const RecentSearches: React.FC = () => {
       return term !== searchTerm;
     });
     
-    console.log('Updated searches:', updatedSearches);
     localStorage.setItem('harvous-recent-searches', JSON.stringify(updatedSearches));
     
     // Update state directly with the filtered results
@@ -130,7 +127,6 @@ const RecentSearches: React.FC = () => {
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
                   e.preventDefault();
-                  console.log('Close clicked for:', search.term);
                   removeFromRecentSearches(search.term);
                 }}
                 className="recent-search-close-icon absolute top-1/2 right-4 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"

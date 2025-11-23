@@ -245,7 +245,6 @@ export default function CardFullEditable({
             editor.commands.setTextSelection(endPos);
           } catch (e) {
             // If setting selection fails, just focus
-            console.log('Could not set cursor to end:', e);
           }
         }
       });
@@ -297,18 +296,13 @@ export default function CardFullEditable({
 
       // Handle scripture results from the update endpoint
       // (The update endpoint already processes scripture and returns results)
-      console.log('CardFullEditable: Save result:', saveResult);
       if (saveResult && saveResult.scriptureResults) {
-        console.log('CardFullEditable: Scripture results from update:', saveResult.scriptureResults, 'Length:', saveResult.scriptureResults.length);
-        
         if (saveResult.scriptureResults.length > 0) {
           // Show toasts for each scripture reference created or added
           for (const scriptureResult of saveResult.scriptureResults) {
-            console.log('CardFullEditable: Processing result:', scriptureResult);
             // Show toast for newly created notes
             if (scriptureResult.action === 'created') {
               const message = `Created scripture note: ${scriptureResult.reference}`;
-              console.log('CardFullEditable: Dispatching toast for created:', scriptureResult.reference);
               
               // Dispatch event
               const event = new CustomEvent('toast', {
@@ -324,7 +318,6 @@ export default function CardFullEditable({
             // Show toast for notes added to thread
             else if (scriptureResult.action === 'added') {
               const message = `Added ${scriptureResult.reference} to this thread`;
-              console.log('CardFullEditable: Dispatching toast for added:', scriptureResult.reference);
               
               // Dispatch event
               const event = new CustomEvent('toast', {
@@ -338,11 +331,7 @@ export default function CardFullEditable({
               }
             }
           }
-        } else {
-          console.log('CardFullEditable: No scripture results to process');
         }
-      } else {
-        console.log('CardFullEditable: No scriptureResults in saveResult');
       }
 
       // After save, update editor with processedContent (which has all pills as HTML spans)

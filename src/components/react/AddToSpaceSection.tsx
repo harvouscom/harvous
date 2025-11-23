@@ -194,10 +194,7 @@ export default function AddToSpaceSection({
   }, [availableItems, searchQuery]);
 
   const handleItemClick = (itemId: string, itemType: 'note' | 'thread') => {
-    console.log('AddToSpaceSection: Item clicked:', itemId, itemType);
-    console.log('AddToSpaceSection: Current selectedItems before:', selectedItems);
     onItemSelect(itemId, itemType);
-    console.log('AddToSpaceSection: onItemSelect called');
     setSearchQuery(""); // Clear search after selection
   };
 

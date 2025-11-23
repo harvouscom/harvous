@@ -399,16 +399,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Remove item from navigation history
   const removeFromNavigationHistory = (itemId: string) => {
-    console.log(`[removeFromNavigationHistory] Called with itemId: ${itemId}`);
     const history = getNavigationHistory();
-    console.log(`[removeFromNavigationHistory] Current history:`, history);
     
     // Check if the item being removed is currently active
     const currentActiveItemId = getCurrentActiveItemId();
-    console.log(`[removeFromNavigationHistory] getCurrentActiveItemId() returned: '${currentActiveItemId}'`);
-    console.log(`[removeFromNavigationHistory] window.location.pathname: '${window.location.pathname}'`);
     const isActive = itemId === currentActiveItemId;
-    console.log(`[removeFromNavigationHistory] isActive check: '${itemId}' === '${currentActiveItemId}' = ${isActive}`);
     
     // If removing an active item, navigate to the next available item first
     if (isActive) {
@@ -687,7 +682,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     try {
-      console.log('NavigationContext: Refreshing thread counts from API...');
       
       // Fetch current thread counts from API with safe fetch
       const response = await safeFetch('/api/threads/list');

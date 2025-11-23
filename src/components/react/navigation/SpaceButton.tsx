@@ -36,7 +36,6 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     event.preventDefault();
     
     if (!itemId) {
-      console.log('❌ No item ID found');
       return;
     }
     
@@ -48,8 +47,6 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       // Handle tag removal
       if ((window as any).removeTagFromNote) {
         (window as any).removeTagFromNote(event, event.target);
-      } else {
-        console.log('❌ removeTagFromNote function not available');
       }
       return;
     }
@@ -76,8 +73,6 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       // Remove from recent searches
       if ((window as any).removeFromRecentSearches) {
         (window as any).removeFromRecentSearches(itemId);
-      } else {
-        console.log('❌ removeFromRecentSearches function not available');
       }
     } else {
       // Remove from navigation history using context

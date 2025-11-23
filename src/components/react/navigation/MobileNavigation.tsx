@@ -101,7 +101,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   // Initialize current item ID on mount (component is client-only, so window is always available)
   useEffect(() => {
-    console.log('🚀 MobileNavigation component mounted and hydrated!');
     setCurrentItemId(window.location.pathname.substring(1));
   }, []);
 
@@ -308,19 +307,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const { spaces: persistentSpaces, threads: persistentThreads } = organizePersistentItems();
 
-  // Debug logging
-  console.log('MobileNavigation React component rendering:', { 
-    spaces: spaces.length, 
-    threads: threads.length, 
-    inboxCount, 
-    currentSpace: currentSpace?.title, 
-    currentThread: currentThread?.title,
-    initials,
-    userColor
-  });
-
   const handleDropdownToggle = () => {
-    console.log('🎯 Dropdown toggle clicked, current state:', isDropdownOpen);
     if (isDropdownOpen) {
       // If open, close it with animation
       handleDropdownClose();

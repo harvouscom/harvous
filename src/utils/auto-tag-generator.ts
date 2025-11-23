@@ -67,16 +67,6 @@ export async function generateAutoTags(
   confidenceThreshold: number = 0.7 // Lowered threshold to include more relevant tags
 ): Promise<AutoTagResult> {
   try {
-    // Auto-tag generation started
-    console.log('Auto-tag generation environment:', {
-      NODE_ENV: process.env.NODE_ENV,
-      hasDb: !!db,
-      userId: userId?.substring(0, 10) + '...',
-      noteTitle: noteTitle?.substring(0, 20),
-      confidenceThreshold,
-      isProduction: process.env.NODE_ENV === 'production'
-    });
-
     // Early validation for production
     if (!userId) {
       console.error('Auto-tag generation failed: userId is required');
@@ -124,11 +114,6 @@ export async function generateAutoTags(
         .select()
         .from(Tags)
         .where(eq(Tags.userId, userId));
-        
-      console.log('Successfully fetched existing tags:', {
-        count: existingTags.length,
-        userId: userId?.substring(0, 10) + '...'
-      });
     } catch (dbError: unknown) {
       console.error('Database error fetching existing tags:', dbError);
       if (process.env.NODE_ENV === 'production') {
@@ -151,36 +136,28 @@ export async function generateAutoTags(
     let highConfidence = 0;
 
     for (const { keyword, confidence } of foundKeywords) {
-      console.log(`Processing keyword: ${keyword.name} (confidence: ${confidence})`);
-      
       // Skip "God" as it's implied in all biblical content
       if (keyword.name.toLowerCase() === 'god') {
-        console.log(`Skipping ${keyword.name}: God is implied in all biblical content`);
         continue;
       }
       
       // Only suggest single-word tags (no spaces)
       if (keyword.name.includes(' ')) {
-        console.log(`Skipping ${keyword.name}: contains spaces`);
         continue;
       }
       
       // Only suggest if confidence is above threshold
       if (confidence >= confidenceThreshold) {
-        console.log(`${keyword.name} meets confidence threshold (${confidence} >= ${confidenceThreshold})`);
-        
         // Check for overlapping/similar tags already in suggestions
         const isOverlapping = suggestions.some(existing => 
           isTagOverlapping(keyword.name, existing.keyword)
         );
         
         if (isOverlapping) {
-          console.log(`Skipping ${keyword.name}: overlaps with existing suggestion`);
           continue;
         }
         
         const isExisting = existingTagNames.has(keyword.name.toLowerCase());
-        console.log(`${keyword.name} isExisting: ${isExisting}`);
         
         // Find the most recent tag with this name (to avoid duplicates)
         const existingTag = isExisting ? 
@@ -197,13 +174,9 @@ export async function generateAutoTags(
           tagId: existingTag?.id
         });
 
-        console.log(`Added ${keyword.name} to suggestions`);
-
         if (confidence >= 0.8) {
           highConfidence++;
         }
-      } else {
-        console.log(`Skipping ${keyword.name}: confidence ${confidence} below threshold ${confidenceThreshold}`);
       }
     }
 
@@ -219,7 +192,6 @@ export async function generateAutoTags(
         // Add a small priority boost for Bible study keywords to ensure they appear in top 8
         const priorityBoost = 0.05;
         const enhancedConfidence = Math.min(1.0, suggestion.confidence + priorityBoost);
-        console.log(`Bible study priority boost for ${suggestion.keyword}: +${priorityBoost} (${suggestion.confidence} -> ${enhancedConfidence})`);
         return {
           ...suggestion,
           confidence: enhancedConfidence
@@ -233,24 +205,6 @@ export async function generateAutoTags(
 
     // Apply proper limits: maximum 8 tags (0-8 based on content quality)
     const topSuggestions = enhancedSuggestions.slice(0, 8);
-
-    console.log('Final auto-tag results:', {
-      totalFound: suggestions.length,
-      highConfidence: highConfidence,
-      topSuggestions: topSuggestions.map(s => ({ 
-        name: s.keyword, 
-        confidence: s.confidence, 
-        isExisting: s.isExisting,
-        category: s.category 
-      })),
-      allSuggestions: enhancedSuggestions.map(s => ({ 
-        name: s.keyword, 
-        confidence: s.confidence, 
-        isExisting: s.isExisting,
-        category: s.category 
-      })),
-      bibleStudyKeywords: topSuggestions.filter(s => bibleStudyCategories.includes(s.category)).map(s => s.keyword)
-    });
 
     return {
       suggestions: topSuggestions,
@@ -283,8 +237,6 @@ export async function applyAutoTags(
   suggestions: AutoTagSuggestion[],
   userId: string
 ): Promise<{ applied: number; errors: string[] }> {
-  console.log('Starting applyAutoTags:', {
-    noteId,
     suggestionsCount: suggestions.length,
     userId: userId?.substring(0, 10) + '...',
     isProduction: process.env.NODE_ENV === 'production'
@@ -342,7 +294,6 @@ export async function applyAutoTags(
             });
 
             tagId = newTagId;
-            console.log('New tag created successfully:', { tagId, tagName: suggestion.keyword });
           }
         } catch (tagError) {
           console.error(`Error handling tag ${suggestion.keyword}:`, tagError);
@@ -367,14 +318,6 @@ export async function applyAutoTags(
       // Create note-tag relationship
       const relationId = `note_tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      console.log('Creating note-tag relationship:', {
-        relationId,
-        noteId,
-        tagId,
-        tagName: suggestion.keyword,
-        confidence: suggestion.confidence
-      });
-      
       await db.insert(NoteTags).values({
         id: relationId,
         noteId: noteId,
@@ -382,13 +325,6 @@ export async function applyAutoTags(
         isAutoGenerated: true,
         confidence: suggestion.confidence,
         createdAt: new Date(),
-      });
-
-      console.log('Note-tag relationship created successfully:', {
-        relationId,
-        noteId,
-        tagId,
-        tagName: suggestion.keyword
       });
 
       applied++;

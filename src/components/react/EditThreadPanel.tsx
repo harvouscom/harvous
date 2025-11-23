@@ -122,26 +122,13 @@ export default function EditThreadPanel({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('EditThreadPanel: handleSubmit called');
-    console.log('EditThreadPanel: Form data:', formData);
-    
     if (!validateForm()) {
-      console.log('EditThreadPanel: Form validation failed');
       return;
     }
 
-    console.log('EditThreadPanel: Form validation passed, starting submission');
     setIsSubmitting(true);
 
     try {
-      console.log('EditThreadPanel: Making API call to update thread');
-      console.log('EditThreadPanel: Data being sent:', {
-        threadId: threadId,
-        title: formData.title.trim(),
-        color: formData.selectedColor,
-        isPublic: false
-      });
-      
       const formDataToSend = new FormData();
       formDataToSend.append('id', threadId);
       formDataToSend.append('title', formData.title.trim());
@@ -168,13 +155,9 @@ export default function EditThreadPanel({
         body: formDataToSend,
       });
 
-      console.log('EditThreadPanel: API response status:', response.status);
       const data = await response.json();
-      console.log('EditThreadPanel: API response data:', data);
 
       if (response.ok) {
-        console.log('✅ EditThreadPanel: Thread updated successfully');
-        
         // Clear selected items
         setSelectedItems([]);
         
@@ -208,7 +191,7 @@ export default function EditThreadPanel({
         currentUrl.searchParams.set('message', encodeURIComponent('Thread updated successfully!'));
         navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
       } else {
-        console.error('❌ EditThreadPanel: Thread update failed:', data);
+        console.error('EditThreadPanel: Thread update failed:', data);
         
         // Show error toast
         window.dispatchEvent(new CustomEvent('toast', {

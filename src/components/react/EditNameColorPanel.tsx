@@ -35,12 +35,9 @@ export default function EditNameColorPanel({
 
   // Check cache first, then load from API if needed
   useEffect(() => {
-    console.log('🔄 EditNameColorPanel: useEffect triggered, checking cache');
-    
     // Check unified cache first
     const cached = getCachedProfileData();
     if (cached && (cached.firstName || cached.lastName)) {
-      console.log('📦 EditNameColorPanel: Using cached profile data');
       const newData = {
         firstName: cached.firstName || '',
         lastName: cached.lastName || '',
@@ -48,7 +45,6 @@ export default function EditNameColorPanel({
       };
       setFormData(newData);
       setInitialData(newData);
-      console.log('✅ EditNameColorPanel: Form updated with cached data');
       return; // Don't load from API if we have cached data
     }
     
@@ -57,7 +53,6 @@ export default function EditNameColorPanel({
     if (storedProfileData) {
       try {
         const profileData = JSON.parse(storedProfileData);
-        console.log('🔄 EditNameColorPanel: Found legacy sessionStorage data, migrating to cache');
         
         // Update form with legacy data
         const newData = {
@@ -74,15 +69,13 @@ export default function EditNameColorPanel({
           lastName: profileData.lastName || '',
           userColor: profileData.color || 'paper'
         });
-        console.log('✅ EditNameColorPanel: Form updated and migrated to unified cache');
         return;
       } catch (error) {
-        console.error('❌ EditNameColorPanel: Error parsing legacy sessionStorage data:', error);
+        console.error('EditNameColorPanel: Error parsing legacy sessionStorage data:', error);
       }
     }
     
     // If no cache, load from API
-    console.log('📥 EditNameColorPanel: No cache found, loading from API');
     loadUserData();
   }, []);
 
@@ -90,15 +83,11 @@ export default function EditNameColorPanel({
   // which manages its own state and persists across resizes automatically
 
   const loadUserData = async () => {
-    console.log('📥 EditNameColorPanel: loadUserData called');
     setIsLoading(true);
     try {
-      console.log('📤 EditNameColorPanel: Fetching from /api/user/get-profile');
       const response = await fetch('/api/user/get-profile');
-      console.log('📥 EditNameColorPanel: Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('📥 EditNameColorPanel: Received data:', data);
         const newData = {
           firstName: data.firstName || '',
           lastName: data.lastName || '',
@@ -113,12 +102,11 @@ export default function EditNameColorPanel({
           lastName: data.lastName || '',
           userColor: data.userColor || 'paper'
         });
-        console.log('✅ EditNameColorPanel: Form data updated and cache refreshed');
       } else {
-        console.error('❌ EditNameColorPanel: API call failed:', response.status);
+        console.error('EditNameColorPanel: API call failed:', response.status);
       }
     } catch (error) {
-      console.error('❌ EditNameColorPanel: Error loading user data:', error);
+      console.error('EditNameColorPanel: Error loading user data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -159,13 +147,6 @@ export default function EditNameColorPanel({
     setIsSubmitting(true);
 
     try {
-      console.log('📤 EditNameColorPanel: Making direct API call to update profile');
-      console.log('📤 EditNameColorPanel: Data being sent:', {
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
-        color: formData.selectedColor
-      });
-      
       // Make direct API call instead of dispatching event
       const response = await fetch('/api/user/update-profile', {
         method: 'POST',
@@ -179,13 +160,9 @@ export default function EditNameColorPanel({
         })
       });
 
-      console.log('📥 EditNameColorPanel: API response status:', response.status);
       const data = await response.json();
-      console.log('📥 EditNameColorPanel: API response data:', data);
 
       if (response.ok) {
-        console.log('✅ EditNameColorPanel: Profile updated successfully');
-        
         // Determine what changed for specific toast message
         const firstNameChanged = formData.firstName.trim() !== initialData.firstName.trim();
         const lastNameChanged = formData.lastName.trim() !== initialData.lastName.trim();
@@ -216,8 +193,7 @@ export default function EditNameColorPanel({
         const newDisplayName = `${formData.firstName.trim()} ${formData.lastName.trim().charAt(0)}`.trim();
         
         if ((window as any).updateAllAvatars) {
-          const result = await (window as any).updateAllAvatars(formData.selectedColor, newInitials);
-          console.log(`✅ EditNameColorPanel: Updated ${result.updatedCount} avatars`);
+          await (window as any).updateAllAvatars(formData.selectedColor, newInitials);
         }
 
         // Note: Header update is now handled by ProfileCardStackHeader React component
@@ -229,7 +205,6 @@ export default function EditNameColorPanel({
           lastName: formData.lastName.trim(),
           userColor: formData.selectedColor
         });
-        console.log('✅ EditNameColorPanel: Cache updated with saved profile data');
         
         // Wait to ensure data persistence before showing toast
         await new Promise(resolve => setTimeout(resolve, 250));

@@ -105,19 +105,15 @@ async function precacheSpacePages(spaceIds: string[]): Promise<number> {
 export async function precacheRecentContent(): Promise<void> {
   // Check if auth is ready
   if (!isAuthReady()) {
-    console.log('Pre-caching: Auth not ready, skipping');
     return;
   }
 
   // Check if service worker and caches are available
   if (!('serviceWorker' in navigator) || !('caches' in window)) {
-    console.log('Pre-caching: Service Worker or Cache API not available');
     return;
   }
 
   try {
-    console.log('Pre-caching: Starting to pre-cache user content...');
-
     // Fetch recent notes (50 items)
     const notesResponse = await fetch('/api/notes/recent?limit=50', {
       credentials: 'include',
@@ -133,7 +129,6 @@ export async function precacheRecentContent(): Promise<void> {
 
     const notes = await notesResponse.json();
     const noteIds = notes.map((note: any) => note.id);
-    console.log(`Pre-caching: Found ${noteIds.length} recent notes`);
 
     // Fetch navigation data (threads and spaces)
     const navResponse = await fetch('/api/navigation/data', {
@@ -150,7 +145,6 @@ export async function precacheRecentContent(): Promise<void> {
       const navData = await navResponse.json();
       threadIds = (navData.threads || []).map((thread: any) => thread.id);
       spaceIds = (navData.spaces || []).map((space: any) => space.id);
-      console.log(`Pre-caching: Found ${threadIds.length} threads and ${spaceIds.length} spaces`);
     } else {
       console.warn('Pre-caching: Failed to fetch navigation data');
     }
@@ -162,7 +156,6 @@ export async function precacheRecentContent(): Promise<void> {
     ];
     
     await cacheUrls(apiUrls);
-    console.log('Pre-caching: Cached API responses');
 
     // Cache individual pages (limit to 50 total to avoid overwhelming)
     const totalItems = noteIds.length + threadIds.length + spaceIds.length;
@@ -174,11 +167,9 @@ export async function precacheRecentContent(): Promise<void> {
     const threadsToCache = threadIds.slice(0, Math.min(threadIds.length, Math.floor(remainingSlots * 0.6)));
     const spacesToCache = spaceIds.slice(0, Math.min(spaceIds.length, remainingSlots - threadsToCache.length));
 
-    const notePagesCached = await precacheNotePages(notesToCache);
-    const threadPagesCached = await precacheThreadPages(threadsToCache);
-    const spacePagesCached = await precacheSpacePages(spacesToCache);
-
-    console.log(`Pre-caching: Complete - Cached ${notePagesCached} note pages, ${threadPagesCached} thread pages, ${spacePagesCached} space pages`);
+    await precacheNotePages(notesToCache);
+    await precacheThreadPages(threadsToCache);
+    await precacheSpacePages(spacesToCache);
   } catch (error) {
     console.error('Pre-caching: Error during pre-caching', error);
   }

@@ -298,7 +298,6 @@ export async function convertScriptureReferencesToPills(
   scriptureResults: Array<{ reference: string; noteId: string }>
 ) {
   if (!editor || !scriptureResults || scriptureResults.length === 0) {
-    console.log('convertScriptureReferencesToPills: No editor or empty results');
     return;
   }
   
@@ -307,33 +306,19 @@ export async function convertScriptureReferencesToPills(
     const doc = editor.state.doc;
     const fullText = doc.textContent;
     
-    console.log('convertScriptureReferencesToPills: Processing', scriptureResults.length, 'references');
-    console.log('Document text content:', fullText.substring(0, 200));
-    
     // Process each scripture reference from the results
     for (const result of scriptureResults) {
       const { reference, noteId } = result;
       if (!reference || !noteId) {
-        console.log('Skipping result - missing reference or noteId:', result);
         continue;
       }
-      
-      console.log('Looking for reference:', reference, 'with noteId:', noteId);
       
       const normalizedRef = normalizeScriptureReference(reference);
       
       // Find all positions of this reference in the document
       const positions = findAllTextPositions(doc, reference, true);
       
-      console.log('Found', positions.length, 'positions for reference:', reference);
-      
       if (positions.length === 0) {
-        // Try to find it in the text content to debug
-        const indexInText = fullText.indexOf(reference);
-        console.log('Reference not found in positions. Index in text:', indexInText);
-        if (indexInText !== -1) {
-          console.log('Text around match:', fullText.substring(Math.max(0, indexInText - 20), indexInText + reference.length + 20));
-        }
         continue;
       }
       
@@ -348,11 +333,8 @@ export async function convertScriptureReferencesToPills(
           const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
           
           if (hasPill) {
-            console.log('Position already has pill, skipping');
             continue; // Already a pill
           }
-          
-          console.log('Converting position', pos.from, 'to', pos.to, 'to scripture pill');
           
           // Convert to scripture-pill
           editor.chain()
@@ -367,8 +349,6 @@ export async function convertScriptureReferencesToPills(
         }
       }
     }
-    
-    console.log('convertScriptureReferencesToPills: Completed');
   } catch (error) {
     console.error('Error converting scripture references to pills:', error);
   }
@@ -1220,7 +1200,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       if (isAlreadyInThread) {
                         // Note is already in thread - show toast using multiple methods
                         const toastMessage = `${normalizedReference} is already in this thread.`;
-                        console.log('[TiptapEditor] Note already in thread, dispatching showToast event:', toastMessage);
                         
                         // Dispatch a custom event for the layout to handle.
                         // This is more robust than calling window.toast directly.
@@ -1257,9 +1236,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   editor.commands.blur();
                   setShowCreateNoteButton(false);
                   return; // Exit early - don't create new note
-                } else {
-                  // Note doesn't exist - will fall through to create new note
-                  console.log('[TiptapEditor] Scripture note does not exist, will create new note:', normalizedReference);
                 }
               } else {
                 // Non-OK response from check-existing API

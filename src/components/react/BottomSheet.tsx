@@ -93,30 +93,22 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const openBottomSheet = useCallback((type: DrawerType = 'note') => {
     // Only open on mobile
     if (!isMobile) {
-      console.log('BottomSheet: Not opening on desktop');
       return;
     }
 
-    console.log('BottomSheet: Opening with type:', type);
     setDrawerType(type);
     setIsVisible(true);
     // Increment panelKey to force remount and re-read localStorage
-    setPanelKey(prev => {
-      const newKey = prev + 1;
-      console.log('BottomSheet: Incrementing panelKey from', prev, 'to', newKey);
-      return newKey;
-    });
+    setPanelKey(prev => prev + 1);
     
     // Initialize form handlers for the specific panel type
     if (type === 'thread') {
-      console.log('BottomSheet: Initializing thread creation handlers');
       setTimeout(() => {
         if (typeof window.initThreadCreation === 'function') {
           window.initThreadCreation();
         }
       }, 100);
     } else if (type === 'note') {
-      console.log('BottomSheet: Initializing note creation handlers');
       setTimeout(() => {
         if (typeof window.setupCreateNoteButton === 'function') {
           window.setupCreateNoteButton();
@@ -127,8 +119,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   // Handle closing the bottom sheet
   const closeBottomSheet = useCallback(() => {
-    console.log('BottomSheet: Closing');
-    
     // Trigger slide-down animation
     const sheetContent = document.querySelector('.bottom-sheet-content') as HTMLElement;
     
@@ -149,9 +139,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   // Set up event listeners
   useEffect(() => {
     const handleOpenBottomSheet = (event: CustomEvent) => {
-      console.log('BottomSheet: openMobileDrawer event received:', event.detail);
       const type = (event.detail && (event.detail.type || event.detail.drawerType)) || 'note';
-      console.log('BottomSheet: Opening with type:', type);
       
       // Handle inbox preview with data
       if (type === 'inboxPreview' && event.detail?.item) {
@@ -264,12 +252,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, [isVisible]);
 
-  // Log when NewNotePanel is rendered with a new key
-  useEffect(() => {
-    if (drawerType === 'note' && isVisible) {
-      console.log('BottomSheet: Rendering NewNotePanel with key:', `mobile-note-${panelKey}`);
-    }
-  }, [drawerType, isVisible, panelKey]);
 
   // Don't render on desktop
   if (!isMobile) {

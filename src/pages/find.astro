@@ -89,7 +89,7 @@ try {
     }
   }
 } catch (error) {
-  console.log('Error fetching user data:', error);
+  console.error('Error fetching user data:', error);
 }
 
 // Extract user data from API response or use fallbacks
@@ -104,7 +104,7 @@ try {
   const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
   userColor = userMetadata?.userColor || 'paper';
 } catch (error) {
-  console.log('Error fetching user color:', error);
+  console.error('Error fetching user color:', error);
 }
 
 // Fetch inbox count
@@ -317,7 +317,7 @@ if (query.trim()) {
 
           return { ...note, tags: noteTags };
         } catch (error) {
-          console.log('Error fetching tags for note:', error);
+          console.error('Error fetching tags for note:', error);
           return { ...note, tags: [] };
         }
       })

@@ -122,9 +122,7 @@ export async function revokeXPOnDeletion(
       await db.delete(UserXP).where(eq(UserXP.id, record.id));
     }
     
-    if (revokedAmount > 0) {
-      console.log(`Revoked ${revokedAmount} XP for quick deletion (${timeDiff}ms): ${relatedId}`);
-    }
+    // XP revoked silently
     
     return revokedAmount;
   } catch (error) {
@@ -155,9 +153,7 @@ export async function revokeAllXPForItem(
       await db.delete(UserXP).where(eq(UserXP.id, record.id));
     }
     
-    if (revokedAmount > 0) {
-      console.log(`Revoked ${revokedAmount} XP for deleted item: ${relatedId}`);
-    }
+    // XP revoked silently
     
     return revokedAmount;
   } catch (error) {
@@ -187,20 +183,17 @@ export async function awardThreadCreatedXP(
       .limit(1);
     
     if (existingXP.length > 0) {
-      console.log(`XP already awarded for thread creation: ${threadId}`);
       return;
     }
     
     // Check content length if title provided
     if (title && !checkContentLength(title, 'thread')) {
-      console.log(`Thread title too short for XP: ${threadId}`);
       return;
     }
     
     // Check rate limit
     const withinRateLimit = await checkRateLimit(userId, 'thread_created', false);
     if (!withinRateLimit) {
-      console.log(`Rate limit exceeded for thread creation: ${threadId}`);
       return;
     }
     
@@ -218,7 +211,6 @@ export async function awardThreadCreatedXP(
       metadata,
       createdAt: new Date(),
     });
-    console.log(`Awarded ${XP_VALUES.THREAD_CREATED} XP for thread creation: ${threadId}`);
   } catch (error) {
     console.error('Error awarding thread creation XP:', error);
   }
@@ -245,13 +237,11 @@ export async function awardNoteCreatedXP(
       .limit(1);
     
     if (existingXP.length > 0) {
-      console.log(`XP already awarded for note creation: ${noteId}`);
       return;
     }
     
     // Check content length (skip for scripture notes)
     if (!isScriptureNote && content && !checkContentLength(content, 'note')) {
-      console.log(`Note content too short for XP: ${noteId}`);
       return;
     }
     
@@ -259,7 +249,6 @@ export async function awardNoteCreatedXP(
     if (!isScriptureNote) {
       const withinRateLimit = await checkRateLimit(userId, 'note_created', true);
       if (!withinRateLimit) {
-        console.log(`Rate limit exceeded for note creation: ${noteId}`);
         return;
       }
     }
@@ -322,12 +311,7 @@ export async function awardNoteCreatedXP(
           relatedId: noteId,
           createdAt: new Date(),
         });
-        console.log(`Awarded ${xpAmount + XP_VALUES.FIRST_NOTE_DAILY_BONUS} XP for first note of day: ${noteId}`);
-      } else {
-        console.log(`Awarded ${xpAmount} XP for note creation: ${noteId} (bonus already awarded)`);
       }
-    } else {
-      console.log(`Awarded ${xpAmount} XP for note creation: ${noteId}${isScriptureNote ? ' (scripture)' : ''}`);
     }
   } catch (error) {
     console.error('Error awarding note creation XP:', error);
@@ -354,7 +338,6 @@ export async function awardNoteOpenedXP(userId: string, noteId: string): Promise
       .limit(1);
     
     if (existingXPForNote.length > 0) {
-      console.log(`XP already awarded for opening note today: ${noteId}`);
       return;
     }
     
@@ -371,7 +354,6 @@ export async function awardNoteOpenedXP(userId: string, noteId: string): Promise
     
     // Check if we've hit the daily cap
     if (todayXPFromNoteOpened >= DAILY_CAPS.NOTE_OPENED) {
-      console.log(`Daily cap reached for note opening XP (${DAILY_CAPS.NOTE_OPENED})`);
       return;
     }
     
@@ -387,7 +369,6 @@ export async function awardNoteOpenedXP(userId: string, noteId: string): Promise
         relatedId: noteId,
         createdAt: new Date(),
       });
-      console.log(`Awarded ${xpToAward} XP for note opening: ${noteId}`);
     }
   } catch (error) {
     console.error('Error awarding note opening XP:', error);
@@ -499,8 +480,6 @@ export async function hasXPBeenAwarded(userId: string, activityType: string, rel
  */
 export async function cleanupDuplicateXP(userId: string): Promise<{ removed: number; total: number }> {
   try {
-    console.log(`Starting duplicate XP cleanup for user: ${userId}`);
-    
     // Get all XP records for the user
     const allXP = await db.select()
       .from(UserXP)
@@ -528,12 +507,9 @@ export async function cleanupDuplicateXP(userId: string): Promise<{ removed: num
           await db.delete(UserXP).where(eq(UserXP.id, record.id));
           removedCount++;
         }
-        
-        console.log(`Removed ${toRemove.length} duplicate XP records for ${key}`);
       }
     }
     
-    console.log(`Duplicate XP cleanup completed. Removed ${removedCount} duplicates out of ${totalCount} total records.`);
     return { removed: removedCount, total: totalCount };
   } catch (error) {
     console.error('Error during duplicate XP cleanup:', error);
@@ -548,13 +524,8 @@ export async function cleanupDuplicateXP(userId: string): Promise<{ removed: num
  */
 export async function backfillUserXP(userId: string): Promise<void> {
   try {
-    console.log(`Starting XP backfill for user: ${userId}`);
-    
     // First, clean up any existing duplicates
-    const cleanupResult = await cleanupDuplicateXP(userId);
-    if (cleanupResult.removed > 0) {
-      console.log(`Cleaned up ${cleanupResult.removed} duplicate XP records before backfill`);
-    }
+    await cleanupDuplicateXP(userId);
     
     // Get all threads created by user
     const userThreads = await db.select()
@@ -566,26 +537,16 @@ export async function backfillUserXP(userId: string): Promise<void> {
       .from(Notes)
       .where(eq(Notes.userId, userId));
     
-    console.log(`Found ${userThreads.length} threads and ${userNotes.length} notes for backfill`);
-    
     // Award XP for existing threads (using duplicate-safe function)
-    let threadsProcessed = 0;
     for (const thread of userThreads) {
       await awardThreadCreatedXP(userId, thread.id, thread.title, thread.subtitle || null);
-      threadsProcessed++;
     }
-    console.log(`Processed ${threadsProcessed} threads for XP backfill`);
     
     // Award XP for existing notes (using duplicate-safe function)
-    let notesProcessed = 0;
     for (const note of userNotes) {
       const isScriptureNote = note.noteType === 'scripture';
       await awardNoteCreatedXP(userId, note.id, isScriptureNote, note.content || '');
-      notesProcessed++;
     }
-    console.log(`Processed ${notesProcessed} notes for XP backfill`);
-    
-    console.log(`XP backfill completed for user: ${userId}`);
   } catch (error) {
     console.error('Error during XP backfill:', error);
   }

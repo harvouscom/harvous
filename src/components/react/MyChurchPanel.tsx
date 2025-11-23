@@ -33,8 +33,6 @@ export default function MyChurchPanel({
 
   // Load existing church data when component mounts
   useEffect(() => {
-    console.log('🔄 MyChurchPanel: useEffect triggered, checking cache');
-    
     // Check cache first
     const cached = getCachedProfileData();
     // Check if cache exists and has church data (any field is not null/undefined)
@@ -45,11 +43,6 @@ export default function MyChurchPanel({
     );
     
     if (hasCachedChurchData) {
-      console.log('📦 MyChurchPanel: Using cached church data', {
-        churchName: cached.churchName,
-        churchCity: cached.churchCity,
-        churchState: cached.churchState
-      });
       // Preserve null values - only convert to empty string for form display
       const cachedData = {
         churchName: cached.churchName ?? '',
@@ -64,9 +57,7 @@ export default function MyChurchPanel({
       const hasData = !!(cached.churchName || cached.churchCity || cached.churchState);
       setHasExistingData(hasData);
       setViewMode(hasData ? 'view' : 'edit');
-      console.log('✅ MyChurchPanel: Form data updated from cache, hasData:', hasData);
     } else {
-      console.log('📥 MyChurchPanel: No cache found or no church data in cache, loading from API');
       loadChurchData();
     }
   }, []);
@@ -86,21 +77,13 @@ export default function MyChurchPanel({
   }, [showUnsavedDialog]);
 
   const loadChurchData = async () => {
-    console.log('📥 MyChurchPanel: loadChurchData called');
     setIsLoading(true);
     try {
-      console.log('📤 MyChurchPanel: Fetching from /api/user/get-profile');
       const response = await fetch('/api/user/get-profile', {
         credentials: 'include'
       });
-      console.log('📥 MyChurchPanel: Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('📥 MyChurchPanel: Received data:', {
-          churchName: data.churchName,
-          churchCity: data.churchCity,
-          churchState: data.churchState
-        });
         
         // Preserve null values from API - only convert to empty string for form display
         // Store original API values (null or string) for cache
@@ -131,7 +114,6 @@ export default function MyChurchPanel({
           churchCity: apiChurchCity,
           churchState: apiChurchState
         });
-        console.log('✅ MyChurchPanel: Form data updated and cache refreshed', {
           hasData,
           cached: { churchName: apiChurchName, churchCity: apiChurchCity, churchState: apiChurchState }
         });
@@ -194,13 +176,6 @@ export default function MyChurchPanel({
     setIsSubmitting(true);
 
     try {
-      console.log('📤 MyChurchPanel: Making API call to update church');
-      console.log('📤 MyChurchPanel: Data being sent:', {
-        churchName: formData.churchName.trim(),
-        churchCity: formData.churchCity.trim(),
-        churchState: formData.churchState.trim()
-      });
-      
       const response = await fetch('/api/user/update-church', {
         method: 'POST',
         headers: {
@@ -214,13 +189,9 @@ export default function MyChurchPanel({
         })
       });
 
-      console.log('📥 MyChurchPanel: API response status:', response.status);
       const data = await response.json();
-      console.log('📥 MyChurchPanel: API response data:', data);
 
       if (response.ok) {
-        console.log('✅ MyChurchPanel: Church data updated successfully');
-        
         const savedData = {
           churchName: formData.churchName.trim(),
           churchCity: formData.churchCity.trim(),
@@ -243,7 +214,6 @@ export default function MyChurchPanel({
           churchCity: savedData.churchCity || null,
           churchState: savedData.churchState || null
         });
-        console.log('✅ MyChurchPanel: Cache updated with saved church data');
         
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -255,7 +225,7 @@ export default function MyChurchPanel({
 
         // Don't close panel - stay in view mode so user can see their saved church info
       } else {
-        console.error('❌ MyChurchPanel: Church update failed:', data);
+        console.error('MyChurchPanel: Church update failed:', data);
         
         // Show error toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -267,7 +237,7 @@ export default function MyChurchPanel({
       }
 
     } catch (error) {
-      console.error('❌ MyChurchPanel: Error updating church:', error);
+      console.error('MyChurchPanel: Error updating church:', error);
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
           message: 'Error saving church information. Please try again.',
@@ -354,8 +324,6 @@ export default function MyChurchPanel({
     setIsSubmitting(true);
 
     try {
-      console.log('📤 MyChurchPanel: Making API call to update church (from Save & Close)');
-      
       const response = await fetch('/api/user/update-church', {
         method: 'POST',
         headers: {
@@ -372,8 +340,6 @@ export default function MyChurchPanel({
       const data = await response.json();
 
       if (response.ok) {
-        console.log('✅ MyChurchPanel: Church data updated successfully (from Save & Close)');
-        
         const savedData = {
           churchName: formData.churchName.trim(),
           churchCity: formData.churchCity.trim(),
@@ -396,7 +362,6 @@ export default function MyChurchPanel({
           churchCity: savedData.churchCity || null,
           churchState: savedData.churchState || null
         });
-        console.log('✅ MyChurchPanel: Cache updated with saved church data');
         
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -413,7 +378,7 @@ export default function MyChurchPanel({
           window.dispatchEvent(new CustomEvent('closeProfilePanel'));
         }
       } else {
-        console.error('❌ MyChurchPanel: Church update failed (from Save & Close):', data);
+        console.error('MyChurchPanel: Church update failed (from Save & Close):', data);
         
         // Show error toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -425,7 +390,7 @@ export default function MyChurchPanel({
       }
 
     } catch (error) {
-      console.error('❌ MyChurchPanel: Error updating church (from Save & Close):', error);
+      console.error('MyChurchPanel: Error updating church (from Save & Close):', error);
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
           message: 'Error saving church information. Please try again.',
@@ -442,8 +407,6 @@ export default function MyChurchPanel({
     setIsSubmitting(true);
 
     try {
-      console.log('📤 MyChurchPanel: Removing church data');
-      
       const response = await fetch('/api/user/update-church', {
         method: 'POST',
         headers: {
@@ -457,13 +420,9 @@ export default function MyChurchPanel({
         })
       });
 
-      console.log('📥 MyChurchPanel: API response status:', response.status);
       const data = await response.json();
-      console.log('📥 MyChurchPanel: API response data:', data);
 
       if (response.ok) {
-        console.log('✅ MyChurchPanel: Church data removed successfully');
-        
         // Clear form data
         const emptyData = {
           churchName: '',
@@ -484,7 +443,6 @@ export default function MyChurchPanel({
           churchCity: null,
           churchState: null
         });
-        console.log('✅ MyChurchPanel: Cache updated to reflect church removal');
         
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -494,7 +452,7 @@ export default function MyChurchPanel({
           }
         }));
       } else {
-        console.error('❌ MyChurchPanel: Church removal failed:', data);
+        console.error('MyChurchPanel: Church removal failed:', data);
         
         // Show error toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -506,7 +464,7 @@ export default function MyChurchPanel({
       }
 
     } catch (error) {
-      console.error('❌ MyChurchPanel: Error removing church:', error);
+      console.error('MyChurchPanel: Error removing church:', error);
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
           message: 'Error removing church information. Please try again.',

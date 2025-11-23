@@ -194,15 +194,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('NewThreadPanel: handleSubmit called');
-    console.log('Title:', title);
-    console.log('Selected color:', selectedColor);
-    console.log('Selected type:', selectedType);
-    console.log('Is edit mode:', isEditMode);
-
-    console.log('NewThreadPanel: Starting submission');
     setIsSubmitting(true);
-    console.log('NewThreadPanel: isSubmitting set to true');
 
     try {
       const formData = new FormData();
@@ -212,13 +204,6 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
       
       if (isEditMode) {
         formData.append('threadId', threadId!);
-        console.log('NewThreadPanel: Sending request to /api/threads/update');
-        console.log('Form data:', {
-          threadId: threadId,
-          title: title.trim(),
-          color: selectedColor,
-          isPublic: false,
-        });
         
         const response = await fetch('/api/threads/update', {
           method: 'POST',
@@ -226,12 +211,8 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           credentials: 'include'
         });
 
-        console.log('NewThreadPanel: Response status:', response.status);
-        console.log('NewThreadPanel: Response ok:', response.ok);
-
         if (response.ok) {
           const result = await response.json();
-          console.log('NewThreadPanel: Thread updated successfully:', result);
           
           // Close panel
           window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
@@ -272,27 +253,14 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           formData.append('selectedNoteIds', JSON.stringify(selectedNoteIds));
         }
         
-        console.log('NewThreadPanel: Sending request to /api/threads/create');
-        console.log('Form data:', {
-          title: title.trim(),
-          color: selectedColor,
-          isPublic: false,
-          spaceId: currentSpace?.id || null,
-          selectedNoteIds: selectedNoteIds,
-        });
-        
         const response = await fetch('/api/threads/create', {
           method: 'POST',
           body: formData,
           credentials: 'include'
         });
 
-        console.log('NewThreadPanel: Response status:', response.status);
-        console.log('NewThreadPanel: Response ok:', response.ok);
-
         if (response.ok) {
           const result = await response.json();
-          console.log('NewThreadPanel: Thread created successfully:', result);
           
           // Clear form data
           setTitle('');
@@ -307,8 +275,6 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           // localStorage.removeItem('newThreadActiveTab');
           
           // Dispatch event to notify other components
-          console.log('NewThreadPanel: Dispatching threadCreated event with thread:', result.thread);
-
           // Immediately update localStorage synchronously (don't wait for React)
           try {
             // Convert thread color to background gradient
@@ -341,11 +307,9 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           window.dispatchEvent(new CustomEvent('threadCreated', {
             detail: { thread: result.thread }
           }));
-          console.log('NewThreadPanel: threadCreated event dispatched successfully');
 
           // If onThreadCreated callback is provided, use it instead of redirecting
           if (onThreadCreated) {
-            console.log('NewThreadPanel: Using onThreadCreated callback instead of redirecting');
             // Call the callback (it will handle closing the panel and refreshing)
             onThreadCreated();
           } else {
@@ -359,7 +323,6 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
 
             // Redirect to the newly created thread with toast parameter
             if (result.thread && result.thread.id) {
-              console.log('NewThreadPanel: Redirecting to thread:', result.thread.id);
               const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
               // Add a small delay to ensure localStorage is updated before navigation
               setTimeout(() => {
@@ -399,7 +362,6 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
         alert(errorMessage);
       }
     } finally {
-      console.log('NewThreadPanel: Submission finished, setting isSubmitting to false');
       // Use setTimeout to ensure state update happens after any pending operations
       setTimeout(() => {
         setIsSubmitting(false);
@@ -769,7 +731,6 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--color-bold-blue)' }}
             tabIndex={3}
-            onClick={() => console.log('Create button clicked, isSubmitting:', isSubmitting)}
           >
             <div className="relative shrink-0 transition-transform duration-125">
               {isSubmitting ? 'Creating...' : 'Create Thread'}

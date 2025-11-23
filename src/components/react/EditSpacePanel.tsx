@@ -153,25 +153,13 @@ export default function EditSpacePanel({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('EditSpacePanel: handleSubmit called');
-    console.log('EditSpacePanel: Form data:', formData);
-    
     if (!validateForm()) {
-      console.log('EditSpacePanel: Form validation failed');
       return;
     }
 
-    console.log('EditSpacePanel: Form validation passed, starting submission');
     setIsSubmitting(true);
 
     try {
-      console.log('EditSpacePanel: Making API call to update space');
-      console.log('EditSpacePanel: Data being sent:', {
-        spaceId: spaceId,
-        title: formData.title.trim(),
-        color: formData.selectedColor
-      });
-      
       const formDataToSend = new FormData();
       formDataToSend.append('title', formData.title.trim());
       formDataToSend.append('color', formData.selectedColor);
@@ -182,13 +170,9 @@ export default function EditSpacePanel({
         credentials: 'include'
       });
 
-      console.log('EditSpacePanel: API response status:', response.status);
       const data = await response.json();
-      console.log('EditSpacePanel: API response data:', data);
 
       if (response.ok) {
-        console.log('✅ EditSpacePanel: Space updated successfully');
-        
         // Close panel after a short delay
         setTimeout(() => {
           if (onClose) {
@@ -204,7 +188,7 @@ export default function EditSpacePanel({
         currentUrl.searchParams.set('message', encodeURIComponent('Space updated successfully!'));
         navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
       } else {
-        console.error('❌ EditSpacePanel: Space update failed:', data);
+        console.error('EditSpacePanel: Space update failed:', data);
         
         // Show error toast
         window.dispatchEvent(new CustomEvent('toast', {
@@ -216,7 +200,7 @@ export default function EditSpacePanel({
       }
 
     } catch (error) {
-      console.error('❌ EditSpacePanel: Error updating space:', error);
+      console.error('EditSpacePanel: Error updating space:', error);
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
           message: 'Error updating space. Please try again.',

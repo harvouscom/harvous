@@ -1335,18 +1335,13 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
 
         // Handle scripture results from the create endpoint
         // (The create endpoint already processes scripture and returns results)
-        console.log('NewNotePanel: Create result:', result);
         if (result.scriptureResults) {
-          console.log('NewNotePanel: Scripture results from create:', result.scriptureResults, 'Length:', result.scriptureResults.length);
-          
           if (result.scriptureResults.length > 0) {
             // Show toasts for each scripture reference created or added
             for (const scriptureResult of result.scriptureResults) {
-              console.log('NewNotePanel: Processing result:', scriptureResult);
               // Show toast for newly created notes
               if (scriptureResult.action === 'created') {
                 const message = `Created scripture note: ${scriptureResult.reference}`;
-                console.log('NewNotePanel: Dispatching toast for created:', scriptureResult.reference);
                 
                 // Dispatch event
                 const event = new CustomEvent('toast', {
@@ -1362,7 +1357,6 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
               // Show toast for notes added to thread
               else if (scriptureResult.action === 'added') {
                 const message = `Added ${scriptureResult.reference} to this thread`;
-                console.log('NewNotePanel: Dispatching toast for added:', scriptureResult.reference);
                 
                 // Dispatch event
                 const event = new CustomEvent('toast', {
@@ -1376,11 +1370,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
                 }
               }
             }
-          } else {
-            console.log('NewNotePanel: No scripture results to process');
           }
-        } else {
-          console.log('NewNotePanel: No scriptureResults in result');
         }
 
         // Navigate to the newly created note
