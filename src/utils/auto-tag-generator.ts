@@ -237,11 +237,6 @@ export async function applyAutoTags(
   suggestions: AutoTagSuggestion[],
   userId: string
 ): Promise<{ applied: number; errors: string[] }> {
-    suggestionsCount: suggestions.length,
-    userId: userId?.substring(0, 10) + '...',
-    isProduction: process.env.NODE_ENV === 'production'
-  });
-
   const errors: string[] = [];
   let applied = 0;
 

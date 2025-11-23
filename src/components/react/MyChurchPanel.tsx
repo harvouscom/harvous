@@ -114,9 +114,6 @@ export default function MyChurchPanel({
           churchCity: apiChurchCity,
           churchState: apiChurchState
         });
-          hasData,
-          cached: { churchName: apiChurchName, churchCity: apiChurchCity, churchState: apiChurchState }
-        });
       } else {
         console.error('❌ MyChurchPanel: API call failed:', response.status);
       }
