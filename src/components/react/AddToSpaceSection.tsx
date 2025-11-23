@@ -217,6 +217,13 @@ export default function AddToSpaceSection({
   const renderNoteItem = (item: SpaceItem, onClick: () => void) => {
     const isSelected = selectedItems.includes(item.id);
     
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onClick();
+      }
+    };
+    
     return (
       <div
         key={item.id}
@@ -226,8 +233,11 @@ export default function AddToSpaceSection({
           opacity: 0
         }}
       >
-        <button
+        <div
           onClick={onClick}
+          onKeyDown={handleKeyDown}
+          role="button"
+          tabIndex={0}
           className="relative rounded-xl h-[48px] cursor-pointer transition-transform duration-200 w-full text-left overflow-hidden hover:scale-[1.002]"
           style={{
             backgroundColor: isSelected ? 'var(--color-fog-white)' : 'var(--color-fog-white)',
@@ -267,7 +277,7 @@ export default function AddToSpaceSection({
             className="absolute top-1/2 right-3 transform -translate-y-1/2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
             disabled={isLoading}
           />
-        </button>
+        </div>
       </div>
     );
   };
@@ -276,6 +286,13 @@ export default function AddToSpaceSection({
   const renderThreadItem = (item: SpaceItem, onClick: () => void) => {
     const isSelected = selectedItems.includes(item.id);
     const threadAccentColor = item.color ? `var(--color-${item.color})` : "var(--color-purple)";
+    
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onClick();
+      }
+    };
     
     return (
       <div
@@ -286,8 +303,11 @@ export default function AddToSpaceSection({
           opacity: 0
         }}
       >
-        <button
+        <div
           onClick={onClick}
+          onKeyDown={handleKeyDown}
+          role="button"
+          tabIndex={0}
           className="relative rounded-xl h-[48px] cursor-pointer transition-transform duration-200 w-full text-left overflow-hidden hover:scale-[1.002]"
           style={{
             backgroundColor: isSelected ? 'var(--color-fog-white)' : 'var(--color-fog-white)',
@@ -336,7 +356,7 @@ export default function AddToSpaceSection({
             className="absolute top-1/2 right-3 transform -translate-y-1/2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
             disabled={isLoading}
           />
-        </button>
+        </div>
       </div>
     );
   };
