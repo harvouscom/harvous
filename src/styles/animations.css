@@ -289,3 +289,31 @@
 .close-icon-enter {
   animation: closeIconFadeIn 0.2s ease-out both;
 }
+
+/* Dropdown Animations */
+@keyframes dropdownSlideDown {
+  from {
+    transform: translateY(-8px);
+    max-height: 64px;
+  }
+  to {
+    transform: translateY(0);
+    max-height: 352px;
+  }
+}
+
+@keyframes dropdownSlideUp {
+  from {
+    transform: translateY(0);
+    max-height: 352px;
+  }
+  to {
+    transform: translateY(-8px);
+    max-height: 64px;
+  }
+}
+
+.dropdown-enter {
+  animation: dropdownSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  overflow: hidden;
+}

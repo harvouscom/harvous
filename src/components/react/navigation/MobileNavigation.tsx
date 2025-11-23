@@ -61,6 +61,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   userColor = 'paper'
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [currentItemId, setCurrentItemId] = useState(() => {
     // Initialize from window.location if available (client-side only)
     if (typeof window !== 'undefined') {
@@ -320,12 +321,22 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const handleDropdownToggle = () => {
     console.log('🎯 Dropdown toggle clicked, current state:', isDropdownOpen);
-    console.log('🎯 Setting dropdown to:', !isDropdownOpen);
-    setIsDropdownOpen(!isDropdownOpen);
+    if (isDropdownOpen) {
+      // If open, close it with animation
+      handleDropdownClose();
+    } else {
+      // If closed, open it
+      setIsDropdownOpen(true);
+      // Small delay to ensure DOM is ready for animation
+      setTimeout(() => setIsMounted(true), 10);
+    }
   };
 
   const handleDropdownClose = () => {
+    // Close immediately without animation
     setIsDropdownOpen(false);
+    setIsExiting(false);
+    setIsMounted(false);
     // Exit close mode for all items when dropdown closes
     setItemsInCloseMode(new Set());
   };
@@ -343,9 +354,18 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   };
 
   const handleItemClickWrapper = (e: React.MouseEvent<HTMLAnchorElement>, itemId?: string) => {
+    // Check if the clicked item is the currently active item
+    const isActiveItem = itemId === undefined || itemId === '' 
+      ? !currentSpace && !currentThread && !currentItemId // "For You" is active
+      : itemId === currentActiveItemId; // Other items match currentActiveItemId
+    
+    // If it's the active item, prevent navigation and just close the dropdown
+    if (isActiveItem) {
+      e.preventDefault();
+    }
+    
     handleItemClick(itemId);
-    // Don't prevent default - let the link navigate naturally
-    // The link will handle navigation via href
+    // If not active, let the link navigate naturally via href
   };
 
   // Toggle close mode for an item (show close icon instead of badge)
@@ -421,7 +441,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         {/* Dropdown Menu */}
         {isDropdownOpen && (
           <div 
-            className="absolute top-0 left-0 w-full bg-white rounded-3xl shadow-lg z-[9999] max-h-[352px] relative"
+            className={`absolute top-0 left-0 w-full bg-white rounded-3xl shadow-lg z-[9999] max-h-[352px] relative ${
+              isMounted ? 'dropdown-enter' : ''
+            }`}
+            style={!isMounted ? { transform: 'translateY(-8px)', maxHeight: '64px', overflow: 'hidden' } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Scrollable Nav Items */}
@@ -441,7 +464,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       key="for-you-active"
                       href="/" 
                       className="block w-full"
-                      onClick={(e) => handleItemClickWrapper(e)}
+                      onClick={(e) => handleItemClickWrapper(e, undefined)}
                       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                     >
                       <div className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center" style={{ backgroundImage: getThreadGradientCSS('paper') }}>
@@ -467,7 +490,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       key={`active-space-${activeSpace.id}`}
                       href={`/${activeSpace.id}`} 
                       className="block w-full"
-                      onClick={(e) => handleItemClickWrapper(e)}
+                      onClick={(e) => handleItemClickWrapper(e, activeSpace.id)}
                       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                     >
                       <div 
@@ -501,7 +524,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       key={`active-thread-${activeThread.id}`}
                       href={`/${activeThread.id}`} 
                       className="block w-full"
-                      onClick={(e) => handleItemClickWrapper(e)}
+                      onClick={(e) => handleItemClickWrapper(e, activeThread.id)}
                       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                     >
                     <div 
@@ -536,7 +559,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       <a 
                         href={`/${activePersistentSpace.id}`} 
                         className="block w-full" 
-                        onClick={() => handleItemClick(activePersistentSpace.id)}
+                        onClick={(e) => handleItemClickWrapper(e, activePersistentSpace.id)}
                         style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                       >
                         <div 
@@ -590,7 +613,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       <a 
                         href={`/${activePersistentThread.id}`} 
                         className="block w-full" 
-                        onClick={() => handleItemClick(activePersistentThread.id)}
+                        onClick={(e) => handleItemClickWrapper(e, activePersistentThread.id)}
                         style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                       >
                         <div 
