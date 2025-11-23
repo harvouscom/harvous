@@ -217,12 +217,13 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
     });
 
     // Auto-assign inbox items for new users
+    // Only assign items that currently exist in Webflow with "Send to Harvous Inbox?" enabled
     try {
       const { addInboxItemToUser } = await import('@/utils/inbox-data');
+      const { verifyInboxItemInWebflow } = await import('@/utils/webflow-verification');
       const { db: dbImport, InboxItems, UserInboxItems, eq, and } = await import('astro:db');
       
       // Find all active inbox items targeted to all users
-      // All active inbox items should be available to new users
       const allUserInboxItems = await dbImport
         .select()
         .from(InboxItems)
@@ -233,9 +234,39 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
           )
         );
 
-      // Create UserInboxItems for each item
+      let assignedCount = 0;
+      let skippedCount = 0;
+      let markedInactiveCount = 0;
+
+      // Verify and assign each item
       for (const inboxItem of allUserInboxItems) {
-        // Check if already exists (shouldn't, but just in case)
+        // Skip items without webflowItemId (shouldn't happen, but safety check)
+        if (!inboxItem.webflowItemId) {
+          console.warn(`Skipping inbox item ${inboxItem.id} - no webflowItemId`);
+          skippedCount++;
+          continue;
+        }
+
+        // Verify item exists in Webflow and has toggle enabled
+        const verification = await verifyInboxItemInWebflow(inboxItem.webflowItemId);
+        
+        if (!verification.isValid) {
+          // Item no longer exists or toggle is disabled - mark as inactive
+          console.log(`Marking inbox item ${inboxItem.id} as inactive: ${verification.reason}`);
+          try {
+            await dbImport
+              .update(InboxItems)
+              .set({ isActive: false, updatedAt: new Date() })
+              .where(eq(InboxItems.id, inboxItem.id));
+            markedInactiveCount++;
+          } catch (updateError) {
+            console.error(`Error marking item ${inboxItem.id} as inactive:`, updateError);
+          }
+          skippedCount++;
+          continue;
+        }
+
+        // Item is valid - check if already assigned (shouldn't, but just in case)
         const existing = await dbImport
           .select()
           .from(UserInboxItems)
@@ -255,8 +286,11 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
             status: 'inbox',
             createdAt: new Date(),
           });
+          assignedCount++;
         }
       }
+
+      console.log(`✅ Assigned ${assignedCount} inbox item(s) to new user ${userId} (skipped ${skippedCount}, marked ${markedInactiveCount} inactive)`);
     } catch (error) {
       // Don't fail user creation if inbox assignment fails
       console.error('Error assigning inbox items to new user:', error);
