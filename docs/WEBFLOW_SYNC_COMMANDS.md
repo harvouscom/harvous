@@ -147,9 +147,66 @@ curl -X POST "http://localhost:4321/api/webflow/sync-inbox" \
 - Verify database permissions
 - Ensure sync completes after cleanup
 
+## Clean Reset for All Users
+
+Performs a complete reset and verification of inbox items for all users:
+1. **Clears all UserInboxItems** for all users (removes items from all user inboxes)
+2. **Verifies all InboxItems** against Webflow API
+3. **Marks invalid items as inactive** (items that no longer exist, are archived, or have toggle disabled)
+4. **Reassigns only valid items** to all users
+
+**⚠️ Warning**: This will remove all inbox items from all users' inboxes and reassign only items that currently exist in Webflow with "Send to Harvous Inbox?" enabled. Use this to clean up old items that are no longer in Webflow.
+
+### Local Development
+
+```bash
+curl -X POST "http://localhost:4321/api/inbox/reset-all-users"
+```
+
+### With JSON Output (Pretty Print)
+
+```bash
+curl -X POST "http://localhost:4321/api/inbox/reset-all-users" | jq
+```
+
+### Production (with authentication)
+
+If `INBOX_RESET_SECRET_TOKEN` is set in environment variables:
+
+```bash
+curl -X POST "https://your-domain.com/api/inbox/reset-all-users" \
+  -H "Authorization: Bearer YOUR_SECRET_TOKEN"
+```
+
+### Response Format
+
+```json
+{
+  "success": true,
+  "message": "Clean reset completed successfully",
+  "summary": {
+    "clearedUserInboxItems": 150,
+    "verifiedItems": 25,
+    "validItems": 20,
+    "markedInactive": 5,
+    "totalUsers": 10,
+    "totalAssigned": 200
+  },
+  "invalidItems": [
+    { "id": "inbox_123", "reason": "Item deleted in Webflow" },
+    { "id": "inbox_456", "reason": "Toggle disabled" }
+  ],
+  "assignmentResults": [
+    "Thread Title: assigned to 10 user(s)"
+  ]
+}
+```
+
 ## Related Endpoints
 
 - `/api/webflow/webhook` - Automatic sync via Webflow webhooks
+- `/api/webflow/sync-inbox` - Sync inbox items from Webflow CMS
+- `/api/inbox/reset-all-users` - Clean reset and verification for all users
 - `/api/inbox/assign-to-users` - Manually assign inbox items to users
 - `/api/inbox/add-to-harvous` - Add individual items to user inboxes
 
