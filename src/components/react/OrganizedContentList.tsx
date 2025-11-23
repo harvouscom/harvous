@@ -29,11 +29,20 @@ export default function OrganizedContentList({
 }: OrganizedContentListProps) {
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const deletedItemIdsRef = useRef<Set<string>>(new Set());
+  const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>([]);
+  const isRefreshingRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   // Keep ref in sync with state
   useEffect(() => {
     deletedItemIdsRef.current = deletedItemIds;
   }, [deletedItemIds]);
+
+  // Initialize currentItems from initialItems when component mounts or initialItems change
+  useEffect(() => {
+    const filtered = initialItems.filter(item => !deletedItemIds.has(item.id));
+    setCurrentItems(filtered);
+  }, [initialItems, deletedItemIds]);
 
   // Listen for deletion events to track deleted items
   useEffect(() => {
@@ -83,8 +92,101 @@ export default function OrganizedContentList({
     };
   }, []);
 
-  // Filter out deleted items from initialItems
-  const filteredInitialItems = initialItems.filter(item => {
+  // Listen for content creation events to refresh the list
+  useEffect(() => {
+    const handleNoteCreated = () => {
+      // Small delay to ensure database is updated
+      setTimeout(() => {
+        refreshContent();
+      }, 300);
+    };
+
+    const handleThreadCreated = () => {
+      // Small delay to ensure database is updated
+      setTimeout(() => {
+        refreshContent();
+      }, 300);
+    };
+
+    window.addEventListener('noteCreated', handleNoteCreated as EventListener);
+    window.addEventListener('threadCreated', handleThreadCreated as EventListener);
+
+    return () => {
+      window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
+      window.removeEventListener('threadCreated', handleThreadCreated as EventListener);
+    };
+  }, [refreshContent]);
+
+  // Listen for page load to refresh when navigating to dashboard via View Transitions
+  useEffect(() => {
+    const handlePageLoad = () => {
+      // Check if we're on the dashboard/for you page
+      const dashboardContent = document.getElementById('dashboard-content');
+      const isDashboard = dashboardContent !== null || window.location.pathname === '/';
+      
+      if (isDashboard) {
+        // Small delay to ensure page is fully loaded and database is ready
+        setTimeout(() => {
+          refreshContent();
+        }, 200);
+      }
+    };
+
+    // Listen for View Transitions page load (not initial mount - server data is fresh on initial load)
+    document.addEventListener('astro:page-load', handlePageLoad);
+
+    return () => {
+      document.removeEventListener('astro:page-load', handlePageLoad);
+    };
+  }, [refreshContent]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Refresh content by fetching fresh data from API
+  const refreshContent = useCallback(async () => {
+    if (isRefreshingRef.current || !isMountedRef.current) return;
+    
+    isRefreshingRef.current = true;
+    try {
+      const url = new URL('/api/content/load-more', window.location.origin);
+      url.searchParams.set('offset', '0');
+      url.searchParams.set('limit', '20');
+      url.searchParams.set('filter', filter);
+
+      const response = await fetch(url.toString(), {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to refresh content');
+      }
+
+      const data = await response.json();
+      // Filter out deleted items from refreshed items
+      const filteredItems = data.items.filter((item: OrganizedContentItem) => {
+        return !deletedItemIdsRef.current.has(item.id);
+      });
+      
+      if (isMountedRef.current) {
+        setCurrentItems(filteredItems);
+      }
+    } catch (error) {
+      console.error('Error refreshing content:', error);
+      // Don't update state on error - keep existing items
+    } finally {
+      if (isMountedRef.current) {
+        isRefreshingRef.current = false;
+      }
+    }
+  }, [filter]);
+
+  // Filter out deleted items from currentItems for display
+  const filteredInitialItems = currentItems.filter(item => {
     // Use item.id as the primary identifier (it's always present)
     return !deletedItemIds.has(item.id);
   });
