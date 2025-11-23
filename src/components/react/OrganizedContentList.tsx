@@ -33,14 +33,54 @@ export default function OrganizedContentList({
   const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(initialItems || []);
   const isRefreshingRef = useRef(false);
   const isMountedRef = useRef(true);
+  const lastRefreshTimeRef = useRef<number>(0);
+  const pendingRefreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isNavigatingRef = useRef(false);
+  const DEBOUNCE_WINDOW_MS = 2000; // 2 seconds minimum between refreshes
 
   // Refresh content by fetching fresh data from API
   const refreshContent = useCallback(async () => {
     // Guard against SSR and ensure browser APIs are available
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
-    if (isRefreshingRef.current || !isMountedRef.current) return;
+    
+    // Check if we're on the dashboard/for you page
+    const isDashboard = window.location.pathname === '/';
+    if (!isDashboard) {
+      return; // Don't refresh if not on dashboard
+    }
+    
+    // Check if navigation is in progress
+    if (isNavigatingRef.current) {
+      return; // Skip refresh during navigation
+    }
+    
+    // Check if component is still mounted
+    if (!isMountedRef.current) {
+      return;
+    }
+    
+    // Debounce: Check if enough time has passed since last refresh
+    const now = Date.now();
+    const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
+    if (timeSinceLastRefresh < DEBOUNCE_WINDOW_MS) {
+      // Too soon since last refresh, skip this one
+      return;
+    }
+    
+    // Check if already refreshing
+    if (isRefreshingRef.current) {
+      return;
+    }
+    
+    // Clear any pending refresh timeout
+    if (pendingRefreshTimeoutRef.current) {
+      clearTimeout(pendingRefreshTimeoutRef.current);
+      pendingRefreshTimeoutRef.current = null;
+    }
     
     isRefreshingRef.current = true;
+    lastRefreshTimeRef.current = now;
+    
     try {
       const url = new URL('/api/content/load-more', window.location.origin);
       url.searchParams.set('offset', '0');
@@ -61,7 +101,8 @@ export default function OrganizedContentList({
         return !deletedItemIdsRef.current.has(item.id);
       });
       
-      if (isMountedRef.current) {
+      // Double-check we're still on dashboard and mounted before updating
+      if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current) {
         setCurrentItems(filteredItems);
       }
     } catch (error) {
@@ -143,21 +184,35 @@ export default function OrganizedContentList({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
+    // Only set up listeners if we're on the dashboard page
+    const checkAndRefresh = () => {
+      // Check if still on dashboard page
+      if (window.location.pathname === '/' && !isNavigatingRef.current && isMountedRef.current) {
+        refreshContent();
+      }
+    };
+    
     const handleNoteCreated = () => {
       // Small delay to ensure database is updated
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          refreshContent();
-        }
+      // Clear any pending timeout first
+      if (pendingRefreshTimeoutRef.current) {
+        clearTimeout(pendingRefreshTimeoutRef.current);
+      }
+      pendingRefreshTimeoutRef.current = setTimeout(() => {
+        pendingRefreshTimeoutRef.current = null;
+        checkAndRefresh();
       }, 300);
     };
 
     const handleThreadCreated = () => {
       // Small delay to ensure database is updated
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          refreshContent();
-        }
+      // Clear any pending timeout first
+      if (pendingRefreshTimeoutRef.current) {
+        clearTimeout(pendingRefreshTimeoutRef.current);
+      }
+      pendingRefreshTimeoutRef.current = setTimeout(() => {
+        pendingRefreshTimeoutRef.current = null;
+        checkAndRefresh();
       }, 300);
     };
 
@@ -167,43 +222,60 @@ export default function OrganizedContentList({
     return () => {
       window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
       window.removeEventListener('threadCreated', handleThreadCreated as EventListener);
+      // Clear pending timeout on cleanup
+      if (pendingRefreshTimeoutRef.current) {
+        clearTimeout(pendingRefreshTimeoutRef.current);
+        pendingRefreshTimeoutRef.current = null;
+      }
     };
   }, [refreshContent]);
 
-  // Listen for page load to refresh when navigating to dashboard via View Transitions
+  // Listen for navigation events to skip refresh during navigation
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
-    let isInitialMount = true;
+    const handleBeforeNavigation = () => {
+      isNavigatingRef.current = true;
+      // Clear any pending refresh timeouts
+      if (pendingRefreshTimeoutRef.current) {
+        clearTimeout(pendingRefreshTimeoutRef.current);
+        pendingRefreshTimeoutRef.current = null;
+      }
+    };
     
     const handlePageLoad = () => {
-      // Skip refresh on initial mount - server data is fresh
-      if (isInitialMount) {
-        isInitialMount = false;
-        return;
-      }
+      // Reset navigation flag after page loads
+      isNavigatingRef.current = false;
       
-      if (!isMountedRef.current) return;
-      
-      // Check if we're on the dashboard/for you page
-      const dashboardContent = document.getElementById('dashboard-content');
-      const isDashboard = dashboardContent !== null || window.location.pathname === '/';
-      
-      if (isDashboard) {
+      // Only refresh if we're on the dashboard page
+      if (window.location.pathname === '/' && isMountedRef.current) {
         // Small delay to ensure page is fully loaded and database is ready
-        setTimeout(() => {
-          if (isMountedRef.current) {
+        // Clear any pending timeout first
+        if (pendingRefreshTimeoutRef.current) {
+          clearTimeout(pendingRefreshTimeoutRef.current);
+        }
+        pendingRefreshTimeoutRef.current = setTimeout(() => {
+          pendingRefreshTimeoutRef.current = null;
+          if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current) {
             refreshContent();
           }
         }, 200);
       }
     };
 
-    // Listen for View Transitions page load (not initial mount - server data is fresh on initial load)
+    // Listen for navigation start to skip refreshes during navigation
+    document.addEventListener('astro:before-preparation', handleBeforeNavigation);
+    // Listen for View Transitions page load
     document.addEventListener('astro:page-load', handlePageLoad);
 
     return () => {
+      document.removeEventListener('astro:before-preparation', handleBeforeNavigation);
       document.removeEventListener('astro:page-load', handlePageLoad);
+      // Clear pending timeout on cleanup
+      if (pendingRefreshTimeoutRef.current) {
+        clearTimeout(pendingRefreshTimeoutRef.current);
+        pendingRefreshTimeoutRef.current = null;
+      }
     };
   }, [refreshContent]);
 
@@ -211,6 +283,11 @@ export default function OrganizedContentList({
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
+      // Clear all pending timeouts on unmount
+      if (pendingRefreshTimeoutRef.current) {
+        clearTimeout(pendingRefreshTimeoutRef.current);
+        pendingRefreshTimeoutRef.current = null;
+      }
     };
   }, []);
 
