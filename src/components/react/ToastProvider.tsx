@@ -4,19 +4,22 @@ import { Toaster, toast } from 'sonner';
 export default function ToastProvider() {
   const portalInitialized = useRef(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
 
   // Check if we're on mobile (same breakpoint as rest of codebase)
-  const checkMobile = useCallback(() => {
-    const mobile = window.innerWidth < 1160;
-    setIsMobile(mobile);
+  // Also check for small screens (< 800px) for special toast styling
+  const checkViewport = useCallback(() => {
+    const width = window.innerWidth;
+    setIsMobile(width < 1160);
+    setIsSmallScreen(width < 800);
   }, []);
 
-  // Check mobile on mount and resize
+  // Check viewport on mount and resize
   useEffect(() => {
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, [checkMobile]);
+    checkViewport();
+    window.addEventListener('resize', checkViewport);
+    return () => window.removeEventListener('resize', checkViewport);
+  }, [checkViewport]);
 
   useEffect(() => {
     if (portalInitialized.current) return;
@@ -42,24 +45,37 @@ export default function ToastProvider() {
     }, 50);
   }, []);
 
+  // Base styles for all screen sizes
+  const baseStyle = {
+    backgroundColor: 'rgb(255, 255, 255)',
+    background: 'linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%)',
+    color: 'var(--color-deep-grey)',
+    fontFamily: '"Reddit Sans", system-ui, -apple-system, sans-serif',
+    fontSize: '16px',
+    fontWeight: '600',
+    borderRadius: '12px',
+    boxShadow: '0px 7px 16px 0px rgba(0, 0, 0, 0.1), 0px 30px 30px 0px rgba(0, 0, 0, 0.09), 0px 67px 40px 0px rgba(0, 0, 0, 0.05), 0px 119px 47px 0px rgba(0, 0, 0, 0.01), 0px 185px 52px 0px rgba(0, 0, 0, 0)',
+    padding: '16px 20px',
+    textAlign: 'center',
+    minWidth: '280px',
+  };
+
+  // Apply small screen specific styles
+  const toastStyle = isSmallScreen
+    ? {
+        ...baseStyle,
+        bottom: '48px',
+        width: '90vw',
+        minWidth: 'auto', // Remove minWidth constraint for small screens to allow 90% width
+      }
+    : baseStyle;
+
   return (
     <Toaster
       position={isMobile ? "bottom-center" : "bottom-right"}
       toastOptions={{
         duration: 1600,
-        style: {
-          backgroundColor: 'rgb(255, 255, 255)',
-          background: 'linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%)',
-          color: 'var(--color-deep-grey)',
-          fontFamily: '"Reddit Sans", system-ui, -apple-system, sans-serif',
-          fontSize: '16px',
-          fontWeight: '600',
-          borderRadius: '12px',
-          boxShadow: '0px 7px 16px 0px rgba(0, 0, 0, 0.1), 0px 30px 30px 0px rgba(0, 0, 0, 0.09), 0px 67px 40px 0px rgba(0, 0, 0, 0.05), 0px 119px 47px 0px rgba(0, 0, 0, 0.01), 0px 185px 52px 0px rgba(0, 0, 0, 0)',
-          padding: '16px 20px',
-          textAlign: 'center',
-          minWidth: '280px',
-        },
+        style: toastStyle,
         classNames: {
           toast: 'rounded-xl toast-center-text',
           title: 'font-semibold text-[16px] text-center',

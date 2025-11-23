@@ -694,6 +694,28 @@ button[disabled] {
     }
 }
 
+/* Small screens (< 800px): Override width to 90vw and ensure minWidth doesn't interfere */
+@media (max-width: 799px) {
+    [data-sonner-toaster] {
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: flex-end !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    [data-sonner-toast] {
+        width: 90vw !important;
+        min-width: 0 !important;
+        max-width: 90vw !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+}
+
 /* Close Icon Hover Effects */
 .close-icon {
   transition: opacity 0.2s ease-out, transform 0.2s ease-out;
