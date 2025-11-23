@@ -212,7 +212,9 @@ self.addEventListener('fetch', (event) => {
                   // Clone before processing to avoid body consumption
                   const responseClone = response.clone();
                   const timestampedResponse = addCacheTimestamp(responseClone);
-                  cache.put(event.request, timestampedResponse);
+                  // Clone before caching (background refresh, but clone to be safe)
+                  const cacheClone = timestampedResponse.clone();
+                  cache.put(event.request, cacheClone);
                 }
               })
               .catch(() => { /* Ignore errors */ });
@@ -226,7 +228,9 @@ self.addEventListener('fetch', (event) => {
                 // Clone before processing to avoid body consumption
                 const responseClone = response.clone();
                 const timestampedResponse = addCacheTimestamp(responseClone);
-                cache.put(event.request, timestampedResponse);
+                // Clone timestamped response before caching (since we're also returning it)
+                const cacheClone = timestampedResponse.clone();
+                cache.put(event.request, cacheClone);
                 return timestampedResponse;
               }
               return response;
@@ -271,8 +275,10 @@ self.addEventListener('fetch', (event) => {
                   // Clone before processing to avoid body consumption
                   const responseClone = response.clone();
                   const timestampedResponse = addCacheTimestamp(responseClone);
+                  // Clone before caching (background refresh, but clone to be safe)
+                  const cacheClone = timestampedResponse.clone();
                   caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, timestampedResponse);
+                    cache.put(event.request, cacheClone);
                   });
                 }
               })
@@ -288,8 +294,10 @@ self.addEventListener('fetch', (event) => {
                 // Clone before caching to avoid body consumption
                 const responseClone = response.clone();
                 const timestampedResponse = addCacheTimestamp(responseClone);
+                // Clone timestamped response before caching (since we're also returning it)
+                const cacheClone = timestampedResponse.clone();
                 caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, timestampedResponse);
+                  cache.put(event.request, cacheClone);
                 });
                 return timestampedResponse;
               }
@@ -321,8 +329,10 @@ self.addEventListener('fetch', (event) => {
                   // Clone before caching to avoid body consumption
                   const responseClone = response.clone();
                   const timestampedResponse = addCacheTimestamp(responseClone);
+                  // Clone before caching (background refresh, but clone to be safe)
+                  const cacheClone = timestampedResponse.clone();
                   caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, timestampedResponse);
+                    cache.put(event.request, cacheClone);
                   });
                 }
                 return response;
@@ -341,8 +351,10 @@ self.addEventListener('fetch', (event) => {
                 // Clone before caching to avoid body consumption
                 const responseClone = response.clone();
                 const timestampedResponse = addCacheTimestamp(responseClone);
+                // Clone before caching (we return original response, but clone to be safe)
+                const cacheClone = timestampedResponse.clone();
                 caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, timestampedResponse);
+                  cache.put(event.request, cacheClone);
                 });
                 return response;
               }
@@ -370,8 +382,10 @@ self.addEventListener('fetch', (event) => {
                   // Clone before processing to avoid body consumption
                   const responseClone = response.clone();
                   const timestampedResponse = addCacheTimestamp(responseClone);
+                  // Clone before caching (background refresh, but clone to be safe)
+                  const cacheClone = timestampedResponse.clone();
                   caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, timestampedResponse);
+                    cache.put(event.request, cacheClone);
                   });
                 }
               })
@@ -387,8 +401,10 @@ self.addEventListener('fetch', (event) => {
                 // Clone before processing to avoid body consumption
                 const responseClone = response.clone();
                 const timestampedResponse = addCacheTimestamp(responseClone);
+                // Clone timestamped response before caching (since we're also returning it)
+                const cacheClone = timestampedResponse.clone();
                 caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, timestampedResponse);
+                  cache.put(event.request, cacheClone);
                 });
                 return timestampedResponse;
               }
@@ -427,8 +443,10 @@ self.addEventListener('fetch', (event) => {
           // Clone before processing to avoid body consumption
           const responseClone = response.clone();
           const timestampedResponse = addCacheTimestamp(responseClone);
+          // Clone timestamped response before caching (since we're also returning it)
+          const cacheClone = timestampedResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, timestampedResponse);
+            cache.put(event.request, cacheClone);
           });
           return timestampedResponse;
         }
@@ -482,7 +500,9 @@ self.addEventListener('message', (event) => {
             // Clone before processing to avoid body consumption
             const responseClone = response.clone();
             const timestampedResponse = addCacheTimestamp(responseClone);
-            cache.put('/', timestampedResponse);
+            // Clone before caching (warmup, but clone to be safe)
+            const cacheClone = timestampedResponse.clone();
+            cache.put('/', cacheClone);
           }
         }).catch(() => {})
       ];

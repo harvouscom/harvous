@@ -865,17 +865,59 @@ if (!content) {
 </Layout>
 
 <!-- Initialize navigation cache with server-rendered data -->
-<script type="module" define:vars={{ threads, spaces, inboxCount }}>
-  import { initNavigationCache } from '../../scripts/navigation-cache-client';
-  import { initPrefetching } from '../../utils/prefetch';
-  
-  // Cache navigation data after page loads
-  if (typeof window !== 'undefined') {
-    // Initialize cache with server-rendered data
-    initNavigationCache(threads, spaces, inboxCount);
+<script is:inline define:vars={{ threads, spaces, inboxCount }}>
+  (function() {
+    if (typeof window === 'undefined') return;
     
-    // Prefetch dashboard data since we're on a thread/note/space page
-    initPrefetching(window.location.pathname);
+    // Inline cache initialization to avoid import issues
+    const CACHE_KEY = 'harvous_navigation_cache';
+    const CACHE_DURATION = 30 * 1000; // 30 seconds
+    
+    function setCachedNavigationData(data) {
+      try {
+        const cacheData = {
+          threads: data.threads || [],
+          spaces: data.spaces || [],
+          inboxCount: data.inboxCount || 0,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+      } catch (error) {
+        console.warn('Failed to cache navigation data:', error);
+      }
+    }
+    
+    // Initialize cache with server-rendered data
+    setCachedNavigationData({ threads, spaces, inboxCount });
+    
+    // Prefetch dashboard data in background (if on thread/note/space page)
+    const currentPath = window.location.pathname;
+    const isThreadPage = currentPath.startsWith('/thread_');
+    const isNotePage = currentPath.startsWith('/note_');
+    const isSpacePage = currentPath.startsWith('/space_');
+    
+    if (isThreadPage || isNotePage || isSpacePage) {
+      // Prefetch dashboard data using requestIdleCallback
+      const schedulePrefetch = (callback) => {
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(callback, { timeout: 2000 });
+        } else {
+          setTimeout(callback, 1000);
+        }
+      };
+      
+      schedulePrefetch(async () => {
+        try {
+          const response = await fetch('/api/navigation/data', { credentials: 'include' });
+          if (response.ok) {
+            const data = await response.json();
+            setCachedNavigationData(data);
+          }
+        } catch (error) {
+          // Silently fail - prefetch is non-critical
+        }
+      });
+    }
     
     // Re-initialize after View Transitions (debounced to avoid multiple calls)
     let pageLoadTimeout = null;
@@ -883,14 +925,31 @@ if (!content) {
       // Debounce to avoid multiple rapid calls
       if (pageLoadTimeout) clearTimeout(pageLoadTimeout);
       pageLoadTimeout = setTimeout(() => {
-        // Try to get data from the new page, or use cached data
-        initNavigationCache(threads, spaces, inboxCount);
+        // Re-cache with current data
+        setCachedNavigationData({ threads, spaces, inboxCount });
         
-        // Prefetch dashboard if we're still on a thread/note/space page
-        initPrefetching(window.location.pathname);
+        // Re-prefetch if needed
+        const newPath = window.location.pathname;
+        const isThread = newPath.startsWith('/thread_');
+        const isNote = newPath.startsWith('/note_');
+        const isSpace = newPath.startsWith('/space_');
+        
+        if (isThread || isNote || isSpace) {
+          schedulePrefetch(async () => {
+            try {
+              const response = await fetch('/api/navigation/data', { credentials: 'include' });
+              if (response.ok) {
+                const data = await response.json();
+                setCachedNavigationData(data);
+              }
+            } catch (error) {
+              // Silently fail
+            }
+          });
+        }
       }, 50);
     });
-  }
+  })();
 </script>
  
 <script type="text/javascript">

@@ -400,13 +400,30 @@ try {
 </Layout>
 
 <!-- Initialize navigation cache with server-rendered data -->
-<script type="module" define:vars={{ threads, spaces, inboxItemCount }}>
-  import { initNavigationCache } from '../scripts/navigation-cache-client';
-  
-  // Cache navigation data after page loads
-  if (typeof window !== 'undefined') {
+<script is:inline define:vars={{ threads, spaces, inboxItemCount }}>
+  (function() {
+    if (typeof window === 'undefined') return;
+    
+    // Inline cache initialization to avoid import issues
+    const CACHE_KEY = 'harvous_navigation_cache';
+    const CACHE_DURATION = 30 * 1000; // 30 seconds
+    
+    function setCachedNavigationData(data) {
+      try {
+        const cacheData = {
+          threads: data.threads || [],
+          spaces: data.spaces || [],
+          inboxCount: data.inboxCount || 0,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+      } catch (error) {
+        console.warn('Failed to cache navigation data:', error);
+      }
+    }
+    
     // Initialize cache with server-rendered data
-    initNavigationCache(threads, spaces, inboxItemCount);
+    setCachedNavigationData({ threads, spaces, inboxCount: inboxItemCount });
     
     // Re-initialize after View Transitions (debounced to avoid multiple calls)
     let navigationCacheTimeout = null;
@@ -414,11 +431,11 @@ try {
       // Debounce to avoid multiple rapid calls
       if (navigationCacheTimeout) clearTimeout(navigationCacheTimeout);
       navigationCacheTimeout = setTimeout(() => {
-        // Try to get data from the new page, or use cached data
-        initNavigationCache(threads, spaces, inboxItemCount);
+        // Re-cache with current data
+        setCachedNavigationData({ threads, spaces, inboxCount: inboxItemCount });
       }, 50);
     });
-  }
+  })();
 </script>
 
 <!-- Update inbox/archive auto text based on active tab -->

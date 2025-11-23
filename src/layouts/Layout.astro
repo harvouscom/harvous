@@ -334,15 +334,9 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
 <!-- Astro Navigation Setup -->
 <!-- Note: Navigation is now set up via KeyboardShortcutsInit component -->
 
-<!-- Toast Initialization (ensure window.toast is available on client) -->
-<!-- Note: toast utility is already imported in frontmatter, this is just a safety check -->
-<script>
-  // Toast utility is already initialized via frontmatter import
-  // This script just confirms it's available
-  if (typeof window !== 'undefined' && !(window as any).toast) {
-    console.warn('[Toast Init] window.toast not available - toast utility may not have loaded');
-  }
-</script>
+<!-- Toast Initialization -->
+<!-- Note: toast utility is imported in frontmatter and initializes automatically -->
+<!-- The toast system has fallback handling, so no need to check/warn here -->
 <!-- Toast Handler -->
 <script is:inline src="/scripts/toast-handler.js"></script>
 
