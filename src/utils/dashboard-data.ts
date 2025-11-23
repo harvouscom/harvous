@@ -198,14 +198,16 @@ export async function getSpacesWithCounts(userId: string) {
     .all();
 
     // Get standalone note counts for each space in a single query
+    // Standalone notes are identified by having NO entries in NoteThreads junction table
     const standaloneNoteCounts = await db.select({
       spaceId: Notes.spaceId,
       standaloneNoteCount: count(Notes.id),
     })
     .from(Notes)
+    .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
     .where(and(
       eq(Notes.userId, userId),
-      eq(Notes.threadId, "thread_unorganized"),
+      isNull(NoteThreads.id), // No junction entry = unorganized/standalone
       isNotNull(Notes.spaceId)
     ))
     .groupBy(Notes.spaceId)
