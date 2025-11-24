@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Spaces, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
@@ -23,8 +24,6 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-
-    console.log("Deleting space with ID:", spaceId, "for user:", userId);
 
     // Verify the space belongs to the user before deleting
     const existingSpace = await db.select()
@@ -76,8 +75,6 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     await db.delete(Spaces)
       .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)));
 
-    console.log("Space and all associated content erased successfully:", spaceId);
-
     return new Response(JSON.stringify({ 
       success: "Space erased successfully!",
       spaceId: spaceId
@@ -87,9 +84,13 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error: any) {
-    console.error('Error deleting space:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/delete',
+      action: 'delete_space'
+    });
     return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to erase space' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

@@ -1,11 +1,12 @@
 import type { APIRoute } from 'astro';
 import { db, UserMetadata, eq } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
+import { validateName, validateColor } from '@/utils/validation';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  console.log('🚀 PROFILE UPDATE API CALLED - Server-side debug started');
   try {
     const { userId, getToken } = locals.auth();
-    console.log('🔐 Auth check - userId:', userId);
     
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -14,11 +15,57 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    // Rate limiting for write operations
+    const ip = getClientIP(request);
+    const rateLimit = rateLimitMiddleware(userId, '/api/user/update-profile', 'write', ip);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: rateLimit.error,
+        code: 'RATE_LIMIT_EXCEEDED'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
+          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
+        }
+      });
+    }
+
     const body = await request.json();
     const { firstName, lastName, color } = body;
 
-    if (!firstName || !lastName) {
-      return new Response(JSON.stringify({ error: 'First name and last name are required' }), {
+    // Validate first name
+    const firstNameValidation = validateName(firstName, 'First name', true);
+    if (!firstNameValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: firstNameValidation.error,
+        code: firstNameValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Validate last name
+    const lastNameValidation = validateName(lastName, 'Last name', true);
+    if (!lastNameValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: lastNameValidation.error,
+        code: lastNameValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Validate color
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: colorValidation.error,
+        code: colorValidation.code
+      }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -34,16 +81,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Production debugging - only log in production
-    if (import.meta.env.PROD) {
-      console.log('🔑 Clerk API Debug:', {
-        userId,
-        hasSecretKey: !!clerkSecretKey,
-        secretKeyLength: clerkSecretKey?.length,
-        environment: import.meta.env.MODE
-      });
-    }
-    
     const clerkResponse = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
       method: 'PATCH',
       headers: {
@@ -78,28 +115,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const clerkResponseData = await clerkResponse.json();
-    
-    // Production debugging - only log in production
-    if (import.meta.env.PROD) {
-      console.log('✅ Clerk updated successfully:', {
-        first_name: clerkResponseData?.first_name,
-        last_name: clerkResponseData?.last_name,
-        public_metadata: clerkResponseData?.public_metadata,
-        userColor_saved: clerkResponseData?.public_metadata?.userColor
-      });
-    }
 
     // Force cache refresh by invalidating it completely
     try {
-      console.log('🔄 Forcing cache refresh after profile update');
-      
       // Import the cache invalidation function
       const { invalidateUserCache } = await import('@/utils/user-cache');
       
       // Invalidate the cache to force fresh fetch from Clerk
       await invalidateUserCache(userId);
-      
-      console.log('✅ Cache invalidated - next page load will fetch fresh from Clerk');
     } catch (dbError) {
       console.error('❌ Error invalidating cache:', dbError);
       // Don't fail the request - Clerk update succeeded
@@ -108,8 +131,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Production fallback: Ensure database is updated even if cache invalidation fails
     // Preserve church fields - they should never be lost
     try {
-      console.log('🔄 Production fallback: Direct database update');
-      
       // Get existing metadata to preserve church fields
       const existingMetadata = await db.select()
         .from(UserMetadata)
@@ -128,21 +149,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
           updatedAt: new Date()
         })
         .where(eq(UserMetadata.userId, userId));
-      console.log('✅ Production fallback: Database updated directly');
     } catch (fallbackError) {
       console.error('❌ Production fallback failed:', fallbackError);
-    }
-
-    // Profile updated successfully in Clerk and database
-    console.log('✅ User data updated successfully in Clerk and database');
-    
-    // Production debugging - only log in production
-    if (import.meta.env.PROD) {
-      console.log('🌍 Production Debug Info:', {
-        environment: import.meta.env.MODE,
-        hasClerkSecret: !!clerkSecretKey,
-        timestamp: new Date().toISOString()
-      });
     }
 
     return new Response(JSON.stringify({ 
@@ -161,8 +169,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error) {
-    console.error('Error updating profile:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/user/update-profile',
+      action: 'update_profile'
+    });
+    return new Response(JSON.stringify({ 
+      error: standardError.message,
+      code: standardError.code
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

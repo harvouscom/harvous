@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, NoteThreads, eq, and } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -74,7 +75,6 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const isInUnorganized = existingThreadRelations.length === 0 || note.threadId === 'thread_unorganized';
 
     // Add the note to the thread (many-to-many relationship)
-    console.log(`Attempting to insert: noteId=${id}, threadId=${threadId}`);
     try {
       const noteThreadId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       await db.insert(NoteThreads).values({
@@ -83,7 +83,6 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         threadId: threadId,
         createdAt: new Date()
       });
-      console.log(`Note ${id} added to thread ${threadId} successfully`);
       
       // If note was in unorganized, update the legacy threadId field to the new thread
       // This ensures the note is properly removed from unorganized
@@ -91,7 +90,6 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         await db.update(Notes)
           .set({ threadId: threadId })
           .where(eq(Notes.id, id));
-        console.log(`Note ${id} removed from unorganized and added to thread ${threadId}`);
       }
       
       // Update the target thread's timestamp
@@ -99,10 +97,14 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         .set({ updatedAt: new Date() })
         .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
     } catch (insertError) {
-      console.error('Error inserting into NoteThreads:', insertError);
+      const standardError = handleAPIError(insertError, {
+        endpoint: '/api/notes/[id]/add-thread',
+        action: 'add_note_to_thread'
+      });
       return new Response(JSON.stringify({ 
         success: false, 
-        error: 'Database insert failed: ' + insertError.message 
+        error: standardError.message,
+        code: standardError.code
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
@@ -122,10 +124,14 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     });
 
   } catch (error) {
-    console.error('Error adding note to thread:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/notes/[id]/add-thread',
+      action: 'add_note_to_thread'
+    });
     return new Response(JSON.stringify({ 
       success: false, 
-      error: 'Internal server error' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

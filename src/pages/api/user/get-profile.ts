@@ -1,21 +1,11 @@
 import type { APIRoute } from 'astro';
 import { getCachedUserData } from '@/utils/user-cache';
 import { db, UserMetadata, eq } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ locals }) => {
-  console.log('🚀 GET-PROFILE API CALLED - Server-side debug started');
-  // Production debugging - only log in production
-  if (import.meta.env.PROD) {
-    console.log('🌍 Environment Debug:', {
-      environment: import.meta.env.MODE,
-      hasClerkSecret: !!import.meta.env.CLERK_SECRET_KEY,
-      clerkSecretLength: import.meta.env.CLERK_SECRET_KEY?.length
-    });
-  }
-  
   try {
     const { userId } = locals.auth();
-    console.log('🔐 GET-PROFILE Auth check - userId:', userId);
     
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -27,8 +17,6 @@ export const GET: APIRoute = async ({ locals }) => {
     // Use the same cached user data function that pages use
     // This ensures consistency and proper cache invalidation
     const userData = await getCachedUserData(userId);
-    
-    console.log('get-profile API - userData:', userData);
     
     // Get church data from UserMetadata table
     let churchData = {
@@ -51,18 +39,6 @@ export const GET: APIRoute = async ({ locals }) => {
           churchCity: userMetadata.churchCity ?? null,
           churchState: userMetadata.churchState ?? null
         };
-        
-        console.log('📊 Church data retrieved from database:', {
-          raw: {
-            churchName: userMetadata.churchName,
-            churchCity: userMetadata.churchCity,
-            churchState: userMetadata.churchState
-          },
-          processed: churchData,
-          hasData: !!(churchData.churchName || churchData.churchCity || churchData.churchState)
-        });
-      } else {
-        console.log('⚠️ No UserMetadata record found for userId:', userId);
       }
     } catch (error) {
       console.error('❌ Error fetching church data from database:', error);
@@ -101,11 +77,6 @@ export const GET: APIRoute = async ({ locals }) => {
       churchCity: churchData.churchCity,
       churchState: churchData.churchState
     };
-    
-    console.log('✅ get-profile API - returning data:', { 
-      ...responseData,
-      churchDataExists: !!(churchData.churchName || churchData.churchCity || churchData.churchState)
-    });
 
     return new Response(JSON.stringify(responseData), {
       status: 200,
@@ -113,8 +84,14 @@ export const GET: APIRoute = async ({ locals }) => {
     });
 
   } catch (error) {
-    console.error('Error fetching user profile:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/user/get-profile',
+      action: 'get_user_profile'
+    });
+    return new Response(JSON.stringify({ 
+      error: standardError.message,
+      code: standardError.code
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

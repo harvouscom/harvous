@@ -20,7 +20,6 @@ export default function MobileAdditional({
   useEffect(() => {
     // Listen for panel events and trigger mobile drawer
     const handleOpenNewNotePanel = () => {
-      console.log('MobileAdditional: openNewNotePanel received');
       window.dispatchEvent(new CustomEvent('openMobileDrawer', {
         detail: { type: 'note' }
       }));

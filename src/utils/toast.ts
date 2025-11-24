@@ -23,7 +23,6 @@ function ensurePortalExists(callback: () => void, maxRetries = 10, attempt = 0):
 function safeToast(callback: () => void, type: string, message: string) {
   try {
     ensurePortalExists(callback);
-    console.log(`Toast [${type}]: ${message}`);
   } catch (error) {
     console.error(`Toast [${type}] error:`, error);
     console.error('Message that failed:', message);
@@ -82,5 +81,4 @@ declare global {
 // Make toast available globally
 if (typeof window !== 'undefined') {
   window.toast = toast;
-  console.log('Toast utility initialized and available at window.toast');
 }

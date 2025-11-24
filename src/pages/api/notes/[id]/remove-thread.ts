@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, NoteThreads, eq, and } from 'astro:db';
 import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -51,12 +52,9 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     }
 
     // Remove the note from the thread
-    console.log(`Attempting to delete: noteId=${id}, threadId=${threadId}`);
     try {
-      const deleteResult = await db.delete(NoteThreads)
+      await db.delete(NoteThreads)
         .where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId)));
-      console.log(`Delete result:`, deleteResult);
-      console.log(`Note ${id} removed from thread ${threadId} successfully`);
       
       // Check if this was the last thread for the note
       const remainingThreads = await db.select()
@@ -71,14 +69,17 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         await db.update(Notes)
           .set({ threadId: 'thread_unorganized' })
           .where(eq(Notes.id, id));
-        console.log(`Note ${id} had its last thread removed, now in unorganized`);
       }
       // Note: If note still has other threads, no action needed - primary threadId stays as legacy field
     } catch (deleteError) {
-      console.error('Error deleting from NoteThreads:', deleteError);
+      const standardError = handleAPIError(deleteError, {
+        endpoint: '/api/notes/[id]/remove-thread',
+        action: 'remove_note_from_thread'
+      });
       return new Response(JSON.stringify({ 
         success: false, 
-        error: 'Database delete failed: ' + deleteError.message 
+        error: standardError.message,
+        code: standardError.code
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
@@ -98,10 +99,14 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     });
 
   } catch (error) {
-    console.error('Error removing note from thread:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/notes/[id]/remove-thread',
+      action: 'remove_note_from_thread'
+    });
     return new Response(JSON.stringify({ 
       success: false, 
-      error: 'Internal server error' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

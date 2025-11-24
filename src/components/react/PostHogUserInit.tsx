@@ -39,7 +39,6 @@ export default function PostHogUserInit({ userId, userData }: PostHogUserInitPro
       if (posthog && typeof posthog.identify === 'function') {
         try {
           posthog.identify(userId, userProps);
-          console.log('[PostHog] User identified:', userId);
         } catch (error) {
           console.error('[PostHog] Identify error:', error);
         }
@@ -59,7 +58,6 @@ export default function PostHogUserInit({ userId, userData }: PostHogUserInitPro
         clearInterval(interval);
       } else if (attempts >= maxAttempts) {
         clearInterval(interval);
-        console.warn('[PostHog] User identification timeout - PostHog may not be loaded');
       }
     }, 200);
 

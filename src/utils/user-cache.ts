@@ -23,8 +23,6 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       .where(eq(UserMetadata.userId, userId))
       .get();
 
-    console.log('User cache - userMetadata:', userMetadata);
-    
     // Check if cache is fresh (5 minutes)
     const now = new Date();
     const cacheAge = userMetadata?.clerkDataUpdatedAt ? 
@@ -32,30 +30,11 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       Infinity;
     const isCacheFresh = cacheAge < 5 * 60 * 1000; // 5 minutes in milliseconds
     
-  console.log('User cache - cache analysis:', {
-    hasMetadata: !!userMetadata,
-    clerkDataUpdatedAt: userMetadata?.clerkDataUpdatedAt,
-    cacheAge: cacheAge,
-    isCacheFresh: isCacheFresh,
-    cacheAgeMinutes: Math.round(cacheAge / (60 * 1000)),
-    isStaleDate: userMetadata?.clerkDataUpdatedAt?.getTime() < new Date('2023-01-01').getTime(),
-    currentUserColor: userMetadata?.userColor,
-    currentFirstName: userMetadata?.firstName,
-    currentLastName: userMetadata?.lastName
-  });
-    
     // Check if cache is explicitly stale (set to old date for invalidation)
     const isExplicitlyStale = userMetadata?.clerkDataUpdatedAt && 
       userMetadata.clerkDataUpdatedAt.getTime() < new Date('2023-01-01').getTime();
     
     if (userMetadata && isCacheFresh && !isExplicitlyStale) {
-      console.log('User cache - using database cache (fresh)');
-      console.log('📊 Database cache values:', {
-        firstName: userMetadata.firstName,
-        lastName: userMetadata.lastName,
-        userColor: userMetadata.userColor,
-        clerkDataUpdatedAt: userMetadata.clerkDataUpdatedAt
-      });
       return {
         firstName: userMetadata.firstName || '',
         lastName: userMetadata.lastName || '',
@@ -69,7 +48,6 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
     }
     
     // Cache is stale or doesn't exist - fetch from Clerk
-    console.log('User cache - fetching from Clerk (cache stale or missing)');
     return await fetchAndCacheUserData(userId, userMetadata);
 
   } catch (error) {
@@ -95,18 +73,8 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
 async function fetchAndCacheUserData(userId: string, existingMetadata: any): Promise<CachedUserData> {
   const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
   
-  // Production debugging - only log in production
-  if (import.meta.env.PROD) {
-    console.log('🔑 Clerk Secret Key Debug:', {
-      hasSecretKey: !!clerkSecretKey,
-      secretKeyLength: clerkSecretKey?.length,
-      environment: import.meta.env.MODE,
-      keyPrefix: clerkSecretKey?.substring(0, 10) + '...'
-    });
-  }
-  
   if (!clerkSecretKey) {
-    console.error('❌ CRITICAL: Clerk secret key not found in environment');
+    console.error('CRITICAL: Clerk secret key not found in environment');
     throw new Error('Clerk secret key not found');
   }
 
@@ -118,7 +86,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
   });
 
   if (!response.ok) {
-    console.error('❌ Clerk API failed:', {
+    console.error('Clerk API failed:', {
       status: response.status,
       statusText: response.statusText,
       environment: import.meta.env.MODE,
@@ -127,7 +95,6 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
     
     // Production fallback: Use database data if Clerk API fails
     if (import.meta.env.PROD && existingMetadata) {
-      console.log('🔄 Production fallback: Using database data instead of Clerk');
       return {
         firstName: existingMetadata.firstName || '',
         lastName: existingMetadata.lastName || '',
@@ -145,16 +112,6 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
 
   const userData = await response.json();
   
-  // Production debugging - only log in production
-  if (import.meta.env.PROD) {
-    console.log('🔍 Clerk API Response Debug:', {
-      first_name: userData?.first_name,
-      last_name: userData?.last_name,
-      public_metadata: userData?.public_metadata,
-      userColor_from_metadata: userData?.public_metadata?.userColor
-    });
-  }
-  
   // Extract standard fields
   const firstName = userData?.first_name || userData?.firstName || '';
   const lastName = userData?.last_name || userData?.lastName || '';
@@ -163,16 +120,6 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
 
   // Extract custom field from Clerk's public_metadata
   const userColor = userData?.public_metadata?.userColor || 'paper';
-  
-  // Production debugging - only log in production
-  if (import.meta.env.PROD) {
-    console.log('🔍 Extracted Data:', {
-      firstName,
-      lastName,
-      userColor,
-      source: 'Clerk API'
-    });
-  }
 
   // Update database with fresh Clerk data (including metadata)
   // Preserve church fields from existing metadata - they should persist indefinitely
@@ -242,7 +189,6 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       for (const inboxItem of allUserInboxItems) {
         // Skip items without webflowItemId (shouldn't happen, but safety check)
         if (!inboxItem.webflowItemId) {
-          console.warn(`Skipping inbox item ${inboxItem.id} - no webflowItemId`);
           skippedCount++;
           continue;
         }
@@ -252,7 +198,6 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
         
         if (!verification.isValid) {
           // Item no longer exists or toggle is disabled - mark as inactive
-          console.log(`Marking inbox item ${inboxItem.id} as inactive: ${verification.reason}`);
           try {
             await dbImport
               .update(InboxItems)
@@ -289,8 +234,6 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
           assignedCount++;
         }
       }
-
-      console.log(`✅ Assigned ${assignedCount} inbox item(s) to new user ${userId} (skipped ${skippedCount}, marked ${markedInactiveCount} inactive)`);
     } catch (error) {
       // Don't fail user creation if inbox assignment fails
       console.error('Error assigning inbox items to new user:', error);
@@ -309,7 +252,6 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
     createdAt: userCreatedAt,
   };
   
-  console.log('User cache - returning fresh Clerk data:', result);
   return result;
 }
 
@@ -355,10 +297,8 @@ export async function invalidateUserCache(userId: string): Promise<void> {
         clerkDataUpdatedAt: new Date(0) // Set to epoch to force cache invalidation
       })
       .where(eq(UserMetadata.userId, userId));
-    
-    console.log('🔄 User cache invalidated successfully - next fetch will be from Clerk');
   } catch (error) {
-    console.error('❌ Error invalidating user cache:', error);
+    console.error('Error invalidating user cache:', error);
     throw error;
   }
 }

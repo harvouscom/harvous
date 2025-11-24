@@ -169,3 +169,60 @@ export async function safeAsync<T>(
   }
 }
 
+/**
+ * Track API response time for performance monitoring
+ * Call this at the start of an API route and pass the start time to trackResponseTime
+ */
+export function startAPITimer(): number {
+  return Date.now();
+}
+
+/**
+ * Track API response time and log slow queries
+ * Should be called at the end of API route handlers
+ */
+export function trackAPITime(
+  startTime: number,
+  endpoint: string,
+  statusCode: number,
+  isError: boolean = false
+): void {
+  const responseTime = Date.now() - startTime;
+  
+  // Log slow queries (over 1 second)
+  if (responseTime > 1000) {
+    console.warn(`[Slow Query] ${endpoint} took ${responseTime}ms (status: ${statusCode})`);
+  }
+  
+  // Track in PostHog if available (client-side only)
+  // Note: This is primarily for client-side API calls
+  // Server-side tracking would need to be done differently
+  if (typeof window !== 'undefined' && (window as any).posthog) {
+    try {
+      const isSlow = responseTime > 1000;
+      const isVerySlow = responseTime > 3000;
+      
+      (window as any).posthog.capture('api_response_time', {
+        endpoint,
+        response_time_ms: responseTime,
+        status_code: statusCode,
+        is_error: isError,
+        is_slow: isSlow,
+        is_very_slow: isVerySlow,
+      });
+      
+      if (isSlow) {
+        (window as any).posthog.capture('slow_api_query', {
+          endpoint,
+          response_time_ms: responseTime,
+          status_code: statusCode,
+          is_error: isError,
+        });
+      }
+    } catch (posthogError) {
+      // Don't fail if PostHog tracking fails
+      console.warn('Failed to track API time in PostHog:', posthogError);
+    }
+  }
+}
+

@@ -37,10 +37,6 @@ export default function PostHogInit({ userId, userData }: PostHogInitProps) {
           timestamp: new Date().toISOString(),
           has_user: !!userId,
         });
-
-        if (import.meta.env.DEV) {
-          console.log('[PostHog] Initialized and test event sent');
-        }
       } else {
         // PostHog not ready yet, check again
         setTimeout(checkPostHog, 100);

@@ -3,6 +3,8 @@ import { db, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
 import { generateThreadId } from '@/utils/ids';
 import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
 import { awardThreadCreatedXP } from '@/utils/xp-system';
+import { handleAPIError } from '@/utils/error-handling';
+import { validateTitle, validateColor, validateSpaceId } from '@/utils/validation';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -13,6 +15,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'Authentication required' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Rate limiting for write operations
+    const ip = getClientIP(request);
+    const rateLimit = rateLimitMiddleware(userId, '/api/threads/create', 'write', ip);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: rateLimit.error,
+        code: 'RATE_LIMIT_EXCEEDED'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
+          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
+        }
       });
     }
 
@@ -35,24 +54,56 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    console.log("Creating thread with userId:", userId, "title:", title, "color:", color, "isPublic:", isPublic, "spaceId:", spaceId, "selectedNoteIds:", selectedNoteIds);
+    // Validate title (not required, defaults to "Untitled Thread")
+    const titleValidation = validateTitle(title, false);
+    if (!titleValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: titleValidation.error,
+        code: titleValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     // Default to "Untitled Thread" if title is empty or whitespace
     const finalTitle = (!title || !title.trim()) ? 'Untitled Thread' : title.trim();
+
+    // Validate color if provided
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: colorValidation.error,
+        code: colorValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    let threadColor = color;
+    if (color && !THREAD_COLORS.includes(color as any)) {
+      threadColor = getRandomThreadColor();
+    } else if (!color) {
+      threadColor = getRandomThreadColor();
+    }
+
+    // Validate spaceId
+    const spaceIdValidation = validateSpaceId(spaceId);
+    if (!spaceIdValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: spaceIdValidation.error,
+        code: spaceIdValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     // Make spaceId optional - if not provided or is 'default_space', set to null
     let finalSpaceId = null;
     if (spaceId && spaceId.trim() && spaceId !== 'default_space') {
       finalSpaceId = spaceId;
-    }
-
-    // Validate color if provided
-    let threadColor = color;
-    if (color && !THREAD_COLORS.includes(color as any)) {
-      console.warn(`Invalid color provided: ${color}, using random color instead`);
-      threadColor = getRandomThreadColor();
-    } else if (!color) {
-      threadColor = getRandomThreadColor();
     }
 
     const capitalizedTitle = finalTitle.charAt(0).toUpperCase() + finalTitle.slice(1);
@@ -72,12 +123,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .returning()
       .get();
 
-    console.log("Thread created successfully:", newThread);
-
     // Add selected notes to the thread via junction table
     if (selectedNoteIds.length > 0) {
-      console.log(`Adding ${selectedNoteIds.length} notes to thread ${newThread.id}`);
-      
       for (const noteId of selectedNoteIds) {
         try {
           // Verify note exists and belongs to user
@@ -87,7 +134,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
             .get();
           
           if (!note) {
-            console.warn(`Note ${noteId} not found or doesn't belong to user, skipping`);
             continue;
           }
 
@@ -98,7 +144,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
             .get();
 
           if (existingRelation) {
-            console.log(`Note ${noteId} is already in thread ${newThread.id}, skipping`);
             continue;
           }
 
@@ -118,15 +163,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
             threadId: newThread.id,
             createdAt: new Date()
           });
-          
-          console.log(`Note ${noteId} added to thread ${newThread.id} successfully`);
 
           // If note was in unorganized, update the legacy threadId field to the new thread
           if (isInUnorganized && newThread.id !== 'thread_unorganized') {
             await db.update(Notes)
               .set({ threadId: newThread.id })
               .where(eq(Notes.id, noteId));
-            console.log(`Note ${noteId} removed from unorganized and added to thread ${newThread.id}`);
           }
         } catch (error: any) {
           // Log error but continue with other notes
@@ -155,10 +197,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error: any) {
-    console.error('Error creating thread:', error);
-    
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/threads/create',
+      action: 'create_thread'
+    });
     return new Response(JSON.stringify({
-      error: error.message || 'Error creating thread'
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

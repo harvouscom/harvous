@@ -1,11 +1,10 @@
 import type { APIRoute } from 'astro';
 import { db, UserMetadata, eq } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  console.log('🚀 CHURCH UPDATE API CALLED - Server-side debug started');
   try {
     const { userId } = locals.auth();
-    console.log('🔐 Auth check - userId:', userId);
     
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -22,23 +21,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const normalizedChurchCity = typeof churchCity === 'string' ? (churchCity.trim() || null) : (churchCity ?? null);
     const normalizedChurchState = typeof churchState === 'string' ? (churchState.trim() || null) : (churchState ?? null);
 
-    console.log('📥 Church update data received:', { 
-      raw: { churchName, churchCity, churchState },
-      normalized: { churchName: normalizedChurchName, churchCity: normalizedChurchCity, churchState: normalizedChurchState }
-    });
-
     // All fields are optional, but we should update the database
     try {
-      // Get existing record to preserve other fields and for logging
+      // Get existing record to preserve other fields
       const existingRecord = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1);
       
       if (existingRecord.length > 0) {
         const existing = existingRecord[0];
-        console.log('📊 Existing church data before update:', {
-          churchName: existing.churchName,
-          churchCity: existing.churchCity,
-          churchState: existing.churchState
-        });
         
         // Update existing record - only update church fields, preserve all other fields
         // Astro DB .set() only updates specified fields, but we're being explicit
@@ -50,24 +39,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
             updatedAt: new Date()
           })
           .where(eq(UserMetadata.userId, userId));
-        
-        console.log('✅ Church data updated in existing UserMetadata record', {
-          before: {
-            churchName: existing.churchName,
-            churchCity: existing.churchCity,
-            churchState: existing.churchState
-          },
-          after: {
-            churchName: normalizedChurchName,
-            churchCity: normalizedChurchCity,
-            churchState: normalizedChurchState
-          }
-        });
       } else {
         // Create new record (shouldn't happen in normal flow, but handle it)
         // Note: This will only have church fields, other fields will be defaults
         // In practice, UserMetadata should already exist from user creation
-        console.log('⚠️ Creating new UserMetadata record (unexpected - should already exist)');
         await db.insert(UserMetadata).values({
           id: crypto.randomUUID(),
           userId,
@@ -79,23 +54,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
           createdAt: new Date(),
           updatedAt: new Date()
         });
-        console.log('✅ Church data inserted in new UserMetadata record');
       }
 
-      // Verify the update by reading back from database
-      const verifyRecord = await db.select()
-        .from(UserMetadata)
-        .where(eq(UserMetadata.userId, userId))
-        .get();
-      
-      console.log('✅ Church data updated successfully in database', {
-        verified: {
-          churchName: verifyRecord?.churchName,
-          churchCity: verifyRecord?.churchCity,
-          churchState: verifyRecord?.churchState
-        }
-      });
-      
       return new Response(JSON.stringify({ 
         success: true, 
         message: 'Church information updated successfully',
@@ -110,10 +70,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
 
     } catch (dbError) {
-      console.error('❌ Database error:', dbError);
+      const standardError = handleAPIError(dbError, {
+        endpoint: '/api/user/update-church',
+        action: 'update_church_info'
+      });
       return new Response(JSON.stringify({ 
-        error: 'Failed to update church information in database',
-        details: dbError instanceof Error ? dbError.message : 'Unknown error'
+        error: standardError.message,
+        code: standardError.code
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
@@ -121,8 +84,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
   } catch (error) {
-    console.error('❌ Error updating church information:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/user/update-church',
+      action: 'update_church_info'
+    });
+    return new Response(JSON.stringify({ 
+      error: standardError.message,
+      code: standardError.code
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

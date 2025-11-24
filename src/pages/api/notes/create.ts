@@ -4,6 +4,9 @@ import { generateNoteId } from '@/utils/ids';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
+import { handleAPIError } from '@/utils/error-handling';
+import { validateContent, validateNoteType, validateThreadId, validateSpaceId } from '@/utils/validation';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -17,6 +20,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    // Rate limiting for write operations
+    const ip = getClientIP(request);
+    const rateLimit = rateLimitMiddleware(userId, '/api/notes/create', 'write', ip);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: rateLimit.error,
+        code: 'RATE_LIMIT_EXCEEDED'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
+          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
+        }
+      });
+    }
+
     // Parse form data
     const formData = await request.formData();
     const content = formData.get('content') as string;
@@ -27,18 +47,54 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const scriptureVersion = formData.get('scriptureVersion') as string | null;
     const spaceId = formData.get('spaceId') as string | null;
 
-    console.log("Creating note with userId:", userId, "title:", title, "content:", content?.substring(0, 50), "noteType:", noteType);
-
-    if (!content || !content.trim()) {
-      return new Response(JSON.stringify({ error: 'Content is required' }), {
+    // Validate content
+    const contentValidation = validateContent(content, true);
+    if (!contentValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: contentValidation.error,
+        code: contentValidation.code
+      }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
     // Validate noteType
-    const validNoteTypes = ['default', 'scripture', 'resource'];
-    const finalNoteType = noteType && validNoteTypes.includes(noteType) ? noteType : 'default';
+    const noteTypeValidation = validateNoteType(noteType);
+    if (!noteTypeValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: noteTypeValidation.error,
+        code: noteTypeValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    const finalNoteType = noteType && noteTypeValidation.isValid ? noteType : 'default';
+
+    // Validate threadId
+    const threadIdValidation = validateThreadId(threadId);
+    if (!threadIdValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: threadIdValidation.error,
+        code: threadIdValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Validate spaceId
+    const spaceIdValidation = validateSpaceId(spaceId);
+    if (!spaceIdValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: spaceIdValidation.error,
+        code: spaceIdValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
     const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
@@ -105,6 +161,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       finalSpaceId = spaceId;
     }
     
+    // CRITICAL OPERATIONS (must succeed for note creation to be valid)
+    // These operations should be atomic, but Astro DB doesn't support explicit transactions
+    // If any of these fail, the entire operation should fail
+    
     const newNote = await db.insert(Notes)
       .values({ 
         id: generateNoteId(),
@@ -122,6 +182,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .get();
       
     // Update user metadata to track the new highest simpleNoteId
+    // This is critical - if it fails, we have inconsistent state
     await db.update(UserMetadata)
       .set({ 
         highestSimpleNoteId: nextSimpleNoteId,
@@ -130,6 +191,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .where(eq(UserMetadata.userId, userId));
 
     // Update the thread's updatedAt timestamp (unorganized thread)
+    // This is critical for maintaining thread state
     await db.update(Threads)
       .set({ updatedAt: new Date() })
       .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
@@ -157,20 +219,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
           await db.update(Threads)
             .set({ updatedAt: new Date() })
             .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
-          
-          console.log(`Note ${newNote.id} added to thread ${threadId} via junction table`);
         }
       } catch (error) {
         console.error('Error adding note to specific thread:', error);
         // Don't fail the note creation if junction table insertion fails
       }
-    } else {
-      console.log(`Note ${newNote.id} created in unorganized thread`);
     }
 
+    // NON-CRITICAL OPERATIONS (can fail without affecting note creation)
+    // These are best-effort and won't cause the note creation to fail
+    
     // Award XP for note creation (pass content and note type)
+    // This is non-critical - if it fails, the note is still created
     const isScriptureNote = finalNoteType === 'scripture';
-    await awardNoteCreatedXP(userId, newNote.id, isScriptureNote, capitalizedContent);
+    try {
+      await awardNoteCreatedXP(userId, newNote.id, isScriptureNote, capitalizedContent);
+    } catch (error) {
+      // XP award failed, but note creation succeeded - log and continue
+      console.error('XP award failed (non-critical):', error);
+    }
     
     // Reload the note from database to ensure we return the correct threadId
     // This is important if the note was moved from unorganized to a specific thread
@@ -234,8 +301,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
             originalText: capitalizedContent,
             createdAt: new Date()
           });
-
-          console.log(`ScriptureMetadata created for note ${newNote.id}: ${normalizedReference}`);
         }
       } catch (error: any) {
         // Don't fail note creation if ScriptureMetadata creation fails
@@ -268,9 +333,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error: any) {
-    console.error('Error creating note:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/notes/create',
+      action: 'create_note'
+    });
     return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to create note' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

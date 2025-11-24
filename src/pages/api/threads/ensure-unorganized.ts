@@ -13,7 +13,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const userId = auth.userId;
-    console.log('Ensuring unorganized thread exists for user:', userId);
 
     // Check if unorganized thread already exists
     const existingThread = await db.select()
@@ -25,7 +24,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .get();
 
     if (existingThread) {
-      console.log('Unorganized thread already exists:', existingThread);
       return new Response(JSON.stringify({ 
         success: true, 
         message: 'Unorganized thread already exists',
@@ -51,8 +49,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     };
 
     try {
-      const result = await db.insert(Threads).values(unorganizedThread);
-      console.log('Created unorganized thread:', result);
+      await db.insert(Threads).values(unorganizedThread);
 
       return new Response(JSON.stringify({ 
         success: true, 
@@ -78,7 +75,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
           .get();
 
         if (createdThread) {
-          console.log('Unorganized thread already exists (created by another request):', createdThread);
           return new Response(JSON.stringify({ 
             success: true, 
             message: 'Unorganized thread already exists',

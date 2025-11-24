@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { db, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
 import { revokeXPOnDeletion, revokeAllXPForItem } from '@/utils/xp-system';
+import { handleAPIError } from '@/utils/error-handling';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
@@ -14,6 +16,23 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    // Rate limiting for write operations
+    const ip = getClientIP(request);
+    const rateLimit = rateLimitMiddleware(userId, '/api/threads/delete', 'write', ip);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: rateLimit.error,
+        code: 'RATE_LIMIT_EXCEEDED'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
+          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
+        }
+      });
+    }
+
     // Get thread ID from URL params
     const url = new URL(request.url);
     const threadId = url.searchParams.get('threadId');
@@ -24,8 +43,6 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-
-    console.log("Deleting thread with ID:", threadId, "for user:", userId);
 
     // Verify the thread belongs to the user before deleting
     const existingThread = await db.select()
@@ -85,8 +102,6 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     await db.delete(Threads)
       .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
 
-    console.log("Thread deleted and notes moved to unorganized thread:", threadId);
-
     // Dispatch thread deleted event for navigation updates
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('threadDeleted', {
@@ -103,9 +118,13 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error: any) {
-    console.error('Error deleting thread:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/threads/delete',
+      action: 'delete_thread'
+    });
     return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to erase thread' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

@@ -332,8 +332,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         </div>
         
         {/* Bottom Section with New Space Button, Search, and Avatar/Back Button */}
-        <div className="flex gap-3 items-center justify-start w-full shrink-0">
-          <div className="flex-1">
+        <div className="flex gap-3 items-center justify-start w-full shrink-0 min-w-0">
+          <div className="flex-1 min-w-0">
             <a 
               href="/new-space" 
               className="w-full"
@@ -345,6 +345,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           <a 
             href="/find" 
             aria-label="Search"
+            className="shrink-0"
             style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
           >
             <SquareButton variant="Find" />
@@ -353,6 +354,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             <a 
               href="/" 
               aria-label="Go to dashboard"
+              className="shrink-0"
               style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
             >
               <SquareButton variant="Back" />
@@ -361,6 +363,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             <a 
               href="/profile" 
               aria-label="Go to profile"
+              className="shrink-0"
               style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
             >
               <Avatar initials={profileData.initials} color={profileData.userColor} />

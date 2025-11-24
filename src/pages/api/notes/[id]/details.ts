@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, eq, and, count } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
@@ -21,8 +22,6 @@ export const GET: APIRoute = async ({ params, locals }) => {
       });
     }
 
-    console.log("Fetching note details for ID:", noteId, "for user:", userId);
-
     // First, verify the note belongs to the user
     const note = await db.select()
       .from(Notes)
@@ -36,9 +35,6 @@ export const GET: APIRoute = async ({ params, locals }) => {
       });
     }
 
-    console.log("Note ID:", noteId);
-    console.log("Note threadId:", note.threadId);
-
     // Fetch scripture metadata if this is a scripture note
     let version: string | undefined;
     if (note.noteType === 'scripture') {
@@ -49,7 +45,6 @@ export const GET: APIRoute = async ({ params, locals }) => {
           .get();
         version = scriptureMeta?.translation;
       } catch (error: any) {
-        console.log("Error querying ScriptureMetadata:", error);
         version = undefined;
       }
     }
@@ -66,8 +61,6 @@ export const GET: APIRoute = async ({ params, locals }) => {
       .from(Threads)
       .where(eq(Threads.userId, userId))
       .all();
-
-    console.log("Total user threads:", allUserThreads.length);
 
     // Get threads from junction table (many-to-many)
     let allThreads = [];
@@ -88,18 +81,14 @@ export const GET: APIRoute = async ({ params, locals }) => {
         .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, userId)))
         .all();
 
-      console.log("Junction table threads found:", junctionThreads.length);
       // Filter out "Unorganized" threads - they shouldn't appear in the threads list
       allThreads = junctionThreads.filter(thread => thread.title !== 'Unorganized');
-      console.log("Threads after filtering out Unorganized:", allThreads.length);
     } catch (error) {
-      console.log("Error querying junction table:", error);
       allThreads = [];
     }
 
     // Use only junction table - no primary thread fallback
     // If no threads found, note is unorganized (no junction entries)
-    console.log("Thread titles:", allThreads.map(t => t.title));
 
     // Helper function to format relative time (same as original)
     function formatRelativeTime(date: Date): string {
@@ -217,23 +206,19 @@ export const GET: APIRoute = async ({ params, locals }) => {
       }))
     };
 
-    console.log("Note details fetched successfully:", {
-      noteId,
-      allThreadsCount: allThreads.length,
-      commentCount: comments.length,
-      tagCount: noteTags.length,
-      allThreads: allThreads.map(t => ({ id: t.id, title: t.title }))
-    });
-
     return new Response(JSON.stringify(response), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    console.error('Error fetching note details:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/notes/[id]/details',
+      action: 'get_note_details'
+    });
     return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to fetch note details' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

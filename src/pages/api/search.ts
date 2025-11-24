@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, eq, and, or, like, desc } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
@@ -109,9 +110,13 @@ export const GET: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error) {
-    console.error('Search API error:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/search',
+      action: 'search'
+    });
     return new Response(JSON.stringify({ 
-      error: 'Internal server error',
+      error: standardError.message,
+      code: standardError.code,
       results: []
     }), {
       status: 500,

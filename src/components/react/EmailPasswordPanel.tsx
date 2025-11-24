@@ -25,31 +25,22 @@ export default function EmailPasswordPanel({
 
   // Load current user data when component mounts
   useEffect(() => {
-    console.log('🔄 EmailPasswordPanel: useEffect triggered, checking cache');
-    
     // Check cache first
     const cached = getCachedProfileData();
     if (cached && cached.email) {
-      console.log('📦 EmailPasswordPanel: Using cached email data');
       setCurrentEmail(cached.email);
       setEmailVerified(cached.emailVerified || false);
-      console.log('✅ EmailPasswordPanel: Email data loaded from cache');
     } else {
-      console.log('📥 EmailPasswordPanel: No cache found, loading from API');
       loadUserData();
     }
   }, []);
 
   const loadUserData = async () => {
-    console.log('📥 EmailPasswordPanel: loadUserData called');
     setIsLoading(true);
     try {
-      console.log('📤 EmailPasswordPanel: Fetching from /api/user/get-profile');
       const response = await fetch('/api/user/get-profile');
-      console.log('📥 EmailPasswordPanel: Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('📥 EmailPasswordPanel: Received data:', data);
         const email = data.email || '';
         const emailVerified = data.emailVerified || false;
         
@@ -61,12 +52,11 @@ export default function EmailPasswordPanel({
           email,
           emailVerified
         });
-        console.log('✅ EmailPasswordPanel: User data loaded and cache refreshed');
       } else {
-        console.error('❌ EmailPasswordPanel: API call failed:', response.status);
+        console.error('EmailPasswordPanel: API call failed:', response.status);
       }
     } catch (error) {
-      console.error('❌ EmailPasswordPanel: Error loading user data:', error);
+      console.error('EmailPasswordPanel: Error loading user data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -119,8 +109,6 @@ export default function EmailPasswordPanel({
     setIsSubmitting(true);
 
     try {
-      console.log('📤 EmailPasswordPanel: Starting credential updates');
-      
       // Dispatch custom event to trigger API call from Astro page
       const event = new CustomEvent('updateCredentialsRequest', {
         detail: {
@@ -130,14 +118,13 @@ export default function EmailPasswordPanel({
         }
       });
       
-      console.log('📤 EmailPasswordPanel: Event dispatched:', event);
       window.dispatchEvent(event);
 
       // Don't show toast here - let the ProfilePage component handle it after API response
       // The toast will be shown by handleCredentialsUpdateRequest in ProfilePage.tsx
 
     } catch (error: any) {
-      console.error('❌ EmailPasswordPanel: Error updating credentials:', error);
+      console.error('EmailPasswordPanel: Error updating credentials:', error);
       
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {

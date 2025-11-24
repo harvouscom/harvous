@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, NoteThreads, eq, and, ne, count } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
@@ -71,9 +72,13 @@ export const GET: APIRoute = async ({ locals }) => {
     });
 
   } catch (error: any) {
-    console.error('Error fetching items:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/items',
+      action: 'get_spaces_items'
+    });
     return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to fetch items' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

@@ -66,7 +66,6 @@ export default function AddToSection({
     const filtered = allItems.filter(item => 
       !currentItems.some(current => current.id === item.id)
     );
-    console.log('AddToSection: Available items:', filtered.length, 'allItems:', allItems.length, 'currentItems:', currentItems.length);
     return filtered;
   }, [allItems, currentItems]);
 
@@ -119,12 +118,10 @@ export default function AddToSection({
     const filtered = availableItems.filter(item =>
       item.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
-    console.log('AddToSection: Filtered items:', filtered.length, 'for query:', searchQuery);
     return filtered;
   }, [availableItems, searchQuery]);
 
   const handleItemClick = (itemId: string) => {
-    console.log('AddToSection: Item clicked:', itemId);
     onItemSelect(itemId);
     setSearchQuery(""); // Clear search after selection
   };

@@ -117,7 +117,6 @@ function cleanupNavigationHistory(storage: StorageType, targetSize: number): voi
     // Save cleaned history
     if (cleaned.length < sorted.length) {
       storage.setItem(historyKey, JSON.stringify(cleaned));
-      console.log(`Cleaned up ${sorted.length - cleaned.length} old navigation items`);
     }
   } catch (error) {
     console.error('Error cleaning up navigation history:', error);
@@ -172,7 +171,6 @@ export function safeSetItem(
       if (fallbackToSession && storage === localStorage) {
         try {
           sessionStorage.setItem(key, value);
-          console.log(`Fell back to sessionStorage for key: ${key}`);
           return true;
         } catch (sessionError) {
           console.error('SessionStorage also failed:', sessionError);

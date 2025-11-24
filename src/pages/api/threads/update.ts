@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { threads } from '@/actions/threads';
 import { db, Notes, Threads, NoteThreads, eq, and } from 'astro:db';
+import { validateTitle, validateColor } from '@/utils/validation';
 
 export const POST: APIRoute = async ({ request, locals, callAction }) => {
   try {
@@ -23,10 +24,32 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
       }
     }
 
-    console.log("Updating thread with threadId:", threadId, "title:", title, "color:", color, "isPublic:", isPublic, "selectedNoteIds:", selectedNoteIds);
+    if (!threadId) {
+      return new Response(JSON.stringify({ error: 'Thread ID is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-    if (!threadId || !title || !title.trim()) {
-      return new Response(JSON.stringify({ error: 'Thread ID and title are required' }), {
+    // Validate title
+    const titleValidation = validateTitle(title, true);
+    if (!titleValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: titleValidation.error,
+        code: titleValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Validate color
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: colorValidation.error,
+        code: colorValidation.code
+      }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -35,15 +58,11 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
     // Use Astro.callAction to call the threads.update action with FormData
     const result = await callAction(threads.update, formData);
 
-    console.log("Thread updated successfully:", result);
-
     // Add selected notes to the thread via junction table
     if (selectedNoteIds.length > 0) {
       const { userId } = locals.auth();
       
       if (userId) {
-        console.log(`Adding ${selectedNoteIds.length} notes to thread ${threadId}`);
-        
         for (const noteId of selectedNoteIds) {
           try {
             // Verify note exists and belongs to user
@@ -53,7 +72,6 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
               .get();
             
             if (!note) {
-              console.warn(`Note ${noteId} not found or doesn't belong to user, skipping`);
               continue;
             }
 
@@ -64,7 +82,6 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
               .get();
 
             if (existingRelation) {
-              console.log(`Note ${noteId} is already in thread ${threadId}, skipping`);
               continue;
             }
 
@@ -84,15 +101,12 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
               threadId: threadId,
               createdAt: new Date()
             });
-            
-            console.log(`Note ${noteId} added to thread ${threadId} successfully`);
 
             // If note was in unorganized, update the legacy threadId field to the new thread
             if (isInUnorganized && threadId !== 'thread_unorganized') {
               await db.update(Notes)
                 .set({ threadId: threadId })
                 .where(eq(Notes.id, noteId));
-              console.log(`Note ${noteId} removed from unorganized and added to thread ${threadId}`);
             }
           } catch (error: any) {
             // Log error but continue with other notes

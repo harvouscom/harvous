@@ -558,7 +558,6 @@ export default function EditThreadPanel({
             className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--color-bold-blue)' }}
             tabIndex={3}
-            onClick={() => console.log('EditThreadPanel: Save button clicked, isSubmitting:', isSubmitting, 'title:', formData.title.trim())}
           >
             <div className="relative shrink-0 transition-transform duration-125">
               {isSubmitting ? 'Saving...' : 'Save Changes'}

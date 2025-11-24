@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Tags, NoteTags, eq, and } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
@@ -59,8 +60,14 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error) {
-    console.error('Error deleting tag:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/tags/delete',
+      action: 'delete_tag'
+    });
+    return new Response(JSON.stringify({ 
+      error: standardError.message,
+      code: standardError.code
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

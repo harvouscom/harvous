@@ -407,8 +407,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     // If removing an active item, navigate to the next available item first
     if (isActive) {
-      console.log(`[removeFromNavigationHistory] Item is active, proceeding with navigation`);
-      
       // Find the current index in the history (before filtering)
       const currentIndex = history.findIndex((item) => item.id === itemId);
       

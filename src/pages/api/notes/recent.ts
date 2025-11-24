@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, eq, desc } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
@@ -58,8 +59,14 @@ export const GET: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error) {
-    console.error('Error fetching recent notes:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/notes/recent',
+      action: 'get_recent_notes'
+    });
+    return new Response(JSON.stringify({ 
+      error: standardError.message,
+      code: standardError.code
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

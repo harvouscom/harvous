@@ -22,8 +22,6 @@ export default function NewTagPanel({
     e.preventDefault();
     e.stopPropagation();
     
-    console.log('NewTagPanel: Form submitted, tagName:', tagName);
-    
     // Validate tag name
     const trimmedName = tagName.trim();
     if (!trimmedName) {

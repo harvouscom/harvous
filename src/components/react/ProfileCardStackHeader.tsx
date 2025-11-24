@@ -26,7 +26,6 @@ export default function ProfileCardStackHeader({
         const newDisplayName = `${firstName} ${lastName.charAt(0)}`.trim();
         setColor(selectedColor);
         setDisplayName(newDisplayName);
-        console.log(`✅ ProfileCardStackHeader: Updated to color: ${selectedColor}, displayName: ${newDisplayName}`);
       }
     };
 

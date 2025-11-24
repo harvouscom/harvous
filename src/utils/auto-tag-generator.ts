@@ -267,7 +267,6 @@ export async function applyAutoTags(
           if (existingTag) {
             // Use the existing tag instead of creating a new one
             tagId = existingTag.id;
-            console.log('Using existing tag:', { tagId, tagName: suggestion.keyword });
           } else {
             // Create new tag only if no tag with this name exists
             const newTagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

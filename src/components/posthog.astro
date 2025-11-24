@@ -9,46 +9,97 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog
 ---
 
 <script is:inline define:vars={{ posthogKey, posthogHost }}>
-  !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init Rr Mr fi Or Ar ci Tr Cr capture Mi calculateEventProperties Lr register register_once register_for_session unregister unregister_for_session Hr getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey displaySurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Ur jr createPersonProfile zr kr Br opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing Dr debug M Nr getPageViewId captureTraceFeedback captureTraceMetric $r".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  // Only initialize PostHog if key is provided
+  if (posthogKey) {
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init Rr Mr fi Or Ar ci Tr Cr capture Mi calculateEventProperties Lr register register_once register_for_session unregister unregister_for_session Hr getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey displaySurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Ur jr createPersonProfile zr kr Br opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing Dr debug M Nr getPageViewId captureTraceFeedback captureTraceMetric $r".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
 
-  posthog.init(posthogKey, {
-    api_host: posthogHost,
-    ui_host: 'https://us.posthog.com',
-    defaults: '2025-05-24',
-    person_profiles: 'identified_only',
-    loaded: function(posthog) {
-      window.posthog = posthog;
-      
-      // Identify user if available
-      if (window.__posthog_userId__) {
-        posthog.identify(window.__posthog_userId__, window.__posthog_userData__ || {});
-      }
-      
-      // Global error handler for uncaught exceptions
-      window.addEventListener('error', (event) => {
-        if (posthog && typeof posthog.captureException === 'function') {
-          posthog.captureException(event.error || new Error(event.message), {
-            error_type: 'javascript_error',
-            error_filename: event.filename,
-            error_line: event.lineno,
-            error_column: event.colno,
-          });
-        }
-      });
-      
-      // Global handler for unhandled promise rejections
-      window.addEventListener('unhandledrejection', (event) => {
-        if (posthog && typeof posthog.captureException === 'function') {
-          const error = event.reason instanceof Error 
-            ? event.reason 
-            : new Error(String(event.reason || 'Unhandled promise rejection'));
+    try {
+      posthog.init(posthogKey, {
+        api_host: posthogHost,
+        ui_host: 'https://us.posthog.com',
+        defaults: '2025-05-24',
+        person_profiles: 'identified_only',
+        loaded: function(posthog) {
+          window.posthog = posthog;
           
-          posthog.captureException(error, {
-            error_type: 'promise_rejection',
+          // Identify user if available
+          if (window.__posthog_userId__) {
+            try {
+              posthog.identify(window.__posthog_userId__, window.__posthog_userData__ || {});
+            } catch (identifyError) {
+              console.error('[PostHog] Failed to identify user:', identifyError);
+            }
+          }
+          
+          // Global error handler for uncaught exceptions
+          window.addEventListener('error', (event) => {
+            try {
+              if (posthog && typeof posthog.captureException === 'function') {
+                posthog.captureException(event.error || new Error(event.message), {
+                  error_type: 'javascript_error',
+                  error_filename: event.filename,
+                  error_line: event.lineno,
+                  error_column: event.colno,
+                });
+              }
+            } catch (error) {
+              // Fallback: log to console if PostHog fails
+              console.error('Uncaught error (PostHog tracking failed):', event.error || event.message);
+            }
           });
+          
+          // Global handler for unhandled promise rejections
+          window.addEventListener('unhandledrejection', (event) => {
+            try {
+              if (posthog && typeof posthog.captureException === 'function') {
+                const error = event.reason instanceof Error 
+                  ? event.reason 
+                  : new Error(String(event.reason || 'Unhandled promise rejection'));
+                
+                posthog.captureException(error, {
+                  error_type: 'promise_rejection',
+                });
+              }
+            } catch (error) {
+              // Fallback: log to console if PostHog fails
+              console.error('Unhandled promise rejection (PostHog tracking failed):', event.reason);
+            }
+          });
+        },
+        // Error callback if initialization fails
+        _onCapture: function() {
+          // Called when PostHog is ready or fails
         }
       });
+    } catch (initError) {
+      console.error('[PostHog] Initialization failed:', initError);
+      // Create a stub posthog object to prevent errors
+      window.posthog = {
+        capture: function() {},
+        captureException: function() {},
+        identify: function() {},
+        isFeatureEnabled: function() { return false; },
+        getFeatureFlag: function() { return undefined; }
+      };
     }
-  });
+  } else {
+    // PostHog key not provided - create stub to prevent errors
+    window.posthog = {
+      capture: function() {},
+      captureException: function() {},
+      identify: function() {},
+      isFeatureEnabled: function() { return false; },
+      getFeatureFlag: function() { return undefined; }
+    };
+    
+    // Still set up error handlers for console logging
+    window.addEventListener('error', (event) => {
+      console.error('Uncaught error:', event.error || event.message);
+    });
+    
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('Unhandled promise rejection:', event.reason);
+    });
+  }
 </script>
 

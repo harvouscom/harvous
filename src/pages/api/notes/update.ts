@@ -1,5 +1,8 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, NoteThreads, eq, and } from 'astro:db';
+import { handleAPIError } from '@/utils/error-handling';
+import { validateContent } from '@/utils/validation';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
 export const PUT: APIRoute = async ({ request, locals }) => {
   try {
@@ -10,6 +13,23 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'Authentication required' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Rate limiting for write operations
+    const ip = getClientIP(request);
+    const rateLimit = rateLimitMiddleware(userId, '/api/notes/update', 'write', ip);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: rateLimit.error,
+        code: 'RATE_LIMIT_EXCEEDED'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
+          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
+        }
       });
     }
 
@@ -24,14 +44,17 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    if (!content || !content.trim()) {
-      return new Response(JSON.stringify({ error: 'Content is required' }), {
+    // Validate content
+    const contentValidation = validateContent(content, true);
+    if (!contentValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: contentValidation.error,
+        code: contentValidation.code
+      }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-
-    console.log("Updating note with ID:", noteId, "for user:", userId);
 
     // Verify the note belongs to the user before updating
     const existingNote = await db.select()
@@ -102,12 +125,10 @@ export const PUT: APIRoute = async ({ request, locals }) => {
           autoTagResult.suggestions,
           userId
         );
-        
-        console.log(`Regenerated ${applyResult.applied} auto-tags for updated note ${noteId}`);
       }
     } catch (error) {
       // Don't fail note update if auto-tagging fails
-      console.log('Auto-tag regeneration failed (non-critical):', error);
+      // Auto-tag regeneration failed (non-critical)
     }
 
     // Process scripture references in the note content (background processing)
@@ -136,8 +157,6 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       console.error('Error processing scripture references (non-critical):', error);
     }
 
-    console.log("Note updated successfully:", updatedNote);
-
     return new Response(JSON.stringify({ 
       success: "Note updated successfully!",
       note: updatedNote,
@@ -149,9 +168,13 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error: any) {
-    console.error('Error updating note:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/notes/update',
+      action: 'update_note'
+    });
     return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to update note' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

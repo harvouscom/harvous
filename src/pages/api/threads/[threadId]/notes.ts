@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getNotesForThread } from '@/utils/dashboard-data';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -38,10 +39,14 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
     });
 
   } catch (error: any) {
-    console.error(`Error loading more notes for thread ${params.threadId}:`, error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/threads/[threadId]/notes',
+      action: 'get_thread_notes',
+      threadId: params.threadId
+    });
     return new Response(JSON.stringify({ 
-      error: 'Failed to load more notes',
-      details: error.message 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

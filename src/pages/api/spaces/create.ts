@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { db, Spaces, Notes, Threads, eq, and } from 'astro:db';
 import { generateSpaceId } from '@/utils/ids';
 import { getThreadGradientCSS } from '@/utils/colors';
+import { validateTitle, validateColor } from '@/utils/validation';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -12,6 +14,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'Authentication required' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Rate limiting for write operations
+    const ip = getClientIP(request);
+    const rateLimit = rateLimitMiddleware(userId, '/api/spaces/create', 'write', ip);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: rateLimit.error,
+        code: 'RATE_LIMIT_EXCEEDED'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
+          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
+        }
       });
     }
 
@@ -46,12 +65,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    console.log("Creating space with userId:", userId, "title:", title, "color:", color, "isPublic:", isPublic);
-    console.log("Selected note IDs:", selectedNoteIds);
-    console.log("Selected thread IDs:", selectedThreadIds);
+    // Validate title
+    const titleValidation = validateTitle(title, true);
+    if (!titleValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: titleValidation.error,
+        code: titleValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-    if (!title || !title.trim()) {
-      return new Response(JSON.stringify({ error: 'Title is required' }), {
+    // Validate color
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: colorValidation.error,
+        code: colorValidation.code
+      }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -77,8 +109,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       })
       .returning()
       .get();
-
-    console.log("Space created successfully:", newSpace);
 
     // Update selected notes to belong to the new space
     if (selectedNoteIds.length > 0) {
@@ -111,7 +141,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         try {
           // Don't allow moving unorganized thread
           if (threadId === 'thread_unorganized') {
-            console.warn('Skipping unorganized thread');
             continue;
           }
 

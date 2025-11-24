@@ -40,7 +40,6 @@ export async function ensureUnorganizedThread(userId: string) {
           createdAt: new Date(),
           updatedAt: new Date(),
         });
-        console.log("✅ Created unorganized thread for user:", userId);
       } catch (insertError: any) {
         // If insert fails due to constraint (thread already exists), re-fetch it
         if (insertError.code === 'SQLITE_CONSTRAINT' || 
@@ -68,10 +67,9 @@ export async function ensureUnorganizedThread(userId: string) {
           
           if (createdThread) {
             // Thread was created by another request, continue with normal flow
-            console.log("✅ Unorganized thread already exists (created by another request)");
           }
         } else {
-          console.error("❌ Error creating unorganized thread:", insertError);
+          console.error("Error creating unorganized thread:", insertError);
           throw insertError; // Re-throw if it's a different error
         }
       }
@@ -97,7 +95,7 @@ export async function ensureUnorganizedThread(userId: string) {
 
     return threadData;
   } catch (error) {
-    console.error("❌ Error in ensureUnorganizedThread:", error);
+    console.error("Error in ensureUnorganizedThread:", error);
     // Return a fallback thread data structure
     return {
       id: 'thread_unorganized',

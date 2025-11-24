@@ -25,7 +25,6 @@ let userData: CachedUserData;
 try {
   userData = await getCachedUserData(userId);
 } catch (error) {
-  console.log('Error getting cached user data:', error);
   // Fallback data
   userData = {
     firstName: '',

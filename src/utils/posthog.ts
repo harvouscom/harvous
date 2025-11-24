@@ -37,9 +37,6 @@ export function initPostHog() {
   const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://app.posthog.com';
 
   if (!posthogKey) {
-    if (import.meta.env.DEV) {
-      console.warn('[PostHog] Key not found - analytics disabled');
-    }
     return;
   }
 
@@ -59,9 +56,6 @@ export function initPostHog() {
       mask_all_element_attributes: false,
       // Performance optimizations
       loaded: (posthog) => {
-        if (import.meta.env.DEV) {
-          console.log('[PostHog] Initialized successfully');
-        }
         // Make posthog available globally for feature flags
         window.posthog = posthog;
         
@@ -250,6 +244,126 @@ export function captureException(
     window.posthog.captureException(errorObj, additionalProperties);
   } catch (err) {
     console.error('[PostHog] Error capturing exception:', err);
+  }
+}
+
+/**
+ * Track page load performance metrics
+ * Captures: DOMContentLoaded, load, and First Contentful Paint (if available)
+ */
+export function trackPageLoad() {
+  if (typeof window === 'undefined' || !window.posthog) {
+    return;
+  }
+
+  try {
+    // Track DOMContentLoaded time
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        const domContentLoadedTime = performance.now();
+        captureEvent('page_load_dom_content_loaded', {
+          load_time_ms: Math.round(domContentLoadedTime),
+          page_url: window.location.pathname,
+        });
+      });
+    } else {
+      // Already loaded
+      const domContentLoadedTime = performance.timing?.domContentLoadedEventEnd 
+        ? performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart
+        : null;
+      if (domContentLoadedTime) {
+        captureEvent('page_load_dom_content_loaded', {
+          load_time_ms: Math.round(domContentLoadedTime),
+          page_url: window.location.pathname,
+        });
+      }
+    }
+
+    // Track full page load time
+    if (document.readyState === 'complete') {
+      const loadTime = performance.timing?.loadEventEnd 
+        ? performance.timing.loadEventEnd - performance.timing.navigationStart
+        : null;
+      if (loadTime) {
+        captureEvent('page_load_complete', {
+          load_time_ms: Math.round(loadTime),
+          page_url: window.location.pathname,
+        });
+      }
+    } else {
+      window.addEventListener('load', () => {
+        const loadTime = performance.timing?.loadEventEnd 
+          ? performance.timing.loadEventEnd - performance.timing.navigationStart
+          : performance.now();
+        captureEvent('page_load_complete', {
+          load_time_ms: Math.round(loadTime),
+          page_url: window.location.pathname,
+        });
+      });
+    }
+
+    // Track First Contentful Paint if available
+    if ('PerformanceObserver' in window) {
+      try {
+        const observer = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (entry.name === 'first-contentful-paint') {
+              captureEvent('page_load_first_contentful_paint', {
+                fcp_ms: Math.round(entry.startTime),
+                page_url: window.location.pathname,
+              });
+              observer.disconnect();
+            }
+          }
+        });
+        observer.observe({ entryTypes: ['paint'] });
+      } catch (e) {
+        // PerformanceObserver not supported or failed
+      }
+    }
+  } catch (error) {
+    console.error('[PostHog] Error tracking page load:', error);
+  }
+}
+
+/**
+ * Track API response time for slow queries
+ * Call this after API requests complete
+ */
+export function trackAPIResponseTime(
+  endpoint: string,
+  responseTimeMs: number,
+  statusCode?: number,
+  error?: boolean
+) {
+  if (typeof window === 'undefined' || !window.posthog) {
+    return;
+  }
+
+  try {
+    const isSlow = responseTimeMs > 1000; // Flag queries over 1 second as slow
+    const isVerySlow = responseTimeMs > 3000; // Flag queries over 3 seconds as very slow
+
+    captureEvent('api_response_time', {
+      endpoint,
+      response_time_ms: Math.round(responseTimeMs),
+      status_code: statusCode,
+      is_error: error || false,
+      is_slow: isSlow,
+      is_very_slow: isVerySlow,
+    });
+
+    // Also track slow queries as a separate event for easier filtering
+    if (isSlow) {
+      captureEvent('slow_api_query', {
+        endpoint,
+        response_time_ms: Math.round(responseTimeMs),
+        status_code: statusCode,
+        is_error: error || false,
+      });
+    }
+  } catch (err) {
+    console.error('[PostHog] Error tracking API response time:', err);
   }
 }
 

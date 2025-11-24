@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getAllThreadsWithCounts } from '@/utils/dashboard-data';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
@@ -58,8 +59,14 @@ export const GET: APIRoute = async ({ locals }) => {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    console.error('Error fetching threads:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/threads/list',
+      action: 'list_threads'
+    });
+    return new Response(JSON.stringify({ 
+      error: standardError.message,
+      code: standardError.code
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

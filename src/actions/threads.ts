@@ -18,7 +18,6 @@ export const threads = {
     handler: async ({ title, subtitle, spaceId, isPublic = false, color }, context) => {
       // Get userId from authenticated context for security
       const { userId } = context.locals.auth();
-      console.log("Creating thread with userId:", userId, "title:", title);
       
       if (!userId) {
         throw new Error("Authentication required");
@@ -27,7 +26,6 @@ export const threads = {
         // Use provided color or generate a random one
         const threadColor = color || getRandomThreadColor();
         
-        console.log(`Creating thread with title: ${title}, subtitle: ${subtitle}, spaceId: ${spaceId}, userId: ${userId}, isPublic: ${isPublic}, color: ${threadColor}`);
         const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
         
         // Check if we're in a deployed environment
@@ -52,8 +50,6 @@ export const threads = {
           })
           .returning()
           .get()
-          
-        console.log("Thread created successfully:", newThread);
 
         // Award XP for thread creation (pass title for validation)
         await awardThreadCreatedXP(userId, newThread.id, capitalizedTitle, subtitle || null);
@@ -68,10 +64,9 @@ export const threads = {
           .limit(1);
           
         if (!verifyThread.length) {
-          console.warn("Thread creation verification failed");
+          // Thread creation verification failed
         }
 
-        console.log(`Thread created successfully: ${JSON.stringify(newThread)}`);
         return {
           success: "Thread created successfully!",
           thread: newThread
@@ -244,8 +239,6 @@ export const threads = {
         throw new Error("Authentication required");
       }
       try {
-        console.log(`Toggling pin for thread ID: ${id}, userId: ${userId}`);
-        
         // First get the current thread to check its isPinned status
         const thread = await db.select()
           .from(Threads)
@@ -267,8 +260,6 @@ export const threads = {
           .returning()
           .get();
 
-        console.log(`Thread updated, isPinned: ${updatedThread.isPinned}`);
-        
         return {
           success: `Thread ${updatedThread.isPinned ? 'pinned' : 'unpinned'} successfully!`,
           thread: updatedThread

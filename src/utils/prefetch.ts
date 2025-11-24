@@ -25,9 +25,8 @@ export function prefetchDashboardData(): void {
     try {
       const data = await fetchNavigationData();
       setCachedNavigationData(data);
-      console.log('[Prefetch] Dashboard data prefetched and cached');
     } catch (error) {
-      console.warn('[Prefetch] Failed to prefetch dashboard data:', error);
+      // Failed to prefetch dashboard data
     }
   });
 }

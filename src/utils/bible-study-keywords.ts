@@ -384,19 +384,15 @@ export function findKeywordsInTextWithPriority(
       if (foundInTitle) {
         // Title boost: +0.2 for any keyword found in title
         titleBoost = 0.2;
-        console.log(`Title boost for ${keyword.name}: +${titleBoost}`);
       }
       
       if (frequency > 1) {
         // Frequency boost: +0.1 for each occurrence beyond the first (max +0.5)
         frequencyBoost = Math.min(0.5, (frequency - 1) * 0.1);
-        console.log(`Frequency boost for ${keyword.name}: +${frequencyBoost} (frequency: ${frequency})`);
       }
       
       // Apply boosts to confidence
       const finalConfidence = Math.min(1.0, confidence + titleBoost + frequencyBoost);
-      
-      console.log(`Enhanced confidence for ${keyword.name}: ${confidence} + ${titleBoost} + ${frequencyBoost} = ${finalConfidence}`);
       
       foundKeywords.push({ 
         keyword, 

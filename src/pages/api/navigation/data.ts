@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount } from '@/utils/dashboard-data';
 import { getThreadGradientCSS } from '@/utils/colors';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
@@ -44,10 +45,13 @@ export const GET: APIRoute = async ({ locals }) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching navigation data:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/navigation/data',
+      action: 'get_navigation_data'
+    });
     return new Response(JSON.stringify({ 
-      error: 'Failed to fetch navigation data',
-      details: error instanceof Error ? error.message : String(error)
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

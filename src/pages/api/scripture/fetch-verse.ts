@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { parseScriptureReference, parseVerseGroups, type VerseGroup } from '@/utils/scripture-detector';
+import { handleAPIError } from '@/utils/error-handling';
 
 interface BibleOrgVerse {
   bookname: string;
@@ -134,9 +135,13 @@ export const POST: APIRoute = async ({ request }) => {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error: any) {
-    console.error('Error fetching verse:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/scripture/fetch-verse',
+      action: 'fetch_verse'
+    });
     return new Response(JSON.stringify({ 
-      error: error.message || 'Error fetching verse text' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

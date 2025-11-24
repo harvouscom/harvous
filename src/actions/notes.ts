@@ -17,7 +17,6 @@ export const notes = {
     handler: async ({ content, title, threadId, spaceId, isPublic = false }, context) => {
       // Get userId from authenticated context for security
       const { userId } = context.locals.auth();
-      console.log("Creating note with userId:", userId, "title:", title, "content:", content?.substring(0, 50));
       
       if (!userId) {
         throw new Error("Authentication required");
@@ -44,7 +43,6 @@ export const notes = {
               createdAt: new Date(),
               updatedAt: new Date(),
             }).returning().get();
-            console.log("Created unorganized thread for user:", userId);
           } catch (createError: any) {
             if (createError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || createError.rawCode === 1555) {
               // Unorganized thread already exists
@@ -110,8 +108,6 @@ export const notes = {
           })
           .returning()
           .get()
-          
-        console.log("Note created successfully:", newNote);
 
         // Update user metadata to track the new highest simpleNoteId
         await db.update(UserMetadata)

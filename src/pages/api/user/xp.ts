@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { calculateTotalXP, getXPBreakdown, backfillUserXP } from '@/utils/xp-system';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
@@ -18,9 +19,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const shouldBackfill = url.searchParams.get('backfill') === 'true';
     
     if (shouldBackfill) {
-      console.log(`Starting XP backfill for user: ${userId}`);
       await backfillUserXP(userId);
-      console.log(`XP backfill completed for user: ${userId}`);
     }
 
     // Get XP data
@@ -37,10 +36,13 @@ export const GET: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error: any) {
-    console.error('Error getting user XP:', error);
-    
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/user/xp',
+      action: 'get_user_xp'
+    });
     return new Response(JSON.stringify({
-      error: error.message || 'Error getting user XP'
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
