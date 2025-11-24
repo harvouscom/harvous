@@ -498,8 +498,22 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     return () => clearTimeout(timeoutId);
   }, [scriptureVersion, scriptureReference, noteType]);
 
-  // Load threads from API
+  // Load threads from API with debouncing
+  const loadThreadsRef = useRef<{ lastCallTime: number; isLoading: boolean }>({ lastCallTime: 0, isLoading: false });
+  const DEBOUNCE_WINDOW_MS = 2000; // 2 seconds minimum between calls
+
   const loadThreads = async () => {
+    // Debounce: Check if enough time has passed since last call
+    const now = Date.now();
+    const timeSinceLastCall = now - loadThreadsRef.current.lastCallTime;
+    if (timeSinceLastCall < DEBOUNCE_WINDOW_MS || loadThreadsRef.current.isLoading) {
+      // Too soon since last call or already loading, skip this one
+      return;
+    }
+
+    loadThreadsRef.current.lastCallTime = now;
+    loadThreadsRef.current.isLoading = true;
+
     try {
       const response = await fetch('/api/threads/list', {
         credentials: 'include'
@@ -561,6 +575,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       }
     } catch (error) {
       // Error loading threads
+    } finally {
+      loadThreadsRef.current.isLoading = false;
     }
   };
 
@@ -586,8 +602,24 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     loadNextNoteId();
   }, []);
 
+  // Store timeout ref for cleanup
+  const pendingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Listen for note count changes to refresh thread options
   useEffect(() => {
+
+    const scheduleLoadThreads = () => {
+      // Clear any pending timeout first
+      if (pendingTimeoutRef.current) {
+        clearTimeout(pendingTimeoutRef.current);
+      }
+      // Schedule loadThreads with delay
+      pendingTimeoutRef.current = setTimeout(() => {
+        pendingTimeoutRef.current = null;
+        loadThreads();
+      }, 300);
+    };
+
     const handleNoteCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
       const note = customEvent.detail?.note;
@@ -604,9 +636,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       }
       
       // Refresh thread counts after a delay to ensure database is committed
-      setTimeout(() => {
-        loadThreads();
-      }, 300);
+      scheduleLoadThreads();
     };
 
     const handleNoteDeleted = (event: Event) => {
@@ -625,9 +655,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       }
       
       // Refresh thread counts after a delay to ensure database is committed
-      setTimeout(() => {
-        loadThreads();
-      }, 300);
+      scheduleLoadThreads();
     };
 
     const handleNoteRemovedFromThread = (event: Event) => {
@@ -645,9 +673,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       }
       
       // Refresh thread counts after a delay to ensure database is committed
-      setTimeout(() => {
-        loadThreads();
-      }, 300);
+      scheduleLoadThreads();
     };
 
     const handleNoteAddedToThread = (event: Event) => {
@@ -665,9 +691,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       }
       
       // Refresh thread counts after a delay to ensure database is committed
-      setTimeout(() => {
-        loadThreads();
-      }, 300);
+      scheduleLoadThreads();
     };
 
     // Register event listeners
@@ -682,6 +706,11 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       window.removeEventListener('noteDeleted', handleNoteDeleted);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread);
+      // Clear pending timeout on cleanup
+      if (pendingTimeoutRef.current) {
+        clearTimeout(pendingTimeoutRef.current);
+        pendingTimeoutRef.current = null;
+      }
     };
   }, []); // Empty deps - loadThreads is stable
 

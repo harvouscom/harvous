@@ -287,8 +287,33 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Handle other API requests or mutations differently
-  if (url.pathname.includes('/api/') || event.request.method !== 'GET') {
+  // EXCLUDE API ENDPOINTS FROM CACHING - Always use network-first for API calls
+  // This prevents stale API responses and ensures fresh data
+  // Check this BEFORE any other caching logic
+  if (url.pathname.startsWith('/api/')) {
+    // For API endpoints, always fetch from network (no caching)
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Return response directly without caching
+          return response;
+        })
+        .catch(() => {
+          // If network fails, return error response (don't use cache)
+          return new Response(JSON.stringify({ error: 'Network error' }), {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'application/json' }
+          });
+        })
+    );
+    return;
+  }
+
+  // Handle non-GET requests (POST, PUT, DELETE, etc.) - don't cache these
+  if (event.request.method !== 'GET') {
+    // For non-GET requests, always fetch from network (no caching)
+    event.respondWith(fetch(event.request));
     return;
   }
 

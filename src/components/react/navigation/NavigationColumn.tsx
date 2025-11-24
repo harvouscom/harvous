@@ -174,12 +174,26 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   useEffect(() => {
     if (!activeThread) return;
 
+    const lastRefreshTimeRef = { current: 0 };
+    const pendingTimeoutRef = { current: null as NodeJS.Timeout | null };
+    const DEBOUNCE_WINDOW_MS = 2000; // 2 seconds minimum between refreshes
+
     const refreshActiveThreadCount = async () => {
+      // Debounce: Check if enough time has passed since last refresh
+      const now = Date.now();
+      const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
+      if (timeSinceLastRefresh < DEBOUNCE_WINDOW_MS) {
+        // Too soon since last refresh, skip this one
+        return;
+      }
+
       // Check if auth is ready before making API call
       if (!isAuthReady()) {
         // Auth not ready yet, skip silently
         return;
       }
+
+      lastRefreshTimeRef.current = now;
 
       try {
         // Fetch current thread data from API
@@ -216,25 +230,37 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       }
     };
 
+    const scheduleRefresh = () => {
+      // Clear any pending timeout first
+      if (pendingTimeoutRef.current) {
+        clearTimeout(pendingTimeoutRef.current);
+      }
+      // Schedule refresh with delay
+      pendingTimeoutRef.current = setTimeout(() => {
+        pendingTimeoutRef.current = null;
+        refreshActiveThreadCount();
+      }, 300);
+    };
+
     const handleNoteCreated = () => {
-      setTimeout(() => refreshActiveThreadCount(), 300);
+      scheduleRefresh();
     };
 
     const handleNoteDeleted = () => {
-      setTimeout(() => refreshActiveThreadCount(), 300);
+      scheduleRefresh();
     };
 
     const handleNoteRemovedFromThread = (event: CustomEvent) => {
       const { threadId } = event.detail;
       if (threadId === activeThread.id) {
-        setTimeout(() => refreshActiveThreadCount(), 300);
+        scheduleRefresh();
       }
     };
 
     const handleNoteAddedToThread = (event: CustomEvent) => {
       const { threadId } = event.detail;
       if (threadId === activeThread.id) {
-        setTimeout(() => refreshActiveThreadCount(), 300);
+        scheduleRefresh();
       }
     };
 
@@ -250,6 +276,11 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       window.removeEventListener('noteDeleted', handleNoteDeleted);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+      // Clear pending timeout on cleanup
+      if (pendingTimeoutRef.current) {
+        clearTimeout(pendingTimeoutRef.current);
+        pendingTimeoutRef.current = null;
+      }
     };
   }, [activeThread]);
   return (
