@@ -170,14 +170,24 @@ nav a {
 /* Subtle loading indicator during page transitions */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 0.3s;
+  animation-duration: 0.2s;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: var(--color-light-paper) !important;
 }
 
 ::view-transition-old(main-content),
 ::view-transition-new(main-content) {
-  animation-duration: 0.25s;
+  animation-duration: 0.15s;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Ensure view transition container maintains background to prevent black flash */
+::view-transition-group(root) {
+  background-color: var(--color-light-paper) !important;
+}
+
+::view-transition-image-pair(root) {
+  background-color: var(--color-light-paper) !important;
 }
 
 /* Loading skeleton for content areas */
@@ -194,6 +204,29 @@ nav a {
 /* Smooth content transitions */
 [slot="main"] {
   view-transition-name: main-content;
+}
+
+/* Optimize navigation components to prevent flash during transitions */
+[slot="navigation"],
+[slot="navigation"] > * {
+  contain: layout style paint;
+  will-change: contents;
+}
+
+/* Ensure navigation persists during view transitions */
+[slot="navigation"] {
+  view-transition-name: navigation;
+}
+
+/* Additional view transition optimizations */
+html {
+  view-transition-name: root;
+  background-color: var(--color-light-paper) !important;
+}
+
+/* Prevent flash during view transition preparation */
+::view-transition-group(*) {
+  contain: layout style paint;
 }
 
 /* Loading indicator styles */
