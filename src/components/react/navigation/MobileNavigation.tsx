@@ -341,18 +341,22 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   };
 
   const handleItemClickWrapper = (e: React.MouseEvent<HTMLAnchorElement>, itemId?: string) => {
+    // Check if we're currently on a note page
+    const isOnNotePage = currentItemId.startsWith('note_');
+    
     // Check if the clicked item is the currently active item
     const isActiveItem = itemId === undefined || itemId === '' 
       ? !currentSpace && !currentThread && !currentItemId // "For You" is active
       : itemId === currentActiveItemId; // Other items match currentActiveItemId
     
-    // If it's the active item, prevent navigation and just close the dropdown
-    if (isActiveItem) {
+    // If it's the active item AND we're not on a note page, prevent navigation and just close the dropdown
+    // (If we're on a note page, allow navigation to the parent thread/space)
+    if (isActiveItem && !isOnNotePage) {
       e.preventDefault();
     }
     
     handleItemClick(itemId);
-    // If not active, let the link navigate naturally via href
+    // If not active, or if on note page, let the link navigate naturally via href
   };
 
   // Toggle close mode for an item (show close icon instead of badge)
@@ -431,7 +435,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             className={`absolute top-0 left-0 w-full bg-white rounded-3xl shadow-lg z-[9999] max-h-[352px] relative ${
               isMounted ? 'dropdown-enter' : ''
             }`}
-            style={!isMounted ? { transform: 'translateY(-8px)', maxHeight: '64px', overflow: 'hidden' } : undefined}
+            style={!isMounted ? { maxHeight: '64px', overflow: 'hidden' } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Scrollable Nav Items */}

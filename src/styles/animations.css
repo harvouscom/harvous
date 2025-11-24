@@ -293,7 +293,7 @@
 /* Dropdown Animations */
 @keyframes dropdownSlideDown {
   from {
-    transform: translateY(-8px);
+    transform: translateY(0);
     max-height: 64px;
   }
   to {
