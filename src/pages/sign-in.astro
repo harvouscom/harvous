@@ -2,6 +2,9 @@
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignIn as ClerkSignIn } from "@clerk/astro/components";
 import SquareButton from "@/components/SquareButton.astro";
+
+// Get redirect URL from query params, fallback to home
+const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
 ---
 
 <EmptyLayout title="Sign In">
@@ -83,7 +86,7 @@ import SquareButton from "@/components/SquareButton.astro";
           }
         }}
         signUpUrl="/sign-up"
-        redirectUrl="/"
+        redirectUrl={redirectUrl}
       />
         </div>
       </div>
