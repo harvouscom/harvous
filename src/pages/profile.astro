@@ -16,9 +16,8 @@ import ProfileCardStackHeader from "@/components/react/ProfileCardStackHeader.ts
 const auth = Astro.locals.auth();
 const { userId } = auth;
 
-if (!userId) {
-  return Astro.redirect('/sign-in');
-}
+// Auth redirect is now handled by middleware - no need to check here
+// Pages can still use userId for conditional rendering
 
 // Get cached user data
 let userData: CachedUserData;

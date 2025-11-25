@@ -12,9 +12,8 @@ import { getThreadGradientCSS } from "@/utils/colors";
 const auth = Astro.locals.auth();
 const { userId, getToken } = auth;
 
-if (!userId) {
-  return Astro.redirect('/sign-in');
-}
+// Auth redirect is now handled by middleware - no need to check here
+// Pages can still use userId for conditional rendering
 
 // Try to fetch user data from Clerk API using secret key
 let userData: any = null;
