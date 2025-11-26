@@ -23,10 +23,50 @@ const UI_CRITICAL_ASSETS = [
   '/dashboard/threads'
 ];
 
+// Helper to check if a URL is a route (not a static asset)
+// Routes are paths without file extensions that should be handled by fetch handler, not pre-cached
+const isRouteURL = (url) => {
+  try {
+    const urlObj = new URL(url, self.location.origin);
+    const pathname = urlObj.pathname;
+    
+    // Static asset paths should be cached
+    if (pathname.startsWith('/_astro/') ||
+        pathname.startsWith('/scripts/') ||
+        pathname.startsWith('/icons/') ||
+        pathname.startsWith('/videos/') ||
+        pathname.includes('.')) { // Has file extension
+      return false;
+    }
+    
+    // Routes (paths without extensions) should not be pre-cached as assets
+    // They're handled by the fetch event handler with appropriate strategies
+    return true;
+  } catch (e) {
+    // If URL parsing fails, assume it's not a route
+    return false;
+  }
+};
+
 // Helper to cache assets individually, continuing even if some fail
+// Filters out route URLs which should not be pre-cached as assets
 const cacheAssetsIndividually = async (cache, assets) => {
+  // Filter out route URLs - these are handled by fetch handler, not pre-cached
+  const staticAssets = assets.filter(url => !isRouteURL(url));
+  const routeURLs = assets.filter(url => isRouteURL(url));
+  
+  // Log if routes were filtered out (for debugging)
+  if (routeURLs.length > 0) {
+    console.log(`Service Worker: Skipping ${routeURLs.length} route(s) from asset caching: ${routeURLs.join(', ')}`);
+  }
+  
+  // Only cache static assets
+  if (staticAssets.length === 0) {
+    return [];
+  }
+  
   const results = await Promise.allSettled(
-    assets.map(url => 
+    staticAssets.map(url => 
       cache.add(url).catch(err => {
         console.warn(`Failed to cache asset: ${url}`, err);
         return null; // Continue with other assets
@@ -38,9 +78,9 @@ const cacheAssetsIndividually = async (cache, assets) => {
   const failed = results.length - successful;
   
   if (failed > 0) {
-    console.warn(`Service Worker: Cached ${successful}/${assets.length} assets (${failed} failed)`);
+    console.warn(`Service Worker: Cached ${successful}/${staticAssets.length} assets (${failed} failed)`);
   } else {
-    console.log(`Service Worker: Successfully cached all ${assets.length} assets`);
+    console.log(`Service Worker: Successfully cached all ${staticAssets.length} assets`);
   }
   
   return results;
@@ -567,13 +607,8 @@ self.addEventListener('message', (event) => {
       // Execute critical fetches immediately
       Promise.all(criticalFetches);
       
-      // Then schedule less critical pre-fetches
-      setTimeout(() => {
-        cacheAssetsIndividually(cache, [
-          '/find',
-          '/profile'
-        ]).catch(() => {});
-      }, 1000);
+      // Routes like /find and /profile are handled by the fetch event handler
+      // with network-first strategy, so they don't need to be pre-cached here
     });
   }
 });

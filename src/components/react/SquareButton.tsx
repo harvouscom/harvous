@@ -233,6 +233,7 @@ export default function SquareButton({
     } else if (variant === "Add" && withMenu) {
       variantClasses = `group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] ${isOpen ? 'bg-[var(--color-stone-grey)]' : 'bg-[var(--color-bold-blue)]'}`;
     } else if (variant === "More" && withMenu) {
+      // More button with menu: stone grey when open, gradient gray when closed (via inline style)
       variantClasses = `group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] ${isOpen ? 'bg-[var(--color-stone-grey)]' : ''}`;
     } else {
       variantClasses = "[&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95]";
@@ -246,11 +247,22 @@ export default function SquareButton({
       return {
         backgroundColor: 'var(--color-stone-grey)',
       };
-    } else if (variant === "More" && withMenu && !isOpen) {
+    } else if (variant === "More" && withMenu) {
+      // When More button with menu is open, use stone grey background
+      if (isOpen) {
+        return {
+          backgroundColor: 'var(--color-stone-grey)',
+        };
+      }
+      // When closed, use gradient gray background
       return {
         backgroundImage: 'var(--color-gradient-gray)',
       };
-    } else if (variant === "Back" || (variant === "More" && !withMenu)) {
+    } else if (variant === "Add" && withMenu) {
+      // Add button with menu - background is handled by classes
+      return {};
+    } else if (variant === "Back" || variant === "Find" || (variant === "More" && !withMenu)) {
+      // Back, Find, and More (without menu) all use gradient gray background
       return {
         backgroundImage: 'var(--color-gradient-gray)',
       };
@@ -275,7 +287,7 @@ export default function SquareButton({
   const iconSize = getIconSize();
 
   return (
-    <div className="square-button-container" ref={containerRef}>
+    <div className="square-button square-button-container" ref={containerRef}>
       <button
         type={type}
         className={getButtonClasses()}

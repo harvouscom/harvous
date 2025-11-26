@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
 import Avatar from './Avatar';
-import SquareButton from './SquareButton';
+import SquareButton from '../SquareButton';
 import { useNavigation } from './NavigationContext';
 
 /**

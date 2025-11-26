@@ -435,6 +435,11 @@ html {
   box-shadow: 0px -3px 0px 0px #78766F33 inset;
 }
 
+/* Ensure More button with menu has gradient background when closed */
+.square-button button[style*="background-image"] {
+  background-image: var(--color-gradient-gray) !important;
+}
+
 .square-button button:not([data-outer-shadow]):active {
   filter: brightness(0.97);
   box-shadow: 

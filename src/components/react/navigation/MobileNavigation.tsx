@@ -396,7 +396,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         >
           <button
             className="[&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
-            style={{ backgroundImage: 'var(--color-gradient-gray)', touchAction: 'manipulation' }}
+            style={{ 
+              backgroundImage: 'var(--color-gradient-gray)', 
+              boxShadow: '0px -3px 0px 0px #78766F33 inset',
+              touchAction: 'manipulation' 
+            }}
           >
             <div className="flex flex-row items-center justify-center relative w-full h-full">
               <div className="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-[18px] px-4 relative w-full h-full">
