@@ -62,6 +62,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
   const [currentItemId, setCurrentItemId] = useState(() => {
     // Initialize from window.location if available (client-side only)
     if (typeof window !== 'undefined') {

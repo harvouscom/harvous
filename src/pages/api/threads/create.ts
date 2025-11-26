@@ -5,6 +5,7 @@ import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
 import { awardThreadCreatedXP } from '@/utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor, validateSpaceId } from '@/utils/validation';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -46,11 +47,31 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Parse selected note IDs
     let selectedNoteIds: string[] = [];
     if (selectedNoteIdsStr) {
-      try {
-        selectedNoteIds = JSON.parse(selectedNoteIdsStr);
-      } catch (e) {
-        console.error('Error parsing selectedNoteIds:', e);
+      // Trim whitespace and validate format before parsing
+      const trimmed = selectedNoteIdsStr.trim();
+      
+      // Handle empty strings gracefully
+      if (trimmed.length === 0) {
         selectedNoteIds = [];
+      } else {
+        // Validate that it looks like a JSON array (starts with [ and ends with ])
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+          try {
+            selectedNoteIds = JSON.parse(trimmed);
+            // Ensure it's an array
+            if (!Array.isArray(selectedNoteIds)) {
+              console.error('selectedNoteIds is not an array after parsing');
+              selectedNoteIds = [];
+            }
+          } catch (e) {
+            console.error('Error parsing selectedNoteIds:', e);
+            selectedNoteIds = [];
+          }
+        } else {
+          // Invalid format - log and use empty array
+          console.error('selectedNoteIds does not appear to be a JSON array:', trimmed);
+          selectedNoteIds = [];
+        }
       }
     }
 
