@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Threads, Spaces, eq, and } from 'astro:db';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -9,6 +10,23 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       return new Response(JSON.stringify({ error: 'Authentication required' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Rate limiting for write operations
+    const ip = getClientIP(request);
+    const rateLimit = rateLimitMiddleware(userId, '/api/spaces/[spaceId]/add-thread', 'write', ip);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: rateLimit.error,
+        code: 'RATE_LIMIT_EXCEEDED'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
+          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
+        }
       });
     }
 

@@ -194,7 +194,23 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Parse webhook payload
-    const rawPayload: WebflowWebhookPayload = JSON.parse(rawBody);
+    let rawPayload: WebflowWebhookPayload;
+    try {
+      rawPayload = JSON.parse(rawBody);
+    } catch (parseError: any) {
+      console.error('Failed to parse webhook payload as JSON:', {
+        error: parseError.message,
+        bodyLength: rawBody.length,
+        bodyPreview: rawBody.substring(0, 200),
+      });
+      return new Response(JSON.stringify({ 
+        error: 'Invalid JSON payload',
+        details: parseError.message 
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
     
     // Normalize payload structure - handle both old and new formats
     let normalizedPayload = normalizeWebflowPayload(rawPayload);

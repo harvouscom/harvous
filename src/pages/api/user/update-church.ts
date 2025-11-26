@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, UserMetadata, eq } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -10,6 +11,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Rate limiting for write operations
+    const ip = getClientIP(request);
+    const rateLimit = rateLimitMiddleware(userId, '/api/user/update-church', 'write', ip);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: rateLimit.error,
+        code: 'RATE_LIMIT_EXCEEDED'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
+          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
+        }
       });
     }
 
