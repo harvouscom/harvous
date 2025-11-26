@@ -2,9 +2,37 @@ import type { APIRoute } from 'astro';
 import { threads } from '@/actions/threads';
 import { db, Notes, Threads, NoteThreads, eq, and } from 'astro:db';
 import { validateTitle, validateColor } from '@/utils/validation';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
 export const POST: APIRoute = async ({ request, locals, callAction }) => {
   try {
+    // Get userId from authenticated context
+    const { userId } = locals.auth();
+    
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Rate limiting for write operations
+    const ip = getClientIP(request);
+    const rateLimit = rateLimitMiddleware(userId, '/api/threads/update', 'write', ip);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: rateLimit.error,
+        code: 'RATE_LIMIT_EXCEEDED'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
+          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
+        }
+      });
+    }
+
     // Parse form data
     const formData = await request.formData();
     const threadId = formData.get('id') as string;

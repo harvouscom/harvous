@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, Spaces, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
@@ -11,6 +12,23 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'Authentication required' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Rate limiting for write operations
+    const ip = getClientIP(request);
+    const rateLimit = rateLimitMiddleware(userId, '/api/spaces/delete', 'write', ip);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: rateLimit.error,
+        code: 'RATE_LIMIT_EXCEEDED'
+      }), {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
+          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
+        }
       });
     }
 

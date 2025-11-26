@@ -48,20 +48,60 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const threadIdsStr = formData.get('selectedThreadIds') as string;
     
     if (noteIdsStr) {
-      try {
-        selectedNoteIds = JSON.parse(noteIdsStr);
-      } catch {
-        // If not JSON, treat as comma-separated
-        selectedNoteIds = noteIdsStr.split(',').filter(id => id.trim());
+      // Trim whitespace and validate format before parsing
+      const trimmed = noteIdsStr.trim();
+      
+      // Handle empty strings gracefully
+      if (trimmed.length === 0) {
+        selectedNoteIds = [];
+      } else {
+        // Validate that it looks like a JSON array (starts with [ and ends with ])
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+          try {
+            selectedNoteIds = JSON.parse(trimmed);
+            // Ensure it's an array
+            if (!Array.isArray(selectedNoteIds)) {
+              console.error('selectedNoteIds is not an array after parsing');
+              selectedNoteIds = [];
+            }
+          } catch (e) {
+            // If JSON parsing fails, treat as comma-separated (backward compatibility)
+            console.warn('Failed to parse selectedNoteIds as JSON, treating as comma-separated:', e);
+            selectedNoteIds = trimmed.split(',').filter(id => id.trim());
+          }
+        } else {
+          // Not a JSON array format - treat as comma-separated (backward compatibility)
+          selectedNoteIds = trimmed.split(',').filter(id => id.trim());
+        }
       }
     }
     
     if (threadIdsStr) {
-      try {
-        selectedThreadIds = JSON.parse(threadIdsStr);
-      } catch {
-        // If not JSON, treat as comma-separated
-        selectedThreadIds = threadIdsStr.split(',').filter(id => id.trim());
+      // Trim whitespace and validate format before parsing
+      const trimmed = threadIdsStr.trim();
+      
+      // Handle empty strings gracefully
+      if (trimmed.length === 0) {
+        selectedThreadIds = [];
+      } else {
+        // Validate that it looks like a JSON array (starts with [ and ends with ])
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+          try {
+            selectedThreadIds = JSON.parse(trimmed);
+            // Ensure it's an array
+            if (!Array.isArray(selectedThreadIds)) {
+              console.error('selectedThreadIds is not an array after parsing');
+              selectedThreadIds = [];
+            }
+          } catch (e) {
+            // If JSON parsing fails, treat as comma-separated (backward compatibility)
+            console.warn('Failed to parse selectedThreadIds as JSON, treating as comma-separated:', e);
+            selectedThreadIds = trimmed.split(',').filter(id => id.trim());
+          }
+        } else {
+          // Not a JSON array format - treat as comma-separated (backward compatibility)
+          selectedThreadIds = trimmed.split(',').filter(id => id.trim());
+        }
       }
     }
 
