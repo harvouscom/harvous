@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
-import SquareButton from '../SquareButton';
 import Avatar from './Avatar';
 import { getThreadGradientCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 

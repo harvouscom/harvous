@@ -196,11 +196,6 @@ nav a {
   pointer-events: none;
 }
 
-/* Persist navigation during transitions */
-[data-navigation-persist] {
-  view-transition-name: navigation;
-}
-
 /* Smooth content transitions */
 [slot="main"] {
   view-transition-name: main-content;
@@ -214,6 +209,7 @@ nav a {
 }
 
 /* Ensure navigation persists during view transitions */
+/* Only one element should have this view-transition-name at a time */
 [slot="navigation"] {
   view-transition-name: navigation;
 }
