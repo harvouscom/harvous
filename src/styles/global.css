@@ -210,7 +210,8 @@ nav a {
 
 /* Ensure navigation persists during view transitions */
 /* Only one element should have this view-transition-name at a time */
-[slot="navigation"] {
+/* Use :first-of-type to ensure only the first navigation slot gets the name */
+[slot="navigation"]:first-of-type {
   view-transition-name: navigation;
 }
 

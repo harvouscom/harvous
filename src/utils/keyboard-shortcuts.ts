@@ -137,6 +137,11 @@ function focusSearchInput(): void {
  * Handle keyboard shortcut events
  */
 function handleKeyboardShortcut(event: KeyboardEvent): void {
+  // Guard against undefined event.key (can happen in edge cases)
+  if (!event.key) {
+    return;
+  }
+  
   const modifier = isModifierPressed(event);
   const key = event.key.toLowerCase();
   const code = event.code;

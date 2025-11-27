@@ -126,6 +126,29 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <!-- Font Awesome CSS for note type icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
     
+    <!-- Clerk Error Handling -->
+    <script is:inline>
+      // Handle Clerk initialization errors gracefully
+      window.addEventListener('error', (event) => {
+        // Check if error is from Clerk timeout
+        if (event.message && event.message.includes('Clerk') && event.message.includes('timeout')) {
+          console.warn('[Clerk] Initialization timeout detected. App will continue to function, but authentication features may be limited.');
+          // Prevent error from propagating to PostHog if it's just a timeout
+          event.preventDefault();
+        }
+      });
+      
+      // Handle unhandled promise rejections from Clerk
+      window.addEventListener('unhandledrejection', (event) => {
+        const reason = event.reason?.message || String(event.reason || '');
+        if (reason.includes('Clerk') && (reason.includes('timeout') || reason.includes('failed_to_load'))) {
+          console.warn('[Clerk] Load timeout detected. App will continue to function.');
+          // Prevent error from propagating
+          event.preventDefault();
+        }
+      });
+    </script>
+    
     <!-- Avatar Manager Global Script -->
     <script is:inline src="/scripts/avatar-manager-global.js"></script>
     

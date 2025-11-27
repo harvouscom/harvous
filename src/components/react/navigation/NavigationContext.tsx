@@ -438,9 +438,23 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const targetUrl = nextItem ? `/${nextItem.id}` : '/';
       
       // Use View Transitions for smooth navigation
-      import('astro:transitions/client').then(({ navigate }) => {
-        navigate(targetUrl, { history: 'replace' });
-      });
+      // Check document visibility before starting transition (prevents error when page is hidden)
+      if (document.hidden) {
+        // Fallback to standard navigation if page is hidden
+        window.location.href = targetUrl;
+        return;
+      }
+      
+      // Wrap dynamic import in try-catch to handle import failures
+      import('astro:transitions/client')
+        .then(({ navigate }) => {
+          navigate(targetUrl, { history: 'replace' });
+        })
+        .catch((error) => {
+          // Fallback to standard navigation if dynamic import fails
+          console.warn('View Transitions import failed, using standard navigation:', error);
+          window.location.href = targetUrl;
+        });
       return; // Exit early since we're navigating
     }
     
