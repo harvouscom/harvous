@@ -167,6 +167,11 @@ nav a {
 
 
 /* View Transitions Loading States */
+/* Prevent white flash during view transitions */
+::view-transition {
+  background-color: var(--color-light-paper) !important;
+}
+
 /* Subtle loading indicator during page transitions */
 ::view-transition-old(root),
 ::view-transition-new(root) {
@@ -209,10 +214,15 @@ nav a {
 }
 
 /* Ensure navigation persists during view transitions */
-/* Only one element should have this view-transition-name at a time */
-/* Use :first-of-type to ensure only the first navigation slot gets the name */
-[slot="navigation"]:first-of-type {
+/* Only the active navigation element should have the view-transition-name */
+/* During transitions, both old and new elements exist briefly - we only want one */
+[slot="navigation"][data-navigation-active="true"] {
   view-transition-name: navigation;
+}
+
+/* Fallback: if no active attribute, don't use view-transition-name to avoid duplicates */
+[slot="navigation"]:not([data-navigation-active]) {
+  view-transition-name: none;
 }
 
 /* Additional view transition optimizations */
@@ -221,9 +231,14 @@ html {
   background-color: var(--color-light-paper) !important;
 }
 
+body {
+  background-color: var(--color-light-paper) !important;
+}
+
 /* Prevent flash during view transition preparation */
 ::view-transition-group(*) {
   contain: layout style paint;
+  background-color: var(--color-light-paper);
 }
 
 /* Loading indicator styles */

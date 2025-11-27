@@ -7,6 +7,8 @@ import AddToSpaceSection from './AddToSpaceSection';
 import { navigate } from 'astro:transitions/client';
 import { ButtonGroup } from '@/components/ui/button-group';
 import SimpleTooltip from './SimpleTooltip';
+import { safeFetch } from '@/utils/safe-fetch';
+import { captureException } from '@/utils/posthog';
 
 interface Note {
   id: string;
@@ -61,37 +63,36 @@ export default function EditThreadPanel({
     const fetchData = async () => {
       setIsLoadingItems(true);
       try {
-        // Fetch all notes
-        const notesResponse = await fetch('/api/spaces/items', {
-          credentials: 'include'
-        });
+        // Fetch all notes and thread notes in parallel with retry logic
+        const [notesResponse, threadNotesResponse] = await Promise.all([
+          safeFetch('/api/spaces/items', { retries: 2, retryDelay: 1000 }),
+          safeFetch(`/api/threads/${threadId}/notes?limit=50`, { retries: 2, retryDelay: 1000 })
+        ]);
         
-        if (notesResponse.ok) {
+        // Handle all notes response
+        if (notesResponse && notesResponse.ok) {
           const notesData = await notesResponse.json();
           setAllNotes(notesData.notes || []);
         } else {
-          console.error('Failed to fetch notes');
+          // Failed to fetch - safeFetch handles logging
           setAllNotes([]);
         }
 
-        // Fetch current thread notes
-        const threadNotesResponse = await fetch(`/api/threads/${threadId}/notes?limit=1000`, {
-          credentials: 'include'
-        });
-        
-        if (threadNotesResponse.ok) {
+        // Handle thread notes response
+        if (threadNotesResponse && threadNotesResponse.ok) {
           const threadNotesData = await threadNotesResponse.json();
           const notes = threadNotesData.notes || [];
           const noteIds = notes.map((note: Note) => note.id);
           setCurrentThreadNoteIds(noteIds);
           setCurrentThreadNotes(notes);
         } else {
-          console.error('Failed to fetch thread notes');
+          // Failed to fetch - safeFetch handles logging
           setCurrentThreadNoteIds([]);
           setCurrentThreadNotes([]);
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        // Unexpected error
+        captureException(error as Error);
         setAllNotes([]);
         setCurrentThreadNoteIds([]);
       } finally {

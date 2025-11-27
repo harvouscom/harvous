@@ -8,6 +8,7 @@ import { captureException } from '@/utils/posthog';
 import { navigate } from 'astro:transitions/client';
 import { ButtonGroup } from '@/components/ui/button-group';
 import SimpleTooltip from './SimpleTooltip';
+import { safeFetch } from '@/utils/safe-fetch';
 
 interface Note {
   id: string;
@@ -125,19 +126,22 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
       const fetchItems = async () => {
         setIsLoadingItems(true);
         try {
-          const response = await fetch('/api/spaces/items', {
-            credentials: 'include'
+          // Use safeFetch with retry logic for resilient API calls
+          const response = await safeFetch('/api/spaces/items', {
+            retries: 2,
+            retryDelay: 1000
           });
           
-          if (response.ok) {
+          if (response && response.ok) {
             const data = await response.json();
             setAllNotes(data.notes || []);
           } else {
-            console.error('Failed to fetch items');
+            // Failed to fetch - safeFetch handles logging
             setAllNotes([]);
           }
         } catch (error) {
-          console.error('Error fetching items:', error);
+          // Unexpected error
+          captureException(error as Error);
           setAllNotes([]);
         } finally {
           setIsLoadingItems(false);

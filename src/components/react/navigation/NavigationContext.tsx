@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { safeSetItem, safeGetItem, safeRemoveItem, getStorage } from '@/utils/safe-storage';
+import { safeFetch, isAuthReady } from '@/utils/safe-fetch';
 
 // Navigation item interface
 export interface NavigationItem {
@@ -33,73 +34,6 @@ const defaultContextValue: NavigationContextType = {
   refreshNavigation: () => {},
   getCurrentActiveItemId: () => ''
 };
-
-/**
- * Check if Clerk authentication is ready
- * Returns true if auth cookies/tokens are present
- */
-function isAuthReady(): boolean {
-  if (typeof window === 'undefined') return false;
-  
-  // Check for Clerk session cookie or token
-  const cookies = document.cookie.split(';');
-  const hasClerkCookie = cookies.some(cookie => 
-    cookie.trim().startsWith('__clerk') || 
-    cookie.trim().startsWith('__session')
-  );
-  
-  // Also check if we're on a protected route (not sign-in/sign-up)
-  const isProtectedRoute = !window.location.pathname.includes('/sign-in') && 
-                          !window.location.pathname.includes('/sign-up');
-  
-  return hasClerkCookie || isProtectedRoute;
-}
-
-/**
- * Safe fetch wrapper that checks auth and handles 401 errors gracefully
- * Returns null if auth is not ready or if 401 error occurs
- * Logs errors for debugging but doesn't throw
- */
-async function safeFetch(url: string, options: RequestInit = {}): Promise<Response | null> {
-  // Check if auth is ready before making API call
-  if (!isAuthReady()) {
-    // Auth not ready yet - log for debugging but don't spam console
-    if (import.meta.env.DEV) {
-      console.debug('safeFetch: Auth not ready yet for', url);
-    }
-    return null;
-  }
-  
-  try {
-    const response = await fetch(url, {
-      ...options,
-      credentials: 'include'
-    });
-    
-    // Handle 401 errors gracefully - auth may not be fully established yet
-    if (response.status === 401) {
-      if (import.meta.env.DEV) {
-        console.debug('safeFetch: 401 Unauthorized for', url, '- auth may not be fully established');
-      }
-      return null;
-    }
-    
-    // Log other error statuses for debugging
-    if (!response.ok && response.status >= 500) {
-      console.error('safeFetch: Server error', response.status, 'for', url);
-    } else if (!response.ok && response.status >= 400) {
-      if (import.meta.env.DEV) {
-        console.warn('safeFetch: Client error', response.status, 'for', url);
-      }
-    }
-    
-    return response;
-  } catch (error) {
-    // Network errors - log for debugging
-    console.error('safeFetch: Network error for', url, error);
-    return null;
-  }
-}
 
 // Provider component
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

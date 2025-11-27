@@ -1,10 +1,13 @@
-import React, { useReducer, useEffect, useCallback, useState } from 'react';
-import NewNotePanel from './NewNotePanel';
-import NewThreadPanel from './NewThreadPanel';
-import NoteDetailsPanel from './NoteDetailsPanel';
-import EditThreadPanel from './EditThreadPanel';
-import EditSpacePanel from './EditSpacePanel';
-import InboxItemPreviewPanel from './InboxItemPreviewPanel';
+import React, { useReducer, useEffect, useCallback, useState, lazy, Suspense } from 'react';
+import PanelErrorBoundary from './PanelErrorBoundary';
+
+// Lazy load panel components for code splitting
+const NewNotePanel = lazy(() => import('./NewNotePanel'));
+const NewThreadPanel = lazy(() => import('./NewThreadPanel'));
+const NoteDetailsPanel = lazy(() => import('./NoteDetailsPanel'));
+const EditThreadPanel = lazy(() => import('./EditThreadPanel'));
+const EditSpacePanel = lazy(() => import('./EditSpacePanel'));
+const InboxItemPreviewPanel = lazy(() => import('./InboxItemPreviewPanel'));
 
 interface DesktopPanelManagerProps {
   currentThread?: any;
@@ -126,6 +129,25 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       return state;
   }
 }
+
+// Progress bar fallback component matching existing panel pattern
+const ProgressBarFallback = ({ containerClasses }: { containerClasses: string }) => (
+  <div className={`${containerClasses} relative`}>
+    <div className="absolute top-0 left-0 right-0 h-0.5 bg-[var(--color-gray)] overflow-hidden rounded-t-[24px] z-50 pointer-events-none">
+      <div className="h-full bg-[var(--color-bold-blue)] animate-pulse" style={{
+        animation: 'progress 1.5s ease-in-out infinite',
+        width: '100%'
+      }}></div>
+    </div>
+    <style>{`
+      @keyframes progress {
+        0% { transform: translateX(-100%); }
+        50% { transform: translateX(0%); }
+        100% { transform: translateX(100%); }
+      }
+    `}</style>
+  </div>
+);
 
 export default function DesktopPanelManager({
   currentThread,
@@ -306,98 +328,121 @@ export default function DesktopPanelManager({
 
   // Determine if any panel is open
   const isAnyPanelOpen = state.activePanel !== null;
-  
 
   return (
     <div className="flex flex-col items-left h-full min-h-0" style={{ maxHeight: '100%' }}>
       {/* New Note Panel - Desktop Only */}
       {state.activePanel === 'newNote' && (
-        <div className="h-full new-note-panel-container hidden min-[1160px]:block">
-          <NewNotePanel
-            key={`new-note-${state.panelKey}`}
-            currentThread={currentThread}
-            currentSpace={currentSpace}
-            onClose={handleCloseNewNote}
-          />
-        </div>
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full new-note-panel-container hidden min-[1160px]:block" />}>
+            <div className="h-full new-note-panel-container hidden min-[1160px]:block">
+              <NewNotePanel
+                key={`new-note-${state.panelKey}`}
+                currentThread={currentThread}
+                currentSpace={currentSpace}
+                onClose={handleCloseNewNote}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
       )}
 
       {/* New Thread Panel - Desktop Only */}
       {state.activePanel === 'newThread' && (
-        <div className="h-full hidden min-[1160px]:block">
-          <NewThreadPanel
-            key={`new-thread-${state.panelKey}`}
-            currentSpace={currentSpace}
-            onClose={handleCloseNewThread}
-          />
-        </div>
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <NewThreadPanel
+                key={`new-thread-${state.panelKey}`}
+                currentSpace={currentSpace}
+                onClose={handleCloseNewThread}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
       )}
 
       {/* Note Details Panel (notes only) - Desktop Only */}
       {state.activePanel === 'noteDetails' && contentType === 'note' && currentNote && (
-        <div className="h-full hidden min-[1160px]:block">
-          <NoteDetailsPanel 
-            noteId={currentNote.id} 
-            noteTitle={currentNote.title || "Note Details"}
-            threads={[]}
-            comments={[]}
-            tags={[]}
-            onClose={handleCloseNoteDetails}
-            inBottomSheet={false}
-          />
-        </div>
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <NoteDetailsPanel 
+                noteId={currentNote.id} 
+                noteTitle={currentNote.title || "Note Details"}
+                threads={[]}
+                comments={[]}
+                tags={[]}
+                onClose={handleCloseNoteDetails}
+                inBottomSheet={false}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
       )}
 
       {/* Edit Thread Panel (threads only) - Desktop Only */}
       {state.activePanel === 'editThread' && contentType === 'thread' && currentThread && (
-        <div className="h-full hidden min-[1160px]:block">
-          <EditThreadPanel 
-            threadId={currentThread.id}
-            initialTitle={currentThread.title}
-            initialColor={currentThread.color}
-            onClose={handleCloseEditThread}
-          />
-        </div>
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <EditThreadPanel 
+                threadId={currentThread.id}
+                initialTitle={currentThread.title}
+                initialColor={currentThread.color}
+                onClose={handleCloseEditThread}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
       )}
 
       {/* Edit Space Panel (spaces only) - Desktop Only */}
       {state.activePanel === 'editSpace' && contentType === 'space' && currentSpace && (
-        <div className="h-full hidden min-[1160px]:block">
-          <EditSpacePanel 
-            spaceId={currentSpace.id}
-            initialTitle={currentSpace.title}
-            initialColor={currentSpace.color}
-            onClose={handleCloseEditSpace}
-          />
-        </div>
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <EditSpacePanel 
+                spaceId={currentSpace.id}
+                initialTitle={currentSpace.title}
+                initialColor={currentSpace.color}
+                onClose={handleCloseEditSpace}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
       )}
 
       {/* Inbox Item Preview Panel - Desktop Only */}
       {state.activePanel === 'inboxPreview' && inboxPreviewData && (
-        <div className="h-full hidden min-[1160px]:block" style={{ height: '100%', maxHeight: '100%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <InboxItemPreviewPanel
-            key={`inbox-preview-${state.panelKey}`}
-            item={inboxPreviewData}
-            onClose={handleCloseInboxPreview}
-            onAddToHarvous={async (inboxItemId: string) => {
-              // Dispatch event that InboxItemsList will handle
-              window.dispatchEvent(new CustomEvent('inboxItemAddToHarvous', { detail: { inboxItemId } }));
-            }}
-            onArchive={async (inboxItemId: string) => {
-              // Dispatch event that InboxItemsList will handle
-              window.dispatchEvent(new CustomEvent('inboxItemArchive', { detail: { inboxItemId } }));
-            }}
-            onUnarchive={async (inboxItemId: string) => {
-              // Dispatch event that InboxItemsList will handle
-              window.dispatchEvent(new CustomEvent('inboxItemUnarchive', { detail: { inboxItemId } }));
-            }}
-            onAddNoteToHarvous={async (inboxItemNoteId: string) => {
-              // Dispatch event that InboxItemsList will handle
-              window.dispatchEvent(new CustomEvent('inboxNoteAddToHarvous', { detail: { inboxItemNoteId } }));
-            }}
-            inBottomSheet={false}
-          />
-        </div>
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block" style={{ height: '100%', maxHeight: '100%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <InboxItemPreviewPanel
+                key={`inbox-preview-${state.panelKey}`}
+                item={inboxPreviewData}
+                onClose={handleCloseInboxPreview}
+                onAddToHarvous={async (inboxItemId: string) => {
+                  // Dispatch event that InboxItemsList will handle
+                  window.dispatchEvent(new CustomEvent('inboxItemAddToHarvous', { detail: { inboxItemId } }));
+                }}
+                onArchive={async (inboxItemId: string) => {
+                  // Dispatch event that InboxItemsList will handle
+                  window.dispatchEvent(new CustomEvent('inboxItemArchive', { detail: { inboxItemId } }));
+                }}
+                onUnarchive={async (inboxItemId: string) => {
+                  // Dispatch event that InboxItemsList will handle
+                  window.dispatchEvent(new CustomEvent('inboxItemUnarchive', { detail: { inboxItemId } }));
+                }}
+                onAddNoteToHarvous={async (inboxItemNoteId: string) => {
+                  // Dispatch event that InboxItemsList will handle
+                  window.dispatchEvent(new CustomEvent('inboxNoteAddToHarvous', { detail: { inboxItemNoteId } }));
+                }}
+                inBottomSheet={false}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
       )}
     </div>
   );

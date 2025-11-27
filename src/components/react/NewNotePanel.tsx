@@ -9,6 +9,7 @@ import { useNavigation } from './navigation/NavigationContext';
 import { captureException } from '@/utils/posthog';
 import { navigate } from 'astro:transitions/client';
 import { getThreadGradientCSS, getThreadTextColorCSS } from '@/utils/colors';
+import { safeFetch } from '@/utils/safe-fetch';
 
 interface Thread {
   id: string;
@@ -515,11 +516,13 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     loadThreadsRef.current.isLoading = true;
 
     try {
-      const response = await fetch('/api/threads/list', {
-        credentials: 'include'
+      // Use safeFetch with retry logic for resilient API calls
+      const response = await safeFetch('/api/threads/list', {
+        retries: 2,
+        retryDelay: 1000
       });
       
-      if (response.ok) {
+      if (response && response.ok) {
         const threads = await response.json();
         const formattedThreads = threads.map((thread: any) => ({
           id: thread.id,
@@ -542,13 +545,6 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
             noteCount: 0,
             backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
           });
-        } else {
-          // Find and log the unorganized thread to verify its count
-          const unorganizedThread = formattedThreads.find((thread: Thread) => 
-            thread.title === 'Unorganized' || thread.id === 'thread_unorganized'
-          );
-          if (unorganizedThread) {
-          }
         }
         
         setThreadOptions(formattedThreads);
@@ -573,8 +569,10 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
           localStorage.removeItem('newNoteThread');
         }
       }
+      // If response is null or not ok, silently fail - safeFetch handles logging
     } catch (error) {
-      // Error loading threads
+      // Unexpected error - safeFetch should handle most cases
+      captureException(error as Error);
     } finally {
       loadThreadsRef.current.isLoading = false;
     }
@@ -583,16 +581,20 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   // Load next note ID
   const loadNextNoteId = async () => {
     try {
-      const response = await fetch('/api/notes/next-id', {
-        credentials: 'include'
+      // Use safeFetch with retry logic for resilient API calls
+      const response = await safeFetch('/api/notes/next-id', {
+        retries: 2,
+        retryDelay: 1000
       });
       
-      if (response.ok) {
+      if (response && response.ok) {
         const data = await response.json();
         setNextNoteId(`#${data.formattedId}`);
       }
+      // If response is null or not ok, keep default '#New' - safeFetch handles logging
     } catch (error) {
-      // Error loading next note ID
+      // Unexpected error - keep default value
+      captureException(error as Error);
     }
   };
 

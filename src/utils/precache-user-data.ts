@@ -1,51 +1,45 @@
 /**
  * Pre-caching utility for offline reading
  * Pre-caches user's recent notes, threads, and spaces for offline access
+ * 
+ * Features:
+ * - Delayed start to ensure server is ready
+ * - Retry logic with exponential backoff
+ * - Non-blocking and fail-graceful
  */
 
-/**
- * Check if Clerk authentication is ready
- * Returns true if auth cookies/tokens are present
- */
-function isAuthReady(): boolean {
-  if (typeof window === 'undefined') return false;
-  
-  // Check for Clerk session cookie or token
-  const cookies = document.cookie.split(';');
-  const hasClerkCookie = cookies.some(cookie => 
-    cookie.trim().startsWith('__clerk') || 
-    cookie.trim().startsWith('__session')
-  );
-  
-  // Also check if we're on a protected route (not sign-in/sign-up)
-  const isProtectedRoute = !window.location.pathname.includes('/sign-in') && 
-                          !window.location.pathname.includes('/sign-up');
-  
-  return hasClerkCookie || isProtectedRoute;
-}
+import { safeFetch, isAuthReady } from './safe-fetch';
+
+/** Delay in ms before starting pre-cache (allows server to be ready) */
+const PRECACHE_START_DELAY = 3000;
+
+/** Maximum number of items to cache per category */
+const MAX_CACHE_ITEMS = 50;
 
 /**
- * Cache a single URL in the service worker cache
+ * Cache a single URL in the service worker cache with retry logic
  */
 async function cacheUrl(url: string, cacheName: string = 'harvous-cache-v6'): Promise<boolean> {
   try {
     if (!('caches' in window)) return false;
     
     const cache = await caches.open(cacheName);
-    const response = await fetch(url, {
-      credentials: 'include', // Include auth cookies
-      headers: {
-        'Accept': 'text/html,application/json',
-      }
+    
+    // Use safeFetch with retry logic
+    const response = await safeFetch(url, {
+      retries: 2,
+      retryDelay: 500,
+      timeout: 8000,
+      checkAuth: true
     });
     
-    if (response.ok) {
+    if (response && response.ok) {
       await cache.put(url, response.clone());
       return true;
     }
     return false;
   } catch (error) {
-    console.warn(`Failed to cache ${url}:`, error);
+    // Fail silently - pre-caching is non-critical
     return false;
   }
 }
@@ -101,10 +95,17 @@ async function precacheSpacePages(spaceIds: string[]): Promise<number> {
 /**
  * Main pre-caching function
  * Fetches and caches user's recent content for offline access
+ * 
+ * This function is designed to be non-blocking and fail-graceful.
+ * It will not throw errors or block page load.
  */
 export async function precacheRecentContent(): Promise<void> {
+  // Wait for server to be ready before starting
+  await new Promise(resolve => setTimeout(resolve, PRECACHE_START_DELAY));
+  
   // Check if auth is ready
   if (!isAuthReady()) {
+    // Auth not ready, skip silently
     return;
   }
 
@@ -114,40 +115,37 @@ export async function precacheRecentContent(): Promise<void> {
   }
 
   try {
-    // Fetch recent notes (50 items)
-    const notesResponse = await fetch('/api/notes/recent?limit=50', {
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
-      }
+    // Fetch recent notes with retry logic
+    const notesResponse = await safeFetch('/api/notes/recent?limit=50', {
+      retries: 2,
+      retryDelay: 1000,
+      timeout: 10000
     });
 
-    if (!notesResponse.ok) {
-      console.warn('Pre-caching: Failed to fetch recent notes');
+    if (!notesResponse || !notesResponse.ok) {
+      // Failed to fetch notes - skip pre-caching silently
       return;
     }
 
     const notes = await notesResponse.json();
     const noteIds = notes.map((note: any) => note.id);
 
-    // Fetch navigation data (threads and spaces)
-    const navResponse = await fetch('/api/navigation/data', {
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
-      }
+    // Fetch navigation data with retry logic
+    const navResponse = await safeFetch('/api/navigation/data', {
+      retries: 2,
+      retryDelay: 1000,
+      timeout: 10000
     });
 
     let threadIds: string[] = [];
     let spaceIds: string[] = [];
 
-    if (navResponse.ok) {
+    if (navResponse && navResponse.ok) {
       const navData = await navResponse.json();
       threadIds = (navData.threads || []).map((thread: any) => thread.id);
       spaceIds = (navData.spaces || []).map((space: any) => space.id);
-    } else {
-      console.warn('Pre-caching: Failed to fetch navigation data');
     }
+    // If nav fetch failed, continue with just notes
 
     // Cache API responses first (for offline API access)
     const apiUrls = [
@@ -157,21 +155,27 @@ export async function precacheRecentContent(): Promise<void> {
     
     await cacheUrls(apiUrls);
 
-    // Cache individual pages (limit to 50 total to avoid overwhelming)
+    // Cache individual pages (limit to MAX_CACHE_ITEMS total to avoid overwhelming)
     const totalItems = noteIds.length + threadIds.length + spaceIds.length;
-    const maxItems = 50;
     
     // Prioritize notes, then threads, then spaces
-    const notesToCache = noteIds.slice(0, Math.min(noteIds.length, maxItems));
-    const remainingSlots = maxItems - notesToCache.length;
+    const notesToCache = noteIds.slice(0, Math.min(noteIds.length, MAX_CACHE_ITEMS));
+    const remainingSlots = MAX_CACHE_ITEMS - notesToCache.length;
     const threadsToCache = threadIds.slice(0, Math.min(threadIds.length, Math.floor(remainingSlots * 0.6)));
     const spacesToCache = spaceIds.slice(0, Math.min(spaceIds.length, remainingSlots - threadsToCache.length));
 
-    await precacheNotePages(notesToCache);
-    await precacheThreadPages(threadsToCache);
-    await precacheSpacePages(spacesToCache);
+    // Cache pages in the background - don't await to avoid blocking
+    Promise.allSettled([
+      precacheNotePages(notesToCache),
+      precacheThreadPages(threadsToCache),
+      precacheSpacePages(spacesToCache)
+    ]).catch(() => {
+      // Silently ignore errors - pre-caching is non-critical
+    });
+    
   } catch (error) {
-    console.error('Pre-caching: Error during pre-caching', error);
+    // Pre-caching failed - this is non-critical, fail silently
+    // Don't log to avoid console spam
   }
 }
 
@@ -181,7 +185,8 @@ export {
   precacheThreadPages,
   precacheSpacePages,
   cacheUrl,
-  cacheUrls,
-  isAuthReady
+  cacheUrls
 };
 
+// Re-export isAuthReady from safe-fetch for backwards compatibility
+export { isAuthReady };
