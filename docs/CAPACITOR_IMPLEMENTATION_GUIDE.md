@@ -970,3 +970,4 @@ npx cap sync
 **Capacitor Version:** Latest (check https://capacitorjs.com/docs for current version)  
 **Status:** Ready for implementation
 
+
