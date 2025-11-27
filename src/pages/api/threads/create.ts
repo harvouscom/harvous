@@ -6,6 +6,7 @@ import { awardThreadCreatedXP } from '@/utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor, validateSpaceId } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { getNextUntitledThreadName } from '@/utils/untitled-naming';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -75,7 +76,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    // Validate title (not required, defaults to "Untitled Thread")
+    // Validate title (not required, defaults to "Untitled Thread N")
     const titleValidation = validateTitle(title, false);
     if (!titleValidation.isValid) {
       return new Response(JSON.stringify({ 
@@ -87,8 +88,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Default to "Untitled Thread" if title is empty or whitespace
-    const finalTitle = (!title || !title.trim()) ? 'Untitled Thread' : title.trim();
+    // Default to "Untitled Thread N" if title is empty or whitespace
+    let finalTitle: string;
+    if (!title || !title.trim()) {
+      finalTitle = await getNextUntitledThreadName(userId);
+    } else {
+      finalTitle = title.trim();
+    }
 
     // Validate color if provided
     const colorValidation = validateColor(color);

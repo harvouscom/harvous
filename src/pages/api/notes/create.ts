@@ -7,6 +7,7 @@ import { parseScriptureReference, normalizeScriptureReference } from '@/utils/sc
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent, validateNoteType, validateThreadId, validateSpaceId } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { getNextUntitledNoteName } from '@/utils/untitled-naming';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -97,7 +98,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
-    const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
+    
+    // Generate numbered untitled name if title is empty, otherwise capitalize
+    let capitalizedTitle: string;
+    if (!title || !title.trim()) {
+      capitalizedTitle = await getNextUntitledNoteName(userId);
+    } else {
+      capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+    }
     
     // Always create note in unorganized as primary threadId
     // If a specific thread is selected, add it to that thread via junction table and update primary threadId
