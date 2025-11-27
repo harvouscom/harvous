@@ -982,6 +982,6 @@ Built with ❤️ for Bible study enthusiasts
 
 ---
 
-**Version:** 0.121.5
+**Version:** 0.121.6
 **Last Updated:** January 2025
 **Status:** Active Development - 85% to V1 🚀
