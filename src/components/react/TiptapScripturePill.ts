@@ -106,7 +106,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           align-items: baseline;
           height: auto;
           min-height: 28px;
-          gap: 6px;
+          gap: 4px;
           box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25);
           font-weight: 600;
           font-size: 16px;

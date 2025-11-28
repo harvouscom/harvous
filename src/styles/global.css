@@ -798,17 +798,17 @@ button[disabled] {
   content: "\f70e"; /* Font Awesome scroll icon unicode */
   font-family: "Font Awesome 6 Free", "Font Awesome 6 Pro", "FontAwesome";
   font-weight: 900;
-  font-size: 16px;
+  font-size: 14px;
   color: var(--color-deep-grey);
-  margin-right: 6px;
+  margin-right: 4px;
   display: inline-block;
   vertical-align: middle;
   line-height: 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .scripture-pill-clickable:hover {
