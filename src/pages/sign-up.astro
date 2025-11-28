@@ -5,7 +5,7 @@ import SquareButton from "@/components/SquareButton.astro";
 ---
 
 <EmptyLayout title="Sign Up">
-  <div class="min-h-[100svh] max-h-[100svh] h-[100svh] overflow-hidden p-3 flex flex-col">
+  <div id="sign-up-content" class="min-h-[100svh] max-h-[100svh] h-[100svh] overflow-hidden p-3 flex flex-col sign-up-hidden">
     <div class="flex-1 flex flex-col lg:flex-row gap-6">
       <!-- Top Row (Mobile) / Left Column (Desktop): Video Background -->
       <div class="flex h-[89px] lg:h-auto lg:flex-1 thread-colors-mesh-gradient relative overflow-hidden rounded-[12px]">
@@ -91,7 +91,38 @@ import SquareButton from "@/components/SquareButton.astro";
   </div>
 </EmptyLayout>
 
+<!-- Client-side auth check - content hidden by default to prevent flash -->
+<script is:inline>
+  (function() {
+    if (typeof window === 'undefined') return;
+    
+    // Check if Clerk session cookie exists
+    var cookies = document.cookie.split(';');
+    var hasClerkCookie = cookies.some(function(cookie) {
+      return cookie.trim().startsWith('__clerk') || 
+             cookie.trim().startsWith('__session');
+    });
+    
+    // If authenticated, redirect immediately (content stays hidden)
+    if (hasClerkCookie) {
+      window.location.replace('/');
+      return; // Don't show content
+    }
+    
+    // Not authenticated - show the sign-up content
+    var content = document.getElementById('sign-up-content');
+    if (content) {
+      content.classList.remove('sign-up-hidden');
+    }
+  })();
+</script>
+
 <style>
+  /* Hide sign-up content by default to prevent flash when user is already authenticated */
+  .sign-up-hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
   /* Custom primary button styling */
   .primary-button,
   :global(.cl-formButtonPrimary) {

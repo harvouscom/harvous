@@ -8,7 +8,7 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
 ---
 
 <EmptyLayout title="Sign In">
-  <div class="min-h-[100svh] max-h-[100svh] h-[100svh] overflow-hidden p-3 flex flex-col">
+  <div id="sign-in-content" class="min-h-[100svh] max-h-[100svh] h-[100svh] overflow-hidden p-3 flex flex-col sign-in-hidden">
     <div class="flex-1 flex flex-col lg:flex-row gap-6">
       <!-- Top Row (Mobile) / Left Column (Desktop): Video Background -->
       <div class="flex h-[89px] lg:h-auto lg:flex-1 thread-colors-mesh-gradient relative overflow-hidden rounded-[12px]">
@@ -94,32 +94,40 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
   </div>
 </EmptyLayout>
 
-<!-- Client-side auth check to prevent flash if already authenticated -->
+<!-- Client-side auth check - content hidden by default to prevent flash -->
 <script is:inline>
   (function() {
     if (typeof window === 'undefined') return;
     
     // Check if Clerk session cookie exists
-    const cookies = document.cookie.split(';');
-    const hasClerkCookie = cookies.some(cookie => 
-      cookie.trim().startsWith('__clerk') || 
-      cookie.trim().startsWith('__session')
-    );
+    var cookies = document.cookie.split(';');
+    var hasClerkCookie = cookies.some(function(cookie) {
+      return cookie.trim().startsWith('__clerk') || 
+             cookie.trim().startsWith('__session');
+    });
     
-    // If authenticated, redirect immediately to prevent flash
+    // If authenticated, redirect immediately (content stays hidden)
     if (hasClerkCookie) {
-      const redirectUrl = new URLSearchParams(window.location.search).get('redirect_url') || '/';
-      // Use View Transitions if available, otherwise regular navigation
-      if (window.navigation && window.navigation.transition) {
-        window.navigation.navigate(redirectUrl, { history: 'replace' });
-      } else {
-        window.location.replace(redirectUrl);
-      }
+      var redirectUrl = new URLSearchParams(window.location.search).get('redirect_url') || '/';
+      window.location.replace(redirectUrl);
+      return; // Don't show content
+    }
+    
+    // Not authenticated - show the sign-in content
+    var content = document.getElementById('sign-in-content');
+    if (content) {
+      content.classList.remove('sign-in-hidden');
     }
   })();
 </script>
 
 <style>
+  /* Hide sign-in content by default to prevent flash when user is already authenticated */
+  .sign-in-hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+  
   /* Custom primary button styling */
   .primary-button,
   :global(.cl-formButtonPrimary) {
