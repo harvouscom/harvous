@@ -12,7 +12,6 @@ export const DELETE: APIRoute = async ({ locals }) => {
       });
     }
 
-    console.log(`Deleting account for user ${userId}`);
 
     // Delete all user data in the correct order to respect foreign key constraints
     
@@ -70,7 +69,6 @@ export const DELETE: APIRoute = async ({ locals }) => {
     // 7. Delete UserMetadata
     await db.delete(UserMetadata).where(eq(UserMetadata.userId, userId));
 
-    console.log(`Deleted all database records for user ${userId}`);
 
     // 8. Delete user from Clerk
     try {
@@ -110,8 +108,6 @@ export const DELETE: APIRoute = async ({ locals }) => {
           if (import.meta.env.PROD) {
             console.error('⚠️ WARNING: Clerk user deletion failed, but database deletion succeeded');
           }
-        } else {
-          console.log(`✅ Deleted Clerk user ${userId}`);
         }
       }
     } catch (clerkError: any) {

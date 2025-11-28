@@ -1,8 +1,24 @@
 /**
- * Profile Cache Utility
+ * Client-Side Profile Cache (profile-cache.ts)
  * 
- * Manages profile data caching in sessionStorage to avoid unnecessary API calls.
- * Cache persists until a change occurs (updated on successful saves) or logout.
+ * PURPOSE: Caches profile data in browser sessionStorage to avoid 
+ * redundant API calls during a single browser session.
+ * 
+ * SCOPE: Client-side only - runs in the browser
+ * STORAGE: sessionStorage (cleared on tab/browser close or logout)
+ * TTL: Session-based - persists until logout or manual clear
+ * 
+ * USE CASES:
+ * - Caching profile data after initial fetch to avoid API calls
+ * - Optimistic updates when user saves profile changes
+ * - Fast access to profile data in React components
+ * 
+ * DIFFERENCE FROM user-cache.ts:
+ * - profile-cache.ts = CLIENT-SIDE sessionStorage cache (browser)
+ * - user-cache.ts = SERVER-SIDE database cache (UserMetadata table)
+ * 
+ * The two work together: server fetches from user-cache, client caches
+ * the result in profile-cache to avoid redundant API calls during session.
  */
 
 export interface CachedProfileData {

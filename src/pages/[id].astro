@@ -992,19 +992,26 @@ if (!content) {
   };
   
   // Listen for note thread changes and refresh the page using View Transitions
-  document.addEventListener('noteAddedToThread', async (event) => {
+  window.addEventListener('noteAddedToThread', async (event) => {
     const { noteId, threadId } = event.detail;
+    const { navigate } = await import('astro:transitions/client');
     
     // Check if we're on the affected thread page
     const currentThreadId = window.location.pathname.substring(1);
     if (currentThreadId === threadId) {
       // Navigate using View Transitions to show updated note list
-      const { navigate } = await import('astro:transitions/client');
+      navigate(window.location.pathname + window.location.search, { history: 'replace' });
+      return;
+    }
+    
+    // Also refresh if we're viewing unorganized and a note was added to another thread
+    // (the note is no longer in unorganized when it has a thread association)
+    if (currentThreadId === 'thread_unorganized' && threadId !== 'thread_unorganized') {
       navigate(window.location.pathname + window.location.search, { history: 'replace' });
     }
   });
   
-  document.addEventListener('noteRemovedFromThread', async (event) => {
+  window.addEventListener('noteRemovedFromThread', async (event) => {
     const { noteId, threadId, remainingThreadIds } = event.detail;
     const { navigate } = await import('astro:transitions/client');
     

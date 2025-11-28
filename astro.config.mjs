@@ -42,7 +42,24 @@ export default defineConfig({
         output: {
           // Improve chunk splitting for better caching
           manualChunks: {
-            editor: ['isomorphic-dompurify']
+            editor: ['isomorphic-dompurify'],
+            tiptap: [
+              '@tiptap/react',
+              '@tiptap/starter-kit',
+              '@tiptap/extension-bullet-list',
+              '@tiptap/extension-highlight',
+              '@tiptap/extension-list-item',
+              '@tiptap/extension-ordered-list',
+              '@tiptap/extension-placeholder',
+              '@tiptap/extension-underline'
+            ],
+            radix: [
+              '@radix-ui/react-dialog',
+              '@radix-ui/react-popover',
+              '@radix-ui/react-slot',
+              '@radix-ui/react-switch',
+              '@radix-ui/react-toggle'
+            ]
           }
         }
       }

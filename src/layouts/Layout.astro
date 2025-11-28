@@ -120,9 +120,6 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <!-- Special tab interaction handler for first-touch optimization -->
     <script is:inline src="/scripts/tab-interaction-handler.js"></script>
     
-    <!-- Alpine.js CDN for SquareButton menu functionality -->
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    
     <!-- Font Awesome CSS for note type icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
     
@@ -350,22 +347,13 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
   }
 </script>
 
-<!-- Global Alpine.js re-initialization for View Transitions -->
+<!-- React islands re-hydration for View Transitions -->
 <script>
-  // Simple Alpine.js re-initialization after View Transitions
-  document.addEventListener('astro:page-load', () => {
-    if ((window as any).Alpine) {
-      (window as any).Alpine.initTree(document.body);
-    }
-  });
-  
   // Ensure React islands properly re-hydrate after View Transitions
   // This is especially important for navigation slot updates
-  // Use requestIdleCallback for non-critical hydration checks to avoid blocking navigation
   document.addEventListener('astro:after-swap', () => {
     // Astro automatically handles hydration, so we don't need to do anything here
     // The requestAnimationFrame was unnecessary - Astro handles timing correctly
-    // Removed unnecessary DOM queries that could slow down navigation
   });
 </script>
 
@@ -549,26 +537,6 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     animation: none !important;
   }
   
-  /* Force instant visibility changes for NewNotePanel */
-  .new-note-panel-container[x-cloak] {
-    display: none !important;
-  }
-  
-  /* Override any Alpine.js transition effects */
-  .new-note-panel-container[x-transition] {
-    transition: none !important;
-  }
-  
-  /* Force instant show/hide for NewNotePanel */
-  .new-note-panel-container[x-show="true"] {
-    opacity: 1 !important;
-    transition: none !important;
-  }
-  
-  .new-note-panel-container[x-show="false"] {
-    opacity: 0 !important;
-    transition: none !important;
-  }
 </style>
 
 <!-- Persistent Navigation Renderer -->

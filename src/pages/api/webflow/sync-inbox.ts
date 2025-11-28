@@ -88,14 +88,12 @@ export const POST: APIRoute = async ({ request }) => {
 
     // HARD REFRESH: Clear all UserInboxItems and mark InboxItems as inactive before syncing
     if (hardRefresh === true) {
-      console.log('🔄 Hard refresh enabled - clearing all UserInboxItems and marking InboxItems as inactive...');
       try {
         // Delete all UserInboxItems for all users
         const allUserInboxItems = await db.select().from(UserInboxItems).all();
         for (const userInboxItem of allUserInboxItems) {
           await db.delete(UserInboxItems).where(eq(UserInboxItems.id, userInboxItem.id));
         }
-        console.log(`✅ Cleared ${allUserInboxItems.length} UserInboxItems entries`);
         
         // Mark all existing InboxItems as inactive (they'll be reactivated if found in Webflow)
         const allInboxItems = await db.select().from(InboxItems).all();
@@ -105,7 +103,6 @@ export const POST: APIRoute = async ({ request }) => {
             .set({ isActive: false, updatedAt: new Date() })
             .where(eq(InboxItems.id, inboxItem.id));
         }
-        console.log(`✅ Marked ${allInboxItems.length} InboxItems as inactive (will be reactivated if found in Webflow)`);
       } catch (error) {
         console.error('Error during hard refresh cleanup:', error);
         // Continue with sync even if cleanup fails
@@ -164,8 +161,6 @@ export const POST: APIRoute = async ({ request }) => {
             transformed.title = item.fieldData.name;
 
             // Map content - check multiple possible field names
-            // Webflow rich text fields might be stored with different names
-            // Also handle if content is an object (Webflow v2 API sometimes returns rich text as objects)
             let rawContent = item.fieldData.content 
               || item.fieldData['Content'] 
               || item.fieldData['content-html']
@@ -176,28 +171,10 @@ export const POST: APIRoute = async ({ request }) => {
             
             // If content is an object, extract HTML from it
             if (rawContent && typeof rawContent === 'object') {
-              // Webflow v2 API might return rich text as { html: "...", plainText: "..." }
               rawContent = rawContent.html || rawContent.richText || rawContent.content || JSON.stringify(rawContent);
             }
             
             transformed.content = rawContent;
-            
-            // Debug: log fieldData to see what's available
-            if (!transformed.content) {
-              console.log('No content found for item:', item.id);
-              console.log('Available fields:', Object.keys(item.fieldData || {}));
-              // Log all field values to help debug
-              Object.keys(item.fieldData || {}).forEach(key => {
-                const value = item.fieldData[key];
-                if (typeof value === 'string' && value.length > 0) {
-                  console.log(`Field "${key}":`, value.substring(0, 100) + (value.length > 100 ? '...' : ''));
-                }
-              });
-            } else {
-              console.log('Content found for item:', item.id, 'Length:', transformed.content?.length || 0);
-              // Log first 200 chars to see structure
-              console.log('Content preview:', transformed.content?.substring(0, 200) || 'empty');
-            }
 
             // Handle color reference (color-2 field)
             if (item.fieldData['color-2']) {
@@ -237,12 +214,9 @@ export const POST: APIRoute = async ({ request }) => {
               }
             }
 
-            // Handle thread type - check multiple possible field name formats
-            // Webflow option fields store the selected option's ID or slug
-            // Since "Default" is the only option, if the field has any value, it's "Default"
+            // Handle thread type
             let threadTypeField = null;
             
-            // Check common field name variations
             if (item.fieldData['thread-type']) {
               threadTypeField = item.fieldData['thread-type'];
             } else if (item.fieldData.threadType) {
@@ -250,7 +224,6 @@ export const POST: APIRoute = async ({ request }) => {
             } else if (item.fieldData['Thread Type']) {
               threadTypeField = item.fieldData['Thread Type'];
             } else {
-              // Try to find any field that might be thread type by checking all fieldData keys
               const fieldKeys = Object.keys(item.fieldData);
               const threadTypeKey = fieldKeys.find(key => 
                 key.toLowerCase().includes('thread') && key.toLowerCase().includes('type')
@@ -260,17 +233,11 @@ export const POST: APIRoute = async ({ request }) => {
               }
             }
             
-            // For option fields: if field has a value (ID, slug, or name), set to "Default"
-            // since that's the only option available
             if (threadTypeField) {
-              // Check if it's an object with a name property
               if (typeof threadTypeField === 'object' && threadTypeField !== null) {
                 const optionName = threadTypeField.name || threadTypeField.slug;
-                // If it has a name and it's "Default", use it; otherwise default to "Default"
                 transformed['thread-type'] = (optionName && optionName.toLowerCase() === 'default') ? 'Default' : 'Default';
               } else if (typeof threadTypeField === 'string' && threadTypeField.trim() !== '') {
-                // If it's a string (ID or name), check if it's already "Default", otherwise set to "Default"
-                // Since there's only one option, any value means "Default"
                 transformed['thread-type'] = (threadTypeField.toLowerCase() === 'default') ? 'Default' : 'Default';
               }
             }
@@ -306,7 +273,6 @@ export const POST: APIRoute = async ({ request }) => {
     // Mark as inactive if they're no longer published, deleted, or archived
     try {
       const allInboxItems = await db.select().from(InboxItems).all();
-      console.log(`Verifying ${allInboxItems.length} existing inbox items against Webflow...`);
       verificationResults.checked = allInboxItems.length;
       
       for (const inboxItem of allInboxItems) {
@@ -332,7 +298,6 @@ export const POST: APIRoute = async ({ request }) => {
                 .where(eq(InboxItems.id, inboxItem.id));
               verificationResults.markedInactive++;
               verificationResults.details.push(`Deleted: ${inboxItem.title || inboxItem.id}`);
-              console.log(`Marked deleted item as inactive: ${inboxItem.id} (${inboxItem.webflowItemId})`);
             }
           } else if (verifyResponse.ok) {
             const itemData = await verifyResponse.json();
@@ -351,7 +316,6 @@ export const POST: APIRoute = async ({ request }) => {
               verificationResults.markedInactive++;
               const reason = isDraft ? 'draft' : isArchived ? 'archived' : 'toggle off';
               verificationResults.details.push(`${reason}: ${inboxItem.title || inboxItem.id}`);
-              console.log(`Marked item as inactive: ${inboxItem.id} (draft: ${isDraft}, archived: ${isArchived}, toggle: ${!toggleOff})`);
             } else if (!isDraft && !isArchived && toggleOff === false && !inboxItem.isActive) {
               // Item is now published and active - reactivate it
               await db
@@ -360,7 +324,6 @@ export const POST: APIRoute = async ({ request }) => {
                 .where(eq(InboxItems.id, inboxItem.id));
               verificationResults.reactivated++;
               verificationResults.details.push(`Reactivated: ${inboxItem.title || inboxItem.id}`);
-              console.log(`Reactivated item: ${inboxItem.id}`);
             }
           }
         } catch (error) {
@@ -418,7 +381,7 @@ export const POST: APIRoute = async ({ request }) => {
           imageUrl: imageUrl || null,
           color: webflowItem.color || null,
           threadType: webflowItem['thread-type'] || null,
-          targetAudience: webflowItem['target-audience'] || 'all_users', // Default to all_users if not set
+          targetAudience: webflowItem['target-audience'] || 'all_users',
           isActive: webflowItem['is-active'] !== false,
           updatedAt: new Date(),
         };
@@ -496,17 +459,13 @@ export const POST: APIRoute = async ({ request }) => {
         syncedItems.push(inboxItemId);
 
         // Auto-assign to users based on targetAudience
-        // Always assign if targetAudience is 'all_users'
-        // This ensures items are assigned even if UserInboxItems entries were deleted
         const targetAudience = inboxItemData.targetAudience || 'all_users';
         if (targetAudience === 'all_users') {
           try {
             // Get all existing users
             const allUsers = await db.select().from(UserMetadata).all();
             
-            let assignedCount = 0;
             // Create UserInboxItems for all existing users
-            // New users will get them via the user creation middleware
             for (const user of allUsers) {
               const existingUserInboxItem = await db
                 .select()
@@ -527,16 +486,11 @@ export const POST: APIRoute = async ({ request }) => {
                   status: 'inbox',
                   createdAt: new Date(),
                 });
-                assignedCount++;
               }
             }
-            console.log(`✅ Assigned inbox item ${inboxItemId} to ${assignedCount} user(s) (${allUsers.length} total users)`);
           } catch (assignError: any) {
-            console.error(`❌ Error assigning inbox item ${inboxItemId} to users:`, assignError);
-            // Don't fail the entire sync if assignment fails - log and continue
+            console.error(`Error assigning inbox item ${inboxItemId} to users:`, assignError);
           }
-        } else {
-          console.log(`⚠️ Skipping assignment for inbox item ${inboxItemId} - targetAudience: ${targetAudience}`);
         }
 
       } catch (error: any) {
@@ -620,12 +574,9 @@ export const POST: APIRoute = async ({ request }) => {
 
   } catch (error: any) {
     console.error('Error syncing inbox items:', error);
-    console.error('Error stack:', error.stack);
-    console.error('Error details:', JSON.stringify(error, null, 2));
     return new Response(JSON.stringify({ 
       error: 'Failed to sync inbox items',
       details: error.message,
-      stack: error.stack
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -669,7 +620,7 @@ export const GET: APIRoute = async ({ url, request }) => {
       });
     }
 
-    // Fetch from Webflow CDN API for better performance (cached, 2-5min delay acceptable for manual syncs)
+    // Fetch from Webflow CDN API for better performance
     const response = await fetch(
       `https://api-cdn.webflow.com/v2/collections/${collectionId}/items`,
       {
@@ -692,8 +643,6 @@ export const GET: APIRoute = async ({ url, request }) => {
     const items = data.items || [];
 
     // Process items (reuse POST logic)
-    // Pass items in Webflow native format - POST will transform them
-    // Preserve Accept header from original request so HTML can be returned for browser visits
     const acceptHeader = request.headers.get('accept') || '';
     const postRequest = new Request(url.toString(), {
       method: 'POST',
@@ -717,4 +666,3 @@ export const GET: APIRoute = async ({ url, request }) => {
     });
   }
 };
-

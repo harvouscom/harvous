@@ -17,7 +17,6 @@ import { verifyInboxItemInWebflow } from '@/utils/webflow-verification';
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     // Optional: Require authentication
-    // For production, you might want to add a secret token check
     const authHeader = request.headers.get('authorization');
     const expectedToken = import.meta.env.INBOX_RESET_SECRET_TOKEN;
     
@@ -27,8 +26,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-
-    console.log('🔄 Starting clean reset of inbox items for all users...');
 
     // Step 1: Clear all UserInboxItems for all users
     const allUserInboxItems = await db.select().from(UserInboxItems).all();
@@ -42,8 +39,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         console.error(`Error deleting UserInboxItem ${userInboxItem.id}:`, error);
       }
     }
-    
-    console.log(`✅ Cleared ${clearedCount} UserInboxItems entries`);
 
     // Step 2: Verify all InboxItems against Webflow
     const allInboxItems = await db.select().from(InboxItems).all();
@@ -52,12 +47,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const validItems: string[] = [];
     const invalidItems: Array<{ id: string; reason: string }> = [];
 
-    console.log(`🔍 Verifying ${allInboxItems.length} inbox items against Webflow...`);
-
     for (const inboxItem of allInboxItems) {
       if (!inboxItem.webflowItemId) {
         // Items without webflowItemId should be marked inactive
-        console.log(`Marking inbox item ${inboxItem.id} as inactive: no webflowItemId`);
         try {
           await db
             .update(InboxItems)
@@ -77,7 +69,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
       if (!verification.isValid) {
         // Item no longer exists or toggle is disabled - mark as inactive
-        console.log(`Marking inbox item ${inboxItem.id} as inactive: ${verification.reason}`);
         try {
           await db
             .update(InboxItems)
@@ -100,14 +91,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    console.log(`✅ Verified ${verifiedCount} items: ${validItems.length} valid, ${markedInactiveCount} marked inactive`);
-
     // Step 3: Reassign valid items to all users
     const allUsers = await db.select().from(UserMetadata).all();
     let totalAssigned = 0;
     const assignmentResults: string[] = [];
-
-    console.log(`👥 Reassigning ${validItems.length} valid items to ${allUsers.length} users...`);
 
     for (const inboxItemId of validItems) {
       const inboxItem = await db
@@ -133,8 +120,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           assignedCount++;
           totalAssigned++;
         } catch (error) {
-          // Ignore duplicate key errors (shouldn't happen, but safety check)
-          console.warn(`Error assigning item ${inboxItemId} to user ${user.userId}:`, error);
+          // Ignore duplicate key errors
         }
       }
 
@@ -142,8 +128,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         assignmentResults.push(`${inboxItem.title || inboxItemId}: assigned to ${assignedCount} user(s)`);
       }
     }
-
-    console.log(`✅ Reassigned ${totalAssigned} inbox items to users`);
 
     const result = {
       success: true,
@@ -191,4 +175,3 @@ export const GET: APIRoute = async ({ request }) => {
     headers: { 'Content-Type': 'application/json' }
   });
 };
-

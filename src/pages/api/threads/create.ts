@@ -212,9 +212,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Award XP for thread creation (pass title for validation)
     await awardThreadCreatedXP(userId, newThread.id, capitalizedTitle, null);
 
-    // Add a small delay to ensure the database operation completes
-    await new Promise(resolve => setTimeout(resolve, 150));
-
     return new Response(JSON.stringify({
       success: 'Thread created successfully!',
       thread: newThread

@@ -90,14 +90,7 @@ export async function generateAutoTags(
     try {
       foundKeywords = findKeywordsInTextWithPriority(fullText, cleanTitle, cleanContent);
     } catch (keywordError: unknown) {
-      console.error('Keyword detection error:', keywordError);
-      if (process.env.NODE_ENV === 'production') {
-        console.error('Production keyword detection error:', {
-          error: keywordError instanceof Error ? keywordError.message : String(keywordError),
-          fullText: fullText?.substring(0, 100),
-          userId: userId
-        });
-      }
+      console.error('Keyword detection error:', keywordError instanceof Error ? keywordError.message : String(keywordError));
       // Continue with empty keywords if detection fails
       foundKeywords = [];
     }
@@ -115,15 +108,7 @@ export async function generateAutoTags(
         .from(Tags)
         .where(eq(Tags.userId, userId));
     } catch (dbError: unknown) {
-      console.error('Database error fetching existing tags:', dbError);
-      if (process.env.NODE_ENV === 'production') {
-        console.error('Production database error:', {
-          error: dbError instanceof Error ? dbError.message : String(dbError),
-          userId: userId,
-          operation: 'fetch_existing_tags',
-          stack: dbError instanceof Error ? dbError.stack : undefined
-        });
-      }
+      console.error('Database error fetching existing tags:', dbError instanceof Error ? dbError.message : String(dbError));
       // Continue with empty tags array if database fails
       existingTags = [];
     }
@@ -213,18 +198,7 @@ export async function generateAutoTags(
     };
 
   } catch (error: unknown) {
-    console.error('Error generating auto tags:', error);
-    // Enhanced error logging for production debugging
-    if (process.env.NODE_ENV === 'production') {
-      console.error('Production auto-tag generation error:', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        noteTitle: noteTitle?.substring(0, 50),
-        noteContentLength: noteContent?.length || 0,
-        userId: userId,
-        confidenceThreshold: confidenceThreshold
-      });
-    }
+    console.error('Error generating auto tags:', error instanceof Error ? error.message : String(error));
     return { suggestions: [], totalFound: 0, highConfidence: 0 };
   }
 }
@@ -270,12 +244,6 @@ export async function applyAutoTags(
           } else {
             // Create new tag only if no tag with this name exists
             const newTagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            
-            console.log('Creating new tag:', { 
-              tagId: newTagId, 
-              tagName: suggestion.keyword,
-              category: suggestion.category 
-            });
             
             await db.insert(Tags).values({
               id: newTagId,

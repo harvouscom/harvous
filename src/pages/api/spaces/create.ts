@@ -205,9 +205,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    // Add a small delay to ensure the database operation completes
-    await new Promise(resolve => setTimeout(resolve, 150));
-
     return new Response(JSON.stringify({
       success: 'Space created successfully!',
       space: newSpace,

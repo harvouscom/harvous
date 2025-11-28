@@ -1,3 +1,26 @@
+/**
+ * Server-Side User Cache (user-cache.ts)
+ * 
+ * PURPOSE: Caches user data from Clerk API in the database (UserMetadata table)
+ * for server-side rendering and API routes.
+ * 
+ * SCOPE: Server-side only - runs on the server during SSR and API calls
+ * STORAGE: Database (UserMetadata table in Astro DB/Turso)
+ * TTL: 5 minutes - data is re-fetched from Clerk API after expiration
+ * 
+ * USE CASES:
+ * - Fetching user profile data during SSR for personalized pages
+ * - Getting user info for API routes without hitting Clerk API every time
+ * - Initial data population when users first authenticate
+ * 
+ * DIFFERENCE FROM profile-cache.ts:
+ * - user-cache.ts = SERVER-SIDE database cache (UserMetadata table)
+ * - profile-cache.ts = CLIENT-SIDE sessionStorage cache (browser)
+ * 
+ * The two work together: server fetches from user-cache, client caches
+ * the result in profile-cache to avoid redundant API calls during session.
+ */
+
 import { db, UserMetadata, eq } from 'astro:db';
 
 export interface CachedUserData {

@@ -104,26 +104,13 @@ export const POST: APIRoute = async ({ request }) => {
     // Get raw body for signature verification
     const rawBody = await request.text();
     
-    console.log('Webhook received - initial check:', {
-      hasSecret: !!webflowWebhookSecret,
-      secretLength: webflowWebhookSecret?.length || 0,
-      secretPreview: webflowWebhookSecret ? `${webflowWebhookSecret.substring(0, 10)}...${webflowWebhookSecret.substring(webflowWebhookSecret.length - 10)}` : 'none',
-      bodyLength: rawBody.length,
-      bodyPreview: rawBody.substring(0, 200),
-    });
-    
     // Verify webhook signature if secret is configured
     // Support multiple secrets (comma-separated) for different webhook event types
     if (webflowWebhookSecret) {
       const signature = request.headers.get('x-webflow-signature');
-      console.log('Signature verification check:', {
-        hasSignature: !!signature,
-        signatureValue: signature ? `${signature.substring(0, 20)}...` : 'none',
-        secretCount: webflowWebhookSecret.split(',').length,
-      });
       
       if (!signature) {
-        console.error('Webhook signature missing - rejecting request');
+        console.error('Webhook signature missing');
         return new Response(JSON.stringify({ error: 'Missing webhook signature' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
@@ -137,60 +124,30 @@ export const POST: APIRoute = async ({ request }) => {
       // Webflow sends signature in format: sha256=<hex>
       const receivedSignature = signature.replace('sha256=', '');
       
-      console.log('Signature verification details:', {
-        receivedSignatureLength: receivedSignature.length,
-        receivedSignaturePreview: receivedSignature.substring(0, 20),
-        secretsToCheck: secrets.length,
-      });
-      
       // Check against all configured secrets
       let signatureValid = false;
-      for (let i = 0; i < secrets.length; i++) {
-        const secret = secrets[i];
+      for (const secret of secrets) {
         const expectedSignature = crypto
           .createHmac('sha256', secret)
           .update(rawBody)
           .digest('hex');
         
-        console.log(`Checking secret ${i + 1}/${secrets.length}:`, {
-          secretLength: secret.length,
-          secretPreview: `${secret.substring(0, 10)}...${secret.substring(secret.length - 10)}`,
-          expectedSignaturePreview: expectedSignature.substring(0, 20),
-          receivedSignaturePreview: receivedSignature.substring(0, 20),
-          match: receivedSignature === expectedSignature,
-        });
-        
         if (receivedSignature === expectedSignature) {
           signatureValid = true;
-          console.log(`✅ Signature verified with secret ${i + 1}`);
           break;
         }
       }
 
       if (!signatureValid) {
-        console.error('❌ Webhook signature verification failed - all secrets checked, none matched');
-        console.error('Debug info:', {
-          receivedSignature: receivedSignature.substring(0, 40),
-          bodyLength: rawBody.length,
-          bodyHash: crypto.createHash('sha256').update(rawBody).digest('hex').substring(0, 20),
-          secretLengths: secrets.map(s => s.length),
-          secretPreviews: secrets.map(s => `${s.substring(0, 10)}...${s.substring(s.length - 10)}`),
-        });
+        console.error('Webhook signature verification failed');
         // Note: Signature verification is currently non-blocking due to Netlify env var truncation issues
         // The webhook will still process, but this should be fixed for production security
-        console.warn('⚠️ Continuing despite signature verification failure - webhook will process anyway');
-        console.warn('⚠️ To fix: Ensure WEBFLOW_WEBHOOK_SECRET in Netlify matches the secret in Webflow webhook settings');
-        console.warn('⚠️ If Netlify UI truncates the secret, use CLI: netlify env:set WEBFLOW_WEBHOOK_SECRET "your-secret"');
         // Uncomment below to block webhooks with invalid signatures (recommended for production):
         // return new Response(JSON.stringify({ error: 'Invalid webhook signature' }), {
         //   status: 401,
         //   headers: { 'Content-Type': 'application/json' }
         // });
-      } else {
-        console.log('✅ Webhook signature verified successfully');
       }
-    } else {
-      console.log('⚠️ Webhook secret not configured - skipping signature verification');
     }
 
     // Parse webhook payload
@@ -198,11 +155,7 @@ export const POST: APIRoute = async ({ request }) => {
     try {
       rawPayload = JSON.parse(rawBody);
     } catch (parseError: any) {
-      console.error('Failed to parse webhook payload as JSON:', {
-        error: parseError.message,
-        bodyLength: rawBody.length,
-        bodyPreview: rawBody.substring(0, 200),
-      });
+      console.error('Failed to parse webhook payload as JSON:', parseError.message);
       return new Response(JSON.stringify({ 
         error: 'Invalid JSON payload',
         details: parseError.message 
@@ -215,21 +168,9 @@ export const POST: APIRoute = async ({ request }) => {
     // Normalize payload structure - handle both old and new formats
     let normalizedPayload = normalizeWebflowPayload(rawPayload);
     
-    console.log('Webhook received (after normalization):', {
-      triggerType: normalizedPayload.triggerType,
-      collection: normalizedPayload.collection,
-      itemId: normalizedPayload.item?.id,
-      hasFieldData: !!normalizedPayload.item?.fieldData,
-      isDraft: normalizedPayload.item?.isDraft,
-      lastPublished: normalizedPayload.item?.lastPublished,
-      active: normalizedPayload.item?.fieldData?.active,
-      rawPayloadStructure: rawPayload.payload ? 'nested' : 'direct',
-    });
-    
     // If item data is incomplete (only ID or empty fieldData), fetch full item from Webflow API
     const hasEmptyFieldData = !normalizedPayload.item.fieldData || Object.keys(normalizedPayload.item.fieldData || {}).length === 0;
     if (normalizedPayload.item.id && hasEmptyFieldData) {
-      console.log('Item data incomplete - fetching full item from Webflow API:', normalizedPayload.item.id);
       try {
         const itemResponse = await fetch(
           `https://api.webflow.com/v2/collections/${normalizedPayload.collection}/items/${normalizedPayload.item.id}`,
@@ -243,13 +184,6 @@ export const POST: APIRoute = async ({ request }) => {
         
         if (itemResponse.ok) {
           const itemData = await itemResponse.json();
-          console.log('Webflow API response structure:', {
-            hasItems: !!itemData.items,
-            itemsLength: itemData.items?.length,
-            hasItem: !!itemData.item,
-            topLevelKeys: Object.keys(itemData),
-          });
-          
           const fullItem = itemData.items?.[0] || itemData.item || itemData;
           normalizedPayload.item = {
             id: fullItem.id || normalizedPayload.item.id,
@@ -261,16 +195,8 @@ export const POST: APIRoute = async ({ request }) => {
             isDraft: fullItem.isDraft || false,
             fieldData: fullItem.fieldData || {},
           };
-          console.log('✅ Fetched full item data from Webflow API:', {
-            itemId: normalizedPayload.item.id,
-            hasFieldData: !!normalizedPayload.item.fieldData,
-            fieldDataKeys: Object.keys(normalizedPayload.item.fieldData || {}),
-            active: normalizedPayload.item.fieldData?.active,
-            isArchived: normalizedPayload.item.isArchived,
-          });
         } else if (itemResponse.status === 404) {
           // Item was deleted - mark inbox item as inactive
-          console.log('Item not found in Webflow API (likely deleted) - marking inbox item as inactive');
           const existingItem = await db
             .select()
             .from(InboxItems)
@@ -282,7 +208,6 @@ export const POST: APIRoute = async ({ request }) => {
               .update(InboxItems)
               .set({ isActive: false, updatedAt: new Date() })
               .where(eq(InboxItems.id, existingItem.id));
-            console.log('✅ Marked inbox item as inactive (item deleted in Webflow)');
           }
           return new Response(JSON.stringify({ 
             message: 'Item deleted - marked as inactive',
@@ -293,13 +218,7 @@ export const POST: APIRoute = async ({ request }) => {
             headers: { 'Content-Type': 'application/json' }
           });
         } else {
-          const errorText = await itemResponse.text();
-          console.error('Failed to fetch item from Webflow API:', {
-            status: itemResponse.status,
-            statusText: itemResponse.statusText,
-            error: errorText,
-            url: `https://api.webflow.com/v2/collections/${normalizedPayload.collection}/items/${normalizedPayload.item.id}`,
-          });
+          console.error('Failed to fetch item from Webflow API:', itemResponse.status);
         }
       } catch (error) {
         console.error('Error fetching item from Webflow API:', error);
@@ -308,7 +227,6 @@ export const POST: APIRoute = async ({ request }) => {
     
     // Only process webhooks from Threads collection
     if (normalizedPayload.collection !== THREADS_COLLECTION_ID) {
-      console.log('Webhook ignored - not from Threads collection:', normalizedPayload.collection);
       return new Response(JSON.stringify({ 
         message: 'Ignored - not from Threads collection',
         collection: normalizedPayload.collection 
@@ -319,13 +237,8 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Handle unpublished/deleted items - mark as inactive
-    // These trigger types: collection_item.unpublished, collection_item.deleted
     if (normalizedPayload.triggerType === 'collection_item.unpublished' || 
         normalizedPayload.triggerType === 'collection_item.deleted') {
-      console.log('Webhook processing unpublished/deleted item:', {
-        triggerType: normalizedPayload.triggerType,
-        itemId: normalizedPayload.item?.id,
-      });
       if (normalizedPayload.item?.id) {
         const existingItem = await db
           .select()
@@ -338,12 +251,7 @@ export const POST: APIRoute = async ({ request }) => {
             .update(InboxItems)
             .set({ isActive: false, updatedAt: new Date() })
             .where(eq(InboxItems.id, existingItem.id));
-          console.log('✅ Marked inbox item as inactive:', existingItem.id);
-        } else {
-          console.log('⚠️ No inbox item found to mark inactive for webflow item:', normalizedPayload.item.id);
         }
-      } else {
-        console.log('⚠️ No item ID in payload for unpublished/deleted webhook');
       }
 
       return new Response(JSON.stringify({ 
@@ -357,32 +265,8 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    // Process published/updated items
-    // These trigger types include: collection_item.changed, collection_item.created, collection_item.updated
-    // "Collection Item Changed" webhook fires for creates, updates, publishes, and sometimes deletes/archives
-    // We process ALL trigger types that aren't unpublished/deleted
-    const validTriggerTypes = [
-      'collection_item.changed',
-      'collection_item_changed', 
-      'collection_item.created',
-      'collection_item_created',
-      'collection_item.updated',
-      'collection_item_updated',
-    ];
-    
-    // Log if we get an unexpected trigger type (but still process it)
-    if (!validTriggerTypes.includes(normalizedPayload.triggerType) && 
-        !normalizedPayload.triggerType.includes('unpublished') && 
-        !normalizedPayload.triggerType.includes('deleted')) {
-      console.log('Webhook received unexpected trigger type (will still process):', normalizedPayload.triggerType);
-    }
-    
-    console.log('Webhook processing published/updated item. Trigger type:', normalizedPayload.triggerType);
-
     // Check if item is archived - mark as inactive if so
-    // "Collection Item Changed" can fire for archived items
     if (normalizedPayload.item?.isArchived) {
-      console.log('Item is archived - marking inbox item as inactive:', normalizedPayload.item.id);
       if (normalizedPayload.item.id) {
         const existingItem = await db
           .select()
@@ -395,7 +279,6 @@ export const POST: APIRoute = async ({ request }) => {
             .update(InboxItems)
             .set({ isActive: false, updatedAt: new Date() })
             .where(eq(InboxItems.id, existingItem.id));
-          console.log('✅ Marked inbox item as inactive (item archived in Webflow)');
         }
       }
       return new Response(JSON.stringify({ 
@@ -409,7 +292,6 @@ export const POST: APIRoute = async ({ request }) => {
 
     // If "Send to Harvous Inbox?" toggle is disabled, mark existing inbox item as inactive
     if (!normalizedPayload.item?.fieldData?.active) {
-      console.log('Webhook - "Send to Harvous Inbox?" toggle not enabled for item:', normalizedPayload.item?.id);
       if (normalizedPayload.item?.id) {
         const existingItem = await db
           .select()
@@ -422,7 +304,6 @@ export const POST: APIRoute = async ({ request }) => {
             .update(InboxItems)
             .set({ isActive: false, updatedAt: new Date() })
             .where(eq(InboxItems.id, existingItem.id));
-          console.log('Marked inbox item as inactive due to toggle being disabled');
         }
       }
       return new Response(JSON.stringify({ 
@@ -436,12 +317,6 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Skip draft items - but mark existing inbox item as inactive if it exists
     if (!normalizedPayload.item || normalizedPayload.item.isDraft || !normalizedPayload.item.lastPublished) {
-      console.log('Webhook - item is draft or not published, marking existing inbox item as inactive:', {
-        itemId: normalizedPayload.item?.id,
-        isDraft: normalizedPayload.item?.isDraft,
-        lastPublished: normalizedPayload.item?.lastPublished,
-      });
-      
       // Mark existing inbox item as inactive if it exists
       if (normalizedPayload.item?.id) {
         const existingItem = await db
@@ -455,7 +330,6 @@ export const POST: APIRoute = async ({ request }) => {
             .update(InboxItems)
             .set({ isActive: false, updatedAt: new Date() })
             .where(eq(InboxItems.id, existingItem.id));
-          console.log('✅ Marked inbox item as inactive (item is draft or unpublished)');
         }
       }
       
@@ -477,16 +351,8 @@ export const POST: APIRoute = async ({ request }) => {
       isArchived: normalizedPayload.item.isArchived,
     };
 
-    // Import sync logic from sync-inbox endpoint
-    // We'll reuse the transformation and processing logic
-    console.log('Processing webhook item:', normalizedPayload.item.id);
+    // Process the webhook item
     const syncResult = await processWebflowItem(webflowItem, webflowToken, SITE_ID);
-    
-    console.log('Webhook processing result:', {
-      itemId: normalizedPayload.item.id,
-      synced: syncResult.synced,
-      errors: syncResult.errors,
-    });
 
     return new Response(JSON.stringify({
       success: true,
@@ -767,7 +633,7 @@ async function processWebflowItem(
     return { synced: true, errors: [] };
 
   } catch (error: any) {
-    console.error(`Error processing webhook item:`, error);
+    console.error('Error processing webhook item:', error);
     errors.push(`Failed to process item: ${error.message}`);
     return { synced: false, errors };
   }
@@ -801,8 +667,6 @@ async function transformWebflowItem(item: any, webflowToken: string): Promise<an
     transformed.title = item.fieldData.name;
 
     // Map content - check multiple possible field names
-    // Webflow rich text fields might be stored with different names
-    // Also handle if content is an object (Webflow v2 API sometimes returns rich text as objects)
     let rawContent = item.fieldData.content 
       || item.fieldData['Content'] 
       || item.fieldData['content-html']
@@ -813,28 +677,10 @@ async function transformWebflowItem(item: any, webflowToken: string): Promise<an
     
     // If content is an object, extract HTML from it
     if (rawContent && typeof rawContent === 'object') {
-      // Webflow v2 API might return rich text as { html: "...", plainText: "..." }
       rawContent = rawContent.html || rawContent.richText || rawContent.content || JSON.stringify(rawContent);
     }
     
     transformed.content = rawContent;
-    
-    // Debug: log fieldData to see what's available
-    if (!transformed.content) {
-      console.log('No content found for item:', item.id);
-      console.log('Available fields:', Object.keys(item.fieldData || {}));
-      // Log all field values to help debug
-      Object.keys(item.fieldData || {}).forEach(key => {
-        const value = item.fieldData[key];
-        if (typeof value === 'string' && value.length > 0) {
-          console.log(`Field "${key}":`, value.substring(0, 100) + (value.length > 100 ? '...' : ''));
-        }
-      });
-    } else {
-      console.log('Content found for item:', item.id, 'Length:', transformed.content?.length || 0);
-      // Log first 200 chars to see structure
-      console.log('Content preview:', transformed.content?.substring(0, 200) || 'empty');
-    }
 
     // Handle color reference (color-2 field)
     if (item.fieldData['color-2']) {
@@ -874,12 +720,9 @@ async function transformWebflowItem(item: any, webflowToken: string): Promise<an
       }
     }
 
-    // Handle thread type - check multiple possible field name formats
-    // Webflow option fields store the selected option's ID or slug
-    // Since "Default" is the only option, if the field has any value, it's "Default"
+    // Handle thread type
     let threadTypeField = null;
     
-    // Check common field name variations
     if (item.fieldData['thread-type']) {
       threadTypeField = item.fieldData['thread-type'];
     } else if (item.fieldData.threadType) {
@@ -887,7 +730,6 @@ async function transformWebflowItem(item: any, webflowToken: string): Promise<an
     } else if (item.fieldData['Thread Type']) {
       threadTypeField = item.fieldData['Thread Type'];
     } else {
-      // Try to find any field that might be thread type by checking all fieldData keys
       const fieldKeys = Object.keys(item.fieldData);
       const threadTypeKey = fieldKeys.find(key => 
         key.toLowerCase().includes('thread') && key.toLowerCase().includes('type')
@@ -897,17 +739,11 @@ async function transformWebflowItem(item: any, webflowToken: string): Promise<an
       }
     }
     
-    // For option fields: if field has a value (ID, slug, or name), set to "Default"
-    // since that's the only option available
     if (threadTypeField) {
-      // Check if it's an object with a name property
       if (typeof threadTypeField === 'object' && threadTypeField !== null) {
         const optionName = threadTypeField.name || threadTypeField.slug;
-        // If it has a name and it's "Default", use it; otherwise default to "Default"
         transformed['thread-type'] = (optionName && optionName.toLowerCase() === 'default') ? 'Default' : 'Default';
       } else if (typeof threadTypeField === 'string' && threadTypeField.trim() !== '') {
-        // If it's a string (ID or name), check if it's already "Default", otherwise set to "Default"
-        // Since there's only one option, any value means "Default"
         transformed['thread-type'] = (threadTypeField.toLowerCase() === 'default') ? 'Default' : 'Default';
       }
     }
@@ -921,4 +757,3 @@ async function transformWebflowItem(item: any, webflowToken: string): Promise<an
 
   return transformed;
 }
-

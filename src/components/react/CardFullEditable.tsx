@@ -48,17 +48,8 @@ export default function CardFullEditable({
     setDisplayContent(content);
   }, [title, content]);
 
-  // Load Font Awesome for scripture/resource icons if needed
-  useEffect(() => {
-    if (noteType === 'scripture' || noteType === 'resource') {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
-      if (!document.querySelector(`link[href="${link.href}"]`)) {
-        document.head.appendChild(link);
-      }
-    }
-  }, [noteType]);
+  // Note: Font Awesome is loaded globally via CDN in Layout.astro
+  // No need to dynamically load it here
 
   // Focus handling is now done directly in startEditing
   // This useEffect is kept for backward compatibility but focusTarget is no longer used

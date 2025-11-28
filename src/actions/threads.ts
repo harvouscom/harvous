@@ -54,19 +54,6 @@ export const threads = {
         // Award XP for thread creation (pass title for validation)
         await awardThreadCreatedXP(userId, newThread.id, capitalizedTitle, subtitle || null);
 
-        // Add a small delay to ensure the database operation completes
-        await new Promise(resolve => setTimeout(resolve, 150));
-        
-        // Verify the new thread was created
-        const verifyThread = await db.select()
-          .from(Threads)
-          .where(and(eq(Threads.id, newThread.id), eq(Threads.userId, userId)))
-          .limit(1);
-          
-        if (!verifyThread.length) {
-          // Thread creation verification failed
-        }
-
         return {
           success: "Thread created successfully!",
           thread: newThread

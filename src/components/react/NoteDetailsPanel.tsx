@@ -3,6 +3,7 @@ import CardThread from './CardThread';
 import AddToSection from './AddToSection';
 import SquareButton from './SquareButton';
 import ActionButton from './ActionButton';
+import ButtonSmall from './ButtonSmall';
 import NewTagPanel from './NewTagPanel';
 import NewThreadPanel from './NewThreadPanel';
 import { toast } from '@/utils/toast';
@@ -408,7 +409,6 @@ export default function NoteDetailsPanel({
         currentSpace={null}
         onClose={handleCloseNewThreadPanel}
         onThreadCreated={handleThreadCreated}
-        inBottomSheet={inBottomSheet}
       />
     );
   }
@@ -426,20 +426,22 @@ export default function NoteDetailsPanel({
               This is the only thread this note belongs to. Removing it will move the note to the "Unorganized" thread. Are you sure you want to continue?
             </p>
             <div className="flex gap-3 justify-end">
-              <button
+              <ButtonSmall
+                type="button"
                 onClick={handleCancelRemove}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                state="Secondary"
                 disabled={isMovingThread}
               >
                 Cancel
-              </button>
-              <button
+              </ButtonSmall>
+              <ButtonSmall
+                type="button"
                 onClick={handleConfirmRemove}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                state="Delete"
                 disabled={isMovingThread}
               >
                 {isMovingThread ? 'Moving...' : 'Move to Unorganized'}
-              </button>
+              </ButtonSmall>
             </div>
           </div>
         </div>
