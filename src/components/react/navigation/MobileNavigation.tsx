@@ -436,8 +436,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         {/* Dropdown Menu */}
         {isDropdownOpen && (
           <div 
-            className={`absolute top-0 left-0 w-full bg-white rounded-3xl shadow-lg z-[9999] max-h-[352px] relative ${
-              isMounted ? 'dropdown-enter' : ''
+            className={`absolute top-0 left-0 w-full rounded-3xl shadow-lg z-[9999] max-h-[352px] relative ${
+              isMounted ? 'dropdown-enter' : 'dropdown-initial'
             }`}
             style={!isMounted ? { maxHeight: '64px', overflow: 'hidden' } : undefined}
             onClick={(e) => e.stopPropagation()}
