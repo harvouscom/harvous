@@ -232,7 +232,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
           // Remove filename, return folder path
           pathParts.pop();
           const folderPath = pathParts.join('/');
-          console.log(`[Import] File: ${file.name}, webkitRelativePath: ${relativePath}, folderPath: ${folderPath}`);
           return folderPath;
         }
       }
@@ -243,11 +242,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
         const pathParts = fileName.split('/');
         pathParts.pop(); // Remove filename
         const folderPath = pathParts.join('/');
-        console.log(`[Import] File: ${file.name}, filename path detected, folderPath: ${folderPath}`);
         return folderPath;
       }
       
-      console.log(`[Import] File: ${file.name}, no folder path detected`);
       return null;
     };
 
@@ -257,10 +254,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         // Use the last folder name as thread name
         const parts = folderPath.split('/').filter(p => p.trim());
         const threadName = parts.length > 0 ? parts[parts.length - 1] : null;
-        console.log(`[Import] getThreadNameFromPath: folderPath="${folderPath}", parts=[${parts.join(', ')}], threadName="${threadName}"`);
         return threadName;
       }
-      console.log(`[Import] getThreadNameFromPath: no folderPath, returning defaultName="${defaultName}"`);
       return defaultName;
     };
 

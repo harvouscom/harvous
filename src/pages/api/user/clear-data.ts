@@ -12,7 +12,6 @@ export const DELETE: APIRoute = async ({ locals }) => {
       });
     }
 
-    console.log(`Clearing all data for user ${userId}`);
 
     // Delete all user data in the correct order to respect foreign key constraints
     
@@ -91,7 +90,6 @@ export const DELETE: APIRoute = async ({ locals }) => {
       });
     }
 
-    console.log(`Cleared all data for user ${userId}`);
 
     return new Response(JSON.stringify({ 
       success: true,

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { initKeyboardShortcuts, cleanupKeyboardShortcuts } from '@/utils/keyboard-shortcuts';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 
 /**
  * Client-side component to initialize keyboard shortcuts and Astro navigation
@@ -8,8 +8,10 @@ import { navigate } from 'astro:transitions/client';
  */
 export default function KeyboardShortcutsInit() {
   useEffect(() => {
-    // Set up Astro's navigate function for View Transitions
-    (window as any).astroNavigate = navigate;
+    // Set up safe navigate function for View Transitions (with error handling)
+    (window as any).astroNavigate = (path: string, options?: any) => {
+      safeNavigate(path, options);
+    };
     
     // Initialize keyboard shortcuts on mount
     initKeyboardShortcuts();

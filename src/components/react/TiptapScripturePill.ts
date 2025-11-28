@@ -346,11 +346,15 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
               const isControlKey = key.length > 1 || 
                 ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(key);
               
-              if (!isControlKey) {
+              if (!isControlKey && editor?.view) {
                 // Clear ALL stored marks before typing the character
                 // This prevents mark inheritance
-                const tr = state.tr.setStoredMarks([]);
-                editor.view.dispatch(tr);
+                try {
+                  const tr = state.tr.setStoredMarks([]);
+                  editor.view.dispatch(tr);
+                } catch (e) {
+                  // If dispatch fails, ignore and continue
+                }
                 // Return false to allow the character to be typed (with cleared marks)
                 return false;
               }

@@ -104,7 +104,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    console.log('Credentials updated successfully in Clerk');
 
     return new Response(JSON.stringify({ 
       success: true,

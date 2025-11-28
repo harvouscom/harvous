@@ -7,7 +7,7 @@ import ButtonSmall from './ButtonSmall';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { useNavigation } from './navigation/NavigationContext';
 import { captureException } from '@/utils/posthog';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 import { getThreadGradientCSS, getThreadTextColorCSS } from '@/utils/colors';
 import { safeFetch } from '@/utils/safe-fetch';
 
@@ -1236,7 +1236,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
         // Navigate to the newly created note with toast parameter
         if (result.note && result.note.id) {
           const redirectUrl = `/${result.note.id}?toast=success&message=${encodeURIComponent(result.success || 'Note created successfully!')}`;
-          navigate(redirectUrl, { history: 'replace' });
+          safeNavigate(redirectUrl, { history: 'replace' });
         }
 
         // Reset form
@@ -1426,7 +1426,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
         // Navigate to the newly created note
         if (result.note && result.note.id) {
           setTimeout(() => {
-            navigate(`/${result.note.id}`, { history: 'replace' });
+            safeNavigate(`/${result.note.id}`, { history: 'replace' });
           }, 100);
         }
       }

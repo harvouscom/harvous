@@ -5,9 +5,27 @@
 
 import { deduplicatedFetch } from './request-deduplication';
 
+export interface NavigationThread {
+  id: string;
+  title: string;
+  color: string | null;
+  noteCount: number;
+  backgroundGradient?: string;
+  updatedAt?: Date;
+}
+
+export interface NavigationSpace {
+  id: string;
+  title: string;
+  color: string | null;
+  itemCount: number;
+  backgroundGradient?: string;
+  isPublic?: boolean;
+}
+
 export interface NavigationCache {
-  threads: any[];
-  spaces: any[];
+  threads: NavigationThread[];
+  spaces: NavigationSpace[];
   inboxCount: number;
   timestamp: number;
 }

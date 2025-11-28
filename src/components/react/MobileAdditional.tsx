@@ -27,7 +27,6 @@ export default function MobileAdditional({
     };
 
     const handleOpenNewThreadPanel = () => {
-      console.log('MobileAdditional: openNewThreadPanel received');
       window.dispatchEvent(new CustomEvent('openMobileDrawer', {
         detail: { type: 'thread' }
       }));
@@ -42,14 +41,10 @@ export default function MobileAdditional({
     };
 
     const handleOpenProfilePanel = (event: CustomEvent) => {
-      console.log('MobileAdditional: openProfilePanel received', event.detail);
       const panelName = event.detail?.panelName;
-      console.log('MobileAdditional: Panel name:', panelName);
 
       // Only handle on mobile (screen width < 1160px)
       if (window.innerWidth < 1160) {
-        console.log('MobileAdditional: On mobile, opening drawer');
-
         // Map panel names to drawer types
         const panelMap: Record<string, string> = {
           'editNameColor': 'editNameColor',
@@ -62,15 +57,10 @@ export default function MobileAdditional({
 
         const drawerType = panelMap[panelName];
         if (drawerType) {
-          console.log('MobileAdditional: Opening drawer for:', drawerType);
           window.dispatchEvent(new CustomEvent('openMobileDrawer', {
             detail: { drawerType: drawerType }
           }));
-        } else {
-          console.log('MobileAdditional: Unknown panel name:', panelName);
         }
-      } else {
-        console.log('MobileAdditional: On desktop, letting profile page handle it');
       }
     };
 

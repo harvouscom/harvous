@@ -13,7 +13,6 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     }
 
     const userId = auth.userId;
-    console.log('Delete all unorganized notes for user:', userId);
 
     // Delete all notes from the unorganized thread
     const result = await db.delete(Notes)
@@ -22,7 +21,6 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
         eq(Notes.threadId, 'thread_unorganized')
       ));
 
-    console.log('Deleted notes from unorganized thread:', result);
 
     return new Response(JSON.stringify({ 
       success: true, 

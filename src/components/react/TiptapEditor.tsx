@@ -12,7 +12,7 @@ import { BoldCustom } from './TiptapBoldCustom.ts';
 import { HighlightCustom } from './TiptapHighlightCustom.ts';
 import ButtonSmall from './ButtonSmall';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 
 // Define a global toast function
 declare global {
@@ -1084,27 +1084,37 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     
     if (preserveFormatting) {
       // For formatted content, extract HTML from DOM selection
-      const view = editor.view;
-      const startPos = view.domAtPos(from);
-      const endPos = view.domAtPos(to);
-      
-      // Get the DOM nodes in the selection
-      if (startPos.node && endPos.node) {
+      const view = editor?.view;
+      if (!view) {
+        // Fallback to plain text if view is not available
+        extractedContent = editor.state.doc.textBetween(from, to);
+      } else {
         try {
-          const range = document.createRange();
-          range.setStart(startPos.node, startPos.offset);
-          range.setEnd(endPos.node, endPos.offset);
-          const htmlFragment = range.cloneContents();
-          const tempDiv = document.createElement('div');
-          tempDiv.appendChild(htmlFragment);
-          extractedContent = tempDiv.innerHTML;
+          const startPos = view.domAtPos(from);
+          const endPos = view.domAtPos(to);
+      
+          // Get the DOM nodes in the selection
+          if (startPos?.node && endPos?.node) {
+            try {
+              const range = document.createRange();
+              range.setStart(startPos.node, startPos.offset);
+              range.setEnd(endPos.node, endPos.offset);
+              const htmlFragment = range.cloneContents();
+              const tempDiv = document.createElement('div');
+              tempDiv.appendChild(htmlFragment);
+              extractedContent = tempDiv.innerHTML;
+            } catch (e) {
+              // Fallback to plain text if DOM extraction fails
+              extractedContent = editor.state.doc.textBetween(from, to);
+            }
+          } else {
+            // Fallback to plain text
+            extractedContent = editor.state.doc.textBetween(from, to);
+          }
         } catch (e) {
-          // Fallback to plain text if DOM extraction fails
+          // If domAtPos fails, fallback to plain text
           extractedContent = editor.state.doc.textBetween(from, to);
         }
-      } else {
-        // Fallback to plain text
-        extractedContent = editor.state.doc.textBetween(from, to);
       }
     } else {
       // Plain text - use textBetween
@@ -1341,13 +1351,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (noteId) {
           event.preventDefault();
           event.stopPropagation();
-          navigate(`/${noteId}`, { history: 'replace' });
+          safeNavigate(`/${noteId}`, { history: 'replace' });
         }
       }
     };
 
-    const editorElement = editor.view.dom;
-    editorElement.addEventListener('click', handleClick);
+    const editorElement = editor?.view?.dom;
+    if (editorElement) {
+      editorElement.addEventListener('click', handleClick);
+    }
 
     return () => {
       editorElement.removeEventListener('click', handleClick);

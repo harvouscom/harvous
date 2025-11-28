@@ -127,8 +127,8 @@ export async function precacheRecentContent(): Promise<void> {
       return;
     }
 
-    const notes = await notesResponse.json();
-    const noteIds = notes.map((note: any) => note.id);
+    const notes: Array<{ id: string }> = await notesResponse.json();
+    const noteIds = notes.map((note) => note.id);
 
     // Fetch navigation data with retry logic
     const navResponse = await safeFetch('/api/navigation/data', {
@@ -141,9 +141,9 @@ export async function precacheRecentContent(): Promise<void> {
     let spaceIds: string[] = [];
 
     if (navResponse && navResponse.ok) {
-      const navData = await navResponse.json();
-      threadIds = (navData.threads || []).map((thread: any) => thread.id);
-      spaceIds = (navData.spaces || []).map((space: any) => space.id);
+      const navData: { threads?: Array<{ id: string }>; spaces?: Array<{ id: string }> } = await navResponse.json();
+      threadIds = (navData.threads || []).map((thread) => thread.id);
+      spaceIds = (navData.spaces || []).map((space) => space.id);
     }
     // If nav fetch failed, continue with just notes
 

@@ -12,6 +12,14 @@ import { db, Notes, NoteThreads, Threads, eq, and, ne } from 'astro:db';
  * Run this once to migrate existing data to junction-table-only approach
  */
 async function runMigration(locals: any, url: URL) {
+  // Restrict to development only - this is a one-time migration script
+  if (import.meta.env.PROD) {
+    return new Response(JSON.stringify({ error: 'Migration endpoints are not available in production' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   const runForAllUsers = url.searchParams.get('all') === 'true';
   
   try {
@@ -25,7 +33,6 @@ async function runMigration(locals: any, url: URL) {
       });
     }
 
-    console.log('Starting threadId migration to junction-table-only...');
     
     // Get all notes that have a primary threadId other than unorganized
     const whereClause = runForAllUsers 
@@ -44,7 +51,6 @@ async function runMigration(locals: any, url: URL) {
     .where(whereClause)
     .all();
     
-    console.log(`Found ${notesToMigrate.length} notes to migrate${runForAllUsers ? ' (all users)' : ` for user ${userId}`}`);
     
     let migrated = 0;
     let errors = 0;
@@ -79,9 +85,7 @@ async function runMigration(locals: any, url: URL) {
               createdAt: new Date()
             });
             junctionEntriesCreated++;
-            console.log(`Created junction entry for note ${note.id} -> thread ${primaryThreadId}`);
           } else {
-            console.log(`Thread ${primaryThreadId} no longer exists, skipping note ${note.id}`);
           }
         }
         
@@ -110,7 +114,6 @@ async function runMigration(locals: any, url: URL) {
       message: `Migration complete: ${migrated} notes migrated, ${junctionEntriesCreated} junction entries created, ${errors} errors`
     };
     
-    console.log('Migration complete:', result);
     
     // Return HTML response for easier browser viewing
     const htmlResponse = `

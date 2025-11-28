@@ -17,7 +17,6 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const url = new URL(request.url);
     const format = url.searchParams.get('format') || 'markdown';
 
-    console.log(`Exporting user data for user ${userId} in format: ${format}`);
 
     // Fetch all user notes
     const allNotes = await db.select({
@@ -35,7 +34,6 @@ export const GET: APIRoute = async ({ request, locals }) => {
     .where(eq(Notes.userId, userId))
     .orderBy(desc(Notes.createdAt));
 
-    console.log(`Found ${allNotes.length} notes for export`);
 
     // Fetch all threads for this user
     const allThreads = await db.select({

@@ -262,7 +262,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
             threadId: newThreadId,
             createdAt: new Date()
           });
-          console.log(`✅ Created junction entry: note ${newNote.id} -> thread ${newThreadId}`);
           
           // Verify the junction entry was created
           const verifyJunction = await db

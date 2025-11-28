@@ -2,6 +2,14 @@ import type { APIRoute } from 'astro';
 import { generateAutoTags } from '@/utils/auto-tag-generator';
 
 export const GET: APIRoute = async ({ request, locals }) => {
+  // Restrict to development only
+  if (import.meta.env.PROD) {
+    return new Response(JSON.stringify({ error: 'Debug endpoints are not available in production' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   try {
     const { userId } = locals.auth();
     

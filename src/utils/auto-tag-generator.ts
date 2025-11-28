@@ -1,4 +1,4 @@
-import { findKeywordsInText, findKeywordsInTextWithPriority, BIBLE_STUDY_KEYWORDS } from './bible-study-keywords';
+import { findKeywordsInText, findKeywordsInTextWithPriority, BIBLE_STUDY_KEYWORDS, type BibleStudyKeyword } from './bible-study-keywords';
 import { db, Tags, NoteTags, eq, and } from 'astro:db';
 
 // Helper function to detect overlapping/similar tags
@@ -86,7 +86,7 @@ export async function generateAutoTags(
     }
 
     // Find keywords in the text with enhanced detection
-    let foundKeywords: Array<{ keyword: any; confidence: number }> = [];
+    let foundKeywords: Array<{ keyword: BibleStudyKeyword; confidence: number }> = [];
     try {
       foundKeywords = findKeywordsInTextWithPriority(fullText, cleanTitle, cleanContent);
     } catch (keywordError: unknown) {
@@ -96,7 +96,17 @@ export async function generateAutoTags(
     }
     
     // Get existing tags for the user to avoid duplicates
-    let existingTags: any[] = [];
+    interface ExistingTag {
+      id: string;
+      name: string;
+      color: string | null;
+      category: string | null;
+      userId: string;
+      isSystem: boolean;
+      createdAt: Date;
+      updatedAt: Date | null;
+    }
+    let existingTags: ExistingTag[] = [];
     try {
       // Test database connectivity first
       if (!db) {
