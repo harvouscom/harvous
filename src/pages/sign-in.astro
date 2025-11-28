@@ -94,6 +94,31 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
   </div>
 </EmptyLayout>
 
+<!-- Client-side auth check to prevent flash if already authenticated -->
+<script is:inline>
+  (function() {
+    if (typeof window === 'undefined') return;
+    
+    // Check if Clerk session cookie exists
+    const cookies = document.cookie.split(';');
+    const hasClerkCookie = cookies.some(cookie => 
+      cookie.trim().startsWith('__clerk') || 
+      cookie.trim().startsWith('__session')
+    );
+    
+    // If authenticated, redirect immediately to prevent flash
+    if (hasClerkCookie) {
+      const redirectUrl = new URLSearchParams(window.location.search).get('redirect_url') || '/';
+      // Use View Transitions if available, otherwise regular navigation
+      if (window.navigation && window.navigation.transition) {
+        window.navigation.navigate(redirectUrl, { history: 'replace' });
+      } else {
+        window.location.replace(redirectUrl);
+      }
+    }
+  })();
+</script>
+
 <style>
   /* Custom primary button styling */
   .primary-button,

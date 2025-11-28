@@ -7,6 +7,7 @@ import "@fontsource/reddit-mono/500.css";
 import "@fontsource/reddit-mono/600.css";
 import "sonner/dist/styles.css";
 import ToastProvider from "@/components/react/ToastProvider.tsx";
+import { ClientRouter } from "astro:transitions";
 
 interface Props {
   classNames?: string;
@@ -31,6 +32,9 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
     <link rel="apple-touch-icon" href="/favicon.png" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    
+    <!-- Enable View Transitions for client-side navigation -->
+    <ClientRouter />
     
     <!-- PWA startup optimization script - inlined for faster execution -->
     <script is:inline src="/scripts/pwa-startup.js"></script>
