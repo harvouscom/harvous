@@ -126,7 +126,7 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
         .card-thread-container:hover .stagger-note:nth-child(25) { animation: staggerHover 0.6s ease-in-out 1.2s forwards; }
         .card-thread-container:hover .stagger-note:nth-child(26) { animation: staggerHover 0.6s ease-in-out 1.25s forwards; }
       `}</style>
-      <div className={`card-thread-container box-border flex flex-col gap-3 items-start justify-start overflow-hidden pb-0 pt-3 px-3 relative rounded-xl w-full h-[96px] ${className}`}>
+      <div className={`card-thread-container box-border flex flex-col gap-3 items-start justify-start overflow-hidden pb-0 pt-3 px-3 relative rounded-xl w-full h-[96px] transition-all duration-200 active:scale-[0.98] active:opacity-95 ${className}`}>
       {/* Accent bar */}
       <div 
         className="absolute inset-y-0 left-0 w-11 rounded-l-xl" 

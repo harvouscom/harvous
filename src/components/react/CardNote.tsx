@@ -108,7 +108,7 @@ const CardNote: React.FC<CardNoteProps> = ({
 }) => {
   return (
     <div 
-      className={`card-note-container bg-white relative rounded-xl h-22 transition-all duration-200 hover:shadow-sm hover:scale-[1.005] cursor-pointer ${className}`}
+      className={`card-note-container bg-white relative rounded-xl h-22 transition-all duration-200 hover:shadow-sm hover:scale-[1.005] active:scale-[0.98] active:opacity-95 cursor-pointer ${className}`}
       onClick={onClick}
     >
       {variant === "default" && (

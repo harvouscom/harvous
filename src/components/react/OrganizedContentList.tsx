@@ -340,7 +340,7 @@ export default function OrganizedContentList({
       >
         <a 
           href={href}
-          className="block transition-transform duration-200 hover:scale-[1.002]"
+          className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
         >
           {item.type === 'note' ? (
             <CardNote 

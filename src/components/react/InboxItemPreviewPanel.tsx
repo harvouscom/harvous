@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ButtonSmall from './ButtonSmall';
 import CardNote from './CardNote';
 import SquareButton from './SquareButton';
@@ -21,6 +21,8 @@ interface InboxItem {
   color?: string;
   notes?: InboxItemNote[];
   userStatus?: 'inbox' | 'archived' | 'added' | null;
+  isLoading?: boolean;
+  loadError?: string;
 }
 
 interface InboxItemPreviewPanelProps {
@@ -142,7 +144,7 @@ function normalizeHtmlContent(html: string | null | undefined): string {
 }
 
 export default function InboxItemPreviewPanel({
-  item,
+  item: initialItem,
   onClose,
   onAddToHarvous,
   onArchive,
@@ -150,12 +152,35 @@ export default function InboxItemPreviewPanel({
   onAddNoteToHarvous,
   inBottomSheet = false
 }: InboxItemPreviewPanelProps) {
+  // Use state so we can update the item when data loads
+  const [item, setItem] = useState<InboxItem>(initialItem);
   const [isAdding, setIsAdding] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isUnarchiving, setIsUnarchiving] = useState(false);
   const [addingNoteIds, setAddingNoteIds] = useState<Set<string>>(new Set());
   
+  // Listen for item updates (for optimistic loading pattern)
+  useEffect(() => {
+    const handleUpdate = (event: CustomEvent) => {
+      const { item: updatedItem } = event.detail;
+      if (updatedItem && updatedItem.id === item.id) {
+        setItem(updatedItem);
+      }
+    };
+    
+    window.addEventListener('updateInboxPreview', handleUpdate as EventListener);
+    return () => {
+      window.removeEventListener('updateInboxPreview', handleUpdate as EventListener);
+    };
+  }, [item.id]);
+  
+  // Update local state if prop changes (e.g., panel reopened with different item)
+  useEffect(() => {
+    setItem(initialItem);
+  }, [initialItem]);
+  
   const isArchived = item.userStatus === 'archived';
+  const isLoading = item.isLoading === true;
   // Navigation state: 'thread' for thread view, 'noteDetail' for individual note view
   const [viewMode, setViewMode] = useState<'thread' | 'noteDetail'>(item.contentType === 'note' ? 'noteDetail' : 'thread');
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(item.contentType === 'note' ? item.id : null);
@@ -278,6 +303,13 @@ export default function InboxItemPreviewPanel({
           transform: scale(0.98);
         }
 
+        /* Loading progress bar animation */
+        @keyframes progress {
+          0% { transform: translateX(-100%); }
+          50% { transform: translateX(0%); }
+          100% { transform: translateX(100%); }
+        }
+
         /* Rich text content styles - matching CardFullEditable display mode */
         .inbox-note-detail-content h2 {
           font-size: 18px !important;
@@ -367,7 +399,16 @@ export default function InboxItemPreviewPanel({
           margin-bottom: 0 !important;
         }
       `}</style>
-    <div className="h-full flex flex-col" style={{ height: '100%', maxHeight: '100%', minHeight: 0 }}>
+    <div className="h-full flex flex-col relative" style={{ height: '100%', maxHeight: '100%', minHeight: 0 }}>
+      {/* Loading indicator - progress bar at top */}
+      {isLoading && (
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-[var(--color-gray)] overflow-hidden rounded-t-[24px] z-50 pointer-events-none">
+          <div className="h-full bg-[var(--color-bold-blue)]" style={{
+            animation: 'progress 1.5s ease-in-out infinite',
+            width: '100%'
+          }}></div>
+        </div>
+      )}
       {/* Content area that expands to fill available space - matches NewNotePanel structure */}
       <div className="flex-1 flex flex-col min-h-0 mb-3.5 overflow-hidden">
         {/* Note Detail View - matches NewNotePanel card structure */}
@@ -392,15 +433,21 @@ export default function InboxItemPreviewPanel({
             <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px' }}>
               <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
                 <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
-                  <div 
-                    className="flex-1 overflow-auto inbox-note-detail-content"
-                    style={{ 
-                      lineHeight: '1.6', 
-                      minHeight: 0, 
-                      paddingBottom: '12px' 
-                    }}
-                    dangerouslySetInnerHTML={{ __html: normalizeHtmlContent(selectedNote.content) }}
-                  />
+                  {item.loadError ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <p className="text-[var(--color-stone-grey)]">{item.loadError}</p>
+                    </div>
+                  ) : (
+                    <div 
+                      className="flex-1 overflow-auto inbox-note-detail-content"
+                      style={{ 
+                        lineHeight: '1.6', 
+                        minHeight: 0, 
+                        paddingBottom: '12px' 
+                      }}
+                      dangerouslySetInnerHTML={{ __html: normalizeHtmlContent(selectedNote.content) }}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -431,7 +478,12 @@ export default function InboxItemPreviewPanel({
                 {viewMode === 'thread' && item.contentType === 'thread' && (
                   <div className="flex flex-col h-full w-full">
                     <div className="flex-1 flex flex-col gap-3 overflow-y-auto min-h-0">
-                      {sortedNotes.length > 0 ? (
+                      {item.loadError ? (
+                        /* Error state */
+                        <div className="text-center py-12">
+                          <p className="text-[var(--color-stone-grey)] text-lg">{item.loadError}</p>
+                        </div>
+                      ) : sortedNotes.length > 0 ? (
                         sortedNotes.map((note, index) => {
                           const cleanContent = stripHtml(note.content);
                           const previewContent = cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
@@ -454,7 +506,9 @@ export default function InboxItemPreviewPanel({
                         })
                       ) : (
                         <div className="text-center py-12">
-                          <p className="text-[var(--color-pebble-grey)] text-lg">No notes found in this thread.</p>
+                          <p className="text-[var(--color-pebble-grey)] text-lg">
+                            {isLoading ? '' : 'No notes found in this thread.'}
+                          </p>
                         </div>
                       )}
                     </div>

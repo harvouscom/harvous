@@ -134,7 +134,7 @@ export default function CardFeat({
         .card-feat-container:hover .stagger-note:nth-child(25) { animation: staggerHover 0.6s ease-in-out 1.2s forwards; }
         .card-feat-container:hover .stagger-note:nth-child(26) { animation: staggerHover 0.6s ease-in-out 1.25s forwards; }
       `}</style>
-      <div className={`card-feat-container ${className}`}>
+      <div className={`card-feat-container transition-all duration-200 active:scale-[0.98] active:opacity-95 ${className}`}>
         {variant === "Note" && (
           <div className="bg-white box-border flex flex-col gap-3 h-[180px] items-start justify-start max-w-[220px] overflow-clip pb-3 pt-2 px-2 relative rounded-2xl shrink-0 w-[220px]">
             {/* Light Paper background area */}

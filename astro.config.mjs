@@ -15,6 +15,10 @@ export default defineConfig({
   experimental: {
     clientPrerender: true
   },
+  prefetch: {
+    defaultStrategy: 'hover',  // Prefetch when user hovers over link
+    prefetchAll: false         // Only prefetch on hover, not all links
+  },
   vite: {
     server: {
       port: 4321,

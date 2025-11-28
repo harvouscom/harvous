@@ -67,6 +67,18 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
   const handleItemClick = async (item: InboxItem, e: React.MouseEvent) => {
     e.preventDefault();
 
+    // Show preview panel IMMEDIATELY with loading state for instant feedback
+    window.dispatchEvent(new CustomEvent('openInboxPreview', {
+      detail: { 
+        item: {
+          ...item,
+          inboxItemId: item.id,
+          isLoading: true,
+          notes: [] // Empty notes array while loading
+        }
+      }
+    }));
+
     try {
       // Fetch full item data with notes via API
       const response = await fetch(`/api/inbox/preview?inboxItemId=${item.id}`, {
@@ -82,21 +94,55 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
         } catch {
           // If response is not JSON, use default message
         }
+        // Update panel with error state
+        window.dispatchEvent(new CustomEvent('updateInboxPreview', {
+          detail: { 
+            item: {
+              ...item,
+              inboxItemId: item.id,
+              isLoading: false,
+              loadError: errorMessage,
+              notes: []
+            }
+          }
+        }));
         toast.error(errorMessage);
         return;
       }
 
       const result = await response.json();
       if (result.success && result.item) {
-        // Dispatch event to open preview panel/bottom sheet
-        window.dispatchEvent(new CustomEvent('openInboxPreview', {
-          detail: { item: result.item }
+        // Update panel with full data
+        window.dispatchEvent(new CustomEvent('updateInboxPreview', {
+          detail: { item: { ...result.item, isLoading: false } }
         }));
       } else {
+        window.dispatchEvent(new CustomEvent('updateInboxPreview', {
+          detail: { 
+            item: {
+              ...item,
+              inboxItemId: item.id,
+              isLoading: false,
+              loadError: 'Failed to load preview',
+              notes: []
+            }
+          }
+        }));
         toast.error('Failed to load preview');
       }
     } catch (error) {
       console.error('Error loading preview:', error);
+      window.dispatchEvent(new CustomEvent('updateInboxPreview', {
+        detail: { 
+          item: {
+            ...item,
+            inboxItemId: item.id,
+            isLoading: false,
+            loadError: 'Failed to load preview',
+            notes: []
+          }
+        }
+      }));
       toast.error('Failed to load preview. Please try again.');
     }
   };
@@ -327,7 +373,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
             <a
               href="#"
               onClick={(e) => handleItemClick(item, e)}
-              className="block transition-transform duration-200 hover:scale-[1.002] cursor-pointer"
+              className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.98] cursor-pointer"
             >
               <CardFeat
                 variant={item.variant}
