@@ -409,6 +409,7 @@ export default function NoteDetailsPanel({
         currentSpace={null}
         onClose={handleCloseNewThreadPanel}
         onThreadCreated={handleThreadCreated}
+        noteIdToAdd={noteId}
       />
     );
   }

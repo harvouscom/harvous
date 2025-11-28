@@ -27,9 +27,11 @@ interface NewThreadPanelProps {
   threadId?: string;
   initialTitle?: string;
   initialColor?: ThreadColor;
+  // Optional: automatically add this note to the newly created thread
+  noteIdToAdd?: string;
 }
 
-export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor }: NewThreadPanelProps) {
+export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor, noteIdToAdd }: NewThreadPanelProps) {
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
@@ -311,6 +313,30 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           window.dispatchEvent(new CustomEvent('threadCreated', {
             detail: { thread: result.thread }
           }));
+
+          // If noteIdToAdd is provided, add the note to the newly created thread
+          if (noteIdToAdd && result.thread && result.thread.id) {
+            try {
+              const addNoteResponse = await fetch(`/api/notes/${noteIdToAdd}/add-thread`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ threadId: result.thread.id }),
+                credentials: 'include'
+              });
+              
+              if (addNoteResponse.ok) {
+                // Dispatch noteAddedToThread event so UI updates
+                window.dispatchEvent(new CustomEvent('noteAddedToThread', {
+                  detail: { noteId: noteIdToAdd, threadId: result.thread.id }
+                }));
+              }
+            } catch (error) {
+              console.error('Error adding note to newly created thread:', error);
+              // Don't fail the thread creation if adding the note fails
+            }
+          }
 
           // If onThreadCreated callback is provided, use it instead of redirecting
           if (onThreadCreated) {
