@@ -139,6 +139,22 @@ nav a {
     -webkit-tap-highlight-color: transparent;
 }
 
+/* Ensure cursor-pointer works on desktop even with touch-action: manipulation */
+/* This fixes cursor not showing on clickable elements after mobile hover fixes */
+@media (hover: hover) {
+    .cursor-pointer,
+    [class*="cursor-pointer"],
+    a[href],
+    button:not(:disabled),
+    .space-button,
+    .nav-item-container a,
+    .card-note-container,
+    .card-feat-container,
+    .content-item a {
+        cursor: pointer !important;
+    }
+}
+
 @theme {
     --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
     --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
