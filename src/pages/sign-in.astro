@@ -86,7 +86,7 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
           }
         }}
         signUpUrl="/sign-up"
-        redirectUrl={redirectUrl}
+        fallbackRedirectUrl={redirectUrl}
       />
         </div>
       </div>
@@ -94,26 +94,12 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
   </div>
 </EmptyLayout>
 
-<!-- Client-side auth check - content hidden by default to prevent flash -->
+<!-- Show sign-in content once page loads (Clerk handles auth redirects) -->
 <script is:inline>
   (function() {
     if (typeof window === 'undefined') return;
     
-    // Check if Clerk session cookie exists
-    var cookies = document.cookie.split(';');
-    var hasClerkCookie = cookies.some(function(cookie) {
-      return cookie.trim().startsWith('__clerk') || 
-             cookie.trim().startsWith('__session');
-    });
-    
-    // If authenticated, redirect immediately (content stays hidden)
-    if (hasClerkCookie) {
-      var redirectUrl = new URLSearchParams(window.location.search).get('redirect_url') || '/';
-      window.location.replace(redirectUrl);
-      return; // Don't show content
-    }
-    
-    // Not authenticated - show the sign-in content
+    // Show the sign-in content - Clerk middleware handles auth redirects server-side
     var content = document.getElementById('sign-in-content');
     if (content) {
       content.classList.remove('sign-in-hidden');
