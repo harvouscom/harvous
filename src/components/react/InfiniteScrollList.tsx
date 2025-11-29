@@ -32,8 +32,9 @@ export default function InfiniteScrollList<T>({
   const prevInitialItemsRef = useRef<string>('');
   
   useEffect(() => {
-    // Create a stable key from initialItems to detect actual changes
-    const itemsKey = JSON.stringify(initialItems.map((item: any) => item.id || item));
+    // Create a lightweight key from initialItems IDs to detect actual changes
+    // Using string join instead of JSON.stringify for better performance
+    const itemsKey = initialItems.map((item: any) => item.id ?? '').join(',');
     
     // Only update if items actually changed (not just reference)
     if (itemsKey !== prevInitialItemsRef.current) {

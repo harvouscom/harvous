@@ -13,6 +13,7 @@ import { HighlightCustom } from './TiptapHighlightCustom.ts';
 import ButtonSmall from './ButtonSmall';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { safeNavigate } from '@/utils/safe-navigate';
+import '@/styles/tiptap-editor.css';
 
 // Define a global toast function
 declare global {
@@ -1444,20 +1445,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
   }, [editor]);
 
+  // Font Awesome is loaded globally via CDN in Layout.astro
+  // Set isLoaded immediately since Font Awesome is already available
   useEffect(() => {
-    // Load Font Awesome
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
-    document.head.appendChild(link);
-    
     setIsLoaded(true);
-    
-    return () => {
-      if (link && link.parentNode === document.head) {
-        document.head.removeChild(link);
-      }
-    };
   }, []);
 
   // Show loading state if editor is not ready yet
@@ -1769,205 +1760,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </ToolbarButton>
         </div>
       )}
-      
-      <style>{`
-        .tiptap-editor-container {
-          height: 100% !important;
-          min-height: 0 !important;
-          max-height: 100% !important;
-          overflow: hidden !important;
-          display: flex !important;
-          flex-direction: column !important;
-        }
-        
-        /* Placeholder styling */
-        .tiptap-editor-container .ProseMirror p.is-editor-empty:first-child::before {
-          content: attr(data-placeholder);
-          float: left;
-          color: #9ca3af;
-          pointer-events: none;
-          height: 0;
-        }
-        
-        .tiptap-content {
-          flex: 1 1 0% !important;
-          overflow-y: auto !important;
-          overflow-x: hidden !important;
-          min-height: 0 !important;
-          max-height: 100% !important;
-          height: 0 !important;
-          width: 100% !important;
-          display: block !important;
-          position: relative !important;
-          contain: layout size style !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror) {
-          font-family: var(--font-sans) !important;
-          font-size: 16px !important;
-          line-height: 1.6 !important;
-          color: var(--color-deep-grey) !important;
-          padding: 16px !important;
-          border: 1px solid #e5e5e5 !important;
-          background: white !important;
-          outline: none !important;
-          min-height: 100px !important;
-          height: auto !important;
-          max-width: 100% !important;
-          width: 100% !important;
-          overflow: visible !important;
-          border-radius: 8px !important;
-          box-sizing: border-box !important;
-          margin: 0 !important;
-          display: block !important;
-          word-wrap: break-word !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror:focus) {
-          outline: none !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror p.is-editor-empty:first-child::before) {
-          color: var(--color-pebble-grey) !important;
-          content: attr(data-placeholder) !important;
-          float: left !important;
-          height: 0 !important;
-          pointer-events: none !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror p) {
-          margin: 0.75em 0 !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror p:first-child) {
-          margin-top: 0 !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror p:last-child) {
-          margin-bottom: 0 !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror ul) {
-          list-style-type: disc !important;
-          padding-left: 1.5em !important;
-          margin-left: 0 !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror ol) {
-          list-style-type: decimal !important;
-          padding-left: 1.5em !important;
-          margin-left: 0 !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror li) {
-          margin-bottom: 0.5em !important;
-          color: var(--color-deep-grey) !important;
-          display: list-item !important;
-          list-style-position: outside !important;
-          list-style-type: inherit !important;
-        }
-        
-        /* Heading styles */
-        .tiptap-content :global(.ProseMirror h2) {
-          font-size: 18px !important;
-          font-weight: 600 !important;
-          line-height: 1.3 !important;
-          margin-top: 1.5em !important;
-          margin-bottom: 0.75em !important;
-          color: var(--color-deep-grey) !important;
-          font-family: var(--font-sans) !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror h2:first-child) {
-          margin-top: 0 !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror h3) {
-          font-size: 16px !important;
-          font-weight: 600 !important;
-          line-height: 1.4 !important;
-          margin-top: 1.25em !important;
-          margin-bottom: 0.625em !important;
-          color: var(--color-deep-grey) !important;
-          font-family: var(--font-sans) !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror h3:first-child) {
-          margin-top: 0 !important;
-        }
-        
-        /* Horizontal rule styles */
-        .tiptap-content :global(.ProseMirror hr) {
-          margin: 1.5em 0 !important;
-          border: none !important;
-          border-top: 1px solid #e5e5e5 !important;
-          background: none !important;
-          height: 1px !important;
-          padding: 0 !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror hr:first-child) {
-          margin-top: 0 !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror hr:last-child) {
-          margin-bottom: 0 !important;
-        }
-        
-        /* Override all conflicting CSS for toolbar buttons */
-        .tiptap-toolbar button {
-          box-shadow: none !important;
-          background: transparent !important;
-        }
-        
-        .tiptap-toolbar button:hover {
-          box-shadow: none !important;
-          background: transparent !important;
-        }
-        
-        .tiptap-toolbar button:hover div {
-          color: #4A4A4A !important;
-        }
-        
-        .tiptap-toolbar button.ql-active {
-          box-shadow: none !important;
-          background: transparent !important;
-        }
-        
-        .tiptap-toolbar button.ql-active div {
-          color: #4A4A4A !important;
-        }
-        
-        .tiptap-toolbar button:active {
-          box-shadow: none !important;
-          filter: brightness(0.97) !important;
-          transform: scale(0.98) !important;
-        }
-        
-        /* Force override any conflicting styles from other components */
-        .tiptap-toolbar button,
-        .tiptap-toolbar button:hover,
-        .tiptap-toolbar button:focus,
-        .tiptap-toolbar button:active,
-        .tiptap-toolbar button.ql-active {
-          background: transparent !important;
-          box-shadow: none !important;
-        }
-        
-        /* Note link styling - highlighted text that looks like selection */
-        .tiptap-content :global(.ProseMirror .note-link) {
-          background-color: rgba(255, 235, 59, 0.4) !important;
-          cursor: pointer !important;
-          text-decoration: none !important;
-          border-radius: 2px !important;
-          padding: 1px 2px !important;
-          margin: 0 -2px !important;
-        }
-        
-        .tiptap-content :global(.ProseMirror .note-link:hover) {
-          background-color: rgba(255, 235, 59, 0.5) !important;
-        }
-      `}</style>
     </div>
   );
 };

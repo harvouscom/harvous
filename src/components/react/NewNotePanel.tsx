@@ -249,15 +249,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     return () => visualViewport.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load Font Awesome for icons
-  useEffect(() => {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
-    if (!document.querySelector(`link[href="${link.href}"]`)) {
-      document.head.appendChild(link);
-    }
-  }, []);
+  // Font Awesome is loaded globally via CDN in Layout.astro
 
   // Listen for keyboard shortcut to save
   useEffect(() => {

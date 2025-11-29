@@ -1,4 +1,4 @@
-import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, eq, and, desc, count, or, ne, isNull, isNotNull } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, eq, and, desc, count, or, ne, isNull, isNotNull, inArray } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 import { getInboxItems, getInboxCount as getInboxCountUtil } from "./inbox-data";
 import { getRelativeTime } from "./date-formatting";
@@ -132,24 +132,32 @@ export async function getAllThreadsWithCounts(userId: string) {
     .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt))
     .all();
 
-    // Get note counts for each thread using junction table only
-    const threadsWithCounts = await Promise.all(
-      threads.map(async (thread) => {
-        const noteCountResult = await db.select({ count: count() })
-          .from(Notes)
-          .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-          .where(and(
-            eq(NoteThreads.threadId, thread.id),
-            eq(Notes.userId, userId)
-          ))
-          .get();
-
-        return {
-          ...thread,
-          noteCount: noteCountResult?.count || 0
-        };
+    // Get note counts for all threads in a single query using GROUP BY
+    const threadIds = threads.map(thread => thread.id);
+    let noteCountsMap = new Map<string, number>();
+    
+    if (threadIds.length > 0) {
+      const noteCounts = await db.select({
+        threadId: NoteThreads.threadId,
+        count: count(),
       })
-    );
+      .from(NoteThreads)
+      .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
+      .where(and(
+        inArray(NoteThreads.threadId, threadIds),
+        eq(Notes.userId, userId)
+      ))
+      .groupBy(NoteThreads.threadId)
+      .all();
+      
+      noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
+    }
+    
+    // Combine threads with their counts
+    const threadsWithCounts = threads.map(thread => ({
+      ...thread,
+      noteCount: noteCountsMap.get(thread.id) || 0
+    }));
 
     // Transform the results to match the expected format
     return threadsWithCounts.map(thread => ({
@@ -273,24 +281,32 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
     .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt))
     .all();
 
-    // Get note counts for each thread using junction table only
-    const threadsWithCounts = await Promise.all(
-      threads.map(async (thread) => {
-        const noteCountResult = await db.select({ count: count() })
-          .from(Notes)
-          .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-          .where(and(
-            eq(NoteThreads.threadId, thread.id),
-            eq(Notes.userId, userId)
-          ))
-          .get();
-
-        return {
-          ...thread,
-          noteCount: noteCountResult?.count || 0
-        };
+    // Get note counts for all threads in a single query using GROUP BY
+    const threadIds = threads.map(thread => thread.id);
+    let noteCountsMap = new Map<string, number>();
+    
+    if (threadIds.length > 0) {
+      const noteCounts = await db.select({
+        threadId: NoteThreads.threadId,
+        count: count(),
       })
-    );
+      .from(NoteThreads)
+      .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
+      .where(and(
+        inArray(NoteThreads.threadId, threadIds),
+        eq(Notes.userId, userId)
+      ))
+      .groupBy(NoteThreads.threadId)
+      .all();
+      
+      noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
+    }
+    
+    // Combine threads with their counts
+    const threadsWithCounts = threads.map(thread => ({
+      ...thread,
+      noteCount: noteCountsMap.get(thread.id) || 0
+    }));
 
     // Transform the results to match the expected format
     return threadsWithCounts.map(thread => ({

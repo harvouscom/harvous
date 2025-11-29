@@ -29,13 +29,14 @@ export const GET: APIRoute = async ({ locals }) => {
     }));
     
     // Ensure "Unorganized" thread exists with actual count
+    // Call ensureUnorganizedThread once regardless of whether it exists in threadOptions
+    const unorganizedThreadData = await ensureUnorganizedThread(userId);
     const hasUnorganizedThread = threadOptions.some(thread => 
       thread.title === "Unorganized" || thread.id === 'thread_unorganized'
     );
     
     if (!hasUnorganizedThread) {
-      // Fetch actual unorganized thread data with real count
-      const unorganizedThreadData = await ensureUnorganizedThread(userId);
+      // Add unorganized thread to the beginning of the list
       threadOptions.unshift({
         id: 'thread_unorganized',
         title: 'Unorganized',
@@ -49,7 +50,6 @@ export const GET: APIRoute = async ({ locals }) => {
         thread.title === "Unorganized" || thread.id === 'thread_unorganized'
       );
       if (unorganizedIndex !== -1) {
-        const unorganizedThreadData = await ensureUnorganizedThread(userId);
         threadOptions[unorganizedIndex].noteCount = unorganizedThreadData.noteCount || 0;
       }
     }

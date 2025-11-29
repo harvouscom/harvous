@@ -984,46 +984,28 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const { noteId, threadId } = event.detail;
       if (threadId) {
         // Use current React state instead of reading from localStorage
+        // Combine both updates into a single state update to prevent double renders
         setNavigationHistory(currentHistory => {
           const threadIndex = currentHistory.findIndex((item: any) => item.id === threadId);
-          if (threadIndex !== -1) {
-            // Update count immediately for UI responsiveness
-            // Use immutable updates to ensure React detects the change
-            const oldCount = currentHistory[threadIndex].count || 0;
-            const newCount = Math.max(0, oldCount - 1);
-            
-            const updatedHistory = currentHistory.map((item, index) => 
-              index === threadIndex 
-                ? { ...item, count: newCount }
-                : item
-            );
-            saveNavigationHistory(updatedHistory);
-            return updatedHistory;
-          }
-          return currentHistory;
-        });
-        
-        // Also increment unorganized thread count (note was moved back to unorganized)
-        // Note: This assumes the note became unorganized. The API refresh will correct any inaccuracies.
-        setNavigationHistory(currentHistory => {
           const unorganizedIndex = currentHistory.findIndex((item: any) => item.id === 'thread_unorganized');
-          if (unorganizedIndex !== -1) {
-            const oldUnorganizedCount = currentHistory[unorganizedIndex].count || 0;
-            const newUnorganizedCount = oldUnorganizedCount + 1;
-            
-            const updatedHistory = currentHistory.map((item, index) => 
-              index === unorganizedIndex 
-                ? { ...item, count: newUnorganizedCount }
-                : item
-            );
-            
-            saveNavigationHistory(updatedHistory);
-            return updatedHistory;
-          } else {
-            // Unorganized thread not in history - might need to add it back if it was closed
-            // Check if it should be reopened after API refresh
-          }
-          return currentHistory;
+          
+          // Build updated history in a single pass
+          const updatedHistory = currentHistory.map((item, index) => {
+            if (index === threadIndex) {
+              // Update thread count
+              const oldCount = item.count || 0;
+              return { ...item, count: Math.max(0, oldCount - 1) };
+            }
+            if (index === unorganizedIndex) {
+              // Increment unorganized thread count (note was moved back to unorganized)
+              const oldUnorganizedCount = item.count || 0;
+              return { ...item, count: oldUnorganizedCount + 1 };
+            }
+            return item;
+          });
+          
+          saveNavigationHistory(updatedHistory);
+          return updatedHistory;
         });
         
         // Refresh counts from API after a delay to ensure database is committed
@@ -1061,50 +1043,48 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const { noteId, threadId } = event.detail;
       if (threadId) {
         // Use current React state instead of reading from localStorage
+        // Combine both updates into a single state update to prevent double renders
         setNavigationHistory(currentHistory => {
           const threadIndex = currentHistory.findIndex((item: any) => item.id === threadId);
-          if (threadIndex !== -1) {
-            // Update count immediately for UI responsiveness
-            // Use immutable updates to ensure React detects the change
-            const oldCount = currentHistory[threadIndex].count || 0;
-            const newCount = oldCount + 1;
-            
-            const updatedHistory = currentHistory.map((item, index) => 
-              index === threadIndex 
-                ? { ...item, count: newCount }
-                : item
-            );
-            
-            saveNavigationHistory(updatedHistory);
-            return updatedHistory;
-          }
-          return currentHistory;
-        });
-        
-        // Also decrement unorganized thread count (note was moved from unorganized to a thread)
-        // Note: This assumes the note was previously unorganized. The API refresh will correct any inaccuracies.
-        setNavigationHistory(currentHistory => {
           const unorganizedIndex = currentHistory.findIndex((item: any) => item.id === 'thread_unorganized');
-          if (unorganizedIndex !== -1) {
-            const oldUnorganizedCount = currentHistory[unorganizedIndex].count || 0;
-            const newUnorganizedCount = Math.max(0, oldUnorganizedCount - 1);
-            
-            const updatedHistory = currentHistory.map((item, index) => 
-              index === unorganizedIndex 
-                ? { ...item, count: newUnorganizedCount }
-                : item
-            );
-            
-            saveNavigationHistory(updatedHistory);
-
-            // If unorganized thread is now empty, call the standard removal function
-            if (newUnorganizedCount === 0) {
-              removeFromNavigationHistory('thread_unorganized');
+          
+          // Build updated history in a single pass
+          let shouldRemoveUnorganized = false;
+          const updatedHistory = currentHistory.map((item, index) => {
+            if (index === threadIndex) {
+              // Update thread count
+              const oldCount = item.count || 0;
+              return { ...item, count: oldCount + 1 };
             }
-            
-            return updatedHistory;
+            if (index === unorganizedIndex) {
+              // Decrement unorganized thread count (note was moved from unorganized to a thread)
+              const oldUnorganizedCount = item.count || 0;
+              const newUnorganizedCount = Math.max(0, oldUnorganizedCount - 1);
+              
+              // If unorganized thread is now empty, mark for removal
+              if (newUnorganizedCount === 0) {
+                shouldRemoveUnorganized = true;
+                return null; // Mark for removal
+              }
+              
+              return { ...item, count: newUnorganizedCount };
+            }
+            return item;
+          }).filter(item => item !== null) as NavigationItem[];
+          
+          saveNavigationHistory(updatedHistory);
+          
+          // If unorganized thread was removed, call the standard removal function
+          // to handle closed items tracking
+          if (shouldRemoveUnorganized) {
+            addToClosedItems('thread_unorganized');
+            safeSetItem('unorganized-thread-closed', 'true', {
+              cleanupOldest: false,
+              fallbackToSession: true,
+            });
           }
-          return currentHistory;
+          
+          return updatedHistory;
         });
         
         // Refresh counts from API after a delay to ensure database is committed
@@ -1199,11 +1179,17 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
+  // Memoize filtered navigation history to prevent recalculation on unrelated renders
+  const filteredNavigationHistory = useMemo(() => {
+    const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
+    return navigationHistory.filter(item => !testItemTitles.includes(item.title));
+  }, [navigationHistory]);
+
   // Memoize context value to ensure React detects changes properly
   // The value object reference changes when navigationHistory changes, triggering re-renders
   const value: NavigationContextType = useMemo(() => {
     const newValue = {
-      navigationHistory,
+      navigationHistory: filteredNavigationHistory,
       addToNavigationHistory,
       removeFromNavigationHistory,
       trackNavigationAccess,
@@ -1211,7 +1197,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       getCurrentActiveItemId
     };
     return newValue;
-  }, [navigationHistory]);
+  }, [filteredNavigationHistory]);
 
   // Use default value during SSR, real value during client-side
   const contextValue = typeof window === 'undefined' ? defaultContextValue : value;

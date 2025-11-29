@@ -1,0 +1,197 @@
+.tiptap-editor-container {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Placeholder styling */
+.tiptap-editor-container .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af;
+  pointer-events: none;
+  height: 0;
+}
+
+.tiptap-content {
+  flex: 1 1 0% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  height: 0 !important;
+  width: 100% !important;
+  display: block !important;
+  position: relative !important;
+  contain: layout size style !important;
+}
+
+.tiptap-content .ProseMirror {
+  font-family: var(--font-sans) !important;
+  font-size: 16px !important;
+  line-height: 1.6 !important;
+  color: var(--color-deep-grey) !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  outline: none !important;
+  min-height: 100px !important;
+  height: auto !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  overflow: visible !important;
+  border-radius: 0 !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  display: block !important;
+  word-wrap: break-word !important;
+}
+
+.tiptap-content .ProseMirror:focus {
+  outline: none !important;
+}
+
+.tiptap-content .ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--color-pebble-grey) !important;
+  content: attr(data-placeholder) !important;
+  float: left !important;
+  height: 0 !important;
+  pointer-events: none !important;
+}
+
+.tiptap-content .ProseMirror p {
+  margin: 0.75em 0 !important;
+}
+
+.tiptap-content .ProseMirror p:first-child {
+  margin-top: 0 !important;
+}
+
+.tiptap-content .ProseMirror p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.tiptap-content .ProseMirror ul {
+  list-style-type: disc !important;
+  padding-left: 1.5em !important;
+  margin-left: 0 !important;
+}
+
+.tiptap-content .ProseMirror ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5em !important;
+  margin-left: 0 !important;
+}
+
+.tiptap-content .ProseMirror li {
+  margin-bottom: 0.5em !important;
+  color: var(--color-deep-grey) !important;
+  display: list-item !important;
+  list-style-position: outside !important;
+  list-style-type: inherit !important;
+}
+
+/* Heading styles */
+.tiptap-content .ProseMirror h2 {
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  margin-top: 1.5em !important;
+  margin-bottom: 0.75em !important;
+  color: var(--color-deep-grey) !important;
+  font-family: var(--font-sans) !important;
+}
+
+.tiptap-content .ProseMirror h2:first-child {
+  margin-top: 0 !important;
+}
+
+.tiptap-content .ProseMirror h3 {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  margin-top: 1.25em !important;
+  margin-bottom: 0.625em !important;
+  color: var(--color-deep-grey) !important;
+  font-family: var(--font-sans) !important;
+}
+
+.tiptap-content .ProseMirror h3:first-child {
+  margin-top: 0 !important;
+}
+
+/* Horizontal rule styles */
+.tiptap-content .ProseMirror hr {
+  margin: 1.5em 0 !important;
+  border: none !important;
+  border-top: 1px solid #e5e5e5 !important;
+  background: none !important;
+  height: 1px !important;
+  padding: 0 !important;
+}
+
+.tiptap-content .ProseMirror hr:first-child {
+  margin-top: 0 !important;
+}
+
+.tiptap-content .ProseMirror hr:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Override all conflicting CSS for toolbar buttons */
+.tiptap-toolbar button {
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.tiptap-toolbar button:hover {
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.tiptap-toolbar button:hover div {
+  color: #4A4A4A !important;
+}
+
+.tiptap-toolbar button.ql-active {
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.tiptap-toolbar button.ql-active div {
+  color: #4A4A4A !important;
+}
+
+.tiptap-toolbar button:active {
+  box-shadow: none !important;
+  filter: brightness(0.97) !important;
+  transform: scale(0.98) !important;
+}
+
+/* Force override any conflicting styles from other components */
+.tiptap-toolbar button,
+.tiptap-toolbar button:hover,
+.tiptap-toolbar button:focus,
+.tiptap-toolbar button:active,
+.tiptap-toolbar button.ql-active {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Note link styling - highlighted text that looks like selection */
+.tiptap-content .ProseMirror .note-link {
+  background-color: rgba(255, 235, 59, 0.4) !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+  border-radius: 2px !important;
+  padding: 1px 2px !important;
+  margin: 0 -2px !important;
+}
+
+.tiptap-content .ProseMirror .note-link:hover {
+  background-color: rgba(255, 235, 59, 0.5) !important;
+}
+
