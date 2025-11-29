@@ -159,11 +159,22 @@ export default function InboxItemPreviewPanel({
   const [isUnarchiving, setIsUnarchiving] = useState(false);
   const [addingNoteIds, setAddingNoteIds] = useState<Set<string>>(new Set());
   
+  // Track item ID in a ref to avoid stale closure issues
+  const itemIdRef = useRef(initialItem.id);
+  
+  // Update ref when initialItem changes
+  useEffect(() => {
+    itemIdRef.current = initialItem.id;
+  }, [initialItem.id]);
+  
   // Listen for item updates (for optimistic loading pattern)
+  // Use empty dependency array to set up listener on mount and avoid race condition
+  // with lazy loading - the event might fire before component mounts with [item.id] dependency
   useEffect(() => {
     const handleUpdate = (event: CustomEvent) => {
       const { item: updatedItem } = event.detail;
-      if (updatedItem && updatedItem.id === item.id) {
+      // Use ref for current item ID to avoid stale closure
+      if (updatedItem && updatedItem.id === itemIdRef.current) {
         setItem(updatedItem);
       }
     };
@@ -172,12 +183,34 @@ export default function InboxItemPreviewPanel({
     return () => {
       window.removeEventListener('updateInboxPreview', handleUpdate as EventListener);
     };
-  }, [item.id]);
+  }, []); // Empty dependency - listen on mount
   
   // Update local state if prop changes (e.g., panel reopened with different item)
   useEffect(() => {
     setItem(initialItem);
+    itemIdRef.current = initialItem.id;
   }, [initialItem]);
+  
+  // Add loading timeout - if loading state persists for 15 seconds, show error
+  useEffect(() => {
+    if (item.isLoading) {
+      const timeoutId = setTimeout(() => {
+        setItem(prev => {
+          // Only update if still loading the same item
+          if (prev.isLoading && prev.id === itemIdRef.current) {
+            return {
+              ...prev,
+              isLoading: false,
+              loadError: 'Loading took too long. Please try again.'
+            };
+          }
+          return prev;
+        });
+      }, 15000); // 15 second timeout
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [item.isLoading, item.id]);
   
   const isArchived = item.userStatus === 'archived';
   const isLoading = item.isLoading === true;
