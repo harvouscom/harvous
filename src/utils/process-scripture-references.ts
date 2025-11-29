@@ -9,6 +9,7 @@ import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { generateNoteId } from '@/utils/ids';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
+import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 
 export interface ProcessingResult {
   action: 'created' | 'added' | 'unorganized' | 'skipped';
@@ -253,6 +254,29 @@ export async function processScriptureReferences(
 
           // Award XP (scripture notes get 3 XP and are exempt from rate/content checks)
           await awardNoteCreatedXP(userId, scriptureNote.id, true, capitalizedContent);
+
+          // Auto-generate and apply tags based on note content
+          try {
+            // Generate auto-tag suggestions based on note content (80% confidence threshold)
+            const autoTagResult = await generateAutoTags(
+              capitalizedTitle || '',
+              capitalizedContent,
+              userId,
+              0.8 // Generate high-confidence tags
+            );
+            
+            // Apply the auto-generated tags if any were found
+            if (autoTagResult.suggestions.length > 0) {
+              await applyAutoTags(
+                scriptureNote.id,
+                autoTagResult.suggestions,
+                userId
+              );
+            }
+          } catch (error: unknown) {
+            // Don't fail note creation if auto-tagging fails
+            console.error('Auto-tagging failed for scripture note (non-critical):', error);
+          }
 
           // If not unorganized, add to thread
           if (actualThreadId !== 'thread_unorganized') {
