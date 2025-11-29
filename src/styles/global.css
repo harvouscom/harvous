@@ -775,13 +775,28 @@ button[disabled] {
   transform: scale(1.1);
 }
 
-/* Card Link Hover Effects */
+/* Card Link Hover Effects - Only on devices that support hover */
 .content-item a {
   transition: transform 0.2s ease-out;
+  touch-action: manipulation;
 }
 
-.content-item a:hover {
-  transform: translateY(-2px);
+@media (hover: hover) {
+  .content-item a:hover {
+    transform: translateY(-2px);
+  }
+}
+
+/* Note card hover effects - Only on devices that support hover */
+.card-note-container {
+  touch-action: manipulation;
+}
+
+@media (hover: hover) {
+  .card-note-container:hover {
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    transform: scale(1.005);
+  }
 }
 
 /* Scripture Pill Styles */

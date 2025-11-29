@@ -103,7 +103,8 @@ export default function ThreadNotesList({
       >
         <a 
           href={`/${note.id}`}
-          className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+          className="block transition-transform duration-200 active:scale-[0.99]"
+          style={{ touchAction: 'manipulation' }}
         >
           <CardNote 
             title={note.title || "Untitled Note"}

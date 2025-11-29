@@ -107,10 +107,20 @@ const CardNote: React.FC<CardNoteProps> = ({
   onClick
 }) => {
   return (
-    <div 
-      className={`card-note-container bg-white relative rounded-xl h-22 transition-all duration-200 hover:shadow-sm hover:scale-[1.005] active:scale-[0.98] active:opacity-95 cursor-pointer ${className}`}
-      onClick={onClick}
-    >
+    <>
+      <style>{`
+        @media (hover: hover) {
+          .card-note-container:hover {
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            transform: scale(1.005);
+          }
+        }
+      `}</style>
+      <div 
+        className={`card-note-container bg-white relative rounded-xl h-22 transition-all duration-200 active:scale-[0.98] active:opacity-95 cursor-pointer ${className}`}
+        style={{ touchAction: 'manipulation' }}
+        onClick={onClick}
+      >
       {variant === "default" && (
         <div className="relative rounded-xl h-full">
           <div className="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
@@ -195,7 +205,8 @@ const CardNote: React.FC<CardNoteProps> = ({
           <div aria-hidden="true" className="absolute border border-[var(--color-fog-white)] border-solid inset-0 pointer-events-none rounded-xl"></div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 
