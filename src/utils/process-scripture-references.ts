@@ -3,7 +3,7 @@
  * Can be called directly from API routes or other server-side code
  */
 
-import { db, Notes, UserMetadata, NoteThreads, ScriptureMetadata, Threads, eq, and, desc, isNotNull, count } from 'astro:db';
+import { db, Notes, UserMetadata, NoteThreads, ScriptureMetadata, NoteScriptureReferences, Threads, eq, and, desc, isNotNull, count, ne } from 'astro:db';
 import { detectScriptureReferences, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
 import { parseScriptureReference } from '@/utils/scripture-detector';
@@ -269,6 +269,19 @@ export async function processScriptureReferences(
           }
 
           referenceMap.set(reference, scriptureNote.id);
+          
+          // Create junction entry linking this note to the new scripture note
+          try {
+            await db.insert(NoteScriptureReferences).values({
+              id: `note-scripture-${noteId}-${scriptureNote.id}-${Date.now()}`,
+              noteId: noteId, // The note containing the reference
+              scriptureNoteId: scriptureNote.id, // The scripture note being referenced
+              createdAt: new Date()
+            });
+          } catch (junctionError) {
+            // Ignore if already exists
+          }
+          
           results.push({
             action: 'created',
             noteId: scriptureNote.id,
@@ -281,6 +294,31 @@ export async function processScriptureReferences(
         // Scripture exists
         const existingNoteId = existingScripture.noteId;
         referenceMap.set(reference, existingNoteId);
+
+        // Create junction entry linking this note to the scripture note (if not already exists)
+        try {
+          const existingJunction = await db.select()
+            .from(NoteScriptureReferences)
+            .where(
+              and(
+                eq(NoteScriptureReferences.noteId, noteId),
+                eq(NoteScriptureReferences.scriptureNoteId, existingNoteId)
+              )
+            )
+            .limit(1)
+            .get();
+          
+          if (!existingJunction) {
+            await db.insert(NoteScriptureReferences).values({
+              id: `note-scripture-${noteId}-${existingNoteId}-${Date.now()}`,
+              noteId: noteId, // The note containing the reference
+              scriptureNoteId: existingNoteId, // The scripture note being referenced
+              createdAt: new Date()
+            });
+          }
+        } catch (junctionError) {
+          // Ignore junction entry errors - non-critical
+        }
 
         // Check if in thread
         let inThread = false;
@@ -373,12 +411,37 @@ export async function processScriptureReferences(
   }));
   
   // Also add existing references to the map so they're preserved
-  for (const [normalizedRef, noteId] of existingReferences.entries()) {
+  for (const [normalizedRef, existingScriptureNoteId] of existingReferences.entries()) {
     // Find the original reference format from detected references
     const matchingRef = detectedReferences.find(d => normalizeScriptureReference(d.reference) === normalizedRef);
     if (matchingRef && !referenceMap.has(matchingRef.reference)) {
-      referenceMap.set(matchingRef.reference, noteId);
-      referencesForHighlighting.push({ reference: matchingRef.reference, noteId });
+      referenceMap.set(matchingRef.reference, existingScriptureNoteId);
+      referencesForHighlighting.push({ reference: matchingRef.reference, noteId: existingScriptureNoteId });
+    }
+    
+    // Ensure junction entry exists for existing references too
+    try {
+      const existingJunction = await db.select()
+        .from(NoteScriptureReferences)
+        .where(
+          and(
+            eq(NoteScriptureReferences.noteId, noteId),
+            eq(NoteScriptureReferences.scriptureNoteId, existingScriptureNoteId)
+          )
+        )
+        .limit(1)
+        .get();
+      
+      if (!existingJunction) {
+        await db.insert(NoteScriptureReferences).values({
+          id: `note-scripture-${noteId}-${existingScriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          noteId: noteId,
+          scriptureNoteId: existingScriptureNoteId,
+          createdAt: new Date()
+        });
+      }
+    } catch (junctionError) {
+      // Ignore junction entry errors - non-critical
     }
   }
 

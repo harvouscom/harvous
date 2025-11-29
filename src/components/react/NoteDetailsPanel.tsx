@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import CardThread from './CardThread';
+import CardNote from './CardNote';
 import AddToSection from './AddToSection';
 import SquareButton from './SquareButton';
 import ActionButton from './ActionButton';
@@ -29,6 +30,16 @@ interface Comment {
 interface Tag {
   id: string;
   name: string;
+}
+
+interface ReferencingNote {
+  id: string;
+  title: string | null;
+  content: string;
+  simpleNoteId: number | null;
+  noteType: string;
+  createdAt: string;
+  updatedAt: string | null;
 }
 
 interface NoteDetailsPanelProps {
@@ -65,8 +76,13 @@ export default function NoteDetailsPanel({
   const [noteSimpleId, setNoteSimpleId] = useState<number | null>(null);
   const [noteVersion, setNoteVersion] = useState<string | null>(null);
   const [noteAddedBy, setNoteAddedBy] = useState<string | null>(null);
+  const [noteType, setNoteType] = useState<string>('default');
+  const [localReferencingNotes, setLocalReferencingNotes] = useState<ReferencingNote[]>([]);
   const [showNewTagPanel, setShowNewTagPanel] = useState(false);
   const [showNewThreadPanel, setShowNewThreadPanel] = useState(false);
+  
+  // Check if this is a scripture note (to show the Notes tab)
+  const isScriptureNote = noteType === 'scripture';
 
   // Fetch data when component mounts
   useEffect(() => {
@@ -92,7 +108,15 @@ export default function NoteDetailsPanel({
           setNoteSimpleId(data.note.simpleNoteId || null);
           setNoteVersion(data.note.version || null);
           setNoteAddedBy(data.note.addedBy || 'user');
+          setNoteType(data.note.noteType || 'default');
+          
+          // Set default tab to 'notes' for scripture notes
+          if (data.note.noteType === 'scripture') {
+            setActiveTab('notes');
+          }
         }
+        // Set referencing notes (only for scripture notes)
+        setLocalReferencingNotes(data.referencingNotes || []);
       }
     } catch (error) {
       // Error fetching note details
@@ -532,6 +556,33 @@ export default function NoteDetailsPanel({
                     <div className="tab-nav-container">
                       {/* Tab Navigation */}
                       <div className="flex items-center justify-start gap-0 pb-0 pt-1 px-1 relative w-full overflow-x-auto">
+                        {/* Notes tab - first for scripture notes */}
+                        {isScriptureNote && (
+                          <button
+                            type="button"
+                            className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative shrink-0 transition-all duration-200 ${
+                              activeTab === 'notes' ? 'opacity-100' : 'opacity-50 hover:opacity-75'
+                            }`}
+                            onClick={() => switchTab('notes')}
+                            data-tab-id="notes"
+                            data-active={activeTab === 'notes' ? 'true' : 'false'}
+                          >
+                            <span className="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
+                              Notes
+                            </span>
+                            <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-5 h-5">
+                              <span className="text-[12px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                                {localReferencingNotes.length}
+                              </span>
+                            </div>
+                            {activeTab === 'notes' && (
+                              <div className="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1">
+                                <div className="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                              </div>
+                            )}
+                          </button>
+                        )}
+                        
                         <button
                           type="button"
                           className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative shrink-0 transition-all duration-200 ${
@@ -674,6 +725,33 @@ export default function NoteDetailsPanel({
                                   </div>
                                 </div>
                               </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {activeTab === 'notes' && isScriptureNote && (
+                      <div className="flex flex-col gap-3">
+                        {localReferencingNotes.length === 0 ? (
+                          <div className="text-center py-4 text-gray-500">
+                            <p>No notes reference this scripture yet.</p>
+                            <p className="text-sm mt-1">When you reference this scripture in other notes, they'll appear here.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {localReferencingNotes.map(refNote => (
+                              <a
+                                key={refNote.id}
+                                href={`/${refNote.id}`}
+                                className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+                                style={{ touchAction: 'manipulation' }}
+                              >
+                                <CardNote
+                                  title={refNote.title || `Note #N${refNote.simpleNoteId?.toString().padStart(3, '0') || 'N/A'}`}
+                                  content={refNote.content}
+                                  noteType={(refNote.noteType === 'scripture' || refNote.noteType === 'resource') ? refNote.noteType : 'default'}
+                                />
+                              </a>
                             ))}
                           </div>
                         )}

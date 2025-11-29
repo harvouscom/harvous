@@ -160,6 +160,17 @@ const ScriptureMetadata = defineTable({
   }
 })
 
+// Junction table for many-to-many relationship between notes and scripture references
+// Tracks which notes reference which scripture notes (for the "Notes" tab in scripture note details)
+const NoteScriptureReferences = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    noteId: column.text(), // Note that contains the reference
+    scriptureNoteId: column.text(), // The scripture note being referenced
+    createdAt: column.date(),
+  }
+})
+
 // Inbox items from Harvous team (synced from Webflow CMS)
 const InboxItems = defineTable({
   columns: {
@@ -218,6 +229,7 @@ export default defineDb({
     Tags,
     NoteTags,
     ScriptureMetadata,
+    NoteScriptureReferences,
     InboxItems,
     InboxItemNotes,
     UserInboxItems
