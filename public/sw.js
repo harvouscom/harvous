@@ -1,16 +1,18 @@
 // Service Worker for Harvous PWA
 // Improves initial load and re-engagement performance
 
-const CACHE_NAME = 'harvous-cache-v6'; // Increment version to invalidate old cache
-const OFFLINE_URL = '/';
+const CACHE_NAME = 'harvous-cache-v7'; // Increment version to invalidate old cache (v7: fix sign-in page flash)
+// Note: OFFLINE_URL should not be '/' as it may contain sign-in page
+// Use a dedicated offline page or show error message instead
+const OFFLINE_URL = null; // Don't use cached root as offline fallback
 const NAV_API_CACHE = 'harvous-nav-api-v3'; // Increment version to invalidate old cache
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours for navigation API
 const PAGE_CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours for page cache
 
 // Resources to pre-cache for faster initial load
-// Note: Removed '/dashboard' to prevent auth conflicts - authenticated routes should use network-first
+// Note: Removed '/' and '/dashboard' to prevent auth conflicts - authenticated routes should use network-first
+// Root route '/' is excluded to prevent sign-in page flash
 const CRITICAL_ASSETS = [
-  '/',
   '/favicon.svg',
   '/favicon.png',
   '/manifest.json',
@@ -144,12 +146,13 @@ const isAstroAsset = (url) => {
 
 // Helper to determine if a request is for a navigation route
 // Navigation routes should use cache-first strategy for faster mobile performance
+// IMPORTANT: Root route '/' is excluded to prevent sign-in page flash - it uses network-first
 const isNavigationRoute = (url) => {
   const path = new URL(url).pathname;
   
-  // Static navigation routes
-  if (path === '/' || 
-      path === '/find' || 
+  // Static navigation routes (excluding '/' which needs network-first for auth state)
+  // Root route '/' is handled separately with network-first to ensure correct authentication
+  if (path === '/find' || 
       path === '/profile' || 
       path === '/new-space') {
     return true;
@@ -158,7 +161,8 @@ const isNavigationRoute = (url) => {
   // Dynamic routes (threads, spaces, notes)
   // Pattern: /{id} where id is not an API route or static asset
   // Exclude API routes, static assets, and special paths
-  if (path.startsWith('/api/') || 
+  if (path === '/' || // Root route excluded - needs network-first for auth
+      path.startsWith('/api/') || 
       path.startsWith('/_astro/') ||
       path.startsWith('/scripts/') ||
       path.startsWith('/icons/') ||
@@ -175,6 +179,35 @@ const isNavigationRoute = (url) => {
   }
   
   return false;
+};
+
+// Helper to check if a response is from the sign-in page
+// This prevents serving cached sign-in HTML for authenticated routes
+const isSignInPageResponse = async (response) => {
+  if (!response) return false;
+  
+  try {
+    // Clone the response to avoid consuming the body
+    const clonedResponse = response.clone();
+    const text = await clonedResponse.text();
+    
+    // Check for sign-in page indicators in the HTML
+    // These are unique elements from the sign-in page
+    return text.includes('id="sign-in-content"') || 
+           text.includes('sign-in-hidden') ||
+           text.includes('ClerkSignIn') ||
+           text.includes('<title>Sign In</title>');
+  } catch (error) {
+    // If we can't read the response, assume it's not sign-in page
+    return false;
+  }
+};
+
+// Helper to check if root route should bypass cache
+// Root route '/' needs network-first to prevent sign-in page flash
+const isRootRoute = (url) => {
+  const path = new URL(url).pathname;
+  return path === '/';
 };
 
 // Helper to determine if a response should be cached
@@ -264,6 +297,47 @@ self.addEventListener('fetch', (event) => {
           statusText: 'Service Unavailable'
         });
       })
+    );
+    return;
+  }
+  
+  // Root route '/' uses network-first to prevent sign-in page flash
+  // This ensures authenticated users always get the dashboard, not cached sign-in page
+  if (isRootRoute(event.request.url) && event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(async (response) => {
+          // Cache the fresh response only if it's successful and NOT sign-in page
+          if (shouldCacheResponse(response)) {
+            // Check if this is a sign-in page response (shouldn't cache for root)
+            const isSignIn = await isSignInPageResponse(response.clone());
+            if (!isSignIn) {
+              const responseClone = response.clone();
+              const timestampedResponse = addCacheTimestamp(responseClone);
+              const cacheClone = timestampedResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                safeCachePut(cache, event.request, cacheClone);
+              });
+            }
+          }
+          return response;
+        })
+        .catch(async () => {
+          // If network fails, try cache but verify it's not sign-in page
+          const cachedResponse = await caches.match(event.request);
+          if (cachedResponse) {
+            // Check if cached response is sign-in page - don't serve it
+            const isSignIn = await isSignInPageResponse(cachedResponse.clone());
+            if (!isSignIn) {
+              return cachedResponse;
+            }
+          }
+          // Fallback to offline page or error
+          return caches.match(OFFLINE_URL) || new Response('Network error', {
+            status: 503,
+            statusText: 'Service Unavailable'
+          });
+        })
     );
     return;
   }
@@ -464,26 +538,36 @@ self.addEventListener('fetch', (event) => {
 
   // For navigation routes (threads, spaces, notes, find, profile, new-space, dashboard)
   // Use cache-first strategy for faster mobile performance
+  // Note: Root route '/' is handled above with network-first strategy
   if (event.request.mode === 'navigate' || isNavigationRoute(event.request.url)) {
     event.respondWith(
       caches.match(event.request)
-        .then((cachedResponse) => {
+        .then(async (cachedResponse) => {
           const isStale = isCacheStale(cachedResponse, PAGE_CACHE_MAX_AGE);
           
+          // Additional check: verify cached response is not sign-in page HTML
+          // This prevents serving sign-in page for any authenticated route
+          let isSignInCached = false;
           if (cachedResponse && !isStale) {
+            isSignInCached = await isSignInPageResponse(cachedResponse.clone());
+          }
+          
+          if (cachedResponse && !isStale && !isSignInCached) {
             // Return cached response immediately for instant navigation
             // Refresh cache in the background
             fetch(event.request)
-              .then(response => {
+              .then(async response => {
                 if (shouldCacheResponse(response)) {
-                  // Clone before processing to avoid body consumption
-                  const responseClone = response.clone();
-                  const timestampedResponse = addCacheTimestamp(responseClone);
-                  // Clone before caching (background refresh, but clone to be safe)
-                  const cacheClone = timestampedResponse.clone();
-                  caches.open(CACHE_NAME).then(cache => {
-                    safeCachePut(cache, event.request, cacheClone);
-                  });
+                  // Don't cache sign-in page responses for navigation routes
+                  const isSignIn = await isSignInPageResponse(response.clone());
+                  if (!isSignIn) {
+                    const responseClone = response.clone();
+                    const timestampedResponse = addCacheTimestamp(responseClone);
+                    const cacheClone = timestampedResponse.clone();
+                    caches.open(CACHE_NAME).then(cache => {
+                      safeCachePut(cache, event.request, cacheClone);
+                    });
+                  }
                 }
               })
               .catch(() => { /* Ignore errors */ });
@@ -491,25 +575,27 @@ self.addEventListener('fetch', (event) => {
             return cachedResponse;
           }
           
-          // Cache is stale or missing - fetch fresh data
+          // Cache is stale, missing, or contains sign-in page - fetch fresh data
           return fetch(event.request)
-            .then(response => {
+            .then(async response => {
               if (shouldCacheResponse(response)) {
-                // Clone before processing to avoid body consumption
-                const responseClone = response.clone();
-                const timestampedResponse = addCacheTimestamp(responseClone);
-                // Clone timestamped response before caching (since we're also returning it)
-                const cacheClone = timestampedResponse.clone();
-                caches.open(CACHE_NAME).then(cache => {
-                  safeCachePut(cache, event.request, cacheClone);
-                });
-                return timestampedResponse;
+                // Don't cache sign-in page responses for navigation routes
+                const isSignIn = await isSignInPageResponse(response.clone());
+                if (!isSignIn) {
+                  const responseClone = response.clone();
+                  const timestampedResponse = addCacheTimestamp(responseClone);
+                  const cacheClone = timestampedResponse.clone();
+                  caches.open(CACHE_NAME).then(cache => {
+                    safeCachePut(cache, event.request, cacheClone);
+                  });
+                  return timestampedResponse;
+                }
               }
               return response;
             })
-            .catch(() => {
-              // If network fails and we have stale cache, use it
-              if (cachedResponse) {
+            .catch(async () => {
+              // If network fails and we have stale cache (that's not sign-in page), use it
+              if (cachedResponse && !isSignInCached) {
                 return cachedResponse;
               }
               // Try to serve cached dashboard first
@@ -589,26 +675,15 @@ self.addEventListener('message', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data === 'warmup') {
     // Pre-fetch assets that might be needed soon
+    // Note: Root route '/' is NOT pre-cached to prevent sign-in page flash
+    // It uses network-first strategy to ensure correct authentication state
     caches.open(CACHE_NAME).then((cache) => {
-      // Pre-fetch common navigation targets with high priority
-      const criticalFetches = [
-        fetch('/').then(response => {
-          if (shouldCacheResponse(response)) {
-            // Clone before processing to avoid body consumption
-            const responseClone = response.clone();
-            const timestampedResponse = addCacheTimestamp(responseClone);
-            // Clone before caching (warmup, but clone to be safe)
-            const cacheClone = timestampedResponse.clone();
-            safeCachePut(cache, '/', cacheClone);
-          }
-        }).catch(() => {})
-      ];
+      // Pre-fetch static assets only - authenticated routes use network-first
+      // Don't pre-cache '/' as it needs fresh auth state on each load
+      console.log('Service Worker: Warmup - skipping root route to prevent auth issues');
       
-      // Execute critical fetches immediately
-      Promise.all(criticalFetches);
-      
-      // Routes like /find and /profile are handled by the fetch event handler
-      // with network-first strategy, so they don't need to be pre-cached here
+      // Routes like /find, /profile, and '/' are handled by the fetch event handler
+      // with appropriate strategies, so they don't need to be pre-cached here
     });
   }
 });
