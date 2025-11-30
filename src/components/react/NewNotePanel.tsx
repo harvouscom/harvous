@@ -251,7 +251,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
 
   // Font Awesome is loaded globally via CDN in Layout.astro
 
-  // Listen for keyboard shortcut to save
+  // Listen for keyboard shortcut to save (Cmd+S)
   useEffect(() => {
     const handleSaveContent = () => {
       if (form.hasUnsavedChanges() && !submission.isSubmitting && !showUnsavedDialog) {
@@ -267,6 +267,23 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       window.removeEventListener('saveContent', handleSaveContent);
     };
   }, [form, submission.isSubmitting, showUnsavedDialog]);
+
+  // Listen for Cmd+Enter to submit form (dispatched from TiptapEditor or global handler)
+  useEffect(() => {
+    const handleSubmitPanelForm = () => {
+      if (!submission.isSubmitting && !showUnsavedDialog) {
+        const formElement = document.querySelector('.new-note-panel form') as HTMLFormElement;
+        if (formElement) {
+          formElement.requestSubmit();
+        }
+      }
+    };
+    
+    window.addEventListener('submitPanelForm', handleSubmitPanelForm);
+    return () => {
+      window.removeEventListener('submitPanelForm', handleSubmitPanelForm);
+    };
+  }, [submission.isSubmitting, showUnsavedDialog]);
 
   // Prevent body scroll when dialog is open
   useEffect(() => {

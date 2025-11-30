@@ -215,8 +215,9 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     return;
   }
   
-  // Note: Cmd/Ctrl + Enter is NOT used for submit/save because it's used by TiptapEditor
-  // to start a new line. Use Cmd/Ctrl + S instead for saving.
+  // Note: Cmd/Ctrl + Enter is used for submitting forms in creation panels (NewNotePanel,
+  // NewThreadPanel, NewSpacePanel). TiptapEditor dispatches 'submitPanelForm' event which
+  // the panels listen for. Each panel also handles Cmd+Enter on its form element directly.
   
   // Cmd/Ctrl + D - Go to dashboard
   if (modifier && key === 'd') {

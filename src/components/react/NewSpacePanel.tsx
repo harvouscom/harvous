@@ -315,6 +315,17 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     });
   };
 
+  // Handle Cmd+Enter to submit form
+  const handleFormKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      const form = e.currentTarget.closest('form');
+      if (form && !isSubmitting && title.trim()) {
+        form.requestSubmit();
+      }
+    }
+  };
+
   // Helper function to strip HTML from content
   const stripHtml = (html: string): string => {
     if (!html) return '';
@@ -333,7 +344,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   return (
     <div className="h-full flex flex-col">
       {/* Form */}
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="flex-1 flex flex-col min-h-0">
         {/* Content area that expands to fill available space */}
         <div className="flex-1 flex flex-col min-h-0">
           {/* Single unified panel using CardStack structure */}

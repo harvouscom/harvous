@@ -809,6 +809,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const editor = editorRef.current;
         if (!editor) return false;
         
+        // Handle Cmd+Enter to submit form (dispatch event for parent panels to handle)
+        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+          event.preventDefault();
+          window.dispatchEvent(new CustomEvent('submitPanelForm'));
+          return true;
+        }
+        
         // Handle Select All (Cmd+A on Mac, Ctrl+A on Windows/Linux)
         if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
           event.preventDefault();
