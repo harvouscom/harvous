@@ -42,6 +42,7 @@ export default function CardFullEditable({
   const contentDisplayRef = useRef<HTMLDivElement>(null);
   const editorInstanceRef = useRef<any>(null);
   const shouldFocusEditorRef = useRef(false);
+  const saveChangesRef = useRef<() => void>(() => {});
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
 
@@ -371,12 +372,17 @@ export default function CardFullEditable({
     }
   };
 
-  // Listen for keyboard shortcut to save when editing
+  // Keep saveChangesRef up to date with the latest saveChanges function
   useEffect(() => {
-    const handleSaveContent = (e: Event) => {
+    saveChangesRef.current = saveChanges;
+  });
+
+  // Listen for keyboard shortcut to save when editing (Cmd+S)
+  useEffect(() => {
+    const handleSaveContent = () => {
       // Only save if we're in edit mode, have changes, and not already saving
       if (isEditing && hasChanges && !isSaving) {
-        saveChanges();
+        saveChangesRef.current();
       }
     };
     
@@ -385,6 +391,22 @@ export default function CardFullEditable({
       window.removeEventListener('saveContent', handleSaveContent);
     };
   }, [isEditing, hasChanges, isSaving]);
+
+  // Listen for Cmd+Enter to save (dispatched from TiptapEditor)
+  useEffect(() => {
+    const handleSubmitPanelForm = () => {
+      // Only save if we're in edit mode and not already saving
+      // Use saveChangesRef to always call the latest version with current state
+      if (isEditing && !isSaving) {
+        saveChangesRef.current();
+      }
+    };
+    
+    window.addEventListener('submitPanelForm', handleSubmitPanelForm);
+    return () => {
+      window.removeEventListener('submitPanelForm', handleSubmitPanelForm);
+    };
+  }, [isEditing, isSaving]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {

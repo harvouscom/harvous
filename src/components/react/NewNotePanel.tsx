@@ -340,11 +340,23 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     await submission.handleSubmit(e);
   };
 
+  // Handle Cmd+Enter to submit form (for elements outside TiptapEditor)
+  const handleFormKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      if (!submission.isSubmitting && !showUnsavedDialog) {
+        const formElement = e.currentTarget as HTMLFormElement;
+        formElement.requestSubmit();
+      }
+    }
+  };
+
   return (
     <>
       <NewNotePanelStyles />
       <form 
         onSubmit={handleFormSubmit}
+        onKeyDown={handleFormKeyDown}
         className="new-note-panel h-full flex flex-col"
         style={{ 
           height: '100%',
