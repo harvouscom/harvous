@@ -54,22 +54,79 @@ export async function processScriptureReferences(
 
   // Extract existing scripture references from the content (already processed)
   // This helps us track which references were already in the note
-  // Improved regex to handle variations in HTML formatting (quotes, spacing, etc.)
-  const existingPillPattern = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  // Use two patterns to handle different attribute orders (Tiptap may serialize attributes in varying order)
   const existingReferences = new Map<string, string>(); // normalizedReference -> noteId
+  
+  // Pattern 1: data-scripture-reference comes before data-note-id
+  const pillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
   let match;
-  while ((match = existingPillPattern.exec(noteContent)) !== null) {
+  while ((match = pillPattern1.exec(noteContent)) !== null) {
     const reference = match[1];
-    const noteId = match[2];
+    const pillNoteId = match[2];
     const normalizedRef = normalizeScriptureReference(reference);
-    existingReferences.set(normalizedRef, noteId);
+    existingReferences.set(normalizedRef, pillNoteId);
+  }
+  
+  // Pattern 2: data-note-id comes before data-scripture-reference
+  const pillPattern2 = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match = pillPattern2.exec(noteContent)) !== null) {
+    const pillNoteId = match[1];
+    const reference = match[2];
+    const normalizedRef = normalizeScriptureReference(reference);
+    // Only add if not already found by pattern 1
+    if (!existingReferences.has(normalizedRef)) {
+      existingReferences.set(normalizedRef, pillNoteId);
+    }
+  }
+  
+  // Pattern 3: Also match spans with scripture-pill class (alternative format)
+  const pillPattern3 = /<span[^>]*class\s*=\s*["'][^"']*scripture-pill[^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match = pillPattern3.exec(noteContent)) !== null) {
+    const reference = match[1];
+    const pillNoteId = match[2];
+    const normalizedRef = normalizeScriptureReference(reference);
+    if (!existingReferences.has(normalizedRef)) {
+      existingReferences.set(normalizedRef, pillNoteId);
+    }
+  }
+  
+  // Pattern 4: Match note-link spans that contain scripture references (legacy format)
+  // These have data-note-id but are missing data-scripture-reference
+  // Format: <span data-note-id="..." class="note-link" ...>SCRIPTURE TEXT</span>
+  const noteLinkPattern = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi;
+  while ((match = noteLinkPattern.exec(noteContent)) !== null) {
+    const pillNoteId = match[1];
+    // Extract plain text from the inner content (remove any nested HTML like <strong>)
+    const innerContent = match[2].replace(/<[^>]*>/g, '').trim();
+    // Check if this inner text looks like a scripture reference
+    const innerRefs = detectScriptureReferences(innerContent);
+    if (innerRefs.length > 0) {
+      const normalizedRef = normalizeScriptureReference(innerRefs[0].reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+  
+  // Pattern 5: Also match note-link with reversed attribute order
+  const noteLinkPattern2 = /<span[^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/span>/gi;
+  while ((match = noteLinkPattern2.exec(noteContent)) !== null) {
+    const pillNoteId = match[1];
+    const innerContent = match[2].replace(/<[^>]*>/g, '').trim();
+    const innerRefs = detectScriptureReferences(innerContent);
+    if (innerRefs.length > 0) {
+      const normalizedRef = normalizeScriptureReference(innerRefs[0].reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
   }
 
   // Extract plain text from HTML content for detection
   // Preserve existing scripture pills by extracting their text content
   // This regex removes HTML tags but keeps text inside scripture pills
   const plainText = noteContent
-    .replace(/<span[^>]*data-scripture-reference[^>]*>([^<]*)<\/span>/gi, '$1') // Extract text from existing pills
+    .replace(/<span[^>]*data-scripture-reference[^>]*>([\s\S]*?)<\/span>/gi, '$1') // Extract text from existing pills (handles nested HTML)
     .replace(/<[^>]*>/g, ' ') // Remove remaining HTML tags
     .replace(/\s+/g, ' ')
     .trim();
@@ -471,15 +528,15 @@ export async function processScriptureReferences(
 
   const updatedContent = highlightScriptureReferences(noteContent, referencesForHighlighting);
 
-  // Update note in database if content changed
-  if (updatedContent !== note.content) {
-    await db.update(Notes)
-      .set({ 
-        content: updatedContent,
-        updatedAt: new Date()
-      })
-      .where(eq(Notes.id, noteId));
-  }
+  // Always update note in database with properly highlighted content
+  // This ensures scripture pills always have correct class and data attributes
+  // even if Tiptap's getHTML output was missing some attributes
+  await db.update(Notes)
+    .set({ 
+      content: updatedContent,
+      updatedAt: new Date()
+    })
+    .where(eq(Notes.id, noteId));
 
   return {
     results,

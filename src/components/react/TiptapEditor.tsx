@@ -355,9 +355,9 @@ export async function convertScriptureReferencesToPills(
   }
 }
 
-// Helper function to convert note-link spans to scripture-pill marks
-// This handles cases where HTML contains note-link spans that should be scripture pills
-// (Fallback method for when we don't have processed results data)
+// Helper function to convert note-link spans and scripture-pill spans to proper scripturePill marks
+// This handles cases where HTML contains spans that should be scripture pills but weren't parsed correctly
+// (Fallback method for when Tiptap's parseHTML doesn't correctly convert the spans to marks)
 export async function convertNoteLinksToScripturePills(editor: any) {
   if (!editor) return;
   
@@ -365,9 +365,53 @@ export async function convertNoteLinksToScripturePills(editor: any) {
     const htmlContent = editor.getHTML();
     const doc = editor.state.doc;
     
-    // Find all note-link spans in the HTML
+    // Find all note-link spans and scripture-pill spans in the HTML
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlContent;
+    
+    // First, handle scripture-pill spans that have both data-scripture-reference and data-note-id
+    // These should already be parsed correctly, but may need to be converted to marks
+    const scripturePillSpans = tempDiv.querySelectorAll('span.scripture-pill[data-scripture-reference][data-note-id], span[data-scripture-reference][data-note-id]');
+    
+    for (const pillSpan of Array.from(scripturePillSpans)) {
+      const reference = (pillSpan as HTMLElement).getAttribute('data-scripture-reference');
+      const noteId = (pillSpan as HTMLElement).getAttribute('data-note-id');
+      const pillText = pillSpan.textContent || '';
+      
+      if (!reference || !noteId || !pillText) continue;
+      
+      const normalizedRef = normalizeScriptureReference(reference);
+      
+      // Find positions of this text in the document
+      const positions = findAllTextPositions(doc, pillText, false); // Don't skip marked positions
+      
+      // Convert each occurrence to a scripture pill if not already
+      for (let i = positions.length - 1; i >= 0; i--) {
+        const pos = positions[i];
+        
+        try {
+          const $from = doc.resolve(pos.from);
+          const marks = $from.marks();
+          const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+          
+          if (hasPill) {
+            continue; // Already a pill mark
+          }
+          
+          // Convert to scripture-pill mark
+          editor.chain()
+            .setTextSelection(pos)
+            .unsetMark('noteLink')
+            .setMark('scripturePill', { reference: normalizedRef, noteId })
+            .run();
+        } catch (e) {
+          // Skip if we can't resolve the position
+          continue;
+        }
+      }
+    }
+    
+    // Then, handle note-link spans that might reference scripture notes
     const noteLinks = tempDiv.querySelectorAll('span.note-link[data-note-id]');
     
     if (noteLinks.length === 0) {

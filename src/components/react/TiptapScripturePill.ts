@@ -72,7 +72,12 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         getAttrs: element => {
           const reference = (element as HTMLElement).getAttribute('data-scripture-reference');
           const noteId = (element as HTMLElement).getAttribute('data-note-id');
-          return reference ? { reference, noteId } : false;
+          // Require both reference AND noteId to create a valid scripture pill mark
+          // Without noteId, the pill won't be clickable and would be broken
+          if (!reference || !noteId) {
+            return false;
+          }
+          return { reference, noteId };
         },
       },
       {
@@ -82,8 +87,11 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         getAttrs: (element) => {
           const noteId = (element as HTMLElement).getAttribute('data-note-id');
           const reference = (element as HTMLElement).getAttribute('data-scripture-reference');
-          // Only parse if it has a scripture reference attribute
-          return reference ? { reference, noteId } : false;
+          // Require both reference AND noteId to create a valid scripture pill mark
+          if (!reference || !noteId) {
+            return false;
+          }
+          return { reference, noteId };
         },
       },
     ];
@@ -91,31 +99,26 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
 
   renderHTML({ HTMLAttributes }) {
     const noteId = HTMLAttributes['data-note-id'] || null;
+    const reference = HTMLAttributes['data-scripture-reference'] || null;
+
+    // If missing required attributes, output plain span without scripture-pill styling
+    // This prevents broken pills from appearing in the UI
+    if (!noteId || !reference) {
+      return ['span', {}, 0];
+    }
+
+    // Use single-line style for consistency with highlightScriptureReferences output
+    // This ensures regex patterns in process-scripture-references can reliably match both formats
+    const baseStyle = 'background-color: var(--color-paper); border-radius: 4px; padding: 0px 8px 0px 6px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none;';
+    const cursorStyle = ' cursor: pointer;';
 
     return [
       'span',
       {
         ...this.options.HTMLAttributes,
         ...HTMLAttributes,
-        class: `scripture-pill ${noteId ? 'scripture-pill-clickable' : ''}`,
-        style: `
-          background-color: var(--color-paper);
-          border-radius: 4px;
-          padding: 0px 8px 0px 6px;
-          display: inline-flex;
-          align-items: baseline;
-          height: auto;
-          min-height: 28px;
-          gap: 4px;
-          box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25);
-          font-weight: 600;
-          font-size: 16px;
-          color: var(--color-deep-grey);
-          vertical-align: baseline;
-          line-height: 1.6;
-          user-select: none;
-          ${noteId ? 'cursor: pointer;' : ''}
-        `,
+        class: 'scripture-pill scripture-pill-clickable',
+        style: baseStyle + cursorStyle,
       },
       0,
     ];
