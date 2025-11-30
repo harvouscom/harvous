@@ -16,7 +16,8 @@ if (import.meta.env.PROD) {
 const isPublicRoute = createRouteMatcher([
   '/sign-in',
   '/sign-up',
-  '/logout'
+  '/logout',
+  '/api/health' // Lightweight warmup endpoint - must be public for cold start optimization
 ])
 
 export const onRequest = clerkMiddleware((auth, context, next) => {

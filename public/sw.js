@@ -685,12 +685,34 @@ self.addEventListener('message', (event) => {
       // Routes like /find, /profile, and '/' are handled by the fetch event handler
       // with appropriate strategies, so they don't need to be pre-cached here
     });
+    
+    // Ping health endpoint to warm up serverless functions
+    // This helps reduce cold start delays for the first user action
+    warmUpServerlessFunctions();
   }
 });
+
+/**
+ * Warm up serverless functions by pinging lightweight endpoints
+ * Called on warmup message and when coming back online
+ */
+function warmUpServerlessFunctions() {
+  // Ping the health endpoint - it's lightweight and wakes up the function fast
+  fetch('/api/health', { 
+    method: 'GET',
+    credentials: 'include'
+  }).catch(() => {
+    // Silently fail - this is just a warmup
+  });
+}
 
 // Handle online/offline events for mobile devices
 self.addEventListener('online', () => {
   console.log('Service Worker: Online - refreshing stale cache');
+  
+  // Immediately warm up serverless functions when coming back online
+  // This is critical for preventing cold start delays after extended offline periods
+  warmUpServerlessFunctions();
   
   // Clear stale cache entries when coming back online
   caches.open(CACHE_NAME).then((cache) => {
