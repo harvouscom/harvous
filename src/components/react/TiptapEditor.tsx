@@ -5,6 +5,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
+import Superscript from '@tiptap/extension-superscript';
 import { TextSelection } from 'prosemirror-state';
 import { NoteLink } from './TiptapNoteLink.ts';
 import { ScripturePill } from './TiptapScripturePill.ts';
@@ -705,6 +706,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         levels: [2, 3], // Only allow H2, H3 (H1 is reserved for note titles)
       }),
       Underline,
+      Superscript,
       BoldCustom, // Use custom Bold extension that prevents application after pills
       HighlightCustom, // Use custom Highlight extension that prevents application after pills
       NoteLink,

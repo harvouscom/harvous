@@ -2,6 +2,91 @@
 // Detects both scripture references and actual Bible verse text
 
 import { BIBLE_STUDY_KEYWORDS } from './bible-study-keywords';
+// @ts-ignore - JSON import with resolveJsonModule
+import bibleChaptersData from '../data/bible-chapters.json';
+
+// Bible chapter/verse data structure
+interface BibleChapter {
+  book: string;
+  bookOrder: number;
+  testament: 'old' | 'new';
+  chapter: number;
+  startVerse: number;
+  endVerse: number;
+}
+
+// Bible chapter/verse data from https://gist.github.com/izakfilmalter/cdc1c9acb82b6ef94aedcf22c00d998f
+// Build lookup map: Map<bookName, Map<chapter, { startVerse, endVerse }>>
+let BIBLE_CHAPTERS_MAP: Map<string, Map<number, { startVerse: number; endVerse: number }>> | null = null;
+
+function buildBibleChaptersMap(): Map<string, Map<number, { startVerse: number; endVerse: number }>> {
+  if (BIBLE_CHAPTERS_MAP) {
+    return BIBLE_CHAPTERS_MAP;
+  }
+
+  const map = new Map<string, Map<number, { startVerse: number; endVerse: number }>>();
+  const data = bibleChaptersData as BibleChapter[];
+
+  for (const chapter of data) {
+    const bookName = chapter.book;
+    if (!map.has(bookName)) {
+      map.set(bookName, new Map());
+    }
+    const bookMap = map.get(bookName)!;
+    bookMap.set(chapter.chapter, {
+      startVerse: chapter.startVerse,
+      endVerse: chapter.endVerse
+    });
+  }
+
+  BIBLE_CHAPTERS_MAP = map;
+  return map;
+}
+
+// Get chapter verse range for a book and chapter
+export function getChapterVerseRange(book: string, chapter: number): { start: number; end: number } | null {
+  const map = buildBibleChaptersMap();
+  const bookMap = map.get(book);
+  if (!bookMap) {
+    return null;
+  }
+  const chapterData = bookMap.get(chapter);
+  if (!chapterData) {
+    return null;
+  }
+  return { start: chapterData.startVerse, end: chapterData.endVerse };
+}
+
+// Validate if a verse number is valid for a given book and chapter
+export function validateVerseNumber(book: string, chapter: number, verse: number): boolean {
+  const range = getChapterVerseRange(book, chapter);
+  if (!range) {
+    return false;
+  }
+  return verse >= range.start && verse <= range.end;
+}
+
+// Validate if a verse range is valid for a given book and chapter
+export function validateVerseRange(book: string, chapter: number, startVerse: number, endVerse: number): boolean {
+  const range = getChapterVerseRange(book, chapter);
+  if (!range) {
+    return false;
+  }
+  // Both start and end must be within the valid range
+  return startVerse >= range.start && startVerse <= range.end &&
+         endVerse >= range.start && endVerse <= range.end &&
+         startVerse <= endVerse;
+}
+
+// Normalize chapter-only reference to include full verse range
+// "Genesis 1" → "Genesis 1:1-31"
+export function normalizeChapterReference(book: string, chapter: number): string | null {
+  const range = getChapterVerseRange(book, chapter);
+  if (!range) {
+    return null;
+  }
+  return `${book} ${chapter}:${range.start}-${range.end}`;
+}
 
 export interface ScriptureReference {
   book: string;
@@ -55,6 +140,36 @@ export const formatBookNameForAPI = (bookName: string): string => {
   // Just return as-is, API handles them correctly
   return bookName.trim();
 };
+
+// Helper function to validate and log warnings for scripture references
+function validateAndWarn(ref: ScriptureReference): ScriptureReference {
+  const { book, chapter, verse } = ref;
+  
+  if (Array.isArray(verse)) {
+    // Verse range
+    const [start, end] = verse;
+    if (!validateVerseRange(book, chapter, start, end)) {
+      const range = getChapterVerseRange(book, chapter);
+      if (range) {
+        console.warn(`Invalid verse range: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
+      } else {
+        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
+      }
+    }
+  } else {
+    // Single verse
+    if (!validateVerseNumber(book, chapter, verse)) {
+      const range = getChapterVerseRange(book, chapter);
+      if (range) {
+        console.warn(`Invalid verse number: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
+      } else {
+        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
+      }
+    }
+  }
+  
+  return ref;
+}
 
 // Parse scripture reference from text
 const parseReference = (match: string): ScriptureReference | null => {
@@ -127,32 +242,32 @@ const parseReference = (match: string): ScriptureReference | null => {
           let cleanVerseGroups = verseGroups.replace(/,\s+/g, ',');
           cleanVerseGroups = cleanVerseGroups.replace(/\s*-\s*/g, '-');
           
-          return {
+          return validateAndWarn({
             book: canonicalBook,
             chapter,
             verse: [verseStart, verseEnd] as [number, number],
             reference: `${canonicalBook} ${chapter}:${cleanVerseGroups}`
-          };
+          });
         } else if (matchResult.length === 5) {
           // Single range detected (Pattern 2: separate capture groups for start and end)
           const verseStart = parseInt(matchResult[3]);
           const verseEnd = parseInt(matchResult[4]);
           // Validate range: start must be <= end
           if (!isNaN(verseStart) && !isNaN(verseEnd) && verseStart <= verseEnd) {
-            return {
+            return validateAndWarn({
               book: canonicalBook,
               chapter,
               verse: [verseStart, verseEnd] as [number, number],
               reference: `${canonicalBook} ${chapter}:${verseStart}-${verseEnd}`
-            };
+            });
           } else if (!isNaN(verseStart) && !isNaN(verseEnd) && verseStart > verseEnd) {
             // Invalid range (start > end) - treat as single verse
-            return {
+            return validateAndWarn({
               book: canonicalBook,
               chapter,
               verse: verseStart,
               reference: `${canonicalBook} ${chapter}:${verseStart}`
-            };
+            });
           }
           // If parsing fails, fall through to single verse
         } else if (matchResult.length === 4 && !matchResult[3].includes(',') && matchResult[3].includes('-')) {
@@ -161,39 +276,39 @@ const parseReference = (match: string): ScriptureReference | null => {
           const [start, end] = versePart.split(/\s*-\s*/).map(v => parseInt(v.trim()));
           // Validate range: start must be <= end
           if (!isNaN(start) && !isNaN(end) && start <= end) {
-            return {
+            return validateAndWarn({
               book: canonicalBook,
               chapter,
               verse: [start, end] as [number, number],
               reference: `${canonicalBook} ${chapter}:${start}-${end}`
-            };
+            });
           } else if (!isNaN(start) && !isNaN(end) && start > end) {
             // Invalid range (start > end) - treat as single verse
-            return {
+            return validateAndWarn({
               book: canonicalBook,
               chapter,
               verse: start,
               reference: `${canonicalBook} ${chapter}:${start}`
-            };
+            });
           }
           // Fall through to single verse if parsing fails
         } else if (matchResult.length === 4 && !matchResult[3].includes(',') && !matchResult[3].includes('-')) {
           // Single verse
           const verse = parseInt(matchResult[3]);
-          return {
+          return validateAndWarn({
             book: canonicalBook,
             chapter,
             verse,
             reference: `${canonicalBook} ${chapter}:${verse}`
-          };
+          });
         } else if (matchResult.length === 3) {
           // Chapter only
-          return {
+          return validateAndWarn({
             book: canonicalBook,
             chapter,
             verse: 1,
             reference: `${canonicalBook} ${chapter}:1`
-          };
+          });
         }
       }
     }

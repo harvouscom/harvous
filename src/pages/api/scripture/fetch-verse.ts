@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { parseScriptureReference, parseVerseGroups, type VerseGroup } from '@/utils/scripture-detector';
+import { parseScriptureReference, parseVerseGroups, type VerseGroup, validateVerseNumber, validateVerseRange } from '@/utils/scripture-detector';
 import { handleAPIError } from '@/utils/error-handling';
 
 interface BibleOrgVerse {
@@ -37,6 +37,31 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Parse verse groups from the cleaned reference
     const verseGroups = parseVerseGroups(cleanReference);
+    
+    // Validate verse numbers before fetching
+    for (const group of verseGroups) {
+      if (group.start === group.end) {
+        // Single verse
+        if (!validateVerseNumber(parsed.book, parsed.chapter, group.start)) {
+          return new Response(JSON.stringify({ 
+            error: `Invalid verse number: ${parsed.book} ${parsed.chapter}:${group.start} does not exist` 
+          }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      } else {
+        // Verse range
+        if (!validateVerseRange(parsed.book, parsed.chapter, group.start, group.end)) {
+          return new Response(JSON.stringify({ 
+            error: `Invalid verse range: ${parsed.book} ${parsed.chapter}:${group.start}-${group.end} is not valid` 
+          }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      }
+    }
     
     let verses: BibleOrgVerse[] = [];
     
@@ -100,8 +125,8 @@ export const POST: APIRoute = async ({ request }) => {
           
           formattedParts.push(`<p><strong>${label}</strong></p>`);
           
-          // Add verse text for this group
-          const groupText = groupVerses.map(v => v.text).join(' ');
+          // Add verse text for this group with superscript verse numbers
+          const groupText = groupVerses.map(v => `${v.text}<sup>${v.verse}</sup>`).join(' ');
           formattedParts.push(`<p>${groupText}</p>`);
           
           // Add divider before next group (not after last)
@@ -113,8 +138,8 @@ export const POST: APIRoute = async ({ request }) => {
       
       verseText = formattedParts.join('');
     } else {
-      // Single verse or single range: just combine text (no dividers needed)
-      verseText = verses.map(v => v.text).join(' ');
+      // Single verse or single range: combine text with superscript verse numbers
+      verseText = verses.map(v => `${v.text}<sup>${v.verse}</sup>`).join(' ');
     }
     
     // Get first verse info for response
