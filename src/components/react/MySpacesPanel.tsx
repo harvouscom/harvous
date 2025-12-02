@@ -231,7 +231,7 @@ export default function MySpacesPanel({
           />
           
           {/* Content */}
-          <div className="flex items-center gap-6 pl-3 pr-12 h-full">
+          <div className="flex items-center gap-6 pl-3 pr-4 h-full">
             {/* User icon (Private) or User group icon (Shared) */}
             <div className="relative shrink-0 size-5">
               {space.isPublic === true ? (
