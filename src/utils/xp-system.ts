@@ -318,15 +318,46 @@ export async function getSeasonalXP(userId: string, season?: string): Promise<nu
 
 /**
  * Get lifetime XP total
+ * Uses aggregate table for fast lookup, falls back to calculating from UserXP records
  */
 export async function getLifetimeXP(userId: string): Promise<number> {
   try {
+    // Try aggregate first (fast path)
     const lifetime = await db.select()
       .from(UserLifetimeXP)
       .where(eq(UserLifetimeXP.userId, userId))
       .limit(1);
 
-    return lifetime.length > 0 ? lifetime[0].totalXP : 0;
+    if (lifetime.length > 0 && lifetime[0].totalXP > 0) {
+      return lifetime[0].totalXP;
+    }
+
+    // Fallback: calculate from UserXP records
+    const xpRecords = await db.select()
+      .from(UserXP)
+      .where(eq(UserXP.userId, userId));
+    
+    const totalXP = xpRecords.reduce((sum, record) => sum + record.xpAmount, 0);
+
+    // Backfill aggregate for future queries (if we calculated a non-zero value)
+    if (totalXP > 0 && (lifetime.length === 0 || lifetime[0].totalXP === 0)) {
+      if (lifetime.length > 0) {
+        // Update existing record
+        await db.update(UserLifetimeXP)
+          .set({ totalXP: totalXP, lastUpdated: new Date() })
+          .where(eq(UserLifetimeXP.userId, userId));
+      } else {
+        // Create new record
+        await db.insert(UserLifetimeXP).values({
+          id: `lifetime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          userId,
+          totalXP: totalXP,
+          lastUpdated: new Date(),
+        });
+      }
+    }
+
+    return totalXP;
   } catch (error) {
     console.error('Error getting lifetime XP:', error);
     return 0;
