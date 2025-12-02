@@ -8,10 +8,17 @@ interface MyAchievementsPanelProps {
   inBottomSheet?: boolean;
 }
 
+interface SeasonData {
+  season: string;
+  seasonName: string;
+  totalXP: number;
+}
+
 interface XPData {
   seasonalXP: number;
   lifetimeXP: number;
   seasonName: string;
+  allSeasons: SeasonData[];
 }
 
 export default function MyAchievementsPanel({ 
@@ -21,8 +28,10 @@ export default function MyAchievementsPanel({
   const [xpData, setXpData] = useState<XPData>({
     seasonalXP: 0,
     lifetimeXP: 0,
-    seasonName: ''
+    seasonName: '',
+    allSeasons: []
   });
+  const [showPastSeasons, setShowPastSeasons] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -41,7 +50,8 @@ export default function MyAchievementsPanel({
         setXpData({
           seasonalXP: data.seasonalXP || 0,
           lifetimeXP: data.lifetimeXP || 0,
-          seasonName: data.seasonName || ''
+          seasonName: data.seasonName || '',
+          allSeasons: data.allSeasons || []
         });
       }
     } catch (error) {
@@ -74,7 +84,7 @@ export default function MyAchievementsPanel({
           
           {/* Content area */}
           <div className={inBottomSheet ? "flex-1 box-border content-stretch flex flex-col items-start justify-start mb-[-24px] min-h-0 overflow-clip relative w-full" : "box-border content-stretch flex flex-col items-start justify-start mb-[-24px] overflow-clip relative w-full"}>
-            <div className={inBottomSheet ? "flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full" : "bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start overflow-x-clip p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full"}>
+            <div className={inBottomSheet ? "flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-4 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full" : "bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-4 items-start justify-start overflow-x-clip p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full"}>
               {isLoading ? (
                 <div className="flex items-center justify-center py-12 w-full">
                   <div className="text-[var(--color-pebble-grey)]">Loading achievements...</div>
@@ -102,8 +112,55 @@ export default function MyAchievementsPanel({
                     </div>
                   </div>
 
+                  {/* Past Seasons Section - Only show if user has multiple seasons */}
+                  {xpData.allSeasons.length > 0 && (
+                    <div className="w-full">
+                      <button
+                        onClick={() => setShowPastSeasons(!showPastSeasons)}
+                        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                        style={{
+                          backgroundImage: 'var(--color-gradient-gray)',
+                          boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset'
+                        }}
+                      >
+                        <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                          <div className="flex-1 min-w-0 overflow-hidden text-left">
+                            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">
+                              Past Seasons
+                            </span>
+                          </div>
+                          <div className="p-[20px] flex-shrink-0">
+                            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                              <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                                {xpData.allSeasons.length}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+
+                      {showPastSeasons && (
+                        <div className="mt-3 space-y-2">
+                          {xpData.allSeasons.map((season) => (
+                            <div
+                              key={season.season}
+                              className="bg-white border border-[var(--color-fog-white)] rounded-xl p-3 flex items-center justify-between"
+                            >
+                              <span className="text-sm text-[var(--color-deep-grey)]">
+                                {season.seasonName}
+                              </span>
+                              <span className="text-sm font-semibold text-[var(--color-deep-grey)]">
+                                {season.totalXP.toLocaleString()} XP
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Milestones and Badges Coming Soon */}
-                  <div className="w-full pt-4">
+                  <div className="w-full">
                     <div className="text-sm text-[var(--color-pebble-grey)] italic text-center">
                       Milestones and Badges coming soon
                     </div>

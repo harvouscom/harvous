@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getSeasonalXP, getLifetimeXP, checkLifetimeMilestones } from '@/utils/xp-system';
-import { getSeasonDisplayName } from '@/utils/season-helpers';
+import { getSeasonalXP, getLifetimeXP, checkLifetimeMilestones, getAllSeasonalXP } from '@/utils/xp-system';
+import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ locals }) => {
@@ -14,11 +14,16 @@ export const GET: APIRoute = async ({ locals }) => {
       });
     }
 
-    const [seasonalXP, lifetimeXP, milestoneIds] = await Promise.all([
+    const [seasonalXP, lifetimeXP, milestoneIds, allSeasons] = await Promise.all([
       getSeasonalXP(userId),
       getLifetimeXP(userId),
-      checkLifetimeMilestones(userId)
+      checkLifetimeMilestones(userId),
+      getAllSeasonalXP(userId)
     ]);
+
+    // Filter out current season from allSeasons (only show past seasons)
+    const currentSeason = getCurrentSeason();
+    const pastSeasons = allSeasons.filter(s => s.season !== currentSeason);
 
     // Define milestone details
     const milestoneDefinitions = [
@@ -40,7 +45,8 @@ export const GET: APIRoute = async ({ locals }) => {
       seasonalXP,
       lifetimeXP,
       seasonName: getSeasonDisplayName(),
-      milestones
+      milestones,
+      allSeasons: pastSeasons
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

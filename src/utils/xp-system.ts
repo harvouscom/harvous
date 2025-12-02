@@ -1,5 +1,5 @@
 import { db, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, UserMetadata, Notes, Threads, eq, and, gte, desc } from 'astro:db';
-import { getCurrentSeason } from './season-helpers';
+import { getCurrentSeason, getSeasonDisplayName } from './season-helpers';
 
 // XP values for different activities
 export const XP_VALUES = {
@@ -330,6 +330,54 @@ export async function getLifetimeXP(userId: string): Promise<number> {
   } catch (error) {
     console.error('Error getting lifetime XP:', error);
     return 0;
+  }
+}
+
+/**
+ * Get all seasonal XP records for a user, sorted by season (newest first)
+ */
+export async function getAllSeasonalXP(userId: string): Promise<Array<{ season: string; seasonName: string; totalXP: number }>> {
+  try {
+    const allSeasons = await db.select()
+      .from(UserSeasonalXP)
+      .where(eq(UserSeasonalXP.userId, userId));
+
+    // Sort by season (newest first)
+    // Season format: "spring-2025", "summer-2024", etc.
+    // Sort by year first (descending), then by season order (winter > fall > summer > spring)
+    const seasonOrder: Record<string, number> = {
+      'spring': 1,
+      'summer': 2,
+      'fall': 3,
+      'winter': 4
+    };
+
+    const sortedSeasons = allSeasons
+      .filter(record => record.totalXP > 0) // Only include seasons with XP
+      .sort((a, b) => {
+        const [aSeason, aYear] = a.season.split('-');
+        const [bSeason, bYear] = b.season.split('-');
+        const aYearNum = parseInt(aYear);
+        const bYearNum = parseInt(bYear);
+
+        // Sort by year first (newest first)
+        if (aYearNum !== bYearNum) {
+          return bYearNum - aYearNum;
+        }
+
+        // Then by season order (winter > fall > summer > spring)
+        return (seasonOrder[bSeason] || 0) - (seasonOrder[aSeason] || 0);
+      })
+      .map(record => ({
+        season: record.season,
+        seasonName: getSeasonDisplayName(record.season),
+        totalXP: record.totalXP
+      }));
+
+    return sortedSeasons;
+  } catch (error) {
+    console.error('Error getting all seasonal XP:', error);
+    return [];
   }
 }
 
