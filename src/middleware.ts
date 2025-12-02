@@ -17,7 +17,8 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in',
   '/sign-up',
   '/logout',
-  '/api/health' // Lightweight warmup endpoint - must be public for cold start optimization
+  '/api/health', // Lightweight warmup endpoint - must be public for cold start optimization
+  '/api/test/xp-comprehensive' // Test endpoint for XP system (dev only)
 ])
 
 export const onRequest = clerkMiddleware((auth, context, next) => {

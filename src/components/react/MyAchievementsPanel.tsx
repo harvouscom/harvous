@@ -105,7 +105,7 @@ export default function MyAchievementsPanel({
                   {/* Milestones and Badges Coming Soon */}
                   <div className="w-full pt-4">
                     <div className="text-sm text-[var(--color-pebble-grey)] italic text-center">
-                      Milestones and Badges coming soon!
+                      Milestones and Badges coming soon
                     </div>
                   </div>
                 </>
