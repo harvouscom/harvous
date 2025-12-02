@@ -4,13 +4,15 @@ import { safeNavigate } from '@/utils/safe-navigate';
 interface FindSearchInputProps {
   className?: string;
   placeholder?: string;
+  initialQuery?: string;
 }
 
 export default function FindSearchInput({
   className = "",
-  placeholder = "Find notes and threads..."
+  placeholder = "Find notes and threads...",
+  initialQuery = ""
 }: FindSearchInputProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
 
   // Sync with URL query parameter
   const updateSearchQuery = () => {

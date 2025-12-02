@@ -428,7 +428,7 @@ if (query.trim()) {
       <CardStack title="Find" headerBgColor="var(--color-paper)">
         <div class="flex flex-col gap-6">
           <!-- Search Input -->
-          <FindSearchInput client:load="react" />
+          <FindSearchInput client:load initialQuery={query} />
 
           <!-- Recent Searches -->
           <RecentSearches client:only="react" />
