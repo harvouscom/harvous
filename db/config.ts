@@ -117,7 +117,7 @@ const UserXP = defineTable({
     activityType: column.text(), // 'session_completed', 'creation_bonus', 'church_added', 'monthly_attendance', 'weekly_streak', etc.
     xpAmount: column.number(), // XP earned for this activity
     relatedId: column.text({ optional: true }), // ID of related note/thread (optional)
-    season: column.text(), // Season identifier (e.g., "spring-2025", "summer-2025")
+    season: column.text({ optional: true }), // Season identifier (e.g., "spring-2025", "summer-2025") - optional for backwards compatibility
     createdAt: column.date(),
     metadata: column.text({ optional: true }), // JSON string for additional data (e.g., daily caps)
   }
