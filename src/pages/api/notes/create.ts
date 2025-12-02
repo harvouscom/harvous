@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, UserMetadata, Tags, NoteTags, NoteThreads, ScriptureMetadata, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId } from '@/utils/ids';
-import { awardNoteCreatedXP } from '@/utils/xp-system';
+import { awardCreationBonusXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { handleAPIError } from '@/utils/error-handling';
@@ -241,7 +241,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // This is non-critical - if it fails, the note is still created
     const isScriptureNote = finalNoteType === 'scripture';
     try {
-      await awardNoteCreatedXP(userId, newNote.id, isScriptureNote, capitalizedContent);
+      // Award creation bonus XP
+      await awardCreationBonusXP(userId, 'note');
     } catch (error) {
       // XP award failed, but note creation succeeded - log and continue
       console.error('XP award failed (non-critical):', error);

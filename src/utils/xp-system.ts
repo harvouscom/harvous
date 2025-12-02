@@ -1,7 +1,17 @@
-import { db, UserXP, Notes, Threads, eq, and, gte, desc } from 'astro:db';
+import { db, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, UserMetadata, Notes, Threads, eq, and, gte, desc } from 'astro:db';
+import { getCurrentSeason } from './season-helpers';
 
 // XP values for different activities
 export const XP_VALUES = {
+  SESSION_BASE: 15,
+  SESSION_MAX: 40,
+  CREATION_BONUS: 5,
+  CHURCH_ADDED: 50,
+  MONTHLY_ATTENDANCE: 25,
+  WEEKLY_STREAK_3_4_DAYS: 15,
+  WEEKLY_STREAK_5_6_DAYS: 25,
+  WEEKLY_STREAK_7_DAYS: 35,
+  // Legacy values (kept for backward compatibility)
   THREAD_CREATED: 10,
   NOTE_CREATED: 10,
   SCRIPTURE_NOTE_CREATED: 3,
@@ -11,6 +21,9 @@ export const XP_VALUES = {
 
 // Daily caps to prevent gaming
 export const DAILY_CAPS = {
+  SESSIONS: 3, // Max 3 sessions per day
+  CREATION_BONUS: 20, // Max 20 XP/day from creation bonuses
+  // Legacy caps
   NOTE_OPENED: 50, // Max 50 XP per day from opening notes
 } as const;
 
@@ -31,6 +44,12 @@ export const QUICK_DELETION_WINDOW_MS = 2 * 60 * 1000;
 
 // Activity types
 export const ACTIVITY_TYPES = {
+  SESSION_COMPLETED: 'session_completed',
+  CREATION_BONUS: 'creation_bonus',
+  CHURCH_ADDED: 'church_added',
+  MONTHLY_ATTENDANCE: 'monthly_attendance',
+  WEEKLY_STREAK: 'weekly_streak',
+  // Legacy activity types (kept for backward compatibility)
   THREAD_CREATED: 'thread_created',
   NOTE_CREATED: 'note_created',
   NOTE_OPENED: 'note_opened',
@@ -161,6 +180,490 @@ export async function revokeAllXPForItem(
     return 0;
   }
 }
+
+// ============================================================================
+// NEW SESSION-BASED XP SYSTEM FUNCTIONS
+// ============================================================================
+
+/**
+ * Core function to award XP (records to both lifetime and seasonal)
+ */
+export async function awardXP(
+  userId: string,
+  activityType: string,
+  xpAmount: number,
+  relatedId?: string,
+  metadata?: any
+): Promise<void> {
+  try {
+    const season = getCurrentSeason();
+    const now = new Date();
+
+    // Insert into UserXP (detailed record)
+    await db.insert(UserXP).values({
+      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      activityType,
+      xpAmount,
+      relatedId: relatedId || null,
+      season,
+      metadata: metadata ? JSON.stringify(metadata) : null,
+      createdAt: now,
+    });
+
+    // Update seasonal XP aggregate
+    await updateSeasonalXP(userId, season, xpAmount);
+
+    // Update lifetime XP aggregate
+    await updateLifetimeXP(userId, xpAmount);
+  } catch (error) {
+    console.error('Error awarding XP:', error);
+  }
+}
+
+/**
+ * Update seasonal XP aggregate
+ */
+async function updateSeasonalXP(
+  userId: string,
+  season: string,
+  xpAmount: number
+): Promise<void> {
+  try {
+    const existing = await db.select()
+      .from(UserSeasonalXP)
+      .where(and(
+        eq(UserSeasonalXP.userId, userId),
+        eq(UserSeasonalXP.season, season)
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.update(UserSeasonalXP)
+        .set({
+          totalXP: existing[0].totalXP + xpAmount,
+          sessionCount: existing[0].sessionCount + (xpAmount > 0 && existing[0].sessionCount !== undefined ? 1 : 0),
+          updatedAt: new Date(),
+        })
+        .where(eq(UserSeasonalXP.id, existing[0].id));
+    } else {
+      await db.insert(UserSeasonalXP).values({
+        id: `seasonal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId,
+        season,
+        totalXP: xpAmount,
+        sessionCount: 0,
+        createdAt: new Date(),
+      });
+    }
+  } catch (error) {
+    console.error('Error updating seasonal XP:', error);
+  }
+}
+
+/**
+ * Update lifetime XP aggregate
+ */
+async function updateLifetimeXP(
+  userId: string,
+  xpAmount: number
+): Promise<void> {
+  try {
+    const existing = await db.select()
+      .from(UserLifetimeXP)
+      .where(eq(UserLifetimeXP.userId, userId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.update(UserLifetimeXP)
+        .set({
+          totalXP: existing[0].totalXP + xpAmount,
+          lastUpdated: new Date(),
+        })
+        .where(eq(UserLifetimeXP.id, existing[0].id));
+    } else {
+      await db.insert(UserLifetimeXP).values({
+        id: `lifetime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId,
+        totalXP: xpAmount,
+        lastUpdated: new Date(),
+      });
+    }
+  } catch (error) {
+    console.error('Error updating lifetime XP:', error);
+  }
+}
+
+/**
+ * Get seasonal XP for current season (or specified season)
+ */
+export async function getSeasonalXP(userId: string, season?: string): Promise<number> {
+  try {
+    const currentSeason = season || getCurrentSeason();
+    
+    const seasonal = await db.select()
+      .from(UserSeasonalXP)
+      .where(and(
+        eq(UserSeasonalXP.userId, userId),
+        eq(UserSeasonalXP.season, currentSeason)
+      ))
+      .limit(1);
+
+    return seasonal.length > 0 ? seasonal[0].totalXP : 0;
+  } catch (error) {
+    console.error('Error getting seasonal XP:', error);
+    return 0;
+  }
+}
+
+/**
+ * Get lifetime XP total
+ */
+export async function getLifetimeXP(userId: string): Promise<number> {
+  try {
+    const lifetime = await db.select()
+      .from(UserLifetimeXP)
+      .where(eq(UserLifetimeXP.userId, userId))
+      .limit(1);
+
+    return lifetime.length > 0 ? lifetime[0].totalXP : 0;
+  } catch (error) {
+    console.error('Error getting lifetime XP:', error);
+    return 0;
+  }
+}
+
+/**
+ * Check if season has changed and needs reset
+ */
+export async function checkSeasonChange(userId: string): Promise<boolean> {
+  try {
+    const currentSeason = getCurrentSeason();
+    
+    const userMetadata = await db.select()
+      .from(UserMetadata)
+      .where(eq(UserMetadata.userId, userId))
+      .limit(1);
+
+    if (userMetadata.length === 0) {
+      // First time, set current season
+      await db.update(UserMetadata)
+        .set({ currentSeason: currentSeason })
+        .where(eq(UserMetadata.userId, userId));
+      return false;
+    }
+
+    const storedSeason = userMetadata[0].currentSeason;
+    
+    if (storedSeason !== currentSeason) {
+      // Season changed! Update stored season
+      await db.update(UserMetadata)
+        .set({ currentSeason: currentSeason })
+        .where(eq(UserMetadata.userId, userId));
+      return true; // Season changed
+    }
+
+    return false; // Same season
+  } catch (error) {
+    console.error('Error checking season change:', error);
+    return false;
+  }
+}
+
+/**
+ * Award XP for completing a session
+ */
+export async function awardSessionXP(
+  userId: string,
+  sessionXP: number
+): Promise<boolean> {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check daily session count
+    const todaySessions = await db.select()
+      .from(UserXP)
+      .where(and(
+        eq(UserXP.userId, userId),
+        eq(UserXP.activityType, ACTIVITY_TYPES.SESSION_COMPLETED),
+        gte(UserXP.createdAt, today)
+      ));
+    
+    if (todaySessions.length >= DAILY_CAPS.SESSIONS) {
+      return false; // Already hit daily cap
+    }
+
+    await awardXP(
+      userId,
+      ACTIVITY_TYPES.SESSION_COMPLETED,
+      sessionXP,
+      null,
+      { sessionNumber: todaySessions.length + 1 }
+    );
+
+    return true;
+  } catch (error) {
+    console.error('Error awarding session XP:', error);
+    return false;
+  }
+}
+
+/**
+ * Award creation bonus XP
+ */
+export async function awardCreationBonusXP(
+  userId: string,
+  itemType: 'note' | 'thread' | 'space'
+): Promise<boolean> {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check daily creation bonus cap
+    const todayCreationXP = await db.select()
+      .from(UserXP)
+      .where(and(
+        eq(UserXP.userId, userId),
+        eq(UserXP.activityType, ACTIVITY_TYPES.CREATION_BONUS),
+        gte(UserXP.createdAt, today)
+      ));
+
+    const todayTotal = todayCreationXP.reduce((sum, r) => sum + r.xpAmount, 0);
+    if (todayTotal >= DAILY_CAPS.CREATION_BONUS) {
+      return false; // Already hit daily cap
+    }
+
+    const xpToAward = Math.min(
+      XP_VALUES.CREATION_BONUS,
+      DAILY_CAPS.CREATION_BONUS - todayTotal
+    );
+
+    if (xpToAward > 0) {
+      await awardXP(
+        userId,
+        ACTIVITY_TYPES.CREATION_BONUS,
+        xpToAward,
+        null,
+        { itemType }
+      );
+    }
+
+    return xpToAward > 0;
+  } catch (error) {
+    console.error('Error awarding creation bonus XP:', error);
+    return false;
+  }
+}
+
+/**
+ * Award church addition bonus (one-time)
+ */
+export async function awardChurchAddedXP(userId: string): Promise<boolean> {
+  try {
+    // Check if already awarded
+    const existing = await db.select()
+      .from(UserXP)
+      .where(and(
+        eq(UserXP.userId, userId),
+        eq(UserXP.activityType, ACTIVITY_TYPES.CHURCH_ADDED)
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return false; // Already awarded
+    }
+
+    await awardXP(
+      userId,
+      ACTIVITY_TYPES.CHURCH_ADDED,
+      XP_VALUES.CHURCH_ADDED,
+      null,
+      null
+    );
+
+    return true;
+  } catch (error) {
+    console.error('Error awarding church addition XP:', error);
+    return false;
+  }
+}
+
+/**
+ * Award monthly attendance XP (first visit of the month)
+ */
+export async function awardMonthlyAttendanceXP(userId: string): Promise<boolean> {
+  try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    // Check if already awarded this month
+    const existing = await db.select()
+      .from(UserXP)
+      .where(and(
+        eq(UserXP.userId, userId),
+        eq(UserXP.activityType, ACTIVITY_TYPES.MONTHLY_ATTENDANCE),
+        gte(UserXP.createdAt, startOfMonth)
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return false; // Already awarded this month
+    }
+
+    await awardXP(
+      userId,
+      ACTIVITY_TYPES.MONTHLY_ATTENDANCE,
+      XP_VALUES.MONTHLY_ATTENDANCE,
+      null,
+      {
+        month: now.getMonth() + 1,
+        year: now.getFullYear(),
+      }
+    );
+
+    // Update UserMetadata.lastMonthlyVisit
+    await db.update(UserMetadata)
+      .set({ lastMonthlyVisit: now })
+      .where(eq(UserMetadata.userId, userId));
+
+    return true;
+  } catch (error) {
+    console.error('Error awarding monthly attendance XP:', error);
+    return false;
+  }
+}
+
+/**
+ * Get week start date (Monday of the week)
+ */
+function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  return new Date(d.setDate(diff));
+}
+
+/**
+ * Calculate and award weekly streak XP
+ */
+export async function calculateAndAwardWeeklyStreak(userId: string): Promise<number> {
+  try {
+    const now = new Date();
+    const weekStart = getWeekStart(now);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
+
+    // Check if already calculated for this week
+    const existing = await db.select()
+      .from(WeeklyStreaks)
+      .where(and(
+        eq(WeeklyStreaks.userId, userId),
+        eq(WeeklyStreaks.weekStart, weekStart)
+      ))
+      .limit(1);
+
+    if (existing.length > 0 && existing[0].xpAwarded > 0) {
+      return existing[0].xpAwarded; // Already awarded
+    }
+
+    // Count days with sessions this week
+    const weekSessions = await db.select()
+      .from(UserXP)
+      .where(and(
+        eq(UserXP.userId, userId),
+        eq(UserXP.activityType, ACTIVITY_TYPES.SESSION_COMPLETED),
+        gte(UserXP.createdAt, weekStart)
+      ));
+
+    // Group by day
+    const daysWithSessions = new Set<string>();
+    weekSessions.forEach(session => {
+      const day = session.createdAt.toISOString().split('T')[0];
+      daysWithSessions.add(day);
+    });
+
+    const dayCount = daysWithSessions.size;
+
+    // Determine XP based on days
+    let streakXP = 0;
+    if (dayCount >= 7) {
+      streakXP = XP_VALUES.WEEKLY_STREAK_7_DAYS;
+    } else if (dayCount >= 5) {
+      streakXP = XP_VALUES.WEEKLY_STREAK_5_6_DAYS;
+    } else if (dayCount >= 3) {
+      streakXP = XP_VALUES.WEEKLY_STREAK_3_4_DAYS;
+    }
+
+    // Award XP if eligible
+    if (streakXP > 0) {
+      await awardXP(
+        userId,
+        ACTIVITY_TYPES.WEEKLY_STREAK,
+        streakXP,
+        null,
+        {
+          weekStart: weekStart.toISOString(),
+          daysWithSessions: dayCount,
+        }
+      );
+    }
+
+    // Update or create WeeklyStreaks record
+    if (existing.length > 0) {
+      await db.update(WeeklyStreaks)
+        .set({
+          daysWithSessions: dayCount,
+          xpAwarded: streakXP,
+          updatedAt: new Date(),
+        })
+        .where(eq(WeeklyStreaks.id, existing[0].id));
+    } else {
+      await db.insert(WeeklyStreaks).values({
+        id: `streak_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId,
+        weekStart,
+        daysWithSessions: dayCount,
+        xpAwarded: streakXP,
+        createdAt: new Date(),
+      });
+    }
+
+    return streakXP;
+  } catch (error) {
+    console.error('Error calculating weekly streak:', error);
+    return 0;
+  }
+}
+
+/**
+ * Check lifetime milestones
+ */
+export async function checkLifetimeMilestones(userId: string): Promise<string[]> {
+  try {
+    const lifetimeXP = await getLifetimeXP(userId);
+    const milestones: string[] = [];
+
+    // Milestone thresholds
+    if (lifetimeXP >= 100) milestones.push('first_hundred');
+    if (lifetimeXP >= 500) milestones.push('five_hundred');
+    if (lifetimeXP >= 1000) milestones.push('thousand');
+    if (lifetimeXP >= 5000) milestones.push('five_thousand');
+    if (lifetimeXP >= 10000) milestones.push('ten_thousand');
+    if (lifetimeXP >= 25000) milestones.push('twenty_five_thousand');
+    if (lifetimeXP >= 50000) milestones.push('fifty_thousand');
+
+    return milestones;
+  } catch (error) {
+    console.error('Error checking lifetime milestones:', error);
+    return [];
+  }
+}
+
+// ============================================================================
+// LEGACY FUNCTIONS (kept for backward compatibility)
+// ============================================================================
 
 /**
  * Award XP for creating a new thread
@@ -376,10 +879,18 @@ export async function awardNoteOpenedXP(userId: string, noteId: string): Promise
 }
 
 /**
- * Calculate total XP for a user
+ * Calculate total XP for a user (DEPRECATED: Use getLifetimeXP instead)
+ * Kept for backward compatibility
  */
 export async function calculateTotalXP(userId: string): Promise<number> {
   try {
+    // Try to use lifetime aggregate first (faster)
+    const lifetimeXP = await getLifetimeXP(userId);
+    if (lifetimeXP > 0) {
+      return lifetimeXP;
+    }
+    
+    // Fallback: calculate from UserXP records (for migration period)
     const xpRecords = await db.select()
       .from(UserXP)
       .where(eq(UserXP.userId, userId));
@@ -398,6 +909,12 @@ export async function calculateTotalXP(userId: string): Promise<number> {
 export async function getXPBreakdown(userId: string): Promise<{
   totalXP: number;
   breakdown: {
+    sessionCompleted: number;
+    creationBonus: number;
+    churchAdded: number;
+    monthlyAttendance: number;
+    weeklyStreak: number;
+    // Legacy activity types
     threadCreated: number;
     noteCreated: number;
     noteOpened: number;
@@ -410,6 +927,12 @@ export async function getXPBreakdown(userId: string): Promise<{
       .where(eq(UserXP.userId, userId));
     
     const breakdown = {
+      sessionCompleted: 0,
+      creationBonus: 0,
+      churchAdded: 0,
+      monthlyAttendance: 0,
+      weeklyStreak: 0,
+      // Legacy
       threadCreated: 0,
       noteCreated: 0,
       noteOpened: 0,
@@ -418,6 +941,22 @@ export async function getXPBreakdown(userId: string): Promise<{
     
     xpRecords.forEach(record => {
       switch (record.activityType) {
+        case ACTIVITY_TYPES.SESSION_COMPLETED:
+          breakdown.sessionCompleted += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.CREATION_BONUS:
+          breakdown.creationBonus += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.CHURCH_ADDED:
+          breakdown.churchAdded += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.MONTHLY_ATTENDANCE:
+          breakdown.monthlyAttendance += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.WEEKLY_STREAK:
+          breakdown.weeklyStreak += record.xpAmount;
+          break;
+        // Legacy activity types
         case ACTIVITY_TYPES.THREAD_CREATED:
           breakdown.threadCreated += record.xpAmount;
           break;
@@ -444,6 +983,11 @@ export async function getXPBreakdown(userId: string): Promise<{
     return {
       totalXP: 0,
       breakdown: {
+        sessionCompleted: 0,
+        creationBonus: 0,
+        churchAdded: 0,
+        monthlyAttendance: 0,
+        weeklyStreak: 0,
         threadCreated: 0,
         noteCreated: 0,
         noteOpened: 0,

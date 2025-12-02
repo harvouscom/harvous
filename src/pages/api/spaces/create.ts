@@ -4,6 +4,7 @@ import { generateSpaceId } from '@/utils/ids';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { awardCreationBonusXP } from '@/utils/xp-system';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -204,6 +205,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
         }
       }
     }
+
+    // Award creation bonus XP
+    await awardCreationBonusXP(userId, 'space');
 
     return new Response(JSON.stringify({
       success: 'Space created successfully!',

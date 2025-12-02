@@ -16,6 +16,7 @@ import EmailPasswordPanel from './EmailPasswordPanel';
 import MyChurchPanel from './MyChurchPanel';
 import MySpacesPanel from './MySpacesPanel';
 import MyDataPanel from './MyDataPanel';
+import MyAchievementsPanel from './MyAchievementsPanel';
 import GetSupportPanel from './GetSupportPanel';
 import InboxItemPreviewPanel from './InboxItemPreviewPanel';
 
@@ -38,7 +39,7 @@ export interface BottomSheetProps {
   version?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'inboxPreview';
+type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'inboxPreview';
 
 interface InboxItem {
   id: string;
@@ -188,6 +189,21 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     window.addEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
     window.addEventListener('openEditSpacePanel', handleOpenEditSpacePanel);
     
+    // Listen for profile panel events (for mobile bottom sheet)
+    const handleOpenProfilePanel = (event: CustomEvent) => {
+      if (!isMobile) return;
+      const panelName = event.detail?.panelName;
+      if (panelName === 'editNameColor') openBottomSheet('editNameColor');
+      else if (panelName === 'emailPassword') openBottomSheet('emailPassword');
+      else if (panelName === 'myChurch') openBottomSheet('myChurch');
+      else if (panelName === 'mySpaces') openBottomSheet('mySpaces');
+      else if (panelName === 'myData') openBottomSheet('myData');
+      else if (panelName === 'myAchievements') openBottomSheet('myAchievements');
+      else if (panelName === 'getSupport') openBottomSheet('getSupport');
+    };
+    
+    window.addEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
+    
     // Listen for panel close events
     window.addEventListener('closeNewNotePanel', handleCloseBottomSheet);
     window.addEventListener('closeNewThreadPanel', handleCloseBottomSheet);
@@ -202,12 +218,13 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('closeMobileDrawer', handleCloseBottomSheet);
       window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
       window.removeEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
+      window.removeEventListener('openEditSpacePanel', handleOpenEditSpacePanel);
+      window.removeEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
       window.removeEventListener('closeNewNotePanel', handleCloseBottomSheet);
       window.removeEventListener('closeNewThreadPanel', handleCloseBottomSheet);
       window.removeEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
       window.removeEventListener('closeProfilePanel', handleCloseBottomSheet);
       window.removeEventListener('closeEditThreadPanel', handleCloseBottomSheet);
-      window.removeEventListener('openEditSpacePanel', handleOpenEditSpacePanel);
       window.removeEventListener('closeEditSpacePanel', handleCloseBottomSheet);
       window.removeEventListener('closeInboxPreview', handleCloseBottomSheet);
     };
@@ -422,6 +439,18 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {drawerType === 'myData' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
               <MyDataPanel 
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+                inBottomSheet={true}
+              />
+            </div>
+          )}
+          
+          {/* My Achievements Panel */}
+          {drawerType === 'myAchievements' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <MyAchievementsPanel 
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}

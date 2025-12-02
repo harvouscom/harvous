@@ -8,6 +8,7 @@ import EmailPasswordPanel from '@/components/react/EmailPasswordPanel';
 import MyDataPanel from '@/components/react/MyDataPanel';
 import MyChurchPanel from '@/components/react/MyChurchPanel';
 import MySpacesPanel from '@/components/react/MySpacesPanel';
+import MyAchievementsPanel from '@/components/react/MyAchievementsPanel';
 import GetSupportPanel from '@/components/react/GetSupportPanel';
 
 // Type definitions for props
@@ -15,14 +16,17 @@ export interface ProfilePageProps {
   displayName: string;
   userColor: string;
   joinDate: string;
-  userXP: number;
+  userXP?: number; // Legacy - kept for backward compatibility
   firstName: string;
   lastName: string;
+  seasonalXP?: number;
+  lifetimeXP?: number;
+  seasonName?: string;
   version?: string;
 }
 
 // Type definition for a panel name
-type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'getSupport' | null;
+type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | null;
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
   displayName,
@@ -263,9 +267,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     };
 
 
-    window.addEventListener('updateProfileRequest', handleUpdateProfileRequest as EventListener);
-    window.addEventListener('updateCredentialsRequest', handleUpdateCredentialsRequest as EventListener);
-    window.addEventListener('updateProfile', handleProfileUpdate as EventListener);
+    window.addEventListener('updateProfileRequest', handleUpdateProfileRequest as unknown as EventListener);
+    window.addEventListener('updateCredentialsRequest', handleUpdateCredentialsRequest as unknown as EventListener);
+    window.addEventListener('updateProfile', handleProfileUpdate as unknown as EventListener);
 
     const handleOpenPanelEvent = (event: CustomEvent) => {
       if (window.innerWidth >= 1160) {
@@ -290,9 +294,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     return () => {
       // @ts-ignore
       delete window.profilePage;
-      window.removeEventListener('updateProfileRequest', handleUpdateProfileRequest as EventListener);
-      window.removeEventListener('updateCredentialsRequest', handleUpdateCredentialsRequest as EventListener);
-      window.removeEventListener('updateProfile', handleProfileUpdate as EventListener);
+      window.removeEventListener('updateProfileRequest', handleUpdateProfileRequest as unknown as EventListener);
+      window.removeEventListener('updateCredentialsRequest', handleUpdateCredentialsRequest as unknown as EventListener);
+      window.removeEventListener('updateProfile', handleProfileUpdate as unknown as EventListener);
       window.removeEventListener('openProfilePanel', handleOpenPanelEvent as EventListener);
       window.removeEventListener('closeProfilePanel', handleClosePanelEvent);
     };
@@ -311,6 +315,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         return <MySpacesPanel key={`mySpaces-${panelOpenTime}`} />;
       case 'myData':
         return <MyDataPanel />;
+      case 'myAchievements':
+        return <MyAchievementsPanel />;
       case 'getSupport':
         return <GetSupportPanel version={version} />;
       default:

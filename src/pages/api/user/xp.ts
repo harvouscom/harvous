@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
-import { calculateTotalXP, getXPBreakdown, backfillUserXP } from '@/utils/xp-system';
+import { calculateTotalXP, getXPBreakdown, backfillUserXP, getSeasonalXP, getLifetimeXP } from '@/utils/xp-system';
+import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ request, locals }) => {
@@ -17,17 +18,25 @@ export const GET: APIRoute = async ({ request, locals }) => {
     // Check if this is a backfill request
     const url = new URL(request.url);
     const shouldBackfill = url.searchParams.get('backfill') === 'true';
+    const season = url.searchParams.get('season'); // Optional season parameter
     
     if (shouldBackfill) {
       await backfillUserXP(userId);
     }
 
-    // Get XP data
-    const totalXP = await calculateTotalXP(userId);
-    const breakdown = await getXPBreakdown(userId);
+    // Get XP data (both seasonal and lifetime)
+    const [seasonalXP, lifetimeXP, breakdown] = await Promise.all([
+      getSeasonalXP(userId, season || undefined),
+      getLifetimeXP(userId),
+      getXPBreakdown(userId)
+    ]);
 
     return new Response(JSON.stringify({
-      totalXP,
+      seasonalXP,
+      lifetimeXP,
+      totalXP: lifetimeXP, // Legacy field for backward compatibility
+      season: season || getCurrentSeason(),
+      seasonName: getSeasonDisplayName(season || undefined),
       breakdown,
       backfilled: shouldBackfill
     }), {

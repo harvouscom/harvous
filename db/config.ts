@@ -100,6 +100,10 @@ const UserMetadata = defineTable({
     churchCity: column.text({ optional: true }),
     churchState: column.text({ optional: true }), // State/Province/Region (full name, not abbreviation)
     churchCountry: column.text({ optional: true }), // ISO 3-letter country code (e.g., 'USA', 'CAN')
+    // XP and season tracking
+    currentSeason: column.text({ optional: true }), // Track current season (e.g., "spring-2025")
+    lastMonthlyVisit: column.date({ optional: true }), // For monthly attendance tracking
+    churchAddedAt: column.date({ optional: true }), // Track when church was added (for XP award)
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
   }
@@ -110,11 +114,48 @@ const UserXP = defineTable({
   columns: {
     id: column.text({ primaryKey: true }),
     userId: column.text(), // Clerk user id
-    activityType: column.text(), // 'thread_created', 'note_created', 'note_opened', 'first_note_daily'
+    activityType: column.text(), // 'session_completed', 'creation_bonus', 'church_added', 'monthly_attendance', 'weekly_streak', etc.
     xpAmount: column.number(), // XP earned for this activity
     relatedId: column.text({ optional: true }), // ID of related note/thread (optional)
+    season: column.text(), // Season identifier (e.g., "spring-2025", "summer-2025")
     createdAt: column.date(),
     metadata: column.text({ optional: true }), // JSON string for additional data (e.g., daily caps)
+  }
+})
+
+// Aggregated seasonal XP totals for quick lookup
+const UserSeasonalXP = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    userId: column.text(), // Clerk user id
+    season: column.text(), // Season identifier (e.g., "spring-2025")
+    totalXP: column.number({ default: 0 }), // Total XP for this season
+    sessionCount: column.number({ default: 0 }), // Number of sessions this season
+    createdAt: column.date(),
+    updatedAt: column.date({ optional: true }),
+  }
+})
+
+// Aggregated lifetime XP total for quick lookup and milestones
+const UserLifetimeXP = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    userId: column.text({ unique: true }), // Clerk user id
+    totalXP: column.number({ default: 0 }), // Total lifetime XP
+    lastUpdated: column.date(), // Last time this was updated
+  }
+})
+
+// Weekly streak tracking
+const WeeklyStreaks = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    userId: column.text(), // Clerk user id
+    weekStart: column.date(), // Monday of the week (ISO week)
+    daysWithSessions: column.number({ default: 0 }), // Days 0-7 with sessions
+    xpAwarded: column.number({ default: 0 }), // XP awarded for this week
+    createdAt: column.date(),
+    updatedAt: column.date({ optional: true }),
   }
 })
 
@@ -226,6 +267,9 @@ export default defineDb({
     Members,
     UserMetadata,
     UserXP,
+    UserSeasonalXP,
+    UserLifetimeXP,
+    WeeklyStreaks,
     Tags,
     NoteTags,
     ScriptureMetadata,

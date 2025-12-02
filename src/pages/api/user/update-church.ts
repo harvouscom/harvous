@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { db, UserMetadata, eq } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { awardChurchAddedXP } from '@/utils/xp-system';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -47,6 +48,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (existingRecord.length > 0) {
         const existing = existingRecord[0];
         
+        // Check if this is the first time adding church info
+        const isFirstTimeAddingChurch = !existing.churchName && !existing.churchCity && !existing.churchState && 
+                                         (normalizedChurchName || normalizedChurchCity || normalizedChurchState);
+        
         // Update existing record - only update church fields, preserve all other fields
         // Astro DB .set() only updates specified fields, but we're being explicit
         await db.update(UserMetadata)
@@ -54,24 +59,37 @@ export const POST: APIRoute = async ({ request, locals }) => {
             churchName: normalizedChurchName,
             churchCity: normalizedChurchCity,
             churchState: normalizedChurchState,
+            churchAddedAt: isFirstTimeAddingChurch ? new Date() : existing.churchAddedAt,
             updatedAt: new Date()
           })
           .where(eq(UserMetadata.userId, userId));
+        
+        // Award XP if this is the first time adding church info
+        if (isFirstTimeAddingChurch) {
+          await awardChurchAddedXP(userId);
+        }
       } else {
         // Create new record (shouldn't happen in normal flow, but handle it)
         // Note: This will only have church fields, other fields will be defaults
         // In practice, UserMetadata should already exist from user creation
+        const hasChurchData = normalizedChurchName || normalizedChurchCity || normalizedChurchState;
         await db.insert(UserMetadata).values({
           id: crypto.randomUUID(),
           userId,
           churchName: normalizedChurchName,
           churchCity: normalizedChurchCity,
           churchState: normalizedChurchState,
+          churchAddedAt: hasChurchData ? new Date() : null,
           highestSimpleNoteId: 0,
           userColor: 'paper',
           createdAt: new Date(),
           updatedAt: new Date()
         });
+        
+        // Award XP for first-time church addition
+        if (hasChurchData) {
+          await awardChurchAddedXP(userId);
+        }
       }
 
       return new Response(JSON.stringify({ 

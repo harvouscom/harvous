@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { db, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
 import { generateThreadId } from '@/utils/ids';
 import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
-import { awardThreadCreatedXP } from '@/utils/xp-system';
+import { awardCreationBonusXP } from '@/utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor, validateSpaceId } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
@@ -209,8 +209,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .where(and(eq(Threads.id, newThread.id), eq(Threads.userId, userId)));
     }
 
-    // Award XP for thread creation (pass title for validation)
-    await awardThreadCreatedXP(userId, newThread.id, capitalizedTitle, null);
+    // Award creation bonus XP
+    await awardCreationBonusXP(userId, 'thread');
 
     return new Response(JSON.stringify({
       success: 'Thread created successfully!',
