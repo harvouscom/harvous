@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import DeleteAccountConfirmDialog from './DeleteAccountConfirmDialog';
 import ClearDataConfirmDialog from './ClearDataConfirmDialog';
 import SquareButton from './SquareButton';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 
 interface MyDataPanelProps {
   onClose?: () => void;
@@ -141,7 +141,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
         
         // Navigate after a short delay using View Transitions
         setTimeout(() => {
-          navigate(window.location.pathname, { history: 'replace' });
+          safeNavigate(window.location.pathname, { history: 'replace' });
         }, 1500);
       } else {
         throw new Error(data.error || 'Failed to clear data');

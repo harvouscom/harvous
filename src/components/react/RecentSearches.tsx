@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 
 interface RecentSearch {
   term: string;
@@ -110,7 +110,7 @@ const RecentSearches: React.FC = () => {
                     return;
                   }
                   // Navigate to search results
-                  navigate(`/find?q=${encodeURIComponent(search.term)}`, { history: 'replace' });
+                  safeNavigate(`/find?q=${encodeURIComponent(search.term)}`, { history: 'replace' });
                 }}
               >
                 <div className="flex items-center">

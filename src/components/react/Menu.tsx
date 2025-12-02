@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 import EraseConfirmDialog from './EraseConfirmDialog';
 
 export interface MenuOption {
@@ -319,7 +319,7 @@ export default function Menu({
           redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
         }
         // Use View Transitions instead of hard redirect to maintain React state
-        navigate(redirectUrl, { history: 'replace' });
+        safeNavigate(redirectUrl, { history: 'replace' });
       } else {
         // Show error toast immediately (no redirect on error)
         console.error('Delete failed:', data.error);

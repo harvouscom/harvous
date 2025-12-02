@@ -6,7 +6,7 @@ import { captureException } from '@/utils/posthog';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import ActionButton from './ActionButton';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 import { ButtonGroup } from '@/components/ui/button-group';
 import SimpleTooltip from './SimpleTooltip';
 
@@ -232,7 +232,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
             const redirectUrl = `/${result.space.id}?toast=success&message=${encodeURIComponent('Space created successfully!')}`;
             // Add a small delay to ensure localStorage is updated before navigation
             setTimeout(() => {
-              navigate(redirectUrl, { history: 'replace' });
+              safeNavigate(redirectUrl, { history: 'replace' });
             }, 100);
           }
         }

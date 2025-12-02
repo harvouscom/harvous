@@ -1137,8 +1137,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (preserveFormatting) {
       // For formatted content, extract HTML from DOM selection
       const view = editor?.view;
-      if (!view) {
-        // Fallback to plain text if view is not available
+      // Check for both view and docView - docView becomes null when editor is destroyed
+      if (!view || !view.docView) {
+        // Fallback to plain text if view is not available or editor is destroyed
         extractedContent = editor.state.doc.textBetween(from, to);
       } else {
         try {

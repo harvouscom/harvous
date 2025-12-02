@@ -5,7 +5,7 @@ import SquareButton from './SquareButton';
 import ActionButton from './ActionButton';
 import AddToSpaceSection from './AddToSpaceSection';
 import { captureException } from '@/utils/posthog';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 import { ButtonGroup } from '@/components/ui/button-group';
 import SimpleTooltip from './SimpleTooltip';
 import { safeFetch } from '@/utils/safe-fetch';
@@ -231,7 +231,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.set('toast', 'success');
           currentUrl.searchParams.set('message', encodeURIComponent('Thread updated successfully!'));
-          navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         } else {
           const errorText = await response.text();
           console.error('NewThreadPanel: API error response:', errorText);
@@ -356,7 +356,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
               const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
               // Add a small delay to ensure localStorage is updated before navigation
               setTimeout(() => {
-                navigate(redirectUrl, { history: 'replace' });
+                safeNavigate(redirectUrl, { history: 'replace' });
               }, 50);
             }
           }
@@ -731,7 +731,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                                   title={note.title}
                                   content={note.content}
                                   onClick={() => {
-                                    navigate(`/note_${note.id}`, { history: 'replace' });
+                                    safeNavigate(`/note_${note.id}`, { history: 'replace' });
                                   }}
                                 />
                               ))}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CardFeat from './CardFeat';
 import { toast } from '@/utils/toast';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 
 interface InboxItem {
   id: string;
@@ -178,7 +178,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.set('toast', 'success');
           currentUrl.searchParams.set('message', encodeURIComponent('Added to Harvous'));
-          navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         }
       } catch (error) {
         console.error('Error adding to Harvous:', error);
@@ -226,7 +226,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
             ? 'Note moved to archive' 
             : 'Item archived'; // Fallback if contentType not available
           currentUrl.searchParams.set('message', encodeURIComponent(message));
-          navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         }
       } catch (error) {
         console.error('Error archiving:', error);
@@ -274,7 +274,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
             ? 'Note moved back to inbox' 
             : 'Item unarchived'; // Fallback if contentType not available
           currentUrl.searchParams.set('message', encodeURIComponent(message));
-          navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         }
       } catch (error) {
         console.error('Error unarchiving:', error);

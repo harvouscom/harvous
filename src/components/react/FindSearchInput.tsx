@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 
 interface FindSearchInputProps {
   className?: string;
@@ -60,12 +60,12 @@ export default function FindSearchInput({
     window.dispatchEvent(new CustomEvent('recent-searches-updated'));
     
     // Navigate to search results
-    navigate(`/find?q=${encodeURIComponent(trimmedQuery)}`, { history: 'replace' });
+    safeNavigate(`/find?q=${encodeURIComponent(trimmedQuery)}`, { history: 'replace' });
   };
 
   const handleClear = () => {
     setSearchQuery('');
-    navigate('/find', { history: 'replace' });
+    safeNavigate('/find', { history: 'replace' });
   };
 
   return (

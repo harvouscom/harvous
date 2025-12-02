@@ -4,7 +4,7 @@ import SquareButton from './SquareButton';
 import CardNote from './CardNote';
 import ActionButton from './ActionButton';
 import AddToSpaceSection from './AddToSpaceSection';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 import { ButtonGroup } from '@/components/ui/button-group';
 import SimpleTooltip from './SimpleTooltip';
 import { safeFetch } from '@/utils/safe-fetch';
@@ -190,7 +190,7 @@ export default function EditThreadPanel({
         const currentUrl = new URL(window.location.href);
         currentUrl.searchParams.set('toast', 'success');
         currentUrl.searchParams.set('message', encodeURIComponent('Thread updated successfully!'));
-        navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+        safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
       } else {
         console.error('EditThreadPanel: Thread update failed:', data);
         

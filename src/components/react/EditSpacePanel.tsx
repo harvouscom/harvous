@@ -5,7 +5,7 @@ import AddToSpaceSection from './AddToSpaceSection';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import ActionButton from './ActionButton';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 import { ButtonGroup } from '@/components/ui/button-group';
 import SimpleTooltip from './SimpleTooltip';
 
@@ -186,7 +186,7 @@ export default function EditSpacePanel({
         const currentUrl = new URL(window.location.href);
         currentUrl.searchParams.set('toast', 'success');
         currentUrl.searchParams.set('message', encodeURIComponent('Space updated successfully!'));
-        navigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+        safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
       } else {
         console.error('EditSpacePanel: Space update failed:', data);
         

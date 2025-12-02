@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ButtonSmall from './ButtonSmall';
-import { navigate } from 'astro:transitions/client';
+import { safeNavigate } from '@/utils/safe-navigate';
 import '@/styles/card-full-editable.css';
 
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
@@ -539,7 +539,7 @@ export default function CardFullEditable({
           console.error('Error checking/restoring note:', error);
         }
         
-        navigate(`/${targetNoteId}`, { history: 'replace' });
+        safeNavigate(`/${targetNoteId}`, { history: 'replace' });
         return;
       }
     }
