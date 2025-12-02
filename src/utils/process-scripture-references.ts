@@ -210,7 +210,7 @@ export async function processScriptureReferences(
               const verses = await verseResponse.json();
               // Format verse text with superscript verse numbers
               if (Array.isArray(verses) && verses.length > 0) {
-                verseText = verses.map((v: any) => `${v.text}<sup>${v.verse}</sup>`).join(' ');
+                verseText = verses.map((v: any) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
               }
             }
           } catch (verseError) {

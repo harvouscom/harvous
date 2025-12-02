@@ -126,7 +126,7 @@ export const POST: APIRoute = async ({ request }) => {
           formattedParts.push(`<p><strong>${label}</strong></p>`);
           
           // Add verse text for this group with superscript verse numbers
-          const groupText = groupVerses.map(v => `${v.text}<sup>${v.verse}</sup>`).join(' ');
+          const groupText = groupVerses.map(v => `<sup>${v.verse}</sup>${v.text}`).join(' ');
           formattedParts.push(`<p>${groupText}</p>`);
           
           // Add divider before next group (not after last)
@@ -139,7 +139,7 @@ export const POST: APIRoute = async ({ request }) => {
       verseText = formattedParts.join('');
     } else {
       // Single verse or single range: combine text with superscript verse numbers
-      verseText = verses.map(v => `${v.text}<sup>${v.verse}</sup>`).join(' ');
+      verseText = verses.map(v => `<sup>${v.verse}</sup>${v.text}`).join(' ');
     }
     
     // Get first verse info for response

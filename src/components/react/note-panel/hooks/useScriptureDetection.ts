@@ -7,7 +7,6 @@ export interface UseScriptureDetectionOptions {
   content: string;
   noteType: NoteType;
   isLoadingFromLocalStorage: React.MutableRefObject<boolean>;
-  hasInteractedWithContent: React.MutableRefObject<boolean>;
   setNoteType: (type: NoteType) => void;
   setTitle: (title: string) => void;
   setContent: (content: string) => void;
@@ -30,7 +29,6 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
     content,
     noteType,
     isLoadingFromLocalStorage,
-    hasInteractedWithContent,
     setNoteType,
     setTitle,
     setContent,
@@ -57,7 +55,7 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
     const titleToCheck = title.trim();
     if (titleToCheck.length < 5) return;
 
-    // Debounce detection (2 seconds after typing stops)
+    // Debounce detection (1.2 seconds after typing stops)
     const timeoutId = setTimeout(async () => {
       // Double-check we're not loading from localStorage
       if (isLoadingFromLocalStorage.current) return;
@@ -91,8 +89,8 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
                 setNoteType('scripture');
                 setTitle(detection.primaryReference);
                 
-                // Set verse text as content only if content is empty or very short AND user hasn't interacted with content field
-                if (!hasInteractedWithContent.current && (!content || content.trim().length < 10 || content === '<p></p>' || content === '<p><br></p>')) {
+                // Set verse text as content only if content is empty or very short
+                if (!content || content.trim().length < 10 || content === '<p></p>' || content === '<p><br></p>') {
                   setContent(verseData.text);
                 }
                 
@@ -123,10 +121,10 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
       } catch {
         // Silently fail - don't interrupt UX
       }
-    }, 2000);
+    }, 1200);
 
     return () => clearTimeout(timeoutId);
-  }, [title, noteType, content, isLoadingFromLocalStorage, hasInteractedWithContent, setNoteType, setTitle, setContent, setScriptureReference, setScriptureVersion]);
+  }, [title, noteType, content, isLoadingFromLocalStorage, setNoteType, setTitle, setContent, setScriptureReference, setScriptureVersion]);
 
   // Version change handler (for future - when multiple translations are supported)
   useEffect(() => {

@@ -106,8 +106,9 @@ sup {
   position: relative;
   vertical-align: baseline;
   top: -0.5em;
-  font-weight: 600;
-  color: var(--color-stone-grey);
+  font-weight: 400;
+  color: var(--color-pebble-grey);
+  margin-right: 0.1875em;
 }
 
 /* Text selection styles - vibrant highlighter yellow */
