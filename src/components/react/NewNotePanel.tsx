@@ -40,6 +40,9 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
+  
+  // Ref to track if user has interacted with content field
+  const hasInteractedWithContentRef = useRef(false);
 
   // Use extracted form hook
   const form = useNewNoteForm({
@@ -58,6 +61,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     content: form.content,
     noteType: form.noteType,
     isLoadingFromLocalStorage: form.isLoadingFromLocalStorage,
+    hasInteractedWithContent: hasInteractedWithContentRef,
     setNoteType: form.setNoteType,
     setTitle: form.setTitle,
     setContent: form.setContent,
@@ -394,6 +398,9 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
               onContentChange={form.setContent}
               nextNoteId={nextNoteId}
               onEditorReady={handleEditorReady}
+              onContentInteraction={() => {
+                hasInteractedWithContentRef.current = true;
+              }}
             />
           )}
 

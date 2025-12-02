@@ -99,6 +99,17 @@
   background-color: var(--color-paper) !important;
 }
 
+/* Superscript styling for verse numbers */
+sup {
+  font-size: 0.75em;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+  top: -0.5em;
+  font-weight: 600;
+  color: var(--color-stone-grey);
+}
+
 /* Text selection styles - vibrant highlighter yellow */
 /* Using #FFEB3B (Yellow) at 40% opacity for realistic highlighter effect */
 /* Include webkit prefix for iOS Safari compatibility */

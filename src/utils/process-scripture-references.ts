@@ -201,14 +201,17 @@ export async function processScriptureReferences(
       if (!existingScripture) {
         // New scripture - create it
         try {
-          // Fetch verse text from Bible.org API
+          // Fetch verse text from Bible.org API with superscript formatting
           let verseText = '';
           try {
             const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(reference)}&formatting=plain&type=json`;
             const verseResponse = await fetch(apiUrl);
             if (verseResponse.ok) {
               const verses = await verseResponse.json();
-              verseText = Array.isArray(verses) ? verses.map((v: any) => v.text).join(' ') : '';
+              // Format verse text with superscript verse numbers
+              if (Array.isArray(verses) && verses.length > 0) {
+                verseText = verses.map((v: any) => `${v.text}<sup>${v.verse}</sup>`).join(' ');
+              }
             }
           } catch (verseError) {
             console.error(`Error fetching verse for ${reference}:`, verseError);

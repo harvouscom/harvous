@@ -8,6 +8,7 @@ export interface DefaultNoteFormProps {
   onContentChange: (content: string) => void;
   nextNoteId: string;
   onEditorReady?: (editor: any) => void;
+  onContentInteraction?: () => void;
 }
 
 /**
@@ -20,6 +21,7 @@ export default function DefaultNoteForm({
   onContentChange,
   nextNoteId,
   onEditorReady,
+  onContentInteraction,
 }: DefaultNoteFormProps) {
   // Handle title keydown for auto-capitalize and select all
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -82,7 +84,24 @@ export default function DefaultNoteForm({
             placeholder="Type your note..."
             tabindex={2}
             minimalToolbar={false}
-            onEditorReady={onEditorReady}
+            onEditorReady={(editor) => {
+              if (onEditorReady) {
+                onEditorReady(editor);
+              }
+              
+              // Track content interaction when editor is ready
+              if (onContentInteraction && editor) {
+                // Track focus events
+                editor.on('focus', () => {
+                  onContentInteraction();
+                });
+                
+                // Track content changes (typing)
+                editor.on('update', () => {
+                  onContentInteraction();
+                });
+              }
+            }}
             onContentChange={onContentChange}
           />
         </div>
