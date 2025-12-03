@@ -8,7 +8,7 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
 ---
 
 <EmptyLayout title="Sign In">
-  <div id="sign-in-content" class="min-h-[100svh] max-h-[100svh] h-[100svh] overflow-hidden p-3 flex flex-col sign-in-hidden">
+  <div id="sign-in-content" class="min-h-[100svh] p-3 flex flex-col sign-in-hidden">
     <div class="flex-1 flex flex-col lg:flex-row gap-6">
       <!-- Top Row (Mobile) / Left Column (Desktop): Video Background -->
       <div class="flex h-[89px] lg:h-auto lg:flex-1 thread-colors-mesh-gradient relative overflow-hidden rounded-[12px]">
@@ -200,14 +200,10 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
       0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
   }
 
-  /* Prevent scrolling on mobile */
+  /* Allow scrolling on mobile while maintaining full height */
   :global(html),
   :global(body) {
-    height: 100svh !important;
-    max-height: 100svh !important;
-    overflow: hidden !important;
-    position: fixed !important;
-    width: 100% !important;
+    min-height: 100svh;
   }
 
 </style>
