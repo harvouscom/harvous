@@ -34,8 +34,23 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog
           // Global error handler for uncaught exceptions
           window.addEventListener('error', (event) => {
             try {
+              // Filter out AbortError exceptions (expected behavior from cancelled requests)
+              const error = event.error || new Error(event.message);
+              const errorName = error.name || '';
+              const errorMessage = error.message || event.message || '';
+              const isAbortError = errorName === 'AbortError' || 
+                                  errorName === 'DOMException' ||
+                                  errorMessage.toLowerCase().includes('aborterror') ||
+                                  errorMessage.toLowerCase().includes('signal is aborted') ||
+                                  errorMessage.toLowerCase().includes('user aborted a request');
+              
+              if (isAbortError) {
+                // Ignore AbortError - these are expected from cancelled fetch requests
+                return;
+              }
+              
               if (posthog && typeof posthog.captureException === 'function') {
-                posthog.captureException(event.error || new Error(event.message), {
+                posthog.captureException(error, {
                   error_type: 'javascript_error',
                   error_filename: event.filename,
                   error_line: event.lineno,
@@ -51,11 +66,25 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog
           // Global handler for unhandled promise rejections
           window.addEventListener('unhandledrejection', (event) => {
             try {
+              // Filter out AbortError exceptions (expected behavior from cancelled requests)
+              const error = event.reason instanceof Error 
+                ? event.reason 
+                : new Error(String(event.reason || 'Unhandled promise rejection'));
+              
+              const errorName = error.name || '';
+              const errorMessage = error.message || String(event.reason || '') || '';
+              const isAbortError = errorName === 'AbortError' || 
+                                  errorName === 'DOMException' ||
+                                  errorMessage.toLowerCase().includes('aborterror') ||
+                                  errorMessage.toLowerCase().includes('signal is aborted') ||
+                                  errorMessage.toLowerCase().includes('user aborted a request');
+              
+              if (isAbortError) {
+                // Ignore AbortError - these are expected from cancelled fetch requests
+                return;
+              }
+              
               if (posthog && typeof posthog.captureException === 'function') {
-                const error = event.reason instanceof Error 
-                  ? event.reason 
-                  : new Error(String(event.reason || 'Unhandled promise rejection'));
-                
                 posthog.captureException(error, {
                   error_type: 'promise_rejection',
                 });

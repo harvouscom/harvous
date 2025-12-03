@@ -224,6 +224,33 @@ export function optIn() {
 }
 
 /**
+ * Check if an error should be ignored (not sent to PostHog)
+ * Filters out expected errors like AbortError from cancelled fetch requests
+ */
+function shouldIgnoreError(error: Error | string): boolean {
+  if (typeof error === 'string') {
+    const errorLower = error.toLowerCase();
+    return errorLower.includes('aborterror') || 
+           errorLower.includes('signal is aborted') ||
+           errorLower.includes('user aborted a request');
+  }
+  
+  // Check error name
+  if (error.name === 'AbortError' || error.name === 'DOMException') {
+    const message = error.message?.toLowerCase() || '';
+    return message.includes('aborterror') ||
+           message.includes('signal is aborted') ||
+           message.includes('user aborted a request');
+  }
+  
+  // Check error message
+  const message = error.message?.toLowerCase() || '';
+  return message.includes('aborterror') ||
+         message.includes('signal is aborted') ||
+         message.includes('user aborted a request');
+}
+
+/**
  * Capture an exception/error in PostHog
  * Uses PostHog's captureException method for proper error tracking
  */
@@ -232,6 +259,11 @@ export function captureException(
   additionalProperties?: Record<string, any>
 ) {
   if (typeof window === 'undefined' || !window.posthog) {
+    return;
+  }
+
+  // Filter out AbortError exceptions (expected behavior from cancelled requests)
+  if (shouldIgnoreError(error)) {
     return;
   }
 
