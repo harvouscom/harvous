@@ -10,13 +10,11 @@
 .block { display: block; }
 .inline-block { display: inline-block; }
 .inline { display: inline; }
-.hidden { display: none; }
 
 /* ==========================================================================
    Flexbox
+   NOTE: .flex and .inline-flex removed - using Tailwind's while still installed
    ========================================================================== */
-.flex { display: flex; }
-.inline-flex { display: inline-flex; }
 .flex-row { flex-direction: row; }
 .flex-col { flex-direction: column; }
 .flex-wrap { flex-wrap: wrap; }
