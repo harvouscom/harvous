@@ -470,22 +470,22 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="panel-wrapper panel-wrapper--bottom-sheet">
       {/* Form */}
       <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="flex-1 flex flex-col">
         {/* Content area that expands to fill available space */}
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Single unified panel using CardStack structure */}
-          <div className="bg-white box-border flex flex-col min-h-0 flex-1 items-start justify-between overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full h-full mb-3.5">
+          {/* Panel container */}
+          <div className="panel panel--bottom-sheet">
             {/* Header section with thread name input */}
             <div 
-              className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full"
+              className="panel__header"
               style={{ 
                 backgroundColor: getThreadColorCSS(selectedColor),
                 color: getThreadTextColorCSS(selectedColor)
               }}
             >
-              <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px]">
+              <div className="panel__title">
                 <input 
                   ref={titleInputRef}
                   type="text"
@@ -501,8 +501,8 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             </div>
             
             {/* Content area */}
-            <div className="basis-0 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-px min-w-px overflow-clip relative shrink-0 w-full">
-              <div className="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
+            <div className="panel__body panel__body--bottom-sheet">
+              <div className="panel__content panel__content--bottom-sheet">
                 
                 {/* Color selection */}
                 <div className="color-selection flex gap-2 items-center justify-start w-full">
@@ -573,7 +573,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                     <button
                       type="button"
                       onClick={() => setSelectedType('Private')}
-                      className={`space-button relative rounded-tl-3xl rounded-bl-3xl rounded-tr-none rounded-br-none h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-4 w-1/2 ${
+                      className={`space-button relative rounded-tl-3xl rounded-bl-3xl rounded-tr-none rounded-br-none h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-4 flex-1 ${
                         selectedType === 'Private' ? 'ring-2 ring-[var(--color-bold-blue)] ring-offset-2' : ''
                       }`}
                       style={{ backgroundImage: 'var(--color-gradient-gray)' }}
@@ -587,7 +587,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                     </button>
                     
                     {/* Shared button - disabled with tooltip */}
-                    <SimpleTooltip content="Coming Soon" enableTooltip={true} className="w-1/2">
+                    <SimpleTooltip content="Coming Soon" enableTooltip={true} className="flex-1">
                       <button
                         type="button"
                         disabled

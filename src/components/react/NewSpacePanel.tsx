@@ -399,7 +399,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                     <button
                       type="button"
                       onClick={() => setSelectedType('Private')}
-                      className={`space-button relative rounded-tl-3xl rounded-bl-3xl rounded-tr-none rounded-br-none h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-4 w-1/2 ${
+                      className={`space-button relative rounded-tl-3xl rounded-bl-3xl rounded-tr-none rounded-br-none h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-4 flex-1 ${
                         selectedType === 'Private' ? 'ring-2 ring-[var(--color-bold-blue)] ring-offset-2' : ''
                       }`}
                       style={{ backgroundImage: 'var(--color-gradient-gray)' }}
@@ -413,7 +413,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                     </button>
                     
                     {/* Shared button - disabled with tooltip */}
-                    <SimpleTooltip content="Coming Soon" enableTooltip={true} className="w-1/2">
+                    <SimpleTooltip content="Coming Soon" enableTooltip={true} className="flex-1">
                       <button
                         type="button"
                         disabled
