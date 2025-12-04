@@ -126,15 +126,15 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "Default") {
     return (
       <button 
-        className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 px-4 ${className}`}
+        className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} px-4 ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         {...props}
       >
-        <div className="flex items-center justify-start relative w-full h-full pl-2 pr-2 transition-transform duration-125 min-w-0">
-          <div className="flex-1 min-w-0 overflow-hidden text-left">
-            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`} style={{textAlign: 'left'}}>
+        <div className="space-btn__content space-btn__content--with-padding space-btn__content--justify-start">
+          <div className="space-btn__text-wrapper">
+            <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>
@@ -145,35 +145,32 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
 
   if (state === "WithCount") {
     // Add active class for CSS-based styling to avoid hydration issues
-    // Apply active class when active and has a background (spaces or threads)
     const activeClass = isActive && !disabled && backgroundGradient ? 'space-button-active' : '';
     return (
       <button 
-        className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 group ${activeClass} ${className}`}
+        className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 group ${activeClass} ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         {...props}
       >
-        <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-          <div className="flex-1 min-w-0 overflow-hidden text-left">
-            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`}>
+        <div className="space-btn__content">
+          <div className="space-btn__text-wrapper">
+            <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>
-          <div className="p-[20px] flex-shrink-0">
-            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-              <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+          <div className="space-btn__badge-wrapper">
+            <div className="badge-count">
+              <span className="badge-number">
                 {String(count ?? 0)}
               </span>
             </div>
           </div>
         </div>
         
-        {/* Show shadow when active - always for spaces, conditionally for threads with background */}
-        {isActive && (
-          <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
-        )}
+        {/* Show shadow when active */}
+        {isActive && <div className="space-btn__shadow" />}
       </button>
     );
   }
@@ -181,41 +178,33 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "DropdownTrigger") {
     return (
       <button 
-        className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         {...props}
       >
-        <div className={`flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0`}>
-          <div className="flex-1 min-w-0 overflow-hidden text-left">
-            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`}>
+        <div className="space-btn__content">
+          <div className="space-btn__text-wrapper">
+            <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>
           {count !== undefined && count !== null && (
-            <div className="p-[20px] flex-shrink-0">
-              <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+            <div className="space-btn__badge-wrapper">
+              <div className="badge-count">
+                <span className="badge-number">
                   {String(count ?? 0)}
                 </span>
               </div>
             </div>
           )}
           {!hideDropdownIcon && (
-            <div className="flex items-center justify-center relative shrink-0">
-              <div className="flex-none scale-y-[-100%]">
-                <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                  <div className="flex items-center justify-center relative shrink-0">
-                    <div className="flex-none scale-y-[-100%]">
-                      <div className="relative size-5">
-                        <svg className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
-                          <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <div className="space-btn__dropdown-icon space-btn__dropdown-icon--flipped">
+              <div className="space-btn__dropdown-icon--flipped">
+                <svg viewBox="0 0 448 512">
+                  <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                </svg>
               </div>
             </div>
           )}
@@ -227,38 +216,30 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "Dropdown") {
     return (
       <button 
-        className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         {...props}
       >
-        <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+        <div className="space-btn__content">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="flex-1 min-w-0 overflow-hidden text-left">
-              <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`}>
+            <div className="space-btn__text-wrapper">
+              <span className={`space-btn__text ${textStyle}`}>
                 {text}
               </span>
             </div>
-            <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-              <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+            <div className="badge-count">
+              <span className="badge-number">
                 {String(count ?? 0)}
               </span>
             </div>
           </div>
-          <div className="flex items-center justify-center relative shrink-0">
-            <div className="flex-none scale-y-[-100%]">
-              <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                <div className="flex items-center justify-center relative shrink-0">
-                  <div className="flex-none scale-y-[-100%]">
-                    <div className="relative size-5">
-                      <svg className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
-                        <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div className="space-btn__dropdown-icon space-btn__dropdown-icon--flipped">
+            <div className="space-btn__dropdown-icon--flipped">
+              <svg viewBox="0 0 448 512">
+                <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+              </svg>
             </div>
           </div>
         </div>
@@ -268,25 +249,23 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
 
   if (state === "Close") {
     return (
-      <div className={`relative nav-item-container ${isActive ? 'active' : ''}`}>
+      <div className={`nav-item-container ${isActive ? 'active' : ''}`}>
         <button
-          className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 group ${className}`}
+          className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 group ${className}`}
           style={buttonStyle}
           onClick={disabled ? undefined : onClick}
           disabled={disabled}
           {...props}
         >
-          <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block ${textStyle}`}>
+          <div className="space-btn__content space-btn__content--justify-between">
+            <div className="space-btn__text-wrapper">
+              <span className={`space-btn__text ${textStyle}`}>
                 {text}
               </span>
             </div>
-            {/* Right box - simple flex container for badge */}
-            <div className="flex items-center justify-center p-[20px]">
-              {/* Badge count - show when not hovering */}
-              <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+            <div className="space-btn__badge-wrapper">
+              <div className="badge-count">
+                <span className="badge-number">
                   {String(count ?? 0)}
                 </span>
               </div>
@@ -302,11 +281,11 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
               e.stopPropagation();
               e.preventDefault();
             }}
-            className="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer bg-transparent border-none p-0"
+            className="close-icon"
             data-item-id={itemId}
             aria-label={`Close ${text || 'item'}`}
           >
-            <svg className="w-4 h-4 fill-[var(--color-deep-grey)]" viewBox="0 0 384 512" aria-hidden="true">
+            <svg viewBox="0 0 384 512" aria-hidden="true">
               <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
             </svg>
           </button>
@@ -317,17 +296,17 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
 
   if (state === "TagClose") {
     return (
-      <div className={`relative nav-item-container ${isActive ? 'active' : ''}`}>
+      <div className={`nav-item-container ${isActive ? 'active' : ''}`}>
         <button
-          className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 group ${className}`}
+          className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 group ${className}`}
           style={buttonStyle}
           onClick={disabled ? undefined : onClick}
           disabled={disabled}
           {...props}
         >
-          <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block ${textStyle}`}>
+          <div className="space-btn__content space-btn__content--justify-between">
+            <div className="space-btn__text-wrapper">
+              <span className={`space-btn__text ${textStyle}`}>
                 {text}
               </span>
             </div>
@@ -341,11 +320,11 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
             e.stopPropagation();
             e.preventDefault();
           }}
-          className="close-icon absolute top-1/2 right-5 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer bg-transparent border-none p-0"
+          className="close-icon"
           data-item-id={itemId}
           aria-label={`Remove tag ${text || 'item'}`}
         >
-          <svg className="w-4 h-4 fill-[var(--color-deep-grey)]" viewBox="0 0 384 512" aria-hidden="true">
+          <svg viewBox="0 0 384 512" aria-hidden="true">
             <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
           </svg>
         </button>
@@ -356,28 +335,22 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "WithArrow") {
     return (
       <button 
-        className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         {...props}
       >
-        <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block ${textStyle}`}>
+        <div className="space-btn__content space-btn__content--justify-between">
+          <div className="space-btn__text-wrapper">
+            <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>
-          <div className="flex items-center justify-center relative shrink-0">
-            <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-              <div className="flex items-center justify-center relative shrink-0">
-                <div className="relative w-6 h-6">
-                  <svg className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
-                    <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
+          <div className="space-btn__arrow-icon">
+            <svg viewBox="0 0 320 512">
+              <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+            </svg>
           </div>
         </div>
       </button>
@@ -387,38 +360,30 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   // Default fallback
   return (
     <button 
-      className={`space-button relative rounded-3xl h-[64px] ${cursorStyle} transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+      className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 ${className}`}
       style={buttonStyle}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       {...props}
     >
-      <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+      <div className="space-btn__content">
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="flex-1 min-w-0 overflow-hidden text-left">
-            <span className={`text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left ${textStyle}`}>
+          <div className="space-btn__text-wrapper">
+            <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>
-          <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-            <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+          <div className="badge-count">
+            <span className="badge-number">
               {String(count ?? 0)}
             </span>
           </div>
         </div>
-        <div className="flex items-center justify-center relative shrink-0">
-          <div className="flex-none scale-y-[-100%]">
-            <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-              <div className="flex items-center justify-center relative shrink-0">
-                <div className="flex-none scale-y-[-100%]">
-                  <div className="relative size-5">
-                    <svg className="fill-[var(--color-deep-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
-                      <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div className="space-btn__dropdown-icon space-btn__dropdown-icon--flipped">
+          <div className="space-btn__dropdown-icon--flipped">
+            <svg viewBox="0 0 448 512">
+              <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+            </svg>
           </div>
         </div>
       </div>

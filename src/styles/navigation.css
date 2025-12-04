@@ -485,3 +485,124 @@
     transform: scale(0.95);
   }
 }
+
+/* ==========================================================================
+   SpaceButton Component
+   ========================================================================== */
+
+/* Base SpaceButton - common styles for all states */
+.space-btn {
+  position: relative;
+  border-radius: 24px;
+  height: 64px;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+  will-change: transform, box-shadow;
+  width: 100%;
+
+  &--disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+/* SpaceButton inner content wrapper */
+.space-btn__content {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding-left: 8px;
+  padding-right: 0;
+  transition: transform 0.125s ease-in-out;
+  min-width: 0;
+
+  &--with-padding {
+    padding-left: 16px;
+    padding-right: 8px;
+  }
+
+  &--justify-between {
+    justify-content: space-between;
+  }
+
+  &--justify-start {
+    justify-content: flex-start;
+  }
+}
+
+/* SpaceButton text container */
+.space-btn__text-wrapper {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+}
+
+/* SpaceButton text */
+.space-btn__text {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-deep-grey);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  text-align: left;
+  line-height: 1.2;
+}
+
+/* SpaceButton badge wrapper */
+.space-btn__badge-wrapper {
+  padding: 20px;
+  flex-shrink: 0;
+}
+
+/* SpaceButton inset shadow overlay */
+.space-btn__shadow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 24px;
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+}
+
+/* Dropdown icon container */
+.space-btn__dropdown-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+  padding: 12px;
+
+  & svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--color-deep-grey);
+    transition: transform 0.125s ease-in-out;
+  }
+
+  &--flipped {
+    transform: scaleY(-1);
+  }
+}
+
+/* Arrow icon (for WithArrow state) */
+.space-btn__arrow-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+  padding: 12px;
+
+  & svg {
+    width: 24px;
+    height: 24px;
+    fill: var(--color-pebble-grey);
+    transition: transform 0.125s ease-in-out;
+  }
+}
