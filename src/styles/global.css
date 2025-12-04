@@ -8,11 +8,13 @@
 
 @import "./colors.css";
 @import "./spacing.css";
+@import "./typography.css";
 @import "./buttons.css";
 @import "./navigation.css";
 @import "./cards.css";
 @import "./forms.css";
 @import "./animations.css";
+@import "./utilities.css";
 
 /* ==========================================================================
    Reset
