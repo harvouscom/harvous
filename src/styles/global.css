@@ -1,11 +1,18 @@
+/*
+ * Harvous Global Styles
+ * Following 37signals' #nobuild philosophy with modern vanilla CSS
+ */
+
+@import "./colors.css";
 @import "./animations.css";
 
 * {
-    @apply shrink-0 select-none;
+    flex-shrink: 0;
+    user-select: none;
 }
   
 [x-cloak] {
-    @apply hidden;
+    display: none;
 }
 
 /* Hide scrollbars across all browsers but maintain scrolling functionality */
@@ -16,36 +23,6 @@
 
 *::-webkit-scrollbar {
     display: none;  /* Chrome, Safari and Opera */
-}
-
-:root {
-    --color-bold-blue: #006EFF;
-    --color-navy: #0048A6;
-    --color-red: #E4062E;
-    --color-deep-grey: #4A473D;
-    --color-stone-grey: #78766F;
-    --color-pebble-grey: #888680;
-    --color-paper: #EBE7DB;
-    --color-aged-paper: #E6E4DA;
-    --color-soft-paper: #EEECE3;
-    --color-light-paper: #F3F2EC;
-    --color-white: #FFFFFF;
-    --color-snow-white: #FAFAFA;
-    --color-fog-white: #F7F7F6;
-    --color-gray: #E9E9E9;
-    --color-blue: #AEE0FF;
-    --color-yellow: #FFDC9B;
-    --color-green: #A7D5AA;
-    --color-pink: #FFBDF0;
-    --color-orange: #FFC8AC;
-    --color-purple: #E6B0FF;
-    --color-highlighter: #FFEB3B;
-    --surface-primary: var(--color-soft-paper);
-    --shadow-primary: 0px 6px 0px 0px #D3D0C5;
-    --text-color-primary: var(--color-deep-grey);
-    --text-color-secondary: var(--color-stone-grey);
-    --color-gradient-gray: linear-gradient(126.64deg, rgba(255, 255, 255, 0.8) 11.71%, #F8F8F8 71.33%);
-    --shadow-small: inset 0px -3px 0px rgba(120, 118, 111, 0.2);
 }
 
 /* Active state for space buttons - background is applied via inline styles from backgroundGradient */
@@ -167,14 +144,19 @@ nav a {
     }
 }
 
-@theme {
+/* Typography System */
+:root {
     --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
     --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     --primary-color: var(--color-bold-blue);
 }
 
 .text-title {
-    @apply font-sans font-semibold text-[20px] leading-[25.98px] tracking-normal;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 20px;
+    line-height: 25.98px;
+    letter-spacing: normal;
     overflow-wrap: anywhere;
     word-break: break-word;
     hyphens: auto;
@@ -182,15 +164,27 @@ nav a {
 }
 
 .text-subtitle {
-  @apply font-sans font-semibold text-[18px] leading-[100%] tracking-normal;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 18px;
+    line-height: 100%;
+    letter-spacing: normal;
 }
 
 .text-body {
-    @apply font-sans font-normal text-[16px] leading-[150%] tracking-normal;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 150%;
+    letter-spacing: normal;
 }
 
 .text-caption {
-    @apply font-mono font-medium text-[10px] leading-[100%] tracking-normal;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 10px;
+    line-height: 100%;
+    letter-spacing: normal;
 }
 
 
@@ -296,13 +290,21 @@ body {
 }
 
 .text-button-chonk {
-    @apply font-sans font-medium text-[14px] leading-[100%] tracking-normal;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 100%;
+    letter-spacing: normal;
     text-box: trim-both cap alphabetic;
 }
 
 /* Trix - https://trix-editor.org/ */
 .trix-content h1 {
-    @apply font-sans font-medium text-[18px] leading-[100%] tracking-normal;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 18px;
+    line-height: 100%;
+    letter-spacing: normal;
 }
 
 .btn-animate-squish {
@@ -838,20 +840,23 @@ button[disabled] {
 }
 
 .scripture-pill::before {
-  content: "\f70e"; /* Font Awesome scroll icon unicode */
-  font-family: "Font Awesome 6 Free", "Font Awesome 6 Pro", "FontAwesome";
-  font-weight: 900;
-  font-size: 14px;
-  color: var(--color-deep-grey);
-  margin-right: 4px;
+  /* SVG scroll icon via CSS mask - allows color control via background-color */
+  content: "";
   display: inline-block;
-  vertical-align: middle;
-  line-height: 1;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  flex-shrink: 0;
   width: 14px;
   height: 14px;
+  margin-right: 4px;
+  vertical-align: middle;
+  flex-shrink: 0;
+  background-color: var(--color-deep-grey);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 576 512'%3E%3Cpath d='M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 576 512'%3E%3Cpath d='M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
 }
 
 .scripture-pill-clickable:hover {

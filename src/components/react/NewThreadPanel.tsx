@@ -166,15 +166,6 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     return () => clearTimeout(timer);
   }, []);
 
-  // Load Font Awesome for icons
-  useEffect(() => {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
-    if (!document.querySelector(`link[href="${link.href}"]`)) {
-      document.head.appendChild(link);
-    }
-  }, []);
 
   // Tab navigation disabled for v1
   // const fetchRecentNotes = async () => {

@@ -16,6 +16,16 @@ import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { safeNavigate } from '@/utils/safe-navigate';
 import '@/styles/tiptap-editor.css';
 
+// Font Awesome SVG imports for toolbar icons
+import PlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
+import BoldIcon from "@fortawesome/fontawesome-free/svgs/solid/bold.svg";
+import ItalicIcon from "@fortawesome/fontawesome-free/svgs/solid/italic.svg";
+import UnderlineIcon from "@fortawesome/fontawesome-free/svgs/solid/underline.svg";
+import HeadingIcon from "@fortawesome/fontawesome-free/svgs/solid/heading.svg";
+import ListOlIcon from "@fortawesome/fontawesome-free/svgs/solid/list-ol.svg";
+import ListIcon from "@fortawesome/fontawesome-free/svgs/solid/list.svg";
+import EraserIcon from "@fortawesome/fontawesome-free/svgs/solid/eraser.svg";
+
 // Define a global toast function
 declare global {
   interface Window {
@@ -1499,8 +1509,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
   }, [editor]);
 
-  // Font Awesome is loaded globally via CDN in Layout.astro
-  // Set isLoaded immediately since Font Awesome is already available
+  // Set isLoaded immediately - SVG icons are imported directly
   useEffect(() => {
     setIsLoaded(true);
   }, []);
@@ -1702,7 +1711,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 }}
                 type="button"
               >
-                <i className="fa-solid fa-plus" style={{ width: '14px', height: '14px', fontSize: '14px', display: 'inline-block', marginRight: '8px' }} />
+                <img src={PlusIcon.src} alt="" style={{ width: '14px', height: '14px', display: 'inline-block', marginRight: '8px' }} />
                 <span>Create Note</span>
               </ButtonSmall>
             </div>
@@ -1726,7 +1735,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="bold"
             ariaLabel="Toggle bold"
           >
-            <i className="fa-solid fa-bold" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
+            <img src={BoldIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1740,7 +1749,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="italic"
             ariaLabel="Toggle italic"
           >
-            <i className="fa-solid fa-italic" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
+            <img src={ItalicIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1754,7 +1763,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="underline"
             ariaLabel="Toggle underline"
           >
-            <i className="fa-solid fa-underline" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
+            <img src={UnderlineIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1768,7 +1777,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title={`heading (${activeStates.headingLevel > 0 ? `H${activeStates.headingLevel}` : 'Normal'})`}
             ariaLabel={`Toggle heading (${activeStates.headingLevel > 0 ? `H${activeStates.headingLevel}` : 'Normal'})`}
           >
-            <i className="fa-solid fa-heading" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
+            <img src={HeadingIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1782,7 +1791,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="list: ordered"
             ariaLabel="Toggle ordered list"
           >
-            <i className="fa-solid fa-list-ol" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
+            <img src={ListOlIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1796,7 +1805,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="list: bullet"
             ariaLabel="Toggle bullet list"
           >
-            <i className="fa-solid fa-list" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
+            <img src={ListIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1810,7 +1819,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="clean"
             ariaLabel="Clear formatting"
           >
-            <i className="fa-solid fa-eraser" style={{ width: '20px', height: '20px', fontSize: '20px' }} />
+            <img src={EraserIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
           </ToolbarButton>
         </div>
       )}

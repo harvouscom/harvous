@@ -48,15 +48,6 @@ export default function EditThreadPanel({
   const [currentThreadNotes, setCurrentThreadNotes] = useState<Note[]>([]);
   const [isRemovingNote, setIsRemovingNote] = useState(false);
 
-  // Load Font Awesome for icons
-  useEffect(() => {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
-    if (!document.querySelector(`link[href="${link.href}"]`)) {
-      document.head.appendChild(link);
-    }
-  }, []);
 
   // Fetch all notes and current thread notes on mount
   useEffect(() => {

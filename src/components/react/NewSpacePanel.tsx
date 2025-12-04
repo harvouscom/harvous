@@ -113,15 +113,6 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     return () => clearTimeout(timer);
   }, []);
 
-  // Load Font Awesome for icons
-  useEffect(() => {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
-    if (!document.querySelector(`link[href="${link.href}"]`)) {
-      document.head.appendChild(link);
-    }
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,0 +1,113 @@
+/*
+ * Harvous Color System
+ * Using OKLCH for perceptually uniform colors following 37signals' #nobuild patterns
+ * Reference: https://dev.37signals.com/modern-css-patterns-and-techniques-in-campfire/
+ */
+
+:root {
+  /* ==========================================================================
+   * Raw LCH Values: Lightness, Chroma, Hue
+   * These are the base color primitives that semantic colors are built from
+   * OKLCH makes it easy to adjust colors programmatically without shifting hue
+   * ========================================================================== */
+
+  /* Primary Brand Colors */
+  --lch-bold-blue: 55% 0.22 255;
+  --lch-navy: 40% 0.18 255;
+  --lch-red: 52% 0.22 25;
+
+  /* Grey Scale - all share same hue (85) with varying lightness */
+  --lch-deep-grey: 35% 0.02 85;
+  --lch-stone-grey: 53% 0.02 85;
+  --lch-pebble-grey: 59% 0.01 85;
+
+  /* Paper/Background Tones - warm neutrals */
+  --lch-paper: 93% 0.02 90;
+  --lch-aged-paper: 92% 0.02 90;
+  --lch-soft-paper: 94% 0.015 90;
+  --lch-light-paper: 96% 0.01 90;
+
+  /* Pure Neutrals */
+  --lch-white: 100% 0 0;
+  --lch-snow-white: 98% 0 0;
+  --lch-fog-white: 97% 0.005 90;
+  --lch-gray: 93% 0 0;
+
+  /* Thread Colors (Pastel) - lighter, softer variants for UI backgrounds */
+  --lch-thread-blue: 88% 0.08 235;
+  --lch-thread-yellow: 91% 0.11 90;
+  --lch-thread-green: 83% 0.08 145;
+  --lch-thread-pink: 86% 0.10 330;
+  --lch-thread-orange: 87% 0.09 55;
+  --lch-thread-purple: 81% 0.12 310;
+
+  /* Accent Colors */
+  --lch-highlighter: 93% 0.18 100;
+
+  /* ==========================================================================
+   * Semantic Colors
+   * These consume the raw LCH values and provide meaningful names
+   * All colors in the app should reference these semantic variables
+   * ========================================================================== */
+
+  /* Primary Brand */
+  --color-bold-blue: oklch(var(--lch-bold-blue));
+  --color-navy: oklch(var(--lch-navy));
+  --color-red: oklch(var(--lch-red));
+
+  /* Grey Scale */
+  --color-deep-grey: oklch(var(--lch-deep-grey));
+  --color-stone-grey: oklch(var(--lch-stone-grey));
+  --color-pebble-grey: oklch(var(--lch-pebble-grey));
+
+  /* Paper/Background */
+  --color-paper: oklch(var(--lch-paper));
+  --color-aged-paper: oklch(var(--lch-aged-paper));
+  --color-soft-paper: oklch(var(--lch-soft-paper));
+  --color-light-paper: oklch(var(--lch-light-paper));
+
+  /* Pure Neutrals */
+  --color-white: oklch(var(--lch-white));
+  --color-snow-white: oklch(var(--lch-snow-white));
+  --color-fog-white: oklch(var(--lch-fog-white));
+  --color-gray: oklch(var(--lch-gray));
+
+  /* Thread Colors (used for thread/space backgrounds) */
+  --color-blue: oklch(var(--lch-thread-blue));
+  --color-yellow: oklch(var(--lch-thread-yellow));
+  --color-green: oklch(var(--lch-thread-green));
+  --color-pink: oklch(var(--lch-thread-pink));
+  --color-orange: oklch(var(--lch-thread-orange));
+  --color-purple: oklch(var(--lch-thread-purple));
+
+  /* Accent */
+  --color-highlighter: oklch(var(--lch-highlighter));
+
+  /* ==========================================================================
+   * Alpha Transparency Variants
+   * OKLCH makes alpha variants trivial: oklch(var(--lch-color) / 0.5)
+   * ========================================================================== */
+
+  --color-bold-blue-50: oklch(var(--lch-bold-blue) / 0.5);
+  --color-deep-grey-20: oklch(var(--lch-deep-grey) / 0.2);
+  --color-stone-grey-20: oklch(var(--lch-stone-grey) / 0.2);
+  --color-stone-grey-10: oklch(var(--lch-stone-grey) / 0.1);
+
+  /* ==========================================================================
+   * Semantic UI Colors
+   * Higher-level abstractions for consistent UI patterns
+   * ========================================================================== */
+
+  --surface-primary: var(--color-soft-paper);
+  --text-color-primary: var(--color-deep-grey);
+  --text-color-secondary: var(--color-stone-grey);
+
+  /* Shadows - using OKLCH alpha for consistent appearance */
+  --shadow-color: oklch(var(--lch-stone-grey) / 0.2);
+  --shadow-primary: 0px 6px 0px 0px oklch(85% 0.02 90);
+  --shadow-small: inset 0px -3px 0px oklch(var(--lch-stone-grey) / 0.2);
+
+  /* Gradient - keeping as is since gradients work with oklch() */
+  --color-gradient-gray: linear-gradient(126.64deg, oklch(100% 0 0 / 0.8) 11.71%, oklch(98% 0 0) 71.33%);
+}
+
