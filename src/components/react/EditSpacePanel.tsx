@@ -60,15 +60,6 @@ export default function EditSpacePanel({
   const [isAddingItems, setIsAddingItems] = useState(false);
   const [isRemovingItem, setIsRemovingItem] = useState(false);
 
-  // Load Font Awesome for icons
-  useEffect(() => {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
-    if (!document.querySelector(`link[href="${link.href}"]`)) {
-      document.head.appendChild(link);
-    }
-  }, []);
 
   // Fetch all notes and threads (for AddToSpaceSection)
   const fetchAllItems = async () => {
@@ -376,28 +367,28 @@ export default function EditSpacePanel({
   };
 
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
         {/* Content area that expands to fill available space */}
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Single unified panel using CardStack structure */}
-          <div className="bg-white box-border flex flex-col min-h-0 flex-1 items-start justify-between overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full mb-3.5">
+          {/* Panel container */}
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
             {/* Header section with dynamic background */}
             <div 
-              className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full rounded-t-3xl"
+              className="panel__header"
               style={{ 
                 backgroundColor: getThreadColorCSS(formData.selectedColor),
                 color: getThreadTextColorCSS(formData.selectedColor)
               }}
             >
-              <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
-                <p className="leading-[normal]">Edit Space</p>
+              <div className="panel__title">
+                <p>Edit Space</p>
               </div>
             </div>
             
             {/* Content area */}
-            <div className="flex-1 box-border content-stretch flex flex-col items-start justify-start mb-[-24px] min-h-0 overflow-clip relative w-full">
-              <div className="flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full">
+            <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
+              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
                 
                 {/* Space Title Input */}
                 <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
