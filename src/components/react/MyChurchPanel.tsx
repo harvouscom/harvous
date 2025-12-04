@@ -539,7 +539,7 @@ export default function MyChurchPanel({
                       )}
                     </div>
                   </div>
-                  <div className="absolute inset-0 pointer-events-none rounded-xl transition-shadow duration-125 shadow-[0px_-2.622px_0px_0px_inset_rgba(176,176,176,0.25)]" />
+                  <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-2.622px_0px_0px_inset_rgba(176,176,176,0.25)]" />
                 </button>
                 
                 {/* Remove Church Button */}
