@@ -44,7 +44,7 @@ const { joinDate, seasonalXP, seasonName } = Astro.props;
     <div class="flex flex-col gap-3">
         <!-- These divs dispatch events that are handled by the React component -->
         <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'editNameColor' } }))" class="w-full">
-            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray);">
                 <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                     <div class="flex-1 min-w-0 overflow-hidden">
                         <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">Edit Name & Color</span>
@@ -62,7 +62,7 @@ const { joinDate, seasonalXP, seasonName } = Astro.props;
             </div>
         </div>
         <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'emailPassword' } }))" class="w-full">
-            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray);">
                 <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                     <div class="flex-1 min-w-0 overflow-hidden">
                         <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">Email & Password</span>
@@ -80,7 +80,7 @@ const { joinDate, seasonalXP, seasonName } = Astro.props;
             </div>
         </div>
         <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'myChurch' } }))" class="w-full">
-            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray);">
                 <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                     <div class="flex-1 min-w-0 overflow-hidden">
                         <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">My Church</span>
@@ -98,7 +98,7 @@ const { joinDate, seasonalXP, seasonName } = Astro.props;
             </div>
         </div>
         <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'mySpaces' } }))" class="w-full">
-            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray);">
                 <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                     <div class="flex-1 min-w-0 overflow-hidden">
                         <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">My Spaces</span>
@@ -116,7 +116,7 @@ const { joinDate, seasonalXP, seasonName } = Astro.props;
             </div>
         </div>
         <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'myAchievements' } }))" class="w-full">
-            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray);">
                 <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                     <div class="flex-1 min-w-0 overflow-hidden">
                         <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">My Achievements</span>
@@ -134,7 +134,7 @@ const { joinDate, seasonalXP, seasonName } = Astro.props;
             </div>
         </div>
         <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'myData' } }))" class="w-full">
-            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+            <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray);">
                 <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                     <div class="flex-1 min-w-0 overflow-hidden">
                         <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">My Data</span>
@@ -157,7 +157,7 @@ const { joinDate, seasonalXP, seasonName } = Astro.props;
     <!-- Bottom Section - Get Support -->
     <div class="mt-auto pt-3">
         <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'getSupport' } }))" class="w-full">
-             <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray); box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;">
+             <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray);">
                 <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                     <div class="flex-1 min-w-0 overflow-hidden">
                         <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style="color: var(--color-deep-grey);">Get Support</span>
