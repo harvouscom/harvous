@@ -642,7 +642,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               {currentSpace || currentThread || currentItemId ? (
                 <a 
                   href="/" 
-                  className="block w-full opacity-50"
+                  className="block w-full"
                   onClick={(e) => handleItemClickWrapper(e)}
                   style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                 >
@@ -669,7 +669,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   {/* Persistent Spaces - Excluding Active */}
                   {persistentSpaces.filter(space => space.id !== currentActiveItemId).map((space) => {
                     return (
-                      <div key={space.id} className="relative group nav-item-container w-full opacity-50">
+                      <div key={space.id} className="relative group nav-item-container w-full">
                         <a 
                           href={`/${space.id}`} 
                           className="block w-full" 
@@ -718,7 +718,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   {/* Persistent Threads - Excluding Active */}
                   {persistentThreads.filter(thread => thread.id !== currentActiveItemId).map((thread) => {
                     return (
-                      <div key={thread.id} className="relative group nav-item-container w-full opacity-50">
+                      <div key={thread.id} className="relative group nav-item-container w-full">
                         <a 
                           href={`/${thread.id}`} 
                           className="block w-full" 
