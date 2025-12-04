@@ -1,6 +1,6 @@
 /*
  * Card Component Styles
- * Semantic classes for card elements
+ * Using native CSS nesting for cleaner, more maintainable code
  */
 
 /* ==========================================================================
@@ -12,17 +12,17 @@
   transition: all 0.2s;
   touch-action: manipulation;
   cursor: pointer;
-}
 
-.card:active {
-  transform: scale(0.98);
-  opacity: 0.95;
-}
+  &:active {
+    transform: scale(0.98);
+    opacity: 0.95;
+  }
 
-@media (hover: hover) {
-  .card:hover {
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    transform: scale(1.005);
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      transform: scale(1.005);
+    }
   }
 }
 
@@ -39,7 +39,7 @@
    ========================================================================== */
 .card-note {
   background-color: white;
-  height: 88px; /* h-22 */
+  height: 88px;
 }
 
 .card-note__inner {
@@ -74,13 +74,13 @@
   flex-shrink: 0;
   width: 80px;
   height: 68px;
-}
 
-.card-note__sidebar--with-image {
-  background-color: var(--color-aged-paper);
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
+  &--with-image {
+    background-color: var(--color-aged-paper);
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+  }
 }
 
 .card-note__sidebar-icon {
@@ -88,15 +88,15 @@
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-}
 
-.card-note__sidebar-icon svg {
-  display: block;
-  max-width: none;
-  width: 100%;
-  height: 100%;
-  color: var(--color-deep-grey);
-  opacity: 0.2;
+  & svg {
+    display: block;
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    color: var(--color-deep-grey);
+    opacity: 0.2;
+  }
 }
 
 .card-note__body {
@@ -143,13 +143,13 @@
   font-size: 18px;
   white-space: nowrap;
   width: 100%;
-}
 
-.card-note__title p {
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  & p {
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .card-note__excerpt {
@@ -163,14 +163,14 @@
   color: var(--color-stone-grey);
   font-size: 12px;
   width: 100%;
-}
 
-.card-note__excerpt p {
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  & p {
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }
 
 /* ==========================================================================
@@ -189,6 +189,31 @@
   border-radius: 12px;
   width: 100%;
   height: 96px;
+
+  /* Staggered hover animation on child notes */
+  &:hover .stagger-note {
+    &:nth-child(1) { animation: staggerHover 0.6s ease-in-out 0s forwards; }
+    &:nth-child(2) { animation: staggerHover 0.6s ease-in-out 0.05s forwards; }
+    &:nth-child(3) { animation: staggerHover 0.6s ease-in-out 0.1s forwards; }
+    &:nth-child(4) { animation: staggerHover 0.6s ease-in-out 0.15s forwards; }
+    &:nth-child(5) { animation: staggerHover 0.6s ease-in-out 0.2s forwards; }
+    &:nth-child(6) { animation: staggerHover 0.6s ease-in-out 0.25s forwards; }
+    &:nth-child(7) { animation: staggerHover 0.6s ease-in-out 0.3s forwards; }
+    &:nth-child(8) { animation: staggerHover 0.6s ease-in-out 0.35s forwards; }
+    &:nth-child(9) { animation: staggerHover 0.6s ease-in-out 0.4s forwards; }
+    &:nth-child(10) { animation: staggerHover 0.6s ease-in-out 0.45s forwards; }
+    &:nth-child(11) { animation: staggerHover 0.6s ease-in-out 0.5s forwards; }
+    &:nth-child(12) { animation: staggerHover 0.6s ease-in-out 0.55s forwards; }
+    &:nth-child(13) { animation: staggerHover 0.6s ease-in-out 0.6s forwards; }
+    &:nth-child(14) { animation: staggerHover 0.6s ease-in-out 0.65s forwards; }
+    &:nth-child(15) { animation: staggerHover 0.6s ease-in-out 0.7s forwards; }
+  }
+}
+
+@keyframes staggerHover {
+  0% { transform: rotate(4deg) translateY(0px); }
+  50% { transform: rotate(4deg) translateY(-6px); }
+  100% { transform: rotate(4deg) translateY(0px); }
 }
 
 .card-thread__accent {
@@ -226,15 +251,15 @@
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-}
 
-.card-thread__icon svg {
-  display: block;
-  max-width: none;
-  width: 100%;
-  height: 100%;
-  color: var(--color-deep-grey);
-  opacity: 0.3;
+  & svg {
+    display: block;
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    color: var(--color-deep-grey);
+    opacity: 0.3;
+  }
 }
 
 .card-thread__text {
@@ -264,13 +289,13 @@
   color: var(--color-deep-grey);
   font-size: 18px;
   width: 100%;
-}
 
-.card-thread__title p {
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  & p {
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .card-thread__subtitle {
@@ -285,13 +310,13 @@
   color: var(--color-stone-grey);
   font-size: 12px;
   width: 100%;
-}
 
-.card-thread__subtitle p {
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  & p {
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .card-thread__notes {
@@ -313,35 +338,6 @@
   border-radius: 12px;
   box-shadow: 0px -6px 0px 0px inset var(--color-gray);
 }
-
-/* Card Thread Hover Animation */
-@keyframes staggerHover {
-  0% {
-    transform: rotate(4deg) translateY(0px);
-  }
-  50% {
-    transform: rotate(4deg) translateY(-6px);
-  }
-  100% {
-    transform: rotate(4deg) translateY(0px);
-  }
-}
-
-.card-thread:hover .stagger-note:nth-child(1) { animation: staggerHover 0.6s ease-in-out 0s forwards; }
-.card-thread:hover .stagger-note:nth-child(2) { animation: staggerHover 0.6s ease-in-out 0.05s forwards; }
-.card-thread:hover .stagger-note:nth-child(3) { animation: staggerHover 0.6s ease-in-out 0.1s forwards; }
-.card-thread:hover .stagger-note:nth-child(4) { animation: staggerHover 0.6s ease-in-out 0.15s forwards; }
-.card-thread:hover .stagger-note:nth-child(5) { animation: staggerHover 0.6s ease-in-out 0.2s forwards; }
-.card-thread:hover .stagger-note:nth-child(6) { animation: staggerHover 0.6s ease-in-out 0.25s forwards; }
-.card-thread:hover .stagger-note:nth-child(7) { animation: staggerHover 0.6s ease-in-out 0.3s forwards; }
-.card-thread:hover .stagger-note:nth-child(8) { animation: staggerHover 0.6s ease-in-out 0.35s forwards; }
-.card-thread:hover .stagger-note:nth-child(9) { animation: staggerHover 0.6s ease-in-out 0.4s forwards; }
-.card-thread:hover .stagger-note:nth-child(10) { animation: staggerHover 0.6s ease-in-out 0.45s forwards; }
-.card-thread:hover .stagger-note:nth-child(11) { animation: staggerHover 0.6s ease-in-out 0.5s forwards; }
-.card-thread:hover .stagger-note:nth-child(12) { animation: staggerHover 0.6s ease-in-out 0.55s forwards; }
-.card-thread:hover .stagger-note:nth-child(13) { animation: staggerHover 0.6s ease-in-out 0.6s forwards; }
-.card-thread:hover .stagger-note:nth-child(14) { animation: staggerHover 0.6s ease-in-out 0.65s forwards; }
-.card-thread:hover .stagger-note:nth-child(15) { animation: staggerHover 0.6s ease-in-out 0.7s forwards; }
 
 /* ==========================================================================
    Card Full (Editable)
@@ -403,11 +399,11 @@
   width: 100%;
   padding: 0;
   line-height: 1.2;
-}
 
-.card-full__title-input::placeholder {
-  color: var(--color-stone-grey);
-  opacity: 0.5;
+  &::placeholder {
+    color: var(--color-stone-grey);
+    opacity: 0.5;
+  }
 }
 
 .card-full__content {
@@ -443,12 +439,12 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
 
-.card-feat__icon svg {
-  width: 24px;
-  height: 24px;
-  color: var(--color-deep-grey);
+  & svg {
+    width: 24px;
+    height: 24px;
+    color: var(--color-deep-grey);
+  }
 }
 
 .card-feat__title {
@@ -466,4 +462,3 @@
   color: var(--color-stone-grey);
   line-height: 1.4;
 }
-

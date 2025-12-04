@@ -1,6 +1,6 @@
 /*
  * Form Component Styles
- * Semantic classes for form elements
+ * Using native CSS nesting for cleaner, more maintainable code
  */
 
 /* ==========================================================================
@@ -35,10 +35,10 @@
   font-weight: 600;
   color: var(--color-deep-grey);
   width: 100%;
-}
 
-.search-input__field::placeholder {
-  color: var(--color-pebble-grey);
+  &::placeholder {
+    color: var(--color-pebble-grey);
+  }
 }
 
 .search-input__clear {
@@ -50,12 +50,12 @@
   align-items: center;
   justify-content: center;
   box-shadow: none !important;
-}
 
-.search-input__clear svg {
-  width: 20px;
-  height: 20px;
-  fill: var(--color-deep-grey);
+  & svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--color-deep-grey);
+  }
 }
 
 /* ==========================================================================
@@ -72,23 +72,23 @@
   color: var(--color-deep-grey);
   outline: none;
   transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-}
 
-.text-input::placeholder {
-  color: var(--color-stone-grey);
-}
+  &::placeholder {
+    color: var(--color-stone-grey);
+  }
 
-.text-input:focus {
-  border-color: var(--color-bold-blue);
-  box-shadow: 0 0 0 2px rgba(65, 132, 242, 0.2);
-}
+  &:focus {
+    border-color: var(--color-bold-blue);
+    box-shadow: 0 0 0 2px rgba(65, 132, 242, 0.2);
+  }
 
-.text-input--error {
-  border-color: var(--color-red);
-}
+  &--error {
+    border-color: var(--color-red);
 
-.text-input--error:focus {
-  box-shadow: 0 0 0 2px rgba(225, 59, 84, 0.2);
+    &:focus {
+      box-shadow: 0 0 0 2px rgba(225, 59, 84, 0.2);
+    }
+  }
 }
 
 /* ==========================================================================
@@ -105,11 +105,11 @@
   color: var(--color-deep-grey);
   outline: none;
   line-height: 1.2;
-}
 
-.title-input::placeholder {
-  color: var(--color-stone-grey);
-  opacity: 0.5;
+  &::placeholder {
+    color: var(--color-stone-grey);
+    opacity: 0.5;
+  }
 }
 
 /* ==========================================================================
@@ -133,10 +133,10 @@
   background-position: right 12px center;
   background-size: 16px;
   transition: border-color 0.2s ease-in-out;
-}
 
-.select:focus {
-  border-color: var(--color-bold-blue);
+  &:focus {
+    border-color: var(--color-bold-blue);
+  }
 }
 
 /* ==========================================================================
@@ -152,23 +152,23 @@
   appearance: none;
   position: relative;
   transition: background-color 0.2s, border-color 0.2s;
-}
 
-.checkbox:checked {
-  background-color: var(--color-bold-blue);
-  border-color: var(--color-bold-blue);
-}
+  &:checked {
+    background-color: var(--color-bold-blue);
+    border-color: var(--color-bold-blue);
 
-.checkbox:checked::after {
-  content: "";
-  position: absolute;
-  left: 5px;
-  top: 2px;
-  width: 6px;
-  height: 10px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+    &::after {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 2px;
+      width: 6px;
+      height: 10px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+  }
 }
 
 /* ==========================================================================
@@ -182,27 +182,27 @@
   background-color: var(--color-stone-grey);
   cursor: pointer;
   transition: background-color 0.2s;
-}
 
-.toggle::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background-color: white;
-  transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
+  &::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: white;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
 
-.toggle--active {
-  background-color: var(--color-bold-blue);
-}
+  &--active {
+    background-color: var(--color-bold-blue);
 
-.toggle--active::after {
-  transform: translateX(20px);
+    &::after {
+      transform: translateX(20px);
+    }
+  }
 }
 
 /* ==========================================================================
@@ -212,6 +212,11 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  /* Use :has() for automatic error styling */
+  &:has(.text-input--error) .form-label {
+    color: var(--color-red);
+  }
 }
 
 .form-label {
@@ -232,4 +237,3 @@
   font-size: 12px;
   color: var(--color-red);
 }
-

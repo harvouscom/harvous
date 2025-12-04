@@ -1,6 +1,6 @@
 /*
  * Navigation Component Styles
- * Semantic classes for navigation elements
+ * Using native CSS nesting and :has() for modern CSS patterns
  */
 
 /* ==========================================================================
@@ -22,13 +22,17 @@
   transition: transform 0.3s, box-shadow 0.3s;
   will-change: transform, box-shadow;
   box-shadow: 0px -3px 0px 0px rgba(176, 176, 176, 0.25) inset;
-}
 
-.avatar:active {
-  filter: brightness(0.97);
-  box-shadow: 
-    0px -1px 0px 0px rgba(176, 176, 176, 0.25) inset,
-    0px 1px 0px 0px rgba(176, 176, 176, 0.25) inset;
+  &:active {
+    filter: brightness(0.97);
+    box-shadow: 
+      0px -1px 0px 0px rgba(176, 176, 176, 0.25) inset,
+      0px 1px 0px 0px rgba(176, 176, 176, 0.25) inset;
+
+    & .avatar__initials {
+      transform: scale(0.98);
+    }
+  }
 }
 
 .avatar__initials {
@@ -41,15 +45,11 @@
   flex-shrink: 0;
   white-space: nowrap;
   transition: transform 0.125s ease-in-out;
-}
 
-.avatar:active .avatar__initials {
-  transform: scale(0.98);
-}
-
-.avatar__initials p {
-  line-height: normal;
-  white-space: pre;
+  & p {
+    line-height: normal;
+    white-space: pre;
+  }
 }
 
 /* ==========================================================================
@@ -87,14 +87,67 @@
 
 /* ==========================================================================
    Navigation Item Container
+   Using :has() for parent-based styling
    ========================================================================== */
 .nav-item-container {
   position: relative;
   width: 100%;
-}
 
-.nav-item-container.active {
-  /* Active state marker */
+  /* When container has a close icon, handle hover states */
+  &:has(.close-icon) {
+    & .badge-count {
+      position: relative;
+    }
+
+    & .badge-number {
+      opacity: 1;
+      transition: opacity 0.2s ease-out;
+    }
+
+    & .close-icon {
+      display: none;
+      opacity: 0;
+      transition: opacity 0.2s ease-out;
+    }
+
+    &:hover {
+      & .badge-number {
+        opacity: 0;
+      }
+
+      & .close-icon {
+        display: flex;
+        opacity: 1;
+      }
+    }
+  }
+
+  /* Not active + has close icon = show close on hover */
+  &:not(.active):has(.close-icon) {
+    & .badge-count {
+      position: relative;
+    }
+
+    & .badge-number {
+      opacity: 1;
+      transition: opacity 0.2s ease-out;
+    }
+
+    & .close-icon {
+      display: none;
+      opacity: 0;
+      transition: opacity 0.2s ease-out;
+    }
+
+    & .badge-count:hover .badge-number {
+      opacity: 0;
+    }
+
+    & .badge-count:hover .close-icon {
+      display: flex !important;
+      opacity: 1;
+    }
+  }
 }
 
 /* ==========================================================================
@@ -142,16 +195,16 @@
   border: none;
   padding: 0;
   transition: opacity 0.2s ease-out, transform 0.2s ease-out;
-}
 
-.close-icon:hover {
-  transform: translateY(-50%) scale(1.1);
-}
+  &:hover {
+    transform: translateY(-50%) scale(1.1);
+  }
 
-.close-icon svg {
-  width: 16px;
-  height: 16px;
-  fill: var(--color-deep-grey);
+  & svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--color-deep-grey);
+  }
 }
 
 /* ==========================================================================
@@ -162,17 +215,17 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
 
-.dropdown-icon--flipped {
-  transform: scaleY(-1);
-}
+  &--flipped {
+    transform: scaleY(-1);
+  }
 
-.dropdown-icon svg {
-  width: 20px;
-  height: 20px;
-  fill: var(--color-deep-grey);
-  transition: transform 0.125s ease-in-out;
+  & svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--color-deep-grey);
+    transition: transform 0.125s ease-in-out;
+  }
 }
 
 /* ==========================================================================
@@ -197,56 +250,6 @@
   position: relative;
 }
 
-/* Close icon hover states for persistent navigation */
-.nav-item-container:has(.close-icon) .badge-count {
-  position: relative;
-}
-
-.nav-item-container:has(.close-icon) .badge-number {
-  opacity: 1;
-  transition: opacity 0.2s ease-out;
-}
-
-.nav-item-container:has(.close-icon):hover .badge-number {
-  opacity: 0;
-}
-
-.nav-item-container:has(.close-icon) .close-icon {
-  display: none;
-  opacity: 0;
-  transition: opacity 0.2s ease-out;
-}
-
-.nav-item-container:has(.close-icon):hover .close-icon {
-  display: flex;
-  opacity: 1;
-}
-
-/* Also handle :not(.active) case for additional specificity */
-.nav-item-container:not(.active):has(.close-icon) .badge-count {
-  position: relative;
-}
-
-.nav-item-container:not(.active):has(.close-icon) .badge-number {
-  opacity: 1;
-  transition: opacity 0.2s ease-out;
-}
-
-.nav-item-container:not(.active):has(.close-icon) .badge-count:hover .badge-number {
-  opacity: 0;
-}
-
-.nav-item-container:not(.active):has(.close-icon) .close-icon {
-  display: none;
-  opacity: 0;
-  transition: opacity 0.2s ease-out;
-}
-
-.nav-item-container:not(.active):has(.close-icon) .badge-count:hover .close-icon {
-  display: flex !important;
-  opacity: 1;
-}
-
 /* ==========================================================================
    Navigation Column Layout
    ========================================================================== */
@@ -266,7 +269,7 @@
 .nav-column-top {
   display: flex;
   flex-direction: column;
-  gap: 48px; /* gap-12 = 3rem = 48px */
+  gap: 48px;
   align-items: flex-start;
   justify-content: flex-start;
   width: 100%;
@@ -284,7 +287,7 @@
 
 .nav-column-bottom {
   display: flex;
-  gap: 12px; /* gap-3 */
+  gap: 12px;
   align-items: center;
   justify-content: flex-start;
   width: 100%;
@@ -297,10 +300,10 @@
   width: 100%;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-}
 
-.nav-link--shrink {
-  flex-shrink: 0;
+  &--shrink {
+    flex-shrink: 0;
+  }
 }
 
 .nav-flex-grow {
@@ -311,18 +314,16 @@
 /* ==========================================================================
    SpaceButton Alignment Overrides
    ========================================================================== */
-/* Force left alignment for all SpaceButton text, except badge numbers */
-.space-button span:not(.badge-number) {
-  text-align: left !important;
-}
-
-/* Ensure the button content is left-aligned */
 .space-button {
   text-align: left !important;
-}
 
-.space-button div {
-  justify-content: flex-start !important;
+  & span:not(.badge-number) {
+    text-align: left !important;
+  }
+
+  & div {
+    justify-content: flex-start !important;
+  }
 }
 
 /* ==========================================================================
@@ -387,7 +388,7 @@
   z-index: 9998;
 }
 
-/* Mobile nav item styling */
+/* Mobile nav item */
 .mobile-nav-item {
   position: relative;
   border-radius: 24px;
@@ -398,11 +399,11 @@
   padding-right: 0;
   display: flex;
   align-items: center;
-}
 
-.mobile-nav-item--inactive {
-  border-radius: 12px;
-  opacity: 0.5;
+  &--inactive {
+    border-radius: 12px;
+    opacity: 0.5;
+  }
 }
 
 .mobile-nav-item__content {
@@ -422,17 +423,17 @@
   min-width: 0;
   overflow: hidden;
   text-align: left;
-}
 
-.mobile-nav-item__text span {
-  font-family: var(--font-sans);
-  font-size: 18px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-  text-align: left;
+  & span {
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    text-align: left;
+  }
 }
 
 .mobile-nav-item__badge-wrapper {
@@ -448,15 +449,19 @@
   box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
 }
 
-/* Center align New Space button text in mobile nav */
-.new-space-button .space-button > div {
-  justify-content: center !important;
-}
-.new-space-button .space-button > div > div {
-  text-align: center !important;
-}
-.new-space-button .space-button > div > div > span {
-  text-align: center !important;
+/* New Space button alignment override */
+.new-space-button .space-button {
+  & > div {
+    justify-content: center !important;
+
+    & > div {
+      text-align: center !important;
+
+      & > span {
+        text-align: center !important;
+      }
+    }
+  }
 }
 
 /* Search button */
@@ -469,16 +474,15 @@
   transition: transform 0.3s, box-shadow 0.3s;
   background-image: var(--color-gradient-gray);
   box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
-}
 
-.mobile-nav__search-btn:active svg {
-  transform: scale(0.95);
-}
+  & svg {
+    fill: var(--color-pebble-grey);
+    width: 20px;
+    height: 20px;
+    transition: transform 0.125s ease-in-out;
+  }
 
-.mobile-nav__search-btn svg {
-  fill: var(--color-pebble-grey);
-  width: 20px;
-  height: 20px;
-  transition: transform 0.125s ease-in-out;
+  &:active svg {
+    transform: scale(0.95);
+  }
 }
-
