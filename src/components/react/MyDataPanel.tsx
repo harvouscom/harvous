@@ -11,6 +11,13 @@ interface MyDataPanelProps {
   inBottomSheet?: boolean;
 }
 
+// Chevron icon for list items
+const ChevronIcon = () => (
+  <svg viewBox="0 0 320 512">
+    <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+  </svg>
+);
+
 export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPanelProps) {
   const handleClose = () => {
     if (onClose) {
@@ -216,23 +223,23 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
   return (
     <>
-      <div className="h-full flex flex-col min-h-0">
+      <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
         {/* Content area - expands on mobile, fits content on desktop */}
         <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
-          {/* Single unified panel using CardStack structure */}
-          <div className={`bg-white box-border flex flex-col items-start ${inBottomSheet ? "min-h-0 flex-1 justify-between" : "justify-start"} overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full mb-3.5`}>
-            {/* Header section with paper background */}
-            <div className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full rounded-t-3xl" style={{ backgroundColor: 'var(--color-paper)', color: 'var(--color-deep-grey)' }}>
-              <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
-                <p className="leading-[normal]">My Data</p>
+          {/* Panel container */}
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+            {/* Header section */}
+            <div className="panel__header">
+              <div className="panel__title">
+                <p>My Data</p>
               </div>
             </div>
             
             {/* Content area */}
-            <div className={inBottomSheet ? "flex-1 box-border content-stretch flex flex-col items-start justify-start mb-[-24px] min-h-0 overflow-clip relative w-full" : "box-border content-stretch flex flex-col items-start justify-start mb-[-24px] overflow-clip relative w-full"}>
-              <div className={inBottomSheet ? "flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full" : "bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start overflow-x-clip p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full"}>
+            <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
+              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
                 {/* Export Buttons */}
-                <div className="content-stretch flex flex-col gap-3 items-start relative shrink-0 w-full">
+                <div className="panel__section">
                   {/* Export as CSV */}
                   <button
                     className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
@@ -244,20 +251,16 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     onClick={() => handleExport('csv-threads', 'CSV')}
                     disabled={isExporting === 'csv-threads'}
                   >
-                    <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                      <div className="flex-1 min-w-0 overflow-hidden">
-                        <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
+                    <div className="panel__list-item">
+                      <div className="panel__list-item-text">
+                        <span className="panel__list-item-label">
                           Export as CSV
                         </span>
                       </div>
-                      <div className="flex items-center justify-center relative shrink-0">
-                        <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                          <div className="flex items-center justify-center relative shrink-0">
-                            <div className="relative w-6 h-6">
-                              <svg className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
-                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                              </svg>
-                            </div>
+                      <div className="panel__list-item-icon">
+                        <div className="panel__list-item-icon-wrapper">
+                          <div className="panel__chevron">
+                            <ChevronIcon />
                           </div>
                         </div>
                       </div>
@@ -266,10 +269,10 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                 </div>
 
                 {/* Horizontal Divider */}
-                <div className="w-full h-px bg-[var(--color-gray)] my-3"></div>
+                <div className="panel__divider"></div>
 
                 {/* Clear Data Button - For Testing */}
-                <div className="content-stretch flex flex-col gap-3 items-start relative shrink-0 w-full">
+                <div className="panel__section">
                   <button
                     className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
                     style={{ 
@@ -280,38 +283,34 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     onClick={handleClearData}
                     disabled={isClearingData}
                   >
-                    <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                      <div className="flex-1 min-w-0 overflow-hidden">
-                        <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
+                    <div className="panel__list-item">
+                      <div className="panel__list-item-text">
+                        <span className="panel__list-item-label">
                           {isClearingData ? 'Clearing...' : 'Clear All Data'}
                         </span>
                       </div>
-                      <div className="flex items-center justify-center relative shrink-0">
-                        <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                          <div className="flex items-center justify-center relative shrink-0">
-                            <div className="relative w-6 h-6">
-                              <svg className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
-                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                              </svg>
-                            </div>
+                      <div className="panel__list-item-icon">
+                        <div className="panel__list-item-icon-wrapper">
+                          <div className="panel__chevron">
+                            <ChevronIcon />
                           </div>
                         </div>
                       </div>
                     </div>
                     {/* Progress bar */}
                     {isClearingData && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-gray)] overflow-hidden rounded-b-xl">
-                        <div className="h-full bg-[var(--color-bold-blue)] animate-progress"></div>
+                      <div className="panel__progress-bar">
+                        <div className="panel__progress-fill"></div>
                       </div>
                     )}
                   </button>
                 </div>
 
                 {/* Horizontal Divider */}
-                <div className="w-full h-px bg-[var(--color-gray)] my-3"></div>
+                <div className="panel__divider"></div>
 
                 {/* Import Buttons */}
-                <div className="content-stretch flex flex-col gap-3 items-start relative shrink-0 w-full">
+                <div className="panel__section">
                   {/* Import from CSV */}
                   <button
                     className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
@@ -323,28 +322,24 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     onClick={() => handleImport('csv-threads', 'CSV')}
                     disabled={isImporting === 'csv-threads'}
                   >
-                    <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                      <div className="flex-1 min-w-0 overflow-hidden">
-                        <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
+                    <div className="panel__list-item">
+                      <div className="panel__list-item-text">
+                        <span className="panel__list-item-label">
                           {isImporting === 'csv-threads' ? 'Importing...' : 'Import from CSV'}
                         </span>
                       </div>
-                      <div className="flex items-center justify-center relative shrink-0">
-                        <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                          <div className="flex items-center justify-center relative shrink-0">
-                            <div className="relative w-6 h-6">
-                              <svg className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
-                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                              </svg>
-                            </div>
+                      <div className="panel__list-item-icon">
+                        <div className="panel__list-item-icon-wrapper">
+                          <div className="panel__chevron">
+                            <ChevronIcon />
                           </div>
                         </div>
                       </div>
                     </div>
                     {/* Progress bar */}
                     {isImporting === 'csv-threads' && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-gray)] overflow-hidden rounded-b-xl">
-                        <div className="h-full bg-[var(--color-bold-blue)] animate-progress"></div>
+                      <div className="panel__progress-bar">
+                        <div className="panel__progress-fill"></div>
                       </div>
                     )}
                   </button>
@@ -360,28 +355,24 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     onClick={() => handleImport('markdown', 'Markdown')}
                     disabled={isImporting === 'markdown'}
                   >
-                    <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                      <div className="flex-1 min-w-0 overflow-hidden">
-                        <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
+                    <div className="panel__list-item">
+                      <div className="panel__list-item-text">
+                        <span className="panel__list-item-label">
                           {isImporting === 'markdown' ? 'Importing...' : 'Import from Markdown'}
                         </span>
                       </div>
-                      <div className="flex items-center justify-center relative shrink-0">
-                        <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                          <div className="flex items-center justify-center relative shrink-0">
-                            <div className="relative w-6 h-6">
-                              <svg className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
-                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                              </svg>
-                            </div>
+                      <div className="panel__list-item-icon">
+                        <div className="panel__list-item-icon-wrapper">
+                          <div className="panel__chevron">
+                            <ChevronIcon />
                           </div>
                         </div>
                       </div>
                     </div>
                     {/* Progress bar */}
                     {isImporting === 'markdown' && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-gray)] overflow-hidden rounded-b-xl">
-                        <div className="h-full bg-[var(--color-bold-blue)] animate-progress"></div>
+                      <div className="panel__progress-bar">
+                        <div className="panel__progress-fill"></div>
                       </div>
                     )}
                   </button>
@@ -493,51 +484,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
         </div>,
         document.body
       )}
-
-
-      <style>{`
-        .space-button {
-          will-change: transform;
-          transition: box-shadow 0.125s ease-in-out;
-        }
-
-        .space-button:not([data-outer-shadow]):active {
-          filter: brightness(0.97);
-          box-shadow: 
-            0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
-            0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
-        }
-
-        .space-button:active > div {
-          translate: 0 0;
-          transform: scale(0.98);
-        }
-
-        .space-button:active svg {
-          transform: scale(0.95);
-        }
-
-        @keyframes progress {
-          0% {
-            transform: translateX(-100%);
-            width: 30%;
-          }
-          50% {
-            transform: translateX(0%);
-            width: 60%;
-          }
-          100% {
-            transform: translateX(100%);
-            width: 30%;
-          }
-        }
-
-        .animate-progress {
-          animation: progress 1.5s ease-in-out infinite;
-          width: 50%;
-        }
-      `}</style>
     </>
   );
 }
-

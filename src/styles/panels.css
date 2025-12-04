@@ -1,0 +1,360 @@
+/**
+ * Panel Styles
+ * 
+ * Semantic CSS classes for bottom sheet panels and card-like containers.
+ * These panels share a common structure: header + scrollable content.
+ */
+
+/* ==========================================================================
+   Panel Container
+   ========================================================================== */
+
+.panel {
+  background-color: white;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  overflow: clip;
+  padding-bottom: 1.5rem;  /* 24px */
+  padding-top: 0;
+  padding-left: 0;
+  padding-right: 0;
+  position: relative;
+  border-radius: 24px;
+  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
+  width: 100%;
+  margin-bottom: 0.875rem;  /* 14px / 3.5 * 4 */
+
+  /* Default: fit content */
+  justify-content: flex-start;
+
+  /* In bottom sheet mode, expand to fill */
+  &.panel--bottom-sheet {
+    min-height: 0;
+    flex: 1;
+    justify-content: space-between;
+  }
+}
+
+/* Panel wrapper - contains the panel and handles flex layout */
+.panel-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* When in bottom sheet, the wrapper expands */
+.panel-wrapper--bottom-sheet {
+  flex: 1;
+}
+
+/* ==========================================================================
+   Panel Header
+   ========================================================================== */
+
+.panel__header {
+  box-sizing: border-box;
+  display: flex;
+  gap: 0.75rem;  /* 12px */
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  margin-bottom: -24px;
+  font-style: normal;
+  padding-bottom: 3rem;  /* 48px */
+  padding-top: 1.5rem;  /* 24px */
+  padding-left: 1.5rem;  /* 24px */
+  padding-right: 1.5rem;  /* 24px */
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+
+  /* Default colors - can be overridden via inline style */
+  background-color: var(--color-paper);
+  color: var(--color-deep-grey);
+}
+
+/* Header title container */
+.panel__title {
+  flex-basis: 0;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  flex-grow: 1;
+  min-height: 1px;
+  min-width: 1px;
+  position: relative;
+  flex-shrink: 0;
+  font-size: 24px;
+  text-align: center;
+
+  & p {
+    line-height: normal;
+  }
+}
+
+/* For headers with subtitle on the right */
+.panel__header--with-subtitle {
+  & .panel__title {
+    text-align: left;
+  }
+}
+
+.panel__subtitle {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  position: relative;
+  flex-shrink: 0;
+  font-size: 14px;
+  white-space: nowrap;
+
+  & p {
+    line-height: normal;
+    white-space: pre;
+  }
+}
+
+/* ==========================================================================
+   Panel Content Area
+   ========================================================================== */
+
+.panel__body {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  margin-bottom: -24px;
+  overflow: clip;
+  position: relative;
+  width: 100%;
+
+  /* In bottom sheet mode, expand */
+  &.panel__body--bottom-sheet {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+.panel__content {
+  background-color: var(--color-snow-white);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;  /* 12px */
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow-x: clip;
+  padding: 12px;
+  position: relative;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  width: 100%;
+
+  /* In bottom sheet mode, expand and scroll */
+  &.panel__content--bottom-sheet {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+/* ==========================================================================
+   Panel Sections
+   ========================================================================== */
+
+/* Section for grouping content (e.g., button groups) */
+.panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;  /* 12px */
+  align-items: flex-start;
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* Horizontal divider between sections */
+.panel__divider {
+  width: 100%;
+  height: 1px;
+  background-color: var(--color-gray);
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ==========================================================================
+   Panel List Items (SpaceButton-like rows)
+   ========================================================================== */
+
+.panel__list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding-left: 0.5rem;  /* 8px */
+  padding-right: 0;
+  transition: transform 125ms;
+  min-width: 0;
+}
+
+.panel__list-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.panel__list-item-label {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  color: var(--color-deep-grey);
+}
+
+.panel__list-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.panel__list-item-icon-wrapper {
+  box-sizing: border-box;
+  display: flex;
+  gap: 0.625rem;  /* 10px */
+  align-items: center;
+  justify-content: flex-start;
+  padding: 12px;
+  position: relative;
+}
+
+/* Chevron icon (arrow right) */
+.panel__chevron {
+  position: relative;
+  width: 1.5rem;  /* 24px */
+  height: 1.5rem;
+
+  & svg {
+    fill: var(--color-pebble-grey);
+    display: block;
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    transition: transform 125ms;
+  }
+}
+
+/* External link icon */
+.panel__external-icon {
+  position: relative;
+  width: 1.25rem;  /* 20px */
+  height: 1.25rem;
+
+  & svg {
+    display: block;
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    fill: var(--color-pebble-grey);
+  }
+}
+
+/* ==========================================================================
+   Panel Loading State
+   ========================================================================== */
+
+.panel__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+  width: 100%;
+  color: var(--color-pebble-grey);
+}
+
+/* ==========================================================================
+   Panel Progress Bar
+   ========================================================================== */
+
+.panel__progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-gray);
+  overflow: hidden;
+  border-bottom-left-radius: 0.75rem;
+  border-bottom-right-radius: 0.75rem;
+}
+
+.panel__progress-fill {
+  height: 100%;
+  background-color: var(--color-bold-blue);
+  animation: progress 2s ease-in-out infinite;
+}
+
+@keyframes progress {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0); }
+  100% { transform: translateX(100%); }
+}
+
+/* ==========================================================================
+   Panel Grid (for XP cards, etc.)
+   ========================================================================== */
+
+.panel__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.panel__grid-card {
+  background-color: white;
+  border: 1px solid var(--color-fog-white);
+  border-radius: 1rem;  /* 16px */
+  padding: 1rem;  /* 16px */
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;  /* 12px */
+}
+
+.panel__grid-card-value {
+  font-size: 1.125rem;  /* 18px */
+  font-weight: 700;
+  color: var(--color-deep-grey);
+}
+
+.panel__grid-card-label {
+  font-size: 0.875rem;  /* 14px */
+  color: var(--color-pebble-grey);
+}
+
+/* ==========================================================================
+   Panel Footer (for version info, etc.)
+   ========================================================================== */
+
+.panel__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  width: 100%;
+  color: var(--color-pebble-grey);
+  font-size: 0.75rem;  /* 12px */
+}
+

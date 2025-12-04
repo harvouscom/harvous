@@ -41,150 +41,117 @@ export default function GetSupportPanel({
 
   return (
     <>
-    <div className="h-full flex flex-col min-h-0">
-      {/* Content area - expands on mobile, fits content on desktop */}
-      <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
-        {/* Single unified panel using CardStack structure */}
-        <div className={`bg-white box-border flex flex-col items-start ${inBottomSheet ? "min-h-0 flex-1 justify-between" : "justify-start"} overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full mb-3.5`}>
-          {/* Header section with paper background */}
-          <div 
-            className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full rounded-t-3xl"
-            style={{ backgroundColor: 'var(--color-paper)' }}
-          >
-            <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
-              <p className="leading-[normal] text-[var(--color-deep-grey)]">Get Support</p>
+      <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
+        {/* Content area - expands on mobile, fits content on desktop */}
+        <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
+          {/* Panel container */}
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+            {/* Header section */}
+            <div className="panel__header">
+              <div className="panel__title">
+                <p>Get Support</p>
+              </div>
             </div>
-          </div>
-          
-          {/* Content area */}
-          <div className={inBottomSheet ? "flex-1 box-border content-stretch flex flex-col items-start justify-start mb-[-24px] min-h-0 overflow-clip relative w-full" : "box-border content-stretch flex flex-col items-start justify-start mb-[-24px] overflow-clip relative w-full"}>
-            <div className={inBottomSheet ? "flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full" : "bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start overflow-x-clip p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full"}>
-              
-              {/* Visit our help center button */}
-              <button
-                type="button"
-                onClick={() => handleExternalLink(helpCenterUrl)}
-                disabled
-                className="space-button relative rounded-3xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
-                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
-              >
-                <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
-                      Visit our help center
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-center relative shrink-0">
-                    <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                      <div className="flex items-center justify-center relative shrink-0">
-                        <div className="relative size-5">
-                          <svg className="block max-w-none size-full fill-[var(--color-pebble-grey)]" viewBox="0 0 512 512">
+            
+            {/* Content area */}
+            <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
+              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                
+                {/* Visit our help center button */}
+                <button
+                  type="button"
+                  onClick={() => handleExternalLink(helpCenterUrl)}
+                  disabled
+                  className="space-button relative rounded-3xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
+                  style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                >
+                  <div className="panel__list-item">
+                    <div className="panel__list-item-text">
+                      <span className="panel__list-item-label">
+                        Visit our help center
+                      </span>
+                    </div>
+                    <div className="panel__list-item-icon">
+                      <div className="panel__list-item-icon-wrapper">
+                        <div className="panel__external-icon">
+                          <svg viewBox="0 0 512 512">
                             <path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3l0 82.7c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 32C35.8 32 0 67.8 0 112L0 432c0 44.2 35.8 80 80 80l320 0c44.2 0 80-35.8 80-80l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 112c0 8.8-7.2 16-16 16L80 448c-8.8 0-16-7.2-16-16l0-320c0-8.8 7.2-16 16-16l112 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 32z"/>
                           </svg>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </button>
+                </button>
 
-              {/* Reach out to support button */}
-              <button
-                type="button"
-                onClick={() => handleEmailLink('Reach out to support')}
-                className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
-              >
-                <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
-                      Reach out to support
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-center relative shrink-0">
-                    <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                      <div className="flex items-center justify-center relative shrink-0">
-                        <div className="relative size-5">
-                          <svg className="block max-w-none size-full fill-[var(--color-pebble-grey)]" viewBox="0 0 512 512">
+                {/* Reach out to support button */}
+                <button
+                  type="button"
+                  onClick={() => handleEmailLink('Reach out to support')}
+                  className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                  style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                >
+                  <div className="panel__list-item">
+                    <div className="panel__list-item-text">
+                      <span className="panel__list-item-label">
+                        Reach out to support
+                      </span>
+                    </div>
+                    <div className="panel__list-item-icon">
+                      <div className="panel__list-item-icon-wrapper">
+                        <div className="panel__external-icon">
+                          <svg viewBox="0 0 512 512">
                             <path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3l0 82.7c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 32C35.8 32 0 67.8 0 112L0 432c0 44.2 35.8 80 80 80l320 0c44.2 0 80-35.8 80-80l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 112c0 8.8-7.2 16-16 16L80 448c-8.8 0-16-7.2-16-16l0-320c0-8.8 7.2-16 16-16l112 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 32z"/>
                           </svg>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </button>
+                </button>
 
-              {/* Submit feedback button */}
-              <button
-                type="button"
-                onClick={() => handleEmailLink('Submit feedback')}
-                className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
-              >
-                <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={{ color: 'var(--color-deep-grey)' }}>
-                      Submit feedback
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-center relative shrink-0">
-                    <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                      <div className="flex items-center justify-center relative shrink-0">
-                        <div className="relative size-5">
-                          <svg className="block max-w-none size-full fill-[var(--color-pebble-grey)]" viewBox="0 0 512 512">
+                {/* Submit feedback button */}
+                <button
+                  type="button"
+                  onClick={() => handleEmailLink('Submit feedback')}
+                  className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                  style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                >
+                  <div className="panel__list-item">
+                    <div className="panel__list-item-text">
+                      <span className="panel__list-item-label">
+                        Submit feedback
+                      </span>
+                    </div>
+                    <div className="panel__list-item-icon">
+                      <div className="panel__list-item-icon-wrapper">
+                        <div className="panel__external-icon">
+                          <svg viewBox="0 0 512 512">
                             <path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3l0 82.7c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 32C35.8 32 0 67.8 0 112L0 432c0 44.2 35.8 80 80 80l320 0c44.2 0 80-35.8 80-80l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 112c0 8.8-7.2 16-16 16L80 448c-8.8 0-16-7.2-16-16l0-320c0-8.8 7.2-16 16-16l112 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 32z"/>
                           </svg>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </button>
+                </button>
 
-              {/* Version text */}
-              <div className="font-sans font-normal leading-[0] overflow-ellipsis overflow-hidden relative shrink-0 text-[12px] text-[var(--color-stone-grey)] text-center w-full">
-                <p className="leading-[1.3]">Version {version}</p>
+                {/* Version text */}
+                <div className="panel__footer">
+                  <p>Version {version}</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Bottom buttons */}
+        <div className="flex items-center justify-between gap-3 shrink-0">
+          {/* Back button - SquareButton Back variant */}
+          <SquareButton 
+            variant="Back"
+            onClick={handleClose}
+            inBottomSheet={inBottomSheet}
+          />
+        </div>
       </div>
-
-      {/* Bottom buttons */}
-      <div className="flex items-center justify-between gap-3 shrink-0">
-        {/* Back button - SquareButton Back variant */}
-        <SquareButton 
-          variant="Back"
-          onClick={handleClose}
-          inBottomSheet={inBottomSheet}
-        />
-      </div>
-    </div>
-
-    <style>{`
-      .space-button {
-        will-change: transform;
-        transition: box-shadow 0.125s ease-in-out;
-      }
-
-      .space-button:not([data-outer-shadow]):active {
-        filter: brightness(0.97);
-        box-shadow: 
-          0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
-          0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
-      }
-
-      .space-button:active > div {
-        translate: 0 0;
-        transform: scale(0.98);
-      }
-
-      .space-button:active img {
-        transform: scale(0.95);
-      }
-    `}</style>
     </>
   );
 }
-
