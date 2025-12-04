@@ -66,7 +66,7 @@ export default function GetSupportPanel({
                 onClick={() => handleExternalLink(helpCenterUrl)}
                 disabled
                 className="space-button relative rounded-3xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
-                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                style={{ backgroundImage: 'var(--color-gradient-gray)', boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset' }}
               >
                 <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                   <div className="flex-1 min-w-0 overflow-hidden">
@@ -86,7 +86,6 @@ export default function GetSupportPanel({
                     </div>
                   </div>
                 </div>
-                <div className="absolute inset-0 pointer-events-none rounded-xl transition-shadow duration-125 shadow-[0px_-2.622px_0px_0px_inset_rgba(176,176,176,0.25)]" />
               </button>
 
               {/* Reach out to support button */}
@@ -94,7 +93,7 @@ export default function GetSupportPanel({
                 type="button"
                 onClick={() => handleEmailLink('Reach out to support')}
                 className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                style={{ backgroundImage: 'var(--color-gradient-gray)', boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset' }}
               >
                 <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                   <div className="flex-1 min-w-0 overflow-hidden">
@@ -114,7 +113,6 @@ export default function GetSupportPanel({
                     </div>
                   </div>
                 </div>
-                <div className="absolute inset-0 pointer-events-none rounded-xl transition-shadow duration-125 shadow-[0px_-2.622px_0px_0px_inset_rgba(176,176,176,0.25)]" />
               </button>
 
               {/* Submit feedback button */}
@@ -122,7 +120,7 @@ export default function GetSupportPanel({
                 type="button"
                 onClick={() => handleEmailLink('Submit feedback')}
                 className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                style={{ backgroundImage: 'var(--color-gradient-gray)', boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset' }}
               >
                 <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                   <div className="flex-1 min-w-0 overflow-hidden">
@@ -142,7 +140,6 @@ export default function GetSupportPanel({
                     </div>
                   </div>
                 </div>
-                <div className="absolute inset-0 pointer-events-none rounded-xl transition-shadow duration-125 shadow-[0px_-2.622px_0px_0px_inset_rgba(176,176,176,0.25)]" />
               </button>
 
               {/* Version text */}
