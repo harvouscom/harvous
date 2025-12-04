@@ -112,7 +112,7 @@ export default function NewTagPanel({
           {/* Single unified panel using CardStack structure */}
           <div className="box-border content-stretch flex flex-col items-start justify-start overflow-clip pb-6 pt-0 px-0 relative rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full">
             {/* Header section with paper background */}
-            <div className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full" style={{ backgroundColor: 'var(--color-paper)' }}>
+            <div className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-3 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full" style={{ backgroundColor: 'var(--color-paper)' }}>
               <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
                 <p className="leading-[normal]">New Tag</p>
               </div>
