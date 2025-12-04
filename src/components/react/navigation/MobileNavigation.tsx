@@ -387,47 +387,27 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 w-full min-w-0 h-[64px]">
+    <div className="mobile-nav">
       {/* Search Icon Button (Column 1: auto) */}
-      <div className="flex items-center justify-center h-[64px]">
-        <a 
-          href="/find" 
-          className="block"
-          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-        >
-          <button
-            className="[&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300"
-            style={{ 
-              backgroundImage: 'var(--color-gradient-gray)', 
-              boxShadow: '0px -3px 0px 0px #78766F33 inset',
-              touchAction: 'manipulation' 
-            }}
-          >
-            <div className="flex flex-row items-center justify-center relative w-full h-full">
-              <div className="box-border flex flex-row gap-3 items-center justify-center pb-5 pt-[18px] px-4 relative w-full h-full">
-                <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
-                  <svg 
-                    className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none transition-transform duration-125" 
-                    style={{ width: '20px', height: '20px' }} 
-                    viewBox="0 0 512 512"
-                  >
-                    <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
-                  </svg>
-                </div>
-              </div>
+      <div className="mobile-nav__col">
+        <a href="/find" className="nav-link">
+          <button className="mobile-nav__search-btn" style={{ touchAction: 'manipulation' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+              <svg viewBox="0 0 512 512">
+                <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
+              </svg>
             </div>
           </button>
         </a>
       </div>
 
       {/* Spaces Dropdown (Column 2: 1fr) */}
-      <div className="relative min-w-0 h-[64px] w-full">
+      <div className="mobile-nav__dropdown-wrapper">
         {!isDropdownOpen && (
           <SpaceButton 
             text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "For You"}
             count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
             state="DropdownTrigger"
-            className="w-full min-w-0"
             backgroundGradient={currentThread?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
             onClick={handleDropdownToggle}
             hideDropdownIcon={true}
@@ -437,14 +417,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         {/* Dropdown Menu */}
         {isDropdownOpen && (
           <div 
-            className={`absolute top-0 left-0 w-full rounded-3xl shadow-lg z-[9999] max-h-[352px] relative ${
-              isMounted ? 'dropdown-enter' : 'dropdown-initial'
-            }`}
+            className={`mobile-nav__dropdown ${isMounted ? 'dropdown-enter' : 'dropdown-initial'}`}
             style={!isMounted ? { maxHeight: '64px', overflow: 'hidden' } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Scrollable Nav Items */}
-            <div className="overflow-y-auto max-h-[352px] pb-[64px] rounded-t-3xl">
+            <div className="mobile-nav__dropdown-scroll">
               {/* Active Item - Always First */}
               {(() => {
                 const isForYouActive = !currentSpace && !currentThread && !currentItemId;
@@ -790,18 +768,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             </div>
             
             {/* New Space Button - Absolutely Positioned */}
-            <div className="absolute bottom-0 left-0 right-0 z-10 rounded-b-3xl">
-              <a 
-                href="/new-space" 
-                className="block w-full" 
-                onClick={(e) => handleItemClickWrapper(e)}
-                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-              >
+            <div className="mobile-nav__new-space">
+              <a href="/new-space" className="nav-link" onClick={(e) => handleItemClickWrapper(e)}>
                 <div className="new-space-button">
                   <SpaceButton 
                     text="New Space"
                     state="Default"
-                    className="w-full"
                     backgroundGradient="linear-gradient(126.64deg, rgba(255, 255, 255, 0.8) 11.71%, rgba(248, 248, 248, 0.8) 71.33%)"
                   />
                 </div>
@@ -812,7 +784,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       </div>
 
       {/* Avatar (Column 3: auto) */}
-      <div className="flex items-center justify-center h-[64px]">
+      <div className="mobile-nav__col">
         <a href="/profile">
           <Avatar initials={profileData.initials} color={profileData.userColor} />
         </a>
@@ -820,36 +792,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
       {/* Click outside handler */}
       {isDropdownOpen && (
-        <div 
-          className="fixed inset-0 z-[9998]" 
-          onClick={handleDropdownClose}
-        />
+        <div className="mobile-nav__overlay" onClick={handleDropdownClose} />
       )}
-      
-      {/* Mobile navigation uses touch-based interaction, not hover */}
-      {/* Badge count and close icon are conditionally rendered based on state */}
-      <style>{`
-        /* Ensure badge count area is properly sized and positioned */
-        .badge-count {
-          position: relative;
-        }
-        /* Ensure close icon is properly centered */
-        .badge-count span {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        /* Center align New Space button text */
-        .new-space-button .space-button > div {
-          justify-content: center !important;
-        }
-        .new-space-button .space-button > div > div {
-          text-align: center !important;
-        }
-        .new-space-button .space-button > div > div > span {
-          text-align: center !important;
-        }
-      `}</style>
     </div>
   );
 };

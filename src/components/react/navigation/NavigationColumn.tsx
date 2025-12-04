@@ -284,22 +284,17 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, [activeThread]);
   return (
-    <div className="h-full">
-      <div className="flex flex-col items-start justify-between relative h-full">
+    <div className="nav-column-wrapper">
+      <div className="nav-column-layout">
         {/* Top Section - Navigation */}
-        <div className="flex flex-col gap-12 items-start justify-start w-full flex-1 min-h-0">
+        <div className="nav-column-top">
           {/* Navigation Buttons */}
-          <div className="flex flex-col items-start justify-start w-full">
-            <a 
-              href="/" 
-              className="w-full"
-              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-            >
+          <div className="nav-column-buttons">
+            <a href="/" className="nav-link">
               <SpaceButton 
                 text="For You" 
                 count={inboxCount} 
                 state="WithCount" 
-                className="w-full" 
                 isActive={isDashboard}
                 backgroundGradient={isDashboard ? "var(--color-paper)" : undefined}
               />
@@ -312,137 +307,42 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             {(updatedActiveThread || activeThread) && showActiveThread ? (
               <a 
                 href={`/${(updatedActiveThread || activeThread)!.id}`} 
-                className="w-full"
-                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                className="nav-link"
               >
                 <SpaceButton 
                   text={(updatedActiveThread || activeThread)!.title} 
                   count={(updatedActiveThread || activeThread)!.noteCount} 
                   state="Close" 
-                  className="w-full" 
                   backgroundGradient={(updatedActiveThread || activeThread)!.backgroundGradient}
                   isActive={isNote || (updatedActiveThread || activeThread)!.id === currentItemId}
                   itemId={(updatedActiveThread || activeThread)!.id}
                 />
               </a>
             ) : null}
-            
-            
           </div>
         </div>
         
         {/* Bottom Section with New Space Button, Search, and Avatar/Back Button */}
-        <div className="flex gap-3 items-center justify-start w-full shrink-0 min-w-0">
-          <div className="flex-1 min-w-0">
-            <a 
-              href="/new-space" 
-              className="w-full"
-              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-            >
-              <SpaceButton text="New Space" className="w-full" />
+        <div className="nav-column-bottom">
+          <div className="nav-flex-grow">
+            <a href="/new-space" className="nav-link">
+              <SpaceButton text="New Space" />
             </a>
           </div>
-          <a 
-            href="/find" 
-            aria-label="Search"
-            className="shrink-0"
-            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-          >
+          <a href="/find" aria-label="Search" className="nav-link--shrink">
             <SquareButton variant="Find" />
           </a>
           {showProfile ? (
-            <a 
-              href="/" 
-              aria-label="Go to dashboard"
-              className="shrink-0"
-              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-            >
+            <a href="/" aria-label="Go to dashboard" className="nav-link--shrink">
               <SquareButton variant="Back" />
             </a>
           ) : (
-            <a 
-              href="/profile" 
-              aria-label="Go to profile"
-              className="shrink-0"
-              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-            >
+            <a href="/profile" aria-label="Go to profile" className="nav-link--shrink">
               <Avatar initials={profileData.initials} color={profileData.userColor} />
             </a>
           )}
         </div>
       </div>
-      
-      {/* Add CSS for SpaceButton styling */}
-      <style>{`
-        button {
-          will-change: transform;
-          transition: box-shadow 0.125s ease-in-out;
-        }
-        
-        /* Force left alignment for all SpaceButton text, except badge numbers */
-        .space-button span:not(.badge-number) {
-          text-align: left !important;
-        }
-        
-        /* Center badge numbers */
-        .badge-number {
-          text-align: center !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          width: 100% !important;
-          height: 100% !important;
-        }
-        
-        /* Ensure the button content is left-aligned */
-        .space-button {
-          text-align: left !important;
-        }
-        
-        .space-button div {
-          justify-content: flex-start !important;
-        }
-
-        button[style*="background-image"] {
-          /* Shadow removed - handled by global CSS */
-        }
-
-        button:not([data-outer-shadow]):active {
-          filter: brightness(0.97);
-          /* Shadow removed - handled by global CSS */
-        }
-
-        /* Add text and icon animations similar to Button.astro and SquareButton.astro */
-        button:active > div {
-          translate: 0 0;
-          transform: scale(0.98);
-        }
-
-        button:active svg {
-          transform: scale(0.95);
-        }
-
-        /* Close icon hover states - only for inactive items that have a close icon (itemId) */
-        .nav-item-container:not(.active):has(.close-icon) .badge-count {
-          position: relative;
-        }
-        .nav-item-container:not(.active):has(.close-icon) .badge-number {
-          opacity: 1;
-          transition: opacity 0.2s ease-out;
-        }
-        .nav-item-container:not(.active):has(.close-icon) .badge-count:hover .badge-number {
-          opacity: 0;
-        }
-        .nav-item-container:not(.active):has(.close-icon) .close-icon {
-          display: none;
-          opacity: 0;
-          transition: opacity 0.2s ease-out;
-        }
-        .nav-item-container:not(.active):has(.close-icon) .badge-count:hover .close-icon {
-          display: flex !important;
-          opacity: 1;
-        }
-      `}</style>
     </div>
   );
 };

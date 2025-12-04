@@ -1,0 +1,484 @@
+/*
+ * Navigation Component Styles
+ * Semantic classes for navigation elements
+ */
+
+/* ==========================================================================
+   Avatar
+   ========================================================================== */
+.avatar {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 12px;
+  position: relative;
+  border-radius: 64px;
+  width: 64px;
+  height: 64px;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+  will-change: transform, box-shadow;
+  box-shadow: 0px -3px 0px 0px rgba(176, 176, 176, 0.25) inset;
+}
+
+.avatar:active {
+  filter: brightness(0.97);
+  box-shadow: 
+    0px -1px 0px 0px rgba(176, 176, 176, 0.25) inset,
+    0px 1px 0px 0px rgba(176, 176, 176, 0.25) inset;
+}
+
+.avatar__initials {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 0;
+  font-style: normal;
+  position: relative;
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition: transform 0.125s ease-in-out;
+}
+
+.avatar:active .avatar__initials {
+  transform: scale(0.98);
+}
+
+.avatar__initials p {
+  line-height: normal;
+  white-space: pre;
+}
+
+/* ==========================================================================
+   Navigation Container
+   ========================================================================== */
+.nav-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+}
+
+.nav-column__header {
+  flex-shrink: 0;
+}
+
+.nav-column__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nav-column__footer {
+  flex-shrink: 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+/* ==========================================================================
+   Navigation Item Container
+   ========================================================================== */
+.nav-item-container {
+  position: relative;
+  width: 100%;
+}
+
+.nav-item-container.active {
+  /* Active state marker */
+}
+
+/* ==========================================================================
+   Badge Count
+   ========================================================================== */
+.badge-count {
+  background: rgba(120, 118, 111, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.5rem;
+  width: 24px;
+  height: 24px;
+}
+
+.badge-number {
+  font-size: 14px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--color-deep-grey);
+  line-height: 0;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* ==========================================================================
+   Close Icon
+   ========================================================================== */
+.close-icon {
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.close-icon:hover {
+  transform: translateY(-50%) scale(1.1);
+}
+
+.close-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: var(--color-deep-grey);
+}
+
+/* ==========================================================================
+   Dropdown Icon
+   ========================================================================== */
+.dropdown-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dropdown-icon--flipped {
+  transform: scaleY(-1);
+}
+
+.dropdown-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: var(--color-deep-grey);
+  transition: transform 0.125s ease-in-out;
+}
+
+/* ==========================================================================
+   Persistent Navigation
+   ========================================================================== */
+.persistent-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.nav-item-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.nav-item-link {
+  display: block;
+  width: 100%;
+  position: relative;
+}
+
+/* Close icon hover states for persistent navigation */
+.nav-item-container:has(.close-icon) .badge-count {
+  position: relative;
+}
+
+.nav-item-container:has(.close-icon) .badge-number {
+  opacity: 1;
+  transition: opacity 0.2s ease-out;
+}
+
+.nav-item-container:has(.close-icon):hover .badge-number {
+  opacity: 0;
+}
+
+.nav-item-container:has(.close-icon) .close-icon {
+  display: none;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.nav-item-container:has(.close-icon):hover .close-icon {
+  display: flex;
+  opacity: 1;
+}
+
+/* Also handle :not(.active) case for additional specificity */
+.nav-item-container:not(.active):has(.close-icon) .badge-count {
+  position: relative;
+}
+
+.nav-item-container:not(.active):has(.close-icon) .badge-number {
+  opacity: 1;
+  transition: opacity 0.2s ease-out;
+}
+
+.nav-item-container:not(.active):has(.close-icon) .badge-count:hover .badge-number {
+  opacity: 0;
+}
+
+.nav-item-container:not(.active):has(.close-icon) .close-icon {
+  display: none;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.nav-item-container:not(.active):has(.close-icon) .badge-count:hover .close-icon {
+  display: flex !important;
+  opacity: 1;
+}
+
+/* ==========================================================================
+   Navigation Column Layout
+   ========================================================================== */
+.nav-column-wrapper {
+  height: 100%;
+}
+
+.nav-column-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  position: relative;
+  height: 100%;
+}
+
+.nav-column-top {
+  display: flex;
+  flex-direction: column;
+  gap: 48px; /* gap-12 = 3rem = 48px */
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.nav-column-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.nav-column-bottom {
+  display: flex;
+  gap: 12px; /* gap-3 */
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.nav-link {
+  display: block;
+  width: 100%;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-link--shrink {
+  flex-shrink: 0;
+}
+
+.nav-flex-grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ==========================================================================
+   SpaceButton Alignment Overrides
+   ========================================================================== */
+/* Force left alignment for all SpaceButton text, except badge numbers */
+.space-button span:not(.badge-number) {
+  text-align: left !important;
+}
+
+/* Ensure the button content is left-aligned */
+.space-button {
+  text-align: left !important;
+}
+
+.space-button div {
+  justify-content: flex-start !important;
+}
+
+/* ==========================================================================
+   Mobile Navigation
+   ========================================================================== */
+.mobile-nav {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  height: 64px;
+}
+
+.mobile-nav__col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 64px;
+}
+
+.mobile-nav__dropdown-wrapper {
+  position: relative;
+  min-width: 0;
+  height: 64px;
+  width: 100%;
+}
+
+.mobile-nav__dropdown {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  border-radius: 24px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  z-index: 9999;
+  max-height: 352px;
+}
+
+.mobile-nav__dropdown-scroll {
+  overflow-y: auto;
+  max-height: 352px;
+  padding-bottom: 64px;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+}
+
+.mobile-nav__new-space {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  border-bottom-left-radius: 24px;
+  border-bottom-right-radius: 24px;
+}
+
+.mobile-nav__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+/* Mobile nav item styling */
+.mobile-nav-item {
+  position: relative;
+  border-radius: 24px;
+  height: 64px;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+  padding-left: 16px;
+  padding-right: 0;
+  display: flex;
+  align-items: center;
+}
+
+.mobile-nav-item--inactive {
+  border-radius: 12px;
+  opacity: 0.5;
+}
+
+.mobile-nav-item__content {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding-left: 8px;
+  padding-right: 0;
+  transition: transform 0.125s ease-in-out;
+  min-width: 0;
+}
+
+.mobile-nav-item__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+}
+
+.mobile-nav-item__text span {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  text-align: left;
+}
+
+.mobile-nav-item__badge-wrapper {
+  padding: 20px;
+  flex-shrink: 0;
+}
+
+.mobile-nav-item__shadow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 24px;
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+}
+
+/* Center align New Space button text in mobile nav */
+.new-space-button .space-button > div {
+  justify-content: center !important;
+}
+.new-space-button .space-button > div > div {
+  text-align: center !important;
+}
+.new-space-button .space-button > div > div > span {
+  text-align: center !important;
+}
+
+/* Search button */
+.mobile-nav__search-btn {
+  position: relative;
+  border-radius: 24px;
+  width: 64px;
+  height: 64px;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+  background-image: var(--color-gradient-gray);
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+}
+
+.mobile-nav__search-btn:active svg {
+  transform: scale(0.95);
+}
+
+.mobile-nav__search-btn svg {
+  fill: var(--color-pebble-grey);
+  width: 20px;
+  height: 20px;
+  transition: transform 0.125s ease-in-out;
+}
+
