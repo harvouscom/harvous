@@ -396,10 +396,12 @@ export default function Menu({
       {/* Confirmation Dialog - Rendered via Portal to ensure full viewport coverage */}
       {showConfirmDialog && contentType && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 modal-overlay-enter"
+          className="modal-overlay modal-overlay-enter"
           role="dialog"
           aria-modal="true"
           style={{
+            zIndex: 100,
+            padding: '1rem',
             paddingTop: 'max(1rem, env(safe-area-inset-top))',
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}
@@ -411,14 +413,14 @@ export default function Menu({
           }}
         >
           <div 
-            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg modal-content-enter"
+            className="modal-dialog modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >
-            <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
+            <h3 className="modal-title">
               Are you sure?
             </h3>
-            <p className="text-[var(--color-pebble-grey)] mb-6">
+            <p className="modal-body" style={{ color: 'var(--color-pebble-grey)', marginBottom: '1.5rem' }}>
               {contentType === 'space' ? (
                 <>When you erase a space your notes and threads will stay in your Harvous. Only the space will be erased.</>
               ) : (

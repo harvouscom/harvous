@@ -552,7 +552,7 @@ export default function CardFullEditable({
   return (
     <>
       <div 
-        className={`bg-white box-border content-stretch flex flex-col gap-6 items-start justify-start overflow-hidden pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] h-full w-full card-full-editable flex-1 min-h-0 ${className}`}
+        className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%' }}
         data-card-full-editable
       >

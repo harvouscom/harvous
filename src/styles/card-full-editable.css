@@ -1,3 +1,33 @@
+/* ==========================================================================
+   Card Full Editable - Main note editing card
+   ========================================================================== */
+
+.card-full-editable {
+  background-color: white;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;  /* 24px / gap-6 */
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding-bottom: 0.75rem;  /* 12px / pb-3 */
+  padding-top: 1.5rem;  /* 24px / pt-6 */
+  padding-left: 0.75rem;  /* 12px / px-3 */
+  padding-right: 0.75rem;  /* 12px / px-3 */
+  position: relative;
+  border-radius: 24px;
+  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
+  height: 100%;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ==========================================================================
+   Button Styles
+   ========================================================================== */
+
 .card-full-editable button[data-outer-shadow] {
   will-change: transform, box-shadow;
   transition:

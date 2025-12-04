@@ -414,10 +414,12 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       {/* Delete Account Confirmation Dialog - Rendered via Portal */}
       {showDeleteConfirm && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 modal-overlay-enter"
+          className="modal-overlay modal-overlay-enter"
           role="dialog"
           aria-modal="true"
           style={{
+            zIndex: 100,
+            padding: '1rem',
             paddingTop: 'max(1rem, env(safe-area-inset-top))',
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}
@@ -429,14 +431,14 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
           }}
         >
           <div 
-            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg modal-content-enter"
+            className="modal-dialog modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >
-            <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
+            <h3 className="modal-title">
               Delete Account?
             </h3>
-            <p className="text-[var(--color-pebble-grey)] mb-6">
+            <p className="modal-body" style={{ color: 'var(--color-pebble-grey)', marginBottom: '1.5rem' }}>
               Are you sure you want to delete your account? This action cannot be undone. All your notes, threads, spaces, and data will be permanently deleted.
             </p>
             <DeleteAccountConfirmDialog
@@ -451,10 +453,12 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       {/* Clear Data Confirmation Dialog - Rendered via Portal */}
       {showClearDataConfirm && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 modal-overlay-enter"
+          className="modal-overlay modal-overlay-enter"
           role="dialog"
           aria-modal="true"
           style={{
+            zIndex: 100,
+            padding: '1rem',
             paddingTop: 'max(1rem, env(safe-area-inset-top))',
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}
@@ -466,14 +470,14 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
           }}
         >
           <div 
-            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg modal-content-enter"
+            className="modal-dialog modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >
-            <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
+            <h3 className="modal-title">
               Clear All Data?
             </h3>
-            <p className="text-[var(--color-pebble-grey)] mb-6">
+            <p className="modal-body" style={{ color: 'var(--color-pebble-grey)', marginBottom: '1.5rem' }}>
               This will delete all your notes, threads, and tags. This action cannot be undone. But, know your account will remain active.
             </p>
             <ClearDataConfirmDialog

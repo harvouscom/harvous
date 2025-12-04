@@ -385,6 +385,12 @@
   z-index: 50;
 }
 
+/* Centered modal overlay with padding */
+.modal-overlay--centered {
+  padding: 1rem;
+  z-index: 100;
+}
+
 .modal-dialog {
   background-color: white;
   border-radius: 0.75rem;  /* 12px */
@@ -394,6 +400,19 @@
   margin-left: 1rem;
   margin-right: 1rem;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Large modal dialog variant */
+.modal-dialog--lg {
+  max-width: 42rem;  /* 672px / max-w-2xl */
+  max-height: 90vh;
+  overflow: hidden;
+  border-radius: 1.5rem;  /* 24px / rounded-3xl */
+  padding: 0;
+  margin: 0;
+  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-title {
@@ -456,5 +475,93 @@
   &:hover {
     opacity: 0.9;
   }
+}
+
+/* ==========================================================================
+   Tab Navigation
+   ========================================================================== */
+
+.tab-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0.25rem 0.25rem 0 0.25rem;  /* pt-1 px-1 pb-0 */
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  display: flex;
+  gap: 0.5rem;  /* 8px */
+  height: 2.75rem;  /* 44px / h-11 */
+  align-items: center;
+  justify-content: center;
+  overflow: clip;
+  padding: 0.75rem 0.5rem;  /* py-3 px-2 */
+  position: relative;
+  flex-shrink: 0;
+  transition: all 200ms;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.tab-btn--active {
+  opacity: 1;
+}
+
+.tab-btn--inactive {
+  opacity: 0.5;
+
+  &:hover {
+    opacity: 0.75;
+  }
+}
+
+.tab-btn__label {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.875rem;  /* 14px */
+  line-height: 0;
+  position: relative;
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: #4a473d;
+}
+
+.tab-btn__badge {
+  background-color: rgba(120, 118, 111, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.5rem;  /* rounded-3xl */
+  width: 1.25rem;  /* 20px / w-5 */
+  height: 1.25rem;  /* 20px / h-5 */
+}
+
+.tab-btn__badge-number {
+  font-size: 0.75rem;  /* 12px */
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--color-deep-grey);
+  line-height: 0;
+}
+
+.tab-btn__indicator {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0.25rem;  /* 4px / w-1 */
+  height: 0.25rem;  /* 4px / h-1 */
+}
+
+.tab-btn__indicator-dot {
+  width: 0.25rem;
+  height: 0.25rem;
+  background-color: #4a473d;
+  border-radius: 9999px;
 }
 

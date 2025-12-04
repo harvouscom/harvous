@@ -161,7 +161,7 @@ export default function InboxItemPreview({
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
+      className="modal-overlay modal-overlay--centered"
       role="dialog"
       aria-modal="true"
       style={{
@@ -175,7 +175,7 @@ export default function InboxItemPreview({
       }}
     >
       <div
-        className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] flex flex-col"
+        className="modal-dialog modal-dialog--lg"
         onClick={(e) => e.stopPropagation()}
         style={{ pointerEvents: 'auto', height: '90vh' }}
       >

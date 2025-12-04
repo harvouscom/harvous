@@ -555,29 +555,23 @@ export default function NoteDetailsPanel({
                   <div className="flex flex-col gap-3">
                     <div className="tab-nav-container">
                       {/* Tab Navigation */}
-                      <div className="flex items-center justify-start gap-0 pb-0 pt-1 px-1 relative w-full overflow-x-auto">
+                      <div className="tab-nav">
                         {/* Notes tab - first for scripture notes */}
                         {isScriptureNote && (
                           <button
                             type="button"
-                            className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative shrink-0 transition-all duration-200 ${
-                              activeTab === 'notes' ? 'opacity-100' : 'opacity-50 hover:opacity-75'
-                            }`}
+                            className={`tab-btn ${activeTab === 'notes' ? 'tab-btn--active' : 'tab-btn--inactive'}`}
                             onClick={() => switchTab('notes')}
                             data-tab-id="notes"
                             data-active={activeTab === 'notes' ? 'true' : 'false'}
                           >
-                            <span className="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
-                              Notes
-                            </span>
-                            <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-5 h-5">
-                              <span className="text-[12px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                                {localReferencingNotes.length}
-                              </span>
+                            <span className="tab-btn__label">Notes</span>
+                            <div className="tab-btn__badge">
+                              <span className="tab-btn__badge-number">{localReferencingNotes.length}</span>
                             </div>
                             {activeTab === 'notes' && (
-                              <div className="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1">
-                                <div className="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                              <div className="tab-btn__indicator">
+                                <div className="tab-btn__indicator-dot"></div>
                               </div>
                             )}
                           </button>
@@ -585,48 +579,36 @@ export default function NoteDetailsPanel({
                         
                         <button
                           type="button"
-                          className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative shrink-0 transition-all duration-200 ${
-                            activeTab === 'threads' ? 'opacity-100' : 'opacity-50 hover:opacity-75'
-                          }`}
+                          className={`tab-btn ${activeTab === 'threads' ? 'tab-btn--active' : 'tab-btn--inactive'}`}
                           onClick={() => switchTab('threads')}
                           data-tab-id="threads"
                           data-active={activeTab === 'threads' ? 'true' : 'false'}
                         >
-                          <span className="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
-                            Threads
-                          </span>
-                          <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-5 h-5">
-                            <span className="text-[12px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                              {localThreads.length}
-                            </span>
+                          <span className="tab-btn__label">Threads</span>
+                          <div className="tab-btn__badge">
+                            <span className="tab-btn__badge-number">{localThreads.length}</span>
                           </div>
                           {activeTab === 'threads' && (
-                            <div className="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1">
-                              <div className="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                            <div className="tab-btn__indicator">
+                              <div className="tab-btn__indicator-dot"></div>
                             </div>
                           )}
                         </button>
                         
                         <button
                           type="button"
-                          className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative shrink-0 transition-all duration-200 ${
-                            activeTab === 'tags' ? 'opacity-100' : 'opacity-50 hover:opacity-75'
-                          }`}
+                          className={`tab-btn ${activeTab === 'tags' ? 'tab-btn--active' : 'tab-btn--inactive'}`}
                           onClick={() => switchTab('tags')}
                           data-tab-id="tags"
                           data-active={activeTab === 'tags' ? 'true' : 'false'}
                         >
-                          <span className="font-sans font-semibold text-[14px] leading-[0] relative shrink-0 text-nowrap text-[#4a473d]">
-                            Tags
-                          </span>
-                          <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-5 h-5">
-                            <span className="text-[12px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                              {localTags.length}
-                            </span>
+                          <span className="tab-btn__label">Tags</span>
+                          <div className="tab-btn__badge">
+                            <span className="tab-btn__badge-number">{localTags.length}</span>
                           </div>
                           {activeTab === 'tags' && (
-                            <div className="absolute bottom-0 left-1/2 translate-x-[-50%] w-1 h-1">
-                              <div className="w-1 h-1 bg-[#4a473d] rounded-full"></div>
+                            <div className="tab-btn__indicator">
+                              <div className="tab-btn__indicator-dot"></div>
                             </div>
                           )}
                         </button>
