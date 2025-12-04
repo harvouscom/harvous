@@ -441,20 +441,18 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       onClick={(e) => handleItemClickWrapper(e, undefined)}
                       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                     >
-                      <div className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center" style={{ backgroundImage: getThreadGradientCSS('paper') }}>
-                        <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                          <div className="flex-1 min-w-0 overflow-hidden text-left">
-                            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">For You</span>
+                      <div className="space-btn pl-4" style={{ backgroundImage: getThreadGradientCSS('paper') }}>
+                        <div className="space-btn__content">
+                          <div className="space-btn__text-wrapper">
+                            <span className="space-btn__text">For You</span>
                           </div>
-                          <div className="p-[20px] flex-shrink-0">
-                            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                              <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                                {inboxCount}
-                              </span>
+                          <div className="space-btn__badge-wrapper">
+                            <div className="badge-count">
+                              <span className="badge-number">{inboxCount}</span>
                             </div>
                           </div>
                         </div>
-                        <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                        <div className="space-btn__shadow" />
                       </div>
                     </a>
                   );
@@ -468,27 +466,27 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                     >
                       <div 
-                        className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                        className="space-btn pl-4"
                         style={{
                           backgroundImage: activeSpace.backgroundGradient?.includes('gradient') ? activeSpace.backgroundGradient : undefined,
                           backgroundColor: activeSpace.backgroundGradient?.includes('gradient') ? undefined : (activeSpace.backgroundGradient || undefined)
                         }}
                       >
-                        <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                          <div className="flex-1 min-w-0 overflow-hidden text-left">
-                            <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(activeSpace.backgroundGradient, true) }}>
+                        <div className="space-btn__content">
+                          <div className="space-btn__text-wrapper">
+                            <span className="space-btn__text" style={{ color: getTextColor(activeSpace.backgroundGradient, true) }}>
                               {activeSpace.title}
                             </span>
                           </div>
-                          <div className="p-[20px] flex-shrink-0">
-                            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                              <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(activeSpace.backgroundGradient, true) }}>
+                          <div className="space-btn__badge-wrapper">
+                            <div className="badge-count">
+                              <span className="badge-number" style={{ color: getTextColor(activeSpace.backgroundGradient, true) }}>
                                 {activeSpace.totalItemCount}
                               </span>
                             </div>
                           </div>
                         </div>
-                        <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                        <div className="space-btn__shadow" />
                       </div>
                     </a>
                   );
@@ -501,35 +499,35 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       onClick={(e) => handleItemClickWrapper(e, activeThread.id)}
                       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                     >
-                    <div 
-                      className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
-                      style={{
-                        backgroundImage: activeThread.backgroundGradient?.includes('gradient') ? activeThread.backgroundGradient : undefined,
-                        backgroundColor: activeThread.backgroundGradient?.includes('gradient') ? undefined : (activeThread.backgroundGradient || undefined)
-                      }}
-                    >
-                        <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                          <div className="flex-1 min-w-0 overflow-hidden text-left">
-                            <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(activeThread.backgroundGradient, true) }}>
+                      <div 
+                        className="space-btn pl-4"
+                        style={{
+                          backgroundImage: activeThread.backgroundGradient?.includes('gradient') ? activeThread.backgroundGradient : undefined,
+                          backgroundColor: activeThread.backgroundGradient?.includes('gradient') ? undefined : (activeThread.backgroundGradient || undefined)
+                        }}
+                      >
+                        <div className="space-btn__content">
+                          <div className="space-btn__text-wrapper">
+                            <span className="space-btn__text" style={{ color: getTextColor(activeThread.backgroundGradient, true) }}>
                               {activeThread.title}
                             </span>
                           </div>
-                          <div className="p-[20px] flex-shrink-0">
-                            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                              <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(activeThread.backgroundGradient, true) }}>
+                          <div className="space-btn__badge-wrapper">
+                            <div className="badge-count">
+                              <span className="badge-number" style={{ color: getTextColor(activeThread.backgroundGradient, true) }}>
                                 {activeThread.noteCount}
                               </span>
                             </div>
                           </div>
                         </div>
-                        <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
+                        <div className="space-btn__shadow" />
                       </div>
                     </a>
                   );
                 } else if (activePersistentSpace) {
                   const isActive = activePersistentSpace.id === currentActiveItemId;
                   return (
-                    <div key={`active-persistent-space-${activePersistentSpace.id}`} className="relative group nav-item-container w-full">
+                    <div key={`active-persistent-space-${activePersistentSpace.id}`} className="nav-item-container group w-full">
                       <a 
                         href={`/${activePersistentSpace.id}`} 
                         className="block w-full" 
@@ -537,21 +535,21 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                       >
                         <div 
-                          className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                          className="space-btn pl-4"
                           style={isActive ? {
                             backgroundImage: activePersistentSpace.backgroundGradient?.includes('gradient') ? activePersistentSpace.backgroundGradient : undefined,
                             backgroundColor: activePersistentSpace.backgroundGradient?.includes('gradient') ? undefined : (activePersistentSpace.backgroundGradient || undefined)
                           } : {}}
                         >
-                          <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                            <div className="flex-1 min-w-0 overflow-hidden text-left">
-                              <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}>
+                          <div className="space-btn__content">
+                            <div className="space-btn__text-wrapper">
+                              <span className="space-btn__text" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}>
                                 {activePersistentSpace.title}
                               </span>
                             </div>
-                            <div className="p-[20px] flex-shrink-0">
+                            <div className="space-btn__badge-wrapper">
                               <div 
-                                className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
+                                className="badge-count cursor-pointer"
                                 data-close-item={activePersistentSpace.id}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -566,16 +564,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 {itemsInCloseMode.has(activePersistentSpace.id) ? (
                                   <Icon name="xmark" size={14} style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }} />
                                 ) : (
-                                  <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}>
+                                  <span className="badge-number" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}>
                                     {activePersistentSpace.count || 0}
                                   </span>
                                 )}
                               </div>
                             </div>
                           </div>
-                          {isActive && (
-                            <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
-                          )}
+                          {isActive && <div className="space-btn__shadow" />}
                         </div>
                       </a>
                     </div>
@@ -583,7 +579,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 } else if (activePersistentThread) {
                   const isActive = activePersistentThread.id === currentActiveItemId;
                   return (
-                    <div key={`active-persistent-thread-${activePersistentThread.id}`} className="relative group nav-item-container w-full">
+                    <div key={`active-persistent-thread-${activePersistentThread.id}`} className="nav-item-container group w-full">
                       <a 
                         href={`/${activePersistentThread.id}`} 
                         className="block w-full" 
@@ -591,21 +587,21 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                       >
                         <div 
-                          className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center"
+                          className="space-btn pl-4"
                           style={isActive ? {
                             backgroundImage: activePersistentThread.backgroundGradient?.includes('gradient') ? activePersistentThread.backgroundGradient : undefined,
                             backgroundColor: activePersistentThread.backgroundGradient?.includes('gradient') ? undefined : (activePersistentThread.backgroundGradient || undefined)
                           } : {}}
                         >
-                          <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                            <div className="flex-1 min-w-0 overflow-hidden text-left">
-                              <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
+                          <div className="space-btn__content">
+                            <div className="space-btn__text-wrapper">
+                              <span className="space-btn__text" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
                                 {activePersistentThread.title}
                               </span>
                             </div>
-                            <div className="p-[20px] flex-shrink-0">
+                            <div className="space-btn__badge-wrapper">
                               <div 
-                                className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
+                                className="badge-count cursor-pointer"
                                 data-close-item={activePersistentThread.id}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -620,16 +616,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 {itemsInCloseMode.has(activePersistentThread.id) ? (
                                   <Icon name="xmark" size={14} style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }} />
                                 ) : (
-                                  <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
+                                  <span className="badge-number" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
                                     {activePersistentThread.count || 0}
                                   </span>
                                 )}
                               </div>
                             </div>
                           </div>
-                          {isActive && (
-                            <div className="absolute inset-0 pointer-events-none rounded-3xl shadow-[0px_-3px_0px_0px_rgba(120,118,111,0.2)_inset]" />
-                          )}
+                          {isActive && <div className="space-btn__shadow" />}
                         </div>
                       </a>
                     </div>
@@ -646,16 +640,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   onClick={(e) => handleItemClickWrapper(e)}
                   style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                 >
-                  <div className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center">
-                    <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                      <div className="flex-1 min-w-0 overflow-hidden text-left">
-                        <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left">For You</span>
+                  <div className="space-btn pl-4">
+                    <div className="space-btn__content">
+                      <div className="space-btn__text-wrapper">
+                        <span className="space-btn__text">For You</span>
                       </div>
-                      <div className="p-[20px] flex-shrink-0">
-                        <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                          <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                            {inboxCount}
-                          </span>
+                      <div className="space-btn__badge-wrapper">
+                        <div className="badge-count">
+                          <span className="badge-number">{inboxCount}</span>
                         </div>
                       </div>
                     </div>
@@ -669,32 +661,30 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   {/* Persistent Spaces - Excluding Active */}
                   {persistentSpaces.filter(space => space.id !== currentActiveItemId).map((space) => {
                     return (
-                      <div key={space.id} className="relative group nav-item-container w-full">
+                      <div key={space.id} className="nav-item-container group w-full">
                         <a 
                           href={`/${space.id}`} 
                           className="block w-full" 
                           onClick={() => handleItemClick(space.id)}
                           style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                         >
-                          <div className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center">
-                            <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                              <div className="flex-1 min-w-0 overflow-hidden text-left">
-                                <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(space.backgroundGradient, false) }}>
+                          <div className="space-btn pl-4">
+                            <div className="space-btn__content">
+                              <div className="space-btn__text-wrapper">
+                                <span className="space-btn__text" style={{ color: getTextColor(space.backgroundGradient, false) }}>
                                   {space.title}
                                 </span>
                               </div>
-                              <div className="p-[20px] flex-shrink-0">
+                              <div className="space-btn__badge-wrapper">
                                 <div 
-                                  className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
+                                  className="badge-count cursor-pointer"
                                   data-close-item={space.id}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     e.preventDefault();
                                     if (itemsInCloseMode.has(space.id)) {
-                                      // Already in close mode - close the item
                                       handleCloseClick(space.id, e);
                                     } else {
-                                      // Not in close mode - toggle to show close icon
                                       toggleCloseMode(space.id);
                                     }
                                   }}
@@ -702,7 +692,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   {itemsInCloseMode.has(space.id) ? (
                                     <Icon name="xmark" size={14} style={{ color: getTextColor(space.backgroundGradient, false) }} />
                                   ) : (
-                                    <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, false) }}>
+                                    <span className="badge-number" style={{ color: getTextColor(space.backgroundGradient, false) }}>
                                       {space.count || 0}
                                     </span>
                                   )}
@@ -718,32 +708,30 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   {/* Persistent Threads - Excluding Active */}
                   {persistentThreads.filter(thread => thread.id !== currentActiveItemId).map((thread) => {
                     return (
-                      <div key={thread.id} className="relative group nav-item-container w-full">
+                      <div key={thread.id} className="nav-item-container group w-full">
                         <a 
                           href={`/${thread.id}`} 
                           className="block w-full" 
                           onClick={() => handleItemClick(thread.id)}
                           style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                         >
-                          <div className="relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 flex items-center">
-                            <div className="flex items-center relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                              <div className="flex-1 min-w-0 overflow-hidden text-left">
-                                <span className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
+                          <div className="space-btn pl-4">
+                            <div className="space-btn__content">
+                              <div className="space-btn__text-wrapper">
+                                <span className="space-btn__text" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
                                   {thread.title}
                                 </span>
                               </div>
-                              <div className="p-[20px] flex-shrink-0">
+                              <div className="space-btn__badge-wrapper">
                                 <div 
-                                  className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer"
+                                  className="badge-count cursor-pointer"
                                   data-close-item={thread.id}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     e.preventDefault();
                                     if (itemsInCloseMode.has(thread.id)) {
-                                      // Already in close mode - close the item
                                       handleCloseClick(thread.id, e);
                                     } else {
-                                      // Not in close mode - toggle to show close icon
                                       toggleCloseMode(thread.id);
                                     }
                                   }}
@@ -751,7 +739,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   {itemsInCloseMode.has(thread.id) ? (
                                     <Icon name="xmark" size={14} style={{ color: getTextColor(thread.backgroundGradient, false) }} />
                                   ) : (
-                                    <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
+                                    <span className="badge-number" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
                                       {thread.count || 0}
                                     </span>
                                   )}
