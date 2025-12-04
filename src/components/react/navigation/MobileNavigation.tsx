@@ -3,6 +3,7 @@ import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Avatar from './Avatar';
 import { getThreadGradientCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
+import Icon from '../Icon';
 
 /**
  * Check if Clerk authentication is ready
@@ -585,7 +586,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 }}
                               >
                                 {itemsInCloseMode.has(activePersistentSpace.id) ? (
-                                  <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}></i>
+                                  <Icon name="xmark" size={14} style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }} />
                                 ) : (
                                   <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}>
                                     {activePersistentSpace.count || 0}
@@ -639,7 +640,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 }}
                               >
                                 {itemsInCloseMode.has(activePersistentThread.id) ? (
-                                  <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}></i>
+                                  <Icon name="xmark" size={14} style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }} />
                                 ) : (
                                   <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
                                     {activePersistentThread.count || 0}
@@ -721,7 +722,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   }}
                                 >
                                   {itemsInCloseMode.has(space.id) ? (
-                                    <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(space.backgroundGradient, false) }}></i>
+                                    <Icon name="xmark" size={14} style={{ color: getTextColor(space.backgroundGradient, false) }} />
                                   ) : (
                                     <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(space.backgroundGradient, false) }}>
                                       {space.count || 0}
@@ -770,7 +771,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   }}
                                 >
                                   {itemsInCloseMode.has(thread.id) ? (
-                                    <i className="fa-solid fa-xmark text-[14px]" style={{ color: getTextColor(thread.backgroundGradient, false) }}></i>
+                                    <Icon name="xmark" size={14} style={{ color: getTextColor(thread.backgroundGradient, false) }} />
                                   ) : (
                                     <span className="text-[14px] font-sans font-semibold leading-[0] badge-number" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
                                       {thread.count || 0}
@@ -833,7 +834,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           position: relative;
         }
         /* Ensure close icon is properly centered */
-        .badge-count i.fa-xmark {
+        .badge-count span {
           display: flex;
           align-items: center;
           justify-content: center;

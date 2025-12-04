@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SquareButton from './SquareButton';
-import SunIcon from "@fortawesome/fontawesome-free/svgs/solid/sun.svg";
-import TrophyIcon from "@fortawesome/fontawesome-free/svgs/solid/trophy.svg";
+import Icon from './Icon';
 
 interface MyAchievementsPanelProps {
   onClose?: () => void;
@@ -95,7 +94,7 @@ export default function MyAchievementsPanel({
                   <div className="grid grid-cols-2 w-full" style={{ gap: '12px' }}>
                     {/* Seasonal XP Card */}
                     <div className="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3">
-                      <img src={SunIcon.src} alt="Sun" className="w-5 h-5" style={{ color: 'var(--color-deep-grey)' }} />
+                      <Icon name="sun" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                       <div>
                         <div className="text-lg font-bold text-[var(--color-deep-grey)]">{xpData.seasonalXP.toLocaleString()} XP</div>
                         <div className="text-sm text-[var(--color-pebble-grey)]">{xpData.seasonName}</div>
@@ -104,7 +103,7 @@ export default function MyAchievementsPanel({
 
                     {/* Lifetime XP Card */}
                     <div className="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3">
-                      <img src={TrophyIcon.src} alt="Trophy" className="w-5 h-5" style={{ color: 'var(--color-deep-grey)' }} />
+                      <Icon name="trophy" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                       <div>
                         <div className="text-lg font-bold text-[var(--color-deep-grey)]">{xpData.lifetimeXP.toLocaleString()} XP</div>
                         <div className="text-sm text-[var(--color-pebble-grey)]">All Time</div>

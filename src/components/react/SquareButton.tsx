@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ThreadIcon from "@fortawesome/fontawesome-free/svgs/solid/layer-group.svg";
-import NoteStickyIcon from "@fortawesome/fontawesome-free/svgs/solid/note-sticky.svg";
-import EditIcon from "@fortawesome/fontawesome-free/svgs/solid/pen-to-square.svg";
-import EraseIcon from "@fortawesome/fontawesome-free/svgs/solid/eraser.svg";
-import CircleInfoIcon from "@fortawesome/fontawesome-free/svgs/solid/circle-info.svg";
-import XmarkIcon from "@fortawesome/fontawesome-free/svgs/solid/xmark.svg";
-import PlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
 import Menu from './Menu';
 import { getMenuOptions } from "@/utils/menu-options";
+
+// Icon references for Menu component (Menu.tsx handles rendering internally)
+const ThreadIcon = { src: 'layer-group' };
+const NoteStickyIcon = { src: 'note-sticky' };
+const EditIcon = { src: 'pen-to-square' };
+const EraseIcon = { src: 'eraser' };
+const CircleInfoIcon = { src: 'circle-info' };
 
 interface SquareButtonProps {
   variant?: "Add" | "Close" | "More" | "Back" | "Find";

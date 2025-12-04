@@ -1,4 +1,5 @@
 import React from 'react';
+import Icon from './Icon';
 
 interface CardNoteProps {
   variant?: "default" | "withImage";
@@ -128,9 +129,9 @@ const CardNote: React.FC<CardNoteProps> = ({
             <div className="bg-[var(--color-light-paper)] box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" style={{ height: '68px' }}>
               <div className="relative shrink-0 size-5">
                 {noteType === 'scripture' ? (
-                  <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] opacity-20 text-[20px]" />
+                  <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
                 ) : noteType === 'resource' ? (
-                  <i className="fa-solid fa-file-image text-[var(--color-deep-grey)] opacity-20 text-[20px]" />
+                  <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
                 ) : (
                   <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
@@ -172,9 +173,9 @@ const CardNote: React.FC<CardNoteProps> = ({
             >
               <div className="relative shrink-0 size-5">
                 {noteType === 'scripture' ? (
-                  <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] opacity-20 text-[20px]" />
+                  <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
                 ) : noteType === 'resource' ? (
-                  <i className="fa-solid fa-file-image text-[var(--color-deep-grey)] opacity-20 text-[20px]" />
+                  <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
                 ) : (
                   <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>

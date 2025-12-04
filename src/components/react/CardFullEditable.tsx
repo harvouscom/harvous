@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ButtonSmall from './ButtonSmall';
 import { safeNavigate } from '@/utils/safe-navigate';
 import '@/styles/card-full-editable.css';
+import Icon from './Icon';
 
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
@@ -614,9 +615,9 @@ export default function CardFullEditable({
         )}
         <div className="relative shrink-0 size-5" title={`${noteType === 'scripture' ? 'Scripture' : noteType === 'resource' ? 'Resource' : 'Note'} type`}>
           {noteType === 'scripture' ? (
-            <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] text-[20px]" />
+            <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
           ) : noteType === 'resource' ? (
-            <i className="fa-solid fa-file-image text-[var(--color-deep-grey)] text-[20px]" />
+            <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)' }} />
           ) : (
             <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
               <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>

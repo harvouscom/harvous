@@ -8,6 +8,7 @@ import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { ButtonGroup } from '@/components/ui/button-group';
 import SimpleTooltip from './SimpleTooltip';
+import Icon from './Icon';
 
 interface Note {
   id: string;
@@ -452,7 +453,7 @@ export default function EditSpacePanel({
                     >
                       <div className="flex items-center justify-center gap-3 relative w-full h-full transition-transform duration-125">
                         <div className="size-4 flex items-center justify-center shrink-0">
-                          <i className="fas fa-user text-[var(--color-deep-grey)]" style={{ fontSize: '16px', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}></i>
+                          <Icon name="user" size={16} style={{ color: 'var(--color-deep-grey)' }} />
                         </div>
                         <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Private</span>
                       </div>
@@ -468,7 +469,7 @@ export default function EditSpacePanel({
                       >
                         <div className="flex items-center justify-center gap-3 relative w-full h-full transition-transform duration-125">
                           <div className="size-4 flex items-center justify-center shrink-0">
-                            <i className="fas fa-user-group text-[var(--color-deep-grey)]" style={{ fontSize: '16px', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}></i>
+                            <Icon name="user-group" size={16} style={{ color: 'var(--color-deep-grey)' }} />
                           </div>
                           <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
                         </div>

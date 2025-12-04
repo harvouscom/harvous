@@ -1,5 +1,6 @@
 import React from 'react';
 import TiptapEditor from '../TiptapEditor';
+import Icon from '../Icon';
 
 export interface ScriptureNoteFormProps {
   scriptureReference: string;
@@ -36,7 +37,7 @@ export default function ScriptureNoteForm({
           />
         </div>
         <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">
-          <i className="fa-solid fa-scroll text-[var(--color-deep-grey)] text-[20px] opacity-50" />
+          <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.5 }} />
         </div>
       </div>
       

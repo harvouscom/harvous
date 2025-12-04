@@ -1,5 +1,6 @@
 import React from 'react';
 import { getThreadGradientCSS, getThreadTextColorCSS } from '@/utils/colors';
+import Icon from '../Icon';
 
 export interface SpaceSelectorProps {
   space: { 
@@ -45,8 +46,9 @@ export default function SpaceSelector({
           </span>
           {isSelected && (
             <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-              <i 
-                className="fa-solid fa-check text-[20px]" 
+              <Icon 
+                name="check"
+                size={20}
                 style={{ color: getThreadTextColorCSS(space.color || 'paper') }}
               />
             </div>

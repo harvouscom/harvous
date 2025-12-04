@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
+import Icon from '../Icon';
 
 const PersistentNavigation: React.FC = () => {
   const contextValue = useNavigation();
@@ -134,7 +135,7 @@ const PersistentNavigation: React.FC = () => {
                 data-item-id={item.id}
                 aria-label={`Close ${item.title || 'item'}`}
               >
-                <i className="fa-solid fa-xmark text-[var(--color-deep-grey)]" aria-hidden="true"></i>
+                <Icon name="xmark" size={14} style={{ color: 'var(--color-deep-grey)' }} />
               </button>
             </div>
           </div>

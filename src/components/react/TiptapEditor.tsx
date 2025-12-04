@@ -16,15 +16,8 @@ import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { safeNavigate } from '@/utils/safe-navigate';
 import '@/styles/tiptap-editor.css';
 
-// Font Awesome SVG imports for toolbar icons
-import PlusIcon from "@fortawesome/fontawesome-free/svgs/solid/plus.svg";
-import BoldIcon from "@fortawesome/fontawesome-free/svgs/solid/bold.svg";
-import ItalicIcon from "@fortawesome/fontawesome-free/svgs/solid/italic.svg";
-import UnderlineIcon from "@fortawesome/fontawesome-free/svgs/solid/underline.svg";
-import HeadingIcon from "@fortawesome/fontawesome-free/svgs/solid/heading.svg";
-import ListOlIcon from "@fortawesome/fontawesome-free/svgs/solid/list-ol.svg";
-import ListIcon from "@fortawesome/fontawesome-free/svgs/solid/list.svg";
-import EraserIcon from "@fortawesome/fontawesome-free/svgs/solid/eraser.svg";
+// Icon component for inline SVGs (allows CSS styling)
+import Icon from './Icon';
 
 // Define a global toast function
 declare global {
@@ -1616,24 +1609,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // NO background change on hover - keep transparent
         e.currentTarget.style.setProperty('background', 'transparent', 'important');
         e.currentTarget.style.setProperty('box-shadow', 'none', 'important');
-        e.currentTarget.style.setProperty('boxShadow', 'none', 'important');
         
-        // Change icon color on hover
-        const iconDiv = e.currentTarget.querySelector('div');
-        if (iconDiv) {
-          iconDiv.style.setProperty('color', '#4A4A4A', 'important');
+        // Change icon color on hover - deep grey
+        const iconSpan = e.currentTarget.querySelector('span');
+        if (iconSpan) {
+          iconSpan.style.setProperty('color', 'var(--color-deep-grey)', 'important');
         }
       }}
       onMouseLeave={(e) => {
         // Keep transparent background
         e.currentTarget.style.setProperty('background', 'transparent', 'important');
         e.currentTarget.style.setProperty('box-shadow', 'none', 'important');
-        e.currentTarget.style.setProperty('boxShadow', 'none', 'important');
         
-        // Reset icon color on leave (unless active)
-        const iconDiv = e.currentTarget.querySelector('div');
-        if (iconDiv) {
-          iconDiv.style.setProperty('color', isActive ? '#4A4A4A' : 'rgb(139, 139, 139)', 'important');
+        // Reset icon color - deep grey for active, stone grey for inactive
+        const iconSpan = e.currentTarget.querySelector('span');
+        if (iconSpan) {
+          iconSpan.style.setProperty('color', isActive ? 'var(--color-deep-grey)' : 'var(--color-stone-grey)', 'important');
         }
       }}
       onMouseUp={(e) => {
@@ -1643,14 +1634,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }}
     >
       <div style={{ 
-        color: isActive ? '#4A4A4A' : 'rgb(139, 139, 139)',
-        transition: 'color 0.2s ease-in-out',
         width: '20px',
         height: '20px',
-        fontSize: '20px',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        color: isActive ? 'var(--color-deep-grey)' : 'var(--color-stone-grey)',
+        transition: 'color 0.2s ease-in-out',
       }}>
         {children}
       </div>
@@ -1711,7 +1701,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 }}
                 type="button"
               >
-                <img src={PlusIcon.src} alt="" style={{ width: '14px', height: '14px', display: 'inline-block', marginRight: '8px' }} />
+                <Icon name="plus" size={14} style={{ display: 'inline-block', marginRight: '8px', fill: 'currentColor' }} />
                 <span>Create Note</span>
               </ButtonSmall>
             </div>
@@ -1735,7 +1725,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="bold"
             ariaLabel="Toggle bold"
           >
-            <img src={BoldIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
+            <Icon name="bold" size={20} style={{ fill: 'currentColor' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1749,7 +1739,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="italic"
             ariaLabel="Toggle italic"
           >
-            <img src={ItalicIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
+            <Icon name="italic" size={20} style={{ fill: 'currentColor' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1763,7 +1753,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="underline"
             ariaLabel="Toggle underline"
           >
-            <img src={UnderlineIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
+            <Icon name="underline" size={20} style={{ fill: 'currentColor' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1777,7 +1767,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title={`heading (${activeStates.headingLevel > 0 ? `H${activeStates.headingLevel}` : 'Normal'})`}
             ariaLabel={`Toggle heading (${activeStates.headingLevel > 0 ? `H${activeStates.headingLevel}` : 'Normal'})`}
           >
-            <img src={HeadingIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
+            <Icon name="heading" size={20} style={{ fill: 'currentColor' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1791,7 +1781,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="list: ordered"
             ariaLabel="Toggle ordered list"
           >
-            <img src={ListOlIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
+            <Icon name="list-ol" size={20} style={{ fill: 'currentColor' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1805,7 +1795,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="list: bullet"
             ariaLabel="Toggle bullet list"
           >
-            <img src={ListIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
+            <Icon name="list" size={20} style={{ fill: 'currentColor' }} />
           </ToolbarButton>
           
           <ToolbarButton
@@ -1819,7 +1809,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             title="clean"
             ariaLabel="Clear formatting"
           >
-            <img src={EraserIcon.src} alt="" style={{ width: '20px', height: '20px' }} />
+            <Icon name="eraser" size={20} style={{ fill: 'currentColor' }} />
           </ToolbarButton>
         </div>
       )}
