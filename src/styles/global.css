@@ -45,12 +45,12 @@
   box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
 }
 
-/* Squish animation on press */
+/* Squish animation on press - !important needed to override inline styles */
 .space-button:active {
   filter: brightness(0.97);
   box-shadow: 
     0px -1px 0px 0px #78766F33 inset,
-    0px 1px 0px 0px #78766F33 inset;
+    0px 1px 0px 0px #78766F33 inset !important;
 }
 
 .space-button > div {
@@ -73,7 +73,7 @@
   filter: brightness(0.97);
   box-shadow: 
     0px -1px 0px 0px #78766F33 inset,
-    0px 1px 0px 0px #78766F33 inset;
+    0px 1px 0px 0px #78766F33 inset !important;
 }
 
 /* ==========================================================================
