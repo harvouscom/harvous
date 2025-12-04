@@ -521,7 +521,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         </div>
 
         {/* Bottom buttons */}
-        <div className="panel__footer panel__footer--buttons">
+        <div className="flex items-center justify-between gap-3 shrink-0">
           {/* Close button */}
           <SquareButton 
             variant="Close" 
