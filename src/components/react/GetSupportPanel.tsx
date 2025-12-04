@@ -65,7 +65,7 @@ export default function GetSupportPanel({
                 type="button"
                 onClick={() => handleExternalLink(helpCenterUrl)}
                 disabled
-                className="space-button relative rounded-xl h-[60px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
+                className="space-button relative rounded-3xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
                 style={{ backgroundImage: 'var(--color-gradient-gray)' }}
               >
                 <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
@@ -93,7 +93,7 @@ export default function GetSupportPanel({
               <button
                 type="button"
                 onClick={() => handleEmailLink('Reach out to support')}
-                className="space-button relative rounded-xl h-[60px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
                 style={{ backgroundImage: 'var(--color-gradient-gray)' }}
               >
                 <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
@@ -121,7 +121,7 @@ export default function GetSupportPanel({
               <button
                 type="button"
                 onClick={() => handleEmailLink('Submit feedback')}
-                className="space-button relative rounded-xl h-[60px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
                 style={{ backgroundImage: 'var(--color-gradient-gray)' }}
               >
                 <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">

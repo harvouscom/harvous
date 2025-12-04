@@ -553,7 +553,7 @@ export default function InboxItemPreviewPanel({
                           type="button"
                           onClick={handleArchive}
                           disabled={isArchiving || isAdding || isUnarchiving}
-                          className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
                           style={{ 
                             backgroundImage: 'var(--color-gradient-gray)', 
                             boxShadow: 'rgba(120, 118, 111, 0.2) 0px -3px 0px 0px inset' 

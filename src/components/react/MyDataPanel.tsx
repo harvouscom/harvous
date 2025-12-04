@@ -235,7 +235,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                 <div className="content-stretch flex flex-col gap-3 items-start relative shrink-0 w-full">
                   {/* Export as CSV */}
                   <button
-                    className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
                       boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
@@ -272,7 +272,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                 {/* Clear Data Button - For Testing */}
                 <div className="content-stretch flex flex-col gap-3 items-start relative shrink-0 w-full">
                   <button
-                    className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
+                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
                       boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
@@ -316,7 +316,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                 <div className="content-stretch flex flex-col gap-3 items-start relative shrink-0 w-full">
                   {/* Import from CSV */}
                   <button
-                    className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
+                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
                       boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
@@ -354,7 +354,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
                   {/* Import from Markdown */}
                   <button
-                    className="space-button relative rounded-xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
+                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
                       boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
