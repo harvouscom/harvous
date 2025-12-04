@@ -66,7 +66,7 @@ export default function GetSupportPanel({
                 onClick={() => handleExternalLink(helpCenterUrl)}
                 disabled
                 className="space-button relative rounded-3xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-0 w-full opacity-50"
-                style={{ backgroundImage: 'var(--color-gradient-gray)', boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset' }}
+                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
               >
                 <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                   <div className="flex-1 min-w-0 overflow-hidden">
@@ -93,7 +93,7 @@ export default function GetSupportPanel({
                 type="button"
                 onClick={() => handleEmailLink('Reach out to support')}
                 className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                style={{ backgroundImage: 'var(--color-gradient-gray)', boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset' }}
+                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
               >
                 <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                   <div className="flex-1 min-w-0 overflow-hidden">
@@ -120,7 +120,7 @@ export default function GetSupportPanel({
                 type="button"
                 onClick={() => handleEmailLink('Submit feedback')}
                 className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-                style={{ backgroundImage: 'var(--color-gradient-gray)', boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset' }}
+                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
               >
                 <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
                   <div className="flex-1 min-w-0 overflow-hidden">

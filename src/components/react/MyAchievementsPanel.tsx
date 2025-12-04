@@ -119,7 +119,6 @@ export default function MyAchievementsPanel({
                         className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
                         style={{
                           backgroundImage: 'var(--color-gradient-gray)',
-                          boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset'
                         }}
                       >
                         <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">

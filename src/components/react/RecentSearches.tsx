@@ -101,7 +101,6 @@ const RecentSearches: React.FC = () => {
                 className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-4 group w-full text-left" 
                 style={{
                   backgroundImage: 'var(--color-gradient-gray)',
-                  boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
                   color: 'var(--color-deep-grey)'
                 }}
                 onClick={(e) => {

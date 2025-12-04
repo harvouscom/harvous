@@ -238,7 +238,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
-                      boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
                       opacity: isExporting === 'csv-threads' ? 0.6 : 1,
                       pointerEvents: isExporting === 'csv-threads' ? 'none' : 'auto'
                     }}
@@ -275,7 +274,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
-                      boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
                       opacity: isClearingData ? 0.6 : 1,
                       pointerEvents: isClearingData ? 'none' : 'auto'
                     }}
@@ -319,7 +317,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
-                      boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
                       opacity: isImporting === 'csv-threads' ? 0.6 : 1,
                       pointerEvents: isImporting === 'csv-threads' ? 'none' : 'auto'
                     }}
@@ -357,7 +354,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
-                      boxShadow: '0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset',
                       opacity: isImporting === 'markdown' ? 0.6 : 1,
                       pointerEvents: isImporting === 'markdown' ? 'none' : 'auto'
                     }}
