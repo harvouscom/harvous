@@ -105,23 +105,23 @@ export default function NewTagPanel({
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
         {/* Content area that expands to fill available space */}
-        <div className="flex-1 flex flex-col min-h-0 mb-3.5">
-          {/* Single unified panel using CardStack structure */}
-          <div className="box-border content-stretch flex flex-col items-start justify-start overflow-clip pb-6 pt-0 px-0 relative rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] size-full">
-            {/* Header section with paper background */}
-            <div className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 text-[var(--color-deep-grey)] w-full" style={{ backgroundColor: 'var(--color-paper)' }}>
-              <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
-                <p className="leading-[normal]">New Tag</p>
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Panel container */}
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+            {/* Header section */}
+            <div className="panel__header">
+              <div className="panel__title">
+                <p>New Tag</p>
               </div>
             </div>
             
             {/* Content area */}
-            <div className="basis-0 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-px min-w-px overflow-clip relative shrink-0 w-full">
-              <div className="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
-                <div className="basis-0 grow min-h-px min-w-px shrink-0 w-full">
+            <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
+              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                <div className="w-full">
                   
                   {/* Text input field */}
                   <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full mb-3">
