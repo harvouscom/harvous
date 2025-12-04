@@ -17,6 +17,18 @@
   border-radius: 24px;
   background: var(--color-gradient-gray);
   box-shadow: var(--shadow-small);
+
+  /* When used as a text-only input (no SVG icons), center the content */
+  &:not(:has(svg)) {
+    display: flex;
+    justify-content: center;
+  }
+
+  /* Input inside a text-only variant should take full width and center text */
+  &:not(:has(svg)) input {
+    text-align: center;
+    width: 100%;
+  }
 }
 
 .search-input__icon {
