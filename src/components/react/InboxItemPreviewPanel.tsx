@@ -490,7 +490,7 @@ export default function InboxItemPreviewPanel({
           <div className="box-border flex flex-col min-h-0 flex-1 items-start justify-start overflow-clip pb-6 pt-0 px-0 relative rounded-3xl shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full">
             {/* CardStack-like Header */}
             <div 
-              className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-3 px-6 relative shrink-0 w-full"
+              className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-3 px-3 relative shrink-0 w-full"
               style={{ 
                 backgroundColor: headerBgColor, 
                 color: textColor 

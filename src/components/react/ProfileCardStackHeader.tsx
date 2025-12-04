@@ -38,7 +38,7 @@ export default function ProfileCardStackHeader({
 
   return (
     <div 
-      className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-3 px-6 relative shrink-0 w-full"
+      className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-3 px-3 relative shrink-0 w-full"
       style={{
         backgroundColor: `var(--color-${color})`,
         color: 'var(--color-deep-grey)'
