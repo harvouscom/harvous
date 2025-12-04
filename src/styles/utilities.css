@@ -697,3 +697,212 @@
   white-space: normal;
 }
 
+/* ==========================================================================
+   Arbitrary Values - Text Sizes
+   Tailwind's text-[Xpx] syntax replacements
+   ========================================================================== */
+.text-\[11px\] { font-size: 11px; }
+.text-\[12px\] { font-size: 12px; }
+.text-\[14px\] { font-size: 14px; }
+.text-\[16px\] { font-size: 16px; }
+.text-\[18px\] { font-size: 18px; }
+.text-\[24px\] { font-size: 24px; }
+
+/* ==========================================================================
+   Arbitrary Values - Text Colors
+   ========================================================================== */
+.text-\[var\(--color-deep-grey\)\] { color: var(--color-deep-grey); }
+.text-\[var\(--color-stone-grey\)\] { color: var(--color-stone-grey); }
+.text-\[var\(--color-pebble-grey\)\] { color: var(--color-pebble-grey); }
+.text-\[var\(--color-fog-white\)\] { color: var(--color-fog-white); }
+.text-\[var\(--color-bold-blue\)\] { color: var(--color-bold-blue); }
+.text-\[\#4a473d\] { color: #4a473d; }
+.text-\[\#78766f\] { color: #78766f; }
+
+/* ==========================================================================
+   Arbitrary Values - Heights
+   ========================================================================== */
+.h-\[24px\] { height: 24px; }
+.h-\[42\.426px\] { height: 42.426px; }
+.h-\[48px\] { height: 48px; }
+.h-\[50px\] { height: 50px; }
+.h-\[52px\] { height: 52px; }
+.h-\[60px\] { height: 60px; }
+.h-\[64px\] { height: 64px; }
+.h-\[89px\] { height: 89px; }
+.h-\[96px\] { height: 96px; }
+.h-\[120px\] { height: 120px; }
+.h-\[180px\] { height: 180px; }
+.h-\[200px\] { height: 200px; }
+.h-\[300px\] { height: 300px; }
+.h-\[400px\] { height: 400px; }
+.h-\[2\.5rem\] { height: 2.5rem; }
+.h-\[90vh\] { height: 90vh; }
+.h-\[100svh\] { height: 100svh; }
+
+/* ==========================================================================
+   Arbitrary Values - Widths
+   ========================================================================== */
+.w-\[64px\] { width: 64px; }
+.w-\[140px\] { width: 140px; }
+.w-\[220px\] { width: 220px; }
+.w-\[230px\] { width: 230px; }
+.w-\[250px\] { width: 250px; }
+
+/* ==========================================================================
+   Arbitrary Values - Backgrounds
+   ========================================================================== */
+.bg-\[var\(--color-snow-white\)\] { background-color: var(--color-snow-white); }
+.bg-\[var\(--color-bold-blue\)\] { background-color: var(--color-bold-blue); }
+.bg-\[var\(--color-gray\)\] { background-color: var(--color-gray); }
+.bg-\[var\(--color-light-paper\)\] { background-color: var(--color-light-paper); }
+.bg-\[var\(--color-stone-grey\)\] { background-color: var(--color-stone-grey); }
+.bg-\[var\(--color-deep-grey\)\] { background-color: var(--color-deep-grey); }
+.bg-\[var\(--color-paper\)\] { background-color: var(--color-paper); }
+.bg-\[rgba\(120\,118\,111\,0\.1\)\] { background-color: rgba(120, 118, 111, 0.1); }
+.bg-\[\#4a473d\] { background-color: #4a473d; }
+.bg-\[\#f3f2ec\] { background-color: #f3f2ec; }
+
+/* ==========================================================================
+   Arbitrary Values - Padding
+   ========================================================================== */
+.p-\[8px\] { padding: 8px; }
+.p-\[12px\] { padding: 12px; }
+.p-\[17px\] { padding: 17px; }
+.p-\[20px\] { padding: 20px; }
+.p-\[66px\] { padding: 66px; }
+
+/* ==========================================================================
+   Arbitrary Values - Border Radius
+   ========================================================================== */
+.rounded-\[3px\] { border-radius: 3px; }
+.rounded-\[12px\] { border-radius: 12px; }
+.rounded-\[24px\] { border-radius: 24px; }
+.rounded-\[64px\] { border-radius: 64px; }
+.rounded-tl-\[24px\] { border-top-left-radius: 24px; }
+.rounded-tr-\[24px\] { border-top-right-radius: 24px; }
+.rounded-bl-\[24px\] { border-bottom-left-radius: 24px; }
+.rounded-br-\[24px\] { border-bottom-right-radius: 24px; }
+
+/* ==========================================================================
+   Arbitrary Values - Shadows
+   ========================================================================== */
+.shadow-\[0px_3px_20px_0px_rgba\(120\,118\,111\,0\.1\)\] {
+  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
+}
+.shadow-\[0px_-2px_0px_0px_rgba\(0\,0\,0\,0\.1\)_inset\] {
+  box-shadow: 0px -2px 0px 0px rgba(0, 0, 0, 0.1) inset;
+}
+.shadow-\[0px_-8px_0px_0px_rgba\(0\,0\,0\,0\.1\)_inset\] {
+  box-shadow: 0px -8px 0px 0px rgba(0, 0, 0, 0.1) inset;
+}
+.shadow-\[0px_4px_4px_0px_rgba\(0\,0\,0\,0\.25\)\] {
+  box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.25);
+}
+.shadow-\[0px_-4px_0px_0px_inset_rgba\(0\,0\,0\,0\.1\)\] {
+  box-shadow: 0px -4px 0px 0px rgba(0, 0, 0, 0.1) inset;
+}
+.shadow-\[0px_-4px_0px_0px_rgba\(0\,0\,0\,0\.1\)_inset\] {
+  box-shadow: 0px -4px 0px 0px rgba(0, 0, 0, 0.1) inset;
+}
+.shadow-\[-4px_0px_4px_0px_rgba\(0\,0\,0\,0\.05\)\,0px_2px_4px_0px_rgba\(0\,0\,0\,0\.05\)\] {
+  box-shadow: -4px 0px 4px 0px rgba(0, 0, 0, 0.05), 0px 2px 4px 0px rgba(0, 0, 0, 0.05);
+}
+.shadow-\[0px_-3px_0px_0px_rgba\(120\,118\,111\,0\.2\)_inset\] {
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+}
+
+/* ==========================================================================
+   Arbitrary Values - Border Colors
+   ========================================================================== */
+.border-\[var\(--color-fog-white\)\] { border-color: var(--color-fog-white); }
+.border-\[rgba\(120\,118\,111\,0\.15\)\] { border-color: rgba(120, 118, 111, 0.15); }
+.border-\[\#f7f7f6\] { border-color: #f7f7f6; }
+
+/* ==========================================================================
+   Arbitrary Values - Fill Colors (for SVGs)
+   ========================================================================== */
+.fill-\[var\(--color-deep-grey\)\] { fill: var(--color-deep-grey); }
+.fill-\[var\(--color-stone-grey\)\] { fill: var(--color-stone-grey); }
+.fill-\[var\(--color-pebble-grey\)\] { fill: var(--color-pebble-grey); }
+
+/* ==========================================================================
+   Responsive Breakpoint - Desktop (1160px)
+   ========================================================================== */
+@media (min-width: 1160px) {
+  .min-\[1160px\]\:flex { display: flex; }
+  .min-\[1160px\]\:hidden { display: none; }
+  .min-\[1160px\]\:block { display: block; }
+  .min-\[1160px\]\:grid { display: grid; }
+}
+
+@media (max-width: 1159px) {
+  .max-\[1159px\]\:flex { display: flex; }
+  .max-\[1159px\]\:hidden { display: none; }
+  .max-\[1159px\]\:block { display: block; }
+}
+
+/* ==========================================================================
+   Arbitrary Values - Additional Padding (directional)
+   ========================================================================== */
+.pt-\[4px\] { padding-top: 4px; }
+.pt-\[10px\] { padding-top: 10px; }
+.pt-\[18px\] { padding-top: 18px; }
+.pb-\[28px\] { padding-bottom: 28px; }
+.pl-\[4px\] { padding-left: 4px; }
+.pr-\[12px\] { padding-right: 12px; }
+
+/* ==========================================================================
+   Arbitrary Values - Negative Margins
+   ========================================================================== */
+.mb-\[-24px\] { margin-bottom: -24px; }
+.-mb-\[24px\] { margin-bottom: -24px; }
+
+/* ==========================================================================
+   Arbitrary Values - Max Heights
+   ========================================================================== */
+.max-h-\[200px\] { max-height: 200px; }
+.max-h-\[300px\] { max-height: 300px; }
+.max-h-\[90vh\] { max-height: 90vh; }
+
+/* ==========================================================================
+   Arbitrary Values - Transition Properties
+   ========================================================================== */
+.transition-\[scale\,shadow\] {
+  transition-property: scale, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.transition-\[transform\,box-shadow\] {
+  transition-property: transform, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* ==========================================================================
+   Arbitrary Values - Scale Transforms
+   ========================================================================== */
+.scale-y-\[-100\%\] { transform: scaleY(-1); }
+.scale-\[1\.002\] { transform: scale(1.002); }
+.hover\:scale-\[1\.002\]:hover { transform: scale(1.002); }
+
+/* ==========================================================================
+   Arbitrary Values - Line Heights
+   ========================================================================== */
+.leading-\[0\] { line-height: 0; }
+.leading-\[normal\] { line-height: normal; }
+.leading-\[1\.2\] { line-height: 1.2; }
+
+/* ==========================================================================
+   Arbitrary Values - Top/Right/Bottom/Left
+   ========================================================================== */
+.top-\[18px\] { top: 18px; }
+.right-\[18px\] { right: 18px; }
+
+/* ==========================================================================
+   Arbitrary Values - Size (width + height combined)
+   ========================================================================== */
+.size-\[20px\] { width: 20px; height: 20px; }
+.size-\[24px\] { width: 24px; height: 24px; }
+
