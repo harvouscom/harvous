@@ -432,14 +432,11 @@ export default function InboxItemPreviewPanel({
           margin-bottom: 0 !important;
         }
       `}</style>
-    <div className="h-full flex flex-col relative" style={{ height: '100%', maxHeight: '100%', minHeight: 0 }}>
+    <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`} style={{ height: '100%', maxHeight: '100%', minHeight: 0 }}>
       {/* Loading indicator - progress bar at top */}
       {isLoading && (
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-[var(--color-gray)] overflow-hidden rounded-t-[24px] z-50 pointer-events-none">
-          <div className="h-full bg-[var(--color-bold-blue)]" style={{
-            animation: 'progress 1.5s ease-in-out infinite',
-            width: '100%'
-          }}></div>
+        <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, zIndex: 50 }}>
+          <div className="panel__progress-fill"></div>
         </div>
       )}
       {/* Content area that expands to fill available space - matches NewNotePanel structure */}
