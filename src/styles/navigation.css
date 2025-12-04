@@ -362,14 +362,14 @@
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   z-index: 9999;
   max-height: 352px;
+  overflow: hidden; /* Clip content to border-radius */
 }
 
 .mobile-nav__dropdown-scroll {
   overflow-y: auto;
   max-height: 352px;
   padding-bottom: 64px;
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
+  /* Removed border-radius - parent dropdown has it, and radius+overflow clips shadows */
 }
 
 .mobile-nav__new-space {
