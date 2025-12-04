@@ -10,6 +10,10 @@
 .block { display: block; }
 .inline-block { display: inline-block; }
 .inline { display: inline; }
+.flex { display: flex; }
+.inline-flex { display: inline-flex; }
+.hidden { display: none; }
+.grid { display: grid; }
 
 /* ==========================================================================
    Flexbox
@@ -133,6 +137,7 @@
 .pb-4 { padding-bottom: 1rem; }
 .pb-5 { padding-bottom: 1.25rem; }
 .pb-6 { padding-bottom: 1.5rem; }
+.pb-7 { padding-bottom: 1.75rem; }
 .pb-12 { padding-bottom: 3rem; }
 
 .pl-0 { padding-left: 0; }
@@ -198,6 +203,14 @@
 .mr-3 { margin-right: 0.75rem; }
 .mr-4 { margin-right: 1rem; }
 .mr-auto { margin-right: auto; }
+
+.mb-3\.5 { margin-bottom: 0.875rem; }
+
+/* Space-Y utilities (vertical spacing between children) */
+.space-y-2 > * + * { margin-top: 0.5rem; }
+.space-y-3 > * + * { margin-top: 0.75rem; }
+.space-y-4 > * + * { margin-top: 1rem; }
+.space-y-6 > * + * { margin-top: 1.5rem; }
 
 /* ==========================================================================
    Sizing - Width

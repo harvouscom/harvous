@@ -371,3 +371,90 @@
   font-size: inherit;
 }
 
+/* ==========================================================================
+   Modal / Dialog
+   ========================================================================== */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-dialog {
+  background-color: white;
+  border-radius: 0.75rem;  /* 12px */
+  padding: 1.5rem;  /* 24px */
+  max-width: 28rem;  /* 448px / max-w-md */
+  width: 100%;
+  margin-left: 1rem;
+  margin-right: 1rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.modal-title {
+  font-size: 1.125rem;  /* 18px / text-lg */
+  font-weight: 600;
+  color: var(--color-deep-grey);
+  margin-bottom: 0.5rem;  /* 8px */
+}
+
+.modal-body {
+  color: var(--color-deep-grey);
+  margin-bottom: 1rem;  /* 16px */
+}
+
+.modal-footer {
+  display: flex;
+  gap: 0.75rem;  /* 12px */
+  justify-content: flex-end;
+}
+
+.modal-btn {
+  padding: 0.5rem 1rem;  /* py-2 px-4 */
+  border-radius: 0.5rem;  /* rounded-lg */
+  font-weight: 500;
+  transition: background-color 0.15s, opacity 0.15s;
+  cursor: pointer;
+}
+
+.modal-btn--cancel {
+  color: var(--color-deep-grey);
+  background-color: transparent;
+
+  &:hover {
+    background-color: var(--color-gray);
+  }
+}
+
+.modal-btn--secondary {
+  background-color: var(--color-stone-grey);
+  color: white;
+
+  &:hover {
+    opacity: 0.9;
+  }
+}
+
+.modal-btn--primary {
+  background-color: var(--color-bold-blue);
+  color: white;
+
+  &:hover {
+    opacity: 0.9;
+  }
+}
+
+.modal-btn--danger {
+  background-color: var(--color-red);
+  color: white;
+
+  &:hover {
+    opacity: 0.9;
+  }
+}
+

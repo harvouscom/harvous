@@ -94,12 +94,13 @@
     box-shadow: 0 0 0 2px rgba(65, 132, 242, 0.2);
   }
 
-  &--error {
-    border-color: var(--color-red);
+}
 
-    &:focus {
-      box-shadow: 0 0 0 2px rgba(225, 59, 84, 0.2);
-    }
+.text-input--error {
+  border-color: var(--color-red);
+
+  &:focus {
+    box-shadow: 0 0 0 2px rgba(225, 59, 84, 0.2);
   }
 }
 
@@ -207,13 +208,13 @@
     transition: transform 0.2s;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
+}
 
-  &--active {
-    background-color: var(--color-bold-blue);
+.toggle--active {
+  background-color: var(--color-bold-blue);
 
-    &::after {
-      transform: translateX(20px);
-    }
+  &::after {
+    transform: translateX(20px);
   }
 }
 
@@ -248,4 +249,20 @@
   font-family: var(--font-sans);
   font-size: 12px;
   color: var(--color-red);
+}
+
+/* ==========================================================================
+   Color Swatch (Thread color picker)
+   ========================================================================== */
+.color-swatch {
+  position: relative;
+  width: 2.5rem;  /* 40px / size-10 */
+  height: 2.5rem;
+  border-radius: 0.75rem;  /* 12px / rounded-xl */
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.color-swatch--selected {
+  box-shadow: 0 0 0 2px var(--color-deep-grey), 0 0 0 4px white;
 }

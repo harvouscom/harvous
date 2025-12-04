@@ -74,13 +74,13 @@
   flex-shrink: 0;
   width: 80px;
   height: 68px;
+}
 
-  &--with-image {
-    background-color: var(--color-aged-paper);
-    background-position: center;
-    background-size: cover;
-    background-repeat: no-repeat;
-  }
+.card-note__sidebar--with-image {
+  background-color: var(--color-aged-paper);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 .card-note__sidebar-icon {
@@ -472,12 +472,12 @@
   flex-shrink: 0;
   width: 100%;
   background-color: #f3f2ec;
+}
 
-  &--image {
-    background-position: center;
-    background-size: cover;
-    background-repeat: no-repeat;
-  }
+.card-feat__bg--image {
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 .card-feat__icon {
