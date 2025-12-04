@@ -35,6 +35,7 @@
    Space Button States & Animation
    ========================================================================== */
 .space-button {
+  width: 100%;
   will-change: transform, box-shadow;
   transition: box-shadow 0.125s ease-in-out, transform 0.125s ease-in-out;
 }

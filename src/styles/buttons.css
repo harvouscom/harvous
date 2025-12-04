@@ -146,14 +146,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
   border-radius: 1.5rem;
   cursor: pointer;
   background-image: var(--color-gradient-gray);
   box-shadow: 0px -3px 0px 0px #78766F33 inset;
   transition: box-shadow 0.125s ease-in-out;
   will-change: transform, box-shadow;
+  /* Default size - can be overridden by className */
+}
+
+/* Default size when no size class is provided */
+.btn-action:not([class*="w-"]) {
+  width: 40px;
+}
+
+.btn-action:not([class*="h-"]) {
+  height: 40px;
 }
 
 .btn-action:active {
