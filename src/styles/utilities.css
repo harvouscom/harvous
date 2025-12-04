@@ -834,6 +834,16 @@
   .min-\[1160px\]\:hidden { display: none; }
   .min-\[1160px\]\:block { display: block; }
   .min-\[1160px\]\:grid { display: grid; }
+  
+  /* Padding */
+  .min-\[1160px\]\:p-0 { padding: 0; }
+  .min-\[1160px\]\:p-3 { padding: 0.75rem; }
+  .min-\[1160px\]\:p-4 { padding: 1rem; }
+  .min-\[1160px\]\:p-6 { padding: 1.5rem; }
+  .min-\[1160px\]\:p-8 { padding: 2rem; }
+  
+  .min-\[1160px\]\:px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+  .min-\[1160px\]\:py-6 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
 }
 
 @media (max-width: 1159px) {
