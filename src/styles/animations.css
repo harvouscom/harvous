@@ -303,10 +303,10 @@
 /* Clip-path reveals content from 64px line downward */
 @keyframes dropdownRevealDown {
   from {
-    clip-path: inset(0 0 calc(100% - 64px) 0);
+    clip-path: inset(0 0 calc(100% - 64px) 0 round 24px);
   }
   to {
-    clip-path: inset(0 0 0 0);
+    clip-path: inset(0 round 24px);
   }
 }
 
@@ -327,9 +327,7 @@
 }
 
 .dropdown-enter {
-  animation: 
-    dropdownSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both,
-    dropdownRevealDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: dropdownSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
   background: white;
-  /* Removed overflow: hidden - was clipping shadows */
+  /* Removed clip-path animation - was clipping rounded corners and shadows */
 }
