@@ -108,32 +108,19 @@ const CardNote: React.FC<CardNoteProps> = ({
   onClick
 }) => {
   return (
-    <>
-      <style>{`
-        @media (hover: hover) {
-          .card-note-container:hover {
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            transform: scale(1.005);
-          }
-        }
-      `}</style>
-      <div 
-        className={`card-note-container bg-white relative rounded-xl h-22 transition-all duration-200 active:scale-[0.98] active:opacity-95 cursor-pointer ${className}`}
-        style={{ touchAction: 'manipulation' }}
-        onClick={onClick}
-      >
+    <div className={`card card-note ${className}`} onClick={onClick}>
       {variant === "default" && (
-        <div className="relative rounded-xl h-full">
-          <div className="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
+        <div className="card-note__inner">
+          <div className="card-note__content">
             {/* Left sidebar with note type icon */}
-            <div className="bg-[var(--color-light-paper)] box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" style={{ height: '68px' }}>
-              <div className="relative shrink-0 size-5">
+            <div className="card-note__sidebar">
+              <div className="card-note__sidebar-icon">
                 {noteType === 'scripture' ? (
                   <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
                 ) : noteType === 'resource' ? (
                   <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
                 ) : (
-                  <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+                  <svg fill="currentColor" viewBox="0 0 24 24">
                     <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
                   </svg>
                 )}
@@ -141,43 +128,36 @@ const CardNote: React.FC<CardNoteProps> = ({
             </div>
             
             {/* Right content area */}
-            <div className="basis-0 content-stretch flex gap-6 grow items-start justify-start min-h-px min-w-px relative shrink-0 pt-2">
-              <div className="basis-0 content-stretch flex flex-col gap-1 grow items-start justify-start leading-[0] min-h-px min-w-px not-italic relative self-stretch shrink-0">
-                {/* Title */}
-                <div className="flex flex-col font-bold justify-start overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] text-nowrap w-full">
-                  <p className="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
-                    {title || "Quick Tour of Harvous"}
-                  </p>
+            <div className="card-note__body">
+              <div className="card-note__text">
+                <div className="card-note__title">
+                  <p>{title || "Quick Tour of Harvous"}</p>
                 </div>
-                
-                {/* Content */}
-                <div className="flex flex-col font-normal justify-start overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
-                  <p className="leading-[1.3] line-clamp-2">
-                    {content ? stripHtml(content) : ""}
-                  </p>
+                <div className="card-note__excerpt">
+                  <p>{content ? stripHtml(content) : ""}</p>
                 </div>
               </div>
             </div>
           </div>
-          <div aria-hidden="true" className="absolute border border-[#f7f7f6] border-solid inset-0 pointer-events-none rounded-xl"></div>
+          <div aria-hidden="true" className="card__border" style={{ borderColor: '#f7f7f6' }} />
         </div>
       )}
 
       {variant === "withImage" && (
-        <div className="relative rounded-xl h-full">
-          <div className="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
+        <div className="card-note__inner">
+          <div className="card-note__content">
             {/* Left sidebar with image background and note type icon */}
             <div 
-              className="bg-center bg-cover bg-no-repeat box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" 
-              style={imageUrl ? { backgroundImage: `url('${imageUrl}')`, height: '68px' } : { backgroundColor: 'var(--color-aged-paper)', height: '68px' }}
+              className="card-note__sidebar card-note__sidebar--with-image"
+              style={imageUrl ? { backgroundImage: `url('${imageUrl}')` } : undefined}
             >
-              <div className="relative shrink-0 size-5">
+              <div className="card-note__sidebar-icon">
                 {noteType === 'scripture' ? (
                   <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
                 ) : noteType === 'resource' ? (
                   <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
                 ) : (
-                  <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+                  <svg fill="currentColor" viewBox="0 0 24 24">
                     <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
                   </svg>
                 )}
@@ -185,29 +165,21 @@ const CardNote: React.FC<CardNoteProps> = ({
             </div>
             
             {/* Right content area */}
-            <div className="basis-0 content-stretch flex gap-6 grow items-start justify-start min-h-px min-w-px relative shrink-0 pt-2">
-              <div className="basis-0 content-stretch flex flex-col gap-1 grow items-start justify-start leading-[0] min-h-px min-w-px not-italic relative self-stretch shrink-0">
-                {/* Title */}
-                <div className="flex flex-col font-bold justify-start overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] text-nowrap w-full">
-                  <p className="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
-                    {title || "Note with Image"}
-                  </p>
+            <div className="card-note__body">
+              <div className="card-note__text">
+                <div className="card-note__title">
+                  <p>{title || "Note with Image"}</p>
                 </div>
-                
-                {/* Content */}
-                <div className="flex flex-col font-normal justify-start overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
-                  <p className="leading-[1.3] line-clamp-2">
-                    {content ? stripHtml(content) : ""}
-                  </p>
+                <div className="card-note__excerpt">
+                  <p>{content ? stripHtml(content) : ""}</p>
                 </div>
               </div>
             </div>
           </div>
-          <div aria-hidden="true" className="absolute border border-[var(--color-fog-white)] border-solid inset-0 pointer-events-none rounded-xl"></div>
+          <div aria-hidden="true" className="card__border" />
         </div>
       )}
-      </div>
-    </>
+    </div>
   );
 };
 
