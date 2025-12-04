@@ -147,7 +147,7 @@
   gap: 0.75rem;  /* 12px */
   align-items: stretch;  /* Allow children to take full width */
   justify-content: flex-start;
-  overflow: visible;  /* Changed from overflow-x: clip to prevent content clipping */
+  overflow-x: clip;
   padding: 12px;
   position: relative;
   border-top-left-radius: 24px;
@@ -356,5 +356,18 @@
   width: 100%;
   color: var(--color-pebble-grey);
   font-size: 0.75rem;  /* 12px */
+}
+
+/* Button footer variant - for panels with action buttons */
+.panel__footer--buttons {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;  /* 12px */
+  flex-shrink: 0;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
 }
 

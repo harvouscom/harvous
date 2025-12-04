@@ -57,9 +57,9 @@ const textColor = getThreadTextColorCSS(colorName);
   )}
   
   <!-- Content area -->
-  <div class="basis-0 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-px min-w-px overflow-clip relative shrink-0 w-full">
-    <div class="basis-0 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-px min-w-px overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] shrink-0 w-full">
-      <div class="basis-0 grow min-h-px min-w-px shrink-0 w-full">
+  <div class="flex-1 box-border content-stretch flex flex-col grow items-start justify-start mb-[-24px] min-h-0 overflow-hidden relative w-full">
+    <div class="flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 grow items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full">
+      <div class="w-full">
         <slot />
       </div>
     </div>

@@ -225,11 +225,7 @@ try {
   </div>
 
   <!-- Main Column -->
-  <div slot="main" class="h-full" id="dashboard-content" data-navigation-item="dashboard" data-title="For You" data-count={inboxItemCount} data-background-gradient="var(--color-paper)">
-          <div class="flex flex-col h-full">
-            
-            <!-- Content List -->
-            <div class="flex-1">
+  <div slot="main" class="h-full min-h-0 overflow-hidden" id="dashboard-content" data-navigation-item="dashboard" data-title="For You" data-count={inboxItemCount} data-background-gradient="var(--color-paper)">
               <CardStack title="For You" subtitle="" headerBgColor="var(--color-paper)">
                 <div slot="header-actions" class="flex gap-2">
                   <button 
@@ -385,8 +381,6 @@ try {
                 </div>
               </div>
               </CardStack>
-            </div>
-          </div>
   </div>
 
 
