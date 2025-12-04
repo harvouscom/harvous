@@ -1,0 +1,196 @@
+/*
+ * Button Component Styles
+ * Semantic button classes replacing Tailwind utilities
+ */
+
+/* ==========================================================================
+   Base Button
+   ========================================================================== */
+.btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.5rem; /* rounded-3xl */
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-fog-white);
+  transition: transform 0.3s, box-shadow 0.3s;
+  will-change: transform, box-shadow;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn__content {
+  position: relative;
+  flex-shrink: 0;
+  transition: transform 0.125s ease-in-out;
+}
+
+.btn:active .btn__content {
+  transform: scale(0.98);
+}
+
+/* Inner shadow overlay */
+.btn__shadow-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  transition: box-shadow 0.125s ease-in-out;
+}
+
+/* ==========================================================================
+   Button Sizes
+   ========================================================================== */
+
+/* Large button (Button.astro) */
+.btn--lg {
+  padding: 1.5rem 1.5rem 1.75rem; /* pt-6 px-6 pb-7 */
+  font-size: 18px;
+  line-height: 0;
+  min-height: 60px;
+  width: 100%;
+  box-shadow:
+    0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+    0px 4px 4px 0px hsla(0, 0%, 0%, 0.25);
+}
+
+.btn--lg .btn__shadow-overlay {
+  box-shadow: 0px -8px 0px 0px rgba(0, 0, 0, 0.1) inset;
+}
+
+.btn--lg:active .btn__shadow-overlay {
+  box-shadow: 0px -2px 0px 0px rgba(0, 0, 0, 0.1) inset;
+}
+
+/* Small button (ButtonSmall) */
+.btn--sm {
+  padding: 0.75rem 1rem 1rem; /* pt-3 px-4 pb-4 */
+  font-size: 14px;
+  line-height: 0;
+  min-height: 40px;
+  border-radius: 1rem; /* rounded-2xl */
+  box-shadow:
+    0px -4px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+    0px 2px 2px 0px hsla(0, 0%, 0%, 0.25);
+}
+
+.btn--sm .btn__shadow-overlay {
+  box-shadow: 0px -4px 0px 0px rgba(0, 0, 0, 0.1) inset;
+}
+
+.btn--sm:active .btn__shadow-overlay {
+  box-shadow: 0px -1px 0px 0px rgba(0, 0, 0, 0.1) inset;
+}
+
+/* ==========================================================================
+   Button Variants (Colors)
+   ========================================================================== */
+
+/* Primary (Default) - Bold Blue */
+.btn--primary {
+  background-color: var(--color-bold-blue);
+}
+
+.btn--primary:active {
+  background-color: var(--color-navy);
+}
+
+/* Secondary - Stone Grey */
+.btn--secondary {
+  background-color: var(--color-stone-grey);
+}
+
+.btn--secondary:active {
+  background-color: var(--color-deep-grey);
+}
+
+/* Delete/Danger - Red */
+.btn--danger {
+  background-color: var(--color-red);
+}
+
+.btn--danger:active {
+  background-color: #b30524;
+}
+
+/* Active state shadows for all variants */
+.btn--primary:active,
+.btn--secondary:active,
+.btn--danger:active {
+  box-shadow:
+    0px -4px 0px 0px #0000001a inset,
+    0px 0px 4px 0px #00000040,
+    0px 4px 0px 0px #00000040 inset;
+}
+
+.btn--sm.btn--primary:active,
+.btn--sm.btn--secondary:active,
+.btn--sm.btn--danger:active {
+  box-shadow:
+    0px -2px 0px 0px #0000001a inset,
+    0px 0px 2px 0px #00000040,
+    0px 2px 0px 0px #00000040 inset;
+}
+
+/* ==========================================================================
+   Action Button (Round icon button)
+   ========================================================================== */
+.btn-action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 1.5rem;
+  cursor: pointer;
+  background-image: var(--color-gradient-gray);
+  box-shadow: 0px -3px 0px 0px #78766F33 inset;
+  transition: box-shadow 0.125s ease-in-out;
+  will-change: transform, box-shadow;
+}
+
+.btn-action:active {
+  filter: brightness(0.97);
+  box-shadow: 
+    0px -1px 0px 0px #78766F33 inset,
+    0px 1px 0px 0px #78766F33 inset;
+}
+
+.btn-action__icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  fill: var(--color-pebble-grey);
+}
+
+.btn-action__icon svg {
+  width: 16px;
+  height: 16px;
+  transform: translateY(-2px);
+  transition: transform 0.125s ease-in-out;
+}
+
+.btn-action:active .btn-action__icon svg {
+  transform: translateY(-2px) scale(0.95);
+}
+
+/* ==========================================================================
+   Disabled State
+   ========================================================================== */
+.btn:disabled,
+.btn-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
