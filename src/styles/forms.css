@@ -1,0 +1,235 @@
+/*
+ * Form Component Styles
+ * Semantic classes for form elements
+ */
+
+/* ==========================================================================
+   Search Input
+   ========================================================================== */
+.search-input {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 16px;
+  min-height: 64px;
+  border-radius: 24px;
+  background: var(--color-gradient-gray);
+  box-shadow: var(--shadow-small);
+}
+
+.search-input__icon {
+  width: 20px;
+  height: 20px;
+  fill: var(--color-pebble-grey);
+  flex-shrink: 0;
+}
+
+.search-input__field {
+  outline: none;
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-deep-grey);
+  width: 100%;
+}
+
+.search-input__field::placeholder {
+  color: var(--color-pebble-grey);
+}
+
+.search-input__clear {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none !important;
+}
+
+.search-input__clear svg {
+  width: 20px;
+  height: 20px;
+  fill: var(--color-deep-grey);
+}
+
+/* ==========================================================================
+   Text Input
+   ========================================================================== */
+.text-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--color-fog-white);
+  background-color: var(--color-white);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  color: var(--color-deep-grey);
+  outline: none;
+  transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.text-input::placeholder {
+  color: var(--color-stone-grey);
+}
+
+.text-input:focus {
+  border-color: var(--color-bold-blue);
+  box-shadow: 0 0 0 2px rgba(65, 132, 242, 0.2);
+}
+
+.text-input--error {
+  border-color: var(--color-red);
+}
+
+.text-input--error:focus {
+  box-shadow: 0 0 0 2px rgba(225, 59, 84, 0.2);
+}
+
+/* ==========================================================================
+   Title Input (Large, borderless)
+   ========================================================================== */
+.title-input {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--color-deep-grey);
+  outline: none;
+  line-height: 1.2;
+}
+
+.title-input::placeholder {
+  color: var(--color-stone-grey);
+  opacity: 0.5;
+}
+
+/* ==========================================================================
+   Select/Dropdown
+   ========================================================================== */
+.select {
+  width: 100%;
+  padding: 12px 16px;
+  padding-right: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--color-fog-white);
+  background-color: var(--color-white);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  color: var(--color-deep-grey);
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%2378766F' d='M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  transition: border-color 0.2s ease-in-out;
+}
+
+.select:focus {
+  border-color: var(--color-bold-blue);
+}
+
+/* ==========================================================================
+   Checkbox
+   ========================================================================== */
+.checkbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 2px solid var(--color-stone-grey);
+  background-color: var(--color-white);
+  cursor: pointer;
+  appearance: none;
+  position: relative;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.checkbox:checked {
+  background-color: var(--color-bold-blue);
+  border-color: var(--color-bold-blue);
+}
+
+.checkbox:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 6px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* ==========================================================================
+   Toggle Switch
+   ========================================================================== */
+.toggle {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
+  background-color: var(--color-stone-grey);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: white;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggle--active {
+  background-color: var(--color-bold-blue);
+}
+
+.toggle--active::after {
+  transform: translateX(20px);
+}
+
+/* ==========================================================================
+   Form Group (Label + Input)
+   ========================================================================== */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-deep-grey);
+}
+
+.form-hint {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-stone-grey);
+}
+
+.form-error {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-red);
+}
+
