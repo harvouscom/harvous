@@ -547,13 +547,13 @@ export default function MyChurchPanel({
                   type="button"
                   onClick={handleRemoveChurch}
                   disabled={isSubmitting}
-                  className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[60px] w-full shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-cta w-full group"
                   style={{ backgroundColor: 'var(--color-red)' }}
                 >
-                  <div className="relative shrink-0 transition-transform duration-125">
+                  <span className="btn-cta__content">
                     {isSubmitting ? 'Removing...' : 'Remove Church'}
-                  </div>
-                  <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+                  </span>
+                  <div className="btn-cta__shadow" />
                 </button>
               </div>
             </div>
@@ -561,7 +561,7 @@ export default function MyChurchPanel({
         </div>
 
         {/* Bottom buttons */}
-        <div className="flex items-center justify-between gap-3 shrink-0">
+        <div className="panel__footer--buttons">
           {/* Back button - SquareButton Back variant */}
           <SquareButton 
             variant="Back"
@@ -660,7 +660,7 @@ export default function MyChurchPanel({
         </div>
 
         {/* Bottom buttons */}
-        <div className="flex items-center justify-between gap-3 shrink-0">
+        <div className="panel__footer--buttons">
           {/* Back button - SquareButton Back variant */}
           <SquareButton 
             variant="Back"
@@ -673,14 +673,13 @@ export default function MyChurchPanel({
             type="submit"
             disabled={isSubmitting || !formData.churchName.trim() || !formData.churchCity.trim() || !formData.churchState.trim() || (hasExistingData && !hasUnsavedChanges())}
             data-outer-shadow
-            className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: 'var(--color-bold-blue)' }}
+            className="btn-cta flex-1 group"
             tabIndex={3}
           >
-            <div className="relative shrink-0 transition-transform duration-125">
+            <span className="btn-cta__content">
               {isSubmitting ? 'Saving...' : (hasExistingData ? 'Save Changes' : 'Add Church')}
-            </div>
-            <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+            </span>
+            <div className="btn-cta__shadow" />
           </button>
         </div>
       </form>
@@ -688,10 +687,11 @@ export default function MyChurchPanel({
       {/* Unsaved Changes Dialog - Rendered via Portal to ensure full viewport coverage */}
       {showUnsavedDialog && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 modal-overlay-enter"
+          className="modal-overlay modal-overlay-enter"
           style={{
             paddingTop: 'max(1rem, env(safe-area-inset-top))',
-            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
+            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+            padding: '1rem'
           }}
           onClick={(e) => {
             // Close dialog if clicking on the overlay (but not the dialog content)
@@ -701,17 +701,17 @@ export default function MyChurchPanel({
           }}
         >
           <div 
-            className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg modal-content-enter"
+            className="modal-dialog modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}
           >
-            <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
+            <h3 className="modal-title">
               Unsaved Changes
             </h3>
-            <p className="text-[var(--color-pebble-grey)] mb-6">
+            <p className="modal-body" style={{ color: 'var(--color-pebble-grey)', marginBottom: '1.5rem' }}>
               You have unsaved changes. What would you like to do?
             </p>
-            <div className="flex gap-3 justify-end">
+            <div className="modal-footer">
               <ButtonSmall
                 type="button"
                 onClick={() => setShowUnsavedDialog(false)}

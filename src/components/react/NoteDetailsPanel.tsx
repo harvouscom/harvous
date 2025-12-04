@@ -442,15 +442,15 @@ export default function NoteDetailsPanel({
     <>
       {/* Confirmation Dialog for Removing Last Thread */}
       {showRemoveConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md mx-4 shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        <div className="modal-overlay">
+          <div className="modal-dialog">
+            <h3 className="modal-title">
               Remove from Last Thread?
             </h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="modal-body">
               This is the only thread this note belongs to. Removing it will move the note to the "Unorganized" thread. Are you sure you want to continue?
             </p>
-            <div className="flex gap-3 justify-end">
+            <div className="modal-footer">
               <ButtonSmall
                 type="button"
                 onClick={handleCancelRemove}
@@ -766,7 +766,7 @@ export default function NoteDetailsPanel({
       </div>
 
       {/* Bottom buttons */}
-      <div className="flex items-center justify-between gap-3 shrink-0">
+      <div className="panel__footer--buttons">
         {/* Back button - SquareButton Back variant */}
         <SquareButton 
           variant="Back"
@@ -780,13 +780,12 @@ export default function NoteDetailsPanel({
             type="button"
             onClick={addNewThread}
             data-outer-shadow
-            className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
-            style={{ backgroundColor: 'var(--color-bold-blue)' }}
+            className="btn-cta flex-1 group"
           >
-            <div className="relative shrink-0 transition-transform duration-125">
+            <span className="btn-cta__content">
               New Thread
-            </div>
-            <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+            </span>
+            <div className="btn-cta__shadow" />
           </button>
         )}
         
@@ -796,13 +795,12 @@ export default function NoteDetailsPanel({
             type="button"
             onClick={addNewTag}
             data-outer-shadow
-            className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]"
-            style={{ backgroundColor: 'var(--color-bold-blue)' }}
+            className="btn-cta flex-1 group"
           >
-            <div className="relative shrink-0 transition-transform duration-125">
+            <span className="btn-cta__content">
               New Tag
-            </div>
-            <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+            </span>
+            <div className="btn-cta__shadow" />
           </button>
         )}
       </div>

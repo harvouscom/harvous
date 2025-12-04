@@ -360,7 +360,7 @@ export default function MySpacesPanel({
       </div>
 
       {/* Bottom buttons */}
-      <div className="flex items-center justify-between gap-3 shrink-0">
+      <div className="panel__footer--buttons">
         {/* Back button - SquareButton Back variant */}
         <SquareButton 
           variant="Back"

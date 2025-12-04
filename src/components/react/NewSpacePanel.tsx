@@ -521,7 +521,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         </div>
 
         {/* Bottom buttons */}
-        <div className="flex items-center justify-between gap-3 shrink-0">
+        <div className="panel__footer--buttons">
           {/* Close button */}
           <SquareButton 
             variant="Close" 
@@ -534,47 +534,46 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
             type="submit"
             disabled={isSubmitting || !title.trim()}
             data-outer-shadow
-            className="group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] h-[64px] flex-1 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: 'var(--color-bold-blue)' }}
+            className="btn-cta flex-1 group"
             tabIndex={3}
           >
-            <div className="relative shrink-0 transition-transform duration-125">
+            <span className="btn-cta__content">
               {isSubmitting ? 'Creating...' : 'Create Space'}
-            </div>
-            <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
+            </span>
+            <div className="btn-cta__shadow" />
           </button>
         </div>
       </form>
 
       {/* Unsaved Changes Dialog */}
       {showUnsavedDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-lg">
-            <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
+        <div className="modal-overlay">
+          <div className="modal-dialog">
+            <h3 className="modal-title">
               Unsaved Changes
             </h3>
-            <p className="text-[var(--color-deep-grey)] mb-4">
+            <p className="modal-body">
               You have unsaved changes. What would you like to do?
             </p>
-            <div className="flex gap-3 justify-end">
+            <div className="modal-footer">
               <button
                 type="button"
                 onClick={() => setShowUnsavedDialog(false)}
-                className="px-4 py-2 text-[var(--color-deep-grey)] hover:bg-gray-100 rounded-lg transition-colors"
+                className="modal-btn modal-btn--cancel"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleDiscardChanges}
-                className="px-4 py-2 bg-[var(--color-stone-grey)] text-white rounded-lg hover:bg-opacity-90 transition-colors"
+                className="modal-btn modal-btn--secondary"
               >
                 Discard
               </button>
               <button
                 type="button"
                 onClick={handleSaveAndClose}
-                className="px-4 py-2 bg-[var(--color-bold-blue)] text-white rounded-lg hover:bg-opacity-90 transition-colors"
+                className="modal-btn modal-btn--primary"
               >
                 Save & Close
               </button>
