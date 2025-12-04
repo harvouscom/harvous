@@ -1,0 +1,115 @@
+/*
+ * Typography System
+ * Font families, sizes, and text utilities
+ */
+
+:root {
+  --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Heading Styles */
+.text-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 25.98px;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+  max-width: calc(100% - 44px);
+}
+
+.text-subtitle {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 100%;
+  letter-spacing: normal;
+}
+
+.text-body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 150%;
+  letter-spacing: normal;
+}
+
+.text-caption {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  line-height: 100%;
+  letter-spacing: normal;
+}
+
+.text-button-chonk {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 100%;
+  letter-spacing: normal;
+  text-box: trim-both cap alphabetic;
+}
+
+/* Superscript styling for verse numbers */
+sup {
+  font-size: 0.75em;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+  top: -0.5em;
+  font-weight: 400;
+  color: var(--color-pebble-grey);
+  margin-right: 0.1875em;
+}
+
+/* Trix editor content */
+.trix-content h1 {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 100%;
+  letter-spacing: normal;
+}
+
+.trix-content ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.trix-content ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.trix-content li {
+  display: list-item;
+  margin-bottom: 0.25em;
+}
+
+.trix-content ul li {
+  list-style-type: disc;
+}
+
+.trix-content ol li {
+  list-style-type: decimal;
+}
+
+/* Text Selection */
+::-webkit-selection {
+  background-color: rgba(255, 235, 59, 0.4);
+}
+
+::-moz-selection {
+  background-color: rgba(255, 235, 59, 0.4);
+}
+
+::selection {
+  background-color: rgba(255, 235, 59, 0.4);
+}
+

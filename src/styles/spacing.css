@@ -1,0 +1,47 @@
+/*
+ * Spacing System
+ * Following 37signals' ch-based horizontal spacing pattern
+ * 
+ * ch = width of "0" character (horizontal rhythm)
+ * rem = root em (vertical rhythm)
+ */
+
+:root {
+  /* Base spacing units */
+  --space-unit: 1ch;           /* Horizontal base */
+  --space-block: 1rem;         /* Vertical base */
+  
+  /* Horizontal spacing scale (ch-based) */
+  --space-1: 0.5ch;
+  --space-2: 1ch;
+  --space-3: 1.5ch;
+  --space-4: 2ch;
+  --space-6: 3ch;
+  --space-8: 4ch;
+  --space-12: 6ch;
+  --space-16: 8ch;
+  
+  /* Vertical spacing scale (rem-based) */
+  --space-block-1: 0.25rem;
+  --space-block-2: 0.5rem;
+  --space-block-3: 0.75rem;
+  --space-block-4: 1rem;
+  --space-block-6: 1.5rem;
+  --space-block-8: 2rem;
+  --space-block-12: 3rem;
+  --space-block-16: 4rem;
+  
+  /* Component spacing */
+  --spacing-card-padding: 1rem;
+  --spacing-button-padding-x: 1.1em;
+  --spacing-button-padding-y: 0.5em;
+  --spacing-input-padding: 0.75rem 1rem;
+  --spacing-section-gap: 1.5rem;
+  --spacing-stack-gap: 0.75rem;
+  
+  /* Layout spacing */
+  --spacing-page-margin: 1rem;
+  --spacing-content-max-width: 800px;
+  --spacing-sidebar-width: 300px;
+}
+

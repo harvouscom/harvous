@@ -1,41 +1,44 @@
 /*
  * Harvous Global Styles
  * Following 37signals' #nobuild philosophy with modern vanilla CSS
+ * 
+ * NOTE: CSS Layers (@layer) will be enabled after removing Tailwind.
+ * Tailwind's PostCSS plugin conflicts with native CSS layers.
  */
 
 @import "./colors.css";
+@import "./spacing.css";
 @import "./animations.css";
 
+/* ==========================================================================
+   Reset
+   ========================================================================== */
 * {
-    flex-shrink: 0;
-    user-select: none;
-}
-  
-[x-cloak] {
-    display: none;
-}
-
-/* Hide scrollbars across all browsers but maintain scrolling functionality */
-* {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+  flex-shrink: 0;
+  user-select: none;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 *::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari and Opera */
+  display: none;
 }
 
-/* Active state for space buttons - background is applied via inline styles from backgroundGradient */
+[x-cloak] {
+  display: none;
+}
+
+/* ==========================================================================
+   Space Button States
+   ========================================================================== */
 .space-button-active {
-    /* Background color is set via inline styles, not CSS */
+  /* Background color is set via inline styles, not CSS */
 }
 
-/* Active state inner shadow for space buttons - shows shadow when button has active-state class */
 .space-button.active-state {
-  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
 }
 
-/* Active state inner shadow for space buttons when pressed */
 .space-button.active-state:active {
   filter: brightness(0.97);
   box-shadow: 
@@ -43,40 +46,44 @@
     0px 1px 0px 0px #78766F33 inset;
 }
 
-/* Profile header color fallback using data attribute - !important to override server-rendered styles */
+/* ==========================================================================
+   Profile Header Colors
+   ========================================================================== */
 #profile-cardstack > div:first-child[data-profile-color] {
-  background-color: var(--color-blue) !important;
+  background-color: var(--color-blue);
 }
 
 #profile-cardstack > div:first-child[data-profile-color="blue"] {
-  background-color: var(--color-blue) !important;
+  background-color: var(--color-blue);
 }
 
 #profile-cardstack > div:first-child[data-profile-color="yellow"] {
-  background-color: var(--color-yellow) !important;
+  background-color: var(--color-yellow);
 }
 
 #profile-cardstack > div:first-child[data-profile-color="green"] {
-  background-color: var(--color-green) !important;
+  background-color: var(--color-green);
 }
 
 #profile-cardstack > div:first-child[data-profile-color="pink"] {
-  background-color: var(--color-pink) !important;
+  background-color: var(--color-pink);
 }
 
 #profile-cardstack > div:first-child[data-profile-color="orange"] {
-  background-color: var(--color-orange) !important;
+  background-color: var(--color-orange);
 }
 
 #profile-cardstack > div:first-child[data-profile-color="purple"] {
-  background-color: var(--color-purple) !important;
+  background-color: var(--color-purple);
 }
 
 #profile-cardstack > div:first-child[data-profile-color="paper"] {
-  background-color: var(--color-paper) !important;
+  background-color: var(--color-paper);
 }
 
-/* Superscript styling for verse numbers */
+/* ==========================================================================
+   Base Typography & Selection
+   ========================================================================== */
 sup {
   font-size: 0.75em;
   line-height: 0;
@@ -88,103 +95,104 @@ sup {
   margin-right: 0.1875em;
 }
 
-/* Text selection styles - vibrant highlighter yellow */
-/* Using #FFEB3B (Yellow) at 40% opacity for realistic highlighter effect */
-/* Include webkit prefix for iOS Safari compatibility */
 ::-webkit-selection {
-    background-color: rgba(255, 235, 59, 0.4);
+  background-color: rgba(255, 235, 59, 0.4);
 }
 
 ::-moz-selection {
-    background-color: rgba(255, 235, 59, 0.4);
+  background-color: rgba(255, 235, 59, 0.4);
 }
 
 ::selection {
-    background-color: rgba(255, 235, 59, 0.4);
+  background-color: rgba(255, 235, 59, 0.4);
 }
 
-/* Center badge numbers globally */
-.badge-number {
-    text-align: center !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
-    height: 100% !important;
-}
-
-/* Mobile touch optimization for navigation links */
-/* Eliminates 300ms click delay on mobile devices */
-a[href^="/"] {
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-}
-
-/* Navigation buttons and links - optimize for mobile touch */
+/* ==========================================================================
+   Touch Optimization
+   ========================================================================== */
+a[href^="/"],
 .space-button,
 .nav-item-container a,
 nav a {
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Ensure cursor-pointer works on desktop even with touch-action: manipulation */
-/* This fixes cursor not showing on clickable elements after mobile hover fixes */
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+.badge-number {
+  text-align: center !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 @media (hover: hover) {
-    .cursor-pointer,
-    [class*="cursor-pointer"],
-    a[href],
-    button:not(:disabled),
-    .space-button,
-    .nav-item-container a,
-    .card-note-container,
-    .card-feat-container,
-    .content-item a {
-        cursor: pointer !important;
-    }
+  .cursor-pointer,
+  [class*="cursor-pointer"],
+  a[href],
+  button:not(:disabled),
+  .space-button,
+  .nav-item-container a,
+  .card-note-container,
+  .card-feat-container,
+  .content-item a {
+    cursor: pointer !important;
+  }
 }
 
-/* Typography System */
+/* Design Tokens */
 :root {
-    --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
-    --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    --primary-color: var(--color-bold-blue);
+  /* Typography */
+  --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --primary-color: var(--color-bold-blue);
+  
+  /* Responsive Breakpoints */
+  --breakpoint-desktop: 1160px;
+  --breakpoint-mobile: 1159px;
 }
 
+/* ==========================================================================
+   Typography Classes
+   ========================================================================== */
 .text-title {
-    font-family: var(--font-sans);
-    font-weight: 600;
-    font-size: 20px;
-    line-height: 25.98px;
-    letter-spacing: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    hyphens: auto;
-    max-width: calc(100% - 44px); /* Account for the icon button */
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 25.98px;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+  max-width: calc(100% - 44px);
 }
 
 .text-subtitle {
-    font-family: var(--font-sans);
-    font-weight: 600;
-    font-size: 18px;
-    line-height: 100%;
-    letter-spacing: normal;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 100%;
+  letter-spacing: normal;
 }
 
 .text-body {
-    font-family: var(--font-sans);
-    font-weight: 400;
-    font-size: 16px;
-    line-height: 150%;
-    letter-spacing: normal;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 150%;
+  letter-spacing: normal;
 }
 
 .text-caption {
-    font-family: var(--font-mono);
-    font-weight: 500;
-    font-size: 10px;
-    line-height: 100%;
-    letter-spacing: normal;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  line-height: 100%;
+  letter-spacing: normal;
 }
 
 
@@ -290,74 +298,80 @@ body {
 }
 
 .text-button-chonk {
-    font-family: var(--font-sans);
-    font-weight: 500;
-    font-size: 14px;
-    line-height: 100%;
-    letter-spacing: normal;
-    text-box: trim-both cap alphabetic;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 100%;
+  letter-spacing: normal;
+  text-box: trim-both cap alphabetic;
 }
 
-/* Trix - https://trix-editor.org/ */
+/* Trix content */
 .trix-content h1 {
-    font-family: var(--font-sans);
-    font-weight: 500;
-    font-size: 18px;
-    line-height: 100%;
-    letter-spacing: normal;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 100%;
+  letter-spacing: normal;
 }
 
+/* ==========================================================================
+   Button Animations
+   ========================================================================== */
 .btn-animate-squish {
-    will-change: transform, box-shadow;
-    transition: box-shadow 0.125s ease-in-out;
-    box-shadow: 0px -3px 0px 0px #78766F33 inset;
+  will-change: transform, box-shadow;
+  transition: box-shadow 0.125s ease-in-out;
+  box-shadow: 0px -3px 0px 0px #78766F33 inset;
 }
 
 .btn-animate-squish:active {
-    filter: brightness(0.97);
-    box-shadow: 
-        0px -1px 0px 0px #78766F33 inset,
-        0px 1px 0px 0px #78766F33 inset;
+  filter: brightness(0.97);
+  box-shadow: 
+    0px -1px 0px 0px #78766F33 inset,
+    0px 1px 0px 0px #78766F33 inset;
 }
 
 .btn-animate-squish svg {
-    will-change: transform, translate;
-    transition: transform 0.125s ease-in-out, translate 0.125s ease-in-out;
+  will-change: transform, translate;
+  transition: transform 0.125s ease-in-out, translate 0.125s ease-in-out;
 }
 
 .btn-animate-squish:active svg {
-    translate: 0 0;
-    transform: scale(0.95);
+  translate: 0 0;
+  transform: scale(0.95);
 }
-/* Add styles for Trix bullet lists */
+
+/* Trix bullet lists */
 .trix-content ul {
-    list-style-type: disc;
-    padding-left: 1.5em;
-    margin: 0.5em 0;
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
 }
 
 .trix-content ol {
-    list-style-type: decimal;
-    padding-left: 1.5em;
-    margin: 0.5em 0;
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
 }
 
 .trix-content li {
-    display: list-item;
-    margin-bottom: 0.25em;
+  display: list-item;
+  margin-bottom: 0.25em;
 }
 
 .trix-content ul li {
-    list-style-type: disc;
+  list-style-type: disc;
 }
 
 .trix-content ol li {
-    list-style-type: decimal;
+  list-style-type: decimal;
 }
 
-/* React Island Button Styles - moved from dynamic injection to ensure immediate availability */
+/* ==========================================================================
+   React Island Button Styles
+   ========================================================================== */
 
-/* EditNameColorPanel button styles */
+/* EditNameColorPanel */
 .edit-name-color-panel button[data-outer-shadow] {
   will-change: transform, box-shadow;
   transition:
@@ -369,8 +383,7 @@ body {
 }
 
 .edit-name-color-panel button:not([data-outer-shadow]) {
-  transition:
-    box-shadow 0.125s ease-in-out;
+  transition: box-shadow 0.125s ease-in-out;
   box-shadow: 0px -3px 0px 0px #78766F33 inset;
 }
 
@@ -389,26 +402,15 @@ body {
   transform: scale(0.95);
 }
 
-/* Ensure EditNameColorPanel appears instantly without fade */
-.edit-name-color-panel {
-  opacity: 1 !important;
-  transition: none !important;
-  animation: none !important;
-}
-
-.edit-name-color-panel * {
-  opacity: 1 !important;
-  transition: none !important;
-  animation: none !important;
-}
-
-/* Override any React component unmount transitions */
+.edit-name-color-panel,
+.edit-name-color-panel *,
 .edit-name-color-panel[data-astro-cid] {
+  opacity: 1 !important;
   transition: none !important;
   animation: none !important;
 }
 
-/* NewNotePanel button styles */
+/* NewNotePanel */
 .new-note-panel button[data-outer-shadow] {
   will-change: transform, box-shadow;
   transition:
@@ -420,8 +422,7 @@ body {
 }
 
 .new-note-panel button:not([data-outer-shadow]) {
-  transition:
-    box-shadow 0.125s ease-in-out;
+  transition: box-shadow 0.125s ease-in-out;
   box-shadow: 0px -3px 0px 0px #78766F33 inset;
 }
 
@@ -440,31 +441,19 @@ body {
   transform: scale(0.95);
 }
 
-/* Ensure NewNotePanel appears instantly without fade */
-.new-note-panel {
+.new-note-panel,
+.new-note-panel *,
+.new-note-panel[data-astro-cid] {
   opacity: 1 !important;
   transition: none !important;
   animation: none !important;
 }
 
-.new-note-panel * {
-  opacity: 1 !important;
-  transition: none !important;
-  animation: none !important;
-}
-
-/* Allow icon opacity in ThreadCombobox dropdown items */
 .new-note-panel svg.opacity-30 {
   opacity: 0.3 !important;
 }
 
-/* Override any React component unmount transitions */
-.new-note-panel[data-astro-cid] {
-  transition: none !important;
-  animation: none !important;
-}
-
-/* SquareButton styles */
+/* SquareButton */
 .square-button button[data-outer-shadow] {
   will-change: transform, box-shadow;
   transition:
@@ -476,14 +465,8 @@ body {
 }
 
 .square-button button:not([data-outer-shadow]) {
-  transition:
-    box-shadow 0.125s ease-in-out;
+  transition: box-shadow 0.125s ease-in-out;
   box-shadow: 0px -3px 0px 0px #78766F33 inset;
-}
-
-/* Ensure More button with menu has gradient background when closed */
-.square-button button[style*="background-image"] {
-  background-image: var(--color-gradient-gray) !important;
 }
 
 .square-button button:not([data-outer-shadow]):active {
@@ -499,6 +482,10 @@ body {
 
 .square-button button:active > img {
   transform: scale(0.95);
+}
+
+.square-button button[style*="background-image"] {
+  background-image: var(--color-gradient-gray) !important;
 }
 
 button:active[class*="bg-[var(--color-bold-blue)]"] {
@@ -517,7 +504,7 @@ button:active[class*="bg-[var(--color-stone-grey)]"] {
     0px 4px 0px 0px #00000040 inset;
 }
 
-/* SquareButton menu positioning - must be global for React components */
+/* SquareButton menu positioning */
 .square-button-container {
   position: relative;
   display: inline-block;
@@ -529,24 +516,21 @@ button:active[class*="bg-[var(--color-stone-grey)]"] {
   z-index: 20;
 }
 
-/* Mobile layout - force right alignment for Add button menu */
-@media (max-width: 1159px) {
-  .more-menu-container {
-    right: 0;
-    left: auto;
-  }
-}
-
 .more-menu-container.right-positioned {
   position: absolute;
-  left: 76px; /* 64px button width + 12px gap */
+  left: 76px;
   top: 0;
   bottom: auto;
   z-index: 20;
 }
 
-/* Mobile layout - align menu to the right since buttons are on the right */
+/* Responsive menu positioning - outside layers for media query support */
 @media (max-width: 1159px) {
+  .more-menu-container {
+    right: 0;
+    left: auto;
+  }
+
   .more-menu-container.right-positioned {
     position: absolute;
     right: 0;
@@ -554,11 +538,13 @@ button:active[class*="bg-[var(--color-stone-grey)]"] {
     bottom: calc(100% + 12px);
     top: auto;
     z-index: 20;
-    transform: translateX(calc(100% - 64px)); /* Align menu right edge with button right edge */
+    transform: translateX(calc(100% - 64px));
   }
 }
 
-/* Common input and color selection styles */
+/* ==========================================================================
+   Form & Input Styles
+   ========================================================================== */
 .search-input {
   background: var(--color-gradient-gray);
   box-shadow: var(--shadow-small);
@@ -576,36 +562,21 @@ button:active[class*="bg-[var(--color-stone-grey)]"] {
   transform: scale(0.95);
 }
 
-/* Apply inset shadow to space-button with background-image */
 .space-button[style*="background-image"] {
   box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
 }
 
-/* Fix inactive navigation button shadows */
-.space-button:not([style*="background-image"]):not([style*="background-color"]) {
+.space-button:not([style*="background-image"]):not([style*="background-color"]),
+button.space-button:not([style*="background-image"]):not([style*="background-color"]),
+.space-button:not(.active):not([style*="background"]) {
   box-shadow: none !important;
 }
 
-/* Override SpaceButton.astro shadow rules */
-button.space-button:not([style*="background-image"]):not([style*="background-color"]) {
-  box-shadow: none !important;
-}
-
-/* Ensure disabled space buttons show cursor-not-allowed */
 button.space-button:disabled,
-button.space-button[disabled] {
-  cursor: not-allowed !important;
-}
-
-/* Ensure disabled buttons in mobile navigation show cursor-not-allowed */
+button.space-button[disabled],
 button:disabled,
 button[disabled] {
   cursor: not-allowed !important;
-}
-
-/* Override all SpaceButton shadows for inactive buttons */
-.space-button:not(.active):not([style*="background"]) {
-  box-shadow: none !important;
 }
 
 /* Dark text for space-button with colored thread backgrounds (pastel colors) */
@@ -636,15 +607,14 @@ button[disabled] {
 }
 */
 
-/* Fix TabNav bottom line */
+/* ==========================================================================
+   TabNav & Menu Styles
+   ========================================================================== */
 .tab-nav-container,
-.tab-nav-container > div {
-  border: none !important;
-  box-shadow: none !important;
-}
-
-/* Remove all borders from TabNav buttons */
+.tab-nav-container > div,
+.tab-nav-container *,
 .tab-nav-container button,
+.tab-nav-container button *,
 .tab-nav-container button[data-tab-button],
 [data-tab-button] {
   border: none !important;
@@ -652,23 +622,13 @@ button[disabled] {
   outline: none !important;
 }
 
-/* Remove any potential borders from TabNav containers */
-.tab-nav-container,
-.tab-nav-container *,
-.tab-nav-container button,
-.tab-nav-container button * {
-  border: none !important;
-  box-shadow: none !important;
-}
-
-/* Remove any borders from menu items */
 .context-more-menu button,
 .more-menu button,
 .context-more-menu-item,
 .more-menu-item {
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* Sonner Toast Styles - Minimal overrides */
@@ -796,7 +756,9 @@ button[disabled] {
     }
 }
 
-/* Close Icon Hover Effects */
+/* ==========================================================================
+   Interactive Element Hover Effects
+   ========================================================================== */
 .close-icon {
   transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
@@ -805,34 +767,20 @@ button[disabled] {
   transform: scale(1.1);
 }
 
-/* Card Link Hover Effects - Only on devices that support hover */
 .content-item a {
   transition: transform 0.2s ease-out;
   touch-action: manipulation;
 }
 
-@media (hover: hover) {
-  .content-item a:hover {
-    transform: translateY(-2px);
-  }
-}
-
-/* Note card hover effects - Only on devices that support hover */
 .card-note-container {
   touch-action: manipulation;
 }
 
-@media (hover: hover) {
-  .card-note-container:hover {
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    transform: scale(1.005);
-  }
-}
-
-/* Scripture Pill Styles */
+/* ==========================================================================
+   Scripture Pill Styles
+   ========================================================================== */
 .scripture-pill {
   position: relative;
-  /* Prevent text selection highlighting */
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
@@ -840,7 +788,7 @@ button[disabled] {
 }
 
 .scripture-pill::before {
-  /* SVG scroll icon via CSS mask - allows color control via background-color */
+  /* SVG scroll icon via CSS mask */
   content: "";
   display: inline-block;
   width: 14px;
@@ -848,7 +796,7 @@ button[disabled] {
   margin-right: 4px;
   vertical-align: baseline;
   position: relative;
-  top: 2px; /* Align icon with text baseline */
+  top: 2px;
   flex-shrink: 0;
   background-color: var(--color-deep-grey);
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 576 512'%3E%3Cpath d='M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z'/%3E%3C/svg%3E");
@@ -865,10 +813,21 @@ button[disabled] {
   opacity: 0.8;
 }
 
-/* Ensure pills are inline with text and don't get highlighted */
 .scripture-pill * {
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+}
+
+/* Hover effects - only on devices that support hover */
+@media (hover: hover) {
+  .content-item a:hover {
+    transform: translateY(-2px);
+  }
+
+  .card-note-container:hover {
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    transform: scale(1.005);
+  }
 }
