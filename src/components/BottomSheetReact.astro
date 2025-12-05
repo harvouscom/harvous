@@ -85,6 +85,13 @@ const {
     :global(.bottom-sheet-content .panel-container > form > div[class*="flex-1"][class*="flex"][class*="flex-col"]) {
       padding-left: 12px !important;
       padding-right: 12px !important;
+      padding-bottom: 0 !important;
+      margin-bottom: 0 !important;
+    }
+    
+    /* Remove bottom padding from DefaultNoteForm/ScriptureNoteForm containers in bottom sheet */
+    :global(.bottom-sheet-content .panel-container [class*="bg-white"][class*="rounded"][class*="shadow"]) {
+      padding-bottom: 0 !important;
     }
     
     /* Ensure sheet content is above overlay */

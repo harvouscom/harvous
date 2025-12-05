@@ -362,7 +362,6 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
           height: '100%',
           maxHeight: '100%',
           minHeight: 0,
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           width: '100%'
         }}
       >
@@ -386,7 +385,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
         )}
 
         {/* Note Content - Type-specific layouts */}
-        <div className="flex-1 flex flex-col min-h-0 mb-3.5">
+        <div className="flex-1 flex flex-col min-h-0">
           {form.noteType === 'default' && (
             <DefaultNoteForm
               title={form.title}
