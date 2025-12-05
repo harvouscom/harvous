@@ -116,9 +116,9 @@ const CardNote: React.FC<CardNoteProps> = ({
             <div className="card-note__sidebar">
               <div className="card-note__sidebar-icon">
                 {noteType === 'scripture' ? (
-                  <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
+                  <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                 ) : noteType === 'resource' ? (
-                  <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
+                  <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                 ) : (
                   <svg fill="currentColor" viewBox="0 0 24 24">
                     <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
@@ -153,9 +153,9 @@ const CardNote: React.FC<CardNoteProps> = ({
             >
               <div className="card-note__sidebar-icon">
                 {noteType === 'scripture' ? (
-                  <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
+                  <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                 ) : noteType === 'resource' ? (
-                  <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.2 }} />
+                  <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                 ) : (
                   <svg fill="currentColor" viewBox="0 0 24 24">
                     <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>

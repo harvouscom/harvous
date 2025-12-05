@@ -79,6 +79,7 @@ export default function NoteDetailsPanel({
   const [noteType, setNoteType] = useState<string>('default');
   const [localReferencingNotes, setLocalReferencingNotes] = useState<ReferencingNote[]>([]);
   const [showNewThreadPanel, setShowNewThreadPanel] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   // Check if this is a scripture note (to show the Notes tab)
   const isScriptureNote = noteType === 'scripture';
@@ -86,11 +87,12 @@ export default function NoteDetailsPanel({
   // Fetch data when component mounts
   useEffect(() => {
     if (noteId) {
+      setIsInitialLoad(true);
       fetchNoteDetails();
     }
   }, [noteId]);
 
-  const fetchNoteDetails = async () => {
+  const fetchNoteDetails = async (preserveTab: boolean = false) => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/notes/${noteId}/details`);
@@ -109,8 +111,9 @@ export default function NoteDetailsPanel({
           setNoteAddedBy(data.note.addedBy || 'user');
           setNoteType(data.note.noteType || 'default');
           
-          // Set default tab to 'notes' for scripture notes
-          if (data.note.noteType === 'scripture') {
+          // Set default tab to 'notes' for scripture notes only on initial load
+          // Preserve current tab during refreshes (e.g., after tag operations)
+          if (!preserveTab && isInitialLoad && data.note.noteType === 'scripture') {
             setActiveTab('notes');
           }
         }
@@ -121,6 +124,7 @@ export default function NoteDetailsPanel({
       // Error fetching note details
     } finally {
       setIsLoading(false);
+      setIsInitialLoad(false);
     }
   };
 
@@ -160,8 +164,8 @@ export default function NoteDetailsPanel({
           }
         }));
 
-        // Refresh the note details to show updated threads
-        await fetchNoteDetails();
+        // Refresh the note details to show updated threads, preserving current tab
+        await fetchNoteDetails(true);
         
         // Dispatch note added to thread event
         window.dispatchEvent(new CustomEvent('noteAddedToThread', {
@@ -233,8 +237,8 @@ export default function NoteDetailsPanel({
           // Get remaining thread IDs from the updated data
           remainingThreadIds = (data.threads || []).map((t: any) => t.id);
         } else {
-          // Fallback: update state from current localThreads
-          await fetchNoteDetails();
+          // Fallback: update state from current localThreads, preserving current tab
+          await fetchNoteDetails(true);
           remainingThreadIds = localThreads
             .filter(t => t.id !== threadId)
             .map(t => t.id);
@@ -307,8 +311,8 @@ export default function NoteDetailsPanel({
           // Get remaining thread IDs from the updated data
           remainingThreadIds = (data.threads || []).map((t: any) => t.id);
         } else {
-          // Fallback: update state from current localThreads
-          await fetchNoteDetails();
+          // Fallback: update state from current localThreads, preserving current tab
+          await fetchNoteDetails(true);
           remainingThreadIds = localThreads
             .filter(t => t.id !== threadToRemove)
             .map(t => t.id);
@@ -358,8 +362,8 @@ export default function NoteDetailsPanel({
   };
 
   const handleTagCreated = async () => {
-    // Refresh the note details to show the new tag
-    await fetchNoteDetails();
+    // Refresh the note details to show the new tag, preserving current tab
+    await fetchNoteDetails(true);
   };
 
   const addNewThread = () => {
@@ -394,8 +398,8 @@ export default function NoteDetailsPanel({
         const result = await response.json();
         toast.success('Tag removed from note');
         
-        // Refresh the note details to show updated tags
-        await fetchNoteDetails();
+        // Refresh the note details to show updated tags, preserving current tab
+        await fetchNoteDetails(true);
       } else {
         const error = await response.json();
         toast.error(error.error || 'Error removing tag from note');

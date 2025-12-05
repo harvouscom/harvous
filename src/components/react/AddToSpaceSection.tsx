@@ -3,6 +3,308 @@ import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
 import Icon from './Icon';
 
+// Note Item Component with hover state
+const NoteItem: React.FC<{
+  item: SpaceItem;
+  isSelected: boolean;
+  isLoading: boolean;
+  onClick: () => void;
+}> = ({ item, isSelected, isLoading, onClick }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
+  // Get note type icon
+  const getNoteTypeIcon = () => {
+    const noteType = item.noteType || 'default';
+    if (noteType === 'scripture') {
+      return <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
+    } else if (noteType === 'resource') {
+      return <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
+    } else {
+      // Default note - use bookmark icon (same as CardNote)
+      return (
+        <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+        </svg>
+      );
+    }
+  };
+
+  return (
+    <div
+      key={item.id}
+      className="group"
+      style={{
+        position: 'relative',
+        animation: 'fadeIn 0.3s ease-out forwards',
+        opacity: 0
+      }}
+    >
+      <div
+        onClick={onClick}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+        className="relative cursor-pointer"
+        style={{
+          position: 'relative',
+          borderRadius: '0.75rem',
+          height: '48px',
+          width: '100%',
+          textAlign: 'left',
+          backgroundColor: 'white',
+          boxShadow: 'none',
+          border: isSelected ? '2px solid var(--color-bold-blue)' : 'none',
+          transition: 'transform 0.2s',
+          cursor: 'pointer'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.002)';
+          setIsHovered(true);
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          setIsHovered(false);
+        }}
+      >
+        {/* Accent bar on left */}
+        <div 
+          style={{ 
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            width: '2.75rem',
+            borderTopLeftRadius: '0.75rem',
+            borderBottomLeftRadius: '0.75rem',
+            overflow: 'hidden',
+            backgroundColor: 'var(--color-paper)'
+          }}
+        />
+        
+        {/* Content */}
+        <div 
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1.5rem',
+            paddingLeft: '0.75rem',
+            paddingRight: '3rem',
+            height: '100%',
+            overflow: 'hidden'
+          }}
+        >
+          {/* Note type icon */}
+          <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
+            {getNoteTypeIcon()}
+          </div>
+          
+          {/* Text content - only title */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+            {/* Title */}
+            <div style={{ 
+              fontFamily: 'var(--font-sans)', 
+              fontWeight: 700, 
+              color: 'var(--color-deep-grey)', 
+              fontSize: '16px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}>
+              {item.title}
+            </div>
+          </div>
+        </div>
+        
+        {/* Add button - appears on hover */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            right: '0.75rem',
+            transform: 'translateY(-50%)',
+            width: '2rem',
+            height: '2rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: isHovered ? 1 : 0,
+            transition: 'opacity 0.2s',
+            zIndex: 10,
+            pointerEvents: 'none'
+          }}
+          className="add-button-wrapper"
+        >
+          <ActionButton
+            variant="Add"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClick();
+            }}
+            disabled={isLoading}
+            className="w-8 h-8"
+            style={{ pointerEvents: 'auto' }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Thread Item Component with hover state
+const ThreadItem: React.FC<{
+  item: SpaceItem;
+  isSelected: boolean;
+  isLoading: boolean;
+  onClick: () => void;
+}> = ({ item, isSelected, isLoading, onClick }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const threadAccentColor = item.color ? `var(--color-${item.color})` : "var(--color-purple)";
+  
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
+  return (
+    <div
+      key={item.id}
+      className="group"
+      style={{
+        position: 'relative',
+        animation: 'fadeIn 0.3s ease-out forwards',
+        opacity: 0
+      }}
+    >
+      <div
+        onClick={onClick}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+        className="relative cursor-pointer"
+        style={{
+          position: 'relative',
+          borderRadius: '0.75rem',
+          height: '48px',
+          width: '100%',
+          textAlign: 'left',
+          backgroundColor: 'white',
+          boxShadow: 'none',
+          border: isSelected ? '2px solid var(--color-bold-blue)' : 'none',
+          transition: 'transform 0.2s',
+          cursor: 'pointer'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.002)';
+          setIsHovered(true);
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          setIsHovered(false);
+        }}
+      >
+        {/* Accent bar on left */}
+        <div 
+          style={{ 
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            width: '2.75rem',
+            borderTopLeftRadius: '0.75rem',
+            borderBottomLeftRadius: '0.75rem',
+            overflow: 'hidden',
+            backgroundColor: threadAccentColor
+          }}
+        />
+        
+        {/* Content */}
+        <div 
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1.5rem',
+            paddingLeft: '0.75rem',
+            paddingRight: '3rem',
+            height: '100%',
+            overflow: 'hidden'
+          }}
+        >
+          {/* User icon (Private) or User group icon (Shared) */}
+          <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
+            {item.isPublic === true ? (
+              <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 640 640">
+                <path d="M96 192C96 130.1 146.1 80 208 80C269.9 80 320 130.1 320 192C320 253.9 269.9 304 208 304C146.1 304 96 253.9 96 192zM32 528C32 430.8 110.8 352 208 352C305.2 352 384 430.8 384 528L384 534C384 557.2 365.2 576 342 576L74 576C50.8 576 32 557.2 32 534L32 528zM464 128C517 128 560 171 560 224C560 277 517 320 464 320C411 320 368 277 368 224C368 171 411 128 464 128zM464 368C543.5 368 608 432.5 608 512L608 534.4C608 557.4 589.4 576 566.4 576L421.6 576C428.2 563.5 432 549.2 432 534L432 528C432 476.5 414.6 429.1 385.5 391.3C408.1 376.6 435.1 368 464 368z"/>
+              </svg>
+            ) : (
+              <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+              </svg>
+            )}
+          </div>
+          
+          {/* Text content - only title, no subtitle or count */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+            {/* Title */}
+            <div style={{ 
+              fontFamily: 'var(--font-sans)', 
+              fontWeight: 700, 
+              color: 'var(--color-deep-grey)', 
+              fontSize: '16px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}>
+              {item.title}
+            </div>
+          </div>
+        </div>
+        
+        {/* Add button - appears on hover */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            right: '0.75rem',
+            transform: 'translateY(-50%)',
+            width: '2rem',
+            height: '2rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: isHovered ? 1 : 0,
+            transition: 'opacity 0.2s',
+            zIndex: 10,
+            pointerEvents: 'none'
+          }}
+          className="add-button-wrapper"
+        >
+          <ActionButton
+            variant="Add"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClick();
+            }}
+            disabled={isLoading}
+            className="w-8 h-8"
+            style={{ pointerEvents: 'auto' }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface Note {
   id: string;
   title: string | null;
@@ -216,299 +518,29 @@ export default function AddToSpaceSection({
       .substring(0, 100);
   };
 
-  // Render note item (similar to renderThreadItem - simplified, just title with note type icon)
+  // Render functions now use the new components
   const renderNoteItem = (item: SpaceItem, onClick: () => void) => {
     const isSelected = selectedItems.includes(item.id);
-    
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onClick();
-      }
-    };
-    
-    // Get note type icon
-    const getNoteTypeIcon = () => {
-      const noteType = item.noteType || 'default';
-      if (noteType === 'scripture') {
-        return <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
-      } else if (noteType === 'resource') {
-        return <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
-      } else {
-        // Default note - use bookmark icon (same as CardNote)
-        return (
-          <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-          </svg>
-        );
-      }
-    };
-    
     return (
-      <div
-        key={item.id}
-        className="group"
-        style={{
-          position: 'relative',
-          animation: 'fadeIn 0.3s ease-out forwards',
-          opacity: 0
-        }}
-      >
-        <div
-          onClick={onClick}
-          onKeyDown={handleKeyDown}
-          role="button"
-          tabIndex={0}
-          className="relative cursor-pointer"
-          style={{
-            position: 'relative',
-            borderRadius: '0.75rem',
-            height: '48px',
-            width: '100%',
-            textAlign: 'left',
-            backgroundColor: 'white',
-            boxShadow: 'none',
-            border: isSelected ? '2px solid var(--color-bold-blue)' : 'none',
-            transition: 'transform 0.2s',
-            cursor: 'pointer'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.002)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
-        >
-          {/* Accent bar on left */}
-          <div 
-            style={{ 
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: 0,
-              width: '2.75rem',
-              borderTopLeftRadius: '0.75rem',
-              borderBottomLeftRadius: '0.75rem',
-              overflow: 'hidden',
-              backgroundColor: 'var(--color-paper)'
-            }}
-          />
-          
-          {/* Content */}
-          <div 
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1.5rem',
-              paddingLeft: '0.75rem',
-              paddingRight: '3rem',
-              height: '100%',
-              overflow: 'hidden'
-            }}
-          >
-            {/* Note type icon */}
-            <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-              {getNoteTypeIcon()}
-            </div>
-            
-            {/* Text content - only title */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-              {/* Title */}
-              <div style={{ 
-                fontFamily: 'var(--font-sans)', 
-                fontWeight: 700, 
-                color: 'var(--color-deep-grey)', 
-                fontSize: '16px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {item.title}
-              </div>
-            </div>
-          </div>
-          
-          {/* Add button - appears on hover */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              right: '0.75rem',
-              transform: 'translateY(-50%)',
-              width: '2rem',
-              height: '2rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: 0,
-              transition: 'opacity 0.2s',
-              zIndex: 10,
-              pointerEvents: 'none'
-            }}
-            className="add-button-wrapper"
-          >
-            <ActionButton
-              variant="Add"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onClick();
-              }}
-              disabled={isLoading}
-              style={{ pointerEvents: 'auto' }}
-            />
-          </div>
-        </div>
-        <style>{`
-          .group:hover .add-button-wrapper {
-            opacity: 1;
-          }
-        `}</style>
-      </div>
+      <NoteItem
+        item={item}
+        isSelected={isSelected}
+        isLoading={isLoading}
+        onClick={onClick}
+      />
     );
   };
 
-  // Render thread item (similar to AddToSection - simplified, no subtitle or count)
+  // Render thread item
   const renderThreadItem = (item: SpaceItem, onClick: () => void) => {
     const isSelected = selectedItems.includes(item.id);
-    const threadAccentColor = item.color ? `var(--color-${item.color})` : "var(--color-purple)";
-    
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onClick();
-      }
-    };
-    
     return (
-      <div
-        key={item.id}
-        className="group"
-        style={{
-          position: 'relative',
-          animation: 'fadeIn 0.3s ease-out forwards',
-          opacity: 0
-        }}
-      >
-        <div
-          onClick={onClick}
-          onKeyDown={handleKeyDown}
-          role="button"
-          tabIndex={0}
-          className="relative cursor-pointer"
-          style={{
-            position: 'relative',
-            borderRadius: '0.75rem',
-            height: '48px',
-            width: '100%',
-            textAlign: 'left',
-            backgroundColor: 'white',
-            boxShadow: 'none',
-            border: isSelected ? '2px solid var(--color-bold-blue)' : 'none',
-            transition: 'transform 0.2s',
-            cursor: 'pointer'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.002)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
-        >
-          {/* Accent bar on left */}
-          <div 
-            style={{ 
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: 0,
-              width: '2.75rem',
-              borderTopLeftRadius: '0.75rem',
-              borderBottomLeftRadius: '0.75rem',
-              overflow: 'hidden',
-              backgroundColor: threadAccentColor
-            }}
-          />
-          
-          {/* Content */}
-          <div 
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1.5rem',
-              paddingLeft: '0.75rem',
-              paddingRight: '3rem',
-              height: '100%',
-              overflow: 'hidden'
-            }}
-          >
-            {/* User icon (Private) or User group icon (Shared) */}
-            <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-              {item.isPublic === true ? (
-                <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 640 640">
-                  <path d="M96 192C96 130.1 146.1 80 208 80C269.9 80 320 130.1 320 192C320 253.9 269.9 304 208 304C146.1 304 96 253.9 96 192zM32 528C32 430.8 110.8 352 208 352C305.2 352 384 430.8 384 528L384 534C384 557.2 365.2 576 342 576L74 576C50.8 576 32 557.2 32 534L32 528zM464 128C517 128 560 171 560 224C560 277 517 320 464 320C411 320 368 277 368 224C368 171 411 128 464 128zM464 368C543.5 368 608 432.5 608 512L608 534.4C608 557.4 589.4 576 566.4 576L421.6 576C428.2 563.5 432 549.2 432 534L432 528C432 476.5 414.6 429.1 385.5 391.3C408.1 376.6 435.1 368 464 368z"/>
-                </svg>
-              ) : (
-                <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                </svg>
-              )}
-            </div>
-            
-            {/* Text content - only title, no subtitle or count */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-              {/* Title */}
-              <div style={{ 
-                fontFamily: 'var(--font-sans)', 
-                fontWeight: 700, 
-                color: 'var(--color-deep-grey)', 
-                fontSize: '16px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {item.title}
-              </div>
-            </div>
-          </div>
-          
-          {/* Add button - appears on hover */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              right: '0.75rem',
-              transform: 'translateY(-50%)',
-              width: '2rem',
-              height: '2rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: 0,
-              transition: 'opacity 0.2s',
-              zIndex: 10,
-              pointerEvents: 'none'
-            }}
-            className="add-button-wrapper"
-          >
-            <ActionButton
-              variant="Add"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onClick();
-              }}
-              disabled={isLoading}
-              style={{ pointerEvents: 'auto' }}
-            />
-          </div>
-        </div>
-        <style>{`
-          .group:hover .add-button-wrapper {
-            opacity: 1;
-          }
-        `}</style>
-      </div>
+      <ThreadItem
+        item={item}
+        isSelected={isSelected}
+        isLoading={isLoading}
+        onClick={onClick}
+      />
     );
   };
 

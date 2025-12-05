@@ -113,6 +113,110 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     return () => clearTimeout(timer);
   }, []);
 
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = () => {
+    return title.trim().length > 0 || selectedItems.length > 0;
+  };
+
+  // Handle navigation away - show unsaved changes dialog if needed
+  const handleNavigationAway = (e?: Event) => {
+    if (hasUnsavedChanges()) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      setShowUnsavedDialog(true);
+      return true; // Indicates navigation was prevented
+    }
+    return false; // No unsaved changes, allow navigation
+  };
+
+  // Intercept link clicks that would navigate away
+  useEffect(() => {
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest('a');
+      
+      if (!link) return;
+      
+      // Don't intercept links within the panel form (like selected items)
+      const panelForm = link.closest('form');
+      if (panelForm) return;
+      
+      // Check if this is a navigation link (has href and not just a hash/anchor)
+      const href = link.getAttribute('href');
+      if (!href || href === '#' || href.startsWith('#')) return;
+      
+      // Don't intercept if it's the same page (just different hash)
+      const currentPath = window.location.pathname;
+      if (href.startsWith(currentPath + '#') || href === currentPath) return;
+      
+      // Check for unsaved changes
+      if (hasUnsavedChanges()) {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowUnsavedDialog(true);
+      }
+    };
+
+    // Intercept programmatic navigation via safeNavigate
+    const originalSafeNavigate = (window as any).__originalSafeNavigate;
+    if (!originalSafeNavigate) {
+      // Store original if not already stored
+      (window as any).__originalSafeNavigate = true;
+      
+      // Override safeNavigate temporarily (this is a bit hacky but necessary)
+      // We'll handle this via event listener instead
+    }
+
+    document.addEventListener('click', handleLinkClick, true);
+    
+    return () => {
+      document.removeEventListener('click', handleLinkClick, true);
+    };
+  }, [title, selectedItems]);
+
+  // Handle browser navigation (back button, closing tab, etc.)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges()) {
+        e.preventDefault();
+        e.returnValue = ''; // Required for Chrome
+        return ''; // Required for some browsers
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [title, selectedItems]);
+
+  // Handle popstate (browser back/forward buttons)
+  useEffect(() => {
+    if (!hasUnsavedChanges()) return;
+
+    // Push a state so we can intercept back button
+    const state = { panelOpen: true, timestamp: Date.now() };
+    window.history.pushState(state, '', window.location.href);
+    
+    const handlePopState = (e: PopStateEvent) => {
+      if (hasUnsavedChanges()) {
+        // Prevent navigation and show dialog
+        // Push current state back to prevent navigation
+        window.history.pushState(state, '', window.location.href);
+        setShowUnsavedDialog(true);
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [title, selectedItems]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -283,6 +387,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     localStorage.removeItem('newSpaceType');
     setShowUnsavedDialog(false);
     
+    // Close the panel - navigation will proceed naturally
     window.dispatchEvent(new CustomEvent('closeNewSpacePanel'));
     if (onClose) {
       onClose();
@@ -540,13 +645,6 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
 
         {/* Bottom buttons */}
         <div className="panel__footer--buttons">
-          {/* Close button */}
-          <SquareButton 
-            variant="Close" 
-            onClick={handleClose}
-            inBottomSheet={inBottomSheet}
-          />
-          
           {/* Create Space button */}
           <button 
             type="submit"

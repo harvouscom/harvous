@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
-import CardNote from './CardNote';
 import ActionButton from './ActionButton';
 import AddToSpaceSection from './AddToSpaceSection';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -323,6 +322,99 @@ export default function EditThreadPanel({
       .substring(0, 150);
   };
 
+  // Helper function to get note type icon
+  const getNoteTypeIcon = (noteType: string = 'default') => {
+    if (noteType === 'scripture') {
+      return <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
+    } else if (noteType === 'resource') {
+      return <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
+    } else {
+      // Default note - use bookmark icon
+      return (
+        <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+        </svg>
+      );
+    }
+  };
+
+  // Render compact note item (similar to AddToSpaceSection)
+  const renderCompactNoteItem = (note: Note) => {
+    const noteType = (note.noteType === 'resource' || note.noteType === 'scripture') ? note.noteType : 'default';
+    
+    return (
+      <div
+        className="relative cursor-pointer"
+        style={{
+          position: 'relative',
+          borderRadius: '0.75rem',
+          height: '48px',
+          width: '100%',
+          textAlign: 'left',
+          backgroundColor: 'white',
+          boxShadow: 'none',
+          transition: 'transform 0.2s',
+          cursor: 'pointer'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.002)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+        }}
+      >
+        {/* Accent bar on left */}
+        <div 
+          style={{ 
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            width: '2.75rem',
+            borderTopLeftRadius: '0.75rem',
+            borderBottomLeftRadius: '0.75rem',
+            overflow: 'hidden',
+            backgroundColor: 'var(--color-paper)'
+          }}
+        />
+        
+        {/* Content */}
+        <div 
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1.5rem',
+            paddingLeft: '0.75rem',
+            paddingRight: '3rem',
+            height: '100%',
+            overflow: 'hidden'
+          }}
+        >
+          {/* Note type icon */}
+          <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
+            {getNoteTypeIcon(noteType)}
+          </div>
+          
+          {/* Text content - only title */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+            {/* Title */}
+            <div style={{ 
+              fontFamily: 'var(--font-sans)', 
+              fontWeight: 700, 
+              color: 'var(--color-deep-grey)', 
+              fontSize: '16px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}>
+              {note.title || 'Untitled Note'}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
@@ -434,19 +526,15 @@ export default function EditThreadPanel({
                         No notes in this thread.
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-2">
                         {currentThreadNotes.map(note => (
                           <div key={note.id} className="relative group">
                             <a 
                               href={`/${note.id}`}
-                              className="block transition-transform duration-200 hover:scale-[1.002]"
+                              className="block"
                               aria-label={`View note: ${note.title || 'Untitled note'}`}
                             >
-                              <CardNote 
-                                title={note.title || "Untitled Note"}
-                                content={stripHtml(note.content)}
-                                noteType={(note.noteType === 'resource' || note.noteType === 'scripture') ? note.noteType : 'default'}
-                              />
+                              {renderCompactNoteItem(note)}
                             </a>
                             {/* Remove from thread button */}
                             <ActionButton
@@ -469,7 +557,7 @@ export default function EditThreadPanel({
                 {/* Selected Notes - displayed above AddToSpaceSection */}
                 {selectedItems.length > 0 && !isLoadingItems && (
                   <div className="w-full shrink-0 mb-3">
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2">
                       {selectedItems.map(itemId => {
                         const note = allNotes.find(n => n.id === itemId);
                         
@@ -478,14 +566,10 @@ export default function EditThreadPanel({
                             <div key={note.id} className="relative group">
                               <a 
                                 href={`/${note.id}`}
-                                className="block transition-transform duration-200 hover:scale-[1.002]"
+                                className="block"
                                 aria-label={`View note: ${note.title || 'Untitled note'}`}
                               >
-                                <CardNote 
-                                  title={note.title || "Untitled Note"}
-                                  content={stripHtml(note.content)}
-                                  noteType={(note.noteType === 'resource' || note.noteType === 'scripture') ? note.noteType : 'default'}
-                                />
+                                {renderCompactNoteItem(note)}
                               </a>
                               {/* Remove from selection button */}
                               <ActionButton
