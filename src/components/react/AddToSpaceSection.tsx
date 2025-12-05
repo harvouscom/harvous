@@ -266,8 +266,8 @@ export default function AddToSpaceSection({
             height: '48px',
             width: '100%',
             textAlign: 'left',
-            backgroundColor: isSelected ? 'var(--color-fog-white)' : 'var(--color-fog-white)',
-            boxShadow: '0px 2px 8px 0px rgba(120, 118, 111, 0.1)',
+            backgroundColor: 'white',
+            boxShadow: 'none',
             border: isSelected ? '2px solid var(--color-bold-blue)' : 'none',
             transition: 'transform 0.2s',
             cursor: 'pointer'
@@ -402,8 +402,8 @@ export default function AddToSpaceSection({
             height: '48px',
             width: '100%',
             textAlign: 'left',
-            backgroundColor: isSelected ? 'var(--color-fog-white)' : 'var(--color-fog-white)',
-            boxShadow: '0px 2px 8px 0px rgba(120, 118, 111, 0.1)',
+            backgroundColor: 'white',
+            boxShadow: 'none',
             border: isSelected ? '2px solid var(--color-bold-blue)' : 'none',
             transition: 'transform 0.2s',
             cursor: 'pointer'

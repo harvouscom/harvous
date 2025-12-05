@@ -42,7 +42,10 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
         type="button"
         onClick={() => setOpen(!open)}
         className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full flex items-center justify-between"
-        style={{ backgroundImage: selectedThreadObj?.backgroundGradient || 'var(--color-gradient-gray)' }}
+        style={{ 
+          backgroundImage: selectedThreadObj?.backgroundGradient || 'var(--color-gradient-gray)',
+          boxShadow: 'none'
+        }}
       >
         <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
           <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
@@ -63,7 +66,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
       {/* Dropdown */}
       {open && (
         <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-2xl border max-h-[300px] overflow-hidden flex flex-col" style={{ 
-          backgroundColor: 'var(--color-white)',
+          backgroundColor: 'var(--color-fog-white)',
           borderColor: 'var(--color-fog-white)'
         }}>
           {/* Search Input */}
@@ -115,8 +118,8 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       }}
                       className="relative rounded-xl h-[48px] cursor-pointer transition-transform duration-200 w-full text-left overflow-hidden hover:scale-[1.002]"
                       style={{
-                        backgroundColor: 'var(--color-fog-white)',
-                        boxShadow: '0px 2px 8px 0px rgba(120, 118, 111, 0.1)'
+                        backgroundColor: 'white',
+                        boxShadow: 'none'
                       }}
                     >
                       {/* Accent bar on left - wider like AddToSection so icon sits on it */}
