@@ -145,37 +145,34 @@ export async function addInboxItemToUser(userId: string, inboxItemId: string) {
 
 /**
  * Get an inbox item with its associated notes (for threads)
+ * Optimized to fetch item and notes in parallel for better performance
  */
 export async function getInboxItemWithNotes(inboxItemId: string) {
   try {
-    const inboxItem = await db
-      .select()
-      .from(InboxItems)
-      .where(eq(InboxItems.id, inboxItemId))
-      .get();
+    // Fetch inbox item and notes in parallel for better performance
+    const [inboxItem, notes] = await Promise.all([
+      db
+        .select()
+        .from(InboxItems)
+        .where(eq(InboxItems.id, inboxItemId))
+        .get(),
+      // Pre-fetch notes (will be empty array if not a thread, but avoids conditional query)
+      db
+        .select()
+        .from(InboxItemNotes)
+        .where(eq(InboxItemNotes.inboxItemId, inboxItemId))
+        .orderBy(asc(InboxItemNotes.order))
+        .all()
+    ]);
 
     if (!inboxItem) {
       return null;
     }
 
-    // If it's a thread, get associated notes
-    if (inboxItem.contentType === 'thread') {
-      const notes = await db
-        .select()
-        .from(InboxItemNotes)
-        .where(eq(InboxItemNotes.inboxItemId, inboxItemId))
-        .orderBy(asc(InboxItemNotes.order))
-        .all();
-
-      return {
-        ...inboxItem,
-        notes: notes,
-      };
-    }
-
+    // Return notes only if it's a thread, otherwise empty array
     return {
       ...inboxItem,
-      notes: [],
+      notes: inboxItem.contentType === 'thread' ? notes : [],
     };
   } catch (error) {
     console.error("Error fetching inbox item with notes:", error);

@@ -246,6 +246,14 @@ export default function DesktopPanelManager({
       }
     };
 
+    const handleUpdateInboxPreview = (event: CustomEvent) => {
+      const item = event.detail?.item;
+      if (item) {
+        // Update the inbox preview data when new data arrives
+        setInboxPreviewData(item);
+      }
+    };
+
     const handleCloseInboxPreview = () => {
       dispatch({ type: 'CLOSE_INBOX_PREVIEW' });
       setInboxPreviewData(null);
@@ -263,6 +271,7 @@ export default function DesktopPanelManager({
     window.addEventListener('openEditSpacePanel', handleOpenEditSpace);
     window.addEventListener('closeEditSpacePanel', handleCloseEditSpace);
     window.addEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
+    window.addEventListener('updateInboxPreview', handleUpdateInboxPreview as EventListener);
     window.addEventListener('closeInboxPreview', handleCloseInboxPreview);
 
     // Cleanup
@@ -278,6 +287,7 @@ export default function DesktopPanelManager({
       window.removeEventListener('openEditSpacePanel', handleOpenEditSpace);
       window.removeEventListener('closeEditSpacePanel', handleCloseEditSpace);
       window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
+      window.removeEventListener('updateInboxPreview', handleUpdateInboxPreview as EventListener);
       window.removeEventListener('closeInboxPreview', handleCloseInboxPreview);
     };
   }, []);

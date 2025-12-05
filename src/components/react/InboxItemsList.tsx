@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import CardFeat from './CardFeat';
 import { toast } from '@/utils/toast';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -27,6 +27,8 @@ interface InboxItemsListProps {
 
 export default function InboxItemsList({ items, onItemAdded, onItemArchived }: InboxItemsListProps) {
   const [filteredItems, setFilteredItems] = useState<InboxItem[]>(items);
+  // Track prefetched items to avoid duplicate prefetch requests
+  const prefetchedItems = useRef<Set<string>>(new Set());
 
   // Update filtered items when items prop changes
   useEffect(() => {
@@ -64,6 +66,25 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
     };
   }, []);
 
+  // Prefetch item data on hover for faster loading
+  const handleItemHover = async (item: InboxItem) => {
+    // Skip if already prefetched
+    if (prefetchedItems.current.has(item.id)) {
+      return;
+    }
+
+    // Mark as prefetched immediately to avoid duplicate requests
+    prefetchedItems.current.add(item.id);
+
+    // Prefetch in background (don't await - fire and forget)
+    fetch(`/api/inbox/preview?inboxItemId=${item.id}`, {
+      credentials: 'include',
+    }).catch(() => {
+      // On error, remove from prefetched set so we can retry on click
+      prefetchedItems.current.delete(item.id);
+    });
+  };
+
   const handleItemClick = async (item: InboxItem, e: React.MouseEvent) => {
     e.preventDefault();
 
@@ -81,6 +102,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
     try {
       // Fetch full item data with notes via API
+      // If prefetched, browser cache should make this instant
       const response = await fetch(`/api/inbox/preview?inboxItemId=${item.id}`, {
         credentials: 'include',
       });
@@ -373,6 +395,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
             <a
               href="#"
               onClick={(e) => handleItemClick(item, e)}
+              onMouseEnter={() => handleItemHover(item)}
               className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.98] cursor-pointer"
             >
               <CardFeat
