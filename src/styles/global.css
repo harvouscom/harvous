@@ -259,8 +259,8 @@ nav a {
    Typography Classes
    ========================================================================== */
 .text-title {
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
   font-size: 20px;
   line-height: 25.98px;
   letter-spacing: normal;
@@ -268,14 +268,18 @@ nav a {
   word-break: break-word;
   hyphens: auto;
   max-width: calc(100% - 44px);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .text-subtitle {
   font-family: var(--font-sans) !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   font-size: 18px;
   line-height: 100%;
   letter-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .text-body {
@@ -937,25 +941,153 @@ button[disabled] {
 }
 
 /* ==========================================================================
+   Dashboard Skeleton
+   ========================================================================== */
+.dashboard-skeleton {
+  height: 100%;
+}
+
+.dashboard-skeleton__container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.dashboard-skeleton__card {
+  flex: 1;
+}
+
+.dashboard-skeleton__card-inner {
+  background-color: white;
+  border-radius: 24px;
+  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-skeleton__header {
+  background-color: var(--color-paper);
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
+.dashboard-skeleton__content {
+  flex: 1;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.dashboard-skeleton__tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.dashboard-skeleton__items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dashboard-skeleton__item {
+  height: 80px;
+}
+
+.dashboard-skeleton__item--small {
+  height: 64px;
+}
+
+.dashboard-skeleton__tabs--spaced {
+  margin-top: 1rem;
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-gray) 0%,
+    var(--color-gray) 40%,
+    rgba(255, 255, 255, 0.4) 50%,
+    var(--color-gray) 60%,
+    var(--color-gray) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: 0.75rem;
+  animation: shimmer 1.5s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer:nth-child(1) { animation-delay: 0s; }
+.skeleton-shimmer:nth-child(2) { animation-delay: 0.1s; }
+.skeleton-shimmer:nth-child(3) { animation-delay: 0.2s; }
+.skeleton-shimmer:nth-child(4) { animation-delay: 0.3s; }
+.skeleton-shimmer:nth-child(5) { animation-delay: 0.4s; }
+.skeleton-shimmer:nth-child(6) { animation-delay: 0.5s; }
+
+/* ==========================================================================
+   Empty State Message
+   ========================================================================== */
+.empty-state-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-top: 80px;
+  padding-bottom: 80px;
+}
+
+/* ==========================================================================
    CRITICAL: Button & Heading Typography (MUST BE LAST)
    These rules must come after all imports to ensure highest priority
    ========================================================================== */
 
-/* All buttons - semibold weight */
+/* All buttons - bold weight for better visibility */
 button {
   font-family: var(--font-sans) !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   color: var(--color-deep-grey) !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Button text content - ensure semibold */
+/* Button text content - ensure bold */
 button span,
 button div,
 button p,
-button * {
+button *,
+button.space-button span,
+button.space-button div,
+button.space-button *,
+button.space-btn span,
+button.space-btn div,
+button.space-btn *,
+button.tab-nav__button span,
+button.tab-nav__button *,
+button.menu-item span,
+button.menu-item * {
   font-family: var(--font-sans) !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   color: var(--color-deep-grey) !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* All headings - bold weight */
@@ -963,6 +1095,8 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-sans) !important;
   font-weight: 700 !important;
   color: var(--color-deep-grey);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ==========================================================================
@@ -971,28 +1105,86 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Menu item label - used in dropdown menus */
 .menu-item__label {
-  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif;
-  font-weight: 600;
+  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 700 !important;
   font-size: 18px;
   color: var(--color-deep-grey);
   white-space: nowrap;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Menu item button styling */
 .menu-item {
-  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif;
-  font-weight: 600;
+  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Menu item text elements */
+.menu-item span,
+.menu-item div,
+.menu-item p,
+.menu-item *,
+button.menu-item span,
+button.menu-item div,
+button.menu-item *,
+.menu-item__label,
+.menu-item__label *,
+span.menu-item__label,
+button .menu-item__label {
+  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Space button text - navigation buttons */
 .space-btn__text {
-  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif;
-  font-weight: 600;
+  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* All buttons should use semibold */
+/* All buttons should use bold */
 .space-button,
 .space-btn {
-  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif;
-  font-weight: 600;
+  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* Space button text elements */
+.space-button span,
+.space-button div,
+.space-button p,
+.space-button *,
+.space-btn span,
+.space-btn div,
+.space-btn p,
+.space-btn * {
+  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tab navigation buttons */
+.tab-nav__button {
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tab-nav__button span,
+.tab-nav__button * {
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+

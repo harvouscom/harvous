@@ -37,6 +37,14 @@
 /* ==========================================================================
    Card Note
    ========================================================================== */
+.card-note-container {
+  position: relative;
+  border-radius: 12px;
+  background-color: white;
+  height: 88px;
+  transition: all 0.2s;
+}
+
 .card-note {
   background-color: white;
   height: 88px;
@@ -176,6 +184,10 @@
 /* ==========================================================================
    Card Thread
    ========================================================================== */
+.card-thread-container {
+  background-color: var(--color-fog-white);
+}
+
 .card-thread {
   box-sizing: border-box;
   display: flex;
@@ -573,4 +585,391 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+}
+
+/* ==========================================================================
+   Card Stack
+   ========================================================================== */
+.card-stack {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: clip;
+  padding-bottom: 1.5rem;
+  padding-top: 0;
+  padding-left: 0;
+  padding-right: 0;
+  position: relative;
+  border-radius: 24px;
+  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
+  width: 100%;
+  height: 100%;
+}
+
+.card-stack__header {
+  box-sizing: border-box;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  margin-bottom: -24px;
+  font-style: normal;
+  padding-bottom: 3rem;
+  padding-top: 1.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.card-stack__title {
+  flex-basis: 0;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  flex-grow: 1;
+  min-height: 1px;
+  min-width: 1px;
+  position: relative;
+  flex-shrink: 0;
+  font-size: 24px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  & p {
+    font-family: var(--font-sans) !important;
+    font-weight: 700 !important;
+    line-height: normal;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+.card-stack__title--center {
+  text-align: center;
+}
+
+.card-stack__subtitle {
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  position: relative;
+  flex-shrink: 0;
+  font-size: 14px;
+  white-space: nowrap;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  & p {
+    font-family: var(--font-sans) !important;
+    font-weight: 700 !important;
+    line-height: normal;
+    white-space: pre;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+.card-stack__content {
+  flex-basis: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  align-items: flex-start;
+  justify-content: flex-start;
+  margin-bottom: -24px;
+  min-height: 1px;
+  min-width: 1px;
+  overflow: clip;
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.card-stack__inner {
+  flex-basis: 0;
+  background-color: var(--color-snow-white);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-grow: 1;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 1px;
+  min-width: 1px;
+  overflow-x: clip;
+  overflow-y: auto;
+  padding: 12px;
+  position: relative;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.card-stack__inner-content {
+  flex-basis: 0;
+  flex-grow: 1;
+  min-height: 1px;
+  min-width: 1px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* ==========================================================================
+   Card Image Link
+   ========================================================================== */
+.card-image-link {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: clip;
+  padding: 12px;
+  position: relative;
+  border-radius: 24px;
+  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-fog-white);
+}
+
+.card-image-link__image {
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  height: 180px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.card-image-link__header {
+  box-sizing: border-box;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-top: 0;
+  padding-bottom: 0;
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.card-image-link__title {
+  flex-basis: 0;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  flex-grow: 1;
+  line-height: 0;
+  min-height: 1px;
+  min-width: 1px;
+  font-style: normal;
+  position: relative;
+  flex-shrink: 0;
+  color: var(--color-deep-grey);
+  font-size: 24px;
+
+  & p {
+    line-height: normal;
+  }
+}
+
+.card-image-link__bookmark {
+  position: relative;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+
+  & svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.card-image-link__meta {
+  box-sizing: border-box;
+  display: flex;
+  font-weight: normal;
+  align-items: center;
+  justify-content: space-between;
+  line-height: 0;
+  font-style: normal;
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-top: 0;
+  padding-bottom: 0;
+  position: relative;
+  flex-shrink: 0;
+  color: var(--color-stone-grey);
+  font-size: 12px;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.card-image-link__meta-item {
+  position: relative;
+  flex-shrink: 0;
+
+  & p {
+    line-height: normal;
+    white-space: nowrap;
+    white-space: pre;
+  }
+}
+
+.card-image-link__content {
+  flex-basis: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-grow: 1;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-height: 1px;
+  min-width: 1px;
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-top: 0;
+  padding-bottom: 0;
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.card-image-link__content-text {
+  flex-basis: 0;
+  display: flex;
+  flex-direction: column;
+  font-weight: normal;
+  flex-grow: 1;
+  justify-content: center;
+  line-height: 0;
+  min-height: 1px;
+  min-width: 1px;
+  font-style: normal;
+  position: relative;
+  flex-shrink: 0;
+  color: var(--color-deep-grey);
+  font-size: 16px;
+
+  & p {
+    line-height: 1.6;
+  }
+}
+
+.card-image-link__source {
+  background-color: var(--color-aged-paper);
+  box-sizing: border-box;
+  display: flex;
+  gap: 10px;
+  height: 52px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: clip;
+  padding-bottom: 1rem;
+  padding-top: 12px;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  position: relative;
+  border-radius: 12px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.card-image-link__source-content {
+  flex-basis: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-grow: 1;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 1px;
+  min-width: 1px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.card-image-link__source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.card-image-link__source-text {
+  flex-basis: 0;
+  font-weight: 500;
+  flex-grow: 1;
+  line-height: 0;
+  min-height: 1px;
+  min-width: 1px;
+  font-style: normal;
+  position: relative;
+  flex-shrink: 0;
+  color: var(--color-stone-grey);
+  font-size: 16px;
+
+  & p {
+    line-height: 1.5;
+  }
+}
+
+.card-image-link__source-icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+
+  & svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.card-image-link__shadow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: 0px -4px 0px 0px inset rgba(0, 0, 0, 0.1);
+}
+
+.card-image-link__gradient {
+  position: absolute;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 1) 82%);
+  bottom: 64px;
+  height: 50px;
+  left: 0;
+  width: 100%;
+}
+
+/* ==========================================================================
+   Overlapping Notes
+   ========================================================================== */
+.overlapping-notes-container {
+  display: flex;
+  align-items: center;
+  margin-left: -100px;
+}
+
+.overlapping-note {
+  background-color: white;
+  height: 120px;
+  width: 140px;
+  border-radius: 12px;
+  box-shadow: 
+    -4px 0px 4px 0px rgba(0, 0, 0, 0.05),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.05);
+  transform: rotate(4deg);
 }

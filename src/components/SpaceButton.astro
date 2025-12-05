@@ -47,24 +47,22 @@ const textColor = getTextColor(backgroundGradient, isActive);
 
 {state === "WithArrow" ? (
     <button 
-        class={`space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 ${className}`}
+        class={`space-button space-button--with-arrow ${className}`}
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
-            <div class="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                <div class="flex-1 min-w-0 overflow-hidden">
-                    <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block" style={`color: ${textColor}`}>
-                        {text}
-                    </span>
-                </div>
-            <div class="flex items-center justify-center relative shrink-0">
-                <div class="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                    <div class="flex items-center justify-center relative shrink-0">
-                        <div class="relative w-6 h-6">
-                            <svg class="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
-                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                            </svg>
-                        </div>
+        <div class="space-button__content space-button__content--with-arrow">
+            <div class="space-button__text">
+                <span class="space-button__text-label" style={`color: ${textColor}`}>
+                    {text}
+                </span>
+            </div>
+            <div class="space-button__arrow-container">
+                <div class="space-button__arrow-wrapper">
+                    <div class="space-button__arrow-icon">
+                        <svg viewBox="0 0 320 512">
+                            <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                        </svg>
                     </div>
                 </div>
             </div>
@@ -72,43 +70,16 @@ const textColor = getTextColor(backgroundGradient, isActive);
     </button>
 ) : (
     <button 
-        class={`space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 px-4 ${className}`}
+        class={`space-button ${className}`}
         style={isActive ? `background-image: ${backgroundGradient};` : ''}
         {...props}
     >
-        <div class="flex items-center justify-start relative w-full h-full pl-2 pr-2 transition-transform duration-125 min-w-0">
-                <div class="flex-1 min-w-0 overflow-hidden text-left">
-                <span class="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block text-left" style={`color: ${textColor}; text-align: left !important;`}>
-                        {text}
-                    </span>
+        <div class="space-button__content space-button__content--default">
+            <div class="space-button__text">
+                <span class="space-button__text-label" style={`color: ${textColor};`}>
+                    {text}
+                </span>
             </div>
         </div>
     </button>
 )}
-
-<style>
-    button {
-        will-change: transform;
-        transition: box-shadow 0.125s ease-in-out;
-    }
-
-    button[style*="background-image"] {
-        box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
-    }
-
-    button:not([data-outer-shadow]):active {
-        filter: brightness(0.97);
-        box-shadow: 
-            0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
-            0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
-    }
-
-    button:active > div {
-        translate: 0 0;
-        transform: scale(0.98);
-    }
-
-    button:active svg {
-        transform: scale(0.95);
-    }
-</style>

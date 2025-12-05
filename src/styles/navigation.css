@@ -36,8 +36,8 @@
 }
 
 .avatar__initials {
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
   font-size: 18px;
   line-height: 0;
   font-style: normal;
@@ -45,10 +45,16 @@
   flex-shrink: 0;
   white-space: nowrap;
   transition: transform 0.125s ease-in-out;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 
   & p {
+    font-family: var(--font-sans) !important;
+    font-weight: 700 !important;
     line-height: normal;
     white-space: pre;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
@@ -487,6 +493,100 @@
 }
 
 /* ==========================================================================
+   Tab Navigation
+   ========================================================================== */
+.tab-nav-container {
+  border: none !important;
+  box-shadow: none !important;
+
+  & * {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  & button {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  & button:hover {
+    cursor: pointer;
+  }
+
+  & button[data-active="true"] {
+    position: relative;
+    opacity: 1;
+  }
+
+  & button[data-active="true"]::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    background-color: var(--color-deep-grey);
+    border-radius: 50%;
+  }
+
+  & button[data-active="false"] {
+    opacity: 0.5;
+  }
+
+  & button[data-active="false"]:hover {
+    opacity: 0.75;
+  }
+}
+
+.tab-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tab-nav__button {
+  display: flex;
+  gap: 8px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  padding-left: 8px;
+  padding-right: 8px;
+  padding-top: 12px;
+  padding-bottom: 16px;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.tab-nav__label,
+.tab-nav__label *,
+span.tab-nav__label,
+button .tab-nav__label,
+button.tab-nav__button .tab-nav__label,
+.tab-nav__button .tab-nav__label {
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  font-size: 14px;
+  line-height: 0;
+  position: relative;
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: #4a473d;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==========================================================================
    SpaceButton Component
    ========================================================================== */
 
@@ -541,10 +641,16 @@
 }
 
 /* SpaceButton text */
-.space-btn__text {
+.space-btn__text,
+.space-btn__text *,
+span.space-btn__text,
+.space-button span.space-btn__text,
+button .space-btn__text,
+button.space-button .space-btn__text,
+button.space-btn .space-btn__text {
   font-family: "Reddit Sans", var(--font-sans), system-ui, -apple-system, sans-serif !important;
   font-size: 18px;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   color: var(--color-deep-grey);
   white-space: nowrap;
   overflow: hidden;
@@ -552,6 +658,8 @@
   display: block;
   text-align: left;
   line-height: 1.2;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* SpaceButton badge wrapper */

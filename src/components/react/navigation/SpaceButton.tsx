@@ -126,7 +126,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "Default") {
     return (
       <button 
-        className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} px-4 ${className}`}
+        className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} ${className}`}
         style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}

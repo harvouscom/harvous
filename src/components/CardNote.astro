@@ -73,19 +73,19 @@ function stripHtml(html: string): string {
 }
 ---
 
-<div class={`card-note-container bg-white relative rounded-xl h-22 transition-all duration-200 hover:shadow-sm hover:scale-[1.005] ${className}`}>
+<div class={`card-note-container card card-note ${className}`}>
   {variant === "default" && (
-    <div class="relative rounded-xl h-full">
-      <div class="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
+    <div class="card-note__inner">
+      <div class="card-note__content">
         <!-- Left sidebar with note type icon -->
-        <div class="bg-[var(--color-light-paper)] box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" style="height: 68px;">
-          <div class="relative shrink-0 size-5">
+        <div class="card-note__sidebar">
+          <div class="card-note__sidebar-icon">
             {noteType === 'scripture' ? (
-              <svg class="block w-5 h-5 text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 576 512"><path d="M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z"/></svg>
+              <svg fill="currentColor" viewBox="0 0 576 512"><path d="M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z"/></svg>
             ) : noteType === 'resource' ? (
-              <svg class="block w-5 h-5 text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 384 512"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM64 256a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm152 32c5.3 0 10.2 2.6 13.2 6.9l88 128c3.4 4.9 3.7 11.3 1 16.5s-8.2 8.6-14.2 8.6l-88 0-40 0-48 0-48 0c-5.8 0-11.1-3.1-13.9-8.1s-2.8-11.2 .2-16.1l48-80c2.9-4.8 8.1-7.8 13.7-7.8s10.8 2.9 13.7 7.8l12.8 21.4 48.3-70.2c3-4.3 7.9-6.9 13.2-6.9z"/></svg>
+              <svg fill="currentColor" viewBox="0 0 384 512"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM64 256a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm152 32c5.3 0 10.2 2.6 13.2 6.9l88 128c3.4 4.9 3.7 11.3 1 16.5s-8.2 8.6-14.2 8.6l-88 0-40 0-48 0-48 0c-5.8 0-11.1-3.1-13.9-8.1s-2.8-11.2 .2-16.1l48-80c2.9-4.8 8.1-7.8 13.7-7.8s10.8 2.9 13.7 7.8l12.8 21.4 48.3-70.2c3-4.3 7.9-6.9 13.2-6.9z"/></svg>
             ) : (
-              <svg class="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+              <svg fill="currentColor" viewBox="0 0 24 24">
                 <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
               </svg>
             )}
@@ -93,40 +93,40 @@ function stripHtml(html: string): string {
         </div>
         
         <!-- Right content area -->
-        <div class="basis-0 content-stretch flex gap-6 grow items-start justify-start min-h-px min-w-px relative shrink-0 pt-2">
-          <div class="basis-0 content-stretch flex flex-col gap-1 grow items-start justify-start leading-[0] min-h-px min-w-px not-italic relative self-stretch shrink-0">
+        <div class="card-note__body">
+          <div class="card-note__text">
             <!-- Title -->
-            <div class="flex flex-col font-semibold justify-start overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] text-nowrap w-full">
-                          <p class="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
-              {title || "Quick Tour of Harvous"}
-            </p>
+            <div class="card-note__title">
+              <p>
+                {title || "Quick Tour of Harvous"}
+              </p>
             </div>
             
             <!-- Content -->
-            <div class="flex flex-col font-normal justify-start overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
-              <p class="leading-[1.3] line-clamp-2">
+            <div class="card-note__excerpt">
+              <p>
                 {content ? stripHtml(content) : ""}
               </p>
             </div>
           </div>
         </div>
       </div>
-      <div aria-hidden="true" class="absolute border border-[#f7f7f6] border-solid inset-0 pointer-events-none rounded-xl"></div>
+      <div aria-hidden="true" class="card__border"></div>
     </div>
   )}
 
   {variant === "withImage" && (
-    <div class="relative rounded-xl h-full">
-      <div class="box-border content-stretch flex gap-3 items-stretch justify-start overflow-clip p-[8px] relative h-full">
+    <div class="card-note__inner">
+      <div class="card-note__content">
         <!-- Left sidebar with image background and note type icon -->
-        <div class="bg-center bg-cover bg-no-repeat box-border content-stretch flex gap-1.5 items-start justify-start overflow-clip p-[8px] relative rounded-lg shrink-0 w-20" style={imageUrl ? `background-image: url('${imageUrl}'); height: 68px;` : 'background-color: var(--color-aged-paper); height: 68px;'}>
-          <div class="relative shrink-0 size-5">
+        <div class={`card-note__sidebar card-note__sidebar--with-image`} style={imageUrl ? `background-image: url('${imageUrl}');` : ''}>
+          <div class="card-note__sidebar-icon">
             {noteType === 'scripture' ? (
-              <svg class="block w-5 h-5 text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 576 512"><path d="M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z"/></svg>
+              <svg fill="currentColor" viewBox="0 0 576 512"><path d="M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z"/></svg>
             ) : noteType === 'resource' ? (
-              <svg class="block w-5 h-5 text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 384 512"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM64 256a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm152 32c5.3 0 10.2 2.6 13.2 6.9l88 128c3.4 4.9 3.7 11.3 1 16.5s-8.2 8.6-14.2 8.6l-88 0-40 0-48 0-48 0c-5.8 0-11.1-3.1-13.9-8.1s-2.8-11.2 .2-16.1l48-80c2.9-4.8 8.1-7.8 13.7-7.8s10.8 2.9 13.7 7.8l12.8 21.4 48.3-70.2c3-4.3 7.9-6.9 13.2-6.9z"/></svg>
+              <svg fill="currentColor" viewBox="0 0 384 512"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM64 256a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm152 32c5.3 0 10.2 2.6 13.2 6.9l88 128c3.4 4.9 3.7 11.3 1 16.5s-8.2 8.6-14.2 8.6l-88 0-40 0-48 0-48 0c-5.8 0-11.1-3.1-13.9-8.1s-2.8-11.2 .2-16.1l48-80c2.9-4.8 8.1-7.8 13.7-7.8s10.8 2.9 13.7 7.8l12.8 21.4 48.3-70.2c3-4.3 7.9-6.9 13.2-6.9z"/></svg>
             ) : (
-              <svg class="block max-w-none size-full text-[var(--color-deep-grey)] opacity-20" fill="currentColor" viewBox="0 0 24 24">
+              <svg fill="currentColor" viewBox="0 0 24 24">
                 <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
               </svg>
             )}
@@ -134,25 +134,25 @@ function stripHtml(html: string): string {
         </div>
         
         <!-- Right content area -->
-        <div class="basis-0 content-stretch flex gap-6 grow items-start justify-start min-h-px min-w-px relative shrink-0 pt-2">
-          <div class="basis-0 content-stretch flex flex-col gap-1 grow items-start justify-start leading-[0] min-h-px min-w-px not-italic relative self-stretch shrink-0">
+        <div class="card-note__body">
+          <div class="card-note__text">
             <!-- Title -->
-            <div class="flex flex-col font-semibold justify-start overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] text-nowrap w-full">
-                          <p class="leading-[1.2] overflow-hidden text-ellipsis whitespace-nowrap">
-              {title || "Note with Image"}
-            </p>
+            <div class="card-note__title">
+              <p>
+                {title || "Note with Image"}
+              </p>
             </div>
             
             <!-- Content -->
-            <div class="flex flex-col font-normal justify-start overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
-              <p class="leading-[1.3] line-clamp-2">
+            <div class="card-note__excerpt">
+              <p>
                 {content ? stripHtml(content) : ""}
               </p>
             </div>
           </div>
         </div>
       </div>
-      <div aria-hidden="true" class="absolute border border-[var(--color-fog-white)] border-solid inset-0 pointer-events-none rounded-xl"></div>
+      <div aria-hidden="true" class="card__border"></div>
     </div>
   )}
 </div>

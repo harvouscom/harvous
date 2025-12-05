@@ -512,7 +512,7 @@ export default function MyChurchPanel({
                 <button
                   type="button"
                   onClick={switchToEditMode}
-                  className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 px-4 w-full"
+                  className="space-button w-full"
                   style={{ backgroundImage: 'var(--color-gradient-gray)' }}
                 >
                   <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">

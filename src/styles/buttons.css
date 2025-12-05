@@ -13,8 +13,8 @@
   justify-content: center;
   border-radius: 1.5rem;
   cursor: pointer;
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
   white-space: nowrap;
   color: var(--color-fog-white);
   transition: transform 0.3s, box-shadow 0.3s;
@@ -28,6 +28,14 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+}
+
+.btn span,
+.btn div,
+.btn p,
+.btn * {
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
 }
 
 /* Button content wrapper */
@@ -207,8 +215,8 @@
   justify-content: center;
   border-radius: 1.5rem;
   cursor: pointer;
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
   font-size: 18px;
   line-height: 0;
   white-space: nowrap;
@@ -229,8 +237,16 @@
   position: relative;
   flex-shrink: 0;
   transition: transform 0.125s ease-in-out;
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
+}
+
+.btn-cta span,
+.btn-cta div,
+.btn-cta p,
+.btn-cta * {
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
 }
 
 .btn-cta__shadow {
@@ -317,4 +333,120 @@
 /* Selected state with ring */
 .space-btn-lg--selected {
   box-shadow: 0 0 0 2px var(--color-bold-blue), 0 0 0 4px white;
+}
+
+/* ==========================================================================
+   Space Button (Base - used in SpaceButton.astro)
+   ========================================================================== */
+.space-button {
+  position: relative;
+  border-radius: 1.5rem;
+  height: 64px;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+  will-change: transform;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  width: 100%;
+
+  &[style*="background-image"] {
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  &:not([data-outer-shadow]):active {
+    filter: brightness(0.97);
+    box-shadow: 
+      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  &:active > div {
+    transform: scale(0.98);
+  }
+
+  &:active svg {
+    transform: scale(0.95);
+  }
+}
+
+.space-button--with-arrow {
+  padding-right: 0;
+}
+
+.space-button__content {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  transition: transform 0.125s ease-in-out;
+  min-width: 0;
+}
+
+.space-button__content--with-arrow {
+  justify-content: space-between;
+  padding-right: 0;
+}
+
+.space-button__content--default {
+  justify-content: flex-start;
+}
+
+.space-button__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+}
+
+.space-button__text-label {
+  font-family: var(--font-sans) !important;
+  font-size: 18px;
+  font-weight: 700 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.space-button__arrow-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.space-button__arrow-wrapper {
+  box-sizing: border-box;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 12px;
+  position: relative;
+}
+
+.space-button__arrow-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+
+  & svg {
+    fill: var(--color-pebble-grey);
+    display: block;
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.125s ease-in-out;
+  }
 }

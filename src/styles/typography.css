@@ -10,8 +10,8 @@
 
 /* Heading Styles */
 .text-title {
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
   font-size: 20px;
   line-height: 25.98px;
   letter-spacing: normal;
@@ -19,14 +19,18 @@
   word-break: break-word;
   hyphens: auto;
   max-width: calc(100% - 44px);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .text-subtitle {
   font-family: var(--font-sans) !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   font-size: 18px;
   line-height: 100%;
   letter-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .text-body {

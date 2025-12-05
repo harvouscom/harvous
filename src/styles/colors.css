@@ -17,7 +17,7 @@
   --lch-red: 52% 0.22 25;
 
   /* Grey Scale - all share same hue (85) with varying lightness */
-  --lch-deep-grey: 35% 0.02 85;
+  --lch-deep-grey: 42% 0.02 85;
   --lch-stone-grey: 53% 0.02 85;
   --lch-pebble-grey: 59% 0.01 85;
 

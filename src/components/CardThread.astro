@@ -41,52 +41,40 @@ if (lastUpdated) {
 }
 ---
 
-<style>
-  .card-thread-container {
-    background-color: var(--color-fog-white);
-  }
-  
-  .lavender-accent {
-    background-color: var(--color-purple);
-  }
-  
-
-</style>
-
-<div class={`card-thread-container box-border flex flex-col gap-3 items-start justify-start overflow-hidden pb-0 pt-3 px-3 relative rounded-xl w-full h-[96px] ${className}`}>
+<div class={`card-thread-container card-thread ${className}`}>
   <!-- Accent bar -->
-  <div class="absolute inset-y-0 left-0 w-11 rounded-l-xl" style={`background-color: ${accentColor};`}></div>
+  <div class="card-thread__accent" style={`background-color: ${accentColor};`}></div>
   
   <!-- Header content -->
-  <div class="flex flex-col gap-2 items-start justify-center relative shrink-0 w-full">
-    <div class="flex gap-6 items-start justify-start relative shrink-0 w-full">
+  <div class="card-thread__header">
+    <div class="card-thread__header-row">
       <!-- User icon (Private) or User group icon (Shared) -->
-      <div class="relative shrink-0 size-5">
+      <div class="card-thread__icon">
         {isPrivate ? (
           <!-- Single user icon for Private -->
-          <svg class="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
+          <svg fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
           </svg>
         ) : (
           <!-- User group icon for Shared -->
-          <svg class="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 640 640">
+          <svg fill="currentColor" viewBox="0 0 640 640">
             <path d="M96 192C96 130.1 146.1 80 208 80C269.9 80 320 130.1 320 192C320 253.9 269.9 304 208 304C146.1 304 96 253.9 96 192zM32 528C32 430.8 110.8 352 208 352C305.2 352 384 430.8 384 528L384 534C384 557.2 365.2 576 342 576L74 576C50.8 576 32 557.2 32 534L32 528zM464 128C517 128 560 171 560 224C560 277 517 320 464 320C411 320 368 277 368 224C368 171 411 128 464 128zM464 368C543.5 368 608 432.5 608 512L608 534.4C608 557.4 589.4 576 566.4 576L421.6 576C428.2 563.5 432 549.2 432 534L432 528C432 476.5 414.6 429.1 385.5 391.3C408.1 376.6 435.1 368 464 368z"/>
           </svg>
         )}
       </div>
       
       <!-- Text content -->
-      <div class="basis-0 flex flex-col gap-1 grow items-center justify-center min-h-px min-w-px relative shrink-0 text-nowrap">
+      <div class="card-thread__text">
         <!-- Title -->
-        <div class="flex flex-col font-semibold justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-deep-grey)] text-[18px] w-full">
-          <p class="leading-tight overflow-hidden text-ellipsis whitespace-nowrap">
+        <div class="card-thread__title">
+          <p>
             {title}
           </p>
         </div>
         
         <!-- Subtitle -->
-        <div class="flex flex-col font-normal justify-center overflow-ellipsis overflow-hidden relative shrink-0 text-[var(--color-stone-grey)] text-[12px] w-full">
-          <p class="leading-tight overflow-hidden text-ellipsis whitespace-nowrap">
+        <div class="card-thread__subtitle">
+          <p>
             {displaySubtitle}
           </p>
         </div>
@@ -95,10 +83,10 @@ if (lastUpdated) {
   </div>
   
   <!-- Overlapping notes area -->
-  <div class="box-border flex h-[120px] items-start justify-start pl-0 py-0 relative shrink-0 w-full">
+  <div class="card-thread__notes">
     <OverlappingNotes count={count} />
   </div>
   
   <!-- Bottom shadow -->
-  <div class="absolute inset-0 pointer-events-none rounded-xl shadow-[0px_-6px_0px_0px_inset_var(--color-gray)]"></div>
+  <div class="card-thread__shadow"></div>
 </div>

@@ -124,8 +124,8 @@ const maxNotes = Math.min(count, 26);
   :global(.card-thread-container:hover) .stagger-note:nth-child(26) { animation: staggerHover 0.6s ease-in-out 1.25s forwards; }
 </style>
 
-<div class={`flex items-center -space-x-[100px] overlapping-notes-container ${className}`}>
+<div class={`overlapping-notes-container ${className}`}>
   {Array.from({ length: maxNotes }, (_, i) => (
-    <div class="bg-white h-[120px] w-[140px] rounded-xl shadow-[-4px_0px_4px_0px_rgba(0,0,0,0.05),0px_2px_4px_0px_rgba(0,0,0,0.05)] rotate-[4deg] stagger-note"></div>
+    <div class="overlapping-note stagger-note"></div>
   ))}
 </div>
