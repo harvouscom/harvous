@@ -92,20 +92,7 @@ const {
       z-index: 50 !important;
     }
     
-    /* Smooth overlay transitions */
-    :global(.sheet-overlay) {
-      opacity: 0;
-      transition: opacity 0.3s ease-out;
-    }
-    
-    :global(.sheet-overlay[data-state="open"]) {
-      opacity: 1;
-    }
-    
-    :global(.sheet-overlay[data-state="closed"]) {
-      opacity: 0;
-      transition: opacity 0.2s ease-in;
-    }
+    /* Sheet overlay styles are in global.css for reliable application */
   }
   
   
