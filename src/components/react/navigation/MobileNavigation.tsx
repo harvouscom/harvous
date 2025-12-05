@@ -444,7 +444,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       <div className="space-btn pl-4" style={{ backgroundImage: getThreadGradientCSS('paper') }}>
                         <div className="space-btn__content">
                           <div className="space-btn__text-wrapper">
-                            <span className="space-btn__text" style={{ fontWeight: 600 }}>For You</span>
+                            <span className="space-btn__text">For You</span>
                           </div>
                           <div className="space-btn__badge-wrapper">
                             <div className="badge-count">
@@ -474,7 +474,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       >
                         <div className="space-btn__content">
                           <div className="space-btn__text-wrapper">
-                            <span className="space-btn__text" style={{ color: getTextColor(activeSpace.backgroundGradient, true), fontWeight: 600 }}>
+                            <span className="space-btn__text" style={{ color: getTextColor(activeSpace.backgroundGradient, true) }}>
                               {activeSpace.title}
                             </span>
                           </div>
@@ -508,7 +508,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       >
                         <div className="space-btn__content">
                           <div className="space-btn__text-wrapper">
-                            <span className="space-btn__text" style={{ color: getTextColor(activeThread.backgroundGradient, true), fontWeight: 600 }}>
+                            <span className="space-btn__text" style={{ color: getTextColor(activeThread.backgroundGradient, true) }}>
                               {activeThread.title}
                             </span>
                           </div>
@@ -543,7 +543,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         >
                           <div className="space-btn__content">
                             <div className="space-btn__text-wrapper">
-                              <span className="space-btn__text" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive), fontWeight: 600 }}>
+                              <span className="space-btn__text" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}>
                                 {activePersistentSpace.title}
                               </span>
                             </div>
@@ -595,7 +595,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         >
                           <div className="space-btn__content">
                             <div className="space-btn__text-wrapper">
-                              <span className="space-btn__text" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive), fontWeight: 600 }}>
+                              <span className="space-btn__text" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
                                 {activePersistentThread.title}
                               </span>
                             </div>
@@ -643,7 +643,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   <div className="space-btn pl-4">
                     <div className="space-btn__content">
                       <div className="space-btn__text-wrapper">
-                        <span className="space-btn__text" style={{ fontWeight: 600 }}>For You</span>
+                        <span className="space-btn__text">For You</span>
                       </div>
                       <div className="space-btn__badge-wrapper">
                         <div className="badge-count">
@@ -671,7 +671,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           <div className="space-btn pl-4">
                             <div className="space-btn__content">
                               <div className="space-btn__text-wrapper">
-                                <span className="space-btn__text" style={{ color: getTextColor(space.backgroundGradient, false), fontWeight: 600 }}>
+                                <span className="space-btn__text" style={{ color: getTextColor(space.backgroundGradient, false) }}>
                                   {space.title}
                                 </span>
                               </div>
@@ -718,7 +718,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           <div className="space-btn pl-4">
                             <div className="space-btn__content">
                               <div className="space-btn__text-wrapper">
-                                <span className="space-btn__text" style={{ color: getTextColor(thread.backgroundGradient, false), fontWeight: 600 }}>
+                                <span className="space-btn__text" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
                                   {thread.title}
                                 </span>
                               </div>

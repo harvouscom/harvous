@@ -542,7 +542,7 @@
 
 /* SpaceButton text */
 .space-btn__text {
-  font-family: var(--font-sans) !important;
+  font-family: "Reddit Sans", var(--font-sans), system-ui, -apple-system, sans-serif !important;
   font-size: 18px;
   font-weight: 600 !important;
   color: var(--color-deep-grey);

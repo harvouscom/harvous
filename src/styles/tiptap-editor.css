@@ -153,7 +153,7 @@
 }
 
 .tiptap-toolbar button:hover div {
-  color: #4A4A4A !important;
+  color: var(--color-deep-grey) !important;
 }
 
 .tiptap-toolbar button.ql-active {
@@ -162,7 +162,7 @@
 }
 
 .tiptap-toolbar button.ql-active div {
-  color: #4A4A4A !important;
+  color: var(--color-deep-grey) !important;
 }
 
 .tiptap-toolbar button:active {

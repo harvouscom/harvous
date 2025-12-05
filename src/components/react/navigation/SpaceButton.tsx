@@ -134,7 +134,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       >
         <div className="space-btn__content space-btn__content--with-padding space-btn__content--justify-start">
           <div className="space-btn__text-wrapper">
-            <span className={`space-btn__text ${textStyle}`} style={{ fontWeight: 600 }}>
+            <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>
@@ -156,7 +156,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       >
         <div className="space-btn__content">
           <div className="space-btn__text-wrapper">
-            <span className={`space-btn__text ${textStyle}`} style={{ fontWeight: 600 }}>
+            <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>
@@ -186,7 +186,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       >
         <div className="space-btn__content">
           <div className="space-btn__text-wrapper">
-            <span className={`space-btn__text ${textStyle}`} style={{ fontWeight: 600 }}>
+            <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>
@@ -225,7 +225,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
         <div className="space-btn__content">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="space-btn__text-wrapper">
-              <span className={`space-btn__text ${textStyle}`} style={{ fontWeight: 600 }}>
+              <span className={`space-btn__text ${textStyle}`}>
                 {text}
               </span>
             </div>
@@ -259,7 +259,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
         >
           <div className="space-btn__content space-btn__content--justify-between">
             <div className="space-btn__text-wrapper">
-              <span className={`space-btn__text ${textStyle}`} style={{ fontWeight: 600 }}>
+              <span className={`space-btn__text ${textStyle}`}>
                 {text}
               </span>
             </div>
@@ -306,7 +306,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
         >
           <div className="space-btn__content space-btn__content--justify-between">
             <div className="space-btn__text-wrapper">
-              <span className={`space-btn__text ${textStyle}`} style={{ fontWeight: 600 }}>
+              <span className={`space-btn__text ${textStyle}`}>
                 {text}
               </span>
             </div>
@@ -343,7 +343,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       >
         <div className="space-btn__content space-btn__content--justify-between">
           <div className="space-btn__text-wrapper">
-            <span className={`space-btn__text ${textStyle}`} style={{ fontWeight: 600 }}>
+            <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>
@@ -369,7 +369,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       <div className="space-btn__content">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="space-btn__text-wrapper">
-            <span className={`space-btn__text ${textStyle}`} style={{ fontWeight: 600 }}>
+            <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>

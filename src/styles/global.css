@@ -46,23 +46,8 @@ button {
   border: none;
   padding: 0;
   cursor: pointer;
-  font-family: var(--font-sans);
   font-size: inherit;
-  font-weight: 600 !important;
-  color: inherit;
-}
-
-/* Ensure button text content is semibold */
-button span,
-button div,
-button p {
-  font-family: var(--font-sans);
-  font-weight: 600;
-}
-
-/* Headings */
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 700 !important;
+  color: var(--color-deep-grey);
 }
 
 /* Remove link underlines */
@@ -115,8 +100,8 @@ img, svg {
   transition: box-shadow 0.125s ease-in-out, transform 0.125s ease-in-out;
   /* Default shadow for buttons with background-image set via inline style */
   box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
 }
 
 .space-button-active {
@@ -949,4 +934,65 @@ button[disabled] {
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     transform: scale(1.005);
   }
+}
+
+/* ==========================================================================
+   CRITICAL: Button & Heading Typography (MUST BE LAST)
+   These rules must come after all imports to ensure highest priority
+   ========================================================================== */
+
+/* All buttons - semibold weight */
+button {
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
+  color: var(--color-deep-grey) !important;
+}
+
+/* Button text content - ensure semibold */
+button span,
+button div,
+button p,
+button * {
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
+  color: var(--color-deep-grey) !important;
+}
+
+/* All headings - bold weight */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  color: var(--color-deep-grey);
+}
+
+/* ==========================================================================
+   Semantic Typography Classes for Buttons & Menu Items
+   ========================================================================== */
+
+/* Menu item label - used in dropdown menus */
+.menu-item__label {
+  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--color-deep-grey);
+  white-space: nowrap;
+}
+
+/* Menu item button styling */
+.menu-item {
+  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+}
+
+/* Space button text - navigation buttons */
+.space-btn__text {
+  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+}
+
+/* All buttons should use semibold */
+.space-button,
+.space-btn {
+  font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
 }

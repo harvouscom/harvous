@@ -747,8 +747,8 @@
 .text-\[var\(--color-pebble-grey\)\] { color: var(--color-pebble-grey); }
 .text-\[var\(--color-fog-white\)\] { color: var(--color-fog-white); }
 .text-\[var\(--color-bold-blue\)\] { color: var(--color-bold-blue); }
-.text-\[\#4a473d\] { color: #4a473d; }
-.text-\[\#78766f\] { color: #78766f; }
+.text-\[\#4a473d\] { color: var(--color-deep-grey); }
+.text-\[\#78766f\] { color: var(--color-stone-grey); }
 
 /* shadcn/ui Semantic Color Utilities */
 .bg-background { background-color: var(--background); }

@@ -385,10 +385,7 @@ export default function Menu({
               <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
                 {renderIcon(option.icon, option.action)}
               </div>
-              <span 
-                className="font-sans font-semibold text-[18px] text-[var(--color-deep-grey)] whitespace-nowrap"
-                style={{ fontWeight: 600 }}
-              >
+              <span className="menu-item__label">
                 {option.label}
               </span>
             </button>

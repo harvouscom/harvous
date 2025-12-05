@@ -528,7 +528,7 @@
   position: relative;
   flex-shrink: 0;
   white-space: nowrap;
-  color: #4a473d;
+  color: var(--color-deep-grey);
 }
 
 .tab-btn__badge {
