@@ -41,7 +41,7 @@ const textColor = getThreadTextColorCSS(colorName);
     <div class="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full" style={`background-color: ${headerBgColor}; color: ${textColor}`}>
       {subtitle ? (
         <>
-          <div class={`basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] ${centerTitle ? 'text-center' : ''}`}>
+          <div class={`basis-0 font-sans font-semibold grow min-h-px min-w-px relative shrink-0 text-[24px] ${centerTitle ? 'text-center' : ''}`}>
             <p class="leading-[normal]">{title}</p>
           </div>
           <div class="font-sans font-semibold relative shrink-0 text-[14px] text-nowrap">
@@ -49,7 +49,7 @@ const textColor = getThreadTextColorCSS(colorName);
           </div>
         </>
       ) : (
-        <div class="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
+        <div class="basis-0 font-sans font-semibold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
           <p class="leading-[normal]">{title}</p>
         </div>
       )}

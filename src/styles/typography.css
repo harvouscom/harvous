@@ -22,8 +22,8 @@
 }
 
 .text-subtitle {
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
   font-size: 18px;
   line-height: 100%;
   letter-spacing: normal;

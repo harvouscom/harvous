@@ -542,9 +542,9 @@
 
 /* SpaceButton text */
 .space-btn__text {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans) !important;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 600 !important;
   color: var(--color-deep-grey);
   white-space: nowrap;
   overflow: hidden;

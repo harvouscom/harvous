@@ -2,7 +2,6 @@
 import { defineConfig } from 'astro/config';
 import db from '@astrojs/db';
 import clerk from '@clerk/astro';
-import tailwind from '@astrojs/tailwind';
 import react from '@astrojs/react';
 
 import netlify from '@astrojs/netlify';
@@ -91,7 +90,6 @@ export default defineConfig({
     clerk({
       enableEnvSchema: true
     }),
-    tailwind(),
     react(),
   ],
 

@@ -37,6 +37,7 @@ html {
 body {
   line-height: inherit;
   -webkit-font-smoothing: antialiased;
+  color: var(--color-deep-grey);
 }
 
 /* Remove default button styles */
@@ -45,8 +46,23 @@ button {
   border: none;
   padding: 0;
   cursor: pointer;
-  font: inherit;
+  font-family: var(--font-sans);
+  font-size: inherit;
+  font-weight: 600 !important;
   color: inherit;
+}
+
+/* Ensure button text content is semibold */
+button span,
+button div,
+button p {
+  font-family: var(--font-sans);
+  font-weight: 600;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700 !important;
 }
 
 /* Remove link underlines */
@@ -64,6 +80,8 @@ ol, ul {
 input, textarea, select {
   font: inherit;
   color: inherit;
+  background: transparent;
+  border: none;
 }
 
 /* Images */
@@ -97,6 +115,8 @@ img, svg {
   transition: box-shadow 0.125s ease-in-out, transform 0.125s ease-in-out;
   /* Default shadow for buttons with background-image set via inline style */
   box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  font-family: var(--font-sans);
+  font-weight: 600;
 }
 
 .space-button-active {
@@ -266,8 +286,8 @@ nav a {
 }
 
 .text-subtitle {
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
   font-size: 18px;
   line-height: 100%;
   letter-spacing: normal;
@@ -721,10 +741,13 @@ button[disabled] {
 .context-more-menu button,
 .more-menu button,
 .context-more-menu-item,
-.more-menu-item {
+.more-menu-item,
+.menu-item {
   border: none !important;
   outline: none !important;
   box-shadow: none !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
 }
 
 /* Sonner Toast Styles - Minimal overrides */

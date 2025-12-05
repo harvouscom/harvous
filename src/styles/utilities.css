@@ -15,6 +15,14 @@
 .hidden { display: none; }
 .grid { display: grid; }
 
+/* Responsive display - Desktop (1160px+) */
+@media (min-width: 1160px) {
+  .min-\[1160px\]\:hidden { display: none; }
+  .min-\[1160px\]\:block { display: block; }
+  .min-\[1160px\]\:flex { display: flex; }
+  .min-\[1160px\]\:grid { display: grid; }
+}
+
 /* ==========================================================================
    Flexbox
    NOTE: .flex and .inline-flex removed - using Tailwind's while still installed
@@ -266,6 +274,7 @@
 .min-h-full { min-height: 100%; }
 .min-h-screen { min-height: 100vh; }
 .min-h-px { min-height: 1px; }
+.min-h-\[200px\] { min-height: 200px; }
 
 .max-h-full { max-height: 100%; }
 .max-h-screen { max-height: 100vh; }
@@ -360,7 +369,7 @@
 .font-light { font-weight: 300; }
 .font-normal { font-weight: 400; }
 .font-medium { font-weight: 500; }
-.font-semibold { font-weight: 600; }
+.font-semibold { font-weight: 600 !important; }
 .font-bold { font-weight: 700; }
 .font-extrabold { font-weight: 800; }
 
@@ -430,6 +439,7 @@
 .border-dashed { border-style: dashed; }
 
 .border-transparent { border-color: transparent; }
+.border-gray-50 { border-color: rgb(249 250 251); }
 
 /* ==========================================================================
    Border Radius
@@ -658,6 +668,7 @@
 .hover\:shadow-sm:hover { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
 .hover\:brightness-95:hover { filter: brightness(0.95); }
 .hover\:brightness-97:hover { filter: brightness(0.97); }
+.hover\:bg-gray-50:hover { background-color: rgb(249 250 251); }
 
 /* ==========================================================================
    Active States
@@ -777,6 +788,8 @@
 /* ==========================================================================
    Arbitrary Values - Backgrounds
    ========================================================================== */
+.bg-white { background-color: white; }
+.bg-transparent { background-color: transparent; }
 .bg-\[var\(--color-snow-white\)\] { background-color: var(--color-snow-white); }
 .bg-\[var\(--color-bold-blue\)\] { background-color: var(--color-bold-blue); }
 .bg-\[var\(--color-gray\)\] { background-color: var(--color-gray); }
@@ -796,6 +809,7 @@
 .p-\[17px\] { padding: 17px; }
 .p-\[20px\] { padding: 20px; }
 .p-\[66px\] { padding: 66px; }
+.py-\[18px\] { padding-top: 18px; padding-bottom: 18px; }
 
 /* ==========================================================================
    Arbitrary Values - Border Radius
@@ -847,6 +861,8 @@
 /* ==========================================================================
    Arbitrary Values - Fill Colors (for SVGs)
    ========================================================================== */
+.fill-white { fill: white; }
+.fill-current { fill: currentColor; }
 .fill-\[var\(--color-deep-grey\)\] { fill: var(--color-deep-grey); }
 .fill-\[var\(--color-stone-grey\)\] { fill: var(--color-stone-grey); }
 .fill-\[var\(--color-pebble-grey\)\] { fill: var(--color-pebble-grey); }

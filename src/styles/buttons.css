@@ -229,6 +229,8 @@
   position: relative;
   flex-shrink: 0;
   transition: transform 0.125s ease-in-out;
+  font-family: var(--font-sans);
+  font-weight: 600;
 }
 
 .btn-cta__shadow {
