@@ -229,10 +229,7 @@ export default function AddToSection({
   };
 
   return (
-    <div className="rounded-2xl p-4 flex-1 flex flex-col border min-h-0" style={{ 
-      backgroundColor: 'var(--color-white)',
-      borderColor: 'var(--color-fog-white)'
-    }}>
+    <div className="flex-1 flex flex-col min-h-0">
         {/* Search Input */}
         <div className="mb-3">
           <SearchInput

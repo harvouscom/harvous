@@ -357,12 +357,13 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       <form 
         onSubmit={handleFormSubmit}
         onKeyDown={handleFormKeyDown}
-        className="new-note-panel h-full flex flex-col"
+        className="new-note-panel h-full flex flex-col w-full"
         style={{ 
           height: '100%',
           maxHeight: '100%',
           minHeight: 0,
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          width: '100%'
         }}
       >
         {/* Thread Selection */}

@@ -17,7 +17,7 @@
   --lch-red: 52% 0.22 25;
 
   /* Grey Scale - all share same hue (85) with varying lightness */
-  --lch-deep-grey: 42% 0.02 85;
+  --lch-deep-grey: 48% 0.02 85;
   --lch-stone-grey: 53% 0.02 85;
   --lch-pebble-grey: 59% 0.01 85;
 
@@ -30,7 +30,7 @@
   /* Pure Neutrals */
   --lch-white: 100% 0 0;
   --lch-snow-white: 98% 0 0;
-  --lch-fog-white: 97% 0.005 90;
+  --lch-fog-white: 98.5% 0.002 0;
   --lch-gray: 93% 0 0;
 
   /* Thread Colors (Pastel) - lighter, softer variants for UI backgrounds */

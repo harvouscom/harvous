@@ -6,8 +6,6 @@ import ActionButton from './ActionButton';
 import AddToSpaceSection from './AddToSpaceSection';
 import { captureException } from '@/utils/posthog';
 import { safeNavigate } from '@/utils/safe-navigate';
-import { ButtonGroup } from '@/components/ui/button-group';
-import SimpleTooltip from './SimpleTooltip';
 import { safeFetch } from '@/utils/safe-fetch';
 import Icon from './Icon';
 
@@ -470,9 +468,9 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   };
 
   return (
-    <div className="panel-wrapper panel-wrapper--bottom-sheet">
+    <div className="panel-wrapper panel-wrapper--bottom-sheet w-full">
       {/* Form */}
-      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="flex-1 flex flex-col">
+      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="flex-1 flex flex-col w-full">
         {/* Content area that expands to fill available space */}
         <div className="flex-1 flex flex-col min-h-0">
           {/* Panel container */}
@@ -519,9 +517,11 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                       {/* Check icon for selected color */}
                       {selectedColor === color && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <svg className="size-5" style={{ color: getThreadTextColorCSS(color) }} fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                          </svg>
+                          <Icon 
+                            name="check" 
+                            size={20} 
+                            style={{ color: getThreadTextColorCSS(color) }} 
+                          />
                         </div>
                       )}
                     </button>
@@ -567,42 +567,59 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                 )}
                 
                 {/* Thread type selection with ButtonGroup */}
-                <div className="w-full">
-                  <ButtonGroup className="w-full gap-0">
+                <div className="w-full bg-[var(--color-fog-white)] rounded-3xl overflow-hidden p-1.5">
+                  <div className="flex gap-0 w-full">
                     {/* Private button */}
                     <button
                       type="button"
                       onClick={() => setSelectedType('Private')}
-                      className={`space-button relative rounded-tl-3xl rounded-bl-3xl rounded-tr-none rounded-br-none h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-4 flex-1 ${
-                        selectedType === 'Private' ? 'ring-2 ring-[var(--color-bold-blue)] ring-offset-2' : ''
+                      className={`space-button relative rounded-tl-3xl rounded-bl-3xl rounded-tr-none rounded-br-none h-[64px] cursor-pointer transition-all duration-200 pl-4 pr-4 flex-1 ${
+                        selectedType === 'Private' 
+                          ? '' 
+                          : 'bg-transparent'
                       }`}
-                      style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                      style={selectedType === 'Private' ? { 
+                        backgroundImage: 'var(--color-gradient-gray)' 
+                      } : {}}
                     >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full transition-transform duration-125">
+                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
                         <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon name="user" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                          <Icon 
+                            name="user" 
+                            size={16} 
+                            style={{ 
+                              color: selectedType === 'Private' 
+                                ? 'var(--color-deep-grey)' 
+                                : 'var(--color-pebble-grey)' 
+                            }} 
+                          />
                         </div>
-                        <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Private</span>
+                        <span 
+                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
+                            selectedType === 'Private' 
+                              ? 'text-[var(--color-deep-grey)]' 
+                              : 'text-[var(--color-pebble-grey)]'
+                          }`}
+                        >
+                          Private
+                        </span>
                       </div>
                     </button>
                     
-                    {/* Shared button - disabled with tooltip */}
-                    <SimpleTooltip content="Coming Soon" enableTooltip={true} className="flex-1">
-                      <button
-                        type="button"
-                        disabled
-                        className="space-button relative rounded-tr-3xl rounded-br-3xl rounded-tl-none rounded-bl-none h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-4 w-full opacity-50"
-                        style={{ backgroundImage: 'var(--color-gradient-gray)' }}
-                      >
-                        <div className="flex items-center justify-center gap-3 relative w-full h-full transition-transform duration-125">
-                          <div className="size-4 flex items-center justify-center shrink-0">
-                            <Icon name="user-group" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                          </div>
-                          <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
+                    {/* Shared button - disabled */}
+                    <button
+                      type="button"
+                      disabled
+                      className="space-button relative rounded-tr-3xl rounded-br-3xl rounded-tl-none rounded-bl-none h-[64px] cursor-not-allowed transition-all duration-200 pl-4 pr-4 flex-1 bg-transparent opacity-50"
+                    >
+                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
+                        <div className="size-4 flex items-center justify-center shrink-0">
+                          <Icon name="user-group" size={16} style={{ color: 'var(--color-pebble-grey)' }} />
                         </div>
-                      </button>
-                    </SimpleTooltip>
-                  </ButtonGroup>
+                        <span className="text-[var(--color-pebble-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
+                      </div>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Selected Notes - displayed above AddToSpaceSection (create mode only) */}

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
+import CardNote from './CardNote';
 
 interface Note {
   id: string;
@@ -34,6 +35,7 @@ interface SpaceItem {
   subtitle?: string;
   count?: number;
   content?: string;
+  noteType?: 'default' | 'scripture' | 'resource';
   [key: string]: any;
 }
 
@@ -87,7 +89,8 @@ export default function AddToSpaceSection({
           content: note.content,
           updatedAt: note.updatedAt,
           createdAt: note.createdAt,
-          lastAccessed: undefined
+          lastAccessed: undefined,
+          noteType: note.noteType || 'default'
         });
       } else {
         // For editing space, show notes from other spaces or no space (that aren't in the thread)
@@ -213,7 +216,7 @@ export default function AddToSpaceSection({
       .substring(0, 100);
   };
 
-  // Render note item (simplified, no subtitle - just title like thread items)
+  // Render note item using CardNote component
   const renderNoteItem = (item: SpaceItem, onClick: () => void) => {
     const isSelected = selectedItems.includes(item.id);
     
@@ -234,37 +237,22 @@ export default function AddToSpaceSection({
         }}
       >
         <div
-          onClick={onClick}
           onKeyDown={handleKeyDown}
           role="button"
           tabIndex={0}
-          className="relative rounded-xl h-[48px] cursor-pointer transition-transform duration-200 w-full text-left overflow-hidden hover:scale-[1.002]"
+          className="relative"
           style={{
-            backgroundColor: isSelected ? 'var(--color-fog-white)' : 'var(--color-fog-white)',
-            boxShadow: '0px 2px 8px 0px rgba(120, 118, 111, 0.1)',
-            border: isSelected ? '2px solid var(--color-bold-blue)' : 'none'
+            border: isSelected ? '2px solid var(--color-bold-blue)' : 'none',
+            borderRadius: '12px'
           }}
         >
-          {/* Note icon on left */}
-          <div className="absolute inset-y-0 left-0 w-11 rounded-l-xl bg-[#f3f2ec] flex items-center justify-center">
-            <svg className="block max-w-none size-5 text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-            </svg>
-          </div>
-          
-          {/* Content */}
-          <div className="flex items-center gap-6 pl-3 pr-12 h-full">
-            {/* Spacer to match thread icon width and gap */}
-            <div className="relative shrink-0 size-5" />
-            
-            {/* Text content - only title, no subtitle */}
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              {/* Title */}
-              <div className="font-sans font-bold text-[var(--color-deep-grey)] text-[16px] truncate">
-                {item.title}
-              </div>
-            </div>
-          </div>
+          <CardNote
+            title={item.title}
+            content={item.content}
+            noteType={item.noteType || 'default'}
+            onClick={onClick}
+            className="cursor-pointer hover:scale-[1.002] transition-transform duration-200"
+          />
           
           {/* Add button - appears on hover */}
           <ActionButton
@@ -362,10 +350,7 @@ export default function AddToSpaceSection({
   };
 
   return (
-    <div className="rounded-2xl p-4 flex-1 flex flex-col border min-h-0" style={{ 
-      backgroundColor: 'var(--color-white)',
-      borderColor: 'var(--color-fog-white)'
-    }}>
+    <div className="flex-1 flex flex-col min-h-0">
       <style>{`
         @keyframes fadeIn {
           from {
@@ -427,7 +412,7 @@ export default function AddToSpaceSection({
               {/* Recent Items Section */}
               {recentItems.length > 0 && (
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between px-2">
                     <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
                       Most Recent
                     </div>
@@ -459,7 +444,7 @@ export default function AddToSpaceSection({
                     </div>
                   )}
                   {recentItems.length === 0 && (
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between px-2">
                       <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
                         All items
                       </div>

@@ -558,7 +558,7 @@ export default function CardFullEditable({
       >
       {/* Header with title, version (scripture only), and bookmark icon */}
       <div className="box-border content-stretch flex gap-3 items-center px-3 py-0 relative shrink-0 w-full">
-        <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
+        <div className="basis-0 font-sans font-bold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
           {/* Display mode */}
           {!isEditing ? (
             <p 
@@ -570,7 +570,7 @@ export default function CardFullEditable({
                 display: 'block',
                 width: '100%',
                 fontSize: '24px',
-                fontWeight: '600',
+                fontWeight: '700',
                 fontFamily: 'var(--font-sans)',
                 color: 'var(--color-deep-grey)',
                 boxSizing: 'border-box',
@@ -588,13 +588,13 @@ export default function CardFullEditable({
               value={editTitle}
               onChange={handleTitleChange}
               type="text"
-              className="w-full bg-transparent border-0 rounded focus:outline-none"
+              className="w-full bg-transparent border-0 rounded focus:outline-none font-bold"
               style={{
                 lineHeight: '1.2',
                 margin: '-4px -8px',
                 padding: '4px 8px',
                 fontSize: '24px',
-                fontWeight: '600',
+                fontWeight: '700',
                 fontFamily: 'var(--font-sans)',
                 color: 'var(--color-deep-grey)',
                 boxSizing: 'border-box',
@@ -628,7 +628,7 @@ export default function CardFullEditable({
       
       {/* Content */}
       <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px' }}>
-        <div className="flex-1 flex flex-col font-sans font-normal min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
+        <div className="flex-1 flex flex-col font-sans font-medium min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
           {/* Display mode */}
           {!isEditing ? (
             <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>

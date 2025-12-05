@@ -25,6 +25,8 @@ Harvous has migrated from Tailwind CSS to a **vanilla CSS class system** followi
    - `.menu-item__label` - Menu item text labels
    - `.card-note-container` - Note card containers
    - `.text-title`, `.text-subtitle` - Typography classes
+   - `.text-metadata` - Metadata text (12px, stone-grey)
+   - `.empty-state` - Empty state containers (80px top/bottom padding, centered)
 
 ### ⚠️ Transitional State: `utilities.css`
 

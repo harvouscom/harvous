@@ -109,6 +109,15 @@
 /* Primary (Default) - Bold Blue */
 .btn--primary {
   background-color: var(--color-bold-blue);
+  color: white !important;
+
+  & .btn__content,
+  & span,
+  & div,
+  & p,
+  & * {
+    color: white !important;
+  }
 
   &:active {
     background-color: var(--color-navy);
@@ -118,6 +127,15 @@
 /* Secondary - Stone Grey */
 .btn--secondary {
   background-color: var(--color-stone-grey);
+  color: white !important;
+
+  & .btn__content,
+  & span,
+  & div,
+  & p,
+  & * {
+    color: white !important;
+  }
 
   &:active {
     background-color: var(--color-deep-grey);
@@ -127,6 +145,15 @@
 /* Delete/Danger - Red */
 .btn--danger {
   background-color: var(--color-red);
+  color: white !important;
+
+  & .btn__content,
+  & span,
+  & div,
+  & p,
+  & * {
+    color: white !important;
+  }
 
   &:active {
     background-color: #b30524;
@@ -239,6 +266,7 @@
   transition: transform 0.125s ease-in-out;
   font-family: var(--font-sans) !important;
   font-weight: 600 !important;
+  color: var(--color-fog-white) !important;
 }
 
 .btn-cta span,

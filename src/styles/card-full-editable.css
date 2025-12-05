@@ -28,6 +28,25 @@
    Button Styles
    ========================================================================== */
 
+/* Ensure primary and secondary buttons have white text */
+.card-full-editable .btn--primary,
+.card-full-editable .btn--secondary {
+  color: white !important;
+}
+
+.card-full-editable .btn--primary .btn__content,
+.card-full-editable .btn--primary span,
+.card-full-editable .btn--primary div,
+.card-full-editable .btn--primary p,
+.card-full-editable .btn--primary *,
+.card-full-editable .btn--secondary .btn__content,
+.card-full-editable .btn--secondary span,
+.card-full-editable .btn--secondary div,
+.card-full-editable .btn--secondary p,
+.card-full-editable .btn--secondary * {
+  color: white !important;
+}
+
 .card-full-editable button[data-outer-shadow] {
   will-change: transform, box-shadow;
   transition:
@@ -115,7 +134,7 @@
 }
 
 .card-full-editable .flex-1.overflow-auto h3 {
-  font-size: 16px !important;
+  font-size: 18px !important;
   font-weight: 700 !important;
   line-height: 1.4 !important;
   margin-top: 1.25em !important;

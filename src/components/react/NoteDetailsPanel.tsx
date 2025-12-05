@@ -493,11 +493,11 @@ export default function NoteDetailsPanel({
           transform: translateY(-50%) scale(1.1) !important;
         }
       `}</style>
-      <div className={`note-details-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
+      <div className={`note-details-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
       {/* Content area that expands to fill available space */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 w-full">
         {/* Panel container */}
-        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+        <div className={`panel flex-1 flex flex-col min-h-0 ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           {/* Header section */}
           <div className="panel__header">
             <div className="panel__title">
@@ -525,7 +525,7 @@ export default function NoteDetailsPanel({
                               toast.error('Failed to copy note ID');
                             }
                           }}
-                          className="leading-[normal] text-nowrap hover:text-[var(--color-deep-grey)] cursor-pointer transition-colors"
+                          className="text-metadata cursor-pointer"
                           title="Click to copy note ID"
                         >
                           {`#N${noteSimpleId.toString().padStart(3, '0')}`}

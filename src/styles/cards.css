@@ -81,7 +81,7 @@
   border-radius: 8px;
   flex-shrink: 0;
   width: 80px;
-  height: 68px;
+  align-self: stretch;
 }
 
 .card-note__sidebar--with-image {
@@ -118,7 +118,6 @@
   min-width: 1px;
   position: relative;
   flex-shrink: 0;
-  padding-top: 8px;
 }
 
 .card-note__text {
@@ -136,6 +135,8 @@
   position: relative;
   align-self: stretch;
   flex-shrink: 0;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .card-note__title {
@@ -960,7 +961,6 @@
 .overlapping-notes-container {
   display: flex;
   align-items: center;
-  margin-left: -100px;
 }
 
 .overlapping-note {
@@ -972,4 +972,9 @@
     -4px 0px 4px 0px rgba(0, 0, 0, 0.05),
     0px 2px 4px 0px rgba(0, 0, 0, 0.05);
   transform: rotate(4deg);
+  margin-left: -100px;
+}
+
+.overlapping-note:first-child {
+  margin-left: 0;
 }

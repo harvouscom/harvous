@@ -25,8 +25,9 @@ export default function UnsavedChangesDialog({
 
   return createPortal(
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 modal-overlay-enter"
+      className="fixed inset-0 flex items-center justify-center z-[100] p-4 modal-overlay-enter"
       style={{
+        backgroundColor: 'rgba(0, 0, 0, 0.35)',
         paddingTop: 'max(1rem, env(safe-area-inset-top))',
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
       }}
@@ -38,9 +39,12 @@ export default function UnsavedChangesDialog({
       }}
     >
       <div 
-        className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg modal-content-enter"
+        className="bg-white rounded-xl p-6 max-w-md modal-content-enter"
         onClick={(e) => e.stopPropagation()}
-        style={{ pointerEvents: 'auto' }}
+        style={{ 
+          pointerEvents: 'auto',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+        }}
       >
         <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
           Unsaved Changes

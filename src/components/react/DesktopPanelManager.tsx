@@ -330,12 +330,12 @@ export default function DesktopPanelManager({
   const isAnyPanelOpen = state.activePanel !== null;
 
   return (
-    <div className="flex flex-col items-left h-full min-h-0" style={{ maxHeight: '100%' }}>
+    <div className="flex flex-col items-stretch h-full min-h-0 w-full" style={{ maxHeight: '100%', width: '100%' }}>
       {/* New Note Panel - Desktop Only */}
       {state.activePanel === 'newNote' && (
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full new-note-panel-container hidden min-[1160px]:block" />}>
-            <div className="h-full new-note-panel-container hidden min-[1160px]:block">
+            <div className="h-full w-full flex-1 new-note-panel-container hidden min-[1160px]:block" style={{ width: '100%', minWidth: 0 }}>
               <NewNotePanel
                 key={`new-note-${state.panelKey}`}
                 currentThread={currentThread}
@@ -351,7 +351,7 @@ export default function DesktopPanelManager({
       {state.activePanel === 'newThread' && (
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+            <div className="h-full w-full flex-1 hidden min-[1160px]:block" style={{ width: '100%', minWidth: 0 }}>
               <NewThreadPanel
                 key={`new-thread-${state.panelKey}`}
                 currentSpace={currentSpace}

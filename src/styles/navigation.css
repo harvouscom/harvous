@@ -519,7 +519,8 @@
     opacity: 1;
   }
 
-  & button[data-active="true"]::after {
+  /* Only apply ::after to buttons that are NOT .tab-btn (i.e., TabNav.astro buttons) */
+  & button[data-active="true"]:not(.tab-btn)::after {
     content: '';
     position: absolute;
     bottom: 4px;

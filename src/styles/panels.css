@@ -43,6 +43,16 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  flex: 1; /* Allow wrapper to expand */
+}
+
+/* Desktop: max-width 640px, fill available space */
+@media (min-width: 1160px) {
+  .panel-wrapper {
+    max-width: 640px;
+  }
 }
 
 /* When in bottom sheet, the wrapper expands */
@@ -131,6 +141,8 @@
   overflow: clip;
   position: relative;
   width: 100%;
+  flex: 1;
+  min-height: 0;
 
   /* In bottom sheet mode, expand */
   &.panel__body--bottom-sheet {
@@ -140,7 +152,7 @@
 }
 
 .panel__content {
-  background-color: var(--color-snow-white);
+  background-color: var(--color-fog-white);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -153,11 +165,11 @@
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
   width: 100%;
+  flex: 1;
+  min-height: 0;
 
   /* In bottom sheet mode, expand and scroll */
   &.panel__content--bottom-sheet {
-    flex: 1;
-    min-height: 0;
     overflow-y: auto;
   }
 }
@@ -563,5 +575,17 @@
   height: 0.25rem;
   background-color: #4a473d;
   border-radius: 9999px;
+}
+
+/* Note metadata button - should not be bold */
+.note-details-panel button.text-metadata {
+  font-weight: 400 !important;
+  color: var(--color-stone-grey) !important;
+  transition: color 0.2s ease;
+}
+
+/* Note metadata button hover - change to deep grey */
+.note-details-panel button.text-metadata:hover {
+  color: var(--color-deep-grey) !important;
 }
 

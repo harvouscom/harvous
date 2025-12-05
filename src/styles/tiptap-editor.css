@@ -32,6 +32,7 @@
 .tiptap-content .ProseMirror {
   font-family: var(--font-sans) !important;
   font-size: 16px !important;
+  font-weight: 500 !important;
   line-height: 1.6 !important;
   color: var(--color-deep-grey) !important;
   padding: 0 !important;
@@ -183,6 +184,22 @@
 .tiptap-toolbar button.ql-active {
   background: transparent !important;
   box-shadow: none !important;
+}
+
+/* Ensure primary and secondary buttons maintain white text even in Tiptap context */
+.tiptap-editor-container .btn--primary,
+.tiptap-editor-container .btn--primary .btn__content,
+.tiptap-editor-container .btn--primary span,
+.tiptap-editor-container .btn--primary div,
+.tiptap-editor-container .btn--primary p,
+.tiptap-editor-container .btn--primary *,
+.tiptap-editor-container .btn--secondary,
+.tiptap-editor-container .btn--secondary .btn__content,
+.tiptap-editor-container .btn--secondary span,
+.tiptap-editor-container .btn--secondary div,
+.tiptap-editor-container .btn--secondary p,
+.tiptap-editor-container .btn--secondary * {
+  color: white !important;
 }
 
 /* Note link styling - highlighted text that looks like selection */

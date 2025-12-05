@@ -44,7 +44,7 @@ Harvous is designed specifically for Bible study workflows, providing:
 Astro 5.13.7          - SSR framework with View Transitions
 React 19.2.0          - Interactive islands
 TypeScript 5.9.2      - Type safety
-Tailwind CSS 3.4.17   - Utility-first styling
+Tailwind CSS 3.4.17   - Utility-first styling (migrating to semantic CSS)
 ```
 
 ### Database & Auth

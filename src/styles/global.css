@@ -284,7 +284,7 @@ nav a {
 
 .text-body {
   font-family: var(--font-sans);
-  font-weight: 400;
+  font-weight: 500;
   font-size: 16px;
   line-height: 150%;
   letter-spacing: normal;
@@ -542,6 +542,18 @@ body {
 
 .new-note-panel button:active > img {
   transform: scale(0.95);
+}
+
+.new-note-panel {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Desktop: max-width 640px, fill available space */
+@media (min-width: 1160px) {
+  .new-note-panel {
+    max-width: 640px;
+  }
 }
 
 .new-note-panel,
