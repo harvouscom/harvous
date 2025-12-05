@@ -8,36 +8,36 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
 ---
 
 <EmptyLayout title="Sign In">
-  <div id="sign-in-content" class="min-h-[100svh] p-3 flex flex-col sign-in-hidden">
-    <div class="flex-1 flex flex-col lg:flex-row gap-6">
+  <div id="sign-in-content" class="auth-page auth-page__hidden">
+    <div class="auth-page__container">
       <!-- Top Row (Mobile) / Left Column (Desktop): Video Background -->
-      <div class="flex h-[89px] lg:h-auto lg:flex-1 thread-colors-mesh-gradient relative overflow-hidden rounded-[12px]">
+      <div class="auth-page__video-section thread-colors-mesh-gradient">
         <!-- Video background -->
         <video 
           autoplay 
           loop 
           muted 
           playsinline
-          class="absolute inset-0 w-full h-full object-cover"
+          class="auth-page__video"
           aria-hidden="true"
         >
           <source src="/videos/harvous-wheat-art.mp4" type="video/mp4" />
         </video>
         
-        <div class="absolute top-0 left-0 right-0 z-10 flex flex-row justify-between items-center p-3 w-full">
+        <div class="auth-page__video-overlay">
           <!-- Back to home link using SquareButton Back variant -->
-          <a href="https://harvous.com" class="block w-fit">
+          <a href="https://harvous.com" class="auth-page__back-link">
             <SquareButton variant="Back" />
           </a>
           <!-- Harvous logo -->
-          <div class="w-fit px-4 flex items-start justify-center">
+          <div class="auth-page__logo-container">
             <svg 
               width="45" 
               height="64" 
               viewBox="0 0 45 64" 
               fill="none" 
               xmlns="http://www.w3.org/2000/svg"
-              class="h-10 sign-in-logo"
+              class="auth-page__logo sign-in-logo"
               aria-label="Harvous"
             >
               <path d="M44.8037 63.9941H0.0078125V0H44.8037V63.9941ZM34.5645 31.168C25.6988 34.2637 18.5024 41.2949 15.3711 50.543L14.2842 53.752H34.5645V31.168ZM10.2471 37.8643C15.8921 29.2487 24.5827 23.0353 34.5645 20.4824V10.2393H10.2471V37.8643Z" fill="#fff"/>
@@ -47,39 +47,32 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
       </div>
 
       <!-- Bottom Row (Mobile) / Right Column (Desktop): Sign In Form -->
-      <div class="flex-1 flex items-center justify-center bg-[var(--color-light-paper)] min-h-0 p-3">
-        <div class="w-full max-w-md mx-auto">
+      <div class="auth-page__form-section">
+        <div class="auth-page__form-wrapper">
 
       <ClerkSignIn
         appearance={{
             elements: {
-                rootBox: "w-full flex justify-center",
+                rootBox: "clerk-form-root",
                 card: {
-                  className: "bg-white rounded-2xl shadow-lg p-8 w-full max-w-md",
+                  className: "clerk-form-card",
                   style: {
                     border: "none",
                     borderWidth: "0"
                   }
                 },
-            headerTitle: "text-2xl font-bold text-[var(--color-deep-grey)]",
-            headerSubtitle: "text-[var(--color-stone-grey)]",
+            headerTitle: "clerk-form-header-title",
+            headerSubtitle: "clerk-form-header-subtitle",
             formField: "",
-            formButtonPrimary: "group relative rounded-3xl cursor-pointer transition-[scale,shadow] duration-300 pb-7 pt-6 px-6 flex items-center justify-center font-sans font-semibold text-[18px] leading-[0] text-nowrap text-[var(--color-fog-white)] min-h-[60px] w-full primary-button",
-            formFieldInput: "rounded-3xl py-5 px-4 min-h-[64px] bg-transparent border-none text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] focus:outline-none focus:ring-0",
+            formButtonPrimary: "clerk-form-button-primary primary-button",
+            formFieldInput: "clerk-form-input",
             formFieldLabel: "hidden",
             formFieldError: {
-              className: "mt-2 text-center",
-              style: {
-                position: "static",
-                display: "block",
-                marginTop: "8px",
-                color: "#ef4444",
-                fontSize: "14px"
-              }
+              className: "clerk-form-error"
             },
-            footerActionLink: "text-[var(--color-bold-blue)] hover:text-[var(--color-bold-blue)]/80 font-medium",
-            dividerLine: "bg-gray-200",
-            dividerText: "text-[var(--color-stone-grey)] bg-white px-4"
+            footerActionLink: "clerk-form-link",
+            dividerLine: "clerk-form-divider-line",
+            dividerText: "clerk-form-divider-text"
           },
           variables: {
             colorPrimary: "var(--color-bold-blue)"
@@ -102,14 +95,14 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
     // Show the sign-in content - Clerk middleware handles auth redirects server-side
     var content = document.getElementById('sign-in-content');
     if (content) {
-      content.classList.remove('sign-in-hidden');
+      content.classList.remove('auth-page__hidden');
     }
   })();
 </script>
 
 <style>
   /* Hide sign-in content by default to prevent flash when user is already authenticated */
-  .sign-in-hidden {
+  .auth-page__hidden {
     opacity: 0 !important;
     visibility: hidden !important;
   }
@@ -129,8 +122,23 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
     min-height: 60px !important;
     font-weight: 600 !important;
     font-size: 18px !important;
-    color: var(--color-fog-white) !important;
+    color: white !important;
     justify-content: center !important;
+  }
+
+  /* Ensure all text inside button is white */
+  .primary-button *,
+  :global(.cl-formButtonPrimary *) {
+    color: white !important;
+  }
+
+  /* Target all Clerk primary buttons */
+  :global(.cl-button[data-variant="solid"][data-color="primary"]) {
+    color: white !important;
+  }
+
+  :global(.cl-button[data-variant="solid"][data-color="primary"] *) {
+    color: white !important;
   }
 
   .primary-button:hover,

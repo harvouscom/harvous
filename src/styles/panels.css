@@ -346,7 +346,7 @@
 
 .panel__grid-card-value {
   font-size: 1.125rem;  /* 18px */
-  font-weight: 700;
+  font-weight: 600;
   color: var(--color-deep-grey);
 }
 

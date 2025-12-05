@@ -346,3 +346,235 @@
   cursor: not-allowed;
   opacity: 0.5;
 }
+
+/* ==========================================================================
+   Auth Page Layout
+   ========================================================================== */
+.auth-page {
+  min-height: 100svh;
+  padding: 0.75rem;  /* 12px / p-3 */
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-page__container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;  /* 24px / gap-6 */
+}
+
+@media (min-width: 1160px) {
+  .auth-page__container {
+    flex-direction: row;
+  }
+}
+
+.auth-page__video-section {
+  display: flex;
+  height: 5.5625rem;  /* 89px / h-[89px] */
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;  /* 12px / rounded-[12px] */
+}
+
+@media (min-width: 1160px) {
+  .auth-page__video-section {
+    height: auto;
+    flex: 1;
+  }
+}
+
+.auth-page__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.auth-page__video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;  /* 12px / p-3 */
+  width: 100%;
+}
+
+.auth-page__logo-container {
+  width: fit-content;
+  padding-left: 1rem;  /* 16px / px-4 */
+  padding-right: 1rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.auth-page__logo {
+  height: 2.5rem;  /* 40px / h-10 */
+}
+
+.auth-page__back-link {
+  display: block;
+  width: fit-content;
+}
+
+.clerk-form-root {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-page__form-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-light-paper);
+  min-height: 0;
+  padding: 0.75rem;  /* 12px / p-3 */
+}
+
+.auth-page__form-wrapper {
+  width: 100%;
+  max-width: 28rem;  /* 448px / max-w-md */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.auth-page__hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* ==========================================================================
+   Clerk Form Semantic Classes
+   ========================================================================== */
+.clerk-form-card {
+  background-color: white;
+  border-radius: 1rem;  /* 16px / rounded-2xl */
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);  /* shadow-lg */
+  padding: 2rem;  /* 32px / p-8 */
+  width: 100%;
+  max-width: 28rem;  /* 448px / max-w-md */
+  border: none;
+  border-width: 0;
+}
+
+.clerk-form-header-title {
+  font-size: 1.5rem;  /* 24px / text-2xl */
+  font-weight: 700;  /* font-bold */
+  color: var(--color-deep-grey);
+}
+
+.clerk-form-header-subtitle {
+  color: var(--color-stone-grey);
+}
+
+.clerk-form-button-primary {
+  position: relative;
+  border-radius: 1.5rem;  /* 24px / rounded-3xl */
+  cursor: pointer;
+  transition: scale 0.3s, box-shadow 0.3s;
+  padding-bottom: 1.75rem;  /* 28px / pb-7 */
+  padding-top: 1.5rem;  /* 24px / pt-6 */
+  padding-left: 1.5rem;  /* 24px / px-6 */
+  padding-right: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-weight: 600;  /* font-semibold */
+  font-size: 18px;
+  line-height: 0;
+  white-space: nowrap;
+  color: white !important;  /* Actual white text */
+  min-height: 60px;
+  width: 100%;
+}
+
+/* Ensure Clerk's internal button classes also have white text - target all possible combinations */
+.clerk-form-button-primary.cl-button,
+.clerk-form-button-primary[data-variant="solid"],
+.cl-formButtonPrimary.clerk-form-button-primary,
+.cl-formButtonPrimary.cl-button.clerk-form-button-primary,
+.cl-formButtonPrimary[data-variant="solid"],
+button.clerk-form-button-primary,
+button.cl-formButtonPrimary.clerk-form-button-primary {
+  color: white !important;
+}
+
+/* Target all Clerk primary buttons (solid variant with primary color) */
+.cl-button[data-variant="solid"][data-color="primary"],
+button.cl-button[data-variant="solid"][data-color="primary"] {
+  color: white !important;
+}
+
+/* Target text content inside button */
+.clerk-form-button-primary *,
+.cl-formButtonPrimary.clerk-form-button-primary *,
+button.clerk-form-button-primary *,
+.cl-button[data-variant="solid"][data-color="primary"] *,
+button.cl-button[data-variant="solid"][data-color="primary"] * {
+  color: white !important;
+}
+
+.clerk-form-input {
+  border-radius: 1.5rem;  /* 24px / rounded-3xl */
+  padding-top: 1.25rem;  /* 20px / py-5 */
+  padding-bottom: 1.25rem;
+  padding-left: 1rem;  /* 16px / px-4 */
+  padding-right: 1rem;
+  min-height: 64px;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  font-weight: 600;  /* font-semibold */
+  color: var(--color-deep-grey);
+  text-align: center;
+}
+
+.clerk-form-input::placeholder {
+  color: var(--color-pebble-grey);
+}
+
+.clerk-form-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.clerk-form-error {
+  margin-top: 0.5rem;  /* 8px / mt-2 */
+  text-align: center;
+  position: static;
+  display: block;
+  color: #ef4444;  /* red-500 */
+  font-size: 14px;
+}
+
+.clerk-form-link {
+  color: var(--color-bold-blue);
+  font-weight: 500;  /* font-medium */
+  transition: opacity 0.2s ease;
+}
+
+.clerk-form-link:hover {
+  opacity: 0.8;
+}
+
+.clerk-form-divider-line {
+  background-color: #e5e7eb;  /* gray-200 */
+}
+
+.clerk-form-divider-text {
+  color: var(--color-stone-grey);
+  background-color: white;
+  padding-left: 1rem;  /* 16px / px-4 */
+  padding-right: 1rem;
+}
