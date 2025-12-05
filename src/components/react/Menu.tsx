@@ -473,14 +473,14 @@ export default function Menu({
           box-shadow: none !important;
         }
         
-        /* Dark mode: subtle divider and hover */
+        /* Dark mode: subtle cool blue divider and hover */
         @media (prefers-color-scheme: dark) {
           .menu-separator {
-            border-color: oklch(25% 0 0 / 0.3) !important;
+            border-color: oklch(30% 0.01 250 / 0.4) !important;
           }
           
           .menu-item:hover {
-            background-color: oklch(25% 0 0 / 0.15) !important;
+            background-color: oklch(25% 0.015 250 / 0.2) !important;
           }
         }
       `}</style>

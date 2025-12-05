@@ -127,22 +127,22 @@
  * ========================================================================== */
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Text colors - softer whites for comfortable reading */
-    --lch-deep-grey: 85% 0.01 85;      /* Primary text - soft white, not glaring */
-    --lch-stone-grey: 85% 0.01 85;     /* Secondary text - same as deep-grey for better contrast */
-    --lch-pebble-grey: 60% 0.005 85;   /* Muted text - better contrast for empty states */
+    /* Text colors - cool blue-white tones (hue 250 = blue) */
+    --lch-deep-grey: 85% 0.01 250;     /* Primary text - soft cool white */
+    --lch-stone-grey: 85% 0.01 250;    /* Secondary text - same for better contrast */
+    --lch-pebble-grey: 60% 0.015 250;  /* Muted text - subtle blue tint */
     
-    /* Surfaces - subtle dark backgrounds with minimal warmth */
-    --lch-paper: 18% 0.008 90;         /* Main background - subtle dark */
-    --lch-aged-paper: 16% 0.008 90;    /* Slightly darker variant */
-    --lch-soft-paper: 14% 0.005 90;    /* Deeper surface */
-    --lch-light-paper: 12% 0.003 90;   /* Deepest background */
+    /* Surfaces - cool blue-black backgrounds (hue 250 = blue) */
+    --lch-paper: 16% 0.015 250;        /* Main background - cool dark blue-black */
+    --lch-aged-paper: 14% 0.015 250;   /* Slightly darker variant */
+    --lch-soft-paper: 12% 0.012 250;   /* Deeper surface */
+    --lch-light-paper: 10% 0.01 250;   /* Deepest background */
     
-    /* Card/elevated surfaces - subtle lift from background */
-    --lch-white: 22% 0.005 90;         /* Card backgrounds - subtle elevation */
-    --lch-snow-white: 25% 0.005 90;    /* Elevated surfaces */
-    --lch-fog-white: 28% 0.003 90;     /* Subtle borders */
-    --lch-gray: 32% 0.003 90;          /* Borders/dividers */
+    /* Card/elevated surfaces - subtle blue lift from background */
+    --lch-white: 20% 0.015 250;        /* Card backgrounds - subtle elevation */
+    --lch-snow-white: 23% 0.012 250;   /* Elevated surfaces */
+    --lch-fog-white: 26% 0.01 250;     /* Subtle borders */
+    --lch-gray: 30% 0.01 250;          /* Borders/dividers */
     
     /* Thread colors - vibrant and recognizable on dark backgrounds */
     --lch-thread-blue: 55% 0.14 235;
@@ -163,7 +163,7 @@
     --shadow-soft: oklch(0% 0 0 / 0.2);
     --shadow-border: oklch(0% 0 0 / 0.25);
     
-    /* Gradient for dark mode - subtle variation */
-    --color-gradient-gray: linear-gradient(126.64deg, oklch(26% 0.005 90 / 0.9) 11.71%, oklch(24% 0.005 90) 71.33%);
+    /* Gradient for dark mode - cool blue-black variation */
+    --color-gradient-gray: linear-gradient(126.64deg, oklch(24% 0.015 250 / 0.9) 11.71%, oklch(22% 0.015 250) 71.33%);
   }
 }

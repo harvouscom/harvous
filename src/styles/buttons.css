@@ -573,10 +573,10 @@
   fill: var(--color-pebble-grey);
 }
 
-/* Close button - keep medium grey background in dark mode */
+/* Close button - cool blue-grey background in dark mode */
 @media (prefers-color-scheme: dark) {
   .square-button button[class*="bg-[var(--color-stone-grey)]"],
   .square-button button[style*="background-color: var(--color-stone-grey)"] {
-    background-color: oklch(45% 0.01 85) !important;
+    background-color: oklch(40% 0.02 250) !important;
   }
 }
