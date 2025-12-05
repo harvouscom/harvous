@@ -508,10 +508,23 @@
     border: none !important;
     box-shadow: none !important;
     outline: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
   }
 
-  & button:hover {
+  & button:hover,
+  & button:active,
+  & button:focus,
+  & button:focus-visible {
     cursor: pointer;
+    background: transparent !important;
+    background-color: transparent !important;
+    -webkit-tap-highlight-color: transparent !important;
   }
 
   & button[data-active="true"] {
@@ -566,14 +579,28 @@
   padding-bottom: 16px;
   position: relative;
   flex-shrink: 0;
-  transition: all 0.2s;
+  transition: color 0.2s, opacity 0.2s;
   background: transparent !important;
+  background-color: transparent !important;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .tab-nav__button:hover,
 .tab-nav__button:active,
-.tab-nav__button:focus {
+.tab-nav__button:focus,
+.tab-nav__button:focus-visible,
+.tab-nav__button:focus-within {
   background: transparent !important;
+  background-color: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 .tab-nav__label,

@@ -750,6 +750,9 @@ button[disabled] {
   border: none !important;
   box-shadow: none !important;
   outline: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 .context-more-menu button,

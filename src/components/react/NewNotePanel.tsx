@@ -385,7 +385,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
         )}
 
         {/* Note Content - Type-specific layouts */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 note-content-wrapper" style={{ marginBottom: '12px' }}>
           {form.noteType === 'default' && (
             <DefaultNoteForm
               title={form.title}
