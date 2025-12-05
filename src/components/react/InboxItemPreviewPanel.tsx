@@ -535,8 +535,8 @@ export default function InboxItemPreviewPanel({
                           );
                         })
                       ) : (
-                        <div className="text-center py-12">
-                          <p className="text-[var(--color-pebble-grey)] text-lg">
+                        <div style={{ textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
+                          <p style={{ fontWeight: 600, color: 'var(--color-pebble-grey)', fontSize: '18px' }}>
                             {isLoading ? '' : 'No notes found in this thread.'}
                           </p>
                         </div>

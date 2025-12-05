@@ -606,7 +606,7 @@ export default function NoteDetailsPanel({
                     {/* Current Threads - directly below tab */}
                     <div className="shrink-0">
                       {localThreads.length === 0 ? (
-                        <div className="text-center py-4 text-gray-500">No threads found for this note.</div>
+                        <div style={{ textAlign: 'center', color: 'rgb(107 114 128)', paddingTop: '64px', paddingBottom: '64px', fontWeight: 600 }}>No threads found for this note.</div>
                       ) : (
                         <div className="space-y-3">
                           {localThreads.map(thread => (
