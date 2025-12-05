@@ -185,10 +185,11 @@
    Card Thread
    ========================================================================== */
 .card-thread-container {
-  background-color: var(--color-fog-white);
+  background-color: var(--color-soft-gray);
 }
 
 .card-thread {
+  background-color: var(--color-soft-gray);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;

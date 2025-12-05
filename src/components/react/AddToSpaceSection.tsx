@@ -252,19 +252,30 @@ const ThreadItem: React.FC<{
             )}
           </div>
           
-          {/* Text content - only title, no subtitle or count */}
+          {/* Text content - only title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-            {/* Title */}
-            <div style={{ 
-              fontFamily: 'var(--font-sans)', 
-              fontWeight: 700, 
-              color: 'var(--color-deep-grey)', 
-              fontSize: '16px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
-              {item.title}
+            {/* Title with badge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+              <div style={{ 
+                fontFamily: 'var(--font-sans)', 
+                fontWeight: 700, 
+                color: 'var(--color-deep-grey)', 
+                fontSize: '16px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                minWidth: 0
+              }}>
+                {item.title}
+              </div>
+              {/* Item count badge */}
+              {item.count !== undefined && item.count !== null && item.count > 0 && (
+                <div className="badge-count" style={{ flexShrink: 0 }}>
+                  <span className="badge-number">
+                    {item.count}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

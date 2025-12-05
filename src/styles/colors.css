@@ -31,6 +31,7 @@
   --lch-white: 100% 0 0;
   --lch-snow-white: 98% 0 0;
   --lch-fog-white: 98.5% 0.002 0;
+  --lch-soft-gray: 96.5% 0.002 85;
   --lch-gray: 93% 0 0;
 
   /* Thread Colors (Pastel) - lighter, softer variants for UI backgrounds */
@@ -70,6 +71,7 @@
   --color-white: oklch(var(--lch-white));
   --color-snow-white: oklch(var(--lch-snow-white));
   --color-fog-white: oklch(var(--lch-fog-white));
+  --color-soft-gray: oklch(var(--lch-soft-gray));
   --color-gray: oklch(var(--lch-gray));
 
   /* Thread Colors (used for thread/space backgrounds) */

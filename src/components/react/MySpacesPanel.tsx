@@ -220,8 +220,7 @@ export default function MySpacesPanel({
           onClick={() => handleSpaceClick(space.id)}
           className="relative rounded-xl h-[48px] cursor-pointer transition-transform duration-200 w-full text-left overflow-hidden hover:scale-[1.002]"
           style={{
-            backgroundColor: 'var(--color-fog-white)',
-            boxShadow: '0px 2px 8px 0px rgba(120, 118, 111, 0.1)'
+            backgroundColor: 'white'
           }}
         >
           {/* Accent bar on left */}
@@ -255,8 +254,8 @@ export default function MySpacesPanel({
             
             {/* Item count badge */}
             {space.totalItemCount > 0 && (
-              <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-[24px] px-2 py-1 h-[24px] shrink-0">
-                <span className="text-[12px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[normal] text-center text-nowrap">
+              <div className="badge-count">
+                <span className="badge-number">
                   {space.totalItemCount}
                 </span>
               </div>
