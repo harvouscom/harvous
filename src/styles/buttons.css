@@ -160,6 +160,43 @@
   }
 }
 
+/* Tag button variant - uses gradient background */
+.btn--tag {
+  background-image: var(--color-gradient-gray);
+  color: var(--color-deep-grey) !important;
+  padding: 0.5rem 2.5rem 0.5rem 1rem; /* Extra right padding for close icon */
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 40px;
+  border-radius: 0.75rem; /* 12px */
+  box-shadow:
+    0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset,
+    0px 2px 2px 0px rgba(0, 0, 0, 0.1);
+
+  & .btn__content,
+  & span,
+  & div,
+  & p,
+  & * {
+    color: var(--color-deep-grey) !important;
+    font-weight: 600 !important;
+  }
+
+  & .btn__shadow-overlay {
+    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  &:active {
+    filter: brightness(0.97);
+    
+    & .btn__shadow-overlay {
+      box-shadow: 
+        0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+        0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+    }
+  }
+}
+
 /* Active state shadows for all variants */
 .btn--primary:active,
 .btn--secondary:active,

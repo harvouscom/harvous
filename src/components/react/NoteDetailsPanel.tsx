@@ -78,7 +78,6 @@ export default function NoteDetailsPanel({
   const [noteAddedBy, setNoteAddedBy] = useState<string | null>(null);
   const [noteType, setNoteType] = useState<string>('default');
   const [localReferencingNotes, setLocalReferencingNotes] = useState<ReferencingNote[]>([]);
-  const [showNewTagPanel, setShowNewTagPanel] = useState(false);
   const [showNewThreadPanel, setShowNewThreadPanel] = useState(false);
   
   // Check if this is a scripture note (to show the Notes tab)
@@ -358,17 +357,9 @@ export default function NoteDetailsPanel({
     setThreadToRemove(null);
   };
 
-  const addNewTag = () => {
-    setShowNewTagPanel(true);
-  };
-
   const handleTagCreated = async () => {
     // Refresh the note details to show the new tag
     await fetchNoteDetails();
-  };
-
-  const handleCloseNewTagPanel = () => {
-    setShowNewTagPanel(false);
   };
 
   const addNewThread = () => {
@@ -413,18 +404,6 @@ export default function NoteDetailsPanel({
       toast.error('Error removing tag from note. Please try again.');
     }
   };
-
-  // If showing new tag panel, render it instead of the details panel
-  if (showNewTagPanel) {
-    return (
-      <NewTagPanel
-        noteId={noteId}
-        onClose={handleCloseNewTagPanel}
-        onTagCreated={handleTagCreated}
-        inBottomSheet={inBottomSheet}
-      />
-    );
-  }
 
   // If showing new thread panel, render it instead of the details panel
   if (showNewThreadPanel) {
@@ -673,6 +652,7 @@ export default function NoteDetailsPanel({
                 )}
                     {activeTab === 'tags' && (
                       <div className="flex flex-col gap-3">
+                        {/* Existing tags */}
                         {localTags.length === 0 ? (
                           <div className="text-center py-4 text-gray-500">
                             <p>No tags found for this note.</p>
@@ -683,13 +663,13 @@ export default function NoteDetailsPanel({
                             {localTags.map(tag => (
                               <div key={tag.id} className="content-item tag-item">
                                 <div className="relative nav-item-container">
-                                  <div
-                                    className="space-button relative rounded-[12px] transition-[scale,shadow] duration-300 pb-3 pl-4 pr-10 pt-[10px] group w-auto flex items-center gap-3"
-                                    style={{ backgroundImage: 'var(--color-gradient-gray)' }}
-                                  >
-                                    <span className="text-[var(--color-deep-grey)] font-sans text-[14px] font-semibold whitespace-nowrap">
-                                      {tag.name}
-                                    </span>
+                                  <div className="btn btn--tag group w-auto">
+                                    <div className="btn__content">
+                                      <span className="whitespace-nowrap">
+                                        {tag.name}
+                                      </span>
+                                    </div>
+                                    <div className="btn__shadow-overlay" />
                                   </div>
                                   {/* Close icon - absolutely positioned, matches RecentSearches pattern */}
                                   <div
@@ -710,6 +690,15 @@ export default function NoteDetailsPanel({
                             ))}
                           </div>
                         )}
+
+                        {/* New Tag Form - always visible like AddToSection */}
+                        <NewTagPanel
+                          noteId={noteId}
+                          onClose={() => {}} // No-op since it's always visible
+                          onTagCreated={handleTagCreated}
+                          inBottomSheet={inBottomSheet}
+                          inline={true}
+                        />
                       </div>
                     )}
                     {activeTab === 'notes' && isScriptureNote && (
@@ -771,20 +760,6 @@ export default function NoteDetailsPanel({
           </button>
         )}
         
-        {/* New Tag button - only show on tags tab */}
-        {activeTab === 'tags' && (
-          <button 
-            type="button"
-            onClick={addNewTag}
-            data-outer-shadow
-            className="btn-cta flex-1 group"
-          >
-            <span className="btn-cta__content">
-              New Tag
-            </span>
-            <div className="btn-cta__shadow" />
-          </button>
-        )}
       </div>
       </div>
     </>

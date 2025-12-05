@@ -7,13 +7,15 @@ interface NewTagPanelProps {
   onClose: () => void;
   onTagCreated?: () => void;
   inBottomSheet?: boolean;
+  inline?: boolean; // If true, render as inline form without panel wrapper
 }
 
 export default function NewTagPanel({
   noteId,
   onClose,
   onTagCreated,
-  inBottomSheet = false
+  inBottomSheet = false,
+  inline = false
 }: NewTagPanelProps) {
   const [tagName, setTagName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,8 +96,10 @@ export default function NewTagPanel({
         onTagCreated();
       }
       
-      // Close panel
-      onClose();
+      // Close panel only if not inline mode
+      if (!inline) {
+        onClose();
+      }
     } catch (error) {
       console.error('Error creating tag:', error);
       toast.error('Error creating tag. Please try again.');
@@ -104,11 +108,45 @@ export default function NewTagPanel({
     }
   };
 
+  // Inline mode - render just the form without panel wrapper
+  if (inline) {
+    return (
+      <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3">
+        {/* Text input field */}
+        <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+          <input
+            type="text"
+            value={tagName}
+            onChange={(e) => setTagName(e.target.value)}
+            placeholder="Type here..."
+            className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
+            disabled={isSubmitting}
+            autoFocus
+          />
+        </div>
+
+        {/* Add Tag button */}
+        <button 
+          type="submit"
+          disabled={isSubmitting}
+          data-outer-shadow
+          className="btn-cta w-full group"
+        >
+          <span className="btn-cta__content">
+            {isSubmitting ? 'Adding...' : 'Add Tag'}
+          </span>
+          <div className="btn-cta__shadow" />
+        </button>
+      </form>
+    );
+  }
+
+  // Full panel mode
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
-        {/* Content area that expands to fill available space */}
-        <div className="flex-1 flex flex-col min-h-0">
+      <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+        {/* Content area - expands on mobile, fits content on desktop */}
+        <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
             {/* Header section */}
@@ -124,7 +162,7 @@ export default function NewTagPanel({
                 <div className="w-full">
                   
                   {/* Text input field */}
-                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full mb-3">
+                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
                     <input
                       type="text"
                       value={tagName}
@@ -136,38 +174,29 @@ export default function NewTagPanel({
                     />
                   </div>
 
-                  {/* Button row */}
-                  <div className="content-stretch flex gap-3 items-start relative shrink-0 w-full">
-                    {/* SquareButton with down arrow (left) - use SquareButton component */}
-                    <SquareButton
-                      variant="Back"
-                      onClick={onClose}
-                      inBottomSheet={true}
-                    />
-                    
-                    {/* Primary button "Add Tag" (right) */}
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="basis-0 bg-[var(--color-bold-blue)] box-border content-stretch flex grow h-[60px] items-center justify-center min-h-px min-w-px overflow-clip pb-[28px] pt-6 px-6 relative rounded-[24px] shrink-0 cursor-pointer disabled:opacity-50 transition-[scale,shadow] duration-300"
-                      data-outer-shadow
-                    >
-                      <div className="font-sans font-semibold leading-[0] relative shrink-0 text-[18px] text-nowrap whitespace-pre text-[var(--color-fog-white)]">
-                        {isSubmitting ? 'Adding...' : 'Add Tag'}
-                      </div>
-                      <div className="absolute inset-0 pointer-events-none rounded-[24px] shadow-[0px_-4px_0px_0px_inset_rgba(0,0,0,0.1)]" />
-                    </button>
-                  </div>
+                  {/* Add Tag button - inside content area */}
+                  <button 
+                    type="submit"
+                    disabled={isSubmitting}
+                    data-outer-shadow
+                    className="btn-cta w-full group"
+                  >
+                    <span className="btn-cta__content">
+                      {isSubmitting ? 'Adding...' : 'Add Tag'}
+                    </span>
+                    <div className="btn-cta__shadow" />
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Bottom close button using SquareButton Back variant */}
-        <div className="flex items-center justify-start gap-3">
+        {/* Bottom buttons - only back arrow */}
+        <div className="panel__footer--buttons">
+          {/* Back button - SquareButton Back variant */}
           <SquareButton 
-            variant="Back" 
+            variant="Back"
             onClick={onClose}
             inBottomSheet={inBottomSheet}
           />

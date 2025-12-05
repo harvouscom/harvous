@@ -29,6 +29,14 @@
     text-align: center;
     width: 100%;
   }
+
+  /* Remove focus border/outline on all inputs */
+  input:focus,
+  input:focus-visible {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
 }
 
 .search-input__icon {
