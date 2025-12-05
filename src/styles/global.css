@@ -120,6 +120,8 @@ img, svg {
   box-shadow: 
     0px -1px 0px 0px #78766F33 inset,
     0px 1px 0px 0px #78766F33 inset !important;
+  /* Ensure background covers full area during transition */
+  overflow: hidden;
 }
 
 .space-button > div {

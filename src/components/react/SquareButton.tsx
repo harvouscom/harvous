@@ -163,8 +163,8 @@ export default function SquareButton({
         );
       }
       return (
-        <svg className="square-button__icon square-button__icon--rotated square-button__icon--pebble" viewBox="0 0 448 512">
-          <path d="M8 256a56 56 0 1 1 112 0A56 56 0 1 1 8 256zm160 0a56 56 0 1 1 112 0 56 56 0 1 1 -112 0zm216-56a56 56 0 1 1 0 112 56 56 0 1 1 0-112z"/>
+        <svg className="square-button__icon square-button__icon--default square-button__icon--pebble" viewBox="0 0 128 512">
+          <path d="M64 360a56 56 0 1 0 0 112 56 56 0 1 0 0-112zm0-160a56 56 0 1 0 0 112 56 56 0 1 0 0-112zM120 96A56 56 0 1 0 8 96a56 56 0 1 0 112 0z"/>
         </svg>
       );
     }
@@ -215,8 +215,8 @@ export default function SquareButton({
         );
       case "More":
         return (
-          <svg className="square-button__icon square-button__icon--rotated square-button__icon--pebble" viewBox="0 0 448 512">
-            <path d="M8 256a56 56 0 1 1 112 0A56 56 0 1 1 8 256zm160 0a56 56 0 1 1 112 0 56 56 0 1 1 -112 0zm216-56a56 56 0 1 1 0 112 56 56 0 1 1 0-112z"/>
+          <svg className="square-button__icon square-button__icon--default square-button__icon--pebble" viewBox="0 0 128 512">
+            <path d="M64 360a56 56 0 1 0 0 112 56 56 0 1 0 0-112zm0-160a56 56 0 1 0 0 112 56 56 0 1 0 0-112zM120 96A56 56 0 1 0 8 96a56 56 0 1 0 112 0z"/>
           </svg>
         );
       default:

@@ -413,6 +413,8 @@
   padding-left: 1rem;
   padding-right: 1rem;
   width: 100%;
+  /* Ensure background covers full area during scale transitions */
+  overflow: hidden;
 
   &[style*="background-image"] {
     box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
@@ -423,6 +425,8 @@
     box-shadow: 
       0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
       0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+    /* Ensure background is maintained during transition */
+    overflow: hidden;
   }
 
   &:active > div {
@@ -546,19 +550,9 @@
   transform: translateY(-2px);
 }
 
-/* Rotated icon (for More button) */
-.square-button__icon--rotated {
-  transform: rotate(90deg) translateY(-2px);
-}
-
 /* Active state: move to 0px and scale down slightly */
 .square-button:active .square-button__icon {
   transform: translateY(0) scale(0.95);
-}
-
-/* Active state for rotated icon */
-.square-button:active .square-button__icon--rotated {
-  transform: rotate(90deg) translateY(0) scale(0.95);
 }
 
 /* Icon fill colors */
