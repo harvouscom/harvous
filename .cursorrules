@@ -125,6 +125,22 @@ When converting Alpine.js to React:
 - **Font variables**: `--font-sans` for Reddit Sans font family
 - Always use CSS variables instead of hardcoded colors for consistency
 
+### CSS Classes & Styling
+- **CRITICAL: Use semantic CSS classes, NOT Tailwind utilities**
+- **NO Tailwind classes** - The project has migrated to vanilla CSS with semantic class names
+- **Semantic classes**: Use meaningful class names that describe purpose, not appearance (e.g., `.menu-item`, `.btn-cta`, `.space-button`)
+- **Component-scoped CSS**: Styles belong in component-specific CSS files (`buttons.css`, `cards.css`, `navigation.css`, etc.)
+- **Naming conventions**: 
+  - Component: `.component-name` (e.g., `.menu-item`)
+  - Element: `.component-name__element` (e.g., `.menu-item__label`)
+  - Modifier: `.component-name--modifier` (e.g., `.btn-cta--large`)
+- **Where to add styles**:
+  - Component-specific → relevant CSS file (`buttons.css`, `cards.css`, `navigation.css`, etc.)
+  - Global patterns → `global.css`
+  - New component type → create new CSS file
+- **Utilities.css**: Still exists as a transitional bridge, but prefer semantic classes
+- **See**: `VANILLA_CSS_CLASS_SYSTEM.md` for complete guidelines and migration patterns
+
 ## Environment & Dependencies
 
 ### Node Version
@@ -159,7 +175,7 @@ When converting Alpine.js to React:
 - **Alpine.js** - Legacy interactive components (migrating to React)
 - **Clerk** - Authentication and user management
 - **Turso/Astro DB** - Database (remote in production, local in dev)
-- **Tailwind CSS** - Styling framework
+- **Vanilla CSS** - Semantic CSS classes (migrated from Tailwind CSS)
 
 ## Code Quality
 

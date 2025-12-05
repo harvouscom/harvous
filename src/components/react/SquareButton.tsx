@@ -131,7 +131,7 @@ export default function SquareButton({
       if (isOpen) {
         return (
           <svg 
-            className="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" 
+            className="square-button__icon square-button__icon--default square-button__icon--white" 
             viewBox="0 0 384 512"
             xmlns="http://www.w3.org/2000/svg"
           >
@@ -141,7 +141,7 @@ export default function SquareButton({
       }
       return (
         <svg 
-          className="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" 
+          className="square-button__icon square-button__icon--add square-button__icon--white" 
           viewBox="0 0 448 512"
           xmlns="http://www.w3.org/2000/svg"
         >
@@ -154,7 +154,7 @@ export default function SquareButton({
       if (isOpen) {
         return (
           <svg 
-            className="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" 
+            className="square-button__icon square-button__icon--default square-button__icon--white" 
             viewBox="0 0 384 512"
             xmlns="http://www.w3.org/2000/svg"
           >
@@ -163,7 +163,7 @@ export default function SquareButton({
         );
       }
       return (
-        <svg className="rotate-90 -translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
+        <svg className="square-button__icon square-button__icon--rotated square-button__icon--pebble" viewBox="0 0 448 512">
           <path d="M8 256a56 56 0 1 1 112 0A56 56 0 1 1 8 256zm160 0a56 56 0 1 1 112 0 56 56 0 1 1 -112 0zm216-56a56 56 0 1 1 0 112 56 56 0 1 1 0-112z"/>
         </svg>
       );
@@ -175,14 +175,14 @@ export default function SquareButton({
         if (inBottomSheet) {
           // Angle down icon path (from FontAwesome)
           return (
-            <svg className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
+            <svg className="square-button__icon square-button__icon--default square-button__icon--pebble" viewBox="0 0 448 512">
               <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
             </svg>
           );
         } else {
           // Angle left icon path (from FontAwesome)
           return (
-            <svg className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 320 512">
+            <svg className="square-button__icon square-button__icon--default square-button__icon--pebble" viewBox="0 0 320 512">
               <path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/>
             </svg>
           );
@@ -190,7 +190,7 @@ export default function SquareButton({
       case "Close":
         return (
           <svg 
-            className="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" 
+            className="square-button__icon square-button__icon--default square-button__icon--white" 
             viewBox="0 0 384 512"
             xmlns="http://www.w3.org/2000/svg"
           >
@@ -200,7 +200,7 @@ export default function SquareButton({
       case "Add":
         return (
           <svg 
-            className="-translate-y-0.5 fill-white block max-w-none w-full h-full transition-transform duration-125" 
+            className="square-button__icon square-button__icon--default square-button__icon--white" 
             viewBox="0 0 448 512"
             xmlns="http://www.w3.org/2000/svg"
           >
@@ -209,13 +209,13 @@ export default function SquareButton({
         );
       case "Find":
         return (
-          <svg className="-translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none transition-transform duration-125" style={{ width: '20px', height: '20px' }} viewBox="0 0 512 512">
+          <svg className="square-button__icon square-button__icon--default square-button__icon--pebble" style={{ width: '20px', height: '20px' }} viewBox="0 0 512 512">
             <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
           </svg>
         );
       case "More":
         return (
-          <svg className="rotate-90 -translate-y-0.5 fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125" viewBox="0 0 448 512">
+          <svg className="square-button__icon square-button__icon--rotated square-button__icon--pebble" viewBox="0 0 448 512">
             <path d="M8 256a56 56 0 1 1 112 0A56 56 0 1 1 8 256zm160 0a56 56 0 1 1 112 0 56 56 0 1 1 -112 0zm216-56a56 56 0 1 1 0 112 56 56 0 1 1 0-112z"/>
           </svg>
         );
@@ -225,18 +225,16 @@ export default function SquareButton({
   };
 
   const getButtonClasses = () => {
-    const baseClasses = "relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300";
+    const baseClasses = "square-button relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300";
     let variantClasses = "";
     
     if (variant === "Close") {
-      variantClasses = "group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] bg-[var(--color-stone-grey)]";
+      variantClasses = "bg-[var(--color-stone-grey)]";
     } else if (variant === "Add" && withMenu) {
-      variantClasses = `group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] ${isOpen ? 'bg-[var(--color-stone-grey)]' : 'bg-[var(--color-bold-blue)]'}`;
+      variantClasses = `${isOpen ? 'bg-[var(--color-stone-grey)]' : 'bg-[var(--color-bold-blue)]'}`;
     } else if (variant === "More" && withMenu) {
       // More button with menu: stone grey when open, gradient gray when closed (via inline style)
-      variantClasses = `group [&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95] ${isOpen ? 'bg-[var(--color-stone-grey)]' : ''}`;
-    } else {
-      variantClasses = "[&:active_svg]:-translate-y-0 [&:active_svg]:scale-[0.95]";
+      variantClasses = `${isOpen ? 'bg-[var(--color-stone-grey)]' : ''}`;
     }
     
     return `${baseClasses} ${variantClasses} ${className}`;

@@ -515,3 +515,57 @@
     transition: transform 0.125s ease-in-out;
   }
 }
+
+/* ==========================================================================
+   Square Button (64x64px icon button)
+   ========================================================================== */
+.square-button {
+  position: relative;
+  border-radius: 1.5rem;
+  width: 64px;
+  height: 64px;
+  cursor: pointer;
+  transition: scale 0.3s, box-shadow 0.3s;
+}
+
+.square-button__icon {
+  display: block;
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.125s ease-in-out;
+}
+
+/* Default icon position (most icons) - starts at -2px */
+.square-button__icon--default {
+  transform: translateY(-2px);
+}
+
+/* Add button icon - starts at -2px */
+.square-button__icon--add {
+  transform: translateY(-2px);
+}
+
+/* Rotated icon (for More button) */
+.square-button__icon--rotated {
+  transform: rotate(90deg) translateY(-2px);
+}
+
+/* Active state: move to 0px and scale down slightly */
+.square-button:active .square-button__icon {
+  transform: translateY(0) scale(0.95);
+}
+
+/* Active state for rotated icon */
+.square-button:active .square-button__icon--rotated {
+  transform: rotate(90deg) translateY(0) scale(0.95);
+}
+
+/* Icon fill colors */
+.square-button__icon--white {
+  fill: white;
+}
+
+.square-button__icon--pebble {
+  fill: var(--color-pebble-grey);
+}
