@@ -274,3 +274,71 @@
 .color-swatch--selected {
   box-shadow: 0 0 0 2px var(--color-deep-grey), 0 0 0 4px white;
 }
+
+/* ==========================================================================
+   Color Selection Container
+   ========================================================================== */
+.color-selection {
+  display: flex;
+  gap: 0.5rem;  /* 8px / gap-2 */
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+/* ==========================================================================
+   Form Layout
+   ========================================================================== */
+.form-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+}
+
+.form-layout--expand {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ==========================================================================
+   Button Group (Thread Type Selector)
+   ========================================================================== */
+.button-group {
+  width: 100%;
+  background-color: var(--color-fog-white);
+  border-radius: 1.5rem;  /* 24px / rounded-3xl */
+  overflow: hidden;
+  padding: 0.375rem;  /* 6px / p-1.5 */
+}
+
+.button-group__container {
+  display: flex;
+  gap: 0;
+  width: 100%;
+}
+
+.button-group__button {
+  flex: 1;
+  padding-left: 1rem;  /* 16px / pl-4 */
+  padding-right: 1rem;  /* 16px / pr-4 */
+}
+
+.button-group__button--left {
+  border-top-left-radius: 1.5rem;
+  border-bottom-left-radius: 1.5rem;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.button-group__button--right {
+  border-top-right-radius: 1.5rem;
+  border-bottom-right-radius: 1.5rem;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.button-group__button--disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

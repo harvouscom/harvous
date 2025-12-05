@@ -589,3 +589,62 @@
   color: var(--color-deep-grey) !important;
 }
 
+/* ==========================================================================
+   Panel Loading & Empty States
+   ========================================================================== */
+.panel__loading-state {
+  text-align: center;
+  padding-top: 2rem;  /* 32px / py-8 */
+  padding-bottom: 2rem;
+  color: var(--color-stone-grey);
+}
+
+.panel__empty-state {
+  text-align: center;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+  color: var(--color-stone-grey);
+}
+
+/* ==========================================================================
+   Panel Item List
+   ========================================================================== */
+.panel__item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;  /* 12px / gap-3 */
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.panel__item-list-item {
+  position: relative;
+}
+
+.panel__item-list-item-link {
+  display: block;
+  transition: transform 0.2s;
+}
+
+.panel__item-list-item-link:hover {
+  transform: scale(1.002);
+}
+
+.panel__item-list-item-actions {
+  position: absolute;
+  top: 0.5rem;  /* 8px / top-2 */
+  right: 0.5rem;  /* 8px / right-2 */
+  width: 2rem;  /* 32px / w-8 */
+  height: 2rem;  /* 32px / h-8 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+
+.panel__item-list-item:hover .panel__item-list-item-actions {
+  opacity: 1;
+}
+

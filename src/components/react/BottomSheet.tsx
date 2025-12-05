@@ -253,7 +253,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
   }, [isVisible]);
 
-  // Handle animation when sheet opens/closes
+  // Handle animation when sheet opens/closes and prevent focus outline
   useEffect(() => {
     if (isVisible) {
       // Small delay to ensure the element is rendered
@@ -263,6 +263,19 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         if (sheetContent) {
           sheetContent.classList.remove('bottom-sheet-slide-down');
           sheetContent.classList.add('bottom-sheet-slide-up');
+          
+          // Aggressively remove focus from the sheet content and all children
+          sheetContent.blur();
+          const focusedElement = sheetContent.querySelector(':focus');
+          if (focusedElement) {
+            (focusedElement as HTMLElement).blur();
+          }
+          
+          // Remove focus-visible attribute that Radix might add
+          sheetContent.removeAttribute('data-focus-visible-added');
+          sheetContent.querySelectorAll('[data-focus-visible-added]').forEach(el => {
+            el.removeAttribute('data-focus-visible-added');
+          });
         }
       }, 10);
       return () => clearTimeout(timer);
@@ -287,9 +300,19 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         style={{ 
           paddingBottom: '24px',
           paddingTop: '20px',
-          transform: 'translateY(100%)'
+          transform: 'translateY(100%)',
+          outline: 'none',
+          boxShadow: 'none'
         }}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          // Also blur any element that might have received focus
+          if (e.target) {
+            (e.target as HTMLElement).blur();
+          }
+        }}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        tabIndex={-1}
       >
         {/* Content */}
         <div className="h-full flex flex-col min-h-0 px-3">

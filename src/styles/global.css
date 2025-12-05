@@ -2,8 +2,7 @@
  * Harvous Global Styles
  * Following 37signals' #nobuild philosophy with modern vanilla CSS
  * 
- * NOTE: CSS Layers (@layer) will be enabled after removing Tailwind.
- * Tailwind's PostCSS plugin conflicts with native CSS layers.
+ * Tailwind has been removed - CSS Layers can be enabled when restructuring imports
  */
 
 @import "./colors.css";

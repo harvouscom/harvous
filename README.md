@@ -44,7 +44,7 @@ Harvous is designed specifically for Bible study workflows, providing:
 Astro 5.13.7          - SSR framework with View Transitions
 React 19.2.0          - Interactive islands
 TypeScript 5.9.2      - Type safety
-Tailwind CSS 3.4.17   - Utility-first styling (migrating to semantic CSS)
+Vanilla CSS            - Semantic CSS classes (migrated from Tailwind)
 ```
 
 ### Database & Auth
@@ -720,7 +720,6 @@ harvous/
 │
 ├── *.md                    # Extensive documentation
 ├── astro.config.mjs        # Astro configuration
-├── tailwind.config.js      # Tailwind configuration
 ├── package.json            # Dependencies
 └── netlify.toml            # Netlify config
 ```
@@ -976,7 +975,7 @@ Built with ❤️ for Bible study enthusiasts
 - [Turso](https://turso.tech) - Serverless database
 - [Clerk](https://clerk.com) - Authentication
 - [Tiptap](https://tiptap.dev) - Rich text editing
-- [Tailwind CSS](https://tailwindcss.com) - Styling
+- [Vanilla CSS](https://developer.mozilla.org/en-US/docs/Web/CSS) - Semantic CSS classes
 - [Radix UI](https://radix-ui.com) - Component primitives
 - [Netlify](https://netlify.com) - Hosting
 

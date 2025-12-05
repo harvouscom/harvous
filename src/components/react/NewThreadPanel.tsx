@@ -471,9 +471,9 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   return (
     <div className="panel-wrapper panel-wrapper--bottom-sheet w-full">
       {/* Form */}
-      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="flex-1 flex flex-col w-full">
+      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="form-layout">
         {/* Content area that expands to fill available space */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="form-layout--expand">
           {/* Panel container */}
           <div className="panel panel--bottom-sheet">
             {/* Header section with thread name input */}
@@ -504,15 +504,13 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
               <div className="panel__content panel__content--bottom-sheet">
                 
                 {/* Color selection */}
-                <div className="color-selection flex gap-2 items-center justify-start w-full">
+                <div className="color-selection">
                   {THREAD_COLORS.map((color) => (
                     <button 
                       key={color}
                       type="button"
                       onClick={() => setSelectedColor(color)}
-                      className={`color-swatch relative rounded-xl size-10 cursor-pointer transition-all duration-200 ${
-                        selectedColor === color ? 'color-swatch--selected' : ''
-                      }`}
+                      className={`color-swatch ${selectedColor === color ? 'color-swatch--selected' : ''}`}
                       style={{ backgroundColor: getThreadColorCSS(color) }}
                     >
                       {/* Check icon for selected color */}
@@ -568,13 +566,13 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                 )}
                 
                 {/* Thread type selection with ButtonGroup */}
-                <div className="w-full bg-[var(--color-fog-white)] rounded-3xl overflow-hidden p-1.5">
-                  <div className="flex gap-0 w-full">
+                <div className="button-group">
+                  <div className="button-group__container">
                     {/* Private button */}
                     <button
                       type="button"
                       onClick={() => setSelectedType('Private')}
-                      className={`space-button relative rounded-tl-3xl rounded-bl-3xl rounded-tr-none rounded-br-none h-[64px] cursor-pointer transition-all duration-200 pl-4 pr-4 flex-1 ${
+                      className={`space-button button-group__button button-group__button--left h-[64px] ${
                         selectedType === 'Private' 
                           ? '' 
                           : 'bg-transparent'
@@ -611,7 +609,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                     <button
                       type="button"
                       disabled
-                      className="space-button relative rounded-tr-3xl rounded-br-3xl rounded-tl-none rounded-bl-none h-[64px] cursor-not-allowed transition-all duration-200 pl-4 pr-4 flex-1 bg-transparent opacity-50"
+                      className="space-button button-group__button button-group__button--right button-group__button--disabled h-[64px] bg-transparent"
                     >
                       <div className="flex items-center justify-center gap-3 relative w-full h-full">
                         <div className="size-4 flex items-center justify-center shrink-0">
@@ -626,16 +624,16 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                 {/* Selected Notes - displayed above AddToSpaceSection (create mode only) */}
                 {!isEditMode && selectedItems.length > 0 && !isLoadingItems && (
                   <div className="w-full shrink-0 mb-3">
-                    <div className="flex flex-col gap-3">
+                    <div className="panel__item-list">
                       {selectedItems.map(itemId => {
                         const note = allNotes.find(n => n.id === itemId);
                         
                         if (note) {
                           return (
-                            <div key={note.id} className="relative group">
+                            <div key={note.id} className="panel__item-list-item">
                               <a 
                                 href={`/${note.id}`}
-                                className="block transition-transform duration-200 hover:scale-[1.002]"
+                                className="panel__item-list-item-link"
                                 aria-label={`View note: ${note.title || 'Untitled note'}`}
                               >
                                 <CardNote 
@@ -652,7 +650,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                                   e.stopPropagation();
                                   handleItemSelect(note.id, 'note');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                className="panel__item-list-item-actions"
                                 disabled={isSubmitting}
                               />
                             </div>
@@ -668,7 +666,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                 {!isEditMode && (
                   <div className="w-full flex-1 min-h-0">
                     {isLoadingItems ? (
-                      <div className="text-center py-8 text-[var(--color-stone-grey)]">
+                      <div className="panel__loading-state">
                         Loading notes...
                       </div>
                     ) : (

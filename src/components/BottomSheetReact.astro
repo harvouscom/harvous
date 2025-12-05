@@ -105,10 +105,24 @@ const {
   
   /* Remove all focus outlines and blue borders from bottom sheet */
   @media (max-width: 1159px) {
-    /* Remove focus outline from SheetContent itself */
-    [data-radix-dialog-content] {
+    /* Remove focus outline from SheetContent itself - apply immediately */
+    [data-radix-dialog-content],
+    .bottom-sheet-content,
+    .bottom-sheet-content[data-state="open"],
+    .bottom-sheet-content[data-state="closed"] {
       outline: none !important;
       box-shadow: none !important;
+      border: none !important;
+    }
+    
+    /* Prevent focus on mount - target immediately */
+    [data-radix-dialog-content]:focus,
+    [data-radix-dialog-content]:focus-visible,
+    .bottom-sheet-content:focus,
+    .bottom-sheet-content:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+      border: none !important;
     }
     
     /* Remove focus outlines from all elements inside bottom sheet - comprehensive coverage */
