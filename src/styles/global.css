@@ -98,7 +98,7 @@ img, svg {
   will-change: transform, box-shadow;
   transition: box-shadow 0.125s ease-in-out, transform 0.125s ease-in-out;
   /* Default shadow for buttons with background-image set via inline style */
-  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  box-shadow: 0px -3px 0px 0px var(--shadow-base) inset;
   font-family: var(--font-sans) !important;
   font-weight: 600 !important;
 }
@@ -108,7 +108,7 @@ img, svg {
 }
 
 .space-button.active-state {
-  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  box-shadow: 0px -3px 0px 0px var(--shadow-base) inset;
 }
 
 /* Squish animation on press - double !important to override base shadow */
@@ -117,8 +117,8 @@ img, svg {
 .space-button[style*="background-color"]:active {
   filter: brightness(0.97);
   box-shadow: 
-    0px -1px 0px 0px #78766F33 inset,
-    0px 1px 0px 0px #78766F33 inset !important;
+    0px -1px 0px 0px var(--shadow-base) inset,
+    0px 1px 0px 0px var(--shadow-base) inset !important;
   /* Ensure background covers full area during transition */
   overflow: hidden;
 }
@@ -142,8 +142,8 @@ img, svg {
 .space-button.active-state:active {
   filter: brightness(0.97);
   box-shadow: 
-    0px -1px 0px 0px #78766F33 inset,
-    0px 1px 0px 0px #78766F33 inset !important;
+    0px -1px 0px 0px var(--shadow-base) inset,
+    0px 1px 0px 0px var(--shadow-base) inset !important;
 }
 
 /* ==========================================================================
@@ -425,14 +425,14 @@ body {
 .btn-animate-squish {
   will-change: transform, box-shadow;
   transition: box-shadow 0.125s ease-in-out;
-  box-shadow: 0px -3px 0px 0px #78766F33 inset;
+  box-shadow: 0px -3px 0px 0px var(--shadow-base) inset;
 }
 
 .btn-animate-squish:active {
   filter: brightness(0.97);
   box-shadow: 
-    0px -1px 0px 0px #78766F33 inset,
-    0px 1px 0px 0px #78766F33 inset;
+    0px -1px 0px 0px var(--shadow-base) inset,
+    0px 1px 0px 0px var(--shadow-base) inset;
 }
 
 .btn-animate-squish svg {
@@ -488,14 +488,14 @@ body {
 
 .edit-name-color-panel button:not([data-outer-shadow]) {
   transition: box-shadow 0.125s ease-in-out;
-  box-shadow: 0px -3px 0px 0px #78766F33 inset;
+  box-shadow: 0px -3px 0px 0px var(--shadow-base) inset;
 }
 
 .edit-name-color-panel button:not([data-outer-shadow]):active {
   filter: brightness(0.97);
   box-shadow: 
-    0px -1px 0px 0px #78766F33 inset,
-    0px 1px 0px 0px #78766F33 inset;
+    0px -1px 0px 0px var(--shadow-base) inset,
+    0px 1px 0px 0px var(--shadow-base) inset;
 }
 
 .edit-name-color-panel button {
@@ -527,14 +527,14 @@ body {
 
 .new-note-panel button:not([data-outer-shadow]) {
   transition: box-shadow 0.125s ease-in-out;
-  box-shadow: 0px -3px 0px 0px #78766F33 inset;
+  box-shadow: 0px -3px 0px 0px var(--shadow-base) inset;
 }
 
 .new-note-panel button:not([data-outer-shadow]):active {
   filter: brightness(0.97);
   box-shadow: 
-    0px -1px 0px 0px #78766F33 inset,
-    0px 1px 0px 0px #78766F33 inset;
+    0px -1px 0px 0px var(--shadow-base) inset,
+    0px 1px 0px 0px var(--shadow-base) inset;
 }
 
 .new-note-panel button {
@@ -582,14 +582,14 @@ body {
 
 .square-button button:not([data-outer-shadow]) {
   transition: box-shadow 0.125s ease-in-out;
-  box-shadow: 0px -3px 0px 0px #78766F33 inset;
+  box-shadow: 0px -3px 0px 0px var(--shadow-base) inset;
 }
 
 .square-button button:not([data-outer-shadow]):active {
   filter: brightness(0.97);
   box-shadow: 
-    0px -1px 0px 0px #78766F33 inset,
-    0px 1px 0px 0px #78766F33 inset;
+    0px -1px 0px 0px var(--shadow-base) inset,
+    0px 1px 0px 0px var(--shadow-base) inset;
 }
 
 .square-button button {
@@ -693,7 +693,7 @@ select:focus-visible {
 /* Default shadow for space buttons with background */
 .space-button[style*="background-image"],
 .space-button[style*="background-color"] {
-  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
+  box-shadow: 0px -3px 0px 0px var(--shadow-base) inset !important;
 }
 
 .space-button:not([style*="background-image"]):not([style*="background-color"]),
@@ -983,9 +983,9 @@ button[disabled] {
 }
 
 .dashboard-skeleton__card-inner {
-  background-color: white;
+  background-color: var(--surface-card);
   border-radius: 24px;
-  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
+  box-shadow: 0px 3px 20px 0px var(--shadow-soft);
   height: 100%;
   display: flex;
   flex-direction: column;

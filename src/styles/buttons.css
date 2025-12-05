@@ -170,7 +170,7 @@
   min-height: 40px;
   border-radius: 0.75rem; /* 12px */
   box-shadow:
-    0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset,
+    0px -3px 0px 0px var(--shadow-base) inset,
     0px 2px 2px 0px rgba(0, 0, 0, 0.1);
 
   & .btn__content,
@@ -183,7 +183,7 @@
   }
 
   & .btn__shadow-overlay {
-    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+    box-shadow: 0px -3px 0px 0px var(--shadow-base) inset;
   }
 
   &:active {
@@ -191,8 +191,8 @@
     
     & .btn__shadow-overlay {
       box-shadow: 
-        0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
-        0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+        0px -1px 0px 0px var(--shadow-base) inset,
+        0px 1px 0px 0px var(--shadow-base) inset;
     }
   }
 }
@@ -229,15 +229,15 @@
   border-radius: 1.5rem;
   cursor: pointer;
   background-image: var(--color-gradient-gray);
-  box-shadow: 0px -3px 0px 0px #78766F33 inset;
+  box-shadow: 0px -3px 0px 0px var(--shadow-base) inset;
   transition: box-shadow 0.125s ease-in-out;
   will-change: transform, box-shadow;
 
   &:active {
     filter: brightness(0.97);
     box-shadow: 
-      0px -1px 0px 0px #78766F33 inset,
-      0px 1px 0px 0px #78766F33 inset;
+      0px -1px 0px 0px var(--shadow-base) inset,
+      0px 1px 0px 0px var(--shadow-base) inset;
   }
 
   &:disabled {
@@ -355,8 +355,8 @@
   &:active {
     filter: brightness(0.97);
     box-shadow: 
-      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
-      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+      0px -1px 0px 0px var(--shadow-base) inset,
+      0px 1px 0px 0px var(--shadow-base) inset;
   }
 
   &:disabled {
@@ -426,14 +426,14 @@
   overflow: hidden;
 
   &[style*="background-image"] {
-    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+    box-shadow: 0px -3px 0px 0px var(--shadow-base) inset;
   }
 
   &:not([data-outer-shadow]):active {
     filter: brightness(0.97);
     box-shadow: 
-      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
-      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+      0px -1px 0px 0px var(--shadow-base) inset,
+      0px 1px 0px 0px var(--shadow-base) inset;
     /* Ensure background is maintained during transition */
     overflow: hidden;
   }

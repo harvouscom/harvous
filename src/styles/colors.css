@@ -99,11 +99,16 @@
    * ========================================================================== */
 
   --surface-primary: var(--color-soft-paper);
+  --surface-card: var(--color-white);
+  --surface-elevated: var(--color-snow-white);
   --text-color-primary: var(--color-deep-grey);
   --text-color-secondary: var(--color-stone-grey);
 
   /* Shadows - using OKLCH alpha for consistent appearance */
   --shadow-color: oklch(var(--lch-stone-grey) / 0.2);
+  --shadow-base: oklch(var(--lch-stone-grey) / 0.2);
+  --shadow-soft: oklch(var(--lch-stone-grey) / 0.1);
+  --shadow-border: oklch(var(--lch-stone-grey) / 0.15);
   --shadow-primary: 0px 6px 0px 0px oklch(85% 0.02 90);
   --shadow-small: inset 0px -3px 0px oklch(var(--lch-stone-grey) / 0.2);
 
@@ -116,3 +121,49 @@
   --muted-foreground: var(--color-pebble-grey);
 }
 
+/* ==========================================================================
+ * Dark Mode - System Preference Detection
+ * Override only the LCH primitives, let semantics cascade automatically
+ * ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Invert greys: dark text becomes light, light backgrounds become dark */
+    --lch-deep-grey: 92% 0.02 85;      /* Was 48% - now light text */
+    --lch-stone-grey: 75% 0.02 85;     /* Was 53% - secondary text */
+    --lch-pebble-grey: 60% 0.01 85;    /* Was 59% - muted text */
+    
+    /* Paper tones become dark surfaces */
+    --lch-paper: 22% 0.015 90;         /* Was 93% - main dark bg */
+    --lch-aged-paper: 20% 0.015 90;    /* Was 92% */
+    --lch-soft-paper: 18% 0.01 90;     /* Was 94% - darker surface */
+    --lch-light-paper: 15% 0.005 90;   /* Was 96% - darkest surface */
+    
+    /* Pure neutrals flip */
+    --lch-white: 18% 0 0;              /* Card backgrounds */
+    --lch-snow-white: 22% 0 0;         /* Elevated surfaces */
+    --lch-fog-white: 25% 0.002 0;      /* Subtle borders */
+    --lch-gray: 30% 0 0;               /* Borders/dividers */
+    
+    /* Thread colors: reduce lightness, boost chroma slightly for vibrancy on dark */
+    --lch-thread-blue: 45% 0.12 235;
+    --lch-thread-yellow: 50% 0.14 90;
+    --lch-thread-green: 42% 0.12 145;
+    --lch-thread-pink: 45% 0.14 330;
+    --lch-thread-orange: 48% 0.12 55;
+    --lch-thread-purple: 42% 0.15 310;
+    
+    /* Bold blue stays similar but slightly brighter for dark mode */
+    --lch-bold-blue: 60% 0.24 255;
+    
+    /* Highlighter needs to be darker to be visible on dark backgrounds */
+    --lch-highlighter: 50% 0.18 100;
+    
+    /* Shadows need to be darker/more opaque on dark backgrounds */
+    --shadow-base: oklch(0% 0 0 / 0.4);
+    --shadow-soft: oklch(0% 0 0 / 0.25);
+    --shadow-border: oklch(0% 0 0 / 0.3);
+    
+    /* Gradient for dark mode */
+    --color-gradient-gray: linear-gradient(126.64deg, oklch(25% 0 0 / 0.8) 11.71%, oklch(22% 0 0) 71.33%);
+  }
+}

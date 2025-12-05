@@ -788,7 +788,10 @@
 /* ==========================================================================
    Arbitrary Values - Backgrounds
    ========================================================================== */
-.bg-white { background-color: white; }
+.bg-white { background-color: var(--surface-card); }
+.bg-surface-card { background-color: var(--surface-card); }
+.bg-surface-primary { background-color: var(--surface-primary); }
+.bg-surface-elevated { background-color: var(--surface-elevated); }
 .bg-transparent { background-color: transparent; }
 .bg-\[var\(--color-snow-white\)\] { background-color: var(--color-snow-white); }
 .bg-\[var\(--color-bold-blue\)\] { background-color: var(--color-bold-blue); }
@@ -797,7 +800,7 @@
 .bg-\[var\(--color-stone-grey\)\] { background-color: var(--color-stone-grey); }
 .bg-\[var\(--color-deep-grey\)\] { background-color: var(--color-deep-grey); }
 .bg-\[var\(--color-paper\)\] { background-color: var(--color-paper); }
-.bg-\[rgba\(120\,118\,111\,0\.1\)\] { background-color: rgba(120, 118, 111, 0.1); }
+.bg-\[rgba\(120\,118\,111\,0\.1\)\] { background-color: var(--shadow-soft); }
 .bg-\[\#4a473d\] { background-color: #4a473d; }
 .bg-\[\#f3f2ec\] { background-color: #f3f2ec; }
 
@@ -827,7 +830,7 @@
    Arbitrary Values - Shadows
    ========================================================================== */
 .shadow-\[0px_3px_20px_0px_rgba\(120\,118\,111\,0\.1\)\] {
-  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
+  box-shadow: 0px 3px 20px 0px var(--shadow-soft);
 }
 .shadow-\[0px_-2px_0px_0px_rgba\(0\,0\,0\,0\.1\)_inset\] {
   box-shadow: 0px -2px 0px 0px rgba(0, 0, 0, 0.1) inset;
@@ -848,14 +851,14 @@
   box-shadow: -4px 0px 4px 0px rgba(0, 0, 0, 0.05), 0px 2px 4px 0px rgba(0, 0, 0, 0.05);
 }
 .shadow-\[0px_-3px_0px_0px_rgba\(120\,118\,111\,0\.2\)_inset\] {
-  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  box-shadow: 0px -3px 0px 0px var(--shadow-base) inset;
 }
 
 /* ==========================================================================
    Arbitrary Values - Border Colors
    ========================================================================== */
 .border-\[var\(--color-fog-white\)\] { border-color: var(--color-fog-white); }
-.border-\[rgba\(120\,118\,111\,0\.15\)\] { border-color: rgba(120, 118, 111, 0.15); }
+.border-\[rgba\(120\,118\,111\,0\.15\)\] { border-color: var(--shadow-border); }
 .border-\[\#f7f7f6\] { border-color: #f7f7f6; }
 
 /* ==========================================================================
