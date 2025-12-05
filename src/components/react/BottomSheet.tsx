@@ -298,13 +298,12 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         side="bottom" 
         className="h-[90vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
         style={{ 
-          paddingBottom: '24px',
-          paddingTop: '20px',
-          paddingLeft: '0',
-          paddingRight: '0',
+          padding: '0',
           transform: 'translateY(100%)',
           outline: 'none',
-          boxShadow: 'none'
+          boxShadow: 'none',
+          border: 'none',
+          borderWidth: '0'
         }}
         onOpenAutoFocus={(e) => {
           e.preventDefault();
@@ -317,7 +316,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         tabIndex={-1}
       >
         {/* Content */}
-        <div className="h-full flex flex-col min-h-0 px-3">
+        <div className="h-full flex flex-col min-h-0">
           {/* New Note Panel */}
           {drawerType === 'note' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">

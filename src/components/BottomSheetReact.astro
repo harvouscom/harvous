@@ -71,23 +71,40 @@ const {
     .bottom-sheet-content {
       transform: translateY(100%) !important;
       transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-      padding-left: 0 !important;
-      padding-right: 0 !important;
+      padding: 0 !important;
     }
     
-    /* Overlay fade animation - imperceptible timing */
-    .bottom-sheet [data-radix-sheet-overlay] {
+    /* Footer buttons padding in bottom sheet */
+    :global(.bottom-sheet-content .panel__footer--buttons) {
+      padding-left: 12px !important;
+      padding-right: 12px !important;
+      padding-bottom: 12px !important;
+    }
+    
+    /* Note form container padding in bottom sheet - adds padding to the wrapper around DefaultNoteForm/ScriptureNoteForm */
+    :global(.bottom-sheet-content .panel-container > form > div[class*="flex-1"][class*="flex"][class*="flex-col"]) {
+      padding-left: 12px !important;
+      padding-right: 12px !important;
+    }
+    
+    /* Ensure sheet content is above overlay */
+    .bottom-sheet-content {
+      z-index: 50 !important;
+    }
+    
+    /* Smooth overlay transitions */
+    :global(.sheet-overlay) {
       opacity: 0;
-      transition: opacity 0.6s ease-out;
+      transition: opacity 0.3s ease-out;
     }
     
-    .bottom-sheet [data-state="open"][data-radix-sheet-overlay] {
-      opacity: 0.4;
+    :global(.sheet-overlay[data-state="open"]) {
+      opacity: 1;
     }
     
-    .bottom-sheet [data-state="closed"][data-radix-sheet-overlay] {
+    :global(.sheet-overlay[data-state="closed"]) {
       opacity: 0;
-      transition: opacity 0.4s ease-in;
+      transition: opacity 0.2s ease-in;
     }
   }
   
@@ -109,12 +126,26 @@ const {
   @media (max-width: 1159px) {
     /* Remove focus outline from SheetContent itself - apply immediately */
     [data-radix-dialog-content],
+    [role="dialog"],
     .bottom-sheet-content,
     .bottom-sheet-content[data-state="open"],
-    .bottom-sheet-content[data-state="closed"] {
+    .bottom-sheet-content[data-state="closed"],
+    .bottom-sheet-content[data-state="open"]:focus,
+    .bottom-sheet-content[data-state="open"]:focus-visible,
+    [data-radix-dialog-content]:focus,
+    [data-radix-dialog-content]:focus-visible,
+    [role="dialog"]:focus,
+    [role="dialog"]:focus-visible {
       outline: none !important;
       box-shadow: none !important;
       border: none !important;
+      border-width: 0 !important;
+      border-style: none !important;
+      border-color: transparent !important;
+      border-top: none !important;
+      border-bottom: none !important;
+      border-left: none !important;
+      border-right: none !important;
     }
     
     /* Prevent focus on mount - target immediately */
