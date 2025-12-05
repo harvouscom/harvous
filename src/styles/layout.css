@@ -52,6 +52,7 @@
   gap: 0.75rem;
   height: 100%;
   min-height: 0;
+  width: 100%;
 }
 
 @media (min-width: 1160px) {
@@ -63,7 +64,7 @@
 /* ==========================================================================
    Mobile Layout Sections
    ========================================================================== */
-.mobile-nav {
+.mobile-nav-slot {
   width: 100%;
   flex-shrink: 0;
   height: 64px;
@@ -73,6 +74,7 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  width: 100%;
 }
 
 .mobile-additional {
