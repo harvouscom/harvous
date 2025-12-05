@@ -13,7 +13,11 @@ export default function EraseConfirmDialog({
   onConfirm
 }: EraseConfirmDialogProps) {
   return (
-    <div className="flex gap-3 justify-end">
+    <div style={{
+      display: 'flex',
+      gap: '0.75rem',
+      justifyContent: 'flex-end'
+    }}>
       <ButtonSmall
         type="button"
         onClick={onCancel}

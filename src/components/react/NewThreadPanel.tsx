@@ -8,6 +8,7 @@ import { captureException } from '@/utils/posthog';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { safeFetch } from '@/utils/safe-fetch';
 import Icon from './Icon';
+import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 
 interface Note {
   id: string;
@@ -791,41 +792,12 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
       </form>
 
       {/* Unsaved Changes Dialog */}
-      {showUnsavedDialog && (
-        <div className="modal-overlay">
-          <div className="modal-dialog">
-            <h3 className="modal-title">
-              Unsaved Changes
-            </h3>
-            <p className="modal-body">
-              You have unsaved changes. What would you like to do?
-            </p>
-            <div className="modal-footer">
-              <button
-                type="button"
-                onClick={() => setShowUnsavedDialog(false)}
-                className="modal-btn modal-btn--cancel"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDiscardChanges}
-                className="modal-btn modal-btn--secondary"
-              >
-                Discard
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveAndClose}
-                className="modal-btn modal-btn--primary"
-              >
-                Save & Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <UnsavedChangesDialog
+        isOpen={showUnsavedDialog}
+        onCancel={() => setShowUnsavedDialog(false)}
+        onDiscard={handleDiscardChanges}
+        onSaveAndClose={handleSaveAndClose}
+      />
     </div>
   );
 }

@@ -25,8 +25,18 @@ export default function UnsavedChangesDialog({
 
   return createPortal(
     <div 
-      className="fixed inset-0 flex items-center justify-center z-[100] p-4 modal-overlay-enter"
+      className="modal-overlay-enter"
       style={{
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100,
+        padding: '1rem',
         backgroundColor: 'rgba(0, 0, 0, 0.35)',
         paddingTop: 'max(1rem, env(safe-area-inset-top))',
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
@@ -39,20 +49,37 @@ export default function UnsavedChangesDialog({
       }}
     >
       <div 
-        className="bg-white rounded-xl p-6 max-w-md modal-content-enter"
+        className="modal-content-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ 
+          backgroundColor: 'white',
+          borderRadius: '0.75rem',
+          padding: '1.5rem',
+          maxWidth: '28rem',
+          width: '100%',
           pointerEvents: 'auto',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
         }}
       >
-        <h3 className="text-lg font-semibold text-[var(--color-deep-grey)] mb-2">
+        <h3 style={{
+          fontSize: '1.125rem',
+          fontWeight: 600,
+          color: 'var(--color-deep-grey)',
+          marginBottom: '0.5rem'
+        }}>
           Unsaved Changes
         </h3>
-        <p className="text-[var(--color-pebble-grey)] mb-6">
+        <p style={{
+          color: 'var(--color-pebble-grey)',
+          marginBottom: '1.5rem'
+        }}>
           You have unsaved changes. What would you like to do?
         </p>
-        <div className="flex gap-3 justify-end">
+        <div style={{
+          display: 'flex',
+          gap: '0.75rem',
+          justifyContent: 'flex-end'
+        }}>
           <ButtonSmall
             type="button"
             onClick={onCancel}

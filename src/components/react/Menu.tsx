@@ -396,12 +396,21 @@ export default function Menu({
       {/* Confirmation Dialog - Rendered via Portal to ensure full viewport coverage */}
       {showConfirmDialog && contentType && typeof document !== 'undefined' && createPortal(
         <div
-          className="modal-overlay modal-overlay-enter"
+          className="modal-overlay-enter"
           role="dialog"
           aria-modal="true"
           style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             zIndex: 100,
             padding: '1rem',
+            backgroundColor: 'rgba(0, 0, 0, 0.35)',
             paddingTop: 'max(1rem, env(safe-area-inset-top))',
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}
@@ -413,14 +422,30 @@ export default function Menu({
           }}
         >
           <div 
-            className="modal-dialog modal-content-enter"
+            className="modal-content-enter"
             onClick={(e) => e.stopPropagation()}
-            style={{ pointerEvents: 'auto' }}
+            style={{ 
+              backgroundColor: 'white',
+              borderRadius: '0.75rem',
+              padding: '1.5rem',
+              maxWidth: '28rem',
+              width: '100%',
+              pointerEvents: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+            }}
           >
-            <h3 className="modal-title">
+            <h3 style={{
+              fontSize: '1.125rem',
+              fontWeight: 600,
+              color: 'var(--color-deep-grey)',
+              marginBottom: '0.5rem'
+            }}>
               Are you sure?
             </h3>
-            <p className="modal-body" style={{ color: 'var(--color-pebble-grey)', marginBottom: '1.5rem' }}>
+            <p style={{
+              color: 'var(--color-pebble-grey)',
+              marginBottom: '1.5rem'
+            }}>
               {contentType === 'space' ? (
                 <>When you erase a space your notes and threads will stay in your Harvous. Only the space will be erased.</>
               ) : (
