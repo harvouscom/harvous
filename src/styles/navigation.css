@@ -567,6 +567,13 @@
   position: relative;
   flex-shrink: 0;
   transition: all 0.2s;
+  background: transparent !important;
+}
+
+.tab-nav__button:hover,
+.tab-nav__button:active,
+.tab-nav__button:focus {
+  background: transparent !important;
 }
 
 .tab-nav__label,
