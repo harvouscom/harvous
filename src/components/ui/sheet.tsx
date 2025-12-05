@@ -56,7 +56,8 @@ const SheetContent = React.forwardRef<
   SheetContentProps
 >(({ side = "right", className, children, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay />
+    {/* Overlay disabled for bottom sheets - not extending over status bar properly */}
+    {/* <SheetOverlay /> */}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), className)}
