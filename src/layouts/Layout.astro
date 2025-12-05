@@ -414,9 +414,13 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     body {
       background-color: var(--color-light-paper) !important;
       -webkit-background-color: var(--color-light-paper) !important;
-      /* Ensure background extends behind status bar */
+      /* Remove padding from body - apply to content instead */
+      min-height: 100vh;
+    }
+    
+    /* Apply safe area padding to main content container instead of body */
+    .app-layout {
       padding-top: env(safe-area-inset-top);
-      min-height: calc(100vh + env(safe-area-inset-top));
     }
   }
   
@@ -430,8 +434,8 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     /* iOS specific mobile fixes */
     @supports (-webkit-touch-callout: none) {
       body {
-        min-height: calc(100vh + env(safe-area-inset-top));
-        min-height: calc(100svh + env(safe-area-inset-top));
+        min-height: 100vh;
+        min-height: 100svh;
       }
     }
   }

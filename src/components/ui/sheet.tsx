@@ -21,16 +21,17 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     className={cn(
-      "sheet-overlay fixed z-50",
+      "sheet-overlay",
       className
     )}
     style={{ 
-      backgroundColor: 'rgba(0, 0, 0, 0.35)',
-      // Extend over status bar and home indicator on mobile
-      top: 'calc(0px - env(safe-area-inset-top, 0px))',
-      left: 0,
+      position: 'fixed',
+      top: 0,
       right: 0,
-      bottom: 'calc(0px - env(safe-area-inset-bottom, 0px))',
+      bottom: 0,
+      left: 0,
+      zIndex: 50,
+      backgroundColor: 'rgba(0, 0, 0, 0.35)',
     }}
     {...props}
     ref={ref}
