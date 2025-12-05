@@ -195,10 +195,11 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <KeyboardShortcutsInit client:load />
     <PostHogUserInit client:idle userId={userId} userData={userData} />
 
-    <div class="h-[100svh] p-3 min-[1160px]:p-6" transition:animate={fade({ duration: '0.1s' })}>
+    <div class="app-layout" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->
-      <div class="hidden min-[1160px]:grid min-[1160px]:grid-cols-[310px_minmax(380px,640px)_minmax(380px,640px)] min-[1160px]:gap-6 min-[1160px]:h-full min-[1160px]:min-h-0">        <!-- Navigation Column -->
-        <section class="h-full min-h-0">
+      <div class="desktop-layout">
+        <!-- Navigation Column -->
+        <section class="layout-column">
           <div 
             slot="navigation" 
             class="h-full"
@@ -225,14 +226,14 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
         </section>
 
         <!-- Main Column -->
-        <section class="h-full min-h-0">
-          <div class="h-full min-h-0">
+        <section class="layout-column">
+          <div class="layout-column">
             <slot name="main" />
           </div>
         </section>
 
         <!-- Additional Column -->
-        <section class="h-full min-h-0 desktop-additional-column">
+        <section class="layout-column desktop-additional-column">
           <slot name="additional">
             <!-- React Panel Management -->
             <div class="flex flex-col items-left h-full min-h-0" style="max-height: 100%;">
@@ -259,26 +260,26 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
       </div>
 
       <!-- Mobile/Tablet Layout (below 1160px) -->
-      <div class="min-[1160px]:hidden flex flex-col gap-3 h-full min-h-0">
+      <div class="mobile-layout">
         <!-- Navigation Column (Top) -->
-        <div class="w-full shrink-0 h-[64px]">
+        <div class="mobile-nav">
           <slot name="mobile-navigation" />
         </div>
         
         <!-- Main Column (Middle) -->
-        <div class="flex-1 min-h-0 overflow-hidden">
+        <div class="mobile-main">
           <slot name="main" />
         </div>
         
         <!-- Additional Column (Bottom) -->
-        <div class="px-3 shrink-0">
+        <div class="mobile-additional">
           <slot name="mobile-additional" />
         </div>
       </div>
     </div>
 
     <!-- Mobile Bottom Sheet System -->
-    <div class="min-[1160px]:hidden">
+    <div class="mobile-bottom-sheet">
       <BottomSheetReact 
         currentThread={currentThread}
         currentSpace={currentSpace}

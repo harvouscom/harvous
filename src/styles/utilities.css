@@ -652,7 +652,10 @@
    ========================================================================== */
 .hover\:opacity-100:hover { opacity: 1; }
 .hover\:opacity-80:hover { opacity: 0.8; }
+.hover\:opacity-75:hover { opacity: 0.75; }
 .hover\:scale-105:hover { transform: scale(1.05); }
+.hover\:scale-\[1\.005\]:hover { transform: scale(1.005); }
+.hover\:shadow-sm:hover { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
 .hover\:brightness-95:hover { filter: brightness(0.95); }
 .hover\:brightness-97:hover { filter: brightness(0.97); }
 
@@ -662,6 +665,12 @@
 .active\:scale-95:active { transform: scale(0.95); }
 .active\:scale-98:active { transform: scale(0.98); }
 .active\:brightness-95:active { filter: brightness(0.95); }
+
+/* ==========================================================================
+   Focus States
+   ========================================================================== */
+.focus\:outline-none:focus { outline: none; }
+.focus-visible\:outline-none:focus-visible { outline: none; }
 
 /* ==========================================================================
    Disabled States
@@ -729,6 +738,11 @@
 .text-\[var\(--color-bold-blue\)\] { color: var(--color-bold-blue); }
 .text-\[\#4a473d\] { color: #4a473d; }
 .text-\[\#78766f\] { color: #78766f; }
+
+/* shadcn/ui Semantic Color Utilities */
+.bg-background { background-color: var(--background); }
+.text-foreground { color: var(--foreground); }
+.text-muted-foreground { color: var(--muted-foreground); }
 
 /* ==========================================================================
    Arbitrary Values - Heights
@@ -926,4 +940,11 @@
    ========================================================================== */
 .size-\[20px\] { width: 20px; height: 20px; }
 .size-\[24px\] { width: 24px; height: 24px; }
+
+/* ==========================================================================
+   Placeholder States
+   ========================================================================== */
+.placeholder\:text-\[var\(--color-pebble-grey\)\]::placeholder {
+  color: var(--color-pebble-grey);
+}
 

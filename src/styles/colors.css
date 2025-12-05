@@ -109,5 +109,10 @@
 
   /* Gradient - keeping as is since gradients work with oklch() */
   --color-gradient-gray: linear-gradient(126.64deg, oklch(100% 0 0 / 0.8) 11.71%, oklch(98% 0 0) 71.33%);
+
+  /* shadcn/ui Semantic Colors (for UI components) */
+  --background: var(--color-paper);
+  --foreground: var(--color-deep-grey);
+  --muted-foreground: var(--color-pebble-grey);
 }
 

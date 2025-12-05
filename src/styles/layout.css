@@ -1,0 +1,93 @@
+/*
+ * Layout Styles
+ * Semantic layout classes for main application structure
+ * Replaces Tailwind responsive layout utilities
+ */
+
+/* ==========================================================================
+   Root Layout Container
+   ========================================================================== */
+.app-layout {
+  height: 100svh;
+  padding: 0.75rem;
+}
+
+@media (min-width: 1160px) {
+  .app-layout {
+    padding: 1.5rem;
+  }
+}
+
+/* ==========================================================================
+   Desktop 3-Column Grid Layout
+   ========================================================================== */
+.desktop-layout {
+  display: none;
+}
+
+@media (min-width: 1160px) {
+  .desktop-layout {
+    display: grid;
+    grid-template-columns: 310px minmax(380px, 640px) minmax(380px, 640px);
+    gap: 1.5rem;
+    height: 100%;
+    min-height: 0;
+  }
+}
+
+/* ==========================================================================
+   Layout Column
+   ========================================================================== */
+.layout-column {
+  height: 100%;
+  min-height: 0;
+}
+
+/* ==========================================================================
+   Mobile Layout
+   ========================================================================== */
+.mobile-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100%;
+  min-height: 0;
+}
+
+@media (min-width: 1160px) {
+  .mobile-layout {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Mobile Layout Sections
+   ========================================================================== */
+.mobile-nav {
+  width: 100%;
+  flex-shrink: 0;
+  height: 64px;
+}
+
+.mobile-main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mobile-additional {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+.mobile-bottom-sheet {
+  /* Mobile bottom sheet container */
+}
+
+@media (min-width: 1160px) {
+  .mobile-bottom-sheet {
+    display: none;
+  }
+}
+

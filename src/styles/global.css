@@ -15,11 +15,64 @@
 @import "./forms.css";
 @import "./panels.css";
 @import "./animations.css";
+@import "./layout.css";
 @import "./utilities.css";
 
 /* ==========================================================================
    Reset
    ========================================================================== */
+/* Modern CSS Reset (replaces Tailwind Preflight) */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
+}
+
+body {
+  line-height: inherit;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Remove default button styles */
+button {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+/* Remove link underlines */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Reset lists */
+ol, ul {
+  list-style: none;
+}
+
+/* Reset form elements */
+input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+/* Images */
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* App-specific resets */
 * {
   flex-shrink: 0;
   user-select: none;
