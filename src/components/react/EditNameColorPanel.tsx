@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import { toast } from '@/utils/toast';
 import SquareButton from './SquareButton';
+import Icon from './Icon';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
 
 interface EditNameColorPanelProps {
@@ -366,9 +367,11 @@ export default function EditNameColorPanel({
                       {/* Check icon for selected color */}
                       {formData.selectedColor === color && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <svg className="size-5" style={{ color: getThreadTextColorCSS(color) }} fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                          </svg>
+                          <Icon 
+                            name="check" 
+                            size={20} 
+                            style={{ color: getThreadTextColorCSS(color) }} 
+                          />
                         </div>
                       )}
                     </button>

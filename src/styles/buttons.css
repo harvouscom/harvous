@@ -327,6 +327,15 @@
   }
 }
 
+/* Secondary variant for btn-cta (Stone Grey) */
+.btn-cta.btn--secondary {
+  background-color: var(--color-stone-grey);
+
+  &:active {
+    background-color: var(--color-deep-grey);
+  }
+}
+
 /* ==========================================================================
    Space Button Large (Gray gradient, 64px height)
    Used for thread type selection, space checkboxes, etc.
