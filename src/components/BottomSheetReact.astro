@@ -79,34 +79,17 @@ const {
       padding-left: 12px !important;
       padding-right: 12px !important;
       padding-bottom: 16px !important;
-      margin-top: 12px !important; /* Gap between form content and footer */
     }
     
     /* Note form container padding in bottom sheet - adds padding to the wrapper around DefaultNoteForm/ScriptureNoteForm */
     :global(.bottom-sheet-content .panel-container > form > div[class*="flex-1"][class*="flex"][class*="flex-col"]) {
       padding-left: 12px !important;
       padding-right: 12px !important;
-      padding-bottom: 0 !important;
-      margin-bottom: 12px !important;
-    }
-    
-    /* Ensure gap between DefaultNoteForm/ScriptureNoteForm and footer buttons */
-    :global(.bottom-sheet-content .panel-container > form > div[class*="flex-1"]:not(:last-child)) {
-      margin-bottom: 12px !important;
     }
     
     /* Ensure DefaultNoteForm/ScriptureNoteForm containers keep their bottom padding for date/ID footer */
     :global(.bottom-sheet-content .panel-container [class*="bg-white"][class*="rounded"][class*="shadow"]) {
       padding-bottom: 12px !important; /* pb-3 = 12px */
-    }
-    
-    /* More specific selector for NewNotePanel - ensure gap between form content and footer */
-    :global(.bottom-sheet-content .new-note-panel .note-content-wrapper) {
-      margin-bottom: 12px !important;
-    }
-    
-    :global(.bottom-sheet-content .new-note-panel .panel__footer--buttons) {
-      margin-top: 12px !important;
     }
     
     /* Ensure sheet content is above overlay */
