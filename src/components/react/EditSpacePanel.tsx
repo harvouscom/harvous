@@ -397,7 +397,7 @@ export default function EditSpacePanel({
                     value={formData.title}
                     onChange={(e) => handleInputChange('title', e.target.value)}
                     placeholder={formData.title ? '' : 'Space Title'}
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full" 
                   />
                   {validationErrors.title && (
                     <div className="text-red-500 text-sm mt-1 text-center">

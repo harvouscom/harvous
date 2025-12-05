@@ -150,7 +150,7 @@ export default function NewTagPanel({
             value={tagName}
             onChange={(e) => setTagName(e.target.value)}
             placeholder="Type here..."
-            className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
+            className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full"
             disabled={isSubmitting}
             autoFocus
           />
@@ -199,7 +199,7 @@ export default function NewTagPanel({
                       value={tagName}
                       onChange={(e) => setTagName(e.target.value)}
                       placeholder="Type here..."
-                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
+                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full"
                       disabled={isSubmitting}
                       autoFocus
                     />

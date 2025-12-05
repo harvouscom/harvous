@@ -11,7 +11,8 @@
 .tiptap-editor-container .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
-  color: #9ca3af;
+  color: var(--color-deep-grey);
+  opacity: 0.5;
   pointer-events: none;
   height: 0;
 }
@@ -56,7 +57,8 @@
 }
 
 .tiptap-content .ProseMirror p.is-editor-empty:first-child::before {
-  color: var(--color-pebble-grey) !important;
+  color: var(--color-deep-grey) !important;
+  opacity: 0.5 !important;
   content: attr(data-placeholder) !important;
   float: left !important;
   height: 0 !important;

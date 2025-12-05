@@ -57,7 +57,8 @@
   width: 100%;
 
   &::placeholder {
-    color: var(--color-pebble-grey);
+    color: var(--color-deep-grey);
+    opacity: 0.5;
   }
 }
 
@@ -94,7 +95,8 @@
   transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 
   &::placeholder {
-    color: var(--color-stone-grey);
+    color: var(--color-deep-grey);
+    opacity: 0.5;
   }
 
   &:focus {
@@ -128,7 +130,7 @@
   line-height: 1.2;
 
   &::placeholder {
-    color: var(--color-stone-grey);
+    color: var(--color-deep-grey);
     opacity: 0.5;
   }
 }
@@ -541,7 +543,8 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
 }
 
 .clerk-form-input::placeholder {
-  color: var(--color-pebble-grey);
+  color: var(--color-deep-grey);
+  opacity: 0.5;
 }
 
 .clerk-form-input:focus {

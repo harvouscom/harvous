@@ -45,15 +45,15 @@ export default function ToastProvider() {
     }, 50);
   }, []);
 
-  // Base styles for all screen sizes
+  // Base styles for all screen sizes - adapts to dark mode via CSS variables
   const baseStyle = {
-    backgroundColor: 'rgb(255, 255, 255)',
-    background: 'linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%)',
+    backgroundColor: 'var(--surface-card)',
     color: 'var(--color-deep-grey)',
     fontFamily: '"Reddit Sans", system-ui, -apple-system, sans-serif',
     fontSize: '16px',
     fontWeight: '600',
     borderRadius: '12px',
+    border: 'none',
     boxShadow: '0px 7px 16px 0px rgba(0, 0, 0, 0.1), 0px 30px 30px 0px rgba(0, 0, 0, 0.09), 0px 67px 40px 0px rgba(0, 0, 0, 0.05), 0px 119px 47px 0px rgba(0, 0, 0, 0.01), 0px 185px 52px 0px rgba(0, 0, 0, 0)',
     padding: '16px 20px',
     textAlign: 'center',

@@ -443,7 +443,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             className="modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ 
-              backgroundColor: 'white',
+              backgroundColor: 'var(--surface-card)',
               borderRadius: '0.75rem',
               padding: '1.5rem',
               maxWidth: '28rem',
@@ -507,7 +507,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             className="modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ 
-              backgroundColor: 'white',
+              backgroundColor: 'var(--surface-card)',
               borderRadius: '0.75rem',
               padding: '1.5rem',
               maxWidth: '28rem',

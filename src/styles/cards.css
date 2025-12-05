@@ -413,7 +413,7 @@
   line-height: 1.2;
 
   &::placeholder {
-    color: var(--color-stone-grey);
+    color: var(--color-deep-grey);
     opacity: 0.5;
   }
 }

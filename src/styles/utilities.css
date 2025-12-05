@@ -963,7 +963,9 @@
 /* ==========================================================================
    Placeholder States
    ========================================================================== */
-.placeholder\:text-\[var\(--color-pebble-grey\)\]::placeholder {
-  color: var(--color-pebble-grey);
+.placeholder\:text-\[var\(--color-pebble-grey\)\]::placeholder,
+.placeholder\:text-\[var\(--color-stone-grey\)\]::placeholder {
+  color: var(--color-deep-grey);
+  opacity: 0.5;
 }
 

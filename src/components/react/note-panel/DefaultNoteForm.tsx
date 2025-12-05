@@ -62,7 +62,7 @@ export default function DefaultNoteForm({
             onKeyDown={handleTitleKeyDown}
             placeholder="Note title"
             tabIndex={1}
-            className="w-full bg-transparent border-none text-[24px] font-bold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
+            className="w-full bg-transparent border-none text-[24px] font-bold text-[var(--color-deep-grey)] focus:outline-none placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50"
           />
         </div>
         <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">

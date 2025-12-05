@@ -460,7 +460,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Space name"
-                  className="w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center placeholder:text-[var(--color-pebble-grey)]"
+                  className="w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50"
                   style={{ 
                     color: getThreadTextColorCSS(selectedColor)
                   }}

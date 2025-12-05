@@ -327,7 +327,7 @@ export default function EditNameColorPanel({
                     value={formData.firstName}
                     onChange={(e) => handleInputChange('firstName', e.target.value)}
                     placeholder={formData.firstName ? '' : 'First Name'}
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full" 
                   />
                   {validationErrors.firstName && (
                     <div className="text-red-500 text-sm mt-1 text-center">
@@ -343,7 +343,7 @@ export default function EditNameColorPanel({
                     value={formData.lastName}
                     onChange={(e) => handleInputChange('lastName', e.target.value)}
                     placeholder={formData.lastName ? '' : 'Last Name'}
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full" 
                   />
                   {validationErrors.lastName && (
                     <div className="text-red-500 text-sm mt-1 text-center">

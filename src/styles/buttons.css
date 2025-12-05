@@ -142,6 +142,17 @@
   }
 }
 
+/* Secondary button - darker in dark mode to match square buttons */
+@media (prefers-color-scheme: dark) {
+  .btn--secondary {
+    background-color: oklch(48% 0.025 250) !important;
+  }
+  
+  .btn--secondary:active {
+    background-color: oklch(42% 0.025 250) !important;
+  }
+}
+
 /* Delete/Danger - Red */
 .btn--danger {
   background-color: var(--color-red);
@@ -284,7 +295,7 @@
   font-size: 18px;
   line-height: 0;
   white-space: nowrap;
-  color: var(--color-fog-white);
+  color: white !important;
   background-color: var(--color-bold-blue);
   height: 64px;
   padding: 1.5rem 1.5rem 1.75rem;
@@ -303,7 +314,7 @@
   transition: transform 0.125s ease-in-out;
   font-family: var(--font-sans) !important;
   font-weight: 600 !important;
-  color: var(--color-fog-white) !important;
+  color: white !important;
 }
 
 .btn-cta span,
@@ -312,6 +323,7 @@
 .btn-cta * {
   font-family: var(--font-sans) !important;
   font-weight: 600 !important;
+  color: white !important;
 }
 
 .btn-cta__shadow {
@@ -573,10 +585,10 @@
   fill: var(--color-pebble-grey);
 }
 
-/* Close button - cool blue-grey background in dark mode */
+/* Close button - dim cool blue-grey background in dark mode */
 @media (prefers-color-scheme: dark) {
   .square-button button[class*="bg-[var(--color-stone-grey)]"],
   .square-button button[style*="background-color: var(--color-stone-grey)"] {
-    background-color: oklch(40% 0.02 250) !important;
+    background-color: oklch(48% 0.025 250) !important;
   }
 }

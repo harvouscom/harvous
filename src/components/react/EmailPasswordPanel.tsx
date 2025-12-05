@@ -209,7 +209,7 @@ export default function EmailPasswordPanel({
                     value={formData.newEmail}
                     onChange={(e) => handleInputChange('newEmail', e.target.value)}
                     placeholder="New Email Address"
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full" 
                   />
                   {validationErrors.newEmail && (
                     <div className="text-red-500 text-sm mt-1 text-center">
@@ -226,7 +226,7 @@ export default function EmailPasswordPanel({
                       value={formData.currentPassword}
                       onChange={(e) => handleInputChange('currentPassword', e.target.value)}
                       placeholder="Current Password"
-                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full" 
                     />
                   </div>
                   <div className="text-[var(--color-stone-grey)] text-sm mt-1 text-center">
@@ -246,7 +246,7 @@ export default function EmailPasswordPanel({
                     value={formData.newPassword}
                     onChange={(e) => handleInputChange('newPassword', e.target.value)}
                     placeholder="New Password"
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full" 
                   />
                   {validationErrors.newPassword && (
                     <div className="text-red-500 text-sm mt-1 text-center">
@@ -262,7 +262,7 @@ export default function EmailPasswordPanel({
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
                     placeholder="Confirm New Password"
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full" 
                   />
                   {validationErrors.confirmPassword && (
                     <div className="text-red-500 text-sm mt-1 text-center">

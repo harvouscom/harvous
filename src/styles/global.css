@@ -781,6 +781,7 @@ button[disabled] {
 [data-sonner-toast] {
     pointer-events: auto !important;
     text-align: center !important;
+    border: none !important;
 }
 
 /* Desktop: Set minimum width to 280px, allow expansion for longer messages */

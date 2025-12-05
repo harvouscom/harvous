@@ -606,7 +606,7 @@ export default function MyChurchPanel({
                       value={formData.churchName}
                       onChange={(e) => handleInputChange('churchName', e.target.value)}
                       placeholder="Name of church"
-                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
+                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full" 
                     />
                   </div>
                   {validationErrors.churchName && (
@@ -626,7 +626,7 @@ export default function MyChurchPanel({
                         value={formData.churchCity}
                         onChange={(e) => handleInputChange('churchCity', e.target.value)}
                         placeholder="City"
-                        className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
+                        className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full" 
                       />
                     </div>
                     {validationErrors.churchCity && (
@@ -644,7 +644,7 @@ export default function MyChurchPanel({
                         value={formData.churchState}
                         onChange={(e) => handleInputChange('churchState', e.target.value)}
                         placeholder="State/Province/Region"
-                        className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
+                        className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-deep-grey)] placeholder:opacity-50 w-full" 
                       />
                     </div>
                     {validationErrors.churchState && (
@@ -714,7 +714,7 @@ export default function MyChurchPanel({
             className="modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ 
-              backgroundColor: 'white',
+              backgroundColor: 'var(--surface-card)',
               borderRadius: '0.75rem',
               padding: '1.5rem',
               maxWidth: '28rem',

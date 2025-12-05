@@ -425,7 +425,7 @@ export default function Menu({
             className="modal-content-enter"
             onClick={(e) => e.stopPropagation()}
             style={{ 
-              backgroundColor: 'white',
+              backgroundColor: 'var(--surface-card)',
               borderRadius: '0.75rem',
               padding: '1.5rem',
               maxWidth: '28rem',
@@ -473,14 +473,14 @@ export default function Menu({
           box-shadow: none !important;
         }
         
-        /* Dark mode: subtle cool blue divider and hover */
+        /* Dark mode: subtle dim cool blue divider and hover */
         @media (prefers-color-scheme: dark) {
           .menu-separator {
-            border-color: oklch(30% 0.01 250 / 0.4) !important;
+            border-color: oklch(42% 0.012 250 / 0.5) !important;
           }
           
           .menu-item:hover {
-            background-color: oklch(25% 0.015 250 / 0.2) !important;
+            background-color: oklch(35% 0.018 250 / 0.25) !important;
           }
         }
       `}</style>
