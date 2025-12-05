@@ -89,9 +89,9 @@ const {
       margin-bottom: 12px !important;
     }
     
-    /* Remove bottom padding from DefaultNoteForm/ScriptureNoteForm containers in bottom sheet */
+    /* Ensure DefaultNoteForm/ScriptureNoteForm containers keep their bottom padding for date/ID footer */
     :global(.bottom-sheet-content .panel-container [class*="bg-white"][class*="rounded"][class*="shadow"]) {
-      padding-bottom: 0 !important;
+      padding-bottom: 12px !important; /* pb-3 = 12px */
     }
     
     /* Ensure sheet content is above overlay */
