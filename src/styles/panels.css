@@ -590,6 +590,95 @@
 }
 
 /* ==========================================================================
+   Panel Metadata Row
+   ========================================================================== */
+.panel__metadata-row {
+  display: flex;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  align-items: center;
+  justify-content: space-between;
+  line-height: 0;
+  font-style: normal;
+  padding-left: 0.75rem;  /* 12px / px-3 */
+  padding-right: 0.75rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  position: relative;
+  flex-shrink: 0;
+  color: var(--color-stone-grey);
+  font-size: 12px;
+  white-space: nowrap;
+  width: 100%;
+  margin-bottom: 0.5rem;  /* 8px / mb-2 */
+}
+
+.panel__metadata-row__left {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.panel__metadata-row__right {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;  /* 8px / gap-2 */
+}
+
+/* ==========================================================================
+   Tab Content Area
+   ========================================================================== */
+.tab-content {
+  flex: 1;
+  padding: 0.75rem;  /* 12px / p-3 */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.tab-content__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;  /* 12px / gap-3 */
+  min-height: 0;
+}
+
+.tab-content__section--shrink {
+  flex-shrink: 0;
+}
+
+.tab-content__section--expand {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ==========================================================================
+   Tag List Container
+   ========================================================================== */
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;  /* 12px / gap-3 */
+}
+
+/* ==========================================================================
+   Empty State with Description
+   ========================================================================== */
+.panel__empty-state-with-description {
+  text-align: center;
+  padding-top: 1rem;  /* 16px / py-4 */
+  padding-bottom: 1rem;
+  color: var(--color-stone-grey);
+}
+
+.panel__empty-state-description {
+  font-size: 0.875rem;  /* 14px / text-sm */
+  margin-top: 0.25rem;  /* 4px / mt-1 */
+}
+
+/* ==========================================================================
    Panel Loading & Empty States
    ========================================================================== */
 .panel__loading-state {

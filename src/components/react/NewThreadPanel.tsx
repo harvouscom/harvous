@@ -501,7 +501,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             
             {/* Content area */}
             <div className="panel__body panel__body--bottom-sheet">
-              <div className="panel__content panel__content--bottom-sheet">
+              <div className="panel__content panel__content--bottom-sheet flex-1 min-h-0">
                 
                 {/* Color selection */}
                 <div className="color-selection">
@@ -664,23 +664,25 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
 
                 {/* AddToSpaceSection - for selecting notes to add to thread (create mode only) */}
                 {!isEditMode && (
-                  <div className="w-full flex-1 min-h-0">
+                  <div className="w-full flex-1 min-h-0 flex flex-col">
                     {isLoadingItems ? (
                       <div className="panel__loading-state">
                         Loading notes...
                       </div>
                     ) : (
-                      <AddToSpaceSection
-                        allNotes={allNotes}
-                        allThreads={[]}
-                        currentSpaceId={null}
-                        onItemSelect={handleItemSelect}
-                        selectedItems={selectedItems}
-                        isLoading={isSubmitting}
-                        placeholder="Search notes"
-                        emptyMessage="No notes found"
-                        itemsToShow="notes"
-                      />
+                      <div className="flex-1 min-h-0">
+                        <AddToSpaceSection
+                          allNotes={allNotes}
+                          allThreads={[]}
+                          currentSpaceId={null}
+                          onItemSelect={handleItemSelect}
+                          selectedItems={selectedItems}
+                          isLoading={isSubmitting}
+                          placeholder="Search notes"
+                          emptyMessage="No notes found"
+                          itemsToShow="notes"
+                        />
+                      </div>
                     )}
                   </div>
                 )}

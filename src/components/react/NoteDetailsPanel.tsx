@@ -474,9 +474,9 @@ export default function NoteDetailsPanel({
       `}</style>
       <div className={`note-details-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
       {/* Content area that expands to fill available space */}
-      <div className="flex-1 flex flex-col min-h-0 w-full">
+      <div className="form-layout--expand w-full">
         {/* Panel container */}
-        <div className={`panel flex-1 flex flex-col min-h-0 ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+        <div className={`panel form-layout--expand ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           {/* Header section */}
           <div className="panel__header">
             <div className="panel__title">
@@ -486,13 +486,13 @@ export default function NoteDetailsPanel({
           
           {/* Content area */}
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-            <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-              <div className="w-full flex flex-col min-h-0">
+            <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''} flex-1 min-h-0`}>
+              <div className="w-full form-layout--expand">
 
                 {/* Note Metadata - ID, Source, and Date */}
                 {(noteCreatedAt || noteSimpleId || noteAddedBy) && (
-                  <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full mb-2">
-                    <div className="relative shrink-0">
+                  <div className="panel__metadata-row">
+                    <div className="panel__metadata-row__left">
                       {noteSimpleId && (
                         <button
                           onClick={async () => {
@@ -511,7 +511,7 @@ export default function NoteDetailsPanel({
                         </button>
                       )}
                     </div>
-                    <div className="relative shrink-0 flex items-center gap-2">
+                    <div className="panel__metadata-row__right">
                       {noteCreatedAt && (
                         <span className="leading-[normal] text-nowrap">
                           {noteCreatedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -531,7 +531,7 @@ export default function NoteDetailsPanel({
 
                 {/* Tab navigation */}
                 <div className="w-full">
-                  <div className="flex flex-col gap-3">
+                  <div className="panel__section">
                     <div className="tab-nav-container">
                       {/* Tab Navigation */}
                       <div className="tab-nav">
@@ -598,22 +598,22 @@ export default function NoteDetailsPanel({
                 
                 {/* Tab Content */}
                 {isLoading ? (
-                  <div className="text-center py-4 text-gray-500">Loading...</div>
+                  <div className="panel__loading-state">Loading...</div>
                 ) : (
-                  <div className="tab-content flex-1 p-3 flex flex-col min-h-0 overflow-y-auto">
+                  <div className="tab-content flex-1 min-h-0 flex flex-col">
                 {activeTab === 'threads' && (
-                  <div className="flex flex-col gap-3 min-h-0">
+                  <div className="tab-content__section flex-1 min-h-0 flex flex-col">
                     {/* Current Threads - directly below tab */}
-                    <div className="shrink-0">
+                    <div className="tab-content__section--shrink">
                       {localThreads.length === 0 ? (
-                        <div style={{ textAlign: 'center', color: 'rgb(107 114 128)', paddingTop: '64px', paddingBottom: '64px', fontWeight: 600 }}>No threads found for this note.</div>
+                        <div className="panel__empty-state">No threads found for this note.</div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="panel__item-list">
                           {localThreads.map(thread => (
-                            <div key={thread.id} className="relative group">
+                            <div key={thread.id} className="panel__item-list-item">
                               <a 
                                 href={`/${thread.id}`}
-                                className="block transition-transform duration-200 hover:scale-[1.002]"
+                                className="panel__item-list-item-link"
                                 aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
                               >
                                 <CardThread thread={thread} />
@@ -626,7 +626,7 @@ export default function NoteDetailsPanel({
                                   e.stopPropagation();
                                   handleRemoveFromThread(thread.id);
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                className="panel__item-list-item-actions"
                                 disabled={isMovingThread}
                               />
                             </div>
@@ -636,7 +636,7 @@ export default function NoteDetailsPanel({
                     </div>
 
                     {/* Add to Thread Section - fills remaining space */}
-                    <div className="flex-1 min-h-0 flex flex-col" style={{ minHeight: 0 }}>
+                    <div className="tab-content__section--expand">
                       <AddToSection
                         allItems={localAllUserThreads.filter(thread => thread.id !== 'thread_unorganized')}
                         currentItems={localThreads}
@@ -651,15 +651,15 @@ export default function NoteDetailsPanel({
                   </div>
                 )}
                     {activeTab === 'tags' && (
-                      <div className="flex flex-col gap-3">
+                      <div className="tab-content__section">
                         {/* Existing tags */}
                         {localTags.length === 0 ? (
-                          <div className="text-center py-4 text-gray-500">
+                          <div className="panel__empty-state-with-description">
                             <p>No tags found for this note.</p>
-                            <p className="text-sm mt-1">Tags are automatically generated based on your note content when you create or update notes.</p>
+                            <p className="panel__empty-state-description">Tags are automatically generated based on your note content when you create or update notes.</p>
                           </div>
                         ) : (
-                          <div className="flex flex-wrap gap-3">
+                          <div className="tag-list">
                             {localTags.map(tag => (
                               <div key={tag.id} className="content-item tag-item">
                                 <div className="relative nav-item-container">
@@ -702,14 +702,14 @@ export default function NoteDetailsPanel({
                       </div>
                     )}
                     {activeTab === 'notes' && isScriptureNote && (
-                      <div className="flex flex-col gap-3">
+                      <div className="tab-content__section">
                         {localReferencingNotes.length === 0 ? (
-                          <div className="text-center py-4 text-gray-500">
+                          <div className="panel__empty-state-with-description">
                             <p>No notes reference this scripture yet.</p>
-                            <p className="text-sm mt-1">When you reference this scripture in other notes, they'll appear here.</p>
+                            <p className="panel__empty-state-description">When you reference this scripture in other notes, they'll appear here.</p>
                           </div>
                         ) : (
-                          <div className="space-y-3">
+                          <div className="panel__item-list">
                             {localReferencingNotes.map(refNote => (
                               <a
                                 key={refNote.id}

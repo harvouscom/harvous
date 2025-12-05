@@ -335,9 +335,9 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
       {/* Form */}
-      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="flex-1 flex flex-col min-h-0">
+      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="form-layout">
         {/* Content area that expands to fill available space */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="form-layout--expand">
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
             {/* Header section with space name input */}
@@ -365,26 +365,26 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
             
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''} flex-1 min-h-0`}>
                 
                 {/* Color selection */}
-                <div className="color-selection flex gap-2 items-center justify-start w-full">
+                <div className="color-selection">
                   {THREAD_COLORS.map((color) => (
                     <button 
                       key={color}
                       type="button"
                       onClick={() => setSelectedColor(color)}
-                      className={`relative rounded-xl size-10 cursor-pointer transition-all duration-200 ${
-                        selectedColor === color ? 'ring-2 ring-[var(--color-deep-grey)] ring-offset-2' : ''
-                      }`}
+                      className={`color-swatch ${selectedColor === color ? 'color-swatch--selected' : ''}`}
                       style={{ backgroundColor: getThreadColorCSS(color) }}
                     >
                       {/* Check icon for selected color */}
                       {selectedColor === color && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <svg className="size-5" style={{ color: getThreadTextColorCSS(color) }} fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                          </svg>
+                          <Icon 
+                            name="check" 
+                            size={20} 
+                            style={{ color: getThreadTextColorCSS(color) }} 
+                          />
                         </div>
                       )}
                     </button>
@@ -392,13 +392,13 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 </div>
                 
                 {/* Space type selection with ButtonGroup */}
-                <div className="w-full bg-[var(--color-fog-white)] rounded-3xl overflow-hidden p-1.5">
-                  <div className="flex gap-0 w-full">
+                <div className="button-group">
+                  <div className="button-group__container">
                     {/* Private button */}
                     <button
                       type="button"
                       onClick={() => setSelectedType('Private')}
-                      className={`space-button relative rounded-tl-3xl rounded-bl-3xl rounded-tr-none rounded-br-none h-[64px] cursor-pointer transition-all duration-200 pl-4 pr-4 flex-1 ${
+                      className={`space-button button-group__button button-group__button--left h-[64px] ${
                         selectedType === 'Private' 
                           ? '' 
                           : 'bg-transparent'
@@ -435,7 +435,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                     <button
                       type="button"
                       disabled
-                      className="space-button relative rounded-tr-3xl rounded-br-3xl rounded-tl-none rounded-bl-none h-[64px] cursor-not-allowed transition-all duration-200 pl-4 pr-4 flex-1 bg-transparent opacity-50"
+                      className="space-button button-group__button button-group__button--right button-group__button--disabled h-[64px] bg-transparent"
                     >
                       <div className="flex items-center justify-center gap-3 relative w-full h-full">
                         <div className="size-4 flex items-center justify-center shrink-0">
@@ -450,17 +450,17 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 {/* Selected Items - displayed above AddToSpaceSection */}
                 {selectedItems.length > 0 && !isLoadingItems && (
                   <div className="w-full shrink-0 mb-3">
-                    <div className="flex flex-col gap-3">
+                    <div className="panel__item-list">
                       {selectedItems.map(itemId => {
                         const thread = allThreads.find(t => t.id === itemId);
                         const note = allNotes.find(n => n.id === itemId);
                         
                         if (thread) {
                           return (
-                            <div key={thread.id} className="relative group">
+                            <div key={thread.id} className="panel__item-list-item">
                               <a 
                                 href={`/${thread.id}`}
-                                className="block transition-transform duration-200 hover:scale-[1.002]"
+                                className="panel__item-list-item-link"
                                 aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
                               >
                                 <CardThread thread={thread} />
@@ -473,17 +473,17 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                                   e.stopPropagation();
                                   handleItemSelect(thread.id, 'thread');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                className="panel__item-list-item-actions"
                                 disabled={isSubmitting}
                               />
                             </div>
                           );
                         } else if (note) {
                           return (
-                            <div key={note.id} className="relative group">
+                            <div key={note.id} className="panel__item-list-item">
                               <a 
                                 href={`/${note.id}`}
-                                className="block transition-transform duration-200 hover:scale-[1.002]"
+                                className="panel__item-list-item-link"
                                 aria-label={`View note: ${note.title || 'Untitled note'}`}
                               >
                                 <CardNote 
@@ -500,7 +500,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                                   e.stopPropagation();
                                   handleItemSelect(note.id, 'note');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                className="panel__item-list-item-actions"
                                 disabled={isSubmitting}
                               />
                             </div>
@@ -513,22 +513,24 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 )}
 
                 {/* AddToSpaceSection - replaces tabs */}
-                <div className="w-full flex-1 min-h-0">
+                <div className="w-full flex-1 min-h-0 flex flex-col">
                   {isLoadingItems ? (
-                    <div className="text-center py-8 text-[var(--color-stone-grey)]">
+                    <div className="panel__loading-state">
                       Loading items...
                     </div>
                   ) : (
-                    <AddToSpaceSection
-                      allNotes={allNotes}
-                      allThreads={allThreads}
-                      currentSpaceId={null}
-                      onItemSelect={handleItemSelect}
-                      selectedItems={selectedItems}
-                      isLoading={isSubmitting}
-                      placeholder="Search notes and threads"
-                      emptyMessage="No items found"
-                    />
+                    <div className="flex-1 min-h-0">
+                      <AddToSpaceSection
+                        allNotes={allNotes}
+                        allThreads={allThreads}
+                        currentSpaceId={null}
+                        onItemSelect={handleItemSelect}
+                        selectedItems={selectedItems}
+                        isLoading={isSubmitting}
+                        placeholder="Search notes and threads"
+                        emptyMessage="No items found"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
