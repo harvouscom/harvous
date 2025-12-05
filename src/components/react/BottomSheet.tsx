@@ -300,6 +300,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         style={{ 
           paddingBottom: '24px',
           paddingTop: '20px',
+          paddingLeft: '0',
+          paddingRight: '0',
           transform: 'translateY(100%)',
           outline: 'none',
           boxShadow: 'none'
