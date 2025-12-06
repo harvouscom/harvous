@@ -111,10 +111,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const isScriptureNote = newNote.noteType === 'scripture';
     await awardNoteCreatedXP(userId, newNote.id, isScriptureNote, newNote.content || '');
 
+    // Process scripture references in the note content
+    let scriptureResults: any[] = [];
+    try {
+      const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+      const processResult = await processScriptureReferences(newNote.id, userId, finalThreadId);
+      scriptureResults = processResult.results || [];
+    } catch (error: any) {
+      // Don't fail note addition if scripture processing fails
+      console.error('Error processing scripture references (non-critical):', error);
+    }
+
     return new Response(JSON.stringify({
       success: true,
       message: 'Note added to your Harvous successfully!',
       noteId: newNote.id,
+      scriptureResults
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
