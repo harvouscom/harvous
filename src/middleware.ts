@@ -18,7 +18,9 @@ const isPublicRoute = createRouteMatcher([
   '/sign-up',
   '/logout',
   '/api/health', // Lightweight warmup endpoint - must be public for cold start optimization
-  '/api/test/xp-comprehensive' // Test endpoint for XP system (dev only)
+  '/api/test/xp-comprehensive', // Test endpoint for XP system (dev only)
+  '/api/webflow/sync-inbox', // Webflow sync endpoint (uses server-side WEBFLOW_API_TOKEN for auth)
+  '/api/webflow/webhook' // Webflow webhook endpoint (uses server-side WEBFLOW_WEBHOOK_SECRET for auth)
 ])
 
 export const onRequest = clerkMiddleware((auth, context, next) => {
