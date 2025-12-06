@@ -1,7 +1,7 @@
 {
   "name": "harvous",
   "type": "module",
-  "version": "0.149.42",
+  "version": "0.149.43",
   "repository": {
     "type": "git",
     "url": "https://github.com/harvouscom/harvous.git"
