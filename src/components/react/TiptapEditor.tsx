@@ -681,6 +681,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
 
+  // Helper function to check if editor/view is valid before accessing docView
+  // This prevents errors when editor is destroyed but handlers still fire
+  const isEditorValid = (editorInstance: any): boolean => {
+    if (!editorInstance) return false;
+    // Check if editor is destroyed
+    if (editorInstance.isDestroyed) return false;
+    // Check if view exists and is valid
+    if (!editorInstance.view) return false;
+    // Check if docView exists - this becomes null when editor is destroyed
+    if (!editorInstance.view.docView) return false;
+    return true;
+  };
+
   // Restore scroll position when provided
   useEffect(() => {
     if (scrollPosition && scrollPosition > 0) {
@@ -813,6 +826,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       handleKeyDown: (view, event) => {
         const editor = editorRef.current;
         if (!editor) return false;
+        
+        // Check if editor is still valid (not destroyed)
+        if (!isEditorValid(editor)) return false;
+        
+        // Check if view.docView is still valid
+        if (!view || !view.docView) return false;
         
         // Handle Cmd+Enter to submit form (dispatch event for parent panels to handle)
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -1016,6 +1035,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   useEffect(() => {
     if (!editor || !content) return;
     
+    // Check if editor is still valid
+    if (!isEditorValid(editor)) return;
+    
     // Only update if editor is not focused (to avoid interrupting user typing)
     if (!editor.isFocused) {
       const currentContent = editor.getHTML();
@@ -1026,8 +1048,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         editor.commands.setContent(content, { emitUpdate: false });
         
         // Move cursor to end of content to avoid getting stuck on scripture pills
-        setTimeout(() => {
-          if (editor && !editor.isFocused) {
+        const cursorTimeout = setTimeout(() => {
+          if (isEditorValid(editor) && !editor.isFocused) {
             try {
               const doc = editor.state.doc;
               const endPos = doc.content.size;
@@ -1041,13 +1063,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Convert any note-link spans to scripture-pill marks if they reference scripture notes
         // Scripture detection now happens on save only, not on content load
         const conversionTimeout = setTimeout(async () => {
-          if (editor && !editor.isFocused) {
+          if (isEditorValid(editor) && !editor.isFocused) {
             // Convert note-links to scripture pills
             await convertNoteLinksToScripturePills(editor);
           }
         }, 500);
         
-        return () => clearTimeout(conversionTimeout);
+        return () => {
+          clearTimeout(cursorTimeout);
+          clearTimeout(conversionTimeout);
+        };
       }
     }
   }, [editor, content]);
@@ -1112,6 +1137,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
 
     const updateSelection = () => {
+      // Check if editor is still valid before accessing it
+      if (!isEditorValid(editor)) {
+        setShowCreateNoteButton(false);
+        return;
+      }
       if (isValidSelection(editor)) {
         setShowCreateNoteButton(true);
       } else {
@@ -1122,13 +1152,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editor.on('selectionUpdate', updateSelection);
 
     return () => {
-      editor.off('selectionUpdate', updateSelection);
+      if (editor && !editor.isDestroyed) {
+        editor.off('selectionUpdate', updateSelection);
+      }
     };
   }, [editor, enableCreateNoteFromSelection]);
 
   // Handle create note from selection
   const handleCreateNoteFromSelection = async () => {
     if (!editor) return;
+    
+    // Check if editor is still valid before accessing it
+    if (!isEditorValid(editor)) return;
     
     const { from, to } = editor.state.selection;
     if (from === to) return;
@@ -1403,6 +1438,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (!editor) return;
 
     const handleClick = (event: MouseEvent) => {
+      // Check if editor is still valid
+      if (!isEditorValid(editor)) return;
+      
       const target = event.target as HTMLElement;
       if (target.classList.contains('note-link')) {
         const noteId = target.getAttribute('data-note-id');
@@ -1420,7 +1458,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
 
     return () => {
-      editorElement.removeEventListener('click', handleClick);
+      if (editorElement) {
+        editorElement.removeEventListener('click', handleClick);
+      }
     };
   }, [editor]);
 
@@ -1429,10 +1469,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (!editor) return;
 
     const handleFocus = () => {
+      // Check if editor is still valid
+      if (!isEditorValid(editor)) return;
       setIsEditorFocused(true);
     };
 
     const handleBlur = (event: any) => {
+      // Check if editor is still valid
+      if (!isEditorValid(editor)) return;
+      
       // Don't hide toolbar if blur is caused by clicking toolbar button
       // Check if the related target (what's being focused) is within the toolbar
       const relatedTarget = event.event?.relatedTarget;
@@ -1445,7 +1490,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       // Small delay to allow focus to return to editor if needed
       setTimeout(() => {
-        if (editor && !editor.isFocused) {
+        if (isEditorValid(editor) && !editor.isFocused) {
           setIsEditorFocused(false);
         }
       }, 100);
@@ -1455,11 +1500,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editor.on('blur', handleBlur);
 
     // Set initial focus state
-    setIsEditorFocused(editor.isFocused);
+    if (isEditorValid(editor)) {
+      setIsEditorFocused(editor.isFocused);
+    }
 
     return () => {
-      editor.off('focus', handleFocus);
-      editor.off('blur', handleBlur);
+      if (editor && !editor.isDestroyed) {
+        editor.off('focus', handleFocus);
+        editor.off('blur', handleBlur);
+      }
     };
   }, [editor]);
 
@@ -1470,6 +1519,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
 
     const updateActiveStates = () => {
+      // Check if editor is still valid before accessing it
+      if (!isEditorValid(editor)) return;
+      
       // Detect current heading level (0 = paragraph, 2 = H2, 3 = H3)
       let headingLevel = 0;
       if (editor.isActive('heading', { level: 2 })) {
@@ -1497,8 +1549,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     updateActiveStates();
 
     return () => {
-      editor.off('selectionUpdate', updateActiveStates);
-      editor.off('update', updateActiveStates);
+      if (editor && !editor.isDestroyed) {
+        editor.off('selectionUpdate', updateActiveStates);
+        editor.off('update', updateActiveStates);
+      }
     };
   }, [editor]);
 
@@ -1688,7 +1742,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         {enableCreateNoteFromSelection && (
           <BubbleMenu
             editor={editor}
-            shouldShow={({ editor }) => isValidSelection(editor)}
+            shouldShow={({ editor }) => {
+              // Check if editor is still valid before checking selection
+              if (!isEditorValid(editor)) return false;
+              return isValidSelection(editor);
+            }}
           >
             <div style={{ zIndex: 99999, pointerEvents: 'auto', display: 'inline-block' }}>
               <ButtonSmall

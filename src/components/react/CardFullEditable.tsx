@@ -87,10 +87,14 @@ export default function CardFullEditable({
     const visualViewport = window.visualViewport;
     if (!visualViewport) return;
 
-    const toolbar = document.querySelector('.tiptap-toolbar') as HTMLElement;
-    if (!toolbar) return;
-
     const handleResize = () => {
+      // Check if editor is still valid before accessing toolbar
+      if (!editorInstanceRef.current || editorInstanceRef.current.isDestroyed) return;
+      if (!editorInstanceRef.current.view || !editorInstanceRef.current.view.docView) return;
+      
+      const toolbar = document.querySelector('.tiptap-toolbar') as HTMLElement;
+      if (!toolbar) return;
+
       // When the virtual keyboard is shown, the visual viewport height decreases.
       const keyboardHeight = window.innerHeight - visualViewport.height;
       if (keyboardHeight > 150) { // Threshold to detect keyboard
@@ -121,41 +125,56 @@ export default function CardFullEditable({
         if (sourceNoteId === noteId && editorInstanceRef.current) {
             const editor = editorInstanceRef.current;
             
-            // Use Tiptap API to apply the mark
-            editor.chain()
-                .focus()
-                .setTextSelection({ from, to })
-                .unsetAllMarks()
-                .setMark('noteLink', { noteId: newNoteId })
-                .setTextSelection(to)  // Move cursor to end of link
-                .unsetAllMarks()        // Clear marks so new text isn't linked
-                .run();
+            // Check if editor is still valid (not destroyed)
+            if (!editor || editor.isDestroyed) return;
+            if (!editor.view || !editor.view.docView) return;
+            
+            try {
+              // Use Tiptap API to apply the mark
+              editor.chain()
+                  .focus()
+                  .setTextSelection({ from, to })
+                  .unsetAllMarks()
+                  .setMark('noteLink', { noteId: newNoteId })
+                  .setTextSelection(to)  // Move cursor to end of link
+                  .unsetAllMarks()        // Clear marks so new text isn't linked
+                  .run();
 
-            // After applying the mark, the content has changed. Trigger a save.
-            // A small delay ensures the editor update is processed before getting HTML
-            setTimeout(() => {
-                const updatedContent = editor.getHTML();
-                setEditContent(updatedContent); // Update local state
-                
-                // Trigger save
-                if (onSave) {
-                    onSave(editTitle, updatedContent);
-                } else {
-                    const globalCallback = (window as any).noteSaveCallback;
-                    if (globalCallback) {
-                        globalCallback(editTitle, updatedContent);
+              // After applying the mark, the content has changed. Trigger a save.
+              // A small delay ensures the editor update is processed before getting HTML
+              setTimeout(() => {
+                  // Check again if editor is still valid
+                  if (!editor || editor.isDestroyed) return;
+                  if (!editor.view || !editor.view.docView) return;
+                  
+                  try {
+                    const updatedContent = editor.getHTML();
+                    setEditContent(updatedContent); // Update local state
+                    
+                    // Trigger save
+                    if (onSave) {
+                        onSave(editTitle, updatedContent);
+                    } else {
+                        const globalCallback = (window as any).noteSaveCallback;
+                        if (globalCallback) {
+                            globalCallback(editTitle, updatedContent);
+                        }
                     }
-                }
 
-                // Show a temporary confirmation
-                window.dispatchEvent(new CustomEvent('toast', {
-                    detail: {
-                        message: 'Link created in source note.',
-                        type: 'success'
-                    }
-                }));
-
-            }, 50);
+                    // Show a temporary confirmation
+                    window.dispatchEvent(new CustomEvent('toast', {
+                        detail: {
+                            message: 'Link created in source note.',
+                            type: 'success'
+                        }
+                    }));
+                  } catch (e) {
+                    // Ignore errors during save
+                  }
+              }, 50);
+            } catch (e) {
+              // Ignore errors during hyperlink creation
+            }
         }
     };
 
@@ -224,12 +243,20 @@ export default function CardFullEditable({
 
   // Handle editor ready callback
   const handleEditorReady = (editor: any) => {
+    if (!editor) return;
+    
     editorInstanceRef.current = editor;
     // Focus if we should focus the editor
     if (shouldFocusEditorRef.current) {
       shouldFocusEditorRef.current = false;
       requestAnimationFrame(() => {
-        if (editor) {
+        // Check if editor is still valid (not destroyed)
+        if (!editor || editor.isDestroyed) return;
+        
+        // Check if view and docView are still valid
+        if (!editor.view || !editor.view.docView) return;
+        
+        try {
           editor.commands.focus();
           // Move cursor to end of content to avoid getting stuck on scripture pills
           try {
@@ -239,6 +266,8 @@ export default function CardFullEditable({
           } catch (e) {
             // If setting selection fails, just focus
           }
+        } catch (e) {
+          // Ignore errors during focus
         }
       });
     }

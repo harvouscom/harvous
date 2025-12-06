@@ -107,15 +107,25 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
 
   // Handle editor ready callback - focus the editor when it's initialized
   const handleEditorReady = (editor: any) => {
+    if (!editor) return;
+    
     editorRef.current = editor;
     setTimeout(() => {
-      if (editor && !editor.isDestroyed) {
+      // Check if editor is still valid (not destroyed)
+      if (!editor || editor.isDestroyed) return;
+      
+      // Check if view and docView are still valid
+      if (!editor.view || !editor.view.docView) return;
+      
+      try {
         editor.commands.focus();
         try {
           editor.commands.setTextSelection(0);
         } catch {
           // If setTextSelection fails, just focus
         }
+      } catch (e) {
+        // Ignore errors during focus
       }
     }, 50);
   };
@@ -224,10 +234,14 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     const visualViewport = window.visualViewport;
     if (!visualViewport) return;
 
-    const toolbar = document.querySelector('.tiptap-toolbar') as HTMLElement;
-    if (!toolbar) return;
-
     const handleResize = () => {
+      // Check if editor is still valid before accessing toolbar
+      if (!editorRef.current || editorRef.current.isDestroyed) return;
+      if (!editorRef.current.view || !editorRef.current.view.docView) return;
+      
+      const toolbar = document.querySelector('.tiptap-toolbar') as HTMLElement;
+      if (!toolbar) return;
+
       const keyboardHeight = window.innerHeight - visualViewport.height;
       if (keyboardHeight > 150) {
         toolbar.style.position = 'fixed';
