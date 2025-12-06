@@ -31,7 +31,6 @@ interface InboxItemPreviewPanelProps {
   onAddToHarvous: (inboxItemId: string) => Promise<void>;
   onArchive: (inboxItemId: string) => Promise<void>;
   onUnarchive?: (inboxItemId: string) => Promise<void>;
-  onAddNoteToHarvous?: (inboxItemNoteId: string) => Promise<void>;
   inBottomSheet?: boolean;
 }
 
@@ -149,7 +148,6 @@ export default function InboxItemPreviewPanel({
   onAddToHarvous,
   onArchive,
   onUnarchive,
-  onAddNoteToHarvous,
   inBottomSheet = false
 }: InboxItemPreviewPanelProps) {
   // Use state so we can update the item when data loads
@@ -157,7 +155,6 @@ export default function InboxItemPreviewPanel({
   const [isAdding, setIsAdding] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isUnarchiving, setIsUnarchiving] = useState(false);
-  const [addingNoteIds, setAddingNoteIds] = useState<Set<string>>(new Set());
   
   // Track item ID in a ref to avoid stale closure issues
   const itemIdRef = useRef(initialItem.id);
@@ -258,24 +255,6 @@ export default function InboxItemPreviewPanel({
     }
   };
 
-  const handleAddNoteToHarvous = async (inboxItemNoteId: string) => {
-    if (!onAddNoteToHarvous) return;
-    
-    setAddingNoteIds(prev => new Set(prev).add(inboxItemNoteId));
-    try {
-      await onAddNoteToHarvous(inboxItemNoteId);
-      // Don't close panel, just show success feedback
-    } catch (error) {
-      console.error('Error adding note to Harvous:', error);
-      alert('Failed to add note to your Harvous. Please try again.');
-    } finally {
-      setAddingNoteIds(prev => {
-        const next = new Set(prev);
-        next.delete(inboxItemNoteId);
-        return next;
-      });
-    }
-  };
 
   // Get header background color
   const headerBgColor = item.color ? getColorCSSVariable(item.color) : "var(--color-paper)";
@@ -517,7 +496,6 @@ export default function InboxItemPreviewPanel({
                         sortedNotes.map((note, index) => {
                           const cleanContent = stripHtml(note.content);
                           const previewContent = cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
-                          const isAddingNote = addingNoteIds.has(note.id);
                           
                           return (
                             <div 
@@ -606,7 +584,7 @@ export default function InboxItemPreviewPanel({
                   className="btn-cta flex-1 group"
                 >
                   <span className="btn-cta__content">
-                    {isAdding ? 'Adding...' : 'Add All to Harvous'}
+                    {isAdding ? 'Adding...' : 'Add to Harvous'}
                   </span>
                   <div className="btn-cta__shadow" />
                 </button>
@@ -623,37 +601,20 @@ export default function InboxItemPreviewPanel({
             inBottomSheet={inBottomSheet}
           />
           
-          {/* Add to Harvous or Unarchive button for note detail */}
-          {selectedNote && (
-            <>
-              {isArchived ? (
-                <button 
-                  type="button"
-                  onClick={handleUnarchive}
-                  disabled={isUnarchiving || isAdding || isArchiving}
-                  data-outer-shadow
-                  className="btn-cta flex-1 group"
-                >
-                  <span className="btn-cta__content">
-                    {isUnarchiving ? 'Unarchiving...' : 'Unarchive'}
-                  </span>
-                  <div className="btn-cta__shadow" />
-                </button>
-              ) : (
-                <button 
-                  type="button"
-                  onClick={() => selectedNote.id && handleAddNoteToHarvous(selectedNote.id)}
-                  disabled={addingNoteIds.has(selectedNote.id) || isAdding || isArchiving || isUnarchiving}
-                  data-outer-shadow
-                  className="btn-cta flex-1 group"
-                >
-                  <span className="btn-cta__content">
-                    {addingNoteIds.has(selectedNote.id) ? 'Adding...' : 'Add to Harvous'}
-                  </span>
-                  <div className="btn-cta__shadow" />
-                </button>
-              )}
-            </>
+          {/* Unarchive button for note detail (if archived) */}
+          {selectedNote && isArchived && (
+            <button 
+              type="button"
+              onClick={handleUnarchive}
+              disabled={isUnarchiving || isAdding || isArchiving}
+              data-outer-shadow
+              className="btn-cta flex-1 group"
+            >
+              <span className="btn-cta__content">
+                {isUnarchiving ? 'Unarchiving...' : 'Unarchive'}
+              </span>
+              <div className="btn-cta__shadow" />
+            </button>
           )}
         </div>
       )}

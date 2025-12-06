@@ -338,48 +338,14 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
       }
     };
 
-    const handleInboxNoteAddToHarvous = async (event: CustomEvent) => {
-      const { inboxItemNoteId } = event.detail;
-      try {
-        const response = await fetch('/api/inbox/add-note-to-harvous', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({ inboxItemNoteId }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          const errorMessage = error.error || 'Failed to add note to Harvous';
-          toast.error(errorMessage);
-          throw new Error(errorMessage);
-        }
-
-        const result = await response.json();
-        if (result.success) {
-          toast.success('Note added to Harvous');
-          if (onItemAdded) {
-            onItemAdded();
-          }
-        }
-      } catch (error) {
-        console.error('Error adding note to Harvous:', error);
-        toast.error('Failed to add note to Harvous');
-      }
-    };
-
     window.addEventListener('inboxItemAddToHarvous', handleInboxItemAddToHarvous as EventListener);
     window.addEventListener('inboxItemArchive', handleInboxItemArchive as EventListener);
     window.addEventListener('inboxItemUnarchive', handleInboxItemUnarchive as EventListener);
-    window.addEventListener('inboxNoteAddToHarvous', handleInboxNoteAddToHarvous as EventListener);
 
     return () => {
       window.removeEventListener('inboxItemAddToHarvous', handleInboxItemAddToHarvous as EventListener);
       window.removeEventListener('inboxItemArchive', handleInboxItemArchive as EventListener);
       window.removeEventListener('inboxItemUnarchive', handleInboxItemUnarchive as EventListener);
-      window.removeEventListener('inboxNoteAddToHarvous', handleInboxNoteAddToHarvous as EventListener);
     };
   }, [onItemAdded, onItemArchived, items]);
 

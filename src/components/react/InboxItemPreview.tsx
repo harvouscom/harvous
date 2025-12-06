@@ -27,7 +27,6 @@ interface InboxItemPreviewProps {
   onClose: () => void;
   onAddToHarvous: (inboxItemId: string) => Promise<void>;
   onArchive: (inboxItemId: string) => Promise<void>;
-  onAddNoteToHarvous?: (inboxItemNoteId: string) => Promise<void>;
 }
 
 // Map color names to CSS variable names (handles both short and long names)
@@ -87,12 +86,10 @@ export default function InboxItemPreview({
   item,
   onClose,
   onAddToHarvous,
-  onArchive,
-  onAddNoteToHarvous
+  onArchive
 }: InboxItemPreviewProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
-  const [addingNoteIds, setAddingNoteIds] = useState<Set<string>>(new Set());
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -127,25 +124,6 @@ export default function InboxItemPreview({
       alert('Failed to archive item. Please try again.');
     } finally {
       setIsArchiving(false);
-    }
-  };
-
-  const handleAddNoteToHarvous = async (inboxItemNoteId: string) => {
-    if (!onAddNoteToHarvous) return;
-    
-    setAddingNoteIds(prev => new Set(prev).add(inboxItemNoteId));
-    try {
-      await onAddNoteToHarvous(inboxItemNoteId);
-      // Don't close modal, just show success feedback
-    } catch (error) {
-      console.error('Error adding note to Harvous:', error);
-      alert('Failed to add note to your Harvous. Please try again.');
-    } finally {
-      setAddingNoteIds(prev => {
-        const next = new Set(prev);
-        next.delete(inboxItemNoteId);
-        return next;
-      });
     }
   };
 
@@ -251,7 +229,6 @@ export default function InboxItemPreview({
                       {sortedNotes.map((note, index) => {
                         const cleanContent = stripHtml(note.content);
                         const previewContent = cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
-                        const isAddingNote = addingNoteIds.has(note.id);
                         
                         return (
                           <div 
@@ -259,25 +236,11 @@ export default function InboxItemPreview({
                             className="content-item note-item card-enter" 
                             style={{ animationDelay: `${index * 50}ms` }}
                           >
-                            <div className="flex flex-col gap-2">
-                              <CardNote
-                                title={note.title || "Untitled Note"}
-                                content={previewContent}
-                                noteType="default"
-                              />
-                              
-                              {/* Individual note actions */}
-                              <div className="flex gap-2 justify-end">
-                                <ButtonSmall
-                                  type="button"
-                                  onClick={() => handleAddNoteToHarvous(note.id)}
-                                  state="Default"
-                                  disabled={isAddingNote || isAdding || isArchiving}
-                                >
-                                  {isAddingNote ? 'Adding...' : 'Add to Harvous'}
-                                </ButtonSmall>
-                              </div>
-                            </div>
+                            <CardNote
+                              title={note.title || "Untitled Note"}
+                              content={previewContent}
+                              noteType="default"
+                            />
                           </div>
                         );
                       })}
@@ -304,7 +267,7 @@ export default function InboxItemPreview({
                       state="Default"
                       disabled={isAdding || isArchiving}
                     >
-                      {isAdding ? 'Adding...' : 'Add All to Harvous'}
+                      {isAdding ? 'Adding...' : 'Add to Harvous'}
                     </ButtonSmall>
                   </div>
                 </div>
