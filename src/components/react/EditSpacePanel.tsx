@@ -535,12 +535,12 @@ export default function EditSpacePanel({
   };
 
   return (
-    <div className={`panel-wrapper h-full ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+    <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
+      <form onSubmit={handleSubmit} className="form-layout">
         {/* Content area that expands to fill available space */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="form-layout--expand">
           {/* Panel container */}
-          <div className={`panel h-full flex-1 ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
             {/* Header section with dynamic background */}
             <div 
               className="panel__header"

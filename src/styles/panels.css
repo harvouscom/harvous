@@ -25,14 +25,14 @@
   box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
   width: 100%;
   margin-bottom: 0.875rem;  /* 14px / 3.5 * 4 */
+  min-height: 0;  /* Allow flex shrinking for scroll */
+  flex: 1;  /* Expand to fill available space */
 
   /* Default: fit content */
   justify-content: flex-start;
 
   /* In bottom sheet mode, expand to fill */
   &.panel--bottom-sheet {
-    min-height: 0;
-    flex: 1;
     justify-content: space-between;
   }
 }
@@ -160,6 +160,7 @@
   align-items: stretch;  /* Allow children to take full width */
   justify-content: flex-start;
   overflow-x: clip;
+  overflow-y: auto;  /* Always allow vertical scrolling */
   padding: 12px;
   position: relative;
   border-top-left-radius: 24px;
@@ -167,11 +168,6 @@
   width: 100%;
   flex: 1;
   min-height: 0;
-
-  /* In bottom sheet mode, expand and scroll */
-  &.panel__content--bottom-sheet {
-    overflow-y: auto;
-  }
 }
 
 /* ==========================================================================
