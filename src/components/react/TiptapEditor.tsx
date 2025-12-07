@@ -1507,29 +1507,35 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [editor]);
 
   // Handle virtual keyboard for consistent toolbar positioning
+  // On iOS Safari, we need to track both resize AND scroll events on visualViewport
+  // because position:fixed is relative to the layout viewport, not the visual viewport
   useEffect(() => {
     const visualViewport = window.visualViewport;
     if (!visualViewport) return;
 
-    const handleResize = () => {
-      // Calculate keyboard height: difference between window height and visual viewport height
-      const keyboardHeight = window.innerHeight - visualViewport.height;
+    const updateToolbarPosition = () => {
+      // Calculate the distance from the bottom of the layout viewport to the bottom of the visual viewport
+      // This accounts for both keyboard height AND scroll position
+      const bottomOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
       
-      // Only consider it a keyboard if height difference is significant (>150px threshold)
-      if (keyboardHeight > 150) {
-        setKeyboardHeight(keyboardHeight);
+      // Only apply special positioning if keyboard is likely open (>150px threshold)
+      if (bottomOffset > 150) {
+        setKeyboardHeight(bottomOffset);
       } else {
         setKeyboardHeight(0);
       }
     };
 
-    visualViewport.addEventListener('resize', handleResize);
+    // Listen to both resize (keyboard open/close) and scroll (user scrolling with keyboard open)
+    visualViewport.addEventListener('resize', updateToolbarPosition);
+    visualViewport.addEventListener('scroll', updateToolbarPosition);
     
     // Initial check
-    handleResize();
+    updateToolbarPosition();
     
     return () => {
-      visualViewport.removeEventListener('resize', handleResize);
+      visualViewport.removeEventListener('resize', updateToolbarPosition);
+      visualViewport.removeEventListener('scroll', updateToolbarPosition);
     };
   }, []);
 
