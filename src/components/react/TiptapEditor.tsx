@@ -19,16 +19,7 @@ import '@/styles/tiptap-editor.css';
 // Icon component for inline SVGs (allows CSS styling)
 import Icon from './Icon';
 
-// Define a global toast function
-declare global {
-  interface Window {
-    toast: {
-      success: (message: string) => void;
-      info: (message: string) => void;
-      error: (message: string) => void;
-    };
-  }
-}
+// Toast is declared globally elsewhere - no need to redeclare here
 
 interface TiptapEditorProps {
   content: string;
@@ -831,8 +822,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Check if editor is still valid (not destroyed)
         if (!isEditorValid(editor)) return false;
         
-        // Check if view.docView is still valid
-        if (!view || !view.docView) return false;
+        // Check if view.docView is still valid (docView exists at runtime but not in TS types)
+        if (!view || !(view as any).docView) return false;
         
         // Handle Cmd+Enter to submit form (dispatch event for parent panels to handle)
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -1179,7 +1170,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // For formatted content, extract HTML from DOM selection
       const view = editor?.view;
       // Check for both view and docView - docView becomes null when editor is destroyed
-      if (!view || !view.docView) {
+      if (!view || !(view as any).docView) {
         // Fallback to plain text if view is not available or editor is destroyed
         extractedContent = editor.state.doc.textBetween(from, to);
       } else {
