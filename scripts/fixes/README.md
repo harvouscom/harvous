@@ -10,7 +10,16 @@ Reprocesses scripture notes that were created without verse content due to API t
 
 **Purpose**: Fixes scripture notes created before the mobile timeout fix was implemented, where notes were saved with just the reference text instead of actual verse content.
 
-**Usage**:
+**Usage Options**:
+
+#### Option 1: API Endpoint (Recommended - Easiest)
+Just visit the URL in your browser while logged in:
+- **Preview (Dry Run)**: `https://your-domain.com/api/fixes/reprocess-scripture-verses?dryRun=true`
+- **Run Reprocessing**: `https://your-domain.com/api/fixes/reprocess-scripture-verses`
+
+The API endpoint provides a simple web interface with buttons to run dry-run or actual reprocessing. It automatically uses your authenticated user ID.
+
+#### Option 2: Command Line Script
 ```bash
 # Dry run first to see what would be updated
 npx tsx scripts/fixes/reprocess-scripture-verses.ts YOUR_USER_ID --dry-run
