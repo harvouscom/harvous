@@ -170,7 +170,7 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
     }
 
     return new Response(JSON.stringify({
-      success: 'Thread updated successfully!',
+      success: 'Thread updated!',
       thread: result.thread
     }), {
       status: 200,

@@ -356,13 +356,13 @@ export const POST: APIRoute = async ({ request }) => {
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Webhook processed successfully',
+      message: 'Webhook processed',
       triggerType: normalizedPayload.triggerType,
       itemId: normalizedPayload.item.id,
       synced: syncResult.synced,
       errors: syncResult.errors,
       note: syncResult.synced 
-        ? 'Item synced successfully to inbox' 
+        ? 'Item synced to inbox' 
         : 'Item processing failed - check errors',
     }), {
       status: 200,

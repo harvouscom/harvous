@@ -139,7 +139,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Note added to thread successfully',
+      message: 'Note added to thread',
       note: {
         id: note.id,
         threadId: threadId

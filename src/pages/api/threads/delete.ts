@@ -110,7 +110,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     }
 
     return new Response(JSON.stringify({ 
-      success: "Thread erased successfully! Notes have been moved to the Unorganized thread.",
+      success: "Thread erased! Notes have been moved to the Unorganized thread.",
       threadId: threadId
     }), {
       status: 200,

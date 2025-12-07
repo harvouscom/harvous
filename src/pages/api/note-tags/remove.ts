@@ -48,7 +48,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     return new Response(JSON.stringify({ 
       success: true, 
-      message: 'Tag removed from note successfully' 
+      message: 'Tag removed from note' 
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

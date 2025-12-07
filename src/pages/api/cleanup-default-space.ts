@@ -28,7 +28,7 @@ export const POST: APIRoute = async ({ locals }) => {
 
 
     return new Response(JSON.stringify({ 
-      success: "Default space cleaned up successfully!"
+      success: "Default space cleaned up!"
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

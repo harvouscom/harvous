@@ -72,7 +72,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
 
     return new Response(JSON.stringify({ 
-      success: "Note erased successfully!",
+      success: "Note erased!",
       noteId: noteId,
       threadId: threadId
     }), {

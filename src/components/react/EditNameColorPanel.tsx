@@ -172,14 +172,14 @@ export default function EditNameColorPanel({
         
         let toastMessage = '';
         if (nameChanged && colorChanged) {
-          toastMessage = 'Name and color updated successfully!';
+          toastMessage = 'Name and color updated!';
         } else if (nameChanged) {
-          toastMessage = 'Name updated successfully!';
+          toastMessage = 'Name updated!';
         } else if (colorChanged) {
-          toastMessage = 'Color updated successfully!';
+          toastMessage = 'Color updated!';
         } else {
           // Nothing changed, but API succeeded (shouldn't happen, but handle gracefully)
-          toastMessage = 'Profile updated successfully!';
+          toastMessage = 'Profile updated!';
         }
         
         // Update initial data to reflect the new state

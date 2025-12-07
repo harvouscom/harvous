@@ -158,7 +158,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     }
 
     return new Response(JSON.stringify({ 
-      success: "Note updated successfully!",
+      success: "Note updated!",
       note: updatedNote,
       scriptureResults,
       processedContent

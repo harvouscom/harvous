@@ -322,9 +322,9 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
             onClose();
           }
 
-          // Redirect to the newly created space with toast parameter
+          // Redirect to the newly created space
           if (result.space && result.space.id) {
-            const redirectUrl = `/${result.space.id}?toast=success&message=${encodeURIComponent('Space created successfully!')}`;
+            const redirectUrl = `/${result.space.id}`;
             // Add a small delay to ensure localStorage is updated before navigation
             setTimeout(() => {
               safeNavigate(redirectUrl, { history: 'replace' });

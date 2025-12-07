@@ -69,7 +69,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Note content updated successfully'
+      message: 'Note content updated'
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

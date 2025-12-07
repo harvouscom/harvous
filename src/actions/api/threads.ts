@@ -31,7 +31,7 @@ export async function addNoteToThread(noteId: number, threadId: number) {
 
     return {
       success: true,
-      message: "Note added to thread successfully!",
+      message: "Note added to thread!",
       noteThread: newNoteThread
     };
   } catch (error) {
@@ -63,7 +63,7 @@ export async function removeNoteFromThread(noteId: number, threadId: number) {
 
     return {
       success: true,
-      message: "Note removed from thread successfully!",
+      message: "Note removed from thread!",
       noteThread: deletedNoteThread
     };
   } catch (error) {

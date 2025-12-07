@@ -38,7 +38,7 @@ export const noteThreads = {
           .get();
 
         return {
-          success: "Note added to thread successfully!",
+          success: "Note added to thread!",
           noteThread: newNoteThread
         };
       } catch (error: any) {
@@ -68,7 +68,7 @@ export const noteThreads = {
         }
 
         return {
-          success: "Note removed from thread successfully!",
+          success: "Note removed from thread!",
           noteThread: deletedNoteThread
         };
       } catch (error: any) {
@@ -88,7 +88,7 @@ export const noteThreads = {
           .where(eq(NoteThreads.noteId, noteId));
         
         return {
-          success: "Threads fetched successfully",
+          success: "Threads fetched",
           threadRelations
         };
       } catch (error: any) {
@@ -108,7 +108,7 @@ export const noteThreads = {
           .where(eq(NoteThreads.threadId, threadId));
         
         return {
-          success: "Notes fetched successfully",
+          success: "Notes fetched",
           noteRelations
         };
       } catch (error: any) {

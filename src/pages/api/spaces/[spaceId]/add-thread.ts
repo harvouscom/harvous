@@ -92,7 +92,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Thread added to space successfully'
+      message: 'Thread added to space'
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

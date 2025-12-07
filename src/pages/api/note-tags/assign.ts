@@ -82,7 +82,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     return new Response(JSON.stringify({ 
       success: true, 
-      message: 'Tag assigned to note successfully',
+      message: 'Tag assigned to note',
       relationId: relationId
     }), {
       status: 201,

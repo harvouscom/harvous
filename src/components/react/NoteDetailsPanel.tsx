@@ -159,7 +159,7 @@ export default function NoteDetailsPanel({
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: 'Note added to thread successfully!',
+            message: 'Note added to thread!',
             type: 'success'
           }
         }));
@@ -372,7 +372,7 @@ export default function NoteDetailsPanel({
 
   const handleThreadCreated = async () => {
     // Show success toast
-    toast.success('Thread created successfully!');
+    toast.success('Thread created!');
     // Close the NewThreadPanel first
     setShowNewThreadPanel(false);
     // Small delay to ensure state updates

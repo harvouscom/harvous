@@ -221,7 +221,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           // Navigate to show updated thread with URL-based toast using View Transitions
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.set('toast', 'success');
-          currentUrl.searchParams.set('message', encodeURIComponent('Thread updated successfully!'));
+          currentUrl.searchParams.set('message', encodeURIComponent('Thread updated!'));
           safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         } else {
           const errorText = await response.text();
@@ -342,9 +342,9 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
               onClose();
             }
 
-            // Redirect to the newly created thread with toast parameter
+            // Redirect to the newly created thread
             if (result.thread && result.thread.id) {
-              const redirectUrl = `/${result.thread.id}?toast=success&message=${encodeURIComponent('Thread created successfully!')}`;
+              const redirectUrl = `/${result.thread.id}`;
               // Add a small delay to ensure localStorage is updated before navigation
               setTimeout(() => {
                 safeNavigate(redirectUrl, { history: 'replace' });

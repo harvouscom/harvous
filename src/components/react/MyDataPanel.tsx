@@ -82,7 +82,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       document.body.removeChild(a);
 
       // Show success toast
-      const message = `${label} exported successfully!`;
+      const message = `${label} exported!`;
       toast.success(message, { icon: null });
     } catch (error) {
       console.error('Export error:', error);
@@ -105,7 +105,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
       if (response.ok) {
         // Show success message
-        toast.success('Account deleted successfully', { icon: null });
+        toast.success('Account deleted', { icon: null });
         
         // Redirect to sign-in after a short delay
         setTimeout(() => {
@@ -144,7 +144,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       const data = await response.json();
 
       if (response.ok) {
-        toast.success('All data cleared successfully', { icon: null });
+        toast.success('All data cleared', { icon: null });
         
         // Navigate after a short delay using View Transitions
         setTimeout(() => {

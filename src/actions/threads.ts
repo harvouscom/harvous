@@ -55,7 +55,7 @@ export const threads = {
         await awardThreadCreatedXP(userId, newThread.id, capitalizedTitle, subtitle || null);
 
         return {
-          success: "Thread created successfully!",
+          success: "Thread created!",
           thread: newThread
         };
       } catch (error: any) {
@@ -125,7 +125,7 @@ export const threads = {
           .returning()  
 
         return {
-          success: "Thread updated successfully!",
+          success: "Thread updated!",
           thread: updatedThread
         };
       } catch (error: any) {
@@ -205,7 +205,7 @@ export const threads = {
         }
 
         return {
-          success: "Thread erased successfully! Notes have been moved to the Unorganized thread.",
+          success: "Thread erased! Notes have been moved to the Unorganized thread.",
           thread: deletedThread
         };
       } catch (error: any) {
@@ -248,7 +248,7 @@ export const threads = {
           .get();
 
         return {
-          success: `Thread ${updatedThread.isPinned ? 'pinned' : 'unpinned'} successfully!`,
+          success: `Thread ${updatedThread.isPinned ? 'pinned' : 'unpinned'}!`,
           thread: updatedThread
         };
       } catch (error: any) {

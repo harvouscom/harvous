@@ -94,7 +94,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
       return new Response(JSON.stringify({ 
         success: true, 
-        message: 'Church information updated successfully',
+        message: 'Church information updated',
         church: {
           churchName: normalizedChurchName,
           churchCity: normalizedChurchCity,

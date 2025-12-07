@@ -213,7 +213,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await awardCreationBonusXP(userId, 'thread');
 
     return new Response(JSON.stringify({
-      success: 'Thread created successfully!',
+      success: 'Thread created!',
       thread: newThread
     }), {
       status: 200,

@@ -340,7 +340,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
         // Navigate to newly created note
         if (result.note && result.note.id) {
-          const redirectUrl = `/${result.note.id}?toast=success&message=${encodeURIComponent(result.success || 'Note created successfully!')}`;
+          const redirectUrl = `/${result.note.id}`;
           safeNavigate(redirectUrl, { history: 'replace' });
         }
 
@@ -417,8 +417,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
       if (response.ok) {
         const result = await response.json();
-        
-        showToast('Note saved successfully!', 'success');
 
         if (result.scriptureResults && result.scriptureResults.length > 0) {
           for (const scriptureResult of result.scriptureResults) {

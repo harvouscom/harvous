@@ -131,7 +131,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const result = {
       success: true,
-      message: 'Clean reset completed successfully',
+      message: 'Clean reset completed',
       summary: {
         clearedUserInboxItems: clearedCount,
         verifiedItems: verifiedCount,

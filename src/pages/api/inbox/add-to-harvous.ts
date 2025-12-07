@@ -320,8 +320,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return new Response(JSON.stringify({
       success: true,
       message: inboxItem.contentType === 'thread' 
-        ? 'Thread added to your Harvous successfully!' 
-        : 'Note added to your Harvous successfully!',
+        ? 'Thread added to your Harvous!' 
+        : 'Note added to your Harvous!',
       createdIds,
     }), {
       status: 200,

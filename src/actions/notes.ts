@@ -128,7 +128,7 @@ export const notes = {
         await awardNoteCreatedXP(userId, newNote.id, isScriptureNote, capitalizedContent);
 
         return {
-          success: "Note created successfully!",
+          success: "Note created!",
           note: newNote
         };
       } catch (error: any) {
@@ -207,7 +207,7 @@ export const notes = {
           .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
 
         return {
-          success: "Note updated successfully!",
+          success: "Note updated!",
           note: updatedNote
         };
       } catch (error: any) {
@@ -254,7 +254,7 @@ export const notes = {
         }
 
         return {
-          success: "Note erased successfully!",
+          success: "Note erased!",
           note: deletedNote
         };
       } catch (error: any) {

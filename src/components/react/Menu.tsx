@@ -220,17 +220,17 @@ export default function Menu({
       case 'thread':
         apiUrl = '/api/threads/delete';
         paramName = 'threadId';
-        successMessage = 'Thread erased successfully!';
+        successMessage = 'Thread erased!';
         break;
       case 'note':
         apiUrl = '/api/notes/delete';
         paramName = 'noteId';
-        successMessage = 'Note erased successfully!';
+        successMessage = 'Note erased!';
         break;
       case 'space':
         apiUrl = '/api/spaces/delete';
         paramName = 'spaceId';
-        successMessage = 'Space erased successfully!';
+        successMessage = 'Space erased!';
         break;
       default:
         console.error('Unknown content type for delete:', contentType);

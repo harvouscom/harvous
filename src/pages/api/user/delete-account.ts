@@ -127,7 +127,7 @@ export const DELETE: APIRoute = async ({ locals }) => {
 
     return new Response(JSON.stringify({ 
       success: true,
-      message: 'Account and all data deleted successfully'
+      message: 'Account and all data deleted'
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

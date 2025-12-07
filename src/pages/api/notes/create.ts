@@ -333,7 +333,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     return new Response(JSON.stringify({ 
-      success: "Note created successfully!",
+      success: "Note created!",
       note: newNote,
       scriptureResults
     }), {

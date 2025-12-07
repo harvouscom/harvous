@@ -94,7 +94,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)));
 
     return new Response(JSON.stringify({ 
-      success: "Space erased successfully!",
+      success: "Space erased!",
       spaceId: spaceId
     }), {
       status: 200,

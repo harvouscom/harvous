@@ -79,7 +79,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       .get();
 
     return new Response(JSON.stringify({
-      success: 'Space updated successfully!',
+      success: 'Space updated!',
       space: updatedSpace
     }), {
       status: 200,

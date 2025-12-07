@@ -127,7 +127,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         // Wait to ensure data persistence before showing toast
         await new Promise(resolve => setTimeout(resolve, 250));
         
-        toast.success('Name and color updated successfully!');
+        toast.success('Name and color updated!');
 
       } else {
         console.error('React component: Profile update failed:', data);
@@ -165,11 +165,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
                 updatedFields.push('password');
             }
             
-            let message = 'Credentials updated successfully!';
+            let message = 'Credentials updated!';
             if (updatedFields.length === 1) {
-                message = `${updatedFields[0].charAt(0).toUpperCase() + updatedFields[0].slice(1)} updated successfully!`;
+                message = `${updatedFields[0].charAt(0).toUpperCase() + updatedFields[0].slice(1)} updated!`;
             } else if (updatedFields.length === 2) {
-                message = 'Email and password updated successfully!';
+                message = 'Email and password updated!';
             }
             
             toast.success(message);

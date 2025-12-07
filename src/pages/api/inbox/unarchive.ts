@@ -86,7 +86,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Item unarchived successfully',
+      message: 'Item unarchived',
       contentType: userInboxItem.inboxItem.contentType,
     }), {
       status: 200,

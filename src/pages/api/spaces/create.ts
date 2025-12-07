@@ -210,7 +210,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await awardCreationBonusXP(userId, 'space');
 
     return new Response(JSON.stringify({
-      success: 'Space created successfully!',
+      success: 'Space created!',
       space: newSpace,
       addedNotes: selectedNoteIds.length,
       addedThreads: selectedThreadIds.length

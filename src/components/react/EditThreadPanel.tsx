@@ -177,10 +177,8 @@ export default function EditThreadPanel({
           }
         }, 500);
 
-        // Navigate to show updated thread with URL-based toast using View Transitions
+        // Navigate to show updated thread using View Transitions
         const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('toast', 'success');
-        currentUrl.searchParams.set('message', encodeURIComponent('Thread updated successfully!'));
         safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
       } else {
         console.error('EditThreadPanel: Thread update failed:', data);

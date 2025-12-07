@@ -107,7 +107,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     return new Response(JSON.stringify({ 
       success: true,
-      message: 'Credentials updated successfully'
+      message: 'Credentials updated'
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

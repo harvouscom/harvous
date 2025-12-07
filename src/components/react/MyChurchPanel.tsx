@@ -215,7 +215,7 @@ export default function MyChurchPanel({
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: 'Church information saved successfully!',
+            message: 'Church information saved!',
             type: 'success'
           }
         }));
@@ -363,7 +363,7 @@ export default function MyChurchPanel({
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: 'Church information saved successfully!',
+            message: 'Church information saved!',
             type: 'success'
           }
         }));
@@ -444,7 +444,7 @@ export default function MyChurchPanel({
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: 'Church information removed successfully!',
+            message: 'Church information removed!',
             type: 'success'
           }
         }));

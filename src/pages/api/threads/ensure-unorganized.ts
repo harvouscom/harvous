@@ -53,7 +53,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
       return new Response(JSON.stringify({ 
         success: true, 
-        message: 'Unorganized thread created successfully',
+        message: 'Unorganized thread created',
         thread: unorganizedThread
       }), {
         status: 201,

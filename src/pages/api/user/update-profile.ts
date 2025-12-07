@@ -155,7 +155,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     return new Response(JSON.stringify({ 
       success: true, 
-      message: 'Profile updated successfully',
+      message: 'Profile updated',
       user: {
         firstName,
         lastName,
