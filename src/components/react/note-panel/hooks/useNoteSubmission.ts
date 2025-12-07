@@ -384,6 +384,13 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
   // Handle save and close from dialog
   const handleSaveAndClose = useCallback(async () => {
+    // Prevent duplicate submissions if already submitting
+    if (isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
       const formData = new FormData();
       
@@ -439,11 +446,17 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             safeNavigate(redirectUrl, { history: 'replace' });
           }, 100);
         }
+      } else {
+        const error = await response.json();
+        showToast(error.error || 'Error creating note', 'error');
       }
-    } catch {
-      // Error saving note - continue with close
+    } catch (error: any) {
+      // Error saving note - show error toast
+      showToast(`Error creating note: ${error?.message || 'Please try again.'}`, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [noteType, title, scriptureReference, resourceUrl, content, getSelectedThread, scriptureVersion, showToast]);
+  }, [isSubmitting, noteType, title, scriptureReference, resourceUrl, content, getSelectedThread, scriptureVersion, showToast]);
 
   return {
     isSubmitting,

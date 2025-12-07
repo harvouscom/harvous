@@ -10,6 +10,7 @@ import { parseScriptureReference } from '@/utils/scripture-detector';
 import { generateNoteId } from '@/utils/ids';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
+import { fetchWithTimeout } from '@/utils/fetch-helpers';
 
 export interface ProcessingResult {
   action: 'created' | 'added' | 'unorganized' | 'skipped';
@@ -202,19 +203,27 @@ export async function processScriptureReferences(
         // New scripture - create it
         try {
           // Fetch verse text from Bible.org API with superscript formatting
+          // Use timeout-enabled fetch to prevent hangs on slow mobile networks
           let verseText = '';
           try {
             const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(reference)}&formatting=plain&type=json`;
-            const verseResponse = await fetch(apiUrl);
+            const verseResponse = await fetchWithTimeout(apiUrl, {
+              timeout: 10000, // 10 seconds for initial attempt
+              retries: 2, // 2 retries
+              retryTimeout: 5000, // 5 seconds for retries
+            });
             if (verseResponse.ok) {
               const verses = await verseResponse.json();
               // Format verse text with superscript verse numbers
               if (Array.isArray(verses) && verses.length > 0) {
                 verseText = verses.map((v: any) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
               }
+            } else {
+              console.error(`Bible.org API returned error for ${reference}: ${verseResponse.status} ${verseResponse.statusText}`);
             }
-          } catch (verseError) {
-            console.error(`Error fetching verse for ${reference}:`, verseError);
+          } catch (verseError: any) {
+            // Log error but don't fail note creation - graceful degradation
+            console.error(`Error fetching verse for ${reference}:`, verseError.message || verseError);
           }
 
           // Get user metadata for simpleNoteId

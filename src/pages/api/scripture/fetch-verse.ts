@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { parseScriptureReference, parseVerseGroups, type VerseGroup, validateVerseNumber, validateVerseRange } from '@/utils/scripture-detector';
 import { handleAPIError } from '@/utils/error-handling';
+import { fetchWithTimeout } from '@/utils/fetch-helpers';
 
 interface BibleOrgVerse {
   bookname: string;
@@ -68,10 +69,15 @@ export const POST: APIRoute = async ({ request }) => {
     if (verseGroups.length > 1) {
       // Multiple groups: need to fetch each group separately and combine
       // Bible.org API may not return all verses when comma-separated groups are passed
+      // Use timeout-enabled fetch to prevent hangs on slow mobile networks
       const versePromises = verseGroups.map(async (group) => {
         const groupReference = `${parsed.book} ${parsed.chapter}:${group.start}-${group.end}`;
         const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(groupReference)}&formatting=plain&type=json`;
-        const response = await fetch(apiUrl);
+        const response = await fetchWithTimeout(apiUrl, {
+          timeout: 10000, // 10 seconds for initial attempt
+          retries: 2, // 2 retries
+          retryTimeout: 5000, // 5 seconds for retries
+        });
         
         if (!response.ok) {
           throw new Error(`Bible.org API error for ${groupReference}: ${response.status} ${response.statusText}`);
@@ -84,8 +90,13 @@ export const POST: APIRoute = async ({ request }) => {
       verses = verseArrays.flat();
     } else {
       // Single verse or range: fetch normally
+      // Use timeout-enabled fetch to prevent hangs on slow mobile networks
       const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(reference)}&formatting=plain&type=json`;
-      const response = await fetch(apiUrl);
+      const response = await fetchWithTimeout(apiUrl, {
+        timeout: 10000, // 10 seconds for initial attempt
+        retries: 2, // 2 retries
+        retryTimeout: 5000, // 5 seconds for retries
+      });
       
       if (!response.ok) {
         throw new Error(`Bible.org API error: ${response.status} ${response.statusText}`);
