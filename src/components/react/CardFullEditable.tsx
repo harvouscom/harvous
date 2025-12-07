@@ -317,42 +317,17 @@ export default function CardFullEditable({
       }
 
       // Handle scripture results from the update endpoint
-      // (The update endpoint already processes scripture and returns results)
-      if (saveResult && saveResult.scriptureResults) {
-        if (saveResult.scriptureResults.length > 0) {
-          // Show toasts for each scripture reference created or added
-          for (const scriptureResult of saveResult.scriptureResults) {
-            // Show toast for newly created notes
-            if (scriptureResult.action === 'created') {
-              const message = `Created scripture note: ${scriptureResult.reference}`;
-              
-              // Dispatch event
-              const event = new CustomEvent('toast', {
-                detail: { message, type: 'success' }
-              });
-              window.dispatchEvent(event);
-              
-              // Fallback: directly call toast if available
-              if (window.toast && typeof window.toast.success === 'function') {
-                setTimeout(() => window.toast.success(message), 100);
-              }
-            } 
-            // Show toast for notes added to thread
-            else if (scriptureResult.action === 'added') {
-              const message = `Added ${scriptureResult.reference} to this thread`;
-              
-              // Dispatch event
-              const event = new CustomEvent('toast', {
-                detail: { message, type: 'success' }
-              });
-              window.dispatchEvent(event);
-              
-              // Fallback: directly call toast if available
-              if (window.toast && typeof window.toast.success === 'function') {
-                setTimeout(() => window.toast.success(message), 100);
-              }
-            }
-          }
+      // Show a single summary toast for created scripture notes
+      if (saveResult && saveResult.scriptureResults && saveResult.scriptureResults.length > 0) {
+        const createdScriptures = saveResult.scriptureResults.filter(
+          (r: any) => r.action === 'created'
+        );
+        
+        if (createdScriptures.length > 0 && window.toast) {
+          const message = createdScriptures.length === 1
+            ? `Created scripture note: ${createdScriptures[0].reference}`
+            : `Created ${createdScriptures.length} scripture notes`;
+          window.toast.info(message);
         }
       }
 

@@ -170,10 +170,8 @@ export default function EditSpacePanel({
           }
         }, 500);
 
-        // Navigate to show updated space with URL-based toast using View Transitions
+        // Navigate to show updated space using View Transitions
         const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('toast', 'success');
-        currentUrl.searchParams.set('message', encodeURIComponent('Space updated!'));
         safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
       } else {
         console.error('EditSpacePanel: Space update failed:', data);

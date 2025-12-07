@@ -156,14 +156,6 @@ export default function NoteDetailsPanel({
       if (response.ok) {
         const result = await response.json();
         
-        // Show success toast
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: 'Note added to thread!',
-            type: 'success'
-          }
-        }));
-
         // Refresh the note details to show updated threads, preserving current tab
         await fetchNoteDetails(true);
         

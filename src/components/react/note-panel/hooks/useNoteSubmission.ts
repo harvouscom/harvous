@@ -149,21 +149,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     }
   }, [addToNavigationHistory]);
 
-  // Show scripture result toasts
-  const showScriptureResultToasts = useCallback((scriptureResults: any[]) => {
-    scriptureResults.forEach((scriptureResult: any, index: number) => {
-      setTimeout(() => {
-        if (scriptureResult.action === 'created') {
-          showToast(`Created scripture note: ${scriptureResult.reference}`, 'info');
-        } else if (scriptureResult.action === 'added') {
-          showToast(`Added ${scriptureResult.reference} to this thread`, 'info');
-        } else if (scriptureResult.action === 'unorganized') {
-          showToast(`Scripture note ${scriptureResult.reference} exists in Unorganized`, 'info');
-        }
-      }, index * 150);
-    });
-  }, [showToast]);
-
   // Handle form submission
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -264,9 +249,19 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       if (response.ok) {
         const result = await response.json();
         
-        // Show toasts for scripture processing results
-        if (result.scriptureResults && Array.isArray(result.scriptureResults) && result.scriptureResults.length > 0) {
-          showScriptureResultToasts(result.scriptureResults);
+        // Build scripture toast message for redirect (only for 'created' actions - these are non-obvious)
+        // 'added' and 'unorganized' actions are visible when viewing the thread, so we skip those
+        let scriptureToastMessage = '';
+        if (result.scriptureResults && Array.isArray(result.scriptureResults)) {
+          const createdScriptures = result.scriptureResults.filter(
+            (r: any) => r.action === 'created'
+          );
+          
+          if (createdScriptures.length === 1) {
+            scriptureToastMessage = `Created scripture note: ${createdScriptures[0].reference}`;
+          } else if (createdScriptures.length > 1) {
+            scriptureToastMessage = `Created ${createdScriptures.length} scripture notes`;
+          }
         }
         
         const actualThreadId = getSelectedThread().id;
@@ -338,9 +333,12 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        // Navigate to newly created note
+        // Navigate to newly created note (with scripture toast if applicable)
         if (result.note && result.note.id) {
-          const redirectUrl = `/${result.note.id}`;
+          let redirectUrl = `/${result.note.id}`;
+          if (scriptureToastMessage) {
+            redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
+          }
           safeNavigate(redirectUrl, { history: 'replace' });
         }
 
@@ -381,7 +379,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     isSubmitting, content, title, scriptureReference, resourceUrl, noteType,
     scriptureVersion, addToSpace, currentSpace, getSelectedThread, threadOptions,
     addToNavigationHistory, sourceNoteId, resetForm, setSelectedThread, clearLocalStorage,
-    loadNextNoteId, onClose, onSuccess, showToast, showScriptureResultToasts, updateNavigationHistory
+    loadNextNoteId, onClose, onSuccess, showToast, updateNavigationHistory
   ]);
 
   // Handle save and close from dialog
@@ -418,19 +416,27 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       if (response.ok) {
         const result = await response.json();
 
+        // Build scripture toast message for redirect (only for 'created' actions)
+        let scriptureToastMessage = '';
         if (result.scriptureResults && result.scriptureResults.length > 0) {
-          for (const scriptureResult of result.scriptureResults) {
-            if (scriptureResult.action === 'created') {
-              showToast(`Created scripture note: ${scriptureResult.reference}`, 'success');
-            } else if (scriptureResult.action === 'added') {
-              showToast(`Added ${scriptureResult.reference} to this thread`, 'success');
-            }
+          const createdScriptures = result.scriptureResults.filter(
+            (r: any) => r.action === 'created'
+          );
+          
+          if (createdScriptures.length === 1) {
+            scriptureToastMessage = `Created scripture note: ${createdScriptures[0].reference}`;
+          } else if (createdScriptures.length > 1) {
+            scriptureToastMessage = `Created ${createdScriptures.length} scripture notes`;
           }
         }
 
         if (result.note && result.note.id) {
+          let redirectUrl = `/${result.note.id}`;
+          if (scriptureToastMessage) {
+            redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
+          }
           setTimeout(() => {
-            safeNavigate(`/${result.note.id}`, { history: 'replace' });
+            safeNavigate(redirectUrl, { history: 'replace' });
           }, 100);
         }
       }

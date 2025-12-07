@@ -167,21 +167,6 @@ export default function EditNameColorPanel({
         // Determine what changed for specific toast message
         const firstNameChanged = formData.firstName.trim() !== initialData.firstName.trim();
         const lastNameChanged = formData.lastName.trim() !== initialData.lastName.trim();
-        const nameChanged = firstNameChanged || lastNameChanged;
-        const colorChanged = formData.selectedColor !== initialData.selectedColor;
-        
-        let toastMessage = '';
-        if (nameChanged && colorChanged) {
-          toastMessage = 'Name and color updated!';
-        } else if (nameChanged) {
-          toastMessage = 'Name updated!';
-        } else if (colorChanged) {
-          toastMessage = 'Color updated!';
-        } else {
-          // Nothing changed, but API succeeded (shouldn't happen, but handle gracefully)
-          toastMessage = 'Profile updated!';
-        }
-        
         // Update initial data to reflect the new state
         setInitialData({
           firstName: formData.firstName.trim(),
@@ -206,12 +191,6 @@ export default function EditNameColorPanel({
           lastName: formData.lastName.trim(),
           userColor: formData.selectedColor
         });
-        
-        // Wait to ensure data persistence before showing toast
-        await new Promise(resolve => setTimeout(resolve, 250));
-        
-        // Show success toast after ensuring persistence
-        toast.success(toastMessage);
         
         // Also update legacy sessionStorage for backward compatibility with ProfilePage
         // This can be removed once ProfilePage is fully migrated

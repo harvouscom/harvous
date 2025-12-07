@@ -1268,17 +1268,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     if (addThreadResponse.ok) {
                       // Success case - note was added to thread
                       if (result.success) {
-                        const toastMessage = `Added ${normalizedReference} to this thread.`;
+                        const toastMessage = `Added ${normalizedReference} to this thread`;
                         if (window.toast) {
-                          window.toast.success(toastMessage);
+                          window.toast.info(toastMessage);
                         }
-                        // Also dispatch event for layout handling
-                        window.dispatchEvent(new CustomEvent('showToast', {
-                          detail: {
-                            message: toastMessage,
-                            type: 'success'
-                          }
-                        }));
                       }
                       
                       // After adding to thread, fire event to create hyperlink in the source note
