@@ -1503,6 +1503,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   useEffect(() => {
     const visualViewport = window.visualViewport;
     if (!visualViewport) return;
+    
+    let delayedUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const updateToolbarPosition = () => {
       // Calculate the distance from the bottom of the layout viewport to the bottom of the visual viewport
@@ -1512,6 +1514,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Only apply special positioning if keyboard is likely open (>150px threshold)
       if (bottomOffset > 150) {
         setKeyboardHeight(bottomOffset);
+        
+        // Schedule a delayed update to catch the final keyboard height after animation
+        // This fixes the issue where initial tap shows toolbar peeking behind keyboard
+        if (delayedUpdateTimeout) {
+          clearTimeout(delayedUpdateTimeout);
+        }
+        delayedUpdateTimeout = setTimeout(() => {
+          const finalOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
+          if (finalOffset > 150) {
+            setKeyboardHeight(finalOffset);
+          }
+        }, 150);
       } else {
         setKeyboardHeight(0);
       }
@@ -1527,6 +1541,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return () => {
       visualViewport.removeEventListener('resize', updateToolbarPosition);
       visualViewport.removeEventListener('scroll', updateToolbarPosition);
+      if (delayedUpdateTimeout) {
+        clearTimeout(delayedUpdateTimeout);
+      }
     };
   }, []);
 
