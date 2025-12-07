@@ -146,6 +146,13 @@
   margin-bottom: 0 !important;
 }
 
+/* Toolbar positioning - fixed at bottom with smooth transitions */
+.tiptap-toolbar {
+  position: fixed !important;
+  transition: bottom 0.2s ease-in-out !important;
+  z-index: 50 !important;
+}
+
 /* Override all conflicting CSS for toolbar buttons */
 .tiptap-toolbar button {
   box-shadow: none !important;

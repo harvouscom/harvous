@@ -229,40 +229,6 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     };
   }, [threadSelection]);
 
-  // Handle virtual keyboard
-  useEffect(() => {
-    const visualViewport = window.visualViewport;
-    if (!visualViewport) return;
-
-    const handleResize = () => {
-      // Check if editor is still valid before accessing toolbar
-      if (!editorRef.current || editorRef.current.isDestroyed) return;
-      if (!editorRef.current.view || !editorRef.current.view.docView) return;
-      
-      const toolbar = document.querySelector('.tiptap-toolbar') as HTMLElement;
-      if (!toolbar) return;
-
-      const keyboardHeight = window.innerHeight - visualViewport.height;
-      if (keyboardHeight > 150) {
-        toolbar.style.position = 'fixed';
-        toolbar.style.bottom = `${keyboardHeight}px`;
-        toolbar.style.width = 'calc(100% - 2rem)';
-        toolbar.style.left = '1rem';
-        toolbar.style.right = '1rem';
-        toolbar.style.zIndex = '50';
-      } else {
-        toolbar.style.position = 'relative';
-        toolbar.style.bottom = 'auto';
-        toolbar.style.width = 'auto';
-        toolbar.style.left = 'auto';
-        toolbar.style.right = 'auto';
-      }
-    };
-
-    visualViewport.addEventListener('resize', handleResize);
-    return () => visualViewport.removeEventListener('resize', handleResize);
-  }, []);
-
   // Font Awesome is loaded globally via CDN in Layout.astro
 
   // Listen for keyboard shortcut to save (Cmd+S)

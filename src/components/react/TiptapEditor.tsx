@@ -669,6 +669,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [activeStates, setActiveStates] = useState({
     bold: false,
     italic: false,
@@ -1505,6 +1506,33 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
   }, [editor]);
 
+  // Handle virtual keyboard for consistent toolbar positioning
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) return;
+
+    const handleResize = () => {
+      // Calculate keyboard height: difference between window height and visual viewport height
+      const keyboardHeight = window.innerHeight - visualViewport.height;
+      
+      // Only consider it a keyboard if height difference is significant (>150px threshold)
+      if (keyboardHeight > 150) {
+        setKeyboardHeight(keyboardHeight);
+      } else {
+        setKeyboardHeight(0);
+      }
+    };
+
+    visualViewport.addEventListener('resize', handleResize);
+    
+    // Initial check
+    handleResize();
+    
+    return () => {
+      visualViewport.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
   // Update active states when editor changes
   useEffect(() => {
     if (!editor) {
@@ -1763,7 +1791,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       {/* Custom SpaceButton-styled toolbar - positioned at bottom */}
         {!minimalToolbar && isEditorFocused && (
           <div 
-            className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] mt-2 shrink-0"
+            className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
+            style={{
+              position: 'fixed',
+              bottom: keyboardHeight > 0 ? `${keyboardHeight + 12}px` : '12px',
+              left: '1rem',
+              right: '1rem',
+              width: 'calc(100% - 2rem)',
+              zIndex: 50,
+              transition: 'bottom 0.2s ease-in-out',
+            }}
           >
           <ToolbarButton
             onClick={() => {

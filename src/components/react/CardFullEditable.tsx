@@ -82,41 +82,6 @@ export default function CardFullEditable({
     };
   }, [isEditing, isEditable, displayTitle, displayContent]);
 
-  // Add this useEffect to handle virtual keyboard
-  useEffect(() => {
-    const visualViewport = window.visualViewport;
-    if (!visualViewport) return;
-
-    const handleResize = () => {
-      // Check if editor is still valid before accessing toolbar
-      if (!editorInstanceRef.current || editorInstanceRef.current.isDestroyed) return;
-      if (!editorInstanceRef.current.view || !editorInstanceRef.current.view.docView) return;
-      
-      const toolbar = document.querySelector('.tiptap-toolbar') as HTMLElement;
-      if (!toolbar) return;
-
-      // When the virtual keyboard is shown, the visual viewport height decreases.
-      const keyboardHeight = window.innerHeight - visualViewport.height;
-      if (keyboardHeight > 150) { // Threshold to detect keyboard
-        toolbar.style.position = 'fixed';
-        toolbar.style.bottom = `${keyboardHeight}px`;
-        toolbar.style.width = 'calc(100% - 2rem)'; // Adjust width to match container padding
-        toolbar.style.left = '1rem';
-        toolbar.style.right = '1rem';
-        toolbar.style.zIndex = '50';
-      } else {
-        toolbar.style.position = 'relative';
-        toolbar.style.bottom = 'auto';
-        toolbar.style.width = 'auto';
-        toolbar.style.left = 'auto';
-        toolbar.style.right = 'auto';
-      }
-    };
-
-    visualViewport.addEventListener('resize', handleResize);
-    return () => visualViewport.removeEventListener('resize', handleResize);
-  }, [isEditing]);
-
   // Listen for hyperlink creation event
   useEffect(() => {
     const handleCreateHyperlink = (event: CustomEvent) => {
