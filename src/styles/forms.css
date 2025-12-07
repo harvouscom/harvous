@@ -305,11 +305,6 @@
   flex-direction: column;
 }
 
-/* Remove panel margin when inside form layout (panel is directly above footer buttons) */
-.form-layout--expand > .panel {
-  margin-bottom: 0;
-}
-
 /* ==========================================================================
    Button Group (Thread Type Selector)
    ========================================================================== */

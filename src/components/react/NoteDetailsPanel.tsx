@@ -472,7 +472,7 @@ export default function NoteDetailsPanel({
       {/* Content area that expands to fill available space */}
       <div className="form-layout--expand w-full">
         {/* Panel container */}
-        <div className={`panel form-layout--expand ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           {/* Header section */}
           <div className="panel__header">
             <div className="panel__title">
@@ -482,7 +482,7 @@ export default function NoteDetailsPanel({
           
           {/* Content area */}
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-            <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''} flex-1 min-h-0`}>
+            <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}
               <div className="w-full form-layout--expand">
 
                 {/* Note Metadata - ID, Source, and Date */}
