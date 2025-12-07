@@ -39,6 +39,15 @@ body {
   color: var(--color-deep-grey);
 }
 
+/* Prevent body scroll when modals/sheets are open */
+body.bottom-sheet-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
 /* Remove default button styles */
 button {
   background: transparent;

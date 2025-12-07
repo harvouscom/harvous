@@ -243,13 +243,26 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   // Prevent background scrolling when bottom sheet is open
   useEffect(() => {
     if (isVisible) {
+      // Save current scroll position
+      const scrollY = window.scrollY;
+      document.body.style.top = `-${scrollY}px`;
       document.body.classList.add('bottom-sheet-open');
     } else {
+      // Restore scroll position
+      const scrollY = document.body.style.top;
       document.body.classList.remove('bottom-sheet-open');
+      document.body.style.top = '';
+      window.scrollTo(0, parseInt(scrollY || '0') * -1);
     }
     
     return () => {
+      // Cleanup: restore scroll position if component unmounts while open
+      const scrollY = document.body.style.top;
       document.body.classList.remove('bottom-sheet-open');
+      document.body.style.top = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY) * -1);
+      }
     };
   }, [isVisible]);
 
