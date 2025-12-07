@@ -1798,14 +1798,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         {!minimalToolbar && isEditorFocused && (
           <div 
             className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
-            style={{
+            style={keyboardHeight > 0 ? {
+              // When keyboard is open: float above keyboard
               position: 'fixed',
-              bottom: keyboardHeight > 0 ? `${keyboardHeight + 12}px` : '12px',
+              bottom: `${keyboardHeight + 12}px`,
               left: '1rem',
               right: '1rem',
               width: 'calc(100% - 2rem)',
               zIndex: 50,
-              transition: 'bottom 0.2s ease-in-out',
+            } : {
+              // When no keyboard: stay in document flow (above footer buttons)
+              position: 'relative',
+              marginTop: '8px',
             }}
           >
           <ToolbarButton
