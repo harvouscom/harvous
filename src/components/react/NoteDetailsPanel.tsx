@@ -541,8 +541,8 @@ export default function NoteDetailsPanel({
                             data-active={activeTab === 'notes' ? 'true' : 'false'}
                           >
                             <span className="tab-btn__label">Notes</span>
-                            <div className="tab-btn__badge">
-                              <span className="tab-btn__badge-number">{localReferencingNotes.length}</span>
+                            <div className="badge-count">
+                              <span className="badge-number">{localReferencingNotes.length}</span>
                             </div>
                             {activeTab === 'notes' && (
                               <div className="tab-btn__indicator">
@@ -560,8 +560,8 @@ export default function NoteDetailsPanel({
                           data-active={activeTab === 'threads' ? 'true' : 'false'}
                         >
                           <span className="tab-btn__label">Threads</span>
-                          <div className="tab-btn__badge">
-                            <span className="tab-btn__badge-number">{localThreads.length}</span>
+                          <div className="badge-count">
+                            <span className="badge-number">{localThreads.length}</span>
                           </div>
                           {activeTab === 'threads' && (
                             <div className="tab-btn__indicator">
@@ -578,8 +578,8 @@ export default function NoteDetailsPanel({
                           data-active={activeTab === 'tags' ? 'true' : 'false'}
                         >
                           <span className="tab-btn__label">Tags</span>
-                          <div className="tab-btn__badge">
-                            <span className="tab-btn__badge-number">{localTags.length}</span>
+                          <div className="badge-count">
+                            <span className="badge-number">{localTags.length}</span>
                           </div>
                           {activeTab === 'tags' && (
                             <div className="tab-btn__indicator">
