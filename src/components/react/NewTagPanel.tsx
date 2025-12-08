@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SquareButton from './SquareButton';
 import { toast } from '@/utils/toast';
 
@@ -19,6 +19,17 @@ export default function NewTagPanel({
 }: NewTagPanelProps) {
   const [tagName, setTagName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if we're on mobile (viewport width < 1160px)
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1160);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,7 +163,7 @@ export default function NewTagPanel({
             placeholder="Type here..."
             className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
             disabled={isSubmitting}
-            autoFocus
+            autoFocus={!isMobile}
           />
         </div>
 
@@ -201,7 +212,7 @@ export default function NewTagPanel({
                       placeholder="Type here..."
                       className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
                       disabled={isSubmitting}
-                      autoFocus
+                      autoFocus={!isMobile}
                     />
                   </div>
 
