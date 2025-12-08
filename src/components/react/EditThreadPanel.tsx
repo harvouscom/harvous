@@ -542,7 +542,7 @@ export default function EditThreadPanel({
                                 e.stopPropagation();
                                 handleRemoveFromThread(note.id);
                               }}
-                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
                               disabled={isRemovingNote}
                             />
                           </div>
@@ -577,7 +577,7 @@ export default function EditThreadPanel({
                                   e.stopPropagation();
                                   handleItemSelect(note.id, 'note');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
                                 disabled={isSubmitting}
                               />
                             </div>

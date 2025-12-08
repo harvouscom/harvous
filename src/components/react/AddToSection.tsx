@@ -220,7 +220,7 @@ export default function AddToSection({
               e.stopPropagation();
               onClick();
             }}
-            className="absolute top-1/2 right-3 transform -translate-y-1/2 w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+            className="absolute top-1/2 right-3 transform -translate-y-1/2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
             disabled={isLoading}
           />
         </button>

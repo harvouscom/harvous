@@ -733,3 +733,31 @@
   opacity: 1;
 }
 
+/* Show action buttons by default on touch-only devices */
+@media (hover: none) {
+  .panel__item-list-item-actions {
+    opacity: 1;
+  }
+}
+
+/* ==========================================================================
+   Action Button Hover Pattern (Semantic CSS class)
+   Replaces Tailwind utility classes for hover/touch pattern
+   ========================================================================== */
+.action-button-hover {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+/* Show on hover for devices with cursor */
+.group:hover .action-button-hover {
+  opacity: 1;
+}
+
+/* Show by default on touch-only devices */
+@media (hover: none) {
+  .action-button-hover {
+    opacity: 1;
+  }
+}
+

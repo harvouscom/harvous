@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
 import Icon from './Icon';
@@ -11,6 +11,15 @@ const NoteItem: React.FC<{
   onClick: () => void;
 }> = ({ item, isSelected, isLoading, onClick }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [hasHover, setHasHover] = useState(true); // Default to true (desktop)
+  
+  useEffect(() => {
+    // Detect if device supports hover (has cursor)
+    if (typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(hover: hover)');
+      setHasHover(mediaQuery.matches);
+    }
+  }, []);
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -166,7 +175,16 @@ const ThreadItem: React.FC<{
   onClick: () => void;
 }> = ({ item, isSelected, isLoading, onClick }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [hasHover, setHasHover] = useState(true); // Default to true (desktop)
   const threadAccentColor = item.color ? `var(--color-${item.color})` : "var(--color-purple)";
+  
+  useEffect(() => {
+    // Detect if device supports hover (has cursor)
+    if (typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(hover: hover)');
+      setHasHover(mediaQuery.matches);
+    }
+  }, []);
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -280,7 +298,7 @@ const ThreadItem: React.FC<{
           </div>
         </div>
         
-        {/* Add button - appears on hover */}
+        {/* Add button - appears on hover (desktop) or always visible (touch) */}
         <div
           style={{
             position: 'absolute',
@@ -292,7 +310,7 @@ const ThreadItem: React.FC<{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            opacity: isHovered ? 1 : 0,
+            opacity: hasHover ? (isHovered ? 1 : 0) : 1,
             transition: 'opacity 0.2s',
             zIndex: 10,
             pointerEvents: 'none'
