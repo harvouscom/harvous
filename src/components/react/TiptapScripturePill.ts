@@ -4,6 +4,40 @@ import { ReplaceStep } from 'prosemirror-transform';
 import { Slice, Fragment } from 'prosemirror-model';
 import { safeNavigate } from '@/utils/safe-navigate';
 
+/**
+ * Helper function to detect the current thread context from the page
+ * Checks multiple sources: note element, navigation element, and URL pathname
+ */
+function getCurrentThreadContext(): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  // 1. Check note element for data-parent-thread-id
+  const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+  if (noteElement?.dataset.parentThreadId) {
+    return noteElement.dataset.parentThreadId;
+  }
+  
+  // 2. Check navigation element for data-parent-thread-id
+  const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+  if (navigationElement?.dataset.parentThreadId) {
+    return navigationElement.dataset.parentThreadId;
+  }
+  
+  // 3. Check URL pathname if on a thread page
+  const pathname = window.location.pathname;
+  if (pathname && pathname !== '/' && !pathname.includes('/dashboard') && 
+      !pathname.includes('/sign-in') && !pathname.includes('/sign-up')) {
+    const threadId = pathname.substring(1); // Remove leading slash
+    // Check if it's a thread ID (not a note or space)
+    if (threadId && threadId !== 'dashboard' && 
+        !threadId.startsWith('note_') && !threadId.startsWith('space_')) {
+      return threadId;
+    }
+  }
+  
+  return null;
+}
+
 export interface ScripturePillOptions {
   HTMLAttributes: Record<string, any>;
 }
@@ -758,7 +792,12 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           }
           
           // Navigate to note (either original or recreated)
-          safeNavigate(`/${targetNoteId}`, { history: 'replace' });
+          // Detect current thread context and pass it as URL parameter
+          const currentThreadId = getCurrentThreadContext();
+          const navigateUrl = currentThreadId 
+            ? `/${targetNoteId}?thread=${encodeURIComponent(currentThreadId)}`
+            : `/${targetNoteId}`;
+          safeNavigate(navigateUrl, { history: 'replace' });
           return true;
         }
 
@@ -902,7 +941,13 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
               console.error('Error checking/restoring note:', error);
             }
             
-            safeNavigate(`/${targetNoteId}`, { history: 'replace' });
+            // Navigate to note (either original or recreated)
+            // Detect current thread context and pass it as URL parameter
+            const currentThreadId = getCurrentThreadContext();
+            const navigateUrl = currentThreadId 
+              ? `/${targetNoteId}?thread=${encodeURIComponent(currentThreadId)}`
+              : `/${targetNoteId}`;
+            safeNavigate(navigateUrl, { history: 'replace' });
             return true;
           }
         }

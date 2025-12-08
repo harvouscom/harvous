@@ -392,14 +392,20 @@ let inboxCount: number = 0;
         pageTitle = note.title || "Untitled Note";
 
         // Smart Default Logic for Multi-Thread Navigation
-        // 1. Check URL parameter for specific thread context
+        // Priority order:
+        // 1. URL parameter (?thread=threadId) - explicit user choice
+        // 2. Referrer thread context (where user came from)
+        // 3. Most recently updated thread (fallback)
+        // For Scripture notes: prioritize thread context where note was opened from
+        
         const urlParams = new URL(Astro.url.href).searchParams;
         const requestedThreadId = urlParams.get('thread');
+        const isScriptureNote = note.noteType === 'scripture';
         
         let selectedThreadId = null; // No default - will be determined by logic below
         
         if (requestedThreadId) {
-          // Verify the requested thread exists and note belongs to it
+          // Priority 1: URL parameter - verify the requested thread exists and note belongs to it
           const noteThreads = await db.select()
             .from(NoteThreads)
             .where(eq(NoteThreads.noteId, note.id))
@@ -410,7 +416,7 @@ let inboxCount: number = 0;
             selectedThreadId = requestedThreadId;
           }
         } else {
-          // 2. Smart Default: Use navigation context if available
+          // Priority 2 & 3: Smart Default - Use navigation context if available
           // Check if user was recently viewing a thread that this note belongs to
           const noteThreads = await db.select()
             .from(NoteThreads)
@@ -423,9 +429,10 @@ let inboxCount: number = 0;
           if (uniqueThreadIds.length > 1) {
             // Note belongs to multiple threads - use smart default
             // Enhanced breadcrumb-like logic for thread context detection
+            // For Scripture notes: prioritize thread where note was opened from
             let navigationHistoryThreadId = null;
             try {
-              // 1. Check referrer for thread context (server-side approach)
+              // Priority 2: Check referrer for thread context (server-side approach)
               const referrer = Astro.request.headers.get('referer');
               
               if (referrer) {
@@ -434,14 +441,24 @@ let inboxCount: number = 0;
                   const referrerPath = referrerUrl.pathname;
                   
                   // Check if referrer is a thread page
-                  if (referrerPath.includes('/thread_')) {
+                  if (referrerPath.includes('/thread_') || (!referrerPath.includes('/note_') && !referrerPath.includes('/space_') && !referrerPath.includes('/dashboard'))) {
                     const threadId = referrerPath.split('/').pop();
                     
-                    if (threadId && threadId !== 'dashboard' && threadId !== 'sign-in' && threadId !== 'sign-up') {
+                    if (threadId && threadId !== 'dashboard' && threadId !== 'sign-in' && threadId !== 'sign-up' && 
+                        !threadId.startsWith('note_') && !threadId.startsWith('space_')) {
                       // Verify this thread is one the note belongs to
                       if (uniqueThreadIds.includes(threadId)) {
                         navigationHistoryThreadId = threadId;
                       }
+                    }
+                  }
+                  
+                  // Check if referrer is a note page - extract thread from query params
+                  // This is especially important for Scripture notes opened from other notes
+                  if (!navigationHistoryThreadId && referrerPath.includes('/note_')) {
+                    const referrerThreadParam = referrerUrl.searchParams.get('thread');
+                    if (referrerThreadParam && uniqueThreadIds.includes(referrerThreadParam)) {
+                      navigationHistoryThreadId = referrerThreadParam;
                     }
                   }
                 } catch (parseError) {
@@ -449,18 +466,19 @@ let inboxCount: number = 0;
                 }
               }
               
-              // 2. Removed: NoteThreadAccess table tracking (complexity reduction)
-
-              // 3. Fallback: Use the most recently updated thread
+              // Priority 3: Fallback to most recently updated thread
+              // For Scripture notes, this only applies if no referrer context was found
             } catch (error) {
               // Could not access navigation history
             }
             
             if (navigationHistoryThreadId) {
-              // Use the thread from navigation history
+              // Use the thread from navigation history/referrer
+              // This ensures Scripture notes open in the thread they were clicked from
               selectedThreadId = navigationHistoryThreadId;
             } else {
               // Fallback: Use the most recently updated thread
+              // Only used when no referrer context is available
               const threads = await Promise.all(
                 uniqueThreadIds.map(async (threadId) => {
                   const thread = await db.select()
