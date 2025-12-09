@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
+import ActionButton from './ActionButton';
+import EraseConfirmDialog from './EraseConfirmDialog';
 
 // Helper function to strip HTML tags
 function stripHtml(html: string): string {
@@ -42,6 +45,10 @@ export default function ThreadNotesList({
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [deletedNoteIds, setDeletedNoteIds] = useState<Set<string>>(new Set());
   const deletedNoteIdsRef = useRef<Set<string>>(new Set());
+  
+  // State for delete confirmation dialog
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -157,6 +164,86 @@ export default function ThreadNotesList({
     };
   }, [threadId]);
 
+  // Check if this is the unorganized thread
+  const isUnorganizedThread = threadId === 'thread_unorganized';
+
+  // Handle delete button click
+  const handleDeleteClick = (e: React.MouseEvent, note: Note) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setNoteToDelete(note);
+    setShowDeleteConfirm(true);
+  };
+
+  // Handle delete confirmation
+  const handleConfirmDelete = async () => {
+    if (!noteToDelete) return;
+
+    setShowDeleteConfirm(false);
+    
+    try {
+      const response = await fetch(`/api/notes/delete?noteId=${encodeURIComponent(noteToDelete.id)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = data.error || 'Failed to delete note';
+        if ((window as any).toast) {
+          (window as any).toast.error(errorMessage);
+        } else {
+          alert('Failed to delete note: ' + errorMessage);
+        }
+        setNoteToDelete(null);
+        return;
+      }
+
+      if (data.success || response.status === 200) {
+        // Dispatch noteDeleted event
+        window.dispatchEvent(new CustomEvent('noteDeleted', {
+          detail: { 
+            noteId: noteToDelete.id,
+            threadId: threadId
+          }
+        }));
+
+        // Remove from local state
+        setDeletedNoteIds(prev => {
+          const newSet = new Set([...prev, noteToDelete.id]);
+          deletedNoteIdsRef.current = newSet;
+          return newSet;
+        });
+        setNotes(prev => prev.filter(note => note.id !== noteToDelete.id));
+
+        // Show success message
+        if ((window as any).toast) {
+          (window as any).toast.success('Note erased!');
+        }
+      }
+
+      setNoteToDelete(null);
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      if ((window as any).toast) {
+        (window as any).toast.error('Failed to delete note');
+      } else {
+        alert('Failed to delete note. Please check the console for details.');
+      }
+      setNoteToDelete(null);
+    }
+  };
+
+  // Handle delete cancellation
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setNoteToDelete(null);
+  };
+
   // Filter out deleted notes
   const filteredNotes = notes.filter(note => !deletedNoteIds.has(note.id));
 
@@ -193,12 +280,12 @@ export default function ThreadNotesList({
 
     return (
       <div 
-        className="content-item note-item card-enter"
+        className={`content-item note-item card-enter ${isUnorganizedThread ? 'panel__item-list-item' : ''}`}
         style={{ animationDelay: `${index * 50}ms` }}
       >
         <a 
           href={`/${note.id}`}
-          className="block transition-transform duration-200 active:scale-[0.99]"
+          className={`block transition-transform duration-200 active:scale-[0.99] ${isUnorganizedThread ? 'panel__item-list-item-link' : ''}`}
           style={{ touchAction: 'manipulation' }}
         >
           <CardNote 
@@ -207,21 +294,110 @@ export default function ThreadNotesList({
             noteType={note.noteType || 'default'}
           />
         </a>
+        
+        {/* Delete button - only show on unorganized thread and on hover */}
+        {isUnorganizedThread && (
+          <ActionButton
+            variant="default"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDeleteClick(e, note);
+            }}
+            aria-label="Delete note"
+            className="panel__item-list-item-actions"
+          >
+            <svg 
+              viewBox="0 0 576 512" 
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ width: '16px', height: '16px', fill: 'var(--color-pebble-grey)' }}
+            >
+              <path d="M290.7 57.4L57.4 290.7c-25 25-25 65.5 0 90.5l80 80c12 12 28.3 18.7 45.3 18.7L288 480l9.4 0L512 480c17.7 0 32-14.3 32-32s-14.3-32-32-32l-124.1 0L518.6 285.3c25-25 25-65.5 0-90.5L381.3 57.4c-25-25-65.5-25-90.5 0zM297.4 416l-9.4 0-105.4 0-80-80L227.3 211.3 364.7 348.7 297.4 416z"/>
+            </svg>
+          </ActionButton>
+        )}
       </div>
     );
   };
 
   return (
-    <InfiniteScrollList
-      initialItems={filteredNotes}
-      items={filteredNotes}
-      onItemsChange={handleItemsChange}
-      loadMore={loadMore}
-      renderItem={renderItem}
-      itemKey={(note) => note.id}
-      limit={20}
-      className="flex flex-col gap-3"
-    />
+    <>
+      <InfiniteScrollList
+        initialItems={filteredNotes}
+        items={filteredNotes}
+        onItemsChange={handleItemsChange}
+        loadMore={loadMore}
+        renderItem={renderItem}
+        itemKey={(note) => note.id}
+        limit={20}
+        className="flex flex-col gap-3"
+      />
+
+      {/* Delete Confirmation Dialog - Rendered via Portal */}
+      {showDeleteConfirm && noteToDelete && typeof document !== 'undefined' && createPortal(
+        <div
+          className="modal-overlay-enter"
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1rem',
+            backgroundColor: 'rgba(0, 0, 0, 0.35)',
+            paddingTop: 'max(1rem, env(safe-area-inset-top))',
+            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
+          }}
+          onClick={(e) => {
+            // Close dialog if clicking on the overlay (but not the dialog content)
+            if (e.target === e.currentTarget) {
+              handleCancelDelete();
+            }
+          }}
+        >
+          <div 
+            className="modal-content-enter"
+            onClick={(e) => e.stopPropagation()}
+            style={{ 
+              backgroundColor: 'white',
+              borderRadius: '0.75rem',
+              padding: '1.5rem',
+              maxWidth: '28rem',
+              width: '100%',
+              pointerEvents: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+            }}
+          >
+            <h3 style={{
+              fontSize: '1.125rem',
+              fontWeight: 600,
+              color: 'var(--color-deep-grey)',
+              marginBottom: '0.5rem'
+            }}>
+              Erase Note?
+            </h3>
+            <p style={{
+              color: 'var(--color-pebble-grey)',
+              marginBottom: '1.5rem'
+            }}>
+              Are you sure you want to permanently erase this note? This action cannot be undone. The note will be permanently removed from your Harvous.
+            </p>
+            <EraseConfirmDialog
+              contentType="note"
+              onCancel={handleCancelDelete}
+              onConfirm={handleConfirmDelete}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
