@@ -458,6 +458,8 @@
 .new-space-button .space-button {
   & > div {
     justify-content: center !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
 
     & > div {
       text-align: center !important;

@@ -757,7 +757,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             
             {/* New Space Button - Absolutely Positioned */}
             <div className="mobile-nav__new-space">
-              <a href="/new-space" className="nav-link" onClick={(e) => handleItemClickWrapper(e)}>
+              <a href="/new-space" className="nav-link">
                 <div className="new-space-button">
                   <SpaceButton 
                     text="New Space"

@@ -1,4 +1,4 @@
-import { db, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc, asc } from "astro:db";
+import { db, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc, asc, gte } from "astro:db";
 
 /**
  * Get all inbox items for a user (status='inbox')
