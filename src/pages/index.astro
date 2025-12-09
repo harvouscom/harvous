@@ -573,3 +573,118 @@ try {
     });
   })();
 </script>
+
+<!-- Trigger auto-delete when archive tab is viewed to ensure items older than 30 days are deleted -->
+<script is:inline>
+  (function() {
+    if (typeof window === 'undefined') return;
+    
+    // Track if we've already triggered auto-delete to avoid duplicate calls
+    let autoDeleteTriggered = false;
+    
+    // Check if archive tab is currently visible
+    function isArchiveTabVisible() {
+      const archiveButton = document.querySelector('.inbox-archive-tabs [data-tab-id="archive"]');
+      const archiveContent = document.querySelector('.archive-content');
+      return archiveButton?.getAttribute('data-active') === 'true' || 
+             (archiveContent && !archiveContent.classList.contains('hidden'));
+    }
+    
+    // Trigger auto-delete in the background (fire-and-forget)
+    // This ensures archived items older than 30 days get deleted even if the scheduled job hasn't run
+    function triggerAutoDelete() {
+      // Only trigger if archive tab is visible
+      if (!isArchiveTabVisible()) return;
+      
+      // Only trigger once per page load
+      if (autoDeleteTriggered) return;
+      autoDeleteTriggered = true;
+      
+      // Use requestIdleCallback to avoid blocking page rendering
+      const scheduleDelete = (callback) => {
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(callback, { timeout: 2000 });
+        } else {
+          setTimeout(callback, 1000);
+        }
+      };
+      
+      scheduleDelete(async () => {
+        try {
+          // Call auto-delete endpoint (authenticated users can trigger for their own items)
+          const response = await fetch('/api/inbox/auto-delete', {
+            method: 'POST',
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            // Log error details for debugging
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('Auto-delete failed:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorData
+            });
+            return;
+          }
+          
+          const result = await response.json();
+          console.log('Auto-delete result:', result); // Debug log to see results
+          
+          if (result.deletedCount > 0) {
+            console.log(`Auto-deleted ${result.deletedCount} archived item(s)`);
+            // If items were deleted, refresh the page to show updated archive
+            // Use View Transitions if available for smooth refresh
+            if (document.startViewTransition) {
+              document.startViewTransition(() => {
+                window.location.reload();
+              });
+            } else {
+              window.location.reload();
+            }
+          } else if (result.errors && result.errors.length > 0) {
+            console.warn('Auto-delete completed with errors:', result.errors);
+          }
+        } catch (error) {
+          // Log network errors and other exceptions
+          console.error('Auto-delete trigger failed:', error);
+        }
+      });
+    }
+    
+    // Trigger on initial page load if archive tab is visible
+    function checkAndTriggerAutoDelete() {
+      if (isArchiveTabVisible()) {
+        triggerAutoDelete();
+      }
+    }
+    
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', checkAndTriggerAutoDelete);
+    } else {
+      checkAndTriggerAutoDelete();
+    }
+    
+    // Reset flag on View Transitions to allow re-triggering on navigation
+    document.addEventListener('astro:page-load', function() {
+      autoDeleteTriggered = false;
+      // Debounce to avoid multiple rapid calls
+      setTimeout(checkAndTriggerAutoDelete, 100);
+    });
+    
+    // Also trigger when archive tab is clicked
+    document.addEventListener('click', function(e) {
+      const clickedTab = e.target.closest('.inbox-archive-tabs [data-tab-button]');
+      if (clickedTab) {
+        const tabId = clickedTab.getAttribute('data-tab-id');
+        if (tabId === 'archive') {
+          // Small delay to let tab-manager.js update the active state first
+          setTimeout(() => {
+            autoDeleteTriggered = false; // Reset flag to allow triggering
+            triggerAutoDelete();
+          }, 100);
+        }
+      }
+    });
+  })();
+</script>

@@ -9,32 +9,44 @@ import { db, UserInboxItems, eq, and, lt } from 'astro:db';
  */
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    // Optional: Require authentication for manual triggers
-    // For scheduled jobs, you might want to use a secret token instead
+    // Check authentication: either secret token OR authenticated user
     const authHeader = request.headers.get('authorization');
     const expectedToken = import.meta.env.AUTO_ARCHIVE_SECRET_TOKEN;
+    const auth = locals.auth();
+    const isAuthenticated = auth?.userId;
+    const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
     
-    if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+    // Require either valid token (for scheduled jobs) or authenticated user (for client-side calls)
+    if (expectedToken && !hasValidToken && !isAuthenticated) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Calculate date 30 days ago
+    // Calculate date 30 days ago, set to start of day for consistent comparison
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0); // Set to start of day
+
+    // Build query conditions
+    const conditions = [
+      eq(UserInboxItems.status, 'archived'),
+      lt(UserInboxItems.archivedAt, thirtyDaysAgo)
+    ];
+
+    // If authenticated user (not using secret token), only delete their items
+    // Secret token calls delete all users' items (for scheduled jobs)
+    if (isAuthenticated && !hasValidToken) {
+      conditions.push(eq(UserInboxItems.userId, auth.userId));
+    }
 
     // Find all archived items that were archived more than 30 days ago
+    // (If authenticated user) Only items belonging to the authenticated user
     const itemsToDelete = await db
       .select()
       .from(UserInboxItems)
-      .where(
-        and(
-          eq(UserInboxItems.status, 'archived'),
-          lt(UserInboxItems.archivedAt, thirtyDaysAgo)
-        )
-      )
+      .where(and(...conditions))
       .all();
 
     let deletedCount = 0;
