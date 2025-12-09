@@ -517,29 +517,43 @@ try {
       
       scheduleArchive(async () => {
         try {
-          // Call auto-archive endpoint (no auth needed if token not set)
+          // Call auto-archive endpoint (authenticated users can trigger for their own items)
           const response = await fetch('/api/inbox/auto-archive', {
             method: 'POST',
             credentials: 'include'
           });
           
-          if (response.ok) {
-            const result = await response.json();
-            if (result.archivedCount > 0) {
-              // If items were archived, refresh the page to show updated inbox
-              // Use View Transitions if available for smooth refresh
-              if (document.startViewTransition) {
-                document.startViewTransition(() => {
-                  window.location.reload();
-                });
-              } else {
+          if (!response.ok) {
+            // Log error details for debugging
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('Auto-archive failed:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorData
+            });
+            return;
+          }
+          
+          const result = await response.json();
+          console.log('Auto-archive result:', result); // Debug log to see results
+          
+          if (result.archivedCount > 0) {
+            console.log(`Auto-archived ${result.archivedCount} item(s)`);
+            // If items were archived, refresh the page to show updated inbox
+            // Use View Transitions if available for smooth refresh
+            if (document.startViewTransition) {
+              document.startViewTransition(() => {
                 window.location.reload();
-              }
+              });
+            } else {
+              window.location.reload();
             }
+          } else if (result.errors && result.errors.length > 0) {
+            console.warn('Auto-archive completed with errors:', result.errors);
           }
         } catch (error) {
-          // Silently fail - auto-archive is non-critical for page functionality
-          console.warn('Auto-archive trigger failed:', error);
+          // Log network errors and other exceptions
+          console.error('Auto-archive trigger failed:', error);
         }
       });
     }

@@ -9,25 +9,43 @@ import { db, UserInboxItems, InboxItems, eq, and, lt } from 'astro:db';
  */
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    // Optional: Require authentication for manual triggers
-    // For scheduled jobs, you might want to use a secret token instead
+    // Check authentication: either secret token OR authenticated user
     const authHeader = request.headers.get('authorization');
     const expectedToken = import.meta.env.AUTO_ARCHIVE_SECRET_TOKEN;
+    const auth = locals.auth();
+    const isAuthenticated = auth?.userId;
+    const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
     
-    if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+    // Require either valid token (for scheduled jobs) or authenticated user (for client-side calls)
+    if (expectedToken && !hasValidToken && !isAuthenticated) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Calculate date 14 days ago
+    // Calculate date 14 days ago, set to start of day for consistent comparison
     const fourteenDaysAgo = new Date();
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    fourteenDaysAgo.setHours(0, 0, 0, 0); // Set to start of day
+
+    // Build query conditions
+    const conditions = [
+      eq(UserInboxItems.status, 'inbox'),
+      eq(InboxItems.isActive, true),
+      lt(UserInboxItems.createdAt, fourteenDaysAgo)
+    ];
+
+    // If authenticated user (not using secret token), only archive their items
+    // Secret token calls archive all users' items (for scheduled jobs)
+    if (isAuthenticated && !hasValidToken) {
+      conditions.push(eq(UserInboxItems.userId, auth.userId));
+    }
 
     // Find all inbox items that are:
     // 1. Still in 'inbox' status
     // 2. Created more than 14 days ago
+    // 3. (If authenticated user) Belong to the authenticated user
     const itemsToArchive = await db
       .select({
         userInboxItem: UserInboxItems,
@@ -35,13 +53,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       })
       .from(UserInboxItems)
       .innerJoin(InboxItems, eq(UserInboxItems.inboxItemId, InboxItems.id))
-      .where(
-        and(
-          eq(UserInboxItems.status, 'inbox'),
-          eq(InboxItems.isActive, true),
-          lt(UserInboxItems.createdAt, fourteenDaysAgo)
-        )
-      );
+      .where(and(...conditions));
 
     let archivedCount = 0;
     const errors: string[] = [];
