@@ -156,27 +156,12 @@ export default function OrganizedContentList({
       }
     };
 
-    const handleSpaceDeleted = (event: CustomEvent) => {
-      const { spaceId } = event.detail;
-      if (spaceId) {
-        // When a space is deleted, we need to remove all threads/notes that belong to it
-        // This is handled by filtering in the loadMore function
-        setDeletedItemIds(prev => {
-          const newSet = new Set([...prev, spaceId]);
-          deletedItemIdsRef.current = newSet;
-          return newSet;
-        });
-      }
-    };
-
     window.addEventListener('noteDeleted', handleNoteDeleted as EventListener);
     window.addEventListener('threadDeleted', handleThreadDeleted as EventListener);
-    window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
 
     return () => {
       window.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
       window.removeEventListener('threadDeleted', handleThreadDeleted as EventListener);
-      window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
     };
   }, []);
 
@@ -216,12 +201,28 @@ export default function OrganizedContentList({
       }, 300);
     };
 
+    const handleSpaceDeleted = () => {
+      // When a space is deleted, threads and notes are preserved (spaceId set to null)
+      // Refresh content to show the updated threads/notes
+      // Small delay to ensure database is updated
+      // Clear any pending timeout first
+      if (pendingRefreshTimeoutRef.current) {
+        clearTimeout(pendingRefreshTimeoutRef.current);
+      }
+      pendingRefreshTimeoutRef.current = setTimeout(() => {
+        pendingRefreshTimeoutRef.current = null;
+        checkAndRefresh();
+      }, 300);
+    };
+
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);
     window.addEventListener('threadCreated', handleThreadCreated as EventListener);
+    window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
 
     return () => {
       window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
       window.removeEventListener('threadCreated', handleThreadCreated as EventListener);
+      window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
       // Clear pending timeout on cleanup
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
