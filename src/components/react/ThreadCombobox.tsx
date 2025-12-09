@@ -66,7 +66,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
       {/* Dropdown */}
       {open && (
         <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-2xl border max-h-[300px] overflow-hidden flex flex-col" style={{ 
-          backgroundColor: 'var(--color-fog-white)',
+          backgroundColor: 'var(--color-snow-white)',
           borderColor: 'var(--color-fog-white)'
         }}>
           {/* Search Input */}

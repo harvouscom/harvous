@@ -9,7 +9,7 @@ export default function Counter({ initialValue = 0, label = "Counter" }: Counter
   const [count, setCount] = useState(initialValue);
 
   return (
-    <div className="p-4 border border-gray-300 rounded-lg bg-white shadow-sm">
+    <div className="p-4 border rounded-lg bg-white shadow-sm" style={{ borderColor: 'var(--color-gray)' }}>
       <h3 className="text-lg font-semibold mb-2">{label}</h3>
       <div className="flex items-center gap-4">
         <button
@@ -28,7 +28,14 @@ export default function Counter({ initialValue = 0, label = "Counter" }: Counter
       </div>
       <button
         onClick={() => setCount(initialValue)}
-        className="mt-2 px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
+        className="mt-2 px-3 py-1 text-white rounded transition-colors text-sm"
+        style={{ backgroundColor: 'var(--color-stone-grey)' }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--color-deep-grey)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--color-stone-grey)';
+        }}
       >
         Reset
       </button>

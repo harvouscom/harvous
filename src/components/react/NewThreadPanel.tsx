@@ -731,7 +731,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                       {activeTab === 'recent' && (
                         <div className="space-y-4">
                           {isLoadingNotes ? (
-                            <div className="text-center py-8 text-gray-500">
+                            <div className="text-center py-8" style={{ color: 'var(--color-pebble-grey)' }}>
                               Loading recent notes...
                             </div>
                           ) : recentNotes.length > 0 ? (
@@ -748,14 +748,14 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                               ))}
                             </div>
                           ) : (
-                            <div className="text-center py-8 text-gray-500">
+                            <div className="text-center py-8" style={{ color: 'var(--color-pebble-grey)' }}>
                               No recent notes found
                             </div>
                           )}
                         </div>
                       )}
                       {activeTab === 'search' && (
-                        <div className="text-center py-8 text-gray-500">
+                        <div className="text-center py-8" style={{ color: 'var(--color-pebble-grey)' }}>
                           Search functionality will be here
                         </div>
                       )}

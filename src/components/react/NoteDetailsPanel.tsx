@@ -449,7 +449,7 @@ export default function NoteDetailsPanel({
 
       <style>{`
         .card-thread-container {
-          background-color: var(--color-fog-white);
+          background-color: var(--color-snow-white);
         }
         
         .lavender-accent {

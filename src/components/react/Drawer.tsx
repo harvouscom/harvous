@@ -77,11 +77,18 @@ export default function Drawer({
             <div className="flex h-full flex-col overflow-y-scroll bg-white py-6 shadow-xl">
               <div className="px-4 sm:px-6">
                 <div className="flex items-start justify-between">
-                  <h2 className="text-lg font-medium text-gray-900">{title}</h2>
+                  <h2 className="text-lg font-medium" style={{ color: 'var(--color-deep-grey)' }}>{title}</h2>
                   <div className="ml-3 flex h-7 items-center">
                     <button
                       onClick={handleClose}
-                      className="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                      className="rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                      style={{ color: 'var(--color-pebble-grey)' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--color-stone-grey)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--color-pebble-grey)';
+                      }}
                     >
                       <span className="sr-only">Close panel</span>
                       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">

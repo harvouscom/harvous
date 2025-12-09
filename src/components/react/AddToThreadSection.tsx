@@ -61,7 +61,18 @@ export default function AddToSection({
     <div
       key={item.id}
       onClick={onClick}
-      className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer transition-colors"
+      className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+      style={{
+        borderColor: 'var(--color-gray)',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'var(--color-gray)';
+        e.currentTarget.style.backgroundColor = 'var(--color-snow-white)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'var(--color-gray)';
+        e.currentTarget.style.backgroundColor = 'transparent';
+      }}
     >
       {/* Color Indicator */}
       {item.color && (
@@ -73,16 +84,16 @@ export default function AddToSection({
       
       {/* Item Info */}
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-gray-900 truncate">
+        <div className="font-medium truncate" style={{ color: 'var(--color-deep-grey)' }}>
           {item.title}
         </div>
         {item.subtitle && (
-          <div className="text-xs text-gray-500">
+          <div className="text-xs" style={{ color: 'var(--color-pebble-grey)' }}>
             {item.subtitle}
           </div>
         )}
         {item.isPublic !== undefined && (
-          <div className="text-xs text-gray-500">
+          <div className="text-xs" style={{ color: 'var(--color-pebble-grey)' }}>
             {item.isPublic ? 'Public' : 'Private'}
           </div>
         )}
@@ -91,8 +102,8 @@ export default function AddToSection({
   );
 
   return (
-    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">{title}</h3>
+    <div className="bg-white rounded-xl p-4 shadow-sm border" style={{ borderColor: 'var(--color-gray)' }}>
+      <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--color-stone-grey)' }}>{title}</h3>
       
       {/* Search Input */}
       <div className="mb-4">
@@ -107,7 +118,7 @@ export default function AddToSection({
       {searchQuery && (
         <div className="max-h-48 overflow-y-auto space-y-2">
           {filteredItems.length === 0 ? (
-            <div className="text-center py-4 text-gray-500 text-sm">
+            <div className="text-center py-4 text-sm" style={{ color: 'var(--color-pebble-grey)' }}>
               {emptyMessage} matching "{searchQuery}"
             </div>
           ) : (
@@ -121,7 +132,7 @@ export default function AddToSection({
       )}
 
       {isLoading && (
-        <div className="mt-2 text-xs text-gray-500">{loadingText}</div>
+        <div className="mt-2 text-xs" style={{ color: 'var(--color-pebble-grey)' }}>{loadingText}</div>
       )}
     </div>
   );

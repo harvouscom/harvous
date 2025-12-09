@@ -384,11 +384,11 @@ export default function Menu({
         {options.map((option, index) => (
           <React.Fragment key={index}>
             {index > 0 && (
-              <div className="menu-separator border-t border-gray-50" />
+              <div className="menu-separator border-t" />
             )}
             <button
               onClick={() => handleAction(option.action, option.label)}
-              className="menu-item flex items-center gap-3 py-[18px] px-4 pb-5 hover:bg-gray-50 transition-colors duration-150 cursor-pointer w-full text-left rounded-[3px]"
+              className="menu-item flex items-center gap-3 py-[18px] px-4 pb-5 transition-colors duration-150 cursor-pointer w-full text-left rounded-[3px]"
             >
               <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
                 {renderIcon(option.icon, option.action)}
@@ -479,6 +479,14 @@ export default function Menu({
           border: none !important;
           outline: none !important;
           box-shadow: none !important;
+        }
+        
+        .menu-item:hover {
+          background-color: var(--color-snow-white);
+        }
+        
+        .menu-separator {
+          border-color: var(--color-soft-gray);
         }
       `}</style>
     </>

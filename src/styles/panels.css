@@ -152,7 +152,7 @@
 }
 
 .panel__content {
-  background-color: var(--color-fog-white);
+  background-color: var(--color-snow-white);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -741,6 +741,10 @@
 .action-button-hover {
   opacity: 0;
   transition: opacity 0.2s;
+}
+
+.hover-bg-gray:hover {
+  background-color: var(--color-gray);
 }
 
 /* Show on hover for devices with cursor */

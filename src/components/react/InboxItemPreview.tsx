@@ -252,7 +252,7 @@ export default function InboxItemPreview({
                   )}
 
                   {/* Thread-level actions */}
-                  <div className="flex gap-3 justify-end pt-2 border-t border-gray-200">
+                  <div className="flex gap-3 justify-end pt-2 border-t" style={{ borderColor: 'var(--color-gray)' }}>
                     <ButtonSmall
                       type="button"
                       onClick={handleArchive}

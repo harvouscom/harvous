@@ -155,7 +155,7 @@ export default function AddToSection({
           onClick={onClick}
           className="relative rounded-xl h-[48px] cursor-pointer transition-transform duration-200 w-full text-left overflow-hidden hover:scale-[1.002]"
           style={{
-            backgroundColor: 'var(--color-fog-white)',
+            backgroundColor: 'var(--color-snow-white)',
             boxShadow: '0px 2px 8px 0px rgba(120, 118, 111, 0.1)'
           }}
         >

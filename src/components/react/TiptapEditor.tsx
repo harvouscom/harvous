@@ -1608,7 +1608,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           name={name}
           value={content}
         />
-        <div className="min-h-[200px] p-4 text-gray-500">
+        <div className="min-h-[200px] p-4" style={{ color: 'var(--color-pebble-grey)' }}>
           Loading editor...
         </div>
       </div>
@@ -1645,112 +1645,109 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     children: React.ReactNode; 
     title: string;
     ariaLabel?: string;
-  }) => (
-    <button
-      type="button"
-      onMouseDown={(e) => {
-        // Use onMouseDown to prevent editor from losing focus
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Visual feedback for click
-        e.currentTarget.style.setProperty('filter', 'brightness(0.97)', 'important');
-        e.currentTarget.style.setProperty('transform', 'scale(0.98)', 'important');
-        
-        // Execute the command
-        onClick();
-        
-        // Ensure editor stays focused after command
-        setTimeout(() => {
-          if (editor && !editor.isFocused) {
-            editor.commands.focus();
+  }) => {
+    const iconRef = React.useRef<HTMLDivElement>(null);
+    
+    return (
+      <button
+        type="button"
+        onMouseDown={(e) => {
+          // Use onMouseDown to prevent editor from losing focus
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Visual feedback for click
+          e.currentTarget.style.setProperty('filter', 'brightness(0.97)', 'important');
+          e.currentTarget.style.setProperty('transform', 'scale(0.98)', 'important');
+          
+          // Execute the command
+          onClick();
+          
+          // Ensure editor stays focused after command
+          setTimeout(() => {
+            if (editor && !editor.isFocused) {
+              editor.commands.focus();
+            }
+          }, 0);
+        }}
+        onClick={(e) => {
+          // Prevent default click behavior
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        className={`flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] px-3 py-2 rounded-lg transition-all duration-200 relative ${isActive ? 'ql-active' : ''}`}
+        title={title}
+        aria-label={ariaLabel || title}
+        style={{
+          fontFamily: 'var(--font-sans) !important',
+          fontSize: '14px !important',
+          fontWeight: '500 !important',
+          color: 'var(--color-deep-grey) !important',
+          background: 'transparent !important',
+          border: 'none !important',
+          borderRadius: '8px !important',
+          padding: '8px 12px !important',
+          margin: '0 !important',
+          minWidth: '40px !important',
+          minHeight: '40px !important',
+          display: 'flex !important',
+          alignItems: 'center !important',
+          justifyContent: 'center !important',
+          boxShadow: 'none !important',
+          cursor: 'pointer !important',
+          transition: '0.2s ease-in-out !important'
+        }}
+        onMouseEnter={() => {
+          // Change icon color on hover - deep grey
+          if (iconRef.current) {
+            iconRef.current.style.setProperty('color', 'var(--color-deep-grey)', 'important');
           }
-        }, 0);
-      }}
-      onClick={(e) => {
-        // Prevent default click behavior
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-      className={`flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] px-3 py-2 rounded-lg transition-all duration-200 relative ${isActive ? 'ql-active' : ''}`}
-      title={title}
-      aria-label={ariaLabel || title}
-      style={{
-        fontFamily: 'var(--font-sans) !important',
-        fontSize: '14px !important',
-        fontWeight: '500 !important',
-        color: 'var(--color-deep-grey) !important',
-        background: 'transparent !important',
-        border: 'none !important',
-        borderRadius: '8px !important',
-        padding: '8px 12px !important',
-        margin: '0 !important',
-        minWidth: '40px !important',
-        minHeight: '40px !important',
-        display: 'flex !important',
-        alignItems: 'center !important',
-        justifyContent: 'center !important',
-        boxShadow: 'none !important',
-        cursor: 'pointer !important',
-        transition: '0.2s ease-in-out !important'
-      }}
-      onMouseEnter={(e) => {
-        // NO background change on hover - keep transparent
-        e.currentTarget.style.setProperty('background', 'transparent', 'important');
-        e.currentTarget.style.setProperty('box-shadow', 'none', 'important');
-        
-        // Change icon color on hover - deep grey
-        const iconSpan = e.currentTarget.querySelector('span');
-        if (iconSpan) {
-          iconSpan.style.setProperty('color', 'var(--color-deep-grey)', 'important');
-        }
-      }}
-      onMouseLeave={(e) => {
-        // Keep transparent background
-        e.currentTarget.style.setProperty('background', 'transparent', 'important');
-        e.currentTarget.style.setProperty('box-shadow', 'none', 'important');
-        
-        // Reset icon color - deep grey for active, stone grey for inactive
-        const iconSpan = e.currentTarget.querySelector('span');
-        if (iconSpan) {
-          iconSpan.style.setProperty('color', isActive ? 'var(--color-deep-grey)' : 'var(--color-stone-grey)', 'important');
-        }
-      }}
-      onMouseUp={(e) => {
-        // Visual feedback for click
-        e.currentTarget.style.setProperty('filter', 'none', 'important');
-        e.currentTarget.style.setProperty('transform', 'none', 'important');
-      }}
-    >
-      <div style={{ 
-        width: '20px',
-        height: '20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: isActive ? 'var(--color-deep-grey)' : 'var(--color-stone-grey)',
-        transition: 'color 0.2s ease-in-out',
-      }}>
-        {children}
-      </div>
-      {isActive && (
+        }}
+        onMouseLeave={() => {
+          // Reset icon color - deep grey for active, gray for inactive
+          if (iconRef.current) {
+            iconRef.current.style.setProperty('color', isActive ? 'var(--color-deep-grey)' : 'var(--color-gray)', 'important');
+          }
+        }}
+        onMouseUp={(e) => {
+          // Visual feedback for click
+          e.currentTarget.style.setProperty('filter', 'none', 'important');
+          e.currentTarget.style.setProperty('transform', 'none', 'important');
+        }}
+      >
         <div 
-          className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-[var(--color-deep-grey)] rounded-full"
-          style={{
-            position: 'absolute',
-            bottom: '0px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '4px',
+          ref={iconRef}
+          style={{ 
+            width: '20px',
+            height: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: isActive ? 'var(--color-deep-grey)' : 'var(--color-gray)',
+            transition: 'color 0.2s ease-in-out',
+          }}
+        >
+          {children}
+        </div>
+        {isActive && (
+          <div 
+            className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-[var(--color-deep-grey)] rounded-full"
+            style={{
+              position: 'absolute',
+              bottom: '0px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '4px',
             height: '4px',
             background: 'var(--color-deep-grey)',
             borderRadius: '50%',
             zIndex: 1
           }}
         />
-      )}
-    </button>
-  );
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="tiptap-editor-container flex flex-col" style={{ height: '100%', minHeight: 0 }}>

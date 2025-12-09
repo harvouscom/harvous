@@ -310,7 +310,7 @@
    ========================================================================== */
 .button-group {
   width: 100%;
-  background-color: var(--color-fog-white);
+  background-color: var(--color-snow-white);
   border-radius: 1.5rem;  /* 24px / rounded-3xl */
   overflow: hidden;
   padding-top: 0.375rem;  /* 6px */
@@ -568,7 +568,7 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
 }
 
 .clerk-form-divider-line {
-  background-color: #e5e7eb;  /* gray-200 */
+  background-color: var(--color-gray);
 }
 
 .clerk-form-divider-text {
