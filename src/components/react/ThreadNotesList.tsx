@@ -38,6 +38,8 @@ export default function ThreadNotesList({
   initialNotes, 
   threadId 
 }: ThreadNotesListProps) {
+  // Manage notes list state for real-time updates
+  const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [deletedNoteIds, setDeletedNoteIds] = useState<Set<string>>(new Set());
   const deletedNoteIdsRef = useRef<Set<string>>(new Set());
 
@@ -45,6 +47,12 @@ export default function ThreadNotesList({
   useEffect(() => {
     deletedNoteIdsRef.current = deletedNoteIds;
   }, [deletedNoteIds]);
+
+  // Update notes when initialNotes change (e.g., page navigation)
+  useEffect(() => {
+    const filtered = initialNotes.filter(note => !deletedNoteIds.has(note.id));
+    setNotes(filtered);
+  }, [initialNotes, deletedNoteIds]);
 
   // Listen for note deletion events
   useEffect(() => {
@@ -57,6 +65,8 @@ export default function ThreadNotesList({
           deletedNoteIdsRef.current = newSet;
           return newSet;
         });
+        // Remove from notes list immediately
+        setNotes(prev => prev.filter(note => note.id !== noteId));
       }
     };
 
@@ -67,8 +77,88 @@ export default function ThreadNotesList({
     };
   }, [threadId]);
 
-  // Filter out deleted notes from initialNotes
-  const filteredInitialNotes = initialNotes.filter(note => !deletedNoteIds.has(note.id));
+  // Use ref to track current notes without causing effect re-runs
+  const notesRef = useRef<Note[]>(notes);
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
+
+  // Listen for note added to thread events
+  useEffect(() => {
+    const handleNoteAddedToThread = async (event: CustomEvent) => {
+      const { noteId, threadId: eventThreadId } = event.detail;
+      
+      // Only process if this is the current thread
+      if (eventThreadId === threadId && noteId) {
+        // Check if note is already in the list using ref
+        const noteExists = notesRef.current.some(note => note.id === noteId);
+        if (noteExists) {
+          return; // Already in list, skip
+        }
+
+        try {
+          // Fetch note details
+          const response = await fetch(`/api/notes/${noteId}/details`, {
+            credentials: 'include'
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const noteData = data.note; // Extract note from response
+            const newNote: Note = {
+              id: noteData.id,
+              title: noteData.title,
+              content: noteData.content,
+              noteType: noteData.noteType,
+              updatedAt: noteData.updatedAt ? new Date(noteData.updatedAt) : undefined,
+              createdAt: noteData.createdAt ? new Date(noteData.createdAt) : undefined,
+            };
+
+            // Add note to the beginning of the list (most recent first)
+            setNotes(prev => {
+              // Check if note already exists (double-check with current state)
+              if (prev.some(n => n.id === noteId)) {
+                return prev;
+              }
+              
+              // Insert at the beginning for immediate visibility
+              return [newNote, ...prev];
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching note details:', error);
+        }
+      }
+    };
+
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+
+    return () => {
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+    };
+  }, [threadId]);
+
+  // Listen for note removed from thread events
+  useEffect(() => {
+    const handleNoteRemovedFromThread = (event: CustomEvent) => {
+      const { noteId, threadId: eventThreadId } = event.detail;
+      
+      // Only process if this is the current thread
+      if (eventThreadId === threadId && noteId) {
+        // Remove note from list immediately
+        setNotes(prev => prev.filter(note => note.id !== noteId));
+      }
+    };
+
+    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+
+    return () => {
+      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+    };
+  }, [threadId]);
+
+  // Filter out deleted notes
+  const filteredNotes = notes.filter(note => !deletedNoteIds.has(note.id));
 
   const loadMore = useCallback(async (offset: number, limit: number) => {
     const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
@@ -91,6 +181,11 @@ export default function ThreadNotesList({
       hasMore: data.hasMore
     };
   }, [threadId]);
+
+  // Handle items change from InfiniteScrollList (when loading more)
+  const handleItemsChange = useCallback((newItems: Note[]) => {
+    setNotes(newItems);
+  }, []);
 
   const renderItem = (note: Note, index: number) => {
     const cleanContent = stripHtml(note.content);
@@ -118,7 +213,9 @@ export default function ThreadNotesList({
 
   return (
     <InfiniteScrollList
-      initialItems={filteredInitialNotes}
+      initialItems={filteredNotes}
+      items={filteredNotes}
+      onItemsChange={handleItemsChange}
       loadMore={loadMore}
       renderItem={renderItem}
       itemKey={(note) => note.id}

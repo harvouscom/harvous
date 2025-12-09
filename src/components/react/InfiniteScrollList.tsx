@@ -9,6 +9,9 @@ interface InfiniteScrollListProps<T> {
   limit?: number;
   threshold?: number;
   className?: string;
+  // Optional controlled items - when provided, component uses these instead of internal state
+  items?: T[];
+  onItemsChange?: (items: T[]) => void;
 }
 
 export default function InfiniteScrollList<T>({
@@ -18,9 +21,15 @@ export default function InfiniteScrollList<T>({
   itemKey = (item, index) => (item as any).id || `item-${index}`,
   limit = 20,
   threshold = 200,
-  className = ''
+  className = '',
+  items: controlledItems,
+  onItemsChange
 }: InfiniteScrollListProps<T>) {
-  const [items, setItems] = useState<T[]>(initialItems);
+  // Use controlled items if provided, otherwise use internal state
+  const isControlled = controlledItems !== undefined;
+  const [internalItems, setInternalItems] = useState<T[]>(initialItems);
+  const items = isControlled ? controlledItems : internalItems;
+  
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(initialItems.length >= limit);
   const [error, setError] = useState<string | null>(null);
@@ -37,13 +46,14 @@ export default function InfiniteScrollList<T>({
     const itemsKey = initialItems.map((item: any) => item.id ?? '').join(',');
     
     // Only update if items actually changed (not just reference)
-    if (itemsKey !== prevInitialItemsRef.current) {
-      setItems(initialItems);
+    // Skip if controlled (parent manages state)
+    if (!isControlled && itemsKey !== prevInitialItemsRef.current) {
+      setInternalItems(initialItems);
       setHasMore(initialItems.length >= limit);
       setError(null);
       prevInitialItemsRef.current = itemsKey;
     }
-  }, [initialItems, limit]);
+  }, [initialItems, limit, isControlled]);
 
   const handleLoadMore = useCallback(async () => {
     if (loadingRef.current || isLoading || !hasMore) return;
@@ -54,7 +64,15 @@ export default function InfiniteScrollList<T>({
 
     try {
       const result = await loadMore(items.length, limit);
-      setItems(prev => [...prev, ...result.items]);
+      const newItems = [...items, ...result.items];
+      
+      if (isControlled) {
+        // If controlled, notify parent of change
+        onItemsChange?.(newItems);
+      } else {
+        // If uncontrolled, update internal state
+        setInternalItems(newItems);
+      }
       setHasMore(result.hasMore);
     } catch (err: any) {
       console.error('Error loading more items:', err);
@@ -63,7 +81,7 @@ export default function InfiniteScrollList<T>({
       setIsLoading(false);
       loadingRef.current = false;
     }
-  }, [items.length, limit, loadMore, hasMore, isLoading]);
+  }, [items, limit, loadMore, hasMore, isLoading, isControlled, onItemsChange]);
 
   // Intersection Observer for auto-loading
   useEffect(() => {

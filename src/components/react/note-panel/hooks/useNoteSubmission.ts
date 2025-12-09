@@ -286,6 +286,16 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
         }));
 
+        // Dispatch noteAddedToThread event if note was created with a specific thread
+        if (result.note && result.note.id && actualThreadId && actualThreadId !== 'thread_unorganized') {
+          window.dispatchEvent(new CustomEvent('noteAddedToThread', {
+            detail: { 
+              noteId: result.note.id,
+              threadId: actualThreadId
+            }
+          }));
+        }
+
         // Verify thread in localStorage
         if (result.note && actualThreadId) {
           const verifyThreadInStorage = () => {

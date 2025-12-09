@@ -271,6 +271,14 @@ export default function EditThreadPanel({
           }
         }));
 
+        // Dispatch noteRemovedFromThread event for real-time UI updates
+        window.dispatchEvent(new CustomEvent('noteRemovedFromThread', {
+          detail: { 
+            noteId: noteId,
+            threadId: threadId
+          }
+        }));
+
         // Refresh current thread notes
         const threadNotesResponse = await fetch(`/api/threads/${threadId}/notes?limit=1000`, {
           credentials: 'include'
