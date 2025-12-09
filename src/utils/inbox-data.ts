@@ -1,4 +1,4 @@
-import { db, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc, asc, gte } from "astro:db";
+import { db, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc, asc } from "astro:db";
 
 /**
  * Get all inbox items for a user (status='inbox')
@@ -10,15 +10,9 @@ import { db, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc, asc, gte
  *   - Item is deleted in Webflow
  * - Published - items are only created/updated for published items (not drafts)
  *   This is enforced in the sync and webhook endpoints
- * - Created within the last 14 days - items older than 14 days are automatically excluded
- *   (even if the scheduled auto-archive job hasn't run yet)
  */
 export async function getInboxItems(userId: string) {
   try {
-    // Calculate date 14 days ago
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-
     const userInboxItems = await db
       .select({
         inboxItem: InboxItems,
@@ -30,8 +24,7 @@ export async function getInboxItems(userId: string) {
         and(
           eq(UserInboxItems.userId, userId),
           eq(UserInboxItems.status, 'inbox'),
-          eq(InboxItems.isActive, true), // Only show active items (published, not archived/deleted)
-          gte(UserInboxItems.createdAt, fourteenDaysAgo) // Only include items created within the last 14 days
+          eq(InboxItems.isActive, true) // Only show active items (published, not archived/deleted)
         )
       )
       .orderBy(desc(InboxItems.createdAt))
@@ -87,15 +80,9 @@ export async function getArchivedItems(userId: string) {
  * Only counts items that are:
  * - Active (isActive: true) - excludes archived/deleted/toggled-off items
  * - Published - items are only created for published items (enforced in sync/webhook)
- * - Created within the last 14 days - items older than 14 days are automatically excluded
- *   (even if the scheduled auto-archive job hasn't run yet)
  */
 export async function getInboxCount(userId: string): Promise<number> {
   try {
-    // Calculate date 14 days ago
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-
     const result = await db
       .select({ count: UserInboxItems.id })
       .from(UserInboxItems)
@@ -104,8 +91,7 @@ export async function getInboxCount(userId: string): Promise<number> {
         and(
           eq(UserInboxItems.userId, userId),
           eq(UserInboxItems.status, 'inbox'),
-          eq(InboxItems.isActive, true), // Only count active items (published, not archived/deleted)
-          gte(UserInboxItems.createdAt, fourteenDaysAgo) // Only include items created within the last 14 days
+          eq(InboxItems.isActive, true) // Only count active items (published, not archived/deleted)
         )
       );
 

@@ -490,3 +490,72 @@ try {
     });
   }
 </script>
+
+<!-- Trigger auto-archive on page load to ensure items older than 14 days are archived -->
+<script is:inline>
+  (function() {
+    if (typeof window === 'undefined') return;
+    
+    // Track if we've already triggered auto-archive to avoid duplicate calls
+    let autoArchiveTriggered = false;
+    
+    // Trigger auto-archive in the background (fire-and-forget)
+    // This ensures items older than 14 days get archived even if the scheduled job hasn't run
+    function triggerAutoArchive() {
+      // Only trigger once per page load
+      if (autoArchiveTriggered) return;
+      autoArchiveTriggered = true;
+      
+      // Use requestIdleCallback to avoid blocking page rendering
+      const scheduleArchive = (callback) => {
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(callback, { timeout: 2000 });
+        } else {
+          setTimeout(callback, 1000);
+        }
+      };
+      
+      scheduleArchive(async () => {
+        try {
+          // Call auto-archive endpoint (no auth needed if token not set)
+          const response = await fetch('/api/inbox/auto-archive', {
+            method: 'POST',
+            credentials: 'include'
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.archivedCount > 0) {
+              // If items were archived, refresh the page to show updated inbox
+              // Use View Transitions if available for smooth refresh
+              if (document.startViewTransition) {
+                document.startViewTransition(() => {
+                  window.location.reload();
+                });
+              } else {
+                window.location.reload();
+              }
+            }
+          }
+        } catch (error) {
+          // Silently fail - auto-archive is non-critical for page functionality
+          console.warn('Auto-archive trigger failed:', error);
+        }
+      });
+    }
+    
+    // Trigger on initial page load
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', triggerAutoArchive);
+    } else {
+      triggerAutoArchive();
+    }
+    
+    // Reset flag on View Transitions to allow re-triggering on navigation
+    document.addEventListener('astro:page-load', function() {
+      autoArchiveTriggered = false;
+      // Debounce to avoid multiple rapid calls
+      setTimeout(triggerAutoArchive, 100);
+    });
+  })();
+</script>
