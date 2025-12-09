@@ -77,21 +77,113 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <PostHog />
     
     <!-- Performance Tracking Script -->
-    <script>
-      import { trackPageLoad } from '@/utils/posthog';
-      
+    <script is:inline>
       // Track page load performance after PostHog is initialized
-      if (typeof window !== 'undefined') {
+      // Using window.posthog directly to avoid module import errors
+      (function() {
+        if (typeof window === 'undefined') {
+          return;
+        }
+
+        // Helper function to capture events safely
+        function captureEvent(eventName, properties) {
+          try {
+            if (window.posthog && typeof window.posthog.capture === 'function') {
+              window.posthog.capture(eventName, properties);
+            }
+          } catch (error) {
+            console.error('[PostHog] Error capturing event:', error);
+          }
+        }
+
+        // Track page load metrics
+        function trackPageLoad() {
+          if (!window.posthog) {
+            return;
+          }
+
+          try {
+            // Track DOMContentLoaded time
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', function() {
+                const domContentLoadedTime = performance.now();
+                captureEvent('page_load_dom_content_loaded', {
+                  load_time_ms: Math.round(domContentLoadedTime),
+                  page_url: window.location.pathname,
+                });
+              });
+            } else {
+              // Already loaded
+              const timing = performance.timing;
+              if (timing && timing.domContentLoadedEventEnd && timing.navigationStart) {
+                const domContentLoadedTime = timing.domContentLoadedEventEnd - timing.navigationStart;
+                captureEvent('page_load_dom_content_loaded', {
+                  load_time_ms: Math.round(domContentLoadedTime),
+                  page_url: window.location.pathname,
+                });
+              }
+            }
+
+            // Track full page load time
+            if (document.readyState === 'complete') {
+              const timing = performance.timing;
+              if (timing && timing.loadEventEnd && timing.navigationStart) {
+                const loadTime = timing.loadEventEnd - timing.navigationStart;
+                captureEvent('page_load_complete', {
+                  load_time_ms: Math.round(loadTime),
+                  page_url: window.location.pathname,
+                });
+              }
+            } else {
+              window.addEventListener('load', function() {
+                const timing = performance.timing;
+                const loadTime = timing && timing.loadEventEnd && timing.navigationStart
+                  ? timing.loadEventEnd - timing.navigationStart
+                  : performance.now();
+                captureEvent('page_load_complete', {
+                  load_time_ms: Math.round(loadTime),
+                  page_url: window.location.pathname,
+                });
+              });
+            }
+
+            // Track First Contentful Paint if available
+            if ('PerformanceObserver' in window) {
+              try {
+                const observer = new PerformanceObserver(function(list) {
+                  for (var i = 0; i < list.getEntries().length; i++) {
+                    var entry = list.getEntries()[i];
+                    if (entry.name === 'first-contentful-paint') {
+                      captureEvent('page_load_first_contentful_paint', {
+                        fcp_ms: Math.round(entry.startTime),
+                        page_url: window.location.pathname,
+                      });
+                      observer.disconnect();
+                    }
+                  }
+                });
+                observer.observe({ entryTypes: ['paint'] });
+              } catch (e) {
+                // PerformanceObserver not supported or failed
+              }
+            }
+          } catch (error) {
+            console.error('[PostHog] Error tracking page load:', error);
+          }
+        }
+
         // Wait for PostHog to be ready
-        const checkPostHog = () => {
+        function checkPostHog() {
           if (window.posthog) {
             trackPageLoad();
           } else {
             setTimeout(checkPostHog, 100);
           }
-        };
+        }
+
+        // Start checking after a short delay
         setTimeout(checkPostHog, 200);
-      }
+      })();
     </script>
     
     <!-- Enable View Transitions for client-side navigation -->
