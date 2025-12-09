@@ -302,15 +302,23 @@ export default function Menu({
         // Redirect based on content type
         let redirectUrl: string;
         if (contentType === 'note') {
-          // Priority 1: Use the explicitly passed currentThreadId if available
-          if (currentThreadId) {
+          // Priority 1: If we're on a thread page, always redirect back to that thread
+          // This ensures deleting a note from a thread page keeps us on that thread
+          const currentPath = window.location.pathname;
+          const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
+          if (threadPageMatch) {
+            const threadIdFromUrl = threadPageMatch[1];
+            redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
+          }
+          // Priority 2: Use the explicitly passed currentThreadId if available
+          else if (currentThreadId) {
             redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
           }
-          // Priority 2: Fallback to the threadId from the API response
+          // Priority 3: Fallback to the threadId from the API response
           else if (data.threadId && data.threadId !== 'thread_unorganized') {
             redirectUrl = `/${data.threadId}?toast=success&message=` + encodeURIComponent(successMessage);
           }
-          // Priority 3: Fallback to dashboard
+          // Priority 4: Fallback to dashboard
           else {
             redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
           }

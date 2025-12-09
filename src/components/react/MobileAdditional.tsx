@@ -7,13 +7,15 @@ interface MobileAdditionalProps {
   contentId?: string;
   currentThread?: any;
   currentSpace?: any;
+  currentThreadId?: string;
 }
 
 export default function MobileAdditional({
   contentType = "dashboard",
   contentId,
   currentThread,
-  currentSpace
+  currentSpace,
+  currentThreadId
 }: MobileAdditionalProps) {
   const showMoreButton = shouldShowMoreButton(contentType, contentId);
 
@@ -82,7 +84,7 @@ export default function MobileAdditional({
       {/* Default state: SquareButtons in horizontal layout */}
       <div className={`w-full flex ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
         {showMoreButton && (
-          <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} />
+          <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThreadId} />
         )}
         {contentType !== 'profile' && (
           <SquareButton variant="Add" withMenu={true} />
