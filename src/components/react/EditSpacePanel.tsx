@@ -491,7 +491,7 @@ export default function EditSpacePanel({
             borderTopLeftRadius: '0.75rem',
             borderBottomLeftRadius: '0.75rem',
             overflow: 'hidden',
-            backgroundColor: 'var(--color-paper)'
+            backgroundColor: 'var(--color-light-paper)'
           }}
         />
         
