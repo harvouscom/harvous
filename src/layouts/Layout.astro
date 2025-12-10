@@ -189,6 +189,32 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <!-- Enable View Transitions for client-side navigation -->
     <ClientRouter />
     
+    <!-- Prefetch critical navigation paths when browser is idle -->
+    <script is:inline>
+      // Prefetch critical paths when browser is idle to avoid blocking initial load
+      (function() {
+        if (typeof window === 'undefined') return;
+        
+        const prefetchCriticalPaths = () => {
+          const paths = ['/', '/new-space', '/find'];
+          paths.forEach(path => {
+            const link = document.createElement('link');
+            link.rel = 'prefetch';
+            link.href = path;
+            document.head.appendChild(link);
+          });
+        };
+        
+        // Prefetch when browser is idle
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(prefetchCriticalPaths, { timeout: 2000 });
+        } else {
+          // Fallback for browsers without requestIdleCallback
+          setTimeout(prefetchCriticalPaths, 1000);
+        }
+      })();
+    </script>
+    
     <!-- Critical CSS inlined for faster first paint -->
     <style>
       /* Essential styles to prevent layout shift */

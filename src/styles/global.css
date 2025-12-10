@@ -410,6 +410,27 @@ body {
   }
 }
 
+/* Navigation link loading states for optimistic UI feedback */
+.nav-link.navigating,
+.nav-link--shrink.navigating {
+  opacity: 0.7;
+  transition: opacity 0.1s ease-out;
+  pointer-events: none;
+}
+
+.nav-link.navigating::after,
+.nav-link--shrink.navigating::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
 .text-button-chonk {
   font-family: var(--font-sans);
   font-weight: 500;

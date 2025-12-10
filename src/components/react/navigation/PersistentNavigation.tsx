@@ -80,7 +80,7 @@ const PersistentNavigation: React.FC = () => {
         return (
           <div key={item.id} data-navigation-item={item.id} className="nav-item-container">
             <div className="nav-item-wrapper">
-              <a href={`/${item.id}`} className="nav-link">
+              <a href={`/${item.id}`} className="nav-link" data-astro-prefetch="hover">
                 <SpaceButton
                   text={item.title}
                   count={item.count || 0}

@@ -342,16 +342,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Handle navigation API with cache-first strategy for faster loads
+  // Handle navigation API with stale-while-revalidate strategy for faster loads
+  // This returns cached data immediately (even if stale) and refreshes in background
   if (url.pathname === '/api/navigation/data' && event.request.method === 'GET') {
     event.respondWith(
       caches.open(NAV_API_CACHE).then((cache) => {
         return cache.match(event.request).then((cachedResponse) => {
-          const isStale = isCacheStale(cachedResponse, CACHE_MAX_AGE);
-          
-          // Return cached response immediately if available and fresh
-          if (cachedResponse && !isStale) {
-            // Refresh in background
+          // Always return cached response immediately if available (stale-while-revalidate)
+          // This provides instant navigation data while fresh data loads in background
+          if (cachedResponse) {
+            // Refresh in background regardless of staleness
             fetch(event.request)
               .then((response) => {
                 if (shouldCacheResponse(response)) {
@@ -363,11 +363,11 @@ self.addEventListener('fetch', (event) => {
                   safeCachePut(cache, event.request, cacheClone);
                 }
               })
-              .catch(() => { /* Ignore errors */ });
+              .catch(() => { /* Ignore errors - cached data is still valid */ });
             return cachedResponse;
           }
           
-          // Cache is stale or missing - fetch fresh data
+          // No cache - fetch fresh data
           return fetch(event.request)
             .then((response) => {
               if (shouldCacheResponse(response)) {

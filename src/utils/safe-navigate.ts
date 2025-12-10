@@ -10,6 +10,32 @@ interface NavigateOptions {
 let navigateFunction: ((path: string, options?: NavigateOptions) => void) | null = null;
 let navigatePromise: Promise<typeof import('astro:transitions/client')> | null = null;
 
+// Preload View Transitions module when browser is idle to avoid blocking initial load
+if (typeof window !== 'undefined') {
+  const preloadViewTransitions = () => {
+    navigatePromise = import('astro:transitions/client').catch(() => {
+      // Silently fail - will fall back to window.location
+      return null;
+    });
+    
+    navigatePromise.then((module) => {
+      if (module) {
+        navigateFunction = module.navigate;
+      }
+    }).catch(() => {
+      // Silently fail - will fall back to window.location
+    });
+  };
+  
+  // Preload when browser is idle to avoid blocking initial page load
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(preloadViewTransitions, { timeout: 2000 });
+  } else {
+    // Fallback for browsers without requestIdleCallback
+    setTimeout(preloadViewTransitions, 1000);
+  }
+}
+
 /**
  * Safely navigate using Astro's View Transitions
  * Falls back to window.location if astro:transitions/client fails
