@@ -8,6 +8,7 @@ import SquareButton from "@/components/SquareButton.astro";
 import Avatar from "@/components/Avatar.astro";
 import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
+import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import ThreadNotesList from "@/components/react/ThreadNotesList";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
@@ -57,13 +58,20 @@ const { userId } = auth;
 
 // Auth redirect is now handled by middleware - no need to check here
 // Pages can still use userId for conditional rendering
+// Type guard: middleware ensures userId exists, but TypeScript doesn't know this
+if (!userId) {
+  throw new Error('User ID is required but not found');
+}
+
+// Now TypeScript knows userId is non-null
+const authenticatedUserId: string = userId;
 
 // Get cached user data (optimized - no API calls on every page load)
 import { getCachedUserData, type CachedUserData } from '@/utils/user-cache';
 
 let userData: CachedUserData;
 try {
-  userData = await getCachedUserData(userId);
+  userData = await getCachedUserData(authenticatedUserId);
 } catch (error) {
   // Fallback data
   userData = {
@@ -233,14 +241,14 @@ let inboxCount: number = 0;
   */
   
   // Get active thread context for navigation
-  const activeThread = await detectActiveThreadFromPath(Astro.url.pathname, userId);
+  const activeThread = await detectActiveThreadFromPath(Astro.url.pathname, authenticatedUserId);
 
   // Ensure unorganized thread exists in database and check if it has notes
   let unorganizedThread: any = null;
   let otherThreads: any[] = [];
   
   try {
-    const threadData = await ensureUnorganizedThread(userId);
+    const threadData = await ensureUnorganizedThread(authenticatedUserId);
     if (threadData.noteCount > 0) {
       unorganizedThread = threadData;
     }
@@ -261,7 +269,7 @@ let inboxCount: number = 0;
       })
       .from(Threads)
       .where(and(
-        eq(Threads.userId, userId),
+        eq(Threads.userId, authenticatedUserId),
         ne(Threads.id, "thread_unorganized") // Exclude unorganized thread
       ))
       .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt));
@@ -274,7 +282,7 @@ let inboxCount: number = 0;
             .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
             .where(and(
               eq(NoteThreads.threadId, thread.id),
-              eq(Notes.userId, userId)
+              eq(Notes.userId, authenticatedUserId)
             ))
             .get();
 
@@ -298,9 +306,9 @@ let inboxCount: number = 0;
       // Special handling for unorganized thread
       if (id === 'thread_unorganized') {
         // Ensure the unorganized thread exists in database
-        await ensureUnorganizedThread(userId);
+        await ensureUnorganizedThread(authenticatedUserId);
         
-        const notesData = await getNotesForThread(id!, userId);
+        const notesData = await getNotesForThread(id!, authenticatedUserId);
         
         content = {
           id: 'thread_unorganized',
@@ -327,8 +335,8 @@ let inboxCount: number = 0;
       } else {
         // Fetch thread and its notes from database
         const [threadData, notesData] = await Promise.all([
-          getAllThreadsWithCounts(userId).then(threads => threads.find(t => t.id === id)),
-          getNotesForThread(id!, userId)
+          getAllThreadsWithCounts(authenticatedUserId).then(threads => threads.find(t => t.id === id)),
+          getNotesForThread(id!, authenticatedUserId)
         ]);
         
         if (threadData) {
@@ -483,7 +491,7 @@ let inboxCount: number = 0;
                 uniqueThreadIds.map(async (threadId) => {
                   const thread = await db.select()
                     .from(Threads)
-                    .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)))
+                    .where(and(eq(Threads.id, threadId), eq(Threads.userId, authenticatedUserId)))
                     .get();
                   return thread;
                 })
@@ -514,7 +522,7 @@ let inboxCount: number = 0;
         // Get the selected thread context
         if (selectedThreadId === 'thread_unorganized') {
           // Special handling for unorganized thread
-          const noteCount = await getNotesForThread('thread_unorganized', userId).then(notes => notes.length);
+          const noteCount = await getNotesForThread('thread_unorganized', authenticatedUserId).then(notes => notes.length);
           currentThread = {
             id: 'thread_unorganized',
             title: 'Unorganized',
@@ -530,7 +538,7 @@ let inboxCount: number = 0;
               id: thread.id,
               title: thread.title,
               color: thread.color,
-              noteCount: await getNotesForThread(thread.id, userId).then(notes => notes.length),
+              noteCount: await getNotesForThread(thread.id, authenticatedUserId).then(notes => notes.length),
               backgroundGradient: getThreadGradientCSS(thread.color)
             };
           } else {
@@ -548,7 +556,7 @@ let inboxCount: number = 0;
               for (const threadId of threadIds) {
                 const fallbackThread = await db.select()
                   .from(Threads)
-                  .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)))
+                  .where(and(eq(Threads.id, threadId), eq(Threads.userId, authenticatedUserId)))
                   .get();
                 
                 if (fallbackThread) {
@@ -556,7 +564,7 @@ let inboxCount: number = 0;
                     id: fallbackThread.id,
                     title: fallbackThread.title,
                     color: fallbackThread.color,
-                    noteCount: await getNotesForThread(fallbackThread.id, userId).then(notes => notes.length),
+                    noteCount: await getNotesForThread(fallbackThread.id, authenticatedUserId).then(notes => notes.length),
                     backgroundGradient: getThreadGradientCSS(fallbackThread.color)
                   };
                   break;
@@ -566,7 +574,7 @@ let inboxCount: number = 0;
             
             // If still no thread found, fall back to unorganized
             if (!currentThread) {
-              const noteCount = await getNotesForThread('thread_unorganized', userId).then(notes => notes.length);
+              const noteCount = await getNotesForThread('thread_unorganized', authenticatedUserId).then(notes => notes.length);
               currentThread = {
                 id: 'thread_unorganized',
                 title: 'Unorganized',
@@ -578,7 +586,7 @@ let inboxCount: number = 0;
           }
         } else {
           // Fallback: no valid thread selected, use unorganized
-          const noteCount = await getNotesForThread('thread_unorganized', userId).then(notes => notes.length);
+          const noteCount = await getNotesForThread('thread_unorganized', authenticatedUserId).then(notes => notes.length);
           currentThread = {
             id: 'thread_unorganized',
             title: 'Unorganized',
@@ -593,9 +601,9 @@ let inboxCount: number = 0;
     } else if (isSpace) {
       // Fetch space, its threads, and standalone notes from database
       const [spaceData, spaceThreads, spaceNotes] = await Promise.all([
-        getSpacesWithCounts(userId).then(spaces => spaces.find(s => s.id === id)),
-        getThreadsForSpace(id!, userId),
-        getNotesForSpace(id!, userId)
+        getSpacesWithCounts(authenticatedUserId).then(spaces => spaces.find(s => s.id === id)),
+        getThreadsForSpace(id!, authenticatedUserId),
+        getNotesForSpace(id!, authenticatedUserId)
       ]);
       
       if (spaceData) {
@@ -637,9 +645,9 @@ let inboxCount: number = 0;
 
     // Get navigation data from database
     const [allThreads, allSpaces, inboxCountData] = await Promise.all([
-      getAllThreadsWithCounts(userId),
-      getSpacesWithCounts(userId),
-      getInboxDisplayCount(userId)
+      getAllThreadsWithCounts(authenticatedUserId),
+      getSpacesWithCounts(authenticatedUserId),
+      getInboxDisplayCount(authenticatedUserId)
     ]);
     
     spaces = allSpaces;
@@ -769,19 +777,28 @@ if (!content) {
                             </div>
                           ) : (
                             <div class="content-item note-item mb-3 card-enter" style={`animation-delay: ${index * 50}ms;`}>
-                              <a 
-                                href={`/${item.id}`}
-                                class="block transition-transform duration-200 hover:scale-[1.002]"
-                              >
-                                <CardNote 
+                              {item.noteType === 'scripture' ? (
+                                <CondensedNoteItem 
                                   title={item.title || "Untitled Note"}
-                                  content={(() => {
-                                    const cleanContent = stripHtml(item.content);
-                                    return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
-                                  })()}
                                   noteType={item.noteType || 'default'}
+                                  href={`/${item.id}`}
+                                  client:visible
                                 />
-                              </a>
+                              ) : (
+                                <a 
+                                  href={`/${item.id}`}
+                                  class="block transition-transform duration-200 hover:scale-[1.002]"
+                                >
+                                  <CardNote 
+                                    title={item.title || "Untitled Note"}
+                                    content={(() => {
+                                      const cleanContent = stripHtml(item.content);
+                                      return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
+                                    })()}
+                                    noteType={item.noteType || 'default'}
+                                  />
+                                </a>
+                              )}
                             </div>
                           )
                         ))
@@ -824,19 +841,28 @@ if (!content) {
                       {content.notes && content.notes.length > 0 ? (
                         content.notes.map((note: any, index: number) => (
                           <div class="content-item note-item mb-3 card-enter" style={`animation-delay: ${index * 50}ms;`}>
-                            <a 
-                              href={`/${note.id}`}
-                              class="block transition-transform duration-200 hover:scale-[1.002]"
-                            >
-                              <CardNote 
+                            {note.noteType === 'scripture' ? (
+                              <CondensedNoteItem 
                                 title={note.title || "Untitled Note"}
-                                content={(() => {
-                                  const cleanContent = stripHtml(note.content);
-                                  return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
-                                })()}
                                 noteType={note.noteType || 'default'}
+                                href={`/${note.id}`}
+                                client:visible
                               />
-                            </a>
+                            ) : (
+                              <a 
+                                href={`/${note.id}`}
+                                class="block transition-transform duration-200 hover:scale-[1.002]"
+                              >
+                                <CardNote 
+                                  title={note.title || "Untitled Note"}
+                                  content={(() => {
+                                    const cleanContent = stripHtml(note.content);
+                                    return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
+                                  })()}
+                                  noteType={note.noteType || 'default'}
+                                />
+                              </a>
+                            )}
                           </div>
                         ))
                       ) : (

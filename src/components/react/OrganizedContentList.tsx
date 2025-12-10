@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
 import CardThread from './CardThread';
+import CondensedNoteItem from './CondensedNoteItem';
 
 interface OrganizedContentItem {
   id: string;
@@ -334,22 +335,35 @@ export default function OrganizedContentList({
       ? `/${item.threadId}` 
       : `/${item.noteId}`;
 
+    const isScriptureNote = item.type === 'note' && item.noteType === 'scripture';
+
     return (
       <div 
         className={`content-item ${item.type}-item mb-3 card-enter`}
         style={{ animationDelay: `${index * 50}ms` }}
       >
-        <a 
-          href={href}
-          className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-        >
-          {item.type === 'note' ? (
+        {item.type === 'note' && isScriptureNote ? (
+          <CondensedNoteItem 
+            title={item.title}
+            noteType={item.noteType || 'default'}
+            href={href}
+          />
+        ) : item.type === 'note' ? (
+          <a 
+            href={href}
+            className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+          >
             <CardNote 
               title={item.title}
               content={item.content || ''}
               noteType={item.noteType || 'default'}
             />
-          ) : (
+          </a>
+        ) : (
+          <a 
+            href={href}
+            className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+          >
             <CardThread 
               thread={{
                 id: item.threadId || '',
@@ -361,8 +375,8 @@ export default function OrganizedContentList({
                 isPrivate: item.isPrivate
               }}
             />
-          )}
-        </a>
+          </a>
+        )}
       </div>
     );
   };
