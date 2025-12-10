@@ -131,7 +131,7 @@ const NoteItem: React.FC<{
           </div>
         </div>
         
-        {/* Add button - appears on hover */}
+        {/* Add button - appears on hover (desktop) or always visible (touch) */}
         <div
           style={{
             position: 'absolute',
@@ -143,7 +143,7 @@ const NoteItem: React.FC<{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            opacity: isHovered ? 1 : 0,
+            opacity: hasHover ? (isHovered ? 1 : 0) : 1,
             transition: 'opacity 0.2s',
             zIndex: 10,
             pointerEvents: 'none'
