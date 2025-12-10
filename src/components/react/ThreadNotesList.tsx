@@ -4,6 +4,7 @@ import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
 import ActionButton from './ActionButton';
 import EraseConfirmDialog from './EraseConfirmDialog';
+import Icon from './Icon';
 
 // Helper function to strip HTML tags
 function stripHtml(html: string): string {
@@ -275,6 +276,7 @@ export default function ThreadNotesList({
   }, []);
 
   const renderItem = (note: Note, index: number) => {
+    const isScriptureNote = note.noteType === 'scripture';
     const cleanContent = stripHtml(note.content);
     const truncatedContent = cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
 
@@ -288,11 +290,79 @@ export default function ThreadNotesList({
           className={`block transition-transform duration-200 active:scale-[0.99] ${isUnorganizedThread ? 'panel__item-list-item-link' : ''}`}
           style={{ touchAction: 'manipulation' }}
         >
-          <CardNote 
-            title={note.title || "Untitled Note"}
-            content={truncatedContent}
-            noteType={note.noteType || 'default'}
-          />
+          {isScriptureNote ? (
+            // Condensed/mini version for scripture notes (matching AddToSpaceSection NoteItem)
+            <div
+              className="relative cursor-pointer"
+              style={{
+                position: 'relative',
+                borderRadius: '0.75rem',
+                height: '48px',
+                width: '100%',
+                textAlign: 'left',
+                backgroundColor: 'white',
+                boxShadow: 'none',
+                transition: 'transform 0.2s',
+                cursor: 'pointer'
+              }}
+            >
+              {/* Accent bar on left */}
+              <div 
+                style={{ 
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  width: '2.75rem',
+                  borderTopLeftRadius: '0.75rem',
+                  borderBottomLeftRadius: '0.75rem',
+                  overflow: 'hidden',
+                  backgroundColor: 'var(--color-light-paper)'
+                }}
+              />
+              
+              {/* Content */}
+              <div 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1.5rem',
+                  paddingLeft: '0.75rem',
+                  paddingRight: '3rem',
+                  height: '100%',
+                  overflow: 'hidden'
+                }}
+              >
+                {/* Note type icon - scroll icon with opacity */}
+                <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
+                  <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                </div>
+                
+                {/* Text content - only title */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+                  {/* Title */}
+                  <div style={{ 
+                    fontFamily: 'var(--font-sans)', 
+                    fontWeight: 700, 
+                    color: 'var(--color-deep-grey)', 
+                    fontSize: '16px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {note.title || 'Untitled Note'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Full CardNote for non-scripture notes
+            <CardNote 
+              title={note.title || "Untitled Note"}
+              content={truncatedContent}
+              noteType={note.noteType || 'default'}
+            />
+          )}
         </a>
         
         {/* Delete button - only show on unorganized thread and on hover */}
