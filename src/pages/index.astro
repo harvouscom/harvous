@@ -27,6 +27,10 @@ const { userId } = auth;
 
 // Auth redirect is now handled by middleware - no need to check here
 // Pages can still use userId for conditional rendering
+// Type guard: middleware ensures userId exists, but TypeScript doesn't know this
+if (!userId) {
+  throw new Error('User ID is required but not found');
+}
 
 // Get cached user data (optimized - no API calls on every page load)
 import { getCachedUserData, type CachedUserData } from '@/utils/user-cache';
@@ -535,10 +539,8 @@ try {
           }
           
           const result = await response.json();
-          console.log('Auto-archive result:', result); // Debug log to see results
           
           if (result.archivedCount > 0) {
-            console.log(`Auto-archived ${result.archivedCount} item(s)`);
             // If items were archived, refresh the page to show updated inbox
             // Use View Transitions if available for smooth refresh
             if (document.startViewTransition) {
@@ -629,10 +631,8 @@ try {
           }
           
           const result = await response.json();
-          console.log('Auto-delete result:', result); // Debug log to see results
           
           if (result.deletedCount > 0) {
-            console.log(`Auto-deleted ${result.deletedCount} archived item(s)`);
             // If items were deleted, refresh the page to show updated archive
             // Use View Transitions if available for smooth refresh
             if (document.startViewTransition) {
