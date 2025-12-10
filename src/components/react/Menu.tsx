@@ -482,7 +482,7 @@ export default function Menu({
         }
         
         .menu-item:hover {
-          background-color: var(--color-snow-white);
+          background-color: oklch(var(--lch-snow-white) / 0.5);
         }
         
         .menu-separator {
