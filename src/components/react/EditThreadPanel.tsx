@@ -4,7 +4,6 @@ import SquareButton from './SquareButton';
 import ActionButton from './ActionButton';
 import AddToSpaceSection from './AddToSpaceSection';
 import { safeNavigate } from '@/utils/safe-navigate';
-import { ButtonGroup } from '@/components/ui/button-group';
 import SimpleTooltip from './SimpleTooltip';
 import { safeFetch } from '@/utils/safe-fetch';
 import { captureException } from '@/utils/posthog';
@@ -486,42 +485,61 @@ export default function EditThreadPanel({
                 </div>
 
                 {/* Thread type selection with ButtonGroup */}
-                <div className="w-full">
-                  <ButtonGroup className="w-full gap-0">
+                <div className="button-group">
+                  <div className="button-group__container">
                     {/* Private button */}
                     <button
                       type="button"
                       onClick={() => setFormData(prev => ({ ...prev, selectedType: 'Private' }))}
-                      className={`space-button relative rounded-tl-3xl rounded-bl-3xl rounded-tr-none rounded-br-none h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-4 w-1/2 ${
-                        formData.selectedType === 'Private' ? 'ring-2 ring-[var(--color-bold-blue)] ring-offset-2' : ''
+                      className={`space-button button-group__button button-group__button--left h-[64px] ${
+                        formData.selectedType === 'Private' 
+                          ? '' 
+                          : 'bg-transparent'
                       }`}
-                      style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                      style={formData.selectedType === 'Private' ? { 
+                        backgroundImage: 'var(--color-gradient-gray)' 
+                      } : {}}
                     >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full transition-transform duration-125">
+                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
                         <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon name="user" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                          <Icon 
+                            name="user" 
+                            size={16} 
+                            style={{ 
+                              color: formData.selectedType === 'Private' 
+                                ? 'var(--color-deep-grey)' 
+                                : 'var(--color-pebble-grey)' 
+                            }} 
+                          />
                         </div>
-                        <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Private</span>
+                        <span 
+                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
+                            formData.selectedType === 'Private' 
+                              ? 'text-[var(--color-deep-grey)]' 
+                              : 'text-[var(--color-pebble-grey)]'
+                          }`}
+                        >
+                          Private
+                        </span>
                       </div>
                     </button>
                     
                     {/* Shared button - disabled with tooltip */}
-                    <SimpleTooltip content="Coming Soon" enableTooltip={true} className="w-1/2">
+                    <SimpleTooltip content="Coming Soon" enableTooltip={true} className="button-group__button">
                       <button
                         type="button"
                         disabled
-                        className="space-button relative rounded-tr-3xl rounded-br-3xl rounded-tl-none rounded-bl-none h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 pr-4 w-full opacity-50"
-                        style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                        className="space-button button-group__button button-group__button--right button-group__button--disabled h-[64px] bg-transparent"
                       >
-                        <div className="flex items-center justify-center gap-3 relative w-full h-full transition-transform duration-125">
+                        <div className="flex items-center justify-center gap-3 relative w-full h-full">
                           <div className="size-4 flex items-center justify-center shrink-0">
-                            <Icon name="user-group" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                            <Icon name="user-group" size={16} style={{ color: 'var(--color-pebble-grey)' }} />
                           </div>
-                          <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
+                          <span className="text-[var(--color-pebble-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
                         </div>
                       </button>
                     </SimpleTooltip>
-                  </ButtonGroup>
+                  </div>
                 </div>
 
                 {/* Current Notes in Thread - displayed above selected notes */}
