@@ -251,7 +251,9 @@ export async function getSpacesWithCounts(userId: string) {
       updatedAt: space.updatedAt,
       threadCount: space.threadCount || 0,
       standaloneNoteCount: standaloneCountMap.get(space.id) || 0,
-      totalItemCount: (space.threadCount || 0) + (standaloneCountMap.get(space.id) || 0),
+      // totalItemCount = threads + all notes (including notes in threads)
+      // This matches what's displayed in the space "All" tab
+      totalItemCount: (space.threadCount || 0) + (totalCountMap.get(space.id) || 0),
       totalNoteCount: totalCountMap.get(space.id) || 0,
       lastUpdated: space.updatedAt || space.createdAt,
     }));
@@ -409,6 +411,8 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
 // Fetch notes for a specific space (both in threads and standalone)
 export async function getNotesForSpace(spaceId: string, userId: string, limit = 20) {
   try {
+    // Fetch all notes in the space (including notes that are in threads)
+    // Notes can be in threads but still shown separately in the space view
     const notes = await db.select({
       id: Notes.id,
       title: Notes.title,

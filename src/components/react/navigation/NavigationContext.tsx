@@ -561,7 +561,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             
             // Refresh counts from API after adding new item to ensure accuracy
             setTimeout(() => {
-              refreshThreadCounts();
+              refreshNavigationCounts();
             }, 300);
           } else {
             // Item is closed and user didn't explicitly navigate to it - don't add it back
@@ -574,7 +574,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           
           // Refresh counts from API after adding new item to ensure accuracy
           setTimeout(() => {
-            refreshThreadCounts();
+            refreshNavigationCounts();
           }, 300);
         }
       } else {
@@ -598,7 +598,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Refresh counts from API after updating to ensure accuracy
         // This ensures counts match the database even if page data is stale
         setTimeout(() => {
-          refreshThreadCounts();
+          refreshNavigationCounts();
         }, 300);
       }
     } else if (retryCount >= 3) {
@@ -614,8 +614,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setNavigationHistory(history);
   };
 
-  // Refresh thread counts from API to ensure accuracy
-  const refreshThreadCounts = async () => {
+  // Refresh navigation counts (threads and spaces) from API to ensure accuracy
+  const refreshNavigationCounts = async () => {
     // Handle SSR - do nothing if not in browser
     if (typeof window === 'undefined') {
       return;
@@ -629,46 +629,71 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     try {
       
-      // Fetch current thread counts from API with safe fetch
-      const response = await safeFetch('/api/threads/list');
+      // Fetch current thread and space counts from API with safe fetch
+      const response = await safeFetch('/api/navigation/data');
 
       if (!response || !response.ok) {
         // Silently fail if auth not ready or error occurred
         return;
       }
 
-      const threads = await response.json();
+      const data = await response.json();
+      const threads = data.threads || [];
+      const spaces = data.spaces || [];
       const history = getNavigationHistory();
       const updatedHistory = history.map((item) => {
-        // Find matching thread in API response
-        const threadData = threads.find((t: any) => t.id === item.id);
-        
-        if (threadData) {
-          const newCount = threadData.noteCount || 0;
-          // Always update count (even if same) to ensure accuracy
-          // This handles cases where the count was stale
-          if (item.count !== newCount) {
-            return { ...item, count: newCount };
-          }
-          return item; // No change needed
-        } else if (item.id === 'thread_unorganized') {
-          // Special handling for unorganized thread - may not be in API response
-          // Try to find it or fetch separately
-          const unorganizedThread = threads.find((t: any) => t.id === 'thread_unorganized');
-          if (unorganizedThread) {
-            const newCount = unorganizedThread.noteCount || 0;
+        // Check if this is a thread
+        if (item.id.startsWith('thread_')) {
+          // Find matching thread in API response
+          const threadData = threads.find((t: any) => t.id === item.id);
+          
+          if (threadData) {
+            const newCount = threadData.noteCount || 0;
+            // Always update count (even if same) to ensure accuracy
+            // This handles cases where the count was stale
             if (item.count !== newCount) {
               return { ...item, count: newCount };
             }
+            return item; // No change needed
+          } else if (item.id === 'thread_unorganized') {
+            // Special handling for unorganized thread - may not be in API response
+            // Try to find it or fetch separately
+            const unorganizedThread = threads.find((t: any) => t.id === 'thread_unorganized');
+            if (unorganizedThread) {
+              const newCount = unorganizedThread.noteCount || 0;
+              if (item.count !== newCount) {
+                return { ...item, count: newCount };
+              }
+            } else {
+              // Unorganized thread not in API response - API should include it now, but fallback
+              // Keep current count if API doesn't have it (shouldn't happen with new API fix)
+            }
+            return item; // No change needed
           } else {
-            // Unorganized thread not in API response - API should include it now, but fallback
-            // Keep current count if API doesn't have it (shouldn't happen with new API fix)
+            // Thread not found in API - might be deleted
+            return item; // Keep as is
           }
-          return item; // No change needed
-        } else {
-          // Item not found in API - might be a space or deleted thread
-          return item; // Keep as is
+        } 
+        // Check if this is a space
+        else if (item.id.startsWith('space_')) {
+          // Find matching space in API response
+          const spaceData = spaces.find((s: any) => s.id === item.id);
+          
+          if (spaceData) {
+            const newCount = spaceData.totalItemCount || 0;
+            // Always update count (even if same) to ensure accuracy
+            // This handles cases where the count was stale
+            if (item.count !== newCount) {
+              return { ...item, count: newCount };
+            }
+            return item; // No change needed
+          } else {
+            // Space not found in API - might be deleted
+            return item; // Keep as is
+          }
         }
+        // Unknown item type - keep as is
+        return item;
       });
 
       // Check if any counts actually changed
@@ -680,7 +705,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setNavigationHistory(updatedHistory);
       }
     } catch (error) {
-      console.error('NavigationContext: Error refreshing thread counts:', error);
+      console.error('NavigationContext: Error refreshing navigation counts:', error);
     }
   };
 
@@ -974,7 +999,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // Refresh counts from API after a delay to ensure database is committed
         setTimeout(() => {
-          refreshThreadCounts();
+          refreshNavigationCounts();
         }, 300);
       }
     };
@@ -1010,7 +1035,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // Refresh counts from API after a delay to ensure database is committed
         setTimeout(async () => {
-          await refreshThreadCounts();
+          await refreshNavigationCounts();
           // Check if unorganized should be reopened if it was closed
           // Check auth before making API call
           if (isAuthReady()) {
@@ -1089,7 +1114,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // Refresh counts from API after a delay to ensure database is committed
         setTimeout(() => {
-          refreshThreadCounts();
+          refreshNavigationCounts();
         }, 300);
       }
     };
@@ -1141,7 +1166,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // Refresh counts from API after a delay to ensure database is fully consistent
         setTimeout(() => {
-          refreshThreadCounts();
+          refreshNavigationCounts();
         }, 500);
       }
     };
