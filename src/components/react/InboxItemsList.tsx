@@ -338,14 +338,14 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
       }
     };
 
-    window.addEventListener('inboxItemAddToHarvous', handleInboxItemAddToHarvous as EventListener);
-    window.addEventListener('inboxItemArchive', handleInboxItemArchive as EventListener);
-    window.addEventListener('inboxItemUnarchive', handleInboxItemUnarchive as EventListener);
+    window.addEventListener('inboxItemAddToHarvous', handleInboxItemAddToHarvous as unknown as EventListener);
+    window.addEventListener('inboxItemArchive', handleInboxItemArchive as unknown as EventListener);
+    window.addEventListener('inboxItemUnarchive', handleInboxItemUnarchive as unknown as EventListener);
 
     return () => {
-      window.removeEventListener('inboxItemAddToHarvous', handleInboxItemAddToHarvous as EventListener);
-      window.removeEventListener('inboxItemArchive', handleInboxItemArchive as EventListener);
-      window.removeEventListener('inboxItemUnarchive', handleInboxItemUnarchive as EventListener);
+      window.removeEventListener('inboxItemAddToHarvous', handleInboxItemAddToHarvous as unknown as EventListener);
+      window.removeEventListener('inboxItemArchive', handleInboxItemArchive as unknown as EventListener);
+      window.removeEventListener('inboxItemUnarchive', handleInboxItemUnarchive as unknown as EventListener);
     };
   }, [onItemAdded, onItemArchived, items]);
 

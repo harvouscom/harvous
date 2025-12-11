@@ -207,6 +207,8 @@ const ResourceMetadata = defineTable({
     id: column.text({ primaryKey: true }),
     noteId: column.text(), // Foreign key to Notes
     sourceUrl: column.text(), // Required - the actual URL
+    sourceDomain: column.text({ optional: true }), // Auto-extracted domain from sourceUrl (e.g., "youtube.com")
+    sourceName: column.text({ optional: true }), // From og:site_name - the website's official name (e.g., "YouTube", "The Gospel Coalition")
     sourceTitle: column.text({ optional: true }), // From og:title
     sourceDescription: column.text({ optional: true }), // From og:description
     sourceImage: column.text({ optional: true }), // From og:image

@@ -751,17 +751,32 @@ export default function CardFullEditable({
             <p className="leading-[normal] text-nowrap whitespace-pre font-sans font-normal text-[var(--color-stone-grey)] text-[12px]">{version}</p>
           </div>
         )}
-        <div className="relative shrink-0 size-5" title={`${noteType === 'scripture' ? 'Scripture' : noteType === 'resource' ? 'Resource' : 'Note'} type`}>
-          {noteType === 'scripture' ? (
-            <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-          ) : noteType === 'resource' ? (
-            <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-          ) : (
-            <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-            </svg>
-          )}
-        </div>
+        {(() => {
+          const noteTypeConfig: Record<'default' | 'scripture' | 'resource', { label: string; icon: React.ReactElement }> = {
+            scripture: {
+              label: 'Scripture',
+              icon: <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+            },
+            resource: {
+              label: 'Resource',
+              icon: <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+            },
+            default: {
+              label: 'Note',
+              icon: (
+                <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                </svg>
+              )
+            }
+          };
+          const config = noteTypeConfig[noteType];
+          return (
+            <div className="relative shrink-0 size-5" title={`${config.label} type`}>
+              {config.icon}
+            </div>
+          );
+        })()}
       </div>
       
       {/* Content */}

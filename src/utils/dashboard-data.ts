@@ -403,7 +403,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       .filter(note => note.noteType === 'resource')
       .map(note => note.id);
     
-    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }> = {};
     
     if (resourceNoteIds.length > 0) {
       try {
@@ -412,6 +412,8 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
           sourceTitle: ResourceMetadata.sourceTitle,
           sourceDescription: ResourceMetadata.sourceDescription,
           sourceImage: ResourceMetadata.sourceImage,
+          sourceDomain: ResourceMetadata.sourceDomain,
+          sourceName: ResourceMetadata.sourceName,
         })
         .from(ResourceMetadata)
         .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
@@ -422,9 +424,11 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
             sourceTitle: meta.sourceTitle,
             sourceDescription: meta.sourceDescription,
             sourceImage: meta.sourceImage,
+            sourceDomain: meta.sourceDomain,
+            sourceName: meta.sourceName,
           };
           return acc;
-        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }>);
+        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }>);
       } catch (error) {
         console.error("Error fetching resource metadata:", error);
       }
@@ -641,7 +645,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
       .filter(note => note.noteType === 'resource')
       .map(note => note.id);
     
-    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }> = {};
     
     if (resourceNoteIds.length > 0) {
       try {
@@ -650,6 +654,8 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
           sourceTitle: ResourceMetadata.sourceTitle,
           sourceDescription: ResourceMetadata.sourceDescription,
           sourceImage: ResourceMetadata.sourceImage,
+          sourceDomain: ResourceMetadata.sourceDomain,
+          sourceName: ResourceMetadata.sourceName,
         })
         .from(ResourceMetadata)
         .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
@@ -660,9 +666,11 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
             sourceTitle: meta.sourceTitle,
             sourceDescription: meta.sourceDescription,
             sourceImage: meta.sourceImage,
+            sourceDomain: meta.sourceDomain,
+            sourceName: meta.sourceName,
           };
           return acc;
-        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }>);
+        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }>);
       } catch (error) {
         // Resource metadata fetch failed - continue without it
       }

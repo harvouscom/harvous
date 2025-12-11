@@ -5,7 +5,7 @@ import { awardCreationBonusXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { handleAPIError } from '@/utils/error-handling';
-import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl } from '@/utils/validation';
+import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { getNextUntitledNoteName } from '@/utils/untitled-naming';
 import { extractArticleContent } from '@/utils/content-extractor';
@@ -52,7 +52,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const spaceId = formData.get('spaceId') as string | null;
     
     // Parse pre-fetched resource metadata if provided
-    let prefetchedResourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string } | null = null;
+    let prefetchedResourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string; siteName?: string } | null = null;
     if (resourceMetadataStr) {
       try {
         prefetchedResourceMetadata = JSON.parse(resourceMetadataStr);
@@ -338,8 +338,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         // Normalize URL by adding https:// if missing
         const normalizedResourceUrl = normalizeUrl(resourceUrl);
         
-        // Use pre-fetched metadata for title/description/image
-        let resourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string } | null = {
+        // Use pre-fetched metadata for title/description/image/siteName
+        let resourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string; siteName?: string } | null = {
           ...prefetchedResourceMetadata
         };
         
@@ -384,6 +384,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
           id: `resource_${newNote.id}_${Date.now()}`,
           noteId: newNote.id,
           sourceUrl: normalizedResourceUrl,
+          sourceDomain: extractDomain(normalizedResourceUrl),
+          sourceName: resourceMetadata?.siteName || null,
           sourceTitle: resourceMetadata?.title || null,
           sourceDescription: resourceMetadata?.description || null,
           sourceImage: resourceMetadata?.image || null,

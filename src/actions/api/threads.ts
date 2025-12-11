@@ -1,7 +1,7 @@
 import { db, NoteThreads, eq, and } from "astro:db";
 
 // Add note to thread
-export async function addNoteToThread(noteId: number, threadId: number) {
+export async function addNoteToThread(noteId: string, threadId: string) {
   try {
     // Check if the relation already exists to prevent duplicates
     const existing = await db.select()
@@ -44,7 +44,7 @@ export async function addNoteToThread(noteId: number, threadId: number) {
 }
 
 // Remove note from thread
-export async function removeNoteFromThread(noteId: number, threadId: number) {
+export async function removeNoteFromThread(noteId: string, threadId: string) {
   try {
     const deletedNoteThread = await db.delete(NoteThreads)
       .where(and(

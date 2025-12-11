@@ -32,7 +32,7 @@ export const GET: APIRoute = async ({ locals }) => {
       .filter(note => note.noteType === 'resource')
       .map(note => note.id);
     
-    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }> = {};
     
     if (resourceNoteIds.length > 0) {
       try {
@@ -41,6 +41,8 @@ export const GET: APIRoute = async ({ locals }) => {
           sourceTitle: ResourceMetadata.sourceTitle,
           sourceDescription: ResourceMetadata.sourceDescription,
           sourceImage: ResourceMetadata.sourceImage,
+          sourceDomain: ResourceMetadata.sourceDomain,
+          sourceName: ResourceMetadata.sourceName,
         })
         .from(ResourceMetadata)
         .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
@@ -51,6 +53,8 @@ export const GET: APIRoute = async ({ locals }) => {
             sourceTitle: meta.sourceTitle,
             sourceDescription: meta.sourceDescription,
             sourceImage: meta.sourceImage,
+            sourceDomain: meta.sourceDomain,
+            sourceName: meta.sourceName,
           };
           return acc;
         }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }>);

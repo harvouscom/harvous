@@ -30,6 +30,107 @@ export function normalizeUrl(url: string): string {
   return `https://${trimmed}`;
 }
 
+/**
+ * Extract the domain from a URL (without www. prefix)
+ * Returns null if the URL is invalid
+ * Examples:
+ *   "https://www.youtube.com/watch?v=123" -> "youtube.com"
+ *   "https://thegospelcoalition.org/article" -> "thegospelcoalition.org"
+ */
+export function extractDomain(url: string): string | null {
+  if (!url || !url.trim()) {
+    return null;
+  }
+
+  try {
+    const normalizedUrl = normalizeUrl(url);
+    const urlObj = new URL(normalizedUrl);
+    // Remove 'www.' prefix if present
+    return urlObj.hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Map of common domains to friendly display names
+ */
+const DOMAIN_FRIENDLY_NAMES: Record<string, string> = {
+  'youtube.com': 'YouTube',
+  'youtu.be': 'YouTube',
+  'vimeo.com': 'Vimeo',
+  'thegospelcoalition.org': 'The Gospel Coalition',
+  'desiringgod.org': 'Desiring God',
+  'ligonier.org': 'Ligonier Ministries',
+  'christianitytoday.com': 'Christianity Today',
+  'biblegateway.com': 'Bible Gateway',
+  'blueletterbible.org': 'Blue Letter Bible',
+  'gotquestions.org': 'Got Questions',
+  'ccel.org': 'Christian Classics Ethereal Library',
+  'crossway.org': 'Crossway',
+  'logos.com': 'Logos',
+  'bible.com': 'YouVersion',
+  'faithlife.com': 'Faithlife',
+  'spurgeon.org': 'Spurgeon',
+  'monergism.com': 'Monergism',
+  'reformedwiki.com': 'Reformed Wiki',
+  'thirdmill.org': 'Third Millennium',
+  'biblia.com': 'Biblia',
+  'medium.com': 'Medium',
+  'substack.com': 'Substack',
+  'spotify.com': 'Spotify',
+  'podcasts.apple.com': 'Apple Podcasts',
+  'anchor.fm': 'Anchor',
+  'soundcloud.com': 'SoundCloud',
+  'twitter.com': 'Twitter',
+  'x.com': 'X',
+  'instagram.com': 'Instagram',
+  'facebook.com': 'Facebook',
+  'tiktok.com': 'TikTok',
+  'reddit.com': 'Reddit',
+  'linkedin.com': 'LinkedIn',
+  'notion.so': 'Notion',
+  'docs.google.com': 'Google Docs',
+  'drive.google.com': 'Google Drive',
+  'dropbox.com': 'Dropbox',
+  'github.com': 'GitHub',
+  'amazon.com': 'Amazon',
+};
+
+/**
+ * Get a friendly display name for a domain (fallback mapping)
+ * Returns the friendly name if known, otherwise returns the domain as-is
+ * Examples:
+ *   "youtube.com" -> "YouTube"
+ *   "thegospelcoalition.org" -> "The Gospel Coalition"
+ *   "someunknownsite.com" -> "someunknownsite.com"
+ */
+export function getDomainFriendlyName(domain: string | null | undefined): string | null {
+  if (!domain) {
+    return null;
+  }
+  
+  return DOMAIN_FRIENDLY_NAMES[domain.toLowerCase()] || domain;
+}
+
+/**
+ * Get the best display name for a resource source
+ * Priority: sourceName (from og:site_name) > friendly domain name > raw domain
+ * Examples:
+ *   ("YouTube", "youtube.com") -> "YouTube" (from sourceName)
+ *   (null, "youtube.com") -> "YouTube" (from hardcoded mapping)
+ *   (null, "someunknownsite.com") -> "someunknownsite.com" (raw domain)
+ */
+export function getSourceDisplayName(sourceName: string | null | undefined, sourceDomain: string | null | undefined): string | null {
+  // Primary: use sourceName from og:site_name if available
+  if (sourceName && sourceName.trim()) {
+    return sourceName.trim();
+  }
+  
+  // Fallback: use hardcoded friendly name mapping or raw domain
+  return getDomainFriendlyName(sourceDomain);
+}
+
 export interface ValidationResult {
   isValid: boolean;
   error?: string;

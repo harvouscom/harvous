@@ -6,8 +6,8 @@ export const noteThreads = {
   addToThread: defineAction({
     accept: "form",
     input: z.object({
-      noteId: z.coerce.number().min(1, "Note ID is required"),
-      threadId: z.coerce.number().min(1, "Thread ID is required"),
+      noteId: z.string().min(1, "Note ID is required"),
+      threadId: z.string().min(1, "Thread ID is required"),
       userId: z.string().min(1, "User ID is required"),
     }),
     handler: async ({ noteId, threadId, userId }) => {
@@ -49,8 +49,8 @@ export const noteThreads = {
   removeFromThread: defineAction({
     accept: "form",
     input: z.object({
-      noteId: z.coerce.number().min(1, "Note ID is required"),
-      threadId: z.coerce.number().min(1, "Thread ID is required"),
+      noteId: z.string().min(1, "Note ID is required"),
+      threadId: z.string().min(1, "Thread ID is required"),
       userId: z.string().min(1, "User ID is required"),
     }),
     handler: async ({ noteId, threadId, userId }) => {
@@ -79,7 +79,7 @@ export const noteThreads = {
   getThreadsByNoteId: defineAction({
     accept: "form",
     input: z.object({
-      noteId: z.coerce.number().min(1, "Note ID is required"),
+      noteId: z.string().min(1, "Note ID is required"),
     }),
     handler: async ({ noteId }) => {
       try {
@@ -99,7 +99,7 @@ export const noteThreads = {
   getNotesByThreadId: defineAction({
     accept: "form",
     input: z.object({
-      threadId: z.coerce.number().min(1, "Thread ID is required"),
+      threadId: z.string().min(1, "Thread ID is required"),
     }),
     handler: async ({ threadId }) => {
       try {

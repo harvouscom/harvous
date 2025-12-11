@@ -64,7 +64,8 @@ export const POST: APIRoute = async ({ request }) => {
           title: metadata.title || metadata.ogTitle || '',
           description: metadata.description || metadata.ogDescription || '',
           image: metadata.image || metadata.ogImage || '',
-          url: url || metadata.url || ''
+          url: url || metadata.url || '',
+          siteName: metadata.siteName || metadata.ogSiteName || null
         }
       }), {
         status: 200,
@@ -129,16 +130,19 @@ export const POST: APIRoute = async ({ request }) => {
     const ogTitlePattern = /<meta\s+(?:property|name)=["']?og:title["']?\s+content=["']([^"']+)["']/i;
     const ogDescriptionPattern = /<meta\s+(?:property|name)=["']?og:description["']?\s+content=["']([^"']+)["']/i;
     const ogImagePattern = /<meta\s+(?:property|name)=["']?og:image["']?\s+content=["']([^"']+)["']/i;
+    const ogSiteNamePattern = /<meta\s+(?:property|name)=["']?og:site_name["']?\s+content=["']([^"']+)["']/i;
     
     // Also try with content before property/name
     const ogTitlePattern2 = /<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']?og:title["']?/i;
     const ogDescriptionPattern2 = /<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']?og:description["']?/i;
     const ogImagePattern2 = /<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']?og:image["']?/i;
+    const ogSiteNamePattern2 = /<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']?og:site_name["']?/i;
 
     // Parse Open Graph metadata - try both patterns
     const ogTitleMatch = html.match(ogTitlePattern) || html.match(ogTitlePattern2);
     const ogDescriptionMatch = html.match(ogDescriptionPattern) || html.match(ogDescriptionPattern2);
     const ogImageMatch = html.match(ogImagePattern) || html.match(ogImagePattern2);
+    const ogSiteNameMatch = html.match(ogSiteNamePattern) || html.match(ogSiteNamePattern2);
 
     // Extract actual page title and headings (prefer these over og:title for cleaner titles)
     const pageTitleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
@@ -185,7 +189,8 @@ export const POST: APIRoute = async ({ request }) => {
       title: bestTitle,
       description: descriptionMatch ? decodeHtmlEntities(descriptionMatch[1].trim()) : '',
       image: imageUrl,
-      url: normalizedUrl
+      url: normalizedUrl,
+      siteName: ogSiteNameMatch ? decodeHtmlEntities(ogSiteNameMatch[1].trim()) : null
     };
 
     // Log for debugging (remove in production if needed)
@@ -193,6 +198,7 @@ export const POST: APIRoute = async ({ request }) => {
       hasTitle: !!extractedMetadata.title,
       hasDescription: !!extractedMetadata.description,
       hasImage: !!extractedMetadata.image,
+      siteName: extractedMetadata.siteName,
       url: normalizedUrl
     });
 

@@ -224,8 +224,45 @@ if (query.trim()) {
       )
       .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt));
 
+    // Get resource notes that match source metadata (sourceName, sourceDomain, sourceTitle)
+    const notesByResourceSource = await db
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        threadId: Notes.threadId,
+        spaceId: Notes.spaceId,
+        simpleNoteId: Notes.simpleNoteId,
+        noteType: Notes.noteType,
+        createdAt: Notes.createdAt,
+        updatedAt: Notes.updatedAt,
+        userId: Notes.userId,
+        isPublic: Notes.isPublic,
+        isFeatured: Notes.isFeatured,
+        order: Notes.order
+      })
+      .from(Notes)
+      .innerJoin(ResourceMetadata, eq(Notes.id, ResourceMetadata.noteId))
+      .where(
+        and(
+          eq(Notes.userId, userId),
+          or(
+            like(ResourceMetadata.sourceName, searchPatterns[0]),
+            like(ResourceMetadata.sourceName, searchPatterns[1]),
+            like(ResourceMetadata.sourceName, searchPatterns[2]),
+            like(ResourceMetadata.sourceDomain, searchPatterns[0]),
+            like(ResourceMetadata.sourceDomain, searchPatterns[1]),
+            like(ResourceMetadata.sourceDomain, searchPatterns[2]),
+            like(ResourceMetadata.sourceTitle, searchPatterns[0]),
+            like(ResourceMetadata.sourceTitle, searchPatterns[1]),
+            like(ResourceMetadata.sourceTitle, searchPatterns[2])
+          )
+        )
+      )
+      .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt));
+
     // Combine and deduplicate results
-    const allNotes = [...notesByContent, ...notesByTags];
+    const allNotes = [...notesByContent, ...notesByTags, ...notesByResourceSource];
     const uniqueNotes = allNotes.filter((note, index, self) => 
       index === self.findIndex(n => n.id === note.id)
     );
@@ -327,7 +364,7 @@ if (query.trim()) {
       .filter(note => note.noteType === 'resource')
       .map(note => note.id);
     
-    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }> = {};
     
     if (resourceNoteIds.length > 0) {
       try {
@@ -336,6 +373,8 @@ if (query.trim()) {
           sourceTitle: ResourceMetadata.sourceTitle,
           sourceDescription: ResourceMetadata.sourceDescription,
           sourceImage: ResourceMetadata.sourceImage,
+          sourceDomain: ResourceMetadata.sourceDomain,
+          sourceName: ResourceMetadata.sourceName,
         })
         .from(ResourceMetadata)
         .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
@@ -346,9 +385,11 @@ if (query.trim()) {
             sourceTitle: meta.sourceTitle,
             sourceDescription: meta.sourceDescription,
             sourceImage: meta.sourceImage,
+            sourceDomain: meta.sourceDomain,
+            sourceName: meta.sourceName,
           };
           return acc;
-        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }>);
+        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }>);
       } catch (error) {
         // Resource metadata fetch failed - continue without it
       }
