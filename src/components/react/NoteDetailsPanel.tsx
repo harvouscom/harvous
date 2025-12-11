@@ -521,7 +521,7 @@ export default function NoteDetailsPanel({
                       )}
                       {noteAddedBy && (
                         <span className="leading-[normal] text-nowrap">
-                          {noteAddedBy === 'harvous' ? 'Created by Harvous' : 'Created by you'}
+                          {noteAddedBy === 'harvous' ? 'Added by Harvous' : 'Added by you'}
                         </span>
                       )}
                     </div>
