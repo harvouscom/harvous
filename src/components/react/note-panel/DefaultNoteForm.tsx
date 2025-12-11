@@ -1,6 +1,10 @@
 import React from 'react';
 import TiptapEditor from '../TiptapEditor';
 
+// Title character limits
+const TITLE_SOFT_LIMIT = 150;  // Show warning
+const TITLE_HARD_LIMIT = 250;  // Maximum allowed
+
 export interface DefaultNoteFormProps {
   title: string;
   onTitleChange: (title: string) => void;
@@ -54,16 +58,33 @@ export default function DefaultNoteForm({
     <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
       {/* Title Input Row */}
       <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
-        <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
+        <div className="basis-0 font-sans font-semibold grow min-h-px min-w-0 not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
           <input 
             type="text"
             value={title}
-            onChange={(e) => onTitleChange(e.target.value)}
+            onChange={(e) => onTitleChange(e.target.value.slice(0, TITLE_HARD_LIMIT))}
             onKeyDown={handleTitleKeyDown}
+            maxLength={TITLE_HARD_LIMIT}
             placeholder="Note title"
             tabIndex={1}
             className="w-full bg-transparent border-none text-[24px] font-bold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
           />
+          {/* Character counter - only show when approaching limit */}
+          {title.length >= TITLE_SOFT_LIMIT && (
+            <div 
+              style={{
+                fontSize: '11px',
+                fontFamily: 'var(--font-sans)',
+                textAlign: 'right',
+                marginTop: '4px',
+                color: title.length >= TITLE_HARD_LIMIT 
+                  ? 'var(--color-caring-coral)' 
+                  : 'var(--color-graceful-gold)',
+              }}
+            >
+              {title.length}/{TITLE_HARD_LIMIT}
+            </div>
+          )}
         </div>
         <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">
           <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-50" fill="currentColor" viewBox="0 0 24 24">

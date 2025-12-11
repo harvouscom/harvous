@@ -7,6 +7,10 @@ import Icon from './Icon';
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
 
+// Title character limits
+const TITLE_SOFT_LIMIT = 150;  // Show warning
+const TITLE_HARD_LIMIT = 250;  // Maximum allowed
+
 interface CardFullEditableProps {
   title: string;
   content: string;
@@ -14,6 +18,10 @@ interface CardFullEditableProps {
   noteId?: string;
   noteType?: 'default' | 'scripture' | 'resource';
   version?: string;
+  resourceTitle?: string;
+  resourceDescription?: string;
+  resourceImage?: string;
+  resourceUrl?: string;
   className?: string;
   isEditable?: boolean;
   onSave?: (title: string, content: string) => Promise<any>;
@@ -26,6 +34,10 @@ export default function CardFullEditable({
   noteId,
   noteType = 'default',
   version,
+  resourceTitle,
+  resourceDescription,
+  resourceImage,
+  resourceUrl,
   className = '',
   isEditable = true,
   onSave 
@@ -186,7 +198,11 @@ export default function CardFullEditable({
     }
     
     setEditTitle(displayTitle);
-    setEditContent(displayContent);
+    // For resource notes, use resourceDescription as initial content if displayContent is empty
+    const initialContent = (noteType === 'resource' && !displayContent && resourceDescription) 
+      ? resourceDescription 
+      : displayContent;
+    setEditContent(initialContent);
     setIsEditing(true);
     setHasChanges(false);
     
@@ -425,8 +441,9 @@ export default function CardFullEditable({
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEditTitle(e.target.value);
-    setHasChanges(e.target.value !== displayTitle || editContent !== displayContent);
+    const newValue = e.target.value.slice(0, TITLE_HARD_LIMIT); // Enforce hard limit
+    setEditTitle(newValue);
+    setHasChanges(newValue !== displayTitle || editContent !== displayContent);
   };
 
   const handleContentClick = async (e: React.MouseEvent<HTMLDivElement>) => {
@@ -518,6 +535,138 @@ export default function CardFullEditable({
     startEditing('content');
   };
 
+  // Resource note - special display with card-image-link design + editable content
+  if (noteType === 'resource') {
+    const effectiveTitle = resourceTitle || displayTitle || 'Untitled Resource';
+    const hostname = resourceUrl ? (() => {
+      try {
+        const url = new URL(resourceUrl);
+        return url.hostname.replace('www.', '');
+      } catch {
+        return resourceUrl;
+      }
+    })() : '';
+
+    // For resource notes, use resourceDescription as initial content if content is empty
+    const effectiveContent = displayContent || resourceDescription || '';
+
+    return (
+      <div 
+        className={`card-full-editable ${className}`}
+        style={{ maxHeight: '100%' }}
+        data-card-full-editable
+      >
+        <div className="card-image-link" style={{ gap: '1rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          {/* Full-width image at top */}
+          {resourceImage && (
+            <div 
+              className="card-image-link__image"
+              style={{ 
+                backgroundImage: `url('${resourceImage}')`,
+                minHeight: '180px',
+                flexShrink: 0
+              }}
+            />
+          )}
+          
+          {/* Header with title and newspaper icon */}
+          <div className="card-image-link__header" style={{ flexShrink: 0 }}>
+            <div className="card-image-link__title">
+              <p>{effectiveTitle}</p>
+            </div>
+            <div className="card-image-link__bookmark">
+              <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+            </div>
+          </div>
+          
+          {/* Editable content area with TiptapEditor */}
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {!isEditing ? (
+              <div 
+                ref={contentDisplayRef}
+                className="flex-1 overflow-auto cursor-pointer rounded px-3"
+                style={{ lineHeight: '1.6', minHeight: 0 }}
+                onClick={handleContentClick}
+              >
+                {effectiveContent ? (
+                  <div 
+                    className="card-image-link__content-text"
+                    dangerouslySetInnerHTML={{ __html: effectiveContent }}
+                  />
+                ) : (
+                  <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col min-h-0" style={{ overflow: 'hidden' }}>
+                <div className="flex-1 min-h-0 px-3" style={{ overflow: 'hidden' }}>
+                  <Suspense fallback={<div className="min-h-[100px]" />}>
+                    <TiptapEditor
+                      content={editContent}
+                      id="edit-note-content"
+                      name="editContent"
+                      placeholder="Add your notes about this resource..."
+                      tabindex={3}
+                      minimalToolbar={false}
+                      onContentChange={handleContentChange}
+                      scrollPosition={scrollPosition}
+                      enableCreateNoteFromSelection={isEditing}
+                      parentThreadId={parentThreadId}
+                      sourceNoteId={noteId}
+                      onEditorReady={handleEditorReady}
+                    />
+                  </Suspense>
+                </div>
+                
+                {/* Save/Cancel buttons */}
+                <div className="flex justify-end gap-2 mt-4 mb-3 shrink-0 px-3">
+                  <ButtonSmall
+                    state="Secondary"
+                    onClick={cancelEdit}
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </ButtonSmall>
+                  <ButtonSmall
+                    state="Default"
+                    onClick={saveChanges}
+                    disabled={!hasChanges || isSaving}
+                  >
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </ButtonSmall>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Source bar with hostname and external link icon */}
+          {resourceUrl && (
+            <button 
+              type="button"
+              className="card-image-link__source"
+              style={{ textDecoration: 'none', border: 'none', textAlign: 'left', flexShrink: 0 }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(resourceUrl, '_blank', 'noopener,noreferrer');
+              }}
+            >
+              <div className="card-image-link__source-content" style={{ justifyContent: 'space-between' }}>
+                <div className="card-image-link__source-text">
+                  <p>{hostname}</p>
+                </div>
+                <div className="card-image-link__source-icon">
+                  <Icon name="arrow-up-right-from-square" size={20} />
+                </div>
+              </div>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Default and Scripture notes - original editable layout
   return (
     <>
       <div 
@@ -552,28 +701,48 @@ export default function CardFullEditable({
               {displayTitle}
             </p>
           ) : (
-            <input 
-              ref={titleInputRef}
-              value={editTitle}
-              onChange={handleTitleChange}
-              type="text"
-              className="w-full bg-transparent border-0 rounded focus:outline-none font-bold"
-              style={{
-                lineHeight: '1.2',
-                margin: '-4px -8px',
-                padding: '4px 8px',
-                fontSize: '24px',
-                fontWeight: '700',
-                fontFamily: 'var(--font-sans)',
-                color: 'var(--color-deep-grey)',
-                boxSizing: 'border-box',
-                minHeight: '28.8px',
-                height: 'auto',
-                verticalAlign: 'middle'
-              }}
-              placeholder="Note title"
-              onKeyDown={handleKeyDown}
-            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <input 
+                ref={titleInputRef}
+                value={editTitle}
+                onChange={handleTitleChange}
+                type="text"
+                maxLength={TITLE_HARD_LIMIT}
+                className="w-full bg-transparent border-0 rounded focus:outline-none font-bold"
+                style={{
+                  lineHeight: '1.2',
+                  margin: '-4px -8px',
+                  padding: '4px 8px',
+                  fontSize: '24px',
+                  fontWeight: '700',
+                  fontFamily: 'var(--font-sans)',
+                  color: 'var(--color-deep-grey)',
+                  boxSizing: 'border-box',
+                  minHeight: '28.8px',
+                  height: 'auto',
+                  verticalAlign: 'middle'
+                }}
+                placeholder="Note title"
+                onKeyDown={handleKeyDown}
+              />
+              {/* Character counter */}
+              <div 
+                style={{
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-sans)',
+                  textAlign: 'right',
+                  marginTop: '4px',
+                  color: editTitle.length >= TITLE_HARD_LIMIT 
+                    ? 'var(--color-caring-coral)' 
+                    : editTitle.length >= TITLE_SOFT_LIMIT 
+                      ? 'var(--color-graceful-gold)' 
+                      : 'var(--color-pebble-grey)',
+                  opacity: editTitle.length >= TITLE_SOFT_LIMIT ? 1 : 0.6
+                }}
+              >
+                {editTitle.length}/{TITLE_HARD_LIMIT}
+              </div>
+            </div>
           )}
         </div>
         {/* Version (scripture notes only) */}

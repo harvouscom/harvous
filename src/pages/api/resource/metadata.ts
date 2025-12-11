@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { handleAPIError } from '@/utils/error-handling';
 import { normalizeUrl } from '@/utils/validation';
+import { extractArticleContent } from '@/utils/content-extractor';
 
 // Helper function to decode HTML entities
 function decodeHtmlEntities(text: string): string {
@@ -19,6 +20,31 @@ function decodeHtmlEntities(text: string): string {
   });
 }
 
+// Helper function to clean SEO garbage from titles
+function cleanTitle(title: string): string {
+  if (!title) return '';
+  
+  // Common SEO suffixes/prefixes to remove
+  // Matches: " | Site Name", " - Site Name", " — Site Name", " :: Site Name", " >> Site Name"
+  const seoPatterns = [
+    /\s*[\|–—\-:]+\s*[^|\-–—:]+$/,  // Suffix like " | Site Name" or " - Company"
+    /^[^|\-–—:]+\s*[\|–—\-:]+\s*/,   // Prefix like "Site Name | " (less common)
+  ];
+  
+  let cleaned = title.trim();
+  
+  // Only remove suffix if it's relatively short compared to main title
+  // This prevents removing important parts of the title
+  for (const pattern of seoPatterns) {
+    const match = cleaned.match(pattern);
+    if (match && match[0].length < cleaned.length * 0.5) {
+      cleaned = cleaned.replace(pattern, '').trim();
+    }
+  }
+  
+  return cleaned;
+}
+
 /**
  * Fetch Open Graph metadata from a URL
  * Supports both URL-only requests (manual input) and pre-fetched metadata (extension/share sheet)
@@ -27,8 +53,8 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     console.log('=== Metadata API called ===');
     const body = await request.json();
-    console.log('Request body:', { url: body.url, hasMetadata: !!body.metadata });
-    const { url, metadata } = body;
+    console.log('Request body:', { url: body.url, hasMetadata: !!body.metadata, extractContent: body.extractContent });
+    const { url, metadata, extractContent } = body;
 
     // If metadata is provided directly (from extension/share sheet), return it
     if (metadata && typeof metadata === 'object') {
@@ -114,8 +140,34 @@ export const POST: APIRoute = async ({ request }) => {
     const ogDescriptionMatch = html.match(ogDescriptionPattern) || html.match(ogDescriptionPattern2);
     const ogImageMatch = html.match(ogImagePattern) || html.match(ogImagePattern2);
 
-    // Fallback to regular meta tags if OG tags not found
-    const titleMatch = ogTitleMatch || html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    // Extract actual page title and headings (prefer these over og:title for cleaner titles)
+    const pageTitleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    // Match h1/h2 with potential nested tags, then strip HTML
+    const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    const h2Match = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+    
+    // Helper to strip HTML tags from heading content
+    const stripHtmlTags = (str: string) => str.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    
+    // Title priority: h1 > cleaned page title > h2 > og:title
+    // h1 is usually the actual article title without SEO garbage
+    let bestTitle = '';
+    if (h1Match && h1Match[1]) {
+      const h1Text = stripHtmlTags(h1Match[1]);
+      if (h1Text) bestTitle = decodeHtmlEntities(h1Text);
+    }
+    if (!bestTitle && pageTitleMatch && pageTitleMatch[1].trim()) {
+      bestTitle = cleanTitle(decodeHtmlEntities(pageTitleMatch[1].trim()));
+    }
+    if (!bestTitle && h2Match && h2Match[1]) {
+      const h2Text = stripHtmlTags(h2Match[1]);
+      if (h2Text) bestTitle = decodeHtmlEntities(h2Text);
+    }
+    if (!bestTitle && ogTitleMatch && ogTitleMatch[1].trim()) {
+      bestTitle = cleanTitle(decodeHtmlEntities(ogTitleMatch[1].trim()));
+    }
+
+    // Description: prefer og:description, fallback to meta description
     const descriptionMatch = ogDescriptionMatch || html.match(/<meta\s+name=["']?description["']?\s+content=["']([^"']+)["']/i) ||
                            html.match(/<meta\s+content=["']([^"']+)["']\s+name=["']?description["']?/i);
 
@@ -130,7 +182,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const extractedMetadata = {
-      title: titleMatch ? decodeHtmlEntities(titleMatch[1].trim()) : '',
+      title: bestTitle,
       description: descriptionMatch ? decodeHtmlEntities(descriptionMatch[1].trim()) : '',
       image: imageUrl,
       url: normalizedUrl
@@ -144,9 +196,26 @@ export const POST: APIRoute = async ({ request }) => {
       url: normalizedUrl
     });
 
+    // Extract article content if requested
+    let articleContent: string | null = null;
+    if (extractContent === true) {
+      try {
+        articleContent = extractArticleContent(html, normalizedUrl);
+        console.log('Article content extracted:', articleContent ? `Length: ${articleContent.length}` : 'Failed');
+      } catch (error) {
+        console.error('Error extracting article content:', error);
+        // Non-critical - continue without article content
+      }
+    }
+
+    const responseMetadata: any = { ...extractedMetadata };
+    if (articleContent !== null) {
+      responseMetadata.articleContent = articleContent;
+    }
+
     return new Response(JSON.stringify({
       success: true,
-      metadata: extractedMetadata
+      metadata: responseMetadata
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

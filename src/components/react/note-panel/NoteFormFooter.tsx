@@ -4,6 +4,7 @@ import SquareButton from '../SquareButton';
 export interface NoteFormFooterProps {
   isSubmitting: boolean;
   onClose: () => void;
+  noteType?: 'default' | 'scripture' | 'resource';
 }
 
 /**
@@ -12,7 +13,13 @@ export interface NoteFormFooterProps {
 export default function NoteFormFooter({
   isSubmitting,
   onClose,
+  noteType = 'default',
 }: NoteFormFooterProps) {
+  const isResource = noteType === 'resource';
+  const buttonText = isSubmitting 
+    ? (isResource ? 'Adding...' : 'Creating...')
+    : (isResource ? 'Add Resource' : 'Create Note');
+
   return (
     <div className="panel__footer--buttons">
       {/* Close button using SquareButton Close variant */}
@@ -30,7 +37,7 @@ export default function NoteFormFooter({
         tabIndex={3}
       >
         <span className="btn-cta__content">
-          {isSubmitting ? 'Creating...' : 'Create Note'}
+          {buttonText}
         </span>
         <div className="btn-cta__shadow" />
       </button>

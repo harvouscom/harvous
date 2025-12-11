@@ -176,11 +176,12 @@ const parseReference = (match: string): ScriptureReference | null => {
   // Patterns: "John 3:16", "1 Corinthians 13:4-7", "Matthew 26:6-13, 17-30"
   // Match: Book Chapter:VerseGroups where VerseGroups can be "6-13, 17-30" or "6-13" or "6"
   // Updated to handle optional spaces around dashes: "6 - 13" or "6-13"
+  // Updated to handle different dash types: hyphen (-), en-dash (–), em-dash (—)
   const patterns = [
     // Comma-separated verse groups: "Book 1:2-3, 5-7, 10" or "Book 1:2 - 3, 5 - 7, 10"
-    /^(.+?)\s+(\d+):((?:\d+(?:\s*-\s*\d+)?)(?:,\s*\d+(?:\s*-\s*\d+)?)*)$/,
+    /^(.+?)\s+(\d+):((?:\d+(?:\s*[-–—]\s*\d+)?)(?:,\s*\d+(?:\s*[-–—]\s*\d+)?)*)$/,
     // Single range: "Book 1:2-3" or "Book 1:2 - 3"
-    /^(.+?)\s+(\d+):(\d+)\s*-\s*(\d+)$/,
+    /^(.+?)\s+(\d+):(\d+)\s*[-–—]\s*(\d+)$/,
     // Single verse: "Book 1:2"
     /^(.+?)\s+(\d+):(\d+)$/,
     // Chapter only: "Book 1" (treat as chapter 1, verse 1)
@@ -219,8 +220,8 @@ const parseReference = (match: string): ScriptureReference | null => {
           const allVerses: number[] = [];
           verseGroups.split(',').forEach(group => {
             const trimmed = group.trim();
-            if (trimmed.includes('-')) {
-              const [start, end] = trimmed.split('-').map(v => parseInt(v.trim()));
+            if (/[-–—]/.test(trimmed)) {
+              const [start, end] = trimmed.split(/[-–—]/).map(v => parseInt(v.trim()));
               // Validate range: start must be <= end
               if (!isNaN(start) && !isNaN(end) && start <= end) {
                 for (let v = start; v <= end; v++) {
@@ -270,10 +271,10 @@ const parseReference = (match: string): ScriptureReference | null => {
             });
           }
           // If parsing fails, fall through to single verse
-        } else if (matchResult.length === 4 && !matchResult[3].includes(',') && matchResult[3].includes('-')) {
+        } else if (matchResult.length === 4 && !matchResult[3].includes(',') && /[-–—]/.test(matchResult[3])) {
           // Single range detected (Pattern 1: range in single capture group like "8-23")
           const versePart = matchResult[3].trim();
-          const [start, end] = versePart.split(/\s*-\s*/).map(v => parseInt(v.trim()));
+          const [start, end] = versePart.split(/\s*[-–—]\s*/).map(v => parseInt(v.trim()));
           // Validate range: start must be <= end
           if (!isNaN(start) && !isNaN(end) && start <= end) {
             return validateAndWarn({
@@ -320,7 +321,8 @@ const parseReference = (match: string): ScriptureReference | null => {
 // Detect scripture references in text
 export const detectScriptureReferences = (text: string): ScriptureReference[] => {
   const references: ScriptureReference[] = [];
-  const bookNames = getBibleBookNames();
+  // Use variations (including synonyms) for detection, e.g., "Psalm" for "Psalms"
+  const bookNames = getBookNameVariations();
 
   // Build regex pattern for all book names
   // Escape special regex characters
@@ -328,16 +330,35 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
     name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   );
 
+  // Dash pattern that matches hyphen (-), en-dash (–), and em-dash (—)
+  const dashPattern = '[-–—]';
+  
   // Pattern 1: "Book Chapter:Verse" or "Book Chapter:Verse-Verse" or "Book Chapter:Verse-Verse, Verse-Verse"
   // Captures comma-separated verse groups like "Matthew 26:6-13, 17-30"
   // Use a simpler pattern and validate matches afterward
-  // Updated to better handle ranges with dashes - allow optional spaces around dashes
+  // Updated to handle different dash types (hyphen, en-dash, em-dash)
   const referencePattern = new RegExp(
-    `\\b(${escapedBookNames.join('|')})\\s+(\\d+):(\\d+(?:\\s*-\\s*\\d+)?(?:,\\s*\\d+(?:\\s*-\\s*\\d+)?)*)(?!\\d)`,
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+):(\\d+(?:\\s*${dashPattern}\\s*\\d+)?(?:,\\s*\\d+(?:\\s*${dashPattern}\\s*\\d+)?)*)(?!\\d)`,
+    'gi'
+  );
+
+  // Pattern 2: "Book Chapter-Chapter" (chapter range without verses, e.g., "Matthew 5-7")
+  const chapterRangePattern = new RegExp(
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)\\s*${dashPattern}\\s*(\\d+)(?!:)(?!\\d)`,
+    'gi'
+  );
+
+  // Pattern 3: "Book Chapter" (single chapter without verses, e.g., "Matthew 5")
+  // Must not be followed by a colon or dash to avoid matching partial references
+  // Also must not be followed by space+digit (which might indicate a split reference like "Genesis 1 2:1-8")
+  const chapterOnlyPattern = new RegExp(
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)(?!:)(?!\\s*${dashPattern})(?!\\d)(?!\\s+\\d)`,
     'gi'
   );
 
   let match;
+  
+  // First, find chapter:verse references (most specific)
   while ((match = referencePattern.exec(text)) !== null) {
     let fullMatch = match[0];
     const originalMatchEnd = match.index + fullMatch.length;
@@ -406,6 +427,81 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
     // Adjust the regex's lastIndex if we trimmed the match
     if (adjustedLastIndex !== originalMatchEnd) {
       referencePattern.lastIndex = adjustedLastIndex;
+    }
+  }
+
+  // Next, find chapter range references (e.g., "Matthew 5-7")
+  while ((match = chapterRangePattern.exec(text)) !== null) {
+    const bookPart = match[1].trim();
+    const chapterStart = parseInt(match[2]);
+    const chapterEnd = parseInt(match[3]);
+    
+    // Find canonical book name
+    const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
+      k => k.category === 'book' && 
+      (k.name.toLowerCase() === bookPart.toLowerCase() || 
+       k.synonyms.some(s => s.toLowerCase() === bookPart.toLowerCase()))
+    )?.name || bookPart;
+    
+    // Get verse ranges for start and end chapters
+    const startRange = getChapterVerseRange(canonicalBook, chapterStart);
+    const endRange = getChapterVerseRange(canonicalBook, chapterEnd);
+    
+    if (startRange && endRange && chapterStart <= chapterEnd) {
+      // Create reference spanning from first verse of first chapter to last verse of last chapter
+      const reference: ScriptureReference = {
+        book: canonicalBook,
+        chapter: chapterStart, // Primary chapter for API calls
+        verse: [startRange.start, endRange.end] as [number, number],
+        reference: `${canonicalBook} ${chapterStart}-${chapterEnd}` // Keep chapter range format
+      };
+      
+      // Check for duplicates
+      const normalizedRef = `${canonicalBook} ${chapterStart}-${chapterEnd}`;
+      const isDuplicate = references.some(ref => 
+        normalizeScriptureReference(ref.reference) === normalizedRef
+      );
+      if (!isDuplicate) {
+        references.push(reference);
+      }
+    }
+  }
+
+  // Finally, find single chapter references (e.g., "Matthew 5")
+  while ((match = chapterOnlyPattern.exec(text)) !== null) {
+    const bookPart = match[1].trim();
+    const chapter = parseInt(match[2]);
+    
+    // Find canonical book name
+    const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
+      k => k.category === 'book' && 
+      (k.name.toLowerCase() === bookPart.toLowerCase() || 
+       k.synonyms.some(s => s.toLowerCase() === bookPart.toLowerCase()))
+    )?.name || bookPart;
+    
+    // Get verse range for this chapter
+    const range = getChapterVerseRange(canonicalBook, chapter);
+    
+    if (range) {
+      // Create reference spanning entire chapter
+      const reference: ScriptureReference = {
+        book: canonicalBook,
+        chapter,
+        verse: [range.start, range.end] as [number, number],
+        reference: `${canonicalBook} ${chapter}` // Keep chapter-only format
+      };
+      
+      // Check for duplicates (including if this chapter was already covered by a chapter:verse ref)
+      const isDuplicate = references.some(ref => {
+        // Check if same book and chapter
+        if (ref.book === canonicalBook && ref.chapter === chapter) {
+          return true;
+        }
+        return false;
+      });
+      if (!isDuplicate) {
+        references.push(reference);
+      }
     }
   }
 
@@ -517,9 +613,9 @@ export const normalizeScriptureReference = (reference: string): string => {
   // Remove spaces after commas: "Matthew 26:6-13, 17-30" → "Matthew 26:6-13,17-30"
   normalized = normalized.replace(/,\s+/g, ',');
   
-  // Normalize spaces around dashes in verse ranges: "John 3:16 - 17" → "John 3:16-17"
-  // But be careful not to affect dashes in book names like "1 Corinthians"
-  normalized = normalized.replace(/(\d+)\s*-\s*(\d+)/g, '$1-$2');
+  // Normalize all dash types (en-dash, em-dash) to regular hyphens and remove spaces
+  // "John 3:16 – 17" or "John 3:16—17" → "John 3:16-17"
+  normalized = normalized.replace(/(\d+)\s*[-–—]\s*(\d+)/g, '$1-$2');
   
   // Trim whitespace
   normalized = normalized.trim();
@@ -548,8 +644,8 @@ export const parseVerseGroups = (reference: string): VerseGroup[] => {
   const groups: VerseGroup[] = [];
   normalized.split(',').forEach(group => {
     const trimmed = group.trim();
-    if (trimmed.includes('-')) {
-      const [start, end] = trimmed.split('-').map(v => parseInt(v.trim()));
+    if (/[-–—]/.test(trimmed)) {
+      const [start, end] = trimmed.split(/[-–—]/).map(v => parseInt(v.trim()));
       if (!isNaN(start) && !isNaN(end)) {
         groups.push({ start, end });
       }

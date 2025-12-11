@@ -226,6 +226,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 2.5rem;  /* 40px default - can be overridden by additional classes */
+  height: 2.5rem;  /* 40px default */
   border-radius: 1.5rem;
   cursor: pointer;
   background-image: var(--color-gradient-gray);

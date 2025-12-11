@@ -8,6 +8,7 @@ import { handleAPIError } from '@/utils/error-handling';
 import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { getNextUntitledNoteName } from '@/utils/untitled-naming';
+import { extractArticleContent } from '@/utils/content-extractor';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -51,7 +52,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const spaceId = formData.get('spaceId') as string | null;
     
     // Parse pre-fetched resource metadata if provided
-    let prefetchedResourceMetadata: { title?: string; description?: string; image?: string } | null = null;
+    let prefetchedResourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string } | null = null;
     if (resourceMetadataStr) {
       try {
         prefetchedResourceMetadata = JSON.parse(resourceMetadataStr);
@@ -337,35 +338,45 @@ export const POST: APIRoute = async ({ request, locals }) => {
         // Normalize URL by adding https:// if missing
         const normalizedResourceUrl = normalizeUrl(resourceUrl);
         
-        // Use pre-fetched metadata if available, otherwise fetch it
-        let resourceMetadata: { title?: string; description?: string; image?: string } | null = prefetchedResourceMetadata;
+        // Use pre-fetched metadata for title/description/image
+        let resourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string } | null = {
+          ...prefetchedResourceMetadata
+        };
         
-        // Only fetch if no pre-fetched metadata was provided
-        if (!resourceMetadata) {
-          try {
-            const metadataFetchPromise = fetch(`${new URL(request.url).origin}/api/resource/metadata`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ url: normalizedResourceUrl }),
-            });
+        // Extract full article content directly (avoid internal HTTP call which has auth issues)
+        try {
+          console.log('Fetching HTML for content extraction:', normalizedResourceUrl);
+          
+          const htmlResponse = await fetch(normalizedResourceUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            },
+            signal: AbortSignal.timeout(15000) // 15 second timeout
+          });
+          
+          if (htmlResponse.ok) {
+            const html = await htmlResponse.text();
+            console.log('Fetched HTML for extraction, length:', html.length);
             
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Metadata fetch timeout')), 10000)
-            );
+            // Extract article content using Readability
+            const articleContent = extractArticleContent(html, normalizedResourceUrl);
             
-            const metadataResponse = await Promise.race([metadataFetchPromise, timeoutPromise]) as Response;
-            
-            if (metadataResponse.ok) {
-              const metadataData = await metadataResponse.json();
-              if (metadataData.success && metadataData.metadata) {
-                resourceMetadata = metadataData.metadata;
-              }
+            if (articleContent) {
+              console.log('Article content extracted, length:', articleContent.length);
+              resourceMetadata = {
+                ...resourceMetadata,
+                articleContent
+              };
+            } else {
+              console.log('Article content extraction returned null');
             }
-          } catch (error) {
-            // Non-critical - note will still be created without metadata
+          } else {
+            console.log('Failed to fetch HTML:', htmlResponse.status, htmlResponse.statusText);
           }
+        } catch (error) {
+          // Non-critical - note will still be created with description
+          console.error('Error extracting article content:', error);
         }
 
         // Create ResourceMetadata record
@@ -382,26 +393,41 @@ export const POST: APIRoute = async ({ request, locals }) => {
         await db.insert(ResourceMetadata).values(resourceMetadataRecord);
 
         // Update note with metadata if available
-        // For resource notes, always use metadata title if available (not the URL)
-        if (resourceMetadata && resourceMetadata.title) {
-          const metadataTitle = resourceMetadata.title.charAt(0).toUpperCase() + resourceMetadata.title.slice(1);
+        // For resource notes, use metadata title and extracted article content (or fallback to description)
+        if (resourceMetadata) {
+          const updateData: { title?: string; content?: string; updatedAt: Date } = {
+            updatedAt: new Date()
+          };
           
-          await db.update(Notes)
-            .set({
-              title: metadataTitle,
-              updatedAt: new Date()
-            })
-            .where(eq(Notes.id, newNote.id));
+          // Set title from metadata
+          if (resourceMetadata.title) {
+            updateData.title = resourceMetadata.title.charAt(0).toUpperCase() + resourceMetadata.title.slice(1);
+          }
+          
+          // Prefer extracted article content, fallback to description for scripture detection
+          if (resourceMetadata.articleContent) {
+            updateData.content = resourceMetadata.articleContent;
+          } else if (resourceMetadata.description) {
+            updateData.content = resourceMetadata.description;
+          }
+          
+          if (updateData.title || updateData.content) {
+            await db.update(Notes)
+              .set(updateData)
+              .where(eq(Notes.id, newNote.id));
 
-          // Reload note to get updated values
-          const updatedNote = await db.select()
-            .from(Notes)
-            .where(eq(Notes.id, newNote.id))
-            .get();
-          
-          if (updatedNote) {
-            Object.assign(newNote, updatedNote);
-            capitalizedTitle = metadataTitle; // Update local variable too
+            // Reload note to get updated values
+            const updatedNote = await db.select()
+              .from(Notes)
+              .where(eq(Notes.id, newNote.id))
+              .get();
+            
+            if (updatedNote) {
+              Object.assign(newNote, updatedNote);
+              if (updateData.title) {
+                capitalizedTitle = updateData.title;
+              }
+            }
           }
         }
       } catch (error: any) {

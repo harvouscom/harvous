@@ -11,9 +11,6 @@ export default function ActionButton({
   className = "",
   ...props
 }: ActionButtonProps) {
-  // Check if className overrides size
-  const hasSizeOverride = className.match(/\bw-\d+|h-\d+/);
-  
   const getAriaLabel = () => {
     if (variant === "Add") return "Add";
     if (variant === "Close") return "Close";
@@ -25,7 +22,6 @@ export default function ActionButton({
     <button
       type="button"
       className={`btn-action ${className}`}
-      style={hasSizeOverride ? {} : { width: '40px', height: '40px' }}
       aria-label={getAriaLabel()}
       {...props}
     >

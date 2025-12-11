@@ -16,7 +16,7 @@ import {
 import {
   DefaultNoteForm,
   ScriptureNoteForm,
-  ResourceNoteForm,
+  NewResourcePanel,
   SpaceSelector,
   NoteFormFooter,
   NewNotePanelStyles,
@@ -391,7 +391,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
           )}
 
           {form.noteType === 'resource' && (
-            <ResourceNoteForm
+            <NewResourcePanel
               resourceUrl={form.resourceUrl}
               onResourceUrlChange={form.setResourceUrl}
               nextNoteId={nextNoteId}
@@ -404,6 +404,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
         <NoteFormFooter
           isSubmitting={submission.isSubmitting}
           onClose={handleClose}
+          noteType={form.noteType}
         />
       </form>
 

@@ -14,7 +14,7 @@
   /* Primary Brand Colors */
   --lch-bold-blue: 55% 0.22 255;
   --lch-navy: 40% 0.18 255;
-  --lch-red: 52% 0.22 25;
+  --lch-red: 55% 0.24 26;
 
   /* Grey Scale - all share same hue (85) with varying lightness */
   --lch-deep-grey: 48% 0.02 85;

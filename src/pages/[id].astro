@@ -384,6 +384,28 @@ let inboxCount: number = 0;
           }
         }
 
+        // Fetch resource metadata if this is a resource note
+        let resourceTitle: string | undefined;
+        let resourceDescription: string | undefined;
+        let resourceImage: string | undefined;
+        let resourceUrl: string | undefined;
+        if (note.noteType === 'resource') {
+          try {
+            const resourceMeta = await db.select()
+              .from(ResourceMetadata)
+              .where(eq(ResourceMetadata.noteId, note.id))
+              .get();
+            if (resourceMeta) {
+              resourceTitle = resourceMeta.sourceTitle || undefined;
+              resourceDescription = resourceMeta.sourceDescription || undefined;
+              resourceImage = resourceMeta.sourceImage || undefined;
+              resourceUrl = resourceMeta.sourceUrl || undefined;
+            }
+          } catch (error: any) {
+            // Error fetching ResourceMetadata - values will remain undefined
+          }
+        }
+
         content = {
           id: note.id,
           title: note.title,
@@ -393,7 +415,11 @@ let inboxCount: number = 0;
           noteId: note.simpleNoteId,
           updatedAt: note.updatedAt,
           noteType: note.noteType || 'default',
-          version
+          version,
+          resourceTitle,
+          resourceDescription,
+          resourceImage,
+          resourceUrl
         };
 
         // Set page title for note
@@ -710,6 +736,10 @@ if (!content) {
                 noteId={content.noteId ? `N${content.noteId.toString().padStart(3, '0')}` : undefined}
                 noteType={content.noteType || 'default'}
                 version={content.version}
+                resourceTitle={content.resourceTitle}
+                resourceDescription={content.resourceDescription}
+                resourceImage={content.resourceImage}
+                resourceUrl={content.resourceUrl}
                 className="h-full flex-1 min-h-0"
               />
             </div>
