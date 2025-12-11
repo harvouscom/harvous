@@ -57,26 +57,15 @@ export default function ResourceNoteForm({
 
         if (response.ok) {
           const data = await response.json();
-          console.log('ResourceNoteForm: Metadata response:', data);
           if (data.success && data.metadata) {
-            console.log('ResourceNoteForm: Metadata extracted:', {
-              title: data.metadata.title,
-              description: data.metadata.description,
-              image: data.metadata.image
-            });
             setMetadata(data.metadata);
             if (onMetadataFetched) {
               onMetadataFetched(data.metadata);
             }
-          } else {
-            console.warn('ResourceNoteForm: Metadata response not successful:', data);
           }
-        } else {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          console.error('ResourceNoteForm: Metadata fetch failed:', response.status, errorData);
         }
       } catch (error) {
-        console.error('ResourceNoteForm: Error fetching resource metadata:', error);
+        // Silently fail - user can still create note without metadata
         // Silently fail - user can still create note without metadata
       } finally {
         setIsFetchingMetadata(false);
@@ -110,34 +99,149 @@ export default function ResourceNoteForm({
         )}
       </div>
 
-      {/* Metadata Preview - Right below the input field */}
+      {/* Metadata Preview - Card style with source URL */}
       {metadata && (metadata.title || metadata.description || metadata.image) && (
-        <div className="w-full shrink-0 mt-4">
-          <div className="bg-[var(--color-light-paper)] rounded-lg p-3 border border-[var(--color-pebble-grey)]">
+        <div 
+          className="w-full shrink-0 mt-4"
+          style={{
+            animation: 'fadeInUp 0.3s ease-out forwards'
+          }}
+        >
+          {/* Preview label */}
+          <div 
+            style={{ 
+              fontFamily: 'var(--font-sans)',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: 'var(--color-stone-grey)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              marginBottom: '8px',
+              paddingLeft: '4px'
+            }}
+          >
+            Preview
+          </div>
+          
+          {/* Card container */}
+          <div 
+            style={{ 
+              backgroundColor: 'var(--color-snow-white)',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              boxShadow: '0px 2px 8px rgba(120, 118, 111, 0.12)'
+            }}
+          >
+            {/* Image banner - full width at top */}
             {metadata.image && (
-              <div className="mb-2 rounded overflow-hidden" style={{ maxHeight: '200px' }}>
-                <img 
-                  src={metadata.image} 
-                  alt={metadata.title || 'Resource preview'}
-                  className="w-full h-auto object-cover"
-                  onError={(e) => {
-                    // Hide image on error
-                    (e.target as HTMLImageElement).style.display = 'none';
+              <div 
+                style={{ 
+                  width: '100%',
+                  height: '120px',
+                  backgroundImage: `url('${metadata.image}')`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  position: 'relative'
+                }}
+              >
+                {/* Gradient overlay */}
+                <div 
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: '60px',
+                    background: 'linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 100%)'
                   }}
                 />
               </div>
             )}
-            {metadata.title && (
-              <div className="font-semibold text-[var(--color-deep-grey)] mb-1 text-sm">
-                {metadata.title}
+            
+            {/* Content area */}
+            <div style={{ padding: '12px 16px 16px' }}>
+              {/* Title */}
+              {metadata.title && (
+                <div 
+                  style={{ 
+                    fontFamily: 'var(--font-sans)',
+                    fontWeight: 700,
+                    fontSize: '16px',
+                    color: 'var(--color-deep-grey)',
+                    lineHeight: 1.3,
+                    marginBottom: metadata.description ? '6px' : '0'
+                  }}
+                >
+                  {metadata.title}
+                </div>
+              )}
+              
+              {/* Description */}
+              {metadata.description && (
+                <div 
+                  style={{ 
+                    fontFamily: 'var(--font-sans)',
+                    fontWeight: 400,
+                    fontSize: '13px',
+                    color: 'var(--color-stone-grey)',
+                    lineHeight: 1.4,
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical'
+                  }}
+                >
+                  {metadata.description}
+                </div>
+              )}
+              
+              {/* Source URL */}
+              <div 
+                style={{ 
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  marginTop: '12px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid var(--color-fog-white)'
+                }}
+              >
+                <Icon name="link" size={12} style={{ color: 'var(--color-pebble-grey)', flexShrink: 0 }} />
+                <div 
+                  style={{ 
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: '11px',
+                    color: 'var(--color-pebble-grey)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {(() => {
+                    try {
+                      const url = new URL(normalizeUrl(resourceUrl));
+                      return url.hostname.replace('www.', '');
+                    } catch {
+                      return resourceUrl;
+                    }
+                  })()}
+                </div>
               </div>
-            )}
-            {metadata.description && (
-              <div className="text-[var(--color-stone-grey)] text-xs line-clamp-3">
-                {metadata.description}
-              </div>
-            )}
+            </div>
           </div>
+          
+          <style>{`
+            @keyframes fadeInUp {
+              from {
+                opacity: 0;
+                transform: translateY(8px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+          `}</style>
         </div>
       )}
 

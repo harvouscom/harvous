@@ -172,17 +172,20 @@ const CardNote: React.FC<CardNoteProps> = ({
               className={`card-note__sidebar card-note__sidebar--with-image ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
               style={effectiveImageUrl ? { backgroundImage: `url('${effectiveImageUrl}')` } : undefined}
             >
-              <div className="card-note__sidebar-icon">
-                {noteType === 'scripture' ? (
-                  <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-                ) : noteType === 'resource' ? (
-                  <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-                ) : (
-                  <svg fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-                  </svg>
-                )}
-              </div>
+              {/* Hide icon for resource notes with image - the image is enough */}
+              {!(noteType === 'resource' && effectiveImageUrl) && (
+                <div className="card-note__sidebar-icon">
+                  {noteType === 'scripture' ? (
+                    <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                  ) : noteType === 'resource' ? (
+                    <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                  ) : (
+                    <svg fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                    </svg>
+                  )}
+                </div>
+              )}
             </div>
             
             {/* Right content area */}

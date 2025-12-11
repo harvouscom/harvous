@@ -85,10 +85,29 @@
 }
 
 .card-note__sidebar--with-image {
+  position: relative; /* Ensure positioning context for pseudo-element */
   background-color: var(--color-aged-paper);
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
+}
+
+.card-note__sidebar--with-image::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--color-deep-grey);
+  opacity: 0.3;
+  border-radius: 8px; /* Match parent's border-radius */
+  z-index: 1; /* Sit on top of the background image */
+}
+
+.card-note__sidebar--with-image > * {
+  position: relative;
+  z-index: 2; /* Ensure content is on top of the overlay */
 }
 
 .card-note__sidebar--resource {

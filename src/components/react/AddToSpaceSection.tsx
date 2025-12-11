@@ -127,7 +127,8 @@ const NoteItem: React.FC<{
             display: 'flex',
             alignItems: 'center',
             gap: '1.5rem',
-            paddingLeft: '0.75rem',
+            // Add extra left padding for resource/scripture notes to account for sidebar icon
+            paddingLeft: (item.noteType === 'resource' || item.noteType === 'scripture') ? '3.5rem' : '0.75rem',
             paddingRight: '3rem',
             height: '100%',
             overflow: 'hidden'
