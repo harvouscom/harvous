@@ -201,6 +201,19 @@ const ScriptureMetadata = defineTable({
   }
 })
 
+// Resource metadata table for resource note type
+const ResourceMetadata = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    noteId: column.text(), // Foreign key to Notes
+    sourceUrl: column.text(), // Required - the actual URL
+    sourceTitle: column.text({ optional: true }), // From og:title
+    sourceDescription: column.text({ optional: true }), // From og:description
+    sourceImage: column.text({ optional: true }), // From og:image
+    createdAt: column.date(),
+  }
+})
+
 // Junction table for many-to-many relationship between notes and scripture references
 // Tracks which notes reference which scripture notes (for the "Notes" tab in scripture note details)
 const NoteScriptureReferences = defineTable({
@@ -274,6 +287,7 @@ export default defineDb({
     NoteTags,
     ScriptureMetadata,
     NoteScriptureReferences,
+    ResourceMetadata,
     InboxItems,
     InboxItemNotes,
     UserInboxItems

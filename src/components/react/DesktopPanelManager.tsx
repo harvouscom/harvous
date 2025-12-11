@@ -16,7 +16,7 @@ interface DesktopPanelManagerProps {
   contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile';
 }
 
-type PanelType = 'newNote' | 'newThread' | 'noteDetails' | 'editThread' | 'editSpace' | 'inboxPreview' | null;
+type PanelType = 'newNote' | 'newThread' | 'newResource' | 'noteDetails' | 'editThread' | 'editSpace' | 'inboxPreview' | null;
 
 interface InboxItem {
   id: string;
@@ -44,6 +44,8 @@ type PanelAction =
   | { type: 'CLOSE_NEW_NOTE' }
   | { type: 'OPEN_NEW_THREAD' }
   | { type: 'CLOSE_NEW_THREAD' }
+  | { type: 'OPEN_NEW_RESOURCE' }
+  | { type: 'CLOSE_NEW_RESOURCE' }
   | { type: 'OPEN_NOTE_DETAILS' }
   | { type: 'CLOSE_NOTE_DETAILS' }
   | { type: 'OPEN_EDIT_THREAD' }
@@ -61,6 +63,7 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       // Increment panelKey to force remount and re-read localStorage
       localStorage.setItem('showNewNotePanel', 'true');
       localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
       return { activePanel: 'newNote', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_NEW_NOTE':
@@ -72,10 +75,23 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       // Increment panelKey to force remount and re-read localStorage
       localStorage.setItem('showNewThreadPanel', 'true');
       localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
       return { activePanel: 'newThread', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_NEW_THREAD':
       localStorage.setItem('showNewThreadPanel', 'false');
+      return { activePanel: null, panelKey: state.panelKey };
+    
+    case 'OPEN_NEW_RESOURCE':
+      // Close all other panels and open NewResource
+      // Increment panelKey to force remount and re-read localStorage
+      localStorage.setItem('showNewResourcePanel', 'true');
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      return { activePanel: 'newResource', panelKey: state.panelKey + 1 };
+    
+    case 'CLOSE_NEW_RESOURCE':
+      localStorage.setItem('showNewResourcePanel', 'false');
       return { activePanel: null, panelKey: state.panelKey };
     
     case 'OPEN_NOTE_DETAILS':
@@ -110,8 +126,18 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       // Check localStorage for saved panel state
       const savedNotePanel = localStorage.getItem('showNewNotePanel');
       const savedThreadPanel = localStorage.getItem('showNewThreadPanel');
+      const savedResourcePanel = localStorage.getItem('showNewResourcePanel');
 
-      if (savedNotePanel === 'true') {
+      if (savedResourcePanel === 'true') {
+        // Check if there's new content from text selection - if so, increment panelKey to force remount
+        const hasNewContent = !!(localStorage.getItem('newNoteContent') || 
+                                 localStorage.getItem('newNoteType') ||
+                                 localStorage.getItem('newNoteResourceUrl'));
+        return { 
+          activePanel: 'newResource', 
+          panelKey: hasNewContent ? state.panelKey + 1 : state.panelKey 
+        };
+      } else if (savedNotePanel === 'true') {
         // Check if there's new content from text selection - if so, increment panelKey to force remount
         const hasNewContent = !!(localStorage.getItem('newNoteContent') || 
                                  localStorage.getItem('newNoteType') ||
@@ -163,12 +189,14 @@ export default function DesktopPanelManager({
     // Check if there's a pending panel open request BEFORE clearing
     const pendingNotePanel = localStorage.getItem('showNewNotePanel');
     const pendingThreadPanel = localStorage.getItem('showNewThreadPanel');
+    const pendingResourcePanel = localStorage.getItem('showNewResourcePanel');
     
     // Only clear if there's no pending request (to avoid clearing requests made before component loaded)
-    if (pendingNotePanel !== 'true' && pendingThreadPanel !== 'true') {
+    if (pendingNotePanel !== 'true' && pendingThreadPanel !== 'true' && pendingResourcePanel !== 'true') {
       // No pending requests - safe to clear (matches Alpine.js behavior)
       localStorage.removeItem('showNewNotePanel');
       localStorage.removeItem('showNewThreadPanel');
+      localStorage.removeItem('showNewResourcePanel');
     }
     
     // Then load any saved state (this will honor pending requests)
@@ -181,8 +209,13 @@ export default function DesktopPanelManager({
     if (state.activePanel === null) {
       const pendingNotePanel = localStorage.getItem('showNewNotePanel');
       const pendingThreadPanel = localStorage.getItem('showNewThreadPanel');
+      const pendingResourcePanel = localStorage.getItem('showNewResourcePanel');
       
-      if (pendingNotePanel === 'true') {
+      if (pendingResourcePanel === 'true') {
+        // Set noteType to resource before opening
+        localStorage.setItem('newNoteType', 'resource');
+        dispatch({ type: 'OPEN_NEW_RESOURCE' });
+      } else if (pendingNotePanel === 'true') {
         dispatch({ type: 'OPEN_NEW_NOTE' });
       } else if (pendingThreadPanel === 'true') {
         dispatch({ type: 'OPEN_NEW_THREAD' });
@@ -205,9 +238,20 @@ export default function DesktopPanelManager({
       dispatch({ type: 'OPEN_NEW_THREAD' });
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
-    
+
     const handleCloseNewThread = () => {
       dispatch({ type: 'CLOSE_NEW_THREAD' });
+    };
+
+    const handleOpenNewResource = () => {
+      // Set noteType to resource before opening
+      localStorage.setItem('newNoteType', 'resource');
+      dispatch({ type: 'OPEN_NEW_RESOURCE' });
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+    };
+
+    const handleCloseNewResource = () => {
+      dispatch({ type: 'CLOSE_NEW_RESOURCE' });
     };
     
     const handleOpenNoteDetails = () => {
@@ -264,6 +308,8 @@ export default function DesktopPanelManager({
     window.addEventListener('closeNewNotePanel', handleCloseNewNote);
     window.addEventListener('openNewThreadPanel', handleOpenNewThread);
     window.addEventListener('closeNewThreadPanel', handleCloseNewThread);
+    window.addEventListener('openNewResourcePanel', handleOpenNewResource);
+    window.addEventListener('closeNewResourcePanel', handleCloseNewResource);
     window.addEventListener('openNoteDetailsPanel', handleOpenNoteDetails);
     window.addEventListener('closeNoteDetailsPanel', handleCloseNoteDetails);
     window.addEventListener('openEditThreadPanel', handleOpenEditThread);
@@ -280,6 +326,8 @@ export default function DesktopPanelManager({
       window.removeEventListener('closeNewNotePanel', handleCloseNewNote);
       window.removeEventListener('openNewThreadPanel', handleOpenNewThread);
       window.removeEventListener('closeNewThreadPanel', handleCloseNewThread);
+      window.removeEventListener('openNewResourcePanel', handleOpenNewResource);
+      window.removeEventListener('closeNewResourcePanel', handleCloseNewResource);
       window.removeEventListener('openNoteDetailsPanel', handleOpenNoteDetails);
       window.removeEventListener('closeNoteDetailsPanel', handleCloseNoteDetails);
       window.removeEventListener('openEditThreadPanel', handleOpenEditThread);
@@ -300,6 +348,11 @@ export default function DesktopPanelManager({
   // Handler for closing NewThreadPanel
   const handleCloseNewThread = useCallback(() => {
     window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+  }, []);
+
+  // Handler for closing NewResourcePanel
+  const handleCloseNewResource = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
   }, []);
 
   // Handler for closing NoteDetailsPanel
@@ -366,6 +419,22 @@ export default function DesktopPanelManager({
                 key={`new-thread-${state.panelKey}`}
                 currentSpace={currentSpace}
                 onClose={handleCloseNewThread}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {/* New Resource Panel - Desktop Only */}
+      {state.activePanel === 'newResource' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full new-note-panel-container hidden min-[1160px]:block" />}>
+            <div className="h-full w-full flex-1 new-note-panel-container hidden min-[1160px]:block" style={{ width: '100%', minWidth: 0 }}>
+              <NewNotePanel
+                key={`new-resource-${state.panelKey}`}
+                currentThread={currentThread}
+                currentSpace={currentSpace}
+                onClose={handleCloseNewResource}
               />
             </div>
           </Suspense>

@@ -1,4 +1,4 @@
-import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, eq, and, desc, count, or, ne, isNull, isNotNull, inArray } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, ResourceMetadata, eq, and, desc, count, or, ne, isNull, isNotNull, inArray } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 import { getInboxItems, getInboxCount as getInboxCountUtil } from "./inbox-data";
 import { getRelativeTime } from "./date-formatting";
@@ -398,10 +398,66 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       })
       .slice(offset, offset + limit);
     
-    return sortedNotes.map(note => ({
-      ...note,
-      lastUpdated: note.updatedAt || note.createdAt,
-    }));
+    // Fetch ResourceMetadata for resource notes
+    const resourceNoteIds = sortedNotes
+      .filter(note => note.noteType === 'resource')
+      .map(note => note.id);
+    
+    console.log('getNotesForThread: Found resource notes:', resourceNoteIds.length, resourceNoteIds);
+    
+    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+    
+    if (resourceNoteIds.length > 0) {
+      try {
+        const resourceMetadata = await db.select({
+          noteId: ResourceMetadata.noteId,
+          sourceTitle: ResourceMetadata.sourceTitle,
+          sourceDescription: ResourceMetadata.sourceDescription,
+          sourceImage: ResourceMetadata.sourceImage,
+        })
+        .from(ResourceMetadata)
+        .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
+        .all();
+        
+        console.log('getNotesForThread: Fetched resource metadata:', resourceMetadata.length, 'records');
+        
+        resourceMetadataMap = resourceMetadata.reduce((acc, meta) => {
+          acc[meta.noteId] = {
+            sourceTitle: meta.sourceTitle,
+            sourceDescription: meta.sourceDescription,
+            sourceImage: meta.sourceImage,
+          };
+          console.log(`getNotesForThread: Metadata for ${meta.noteId}:`, acc[meta.noteId]);
+          return acc;
+        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }>);
+      } catch (error) {
+        console.error("Error fetching resource metadata:", error);
+      }
+    }
+    
+    return sortedNotes.map(note => {
+      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
+      const result = {
+        ...note,
+        lastUpdated: note.updatedAt || note.createdAt,
+        resourceTitle: resourceMeta?.sourceTitle || null,
+        resourceDescription: resourceMeta?.sourceDescription || null,
+        resourceImage: resourceMeta?.sourceImage || null,
+      };
+      
+      // Debug logging for resource notes
+      if (note.noteType === 'resource') {
+        console.log(`getNotesForThread: Resource note ${note.id}:`, {
+          hasMetadata: !!resourceMeta,
+          resourceTitle: result.resourceTitle,
+          resourceDescription: result.resourceDescription ? result.resourceDescription.substring(0, 50) + '...' : null,
+          resourceImage: result.resourceImage,
+          originalTitle: note.title
+        });
+      }
+      
+      return result;
+    });
   } catch (error) {
     console.error("Error fetching notes for thread:", error);
     return [];

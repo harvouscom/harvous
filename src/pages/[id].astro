@@ -12,7 +12,7 @@ import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import ThreadNotesList from "@/components/react/ThreadNotesList";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
-import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, eq, and, desc, count, ne } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount } from "@/utils/dashboard-data";
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
@@ -790,12 +790,20 @@ if (!content) {
                                   class="block transition-transform duration-200 hover:scale-[1.002]"
                                 >
                                   <CardNote 
-                                    title={item.title || "Untitled Note"}
+                                    title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : (item.title || "Untitled Note")}
                                     content={(() => {
+                                      // For resource notes, use resourceDescription if available
+                                      if (item.noteType === 'resource' && item.resourceDescription) {
+                                        return item.resourceDescription;
+                                      }
                                       const cleanContent = stripHtml(item.content);
                                       return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
                                     })()}
                                     noteType={item.noteType || 'default'}
+                                    imageUrl={item.noteType === 'resource' && item.resourceImage ? item.resourceImage : undefined}
+                                    resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
+                                    resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
+                                    resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
                                   />
                                 </a>
                               )}
@@ -854,12 +862,20 @@ if (!content) {
                                 class="block transition-transform duration-200 hover:scale-[1.002]"
                               >
                                 <CardNote 
-                                  title={note.title || "Untitled Note"}
+                                  title={note.noteType === 'resource' && note.resourceTitle ? note.resourceTitle : (note.title || "Untitled Note")}
                                   content={(() => {
+                                    // For resource notes, use resourceDescription if available
+                                    if (note.noteType === 'resource' && note.resourceDescription) {
+                                      return note.resourceDescription;
+                                    }
                                     const cleanContent = stripHtml(note.content);
                                     return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
                                   })()}
                                   noteType={note.noteType || 'default'}
+                                  imageUrl={note.noteType === 'resource' && note.resourceImage ? note.resourceImage : undefined}
+                                  resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
+                                  resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
+                                  resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
                                 />
                               </a>
                             )}

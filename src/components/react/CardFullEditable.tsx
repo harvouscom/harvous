@@ -586,7 +586,7 @@ export default function CardFullEditable({
           {noteType === 'scripture' ? (
             <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
           ) : noteType === 'resource' ? (
-            <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+            <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
           ) : (
             <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
               <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>

@@ -1,11 +1,11 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, UserMetadata, Tags, NoteTags, NoteThreads, ScriptureMetadata, eq, and, desc, isNotNull } from 'astro:db';
+import { db, Notes, Threads, UserMetadata, Tags, NoteTags, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId } from '@/utils/ids';
 import { awardCreationBonusXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { handleAPIError } from '@/utils/error-handling';
-import { validateContent, validateNoteType, validateThreadId, validateSpaceId } from '@/utils/validation';
+import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { getNextUntitledNoteName } from '@/utils/untitled-naming';
 
@@ -46,21 +46,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const noteType = formData.get('noteType') as string;
     const scriptureReference = formData.get('scriptureReference') as string | null;
     const scriptureVersion = formData.get('scriptureVersion') as string | null;
+    const resourceUrl = formData.get('resourceUrl') as string | null;
     const spaceId = formData.get('spaceId') as string | null;
 
-    // Validate content
-    const contentValidation = validateContent(content, true);
-    if (!contentValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: contentValidation.error,
-        code: contentValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Validate noteType
+    // Validate noteType first (needed to determine if content is required)
     const noteTypeValidation = validateNoteType(noteType);
     if (!noteTypeValidation.isValid) {
       return new Response(JSON.stringify({ 
@@ -72,6 +61,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
     const finalNoteType = noteType && noteTypeValidation.isValid ? noteType : 'default';
+
+    // Validate content - resource notes don't require content
+    const contentRequired = finalNoteType !== 'resource';
+    const contentValidation = validateContent(content, contentRequired);
+    if (!contentValidation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: contentValidation.error,
+        code: contentValidation.code
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     // Validate threadId
     const threadIdValidation = validateThreadId(threadId);
@@ -314,6 +316,113 @@ export const POST: APIRoute = async ({ request, locals }) => {
       } catch (error: any) {
         // Don't fail note creation if ScriptureMetadata creation fails
         console.error('Error creating ScriptureMetadata (non-critical):', error);
+      }
+    }
+
+    // Create ResourceMetadata record if this is a resource note
+    // IMPORTANT: This must complete before returning the response to avoid timing issues
+    if (finalNoteType === 'resource' && resourceUrl) {
+      try {
+        // Normalize URL by adding https:// if missing
+        const normalizedResourceUrl = normalizeUrl(resourceUrl);
+        
+        // Fetch metadata from the resource URL (with timeout to prevent hanging)
+        let resourceMetadata: { title?: string; description?: string; image?: string } | null = null;
+        
+        try {
+          console.log('Creating resource note, fetching metadata for URL:', normalizedResourceUrl);
+          
+          // Add timeout to metadata fetch (10 seconds max)
+          const metadataFetchPromise = fetch(`${new URL(request.url).origin}/api/resource/metadata`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url: normalizedResourceUrl }),
+          });
+          
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Metadata fetch timeout')), 10000)
+          );
+          
+          const metadataResponse = await Promise.race([metadataFetchPromise, timeoutPromise]) as Response;
+
+          console.log('Metadata API response status:', metadataResponse.status);
+          
+          if (metadataResponse.ok) {
+            const metadataData = await metadataResponse.json();
+            console.log('Metadata API response data:', metadataData);
+            if (metadataData.success && metadataData.metadata) {
+              resourceMetadata = metadataData.metadata;
+              console.log('Metadata fetched successfully:', {
+                title: resourceMetadata.title,
+                description: resourceMetadata.description,
+                image: resourceMetadata.image,
+                hasTitle: !!resourceMetadata.title,
+                hasDescription: !!resourceMetadata.description,
+                hasImage: !!resourceMetadata.image
+              });
+            } else {
+              console.warn('Metadata response not successful:', metadataData);
+            }
+          } else {
+            const errorData = await metadataResponse.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('Metadata fetch failed:', metadataResponse.status, errorData);
+          }
+        } catch (error) {
+          // Log error but still create the resource note
+          console.error('Error fetching resource metadata (non-critical):', error);
+        }
+
+        // Create ResourceMetadata record (even if metadata fetch failed, store the URL)
+        const resourceMetadataRecord = {
+          id: `resource_${newNote.id}_${Date.now()}`,
+          noteId: newNote.id,
+          sourceUrl: normalizedResourceUrl,
+          sourceTitle: resourceMetadata?.title || null,
+          sourceDescription: resourceMetadata?.description || null,
+          sourceImage: resourceMetadata?.image || null,
+          createdAt: new Date()
+        };
+        console.log('Creating ResourceMetadata record:', {
+          noteId: resourceMetadataRecord.noteId,
+          sourceUrl: resourceMetadataRecord.sourceUrl,
+          sourceTitle: resourceMetadataRecord.sourceTitle,
+          sourceDescription: resourceMetadataRecord.sourceDescription ? resourceMetadataRecord.sourceDescription.substring(0, 50) + '...' : null,
+          sourceImage: resourceMetadataRecord.sourceImage,
+          hasTitle: !!resourceMetadataRecord.sourceTitle,
+          hasDescription: !!resourceMetadataRecord.sourceDescription,
+          hasImage: !!resourceMetadataRecord.sourceImage
+        });
+        await db.insert(ResourceMetadata).values(resourceMetadataRecord);
+        console.log('ResourceMetadata record created successfully');
+
+        // Update note with metadata if available
+        // For resource notes, always use metadata title if available (not the URL)
+        if (resourceMetadata && resourceMetadata.title) {
+          const metadataTitle = resourceMetadata.title.charAt(0).toUpperCase() + resourceMetadata.title.slice(1);
+          
+          await db.update(Notes)
+            .set({
+              title: metadataTitle,
+              updatedAt: new Date()
+            })
+            .where(eq(Notes.id, newNote.id));
+
+          // Reload note to get updated values
+          const updatedNote = await db.select()
+            .from(Notes)
+            .where(eq(Notes.id, newNote.id))
+            .get();
+          
+          if (updatedNote) {
+            Object.assign(newNote, updatedNote);
+            capitalizedTitle = metadataTitle; // Update local variable too
+          }
+        }
+      } catch (error: any) {
+        // Don't fail note creation if ResourceMetadata creation fails
+        console.error('Error creating ResourceMetadata (non-critical):', error);
       }
     }
 

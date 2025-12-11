@@ -440,7 +440,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     if (noteType === 'scripture') {
       return <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
     } else if (noteType === 'resource') {
-      return <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
+      return <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
     } else {
       // Default note - use bookmark icon
       return (

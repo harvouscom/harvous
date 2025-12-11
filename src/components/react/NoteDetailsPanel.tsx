@@ -741,7 +741,7 @@ export default function NoteDetailsPanel({
           inBottomSheet={inBottomSheet}
         />
         
-        {/* New Thread button - only show on threads tab */}
+        {/* Add Thread button - only show on threads tab */}
         {activeTab === 'threads' && (
           <button 
             type="button"
@@ -750,7 +750,7 @@ export default function NoteDetailsPanel({
             className="btn-cta flex-1 group"
           >
             <span className="btn-cta__content">
-              New Thread
+              Add Thread
             </span>
             <div className="btn-cta__shadow" />
           </button>

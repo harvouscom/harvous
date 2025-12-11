@@ -9,6 +9,10 @@ interface CardNoteProps {
   noteType?: 'default' | 'scripture' | 'resource';
   className?: string;
   onClick?: () => void;
+  // Resource metadata (for resource note type)
+  resourceTitle?: string | null;
+  resourceDescription?: string | null;
+  resourceImage?: string | null;
 }
 
 // Helper function to convert HTML to readable text
@@ -105,20 +109,37 @@ const CardNote: React.FC<CardNoteProps> = ({
   imageUrl,
   noteType = 'default',
   className = "",
-  onClick
+  onClick,
+  resourceTitle,
+  resourceDescription,
+  resourceImage
 }) => {
+  // For resource notes, prioritize metadata over regular props
+  const effectiveTitle = noteType === 'resource' 
+    ? (resourceTitle || title || "Untitled Resource")
+    : (title || "Untitled Note");
+  const effectiveContent = noteType === 'resource' 
+    ? (resourceDescription || content || "")
+    : (content || "");
+  const effectiveImageUrl = noteType === 'resource' 
+    ? (resourceImage || imageUrl)
+    : imageUrl;
+  
+  // For resource notes with images, automatically use withImage variant
+  const effectiveVariant = (noteType === 'resource' && effectiveImageUrl) ? "withImage" : variant;
+  
   return (
     <div className={`card card-note ${className}`} onClick={onClick}>
-      {variant === "default" && (
+      {effectiveVariant === "default" && (
         <div className="card-note__inner">
           <div className="card-note__content">
             {/* Left sidebar with note type icon */}
-            <div className="card-note__sidebar">
+            <div className={`card-note__sidebar ${noteType === 'resource' && effectiveImageUrl ? 'card-note__sidebar--resource' : ''}`}>
               <div className="card-note__sidebar-icon">
                 {noteType === 'scripture' ? (
                   <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                 ) : noteType === 'resource' ? (
-                  <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                  <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                 ) : (
                   <svg fill="currentColor" viewBox="0 0 24 24">
                     <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
@@ -131,10 +152,10 @@ const CardNote: React.FC<CardNoteProps> = ({
             <div className="card-note__body">
               <div className="card-note__text">
                 <div className="card-note__title">
-                  <p>{title || "Quick Tour of Harvous"}</p>
+                  <p>{effectiveTitle || "Quick Tour of Harvous"}</p>
                 </div>
                 <div className="card-note__excerpt">
-                  <p>{content ? stripHtml(content) : ""}</p>
+                  <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
                 </div>
               </div>
             </div>
@@ -143,19 +164,19 @@ const CardNote: React.FC<CardNoteProps> = ({
         </div>
       )}
 
-      {variant === "withImage" && (
+      {effectiveVariant === "withImage" && (
         <div className="card-note__inner">
           <div className="card-note__content">
             {/* Left sidebar with image background and note type icon */}
             <div 
-              className="card-note__sidebar card-note__sidebar--with-image"
-              style={imageUrl ? { backgroundImage: `url('${imageUrl}')` } : undefined}
+              className={`card-note__sidebar card-note__sidebar--with-image ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
+              style={effectiveImageUrl ? { backgroundImage: `url('${effectiveImageUrl}')` } : undefined}
             >
               <div className="card-note__sidebar-icon">
                 {noteType === 'scripture' ? (
                   <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                 ) : noteType === 'resource' ? (
-                  <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                  <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                 ) : (
                   <svg fill="currentColor" viewBox="0 0 24 24">
                     <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
@@ -168,10 +189,10 @@ const CardNote: React.FC<CardNoteProps> = ({
             <div className="card-note__body">
               <div className="card-note__text">
                 <div className="card-note__title">
-                  <p>{title || "Note with Image"}</p>
+                  <p>{effectiveTitle || "Note with Image"}</p>
                 </div>
                 <div className="card-note__excerpt">
-                  <p>{content ? stripHtml(content) : ""}</p>
+                  <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
                 </div>
               </div>
             </div>

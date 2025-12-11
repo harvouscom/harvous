@@ -91,6 +91,10 @@
   background-repeat: no-repeat;
 }
 
+.card-note__sidebar--resource {
+  width: 104px; /* 24px wider than default 80px */
+}
+
 .card-note__sidebar-icon {
   position: relative;
   flex-shrink: 0;

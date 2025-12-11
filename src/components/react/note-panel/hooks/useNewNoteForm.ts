@@ -115,8 +115,21 @@ export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteF
       localStorage.removeItem('newNoteScriptureReference');
       localStorage.removeItem('newNoteScriptureVersion');
       localStorage.removeItem('newNoteScriptureText');
+    } else if (savedNoteType === 'resource') {
+      setNoteType('resource');
+      const savedResourceUrl = localStorage.getItem('newNoteResourceUrl') || '';
+      if (savedResourceUrl) {
+        setResourceUrl(savedResourceUrl);
+      }
+      // Clear the flag after state updates complete
+      setTimeout(() => {
+        isLoadingFromLocalStorage.current = false;
+      }, 100);
+      // Clear after loading
+      localStorage.removeItem('newNoteType');
+      localStorage.removeItem('newNoteResourceUrl');
     } else {
-      // Use saved title if not scripture
+      // Use saved title if not scripture or resource
       if (savedTitle) {
         setTitle(savedTitle);
       }
@@ -162,16 +175,29 @@ export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteF
     localStorage.setItem('newNoteContent', content);
   }, [content]);
 
+  // Save resourceUrl to localStorage when it changes
+  useEffect(() => {
+    if (noteType === 'resource') {
+      localStorage.setItem('newNoteResourceUrl', resourceUrl);
+    }
+  }, [resourceUrl, noteType]);
+
   // Check if there are unsaved changes
   const hasUnsavedChanges = (): boolean => {
     const trimmedTitle = title.trim();
     const trimmedContent = content.trim();
+    const trimmedResourceUrl = resourceUrl.trim();
     
     // Check if there's meaningful content (not just whitespace or empty HTML)
     const hasContent = trimmedContent && 
       trimmedContent !== '<p></p>' && 
       trimmedContent !== '<p><br></p>' &&
       trimmedContent !== '<br>';
+    
+    // For resource notes, check URL as well
+    if (noteType === 'resource') {
+      return Boolean(trimmedResourceUrl || hasContent);
+    }
     
     return Boolean(trimmedTitle || hasContent);
   };
@@ -190,6 +216,7 @@ export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteF
   const clearLocalStorage = () => {
     localStorage.removeItem('newNoteTitle');
     localStorage.removeItem('newNoteContent');
+    localStorage.removeItem('newNoteResourceUrl');
     // Don't clear newNoteThread - preserve thread selection for next time
   };
 

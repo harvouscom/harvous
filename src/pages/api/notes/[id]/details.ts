@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, NoteScriptureReferences, eq, and, count, desc } from 'astro:db';
+import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, ResourceMetadata, NoteScriptureReferences, eq, and, count, desc } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ params, locals }) => {
@@ -46,6 +46,24 @@ export const GET: APIRoute = async ({ params, locals }) => {
         version = scriptureMeta?.translation;
       } catch (error: any) {
         version = undefined;
+      }
+    }
+
+    // Fetch resource metadata if this is a resource note
+    let resourceTitle: string | null = null;
+    let resourceDescription: string | null = null;
+    let resourceImage: string | null = null;
+    if (note.noteType === 'resource') {
+      try {
+        const resourceMeta = await db.select()
+          .from(ResourceMetadata)
+          .where(eq(ResourceMetadata.noteId, noteId))
+          .get();
+        resourceTitle = resourceMeta?.sourceTitle || null;
+        resourceDescription = resourceMeta?.sourceDescription || null;
+        resourceImage = resourceMeta?.sourceImage || null;
+      } catch (error: any) {
+        // Resource metadata not found or error - use null values
       }
     }
 
@@ -227,7 +245,10 @@ export const GET: APIRoute = async ({ params, locals }) => {
         addedBy: note.addedBy || 'user',
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
-        version: version
+        version: version,
+        resourceTitle: resourceTitle,
+        resourceDescription: resourceDescription,
+        resourceImage: resourceImage
       },
       threads: formattedThreads,
       allUserThreads: allUserThreads.map(thread => ({

@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, NoteThreads, eq, and, ne, count } from 'astro:db';
+import { db, Notes, Threads, NoteThreads, ResourceMetadata, eq, and, ne, count, inArray } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ locals }) => {
@@ -19,12 +19,56 @@ export const GET: APIRoute = async ({ locals }) => {
       title: Notes.title,
       content: Notes.content,
       spaceId: Notes.spaceId,
+      noteType: Notes.noteType,
       createdAt: Notes.createdAt,
       updatedAt: Notes.updatedAt
     })
     .from(Notes)
     .where(eq(Notes.userId, userId))
     .all();
+
+    // Fetch ResourceMetadata for resource notes
+    const resourceNoteIds = allNotes
+      .filter(note => note.noteType === 'resource')
+      .map(note => note.id);
+    
+    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+    
+    if (resourceNoteIds.length > 0) {
+      try {
+        const resourceMetadata = await db.select({
+          noteId: ResourceMetadata.noteId,
+          sourceTitle: ResourceMetadata.sourceTitle,
+          sourceDescription: ResourceMetadata.sourceDescription,
+          sourceImage: ResourceMetadata.sourceImage,
+        })
+        .from(ResourceMetadata)
+        .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
+        .all();
+        
+        resourceMetadataMap = resourceMetadata.reduce((acc, meta) => {
+          acc[meta.noteId] = {
+            sourceTitle: meta.sourceTitle,
+            sourceDescription: meta.sourceDescription,
+            sourceImage: meta.sourceImage,
+          };
+          return acc;
+        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }>);
+      } catch (error) {
+        console.error("Error fetching resource metadata:", error);
+      }
+    }
+
+    // Attach resource metadata to notes
+    const notesWithMetadata = allNotes.map(note => {
+      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
+      return {
+        ...note,
+        resourceTitle: resourceMeta?.sourceTitle || null,
+        resourceDescription: resourceMeta?.sourceDescription || null,
+        resourceImage: resourceMeta?.sourceImage || null,
+      };
+    });
 
     // Fetch all user threads (excluding unorganized)
     const allThreads = await db.select({
@@ -64,7 +108,7 @@ export const GET: APIRoute = async ({ locals }) => {
     );
 
     return new Response(JSON.stringify({
-      notes: allNotes,
+      notes: notesWithMetadata,
       threads: threadsWithCounts
     }), {
       status: 200,

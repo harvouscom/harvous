@@ -5,6 +5,31 @@
 
 import { THREAD_COLORS, type ThreadColor } from './colors';
 
+/**
+ * Normalize a URL by adding https:// protocol if missing
+ * Handles common URL patterns like "example.com" or "www.example.com"
+ */
+export function normalizeUrl(url: string): string {
+  if (!url || !url.trim()) {
+    return url;
+  }
+
+  const trimmed = url.trim();
+
+  // If it already has a protocol, return as-is
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  // If it starts with //, add https:
+  if (trimmed.startsWith('//')) {
+    return `https:${trimmed}`;
+  }
+
+  // Otherwise, prepend https://
+  return `https://${trimmed}`;
+}
+
 export interface ValidationResult {
   isValid: boolean;
   error?: string;

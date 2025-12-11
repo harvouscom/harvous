@@ -39,7 +39,7 @@ export interface BottomSheetProps {
   version?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'inboxPreview';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'inboxPreview';
 
 interface InboxItem {
   id: string;
@@ -109,7 +109,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           window.initThreadCreation();
         }
       }, 100);
-    } else if (type === 'note') {
+    } else if (type === 'note' || type === 'resource') {
       setTimeout(() => {
         if (typeof window.setupCreateNoteButton === 'function') {
           window.setupCreateNoteButton();
@@ -204,9 +204,35 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     
     window.addEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
     
+    // Listen for panel open events (for mobile)
+    const handleOpenNewNote = () => {
+      if (isMobile) {
+        openBottomSheet('note');
+      }
+    };
+
+    const handleOpenNewThread = () => {
+      if (isMobile) {
+        openBottomSheet('thread');
+      }
+    };
+
+    const handleOpenNewResource = () => {
+      if (isMobile) {
+        // Set noteType to resource before opening
+        localStorage.setItem('newNoteType', 'resource');
+        openBottomSheet('resource');
+      }
+    };
+
+    window.addEventListener('openNewNotePanel', handleOpenNewNote);
+    window.addEventListener('openNewThreadPanel', handleOpenNewThread);
+    window.addEventListener('openNewResourcePanel', handleOpenNewResource);
+
     // Listen for panel close events
     window.addEventListener('closeNewNotePanel', handleCloseBottomSheet);
     window.addEventListener('closeNewThreadPanel', handleCloseBottomSheet);
+    window.addEventListener('closeNewResourcePanel', handleCloseBottomSheet);
     window.addEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
     window.addEventListener('closeProfilePanel', handleCloseBottomSheet);
     window.addEventListener('closeEditThreadPanel', handleCloseBottomSheet);
@@ -220,8 +246,12 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
       window.removeEventListener('openEditSpacePanel', handleOpenEditSpacePanel);
       window.removeEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
+      window.removeEventListener('openNewNotePanel', handleOpenNewNote);
+      window.removeEventListener('openNewThreadPanel', handleOpenNewThread);
+      window.removeEventListener('openNewResourcePanel', handleOpenNewResource);
       window.removeEventListener('closeNewNotePanel', handleCloseBottomSheet);
       window.removeEventListener('closeNewThreadPanel', handleCloseBottomSheet);
+      window.removeEventListener('closeNewResourcePanel', handleCloseBottomSheet);
       window.removeEventListener('closeNoteDetailsPanel', handleCloseBottomSheet);
       window.removeEventListener('closeProfilePanel', handleCloseBottomSheet);
       window.removeEventListener('closeEditThreadPanel', handleCloseBottomSheet);
@@ -352,6 +382,20 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 currentSpace={currentSpace}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+                }}
+              />
+            </div>
+          )}
+
+          {/* New Resource Panel */}
+          {drawerType === 'resource' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <NewNotePanel
+                key={`mobile-resource-${panelKey}`}
+                currentThread={currentThread}
+                currentSpace={currentSpace}
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
                 }}
               />
             </div>

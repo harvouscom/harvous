@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { normalizeUrl } from '@/utils/validation';
 import type { NoteType } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
 
@@ -178,6 +179,9 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     const trimmedScriptureRef = scriptureReference.trim();
     const trimmedResourceUrl = resourceUrl.trim();
     
+    // Normalize resource URL by adding https:// if missing
+    const normalizedResourceUrl = trimmedResourceUrl ? normalizeUrl(trimmedResourceUrl) : '';
+    
     const hasContent = trimmedContent && 
       trimmedContent !== '<p></p>' && 
       trimmedContent !== '<p><br></p>' &&
@@ -204,8 +208,11 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         showToast('Please add a resource URL', 'warning');
         return;
       }
-      if (!hasContent) {
-        showToast('Please add your thoughts about this resource', 'warning');
+      // Validate normalized URL format
+      try {
+        new URL(normalizedResourceUrl);
+      } catch {
+        showToast('Please enter a valid URL', 'warning');
         return;
       }
     }
@@ -221,7 +228,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       } else if (noteType === 'scripture') {
         formData.set('title', scriptureReference);
       } else if (noteType === 'resource') {
-        formData.set('title', resourceUrl);
+        formData.set('title', normalizedResourceUrl);
       }
       
       formData.set('content', editorContent);
@@ -237,7 +244,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         formData.set('scriptureReference', apiReference);
         formData.set('scriptureVersion', scriptureVersion);
       } else if (noteType === 'resource') {
-        formData.set('resourceUrl', resourceUrl);
+        formData.set('resourceUrl', normalizedResourceUrl);
       }
 
       const response = await fetch('/api/notes/create', {

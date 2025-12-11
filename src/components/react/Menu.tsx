@@ -32,6 +32,10 @@ const renderIcon = (icon: any, action: string) => {
     'note-sticky': {
       viewBox: '0 0 448 512',
       path: 'M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l224 0 0-112c0-26.5 21.5-48 48-48l112 0 0-224c0-35.3-28.7-64-64-64L64 32zM448 352l-45.3 0L336 352c-8.8 0-16 7.2-16 16l0 66.7 0 45.3 32-32 64-64 32-32z'
+    },
+    'newspaper': {
+      viewBox: '0 0 512 512',
+      path: 'M96 96c0-35.3 28.7-64 64-64l288 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L80 480c-44.2 0-80-35.8-80-80L0 128c0-17.7 14.3-32 32-32s32 14.3 32 32l0 272c0 8.8 7.2 16 16 16s16-7.2 16-16L96 96zm64 24l0 80c0 13.3 10.7 24 24 24l112 0c13.3 0 24-10.7 24-24l0-80c0-13.3-10.7-24-24-24L184 96c-13.3 0-24 10.7-24 24zm208-8c0 8.8 7.2 16 16 16l48 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-48 0c-8.8 0-16 7.2-16 16zm0 96c0 8.8 7.2 16 16 16l48 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-48 0c-8.8 0-16 7.2-16 16zM160 304c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-256 0c-8.8 0-16 7.2-16 16zm0 96c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-256 0c-8.8 0-16 7.2-16 16z'
     }
   };
 
@@ -43,6 +47,8 @@ const renderIcon = (icon: any, action: string) => {
     iconKey = 'eraser';
   } else if (action.includes('seeDetails') || action.includes('Details')) {
     iconKey = 'circle-info';
+  } else if (action.includes('Resource')) {
+    iconKey = 'newspaper';
   } else if (action.includes('Thread')) {
     iconKey = 'layer-group';
   } else if (action.includes('Note')) {
@@ -55,6 +61,7 @@ const renderIcon = (icon: any, action: string) => {
     if (src.includes('pen-to-square')) iconKey = 'pen-to-square';
     else if (src.includes('eraser')) iconKey = 'eraser';
     else if (src.includes('circle-info')) iconKey = 'circle-info';
+    else if (src.includes('newspaper')) iconKey = 'newspaper';
     else if (src.includes('layer-group')) iconKey = 'layer-group';
     else if (src.includes('note-sticky')) iconKey = 'note-sticky';
   }
@@ -187,14 +194,21 @@ export default function Menu({
         console.error('Error opening edit space panel:', error);
       }
     } else if (action === 'openNewThreadPanel') {
-      // Handle New Thread action
+      // Handle Add Thread action
       try {
         window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
       } catch (error) {
         console.error('Error dispatching openNewThreadPanel event:', error);
       }
+    } else if (action === 'openNewResourcePanel') {
+      // Handle Add Resource action
+      try {
+        window.dispatchEvent(new CustomEvent('openNewResourcePanel'));
+      } catch (error) {
+        console.error('Error dispatching openNewResourcePanel event:', error);
+      }
     } else if (action === 'openNewNotePanel') {
-      // Handle New Note action
+      // Handle Add Note action
       try {
         window.dispatchEvent(new CustomEvent('openNewNotePanel'));
       } catch (error) {

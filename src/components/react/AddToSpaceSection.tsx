@@ -28,17 +28,24 @@ const NoteItem: React.FC<{
     }
   };
 
-  // Get note type icon
+  // Get note type icon - consistent size for all icons (20px to match CardNote)
   const getNoteTypeIcon = () => {
     const noteType = item.noteType || 'default';
+    const iconSize = 20;
     if (noteType === 'scripture') {
-      return <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
+      return <Icon name="scroll" size={iconSize} style={{ color: 'var(--color-deep-grey)' }} />;
     } else if (noteType === 'resource') {
-      return <Icon name="file-image" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
+      return <Icon name="newspaper" size={iconSize} style={{ color: 'var(--color-deep-grey)' }} />;
     } else {
-      // Default note - use bookmark icon (same as CardNote)
+      // Default note - use bookmark icon (same as CardNote) - ensure same size as Icon component
       return (
-        <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
+        <svg 
+          width={iconSize} 
+          height={iconSize} 
+          style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} 
+          fill="currentColor" 
+          viewBox="0 0 24 24"
+        >
           <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
         </svg>
       );
@@ -82,7 +89,7 @@ const NoteItem: React.FC<{
           setIsHovered(false);
         }}
       >
-        {/* Accent bar on left */}
+        {/* Accent bar on left - show icon for resource/scripture notes (no image for condensed view) */}
         <div 
           style={{ 
             position: 'absolute',
@@ -93,9 +100,26 @@ const NoteItem: React.FC<{
             borderTopLeftRadius: '0.75rem',
             borderBottomLeftRadius: '0.75rem',
             overflow: 'hidden',
-            backgroundColor: 'var(--color-light-paper)'
+            backgroundColor: 'var(--color-light-paper)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
-        />
+        >
+          {/* Show icon for resource/scripture notes */}
+          {(item.noteType === 'resource' || item.noteType === 'scripture') && (
+            <div style={{ 
+              width: '20px', 
+              height: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: 0.3
+            }}>
+              {getNoteTypeIcon()}
+            </div>
+          )}
+        </div>
         
         {/* Content */}
         <div 
@@ -109,10 +133,12 @@ const NoteItem: React.FC<{
             overflow: 'hidden'
           }}
         >
-          {/* Note type icon */}
-          <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-            {getNoteTypeIcon()}
-          </div>
+          {/* Note type icon - only show for default notes (resource/scripture show in sidebar) */}
+          {(!item.noteType || item.noteType === 'default') && (
+            <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
+              {getNoteTypeIcon()}
+            </div>
+          )}
           
           {/* Text content - only title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
@@ -421,7 +447,10 @@ export default function AddToSpaceSection({
           updatedAt: note.updatedAt,
           createdAt: note.createdAt,
           lastAccessed: undefined,
-          noteType: note.noteType || 'default'
+          noteType: note.noteType || 'default',
+          resourceImage: (note as any).resourceImage || null,
+          resourceTitle: (note as any).resourceTitle || null,
+          resourceDescription: (note as any).resourceDescription || null
         });
       } else {
         // For editing space, show notes from other spaces or no space (that aren't in the thread)

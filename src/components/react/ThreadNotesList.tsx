@@ -31,6 +31,10 @@ interface Note {
   noteType?: string;
   updatedAt?: Date;
   createdAt?: Date;
+  // Resource metadata (for resource note type)
+  resourceTitle?: string | null;
+  resourceDescription?: string | null;
+  resourceImage?: string | null;
 }
 
 interface ThreadNotesListProps {
@@ -120,6 +124,9 @@ export default function ThreadNotesList({
               noteType: noteData.noteType,
               updatedAt: noteData.updatedAt ? new Date(noteData.updatedAt) : undefined,
               createdAt: noteData.createdAt ? new Date(noteData.createdAt) : undefined,
+              resourceTitle: noteData.resourceTitle || null,
+              resourceDescription: noteData.resourceDescription || null,
+              resourceImage: noteData.resourceImage || null,
             };
 
             // Add note to the beginning of the list (most recent first)
@@ -358,9 +365,12 @@ export default function ThreadNotesList({
           ) : (
             // Full CardNote for non-scripture notes
             <CardNote 
-              title={note.title || "Untitled Note"}
-              content={truncatedContent}
+              title={note.noteType === 'resource' && note.resourceTitle ? note.resourceTitle : (note.title || "Untitled Note")}
+              content={note.noteType === 'resource' && note.resourceDescription ? note.resourceDescription : truncatedContent}
               noteType={note.noteType || 'default'}
+              resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
+              resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
+              resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
             />
           )}
         </a>

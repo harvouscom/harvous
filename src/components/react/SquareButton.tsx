@@ -4,6 +4,7 @@ import { getMenuOptions } from "@/utils/menu-options";
 
 // Icon references for Menu component (Menu.tsx handles rendering internally)
 const ThreadIcon = { src: 'layer-group' };
+const NewspaperIcon = { src: 'newspaper' };
 const NoteStickyIcon = { src: 'note-sticky' };
 const EditIcon = { src: 'pen-to-square' };
 const EraseIcon = { src: 'eraser' };
@@ -39,8 +40,9 @@ export default function SquareButton({
   const getMenuOptionsData = () => {
     if (variant === "Add") {
       return [
-        { action: "openNewThreadPanel", label: "New Thread", icon: ThreadIcon },
-        { action: "openNewNotePanel", label: "New Note", icon: NoteStickyIcon }
+        { action: "openNewThreadPanel", label: "Add Thread", icon: ThreadIcon },
+        { action: "openNewResourcePanel", label: "Add Resource", icon: NewspaperIcon },
+        { action: "openNewNotePanel", label: "Add Note", icon: NoteStickyIcon }
       ];
     } else if (variant === "More" && contentType) {
       const options = getMenuOptions(contentType, contentId);
