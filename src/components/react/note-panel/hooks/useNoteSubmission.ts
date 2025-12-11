@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { safeNavigate } from '@/utils/safe-navigate';
-import { normalizeUrl } from '@/utils/validation';
+import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
 
@@ -181,15 +181,13 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     const trimmedScriptureRef = scriptureReference.trim();
     const trimmedResourceUrl = resourceUrl.trim();
     
-    // Normalize resource URL by adding https:// if missing
-    const normalizedResourceUrl = trimmedResourceUrl ? normalizeUrl(trimmedResourceUrl) : '';
-    
     const hasContent = trimmedContent && 
       trimmedContent !== '<p></p>' && 
       trimmedContent !== '<p><br></p>' &&
       trimmedContent !== '<br>';
     
     // Type-specific validation
+    let normalizedResourceUrl = '';
     if (noteType === 'default') {
       if (!trimmedTitle && !hasContent) {
         showToast('Please add a title or content to your note', 'warning');
@@ -210,13 +208,16 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         showToast('Please add a resource URL', 'warning');
         return;
       }
-      // Validate normalized URL format
-      try {
-        new URL(normalizedResourceUrl);
-      } catch {
-        showToast('Please enter a valid URL', 'warning');
+      // Validate URL with comprehensive security checks
+      const urlValidation = validateResourceUrl(trimmedResourceUrl);
+      if (!urlValidation.isValid) {
+        // Show user-friendly error message
+        const errorMessage = urlValidation.error || 'Please enter a valid URL';
+        showToast(errorMessage, 'warning');
         return;
       }
+      // Use normalized URL from validation
+      normalizedResourceUrl = urlValidation.normalizedUrl!;
     }
 
     setIsSubmitting(true);
@@ -412,6 +413,16 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       return;
     }
 
+    // Validate resource URL if needed
+    if (noteType === 'resource' && resourceUrl) {
+      const urlValidation = validateResourceUrl(resourceUrl);
+      if (!urlValidation.isValid) {
+        const errorMessage = urlValidation.error || 'Please enter a valid URL';
+        showToast(errorMessage, 'warning');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -422,7 +433,9 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       } else if (noteType === 'scripture') {
         formData.set('title', scriptureReference);
       } else if (noteType === 'resource') {
-        formData.set('title', resourceUrl);
+        // Use validated normalized URL
+        const validatedUrl = resourceUrl ? validateResourceUrl(resourceUrl).normalizedUrl || resourceUrl : resourceUrl;
+        formData.set('title', validatedUrl);
       }
       
       formData.set('content', content);
@@ -434,7 +447,9 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         formData.set('scriptureReference', apiReference);
         formData.set('scriptureVersion', scriptureVersion);
       } else if (noteType === 'resource') {
-        formData.set('resourceUrl', resourceUrl);
+        // Use validated normalized URL
+        const validatedUrl = resourceUrl ? validateResourceUrl(resourceUrl).normalizedUrl || resourceUrl : resourceUrl;
+        formData.set('resourceUrl', validatedUrl);
         // Pass pre-fetched metadata to avoid re-fetching on the server
         if (resourceMetadata) {
           formData.set('resourceMetadata', JSON.stringify(resourceMetadata));
@@ -483,7 +498,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, noteType, title, scriptureReference, resourceUrl, content, getSelectedThread, scriptureVersion, showToast]);
+  }, [isSubmitting, noteType, title, scriptureReference, resourceUrl, content, getSelectedThread, scriptureVersion, resourceMetadata, showToast]);
 
   return {
     isSubmitting,

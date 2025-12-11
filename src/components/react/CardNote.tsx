@@ -136,7 +136,7 @@ const CardNote: React.FC<CardNoteProps> = ({
         <div className="card-note__inner">
           <div className="card-note__content">
             {/* Left sidebar with note type icon */}
-            <div className={`card-note__sidebar ${noteType === 'resource' && effectiveImageUrl ? 'card-note__sidebar--resource' : ''}`}>
+            <div className={`card-note__sidebar ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}>
               <div className="card-note__sidebar-icon">
                 {noteType === 'scripture' ? (
                   <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />

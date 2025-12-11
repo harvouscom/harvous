@@ -5,6 +5,8 @@ export interface NoteFormFooterProps {
   isSubmitting: boolean;
   onClose: () => void;
   noteType?: 'default' | 'scripture' | 'resource';
+  disabled?: boolean;
+  buttonTextOverride?: string;
 }
 
 /**
@@ -14,11 +16,19 @@ export default function NoteFormFooter({
   isSubmitting,
   onClose,
   noteType = 'default',
+  disabled = false,
+  buttonTextOverride,
 }: NoteFormFooterProps) {
   const isResource = noteType === 'resource';
-  const buttonText = isSubmitting 
-    ? (isResource ? 'Adding...' : 'Creating...')
-    : (isResource ? 'Add Resource' : 'Create Note');
+  
+  // Use override if provided, otherwise use default text
+  const buttonText = buttonTextOverride 
+    ? buttonTextOverride
+    : isSubmitting 
+      ? (isResource ? 'Adding...' : 'Creating...')
+      : (isResource ? 'Add Resource' : 'Create Note');
+
+  const isButtonDisabled = isSubmitting || disabled;
 
   return (
     <div className="panel__footer--buttons">
@@ -31,9 +41,9 @@ export default function NoteFormFooter({
       {/* Create Note button - Button Default variant */}
       <button 
         type="submit"
-        disabled={isSubmitting}
+        disabled={isButtonDisabled}
         data-outer-shadow
-        className="btn-cta flex-1 group"
+        className={`btn-cta flex-1 group${isButtonDisabled ? ' btn-cta--disabled' : ''}`}
         tabIndex={3}
       >
         <span className="btn-cta__content">

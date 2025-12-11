@@ -137,6 +137,12 @@ export interface ValidationResult {
   code?: string;
 }
 
+export interface UrlValidationResult extends ValidationResult {
+  normalizedUrl?: string;
+  isPDF?: boolean;
+  domain?: string;
+}
+
 export type NoteType = 'default' | 'scripture' | 'resource';
 
 /**
@@ -399,5 +405,113 @@ export function validateAndSanitizeContent(content: string | null | undefined, r
   const sanitized = sanitizeString(content);
   const result = validateContent(sanitized || '', required);
   return { result, sanitized };
+}
+
+/**
+ * Validate resource URL with comprehensive security checks
+ * Blocks dangerous protocols, localhost, private IPs, and validates format
+ * Also detects PDF URLs
+ */
+export function validateResourceUrl(url: string | null | undefined): UrlValidationResult {
+  // Empty check
+  if (!url || !url.trim()) {
+    return {
+      isValid: false,
+      error: 'URL is required',
+      code: 'URL_REQUIRED'
+    };
+  }
+
+  const trimmed = url.trim();
+  
+  // Max length check (browsers typically support ~2000 chars, but let's be reasonable)
+  if (trimmed.length > 2048) {
+    return {
+      isValid: false,
+      error: 'URL is too long',
+      code: 'URL_TOO_LONG'
+    };
+  }
+
+  // Block dangerous protocols (XSS, data URI attacks, file access)
+  const lowerUrl = trimmed.toLowerCase();
+  const dangerousProtocols = ['javascript:', 'data:', 'file:', 'vbscript:', 'about:'];
+  if (dangerousProtocols.some(proto => lowerUrl.startsWith(proto))) {
+    return {
+      isValid: false,
+      error: 'Invalid URL protocol',
+      code: 'INVALID_PROTOCOL'
+    };
+  }
+
+  // Normalize URL (add https:// if missing)
+  const normalizedUrl = normalizeUrl(trimmed);
+  
+  // Only allow http/https protocols
+  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+    return {
+      isValid: false,
+      error: 'Only web URLs are supported',
+      code: 'UNSUPPORTED_PROTOCOL'
+    };
+  }
+
+  // Parse and validate URL structure
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(normalizedUrl);
+  } catch {
+    return {
+      isValid: false,
+      error: 'Invalid URL format',
+      code: 'INVALID_FORMAT'
+    };
+  }
+
+  // Block localhost/internal hosts (SSRF protection)
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
+  if (blockedHosts.includes(hostname) || hostname.endsWith('.local')) {
+    return {
+      isValid: false,
+      error: 'Local URLs are not supported',
+      code: 'LOCAL_URL'
+    };
+  }
+
+  // Block private IP ranges (SSRF protection)
+  const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+    if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) {
+      return {
+        isValid: false,
+        error: 'Private network URLs are not supported',
+        code: 'PRIVATE_IP'
+      };
+    }
+  }
+
+  // Must have valid TLD (at least one dot in hostname, unless it's an IP)
+  if (!hostname.includes('.') && !ipv4Match) {
+    return {
+      isValid: false,
+      error: 'Invalid domain name',
+      code: 'INVALID_DOMAIN'
+    };
+  }
+
+  // Detect PDF URLs
+  const isPDF = normalizedUrl.toLowerCase().endsWith('.pdf') ||
+                normalizedUrl.toLowerCase().includes('.pdf?') ||
+                normalizedUrl.toLowerCase().includes('.pdf#');
+
+  return {
+    isValid: true,
+    normalizedUrl,
+    isPDF,
+    domain: hostname.replace(/^www\./, '')
+  };
 }
 

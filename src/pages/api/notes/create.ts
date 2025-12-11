@@ -5,7 +5,7 @@ import { awardCreationBonusXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { handleAPIError } from '@/utils/error-handling';
-import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain } from '@/utils/validation';
+import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain, validateResourceUrl } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { getNextUntitledNoteName } from '@/utils/untitled-naming';
 import { extractArticleContent } from '@/utils/content-extractor';
@@ -109,6 +109,34 @@ export const POST: APIRoute = async ({ request, locals }) => {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
+    }
+
+    // Validate resourceUrl if this is a resource note
+    let validatedResourceUrl: string | null = null;
+    if (finalNoteType === 'resource') {
+      if (!resourceUrl || !resourceUrl.trim()) {
+        return new Response(JSON.stringify({ 
+          error: 'Resource URL is required',
+          code: 'URL_REQUIRED'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      
+      const urlValidation = validateResourceUrl(resourceUrl);
+      if (!urlValidation.isValid) {
+        return new Response(JSON.stringify({ 
+          error: urlValidation.error || 'Invalid URL',
+          code: urlValidation.code || 'INVALID_URL'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      
+      // Use validated normalized URL
+      validatedResourceUrl = urlValidation.normalizedUrl!;
     }
 
     const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
@@ -340,10 +368,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Create ResourceMetadata record if this is a resource note
     // IMPORTANT: Use pre-fetched metadata from frontend if available to avoid timing issues
-    if (finalNoteType === 'resource' && resourceUrl) {
+    if (finalNoteType === 'resource' && validatedResourceUrl) {
       try {
-        // Normalize URL by adding https:// if missing
-        const normalizedResourceUrl = normalizeUrl(resourceUrl);
+        // Use validated normalized URL (already validated above)
+        const normalizedResourceUrl = validatedResourceUrl;
         
         // Use pre-fetched metadata for title/description/image/siteName
         let resourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string; siteName?: string } | null = {

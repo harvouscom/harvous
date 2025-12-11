@@ -35,9 +35,11 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   const navigation = useNavigation();
   const { addToNavigationHistory, navigationHistory } = navigation;
 
-  // State for next note ID and unsaved dialog
+  // State for next note ID, unsaved dialog, and resource panel state
   const [nextNoteId, setNextNoteId] = useState('#New');
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [hasDuplicateResource, setHasDuplicateResource] = useState(false);
+  const [isResourceReady, setIsResourceReady] = useState(false);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -396,6 +398,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
               onResourceUrlChange={form.setResourceUrl}
               nextNoteId={nextNoteId}
               onMetadataFetched={form.setResourceMetadata}
+              onDuplicateFound={(duplicate) => setHasDuplicateResource(!!duplicate)}
+              onReadyStateChange={setIsResourceReady}
             />
           )}
         </div>
@@ -405,6 +409,12 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
           isSubmitting={submission.isSubmitting}
           onClose={handleClose}
           noteType={form.noteType}
+          disabled={form.noteType === 'resource' && !isResourceReady}
+          buttonTextOverride={
+            form.noteType === 'resource' && hasDuplicateResource 
+              ? 'Already Saved' 
+              : undefined
+          }
         />
       </form>
 

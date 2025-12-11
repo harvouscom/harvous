@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { handleAPIError } from '@/utils/error-handling';
-import { normalizeUrl } from '@/utils/validation';
+import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
 import { extractArticleContent } from '@/utils/content-extractor';
 
 // Helper function to decode HTML entities
@@ -18,6 +18,119 @@ function decodeHtmlEntities(text: string): string {
   return text.replace(/&[#\w]+;/g, (entity) => {
     return entities[entity] || entity;
   });
+}
+
+// Helper function to check if an image URL looks like a generic site-wide image
+function isGenericImage(imageUrl: string): boolean {
+  if (!imageUrl) return true;
+  
+  const lowerUrl = imageUrl.toLowerCase();
+  
+  // Patterns that indicate generic/site-wide images
+  const genericPatterns = [
+    'logo', 'default', 'banner', 'header', 'og-image', 'ogimage',
+    'social-share', 'share-image', 'site-image', 'favicon',
+    'placeholder', 'thumbnail-default', 'brand', 'icon',
+    // Additional patterns for social sharing
+    '/social/', '/og/', '/share/', '/opengraph/',
+    'social-media', 'meta-image', 'featured-default',
+    // Common CMS patterns
+    '/static/images/', '/assets/images/social',
+    // Standard og:image dimensions in filename
+    '1200x630', '1200x600', '1200x628', '600x315',
+    // Generic filenames
+    'twitter-card', 'facebook-share', 'linkedin-share'
+  ];
+  
+  // Check if URL contains generic patterns
+  if (genericPatterns.some(pattern => lowerUrl.includes(pattern))) {
+    return true;
+  }
+  
+  // Check for very short filenames that are likely generic (e.g., "og.png", "share.jpg")
+  const filename = lowerUrl.split('/').pop()?.split('?')[0] || '';
+  if (filename.length < 10 && !filename.includes('-') && !filename.includes('_')) {
+    return true;
+  }
+  
+  // Check if the image is likely a site-wide default (same image used everywhere)
+  // These often have very generic paths
+  const pathParts = lowerUrl.split('/');
+  const hasContentSpecificPath = pathParts.some(part => 
+    /^\d{4}$/.test(part) || // Year in path (like /2024/)
+    /^[a-z]+-[a-z]+-[a-z]+/.test(part) || // Slug-like paths
+    part.includes('article') ||
+    part.includes('post') ||
+    part.includes('guide')
+  );
+  
+  // If the path doesn't look content-specific AND it's in a static/assets folder, it's likely generic
+  if (!hasContentSpecificPath && (lowerUrl.includes('/static/') || lowerUrl.includes('/assets/'))) {
+    return true;
+  }
+  
+  return false;
+}
+
+// Helper function to extract first meaningful content image from HTML
+function extractFirstContentImage(html: string, baseUrl: string): string | null {
+  // Look for images in likely content areas
+  // Priority: images after h1, images in article/main tags, then any large image
+  
+  // Pattern to find img tags with src attribute
+  const imgPattern = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  const images: string[] = [];
+  let match;
+  
+  while ((match = imgPattern.exec(html)) !== null) {
+    const src = match[1];
+    const fullMatch = match[0].toLowerCase();
+    
+    // Skip tiny images, icons, avatars, tracking pixels
+    if (
+      fullMatch.includes('width="1"') ||
+      fullMatch.includes("width='1'") ||
+      fullMatch.includes('height="1"') ||
+      fullMatch.includes("height='1'") ||
+      fullMatch.includes('icon') ||
+      fullMatch.includes('avatar') ||
+      fullMatch.includes('emoji') ||
+      fullMatch.includes('pixel') ||
+      fullMatch.includes('tracking') ||
+      fullMatch.includes('spacer') ||
+      fullMatch.includes('badge') ||
+      src.includes('data:image') ||
+      src.includes('.svg') ||
+      src.includes('gravatar')
+    ) {
+      continue;
+    }
+    
+    // Skip images that look like logos or generic site images
+    if (isGenericImage(src)) {
+      continue;
+    }
+    
+    images.push(src);
+  }
+  
+  // Return first valid image found
+  if (images.length > 0) {
+    let imageUrl = images[0];
+    
+    // Resolve relative URLs
+    if (!imageUrl.startsWith('http')) {
+      try {
+        imageUrl = new URL(imageUrl, baseUrl).href;
+      } catch {
+        return null;
+      }
+    }
+    
+    return imageUrl;
+  }
+  
+  return null;
 }
 
 // Helper function to clean SEO garbage from titles
@@ -90,10 +203,22 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    // Normalize URL by adding https:// if missing
-    const normalizedUrl = normalizeUrl(url);
+    // Validate URL with comprehensive security checks
+    const urlValidation = validateResourceUrl(url);
+    if (!urlValidation.isValid) {
+      return new Response(JSON.stringify({
+        error: urlValidation.error || 'Invalid URL',
+        code: urlValidation.code || 'INVALID_URL'
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-    // Validate URL format
+    const normalizedUrl = urlValidation.normalizedUrl!;
+    const isPDF = urlValidation.isPDF || false;
+
+    // Parse URL for domain extraction
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(normalizedUrl);
@@ -107,7 +232,52 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    // Fetch the HTML content
+    // Handle PDF URLs specially - no HTML fetch needed
+    if (isPDF) {
+      // Extract filename from URL for title
+      const urlPath = parsedUrl.pathname;
+      let filename = 'PDF Document';
+      
+      // Get the last segment of the path
+      const lastSegment = urlPath.split('/').filter(Boolean).pop();
+      if (lastSegment) {
+        // Decode URL encoding, remove .pdf extension (case-insensitive), replace dashes/underscores with spaces
+        filename = decodeURIComponent(lastSegment)
+          .replace(/\.pdf$/i, '')  // Case-insensitive, only at end
+          .replace(/[-_]/g, ' ')
+          .trim();
+        
+        // Capitalize first letter of each word for cleaner display
+        if (filename) {
+          filename = filename
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+        }
+      }
+      
+      // Fallback if filename is still empty
+      if (!filename) {
+        filename = 'PDF Document';
+      }
+      
+      return new Response(JSON.stringify({
+        success: true,
+        metadata: {
+          title: filename,
+          description: 'PDF Document',
+          image: '', // No image for PDFs
+          url: normalizedUrl,
+          siteName: parsedUrl.hostname.replace('www.', ''),
+          contentType: 'pdf'
+        }
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Fetch the HTML content for non-PDF URLs
     const response = await fetch(normalizedUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)',
@@ -199,13 +369,28 @@ export const POST: APIRoute = async ({ request }) => {
     const descriptionMatch = ogDescriptionMatch || html.match(/<meta\s+name=["']?description["']?\s+content=["']([^"']+)["']/i) ||
                            html.match(/<meta\s+content=["']([^"']+)["']\s+name=["']?description["']?/i);
 
-    // Resolve relative image URLs
-    let imageUrl = ogImageMatch ? ogImageMatch[1] : '';
-    if (imageUrl && !imageUrl.startsWith('http')) {
-      try {
-        imageUrl = new URL(imageUrl, parsedUrl.origin).href;
-      } catch {
-        imageUrl = '';
+    // Image selection strategy:
+    // 1. First, try to find a good content image from the page (more likely to be content-specific)
+    // 2. Fall back to og:image only if no content image found
+    // 3. This ensures we get content-specific images instead of generic site banners
+    
+    let imageUrl = '';
+    
+    // Try content image first
+    const contentImage = extractFirstContentImage(html, parsedUrl.origin);
+    if (contentImage) {
+      imageUrl = contentImage;
+    }
+    
+    // Fall back to og:image if no content image found
+    if (!imageUrl && ogImageMatch) {
+      imageUrl = ogImageMatch[1];
+      if (imageUrl && !imageUrl.startsWith('http')) {
+        try {
+          imageUrl = new URL(imageUrl, parsedUrl.origin).href;
+        } catch {
+          imageUrl = '';
+        }
       }
     }
 

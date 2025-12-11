@@ -1,12 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../Icon';
-import { normalizeUrl } from '@/utils/validation';
+import CardNote from '../CardNote';
+import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
+
+export interface DuplicateResource {
+  simpleNoteId: string;
+  title: string;
+  description: string | null;
+  image: string | null;
+  url: string;
+}
 
 export interface NewResourcePanelProps {
   resourceUrl: string;
   onResourceUrlChange: (url: string) => void;
   nextNoteId: string;
   onMetadataFetched?: (metadata: { title: string; description: string; image: string }) => void;
+  onDuplicateFound?: (duplicate: DuplicateResource | null) => void;
+  onReadyStateChange?: (isReady: boolean) => void;
 }
 
 /**
@@ -18,12 +29,17 @@ export default function NewResourcePanel({
   onResourceUrlChange,
   nextNoteId,
   onMetadataFetched,
+  onDuplicateFound,
+  onReadyStateChange,
 }: NewResourcePanelProps) {
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   const [metadata, setMetadata] = useState<{ title: string; description: string; image: string } | null>(null);
   const [fetchAttempted, setFetchAttempted] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
+  const [urlErrorCode, setUrlErrorCode] = useState<string | null>(null);
   const [isPasteEvent, setIsPasteEvent] = useState(false);
+  const [isPDF, setIsPDF] = useState(false);
+  const [duplicateNote, setDuplicateNote] = useState<DuplicateResource | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -38,6 +54,11 @@ export default function NewResourcePanel({
     setMetadata(null);
     setFetchAttempted(false);
     setUrlError(null);
+    setUrlErrorCode(null);
+    setIsPDF(false);
+    setDuplicateNote(null);
+    onDuplicateFound?.(null);
+    onReadyStateChange?.(false);
     inputRef.current?.focus();
   };
 
@@ -67,25 +88,31 @@ export default function NewResourcePanel({
       setMetadata(null);
       setFetchAttempted(false);
       setUrlError(null);
+      setUrlErrorCode(null);
+      setIsPDF(false);
+      setDuplicateNote(null);
+      onDuplicateFound?.(null);
+      onReadyStateChange?.(false);
       return;
     }
 
-    // Normalize URL by adding https:// if missing
-    const normalizedUrl = normalizeUrl(resourceUrl.trim());
-
-    // Basic URL validation
-    let validUrl: string;
-    try {
-      new URL(normalizedUrl);
-      validUrl = normalizedUrl;
-      setUrlError(null);
-    } catch {
-      // Invalid URL even after normalization
-      setUrlError('Invalid URL format');
+    // Validate URL with comprehensive security checks
+    const validation = validateResourceUrl(resourceUrl);
+    
+    if (!validation.isValid) {
+      setUrlError(validation.error || 'Invalid URL');
+      setUrlErrorCode(validation.code || 'INVALID_URL');
       setFetchAttempted(false);
       setMetadata(null);
+      setIsPDF(false);
       return;
     }
+
+    // URL is valid, use normalized version
+    const validUrl = validation.normalizedUrl!;
+    setIsPDF(validation.isPDF || false);
+    setUrlError(null);
+    setUrlErrorCode(null);
 
     // Reset fetch attempted when URL changes
     setFetchAttempted(false);
@@ -96,19 +123,54 @@ export default function NewResourcePanel({
     fetchTimeoutRef.current = setTimeout(async () => {
       setIsFetchingMetadata(true);
       setIsPasteEvent(false); // Reset paste flag
+      setDuplicateNote(null); // Reset duplicate state
+      
       try {
-        const response = await fetch('/api/resource/metadata', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({ url: validUrl }),
-        });
+        // Check for duplicates and fetch metadata in parallel
+        const [duplicateResponse, metadataResponse] = await Promise.all([
+          fetch('/api/resource/check-duplicate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ url: validUrl }),
+          }),
+          fetch('/api/resource/metadata', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ url: validUrl }),
+          })
+        ]);
 
-        if (response.ok) {
-          const data = await response.json();
+        // Track results for ready state
+        let isDuplicate = false;
+        let metadataLoaded = false;
+
+        // Handle duplicate check
+        if (duplicateResponse.ok) {
+          const duplicateData = await duplicateResponse.json();
+          if (duplicateData.exists) {
+            isDuplicate = true;
+            const duplicate: DuplicateResource = {
+              simpleNoteId: duplicateData.simpleNoteId,
+              title: duplicateData.title,
+              description: duplicateData.description,
+              image: duplicateData.image,
+              url: duplicateData.url
+            };
+            setDuplicateNote(duplicate);
+            onDuplicateFound?.(duplicate);
+          } else {
+            setDuplicateNote(null);
+            onDuplicateFound?.(null);
+          }
+        }
+
+        // Handle metadata
+        if (metadataResponse.ok) {
+          const data = await metadataResponse.json();
           if (data.success && data.metadata) {
+            metadataLoaded = true;
             setMetadata(data.metadata);
             setUrlError(null);
             if (onMetadataFetched) {
@@ -120,8 +182,12 @@ export default function NewResourcePanel({
         } else {
           setUrlError('Unable to load preview');
         }
+
+        // Ready to submit only if metadata loaded AND not a duplicate
+        onReadyStateChange?.(metadataLoaded && !isDuplicate);
       } catch (error) {
         setUrlError('Unable to load preview');
+        onReadyStateChange?.(false);
       } finally {
         setIsFetchingMetadata(false);
         setFetchAttempted(true);
@@ -138,12 +204,8 @@ export default function NewResourcePanel({
   // Check if we have a valid URL
   const hasValidUrl = (() => {
     if (!resourceUrl || resourceUrl.trim() === '') return false;
-    try {
-      new URL(normalizeUrl(resourceUrl.trim()));
-      return true;
-    } catch {
-      return false;
-    }
+    const validation = validateResourceUrl(resourceUrl);
+    return validation.isValid;
   })();
 
   return (
@@ -186,7 +248,7 @@ export default function NewResourcePanel({
           )}
         </div>
 
-        {/* Error message */}
+        {/* Error message with specific messages based on error code */}
         {urlError && (
           <div style={{
             marginTop: '8px',
@@ -195,9 +257,16 @@ export default function NewResourcePanel({
             color: 'var(--color-caring-coral)',
             fontFamily: 'var(--font-sans)'
           }}>
-            {urlError}
+            {urlErrorCode === 'INVALID_DOMAIN' && 'Please enter a complete URL (e.g., example.com/article)'}
+            {urlErrorCode === 'LOCAL_URL' && 'Local URLs cannot be saved as resources'}
+            {urlErrorCode === 'PRIVATE_IP' && 'Private network URLs are not supported'}
+            {urlErrorCode === 'UNSUPPORTED_PROTOCOL' && 'Only web links (http/https) are supported'}
+            {urlErrorCode === 'INVALID_PROTOCOL' && 'Invalid URL protocol'}
+            {urlErrorCode === 'URL_TOO_LONG' && 'URL is too long'}
+            {!['INVALID_DOMAIN', 'LOCAL_URL', 'PRIVATE_IP', 'UNSUPPORTED_PROTOCOL', 'INVALID_PROTOCOL', 'URL_TOO_LONG'].includes(urlErrorCode || '') && urlError}
           </div>
         )}
+
       </div>
 
       {/* Preview Area - Takes up available height */}
@@ -211,7 +280,7 @@ export default function NewResourcePanel({
         }}
       >
         {/* Skeleton Loader - simple light gray background */}
-        {isFetchingMetadata && !metadata && (
+        {isFetchingMetadata && !metadata && !duplicateNote && (
           <div 
             className="card-image-link"
             style={{ 
@@ -223,8 +292,28 @@ export default function NewResourcePanel({
           />
         )}
 
-        {/* Actual Preview using card-image-link layout */}
-        {metadata && (metadata.title || metadata.description || metadata.image) && (
+        {/* Duplicate found - show existing CardNote that links to the resource */}
+        {duplicateNote && !urlError && (
+          <a 
+            href={`/${duplicateNote.simpleNoteId}`}
+            style={{ 
+              textDecoration: 'none', 
+              display: 'block',
+              animation: 'fadeInUp 0.3s ease-out forwards'
+            }}
+          >
+            <CardNote
+              noteType="resource"
+              variant={duplicateNote.image ? 'withImage' : 'default'}
+              title={duplicateNote.title}
+              content={duplicateNote.description || ''}
+              imageUrl={duplicateNote.image || undefined}
+            />
+          </a>
+        )}
+
+        {/* Actual Preview using card-image-link layout - only show if NOT a duplicate */}
+        {!duplicateNote && metadata && (metadata.title || metadata.description || metadata.image) && (
           <div 
             className="card-image-link"
             style={{
@@ -265,7 +354,7 @@ export default function NewResourcePanel({
             <div className="card-image-link__source">
               <div className="card-image-link__source-content" style={{ justifyContent: 'space-between' }}>
                 <div className="card-image-link__source-text">
-                  <p>{(() => {
+                  <p>{isPDF ? 'View PDF' : (() => {
                     try {
                       const url = new URL(normalizeUrl(resourceUrl.trim()));
                       return url.hostname.replace('www.', '');
@@ -275,7 +364,7 @@ export default function NewResourcePanel({
                   })()}</p>
                 </div>
                 <div className="card-image-link__source-icon">
-                  <Icon name="arrow-up-right-from-square" size={20} />
+                  <Icon name={isPDF ? 'file-pdf' : 'arrow-up-right-from-square'} size={20} />
                 </div>
               </div>
             </div>

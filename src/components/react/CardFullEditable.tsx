@@ -542,6 +542,14 @@ export default function CardFullEditable({
   // Resource note - special display with card-image-link design + editable content
   if (noteType === 'resource') {
     const effectiveTitle = resourceTitle || displayTitle || 'Untitled Resource';
+    
+    // Detect if URL is a PDF
+    const isPDF = resourceUrl ? (
+      resourceUrl.toLowerCase().endsWith('.pdf') ||
+      resourceUrl.toLowerCase().includes('.pdf?') ||
+      resourceUrl.toLowerCase().includes('.pdf#')
+    ) : false;
+    
     const hostname = resourceUrl ? (() => {
       try {
         const url = new URL(resourceUrl);
@@ -712,10 +720,10 @@ export default function CardFullEditable({
             >
               <div className="card-image-link__source-content" style={{ justifyContent: 'space-between' }}>
                 <div className="card-image-link__source-text">
-                  <p>{hostname}</p>
+                  <p>{isPDF ? 'View PDF' : hostname}</p>
                 </div>
                 <div className="card-image-link__source-icon">
-                  <Icon name="arrow-up-right-from-square" size={20} />
+                  <Icon name={isPDF ? 'file-pdf' : 'arrow-up-right-from-square'} size={20} />
                 </div>
               </div>
             </button>
