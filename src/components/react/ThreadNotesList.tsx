@@ -402,16 +402,18 @@ export default function ThreadNotesList({
 
   return (
     <>
-      <InfiniteScrollList
-        initialItems={filteredNotes}
-        items={filteredNotes}
-        onItemsChange={handleItemsChange}
-        loadMore={loadMore}
-        renderItem={renderItem}
-        itemKey={(note) => note.id}
-        limit={20}
-        className="flex flex-col gap-3"
-      />
+      <div style={{ paddingBottom: '12px' }}>
+        <InfiniteScrollList
+          initialItems={filteredNotes}
+          items={filteredNotes}
+          onItemsChange={handleItemsChange}
+          loadMore={loadMore}
+          renderItem={renderItem}
+          itemKey={(note) => note.id}
+          limit={20}
+          className="flex flex-col gap-3"
+        />
+      </div>
 
       {/* Delete Confirmation Dialog - Rendered via Portal */}
       {showDeleteConfirm && noteToDelete && typeof document !== 'undefined' && createPortal(

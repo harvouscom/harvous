@@ -550,7 +550,7 @@ export default function EditThreadPanel({
                         No notes in this thread.
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-2" style={{ paddingBottom: '12px' }}>
                         {currentThreadNotes.map(note => (
                           <div key={note.id} className="relative group">
                             <a 
@@ -581,7 +581,7 @@ export default function EditThreadPanel({
                 {/* Selected Notes - displayed above AddToSpaceSection */}
                 {selectedItems.length > 0 && !isLoadingItems && (
                   <div className="w-full shrink-0 mb-3">
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2" style={{ paddingBottom: '12px' }}>
                       {selectedItems.map(itemId => {
                         const note = allNotes.find(n => n.id === itemId);
                         

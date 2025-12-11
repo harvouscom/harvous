@@ -486,7 +486,7 @@ export default function InboxItemPreviewPanel({
                 {/* Thread View - Thread with Notes */}
                 {viewMode === 'thread' && item.contentType === 'thread' && (
                   <div className="flex flex-col h-full w-full">
-                    <div className="flex-1 flex flex-col gap-3 overflow-y-auto min-h-0">
+                    <div className="flex-1 flex flex-col gap-3 overflow-y-auto min-h-0" style={{ paddingBottom: '12px' }}>
                       {item.loadError ? (
                         /* Error state */
                         <div className="text-center py-12">

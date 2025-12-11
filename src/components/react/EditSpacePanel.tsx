@@ -657,7 +657,7 @@ export default function EditSpacePanel({
                 {/* Current Items in Space - displayed above AddToSpaceSection */}
                 {!isLoadingCurrentItems && (currentSpaceNotes.length > 0 || currentSpaceThreads.length > 0) && (
                   <div className="w-full shrink-0 mb-3">
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2" style={{ paddingBottom: '12px' }}>
                       {/* Current Threads */}
                       {currentSpaceThreads.map(thread => (
                         <div key={thread.id} className="relative group">

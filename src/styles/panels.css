@@ -694,6 +694,7 @@
   gap: 0.75rem;  /* 12px / gap-3 */
   width: 100%;
   flex-shrink: 0;
+  padding-bottom: 12px;  /* 12px bottom padding for consistent list spacing */
 }
 
 .panel__item-list-item {
