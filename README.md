@@ -975,6 +975,6 @@ Built with ❤️ for Bible study enthusiasts
 
 ---
 
-**Version:** 0.152.12
+**Version:** 0.153.0
 **Last Updated:** January 2025
 **Status:** ✅ V1 Ready - Production Release Candidate
