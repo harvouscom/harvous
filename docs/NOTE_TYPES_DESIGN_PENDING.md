@@ -1,9 +1,9 @@
 # Note Types Design - Pending Design Review
 
-## Status: PENDING DESIGN REVIEW
+## Status: PARTIALLY COMPLETE
 
-**Date**: January 26, 2025  
-**Priority**: HIGH - Blocking V1 Note Types Foundation completion
+**Date**: January 26, 2025 (Updated: Resource notes enabled)  
+**Priority**: MEDIUM - Scripture notes pending design review
 
 ## Current Implementation
 
@@ -12,31 +12,32 @@ The Note Types Foundation has been implemented with basic functionality:
 ### ✅ Completed
 - **Database Schema**: `noteType` column exists with default value 'default'
 - **API Integration**: Note creation API handles noteType validation and storage
-- **Icon Cycling**: Clickable icons to switch between note types (bookmark/scroll/file-image) - **TEMPORARILY DISABLED**
 - **Type-Specific Validation**: Different validation rules for each note type
 - **Form Submission**: Type-specific form data handling
+- **Resource Notes**: Fully implemented and enabled ✅ **PRODUCTION READY**
 
-### 🚧 Current Layout (Temporary)
+### 🚧 Current Layout
 - **Default Notes**: Title input + content editor ✅ **ACTIVE**
-- **Scripture Notes**: Reference input + content editor - **DISABLED**
-- **Resource Notes**: URL input + content editor - **DISABLED**
+- **Resource Notes**: URL input with metadata preview ✅ **ACTIVE** - Users can create resource notes via the resource panel
+- **Scripture Notes**: Reference input + content editor - **DISABLED** (pending design review)
 
-### 🔒 Current Status (January 26, 2025)
-- **Note Type Switching**: DISABLED until designs are ready
-- **Only Default Notes**: Users can only create default notes
-- **Icons Visible**: Note type icons are visible but non-functional (opacity-50)
-- **Easy Re-enable**: Code is ready to re-enable when designs are complete
+### 🔒 Current Status (Updated)
+- **Resource Notes**: **ENABLED** - Fully functional, production-ready
+- **Default Notes**: **ENABLED** - Working as expected
+- **Scripture Notes**: **DISABLED** - Waiting for design specifications
+- **Note Type Switching**: Resource notes accessible via dedicated resource panel; scripture notes disabled until designs are ready
 
 ## Design Decision Needed
 
-**Issue**: The current layouts are basic and don't provide the distinct, specialized experience needed for each note type.
+**Issue**: Scripture note layouts are basic and don't provide the distinct, specialized experience needed for scripture study workflow.
 
 **User Feedback**: "hmmm ill come back to this later with designs for each note type for the new note panel of each type"
 
 ## Required Design Work
 
-### 1. Scripture Note Design
+### 1. Scripture Note Design (PENDING)
 - **Current**: Simple reference input + content editor
+- **Status**: **DISABLED** - Waiting for design specifications
 - **Needed**: Specialized layout for scripture study workflow
 - **Considerations**:
   - Scripture reference formatting
@@ -44,35 +45,37 @@ The Note Types Foundation has been implemented with basic functionality:
   - Study notes organization
   - Cross-reference capabilities
 
-### 2. Resource Note Design  
-- **Current**: Simple URL input + content editor
-- **Needed**: Specialized layout for resource capture and organization
-- **Considerations**:
-  - URL preview/validation
-  - Resource metadata capture
-  - Media attachment support
-  - Source attribution
+### 2. Resource Note Design ✅ **COMPLETE**
+- **Current**: URL input with automatic metadata fetching and preview
+- **Status**: **ENABLED** - Production-ready, fully functional
+- **Features**:
+  - ✅ URL preview/validation
+  - ✅ Resource metadata capture (Open Graph)
+  - ✅ Article content extraction
+  - ✅ Source attribution
+  - ✅ Image preview support
 
-### 3. Default Note Design
-- **Current**: Title + content editor (working well)
-- **Status**: May need minor refinements based on other types
+### 3. Default Note Design ✅ **COMPLETE**
+- **Current**: Title + content editor
+- **Status**: Working well, no changes needed
 
 ## Impact on V1 Timeline
 
-### Week 2: Note Types Foundation (CURRENT)
-- **Status**: ⚠️ **BLOCKED** - Waiting for design specifications
-- **Dependency**: Design review and specifications needed
+### Week 2: Note Types Foundation
+- **Status**: ✅ **PARTIALLY COMPLETE** - Resource notes enabled, scripture notes pending
+- **Resource Notes**: Production-ready, no further work needed
+- **Scripture Notes**: Waiting for design specifications
 - **Next Steps**: 
-  1. Design review session
-  2. Implement specialized layouts
-  3. Test type-specific workflows
+  1. Design review session for scripture notes
+  2. Implement specialized scripture layouts
+  3. Test scripture note workflow
 
 ### Week 3: Selected Text Feature
-- **Status**: Can proceed in parallel with note types design
+- **Status**: Can proceed in parallel with scripture note design
 - **Dependency**: None (separate feature)
 
 ### Week 4: Polish & Launch
-- **Status**: May be affected if note types design takes longer
+- **Status**: Resource notes ready for launch; scripture notes can be added later if needed
 
 ## Technical Foundation Ready
 
@@ -84,22 +87,20 @@ The technical foundation is complete and ready for design implementation:
 - ✅ Icon system and type switching works
 - ✅ Form validation is type-specific
 
-## Next Steps
+## Next Steps (Scripture Notes Only)
 
-1. **Design Review**: User to provide designs for each note type
+1. **Design Review**: User to provide designs for scripture note type
 2. **Re-enable Functionality**: Change `{false && noteType === 'scripture' && (` back to `{noteType === 'scripture' && (`
-3. **Restore Click Handlers**: Add back `onClick={cycleNoteType}` to note type icons
-4. **Update cycleNoteType()**: Restore proper note type cycling functionality
-5. **Layout Implementation**: Implement specialized layouts based on designs
-6. **Testing**: Test each note type workflow
-7. **Integration**: Ensure seamless switching between types
+3. **Layout Implementation**: Implement specialized scripture layouts based on designs
+4. **Testing**: Test scripture note workflow
+5. **Integration**: Ensure seamless switching between types
 
-## Files to Update (When Designs Ready)
+## Files to Update (When Scripture Designs Ready)
 
 - `src/components/react/NewNotePanel.tsx` - Main component with type-specific layouts
-- Potentially new components for specialized layouts
+- Potentially new components for specialized scripture layouts
 - Type-specific styling and interactions
 
 ---
 
-**Note**: This is a critical dependency for V1 Note Types Foundation completion. The technical implementation is ready, but the user experience design needs to be finalized before proceeding.
+**Note**: Resource notes are production-ready and fully functional. Only scripture notes remain pending design review. The technical implementation is complete for both note types.

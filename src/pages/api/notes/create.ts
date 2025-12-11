@@ -352,8 +352,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         
         // Extract full article content directly (avoid internal HTTP call which has auth issues)
         try {
-          console.log('Fetching HTML for content extraction:', normalizedResourceUrl);
-          
           const htmlResponse = await fetch(normalizedResourceUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)',
@@ -364,22 +362,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
           
           if (htmlResponse.ok) {
             const html = await htmlResponse.text();
-            console.log('Fetched HTML for extraction, length:', html.length);
             
             // Extract article content using Readability
             const articleContent = extractArticleContent(html, normalizedResourceUrl);
             
             if (articleContent) {
-              console.log('Article content extracted, length:', articleContent.length);
               resourceMetadata = {
                 ...resourceMetadata,
                 articleContent
               };
-            } else {
-              console.log('Article content extraction returned null');
             }
-          } else {
-            console.log('Failed to fetch HTML:', htmlResponse.status, htmlResponse.statusText);
           }
         } catch (error) {
           // Non-critical - note will still be created with description

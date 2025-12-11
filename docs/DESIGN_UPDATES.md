@@ -149,33 +149,34 @@ grep -r "border-gray\|bg-gray\|text-gray\|shadow-lg" src/components/react --incl
 - `hover:bg-gray-50` → Custom hover state with Harvous colors
 
 ### Note Types Design
-**Status**: ⚠️ BLOCKED - Waiting for Design Specifications  
-**Priority**: HIGH - Blocking V1 Note Types Foundation completion  
-**Date**: January 26, 2025  
+**Status**: ✅ PARTIALLY COMPLETE - Resource Notes Enabled  
+**Priority**: MEDIUM - Scripture notes pending design review  
+**Date**: January 26, 2025 (Updated: Resource notes enabled)  
 **Reference**: `NOTE_TYPES_DESIGN_PENDING.md`
 
 **Current Implementation Status**:
 - ✅ Database schema supports note types (`noteType` column exists)
 - ✅ API integration handles noteType validation and storage
-- ✅ Icon cycling system implemented (temporarily disabled)
 - ✅ Type-specific validation rules
 - ✅ Form submission handles type-specific data
+- ✅ Resource notes fully implemented and production-ready
 
-**Current Layout (Temporary)**:
+**Current Layout**:
 - **Default Notes**: Title input + content editor ✅ **ACTIVE**
-- **Scripture Notes**: Reference input + content editor - **DISABLED**
-- **Resource Notes**: URL input + content editor - **DISABLED**
+- **Resource Notes**: URL input with metadata preview ✅ **ACTIVE** - Fully functional
+- **Scripture Notes**: Reference input + content editor - **DISABLED** (pending design review)
 
 **Current Status**:
-- Note type switching is DISABLED until designs are ready
-- Users can only create default notes
-- Note type icons are visible but non-functional (opacity-50)
-- Code is ready to re-enable when designs are complete
+- Resource notes are **ENABLED** and production-ready
+- Default notes are **ENABLED** and working as expected
+- Scripture notes are **DISABLED** until designs are ready
+- Resource notes accessible via dedicated resource panel
 
 **Design Work Needed**:
 
-1. **Scripture Note Design**
+1. **Scripture Note Design** (PENDING)
    - **Current**: Simple reference input + content editor
+   - **Status**: **DISABLED** - Waiting for design specifications
    - **Needed**: Specialized layout for scripture study workflow
    - **Considerations**:
      - Scripture reference formatting
@@ -183,27 +184,27 @@ grep -r "border-gray\|bg-gray\|text-gray\|shadow-lg" src/components/react --incl
      - Study notes organization
      - Cross-reference capabilities
 
-2. **Resource Note Design**
-   - **Current**: Simple URL input + content editor
-   - **Needed**: Specialized layout for resource capture and organization
-   - **Considerations**:
-     - URL preview/validation
-     - Resource metadata capture
-     - Media attachment support
-     - Source attribution
+2. **Resource Note Design** ✅ **COMPLETE**
+   - **Current**: URL input with automatic metadata fetching and preview
+   - **Status**: **ENABLED** - Production-ready, fully functional
+   - **Features Implemented**:
+     - ✅ URL preview/validation
+     - ✅ Resource metadata capture (Open Graph)
+     - ✅ Article content extraction
+     - ✅ Source attribution
+     - ✅ Image preview support
 
-3. **Default Note Design**
-   - **Current**: Title + content editor (working well)
-   - **Status**: May need minor refinements based on other types
+3. **Default Note Design** ✅ **COMPLETE**
+   - **Current**: Title + content editor
+   - **Status**: Working well, no changes needed
 
 **User Feedback**: "hmmm ill come back to this later with designs for each note type for the new note panel of each type"
 
-**Next Steps (When Designs Ready)**:
-1. Re-enable functionality: Change `{false && noteType === 'scripture' && (` back to `{noteType === 'scripture' && (`
-2. Restore click handlers: Add back `onClick={cycleNoteType}` to note type icons
-3. Update `cycleNoteType()`: Restore proper note type cycling functionality
-4. Layout Implementation: Implement specialized layouts based on designs
-5. Testing: Test each note type workflow
+**Next Steps (Scripture Notes Only)**:
+1. Design review session for scripture notes
+2. Re-enable functionality: Change `{false && noteType === 'scripture' && (` back to `{noteType === 'scripture' && (`
+3. Layout Implementation: Implement specialized scripture layouts based on designs
+4. Testing: Test scripture note workflow
 6. Integration: Ensure seamless switching between types
 
 **Files to Update**:

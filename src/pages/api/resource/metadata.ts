@@ -59,9 +59,7 @@ function cleanTitle(title: string): string {
  */
 export const POST: APIRoute = async ({ request }) => {
   try {
-    console.log('=== Metadata API called ===');
     const body = await request.json();
-    console.log('Request body:', { url: body.url, hasMetadata: !!body.metadata, extractContent: body.extractContent });
     const { url, metadata, extractContent } = body;
 
     // If metadata is provided directly (from extension/share sheet), return it
@@ -131,7 +129,6 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const html = await response.text();
-    console.log('Fetched HTML, length:', html.length);
 
     // More robust regex patterns that handle various quote styles and HTML formats
     // Handles: property="og:title" content="value", property='og:title' content='value', property=og:title content=value
@@ -220,24 +217,11 @@ export const POST: APIRoute = async ({ request }) => {
       siteName: ogSiteNameMatch ? decodeHtmlEntities(ogSiteNameMatch[1].trim()) : null
     };
 
-    // Log for debugging
-    console.log('Metadata extracted:', {
-      title: extractedMetadata.title,
-      isVideoSite,
-      ogTitle: ogTitleMatch ? ogTitleMatch[1] : null,
-      pageTitle: pageTitleMatch ? pageTitleMatch[1] : null,
-      hasDescription: !!extractedMetadata.description,
-      hasImage: !!extractedMetadata.image,
-      siteName: extractedMetadata.siteName,
-      url: normalizedUrl
-    });
-
     // Extract article content if requested
     let articleContent: string | null = null;
     if (extractContent === true) {
       try {
         articleContent = extractArticleContent(html, normalizedUrl);
-        console.log('Article content extracted:', articleContent ? `Length: ${articleContent.length}` : 'Failed');
       } catch (error) {
         console.error('Error extracting article content:', error);
         // Non-critical - continue without article content
