@@ -371,31 +371,41 @@ export const POST: APIRoute = async ({ request }) => {
         const inboxItemId = existingItem?.id || `inbox_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         // Create or update inbox item
-        const inboxItemData = {
-          id: inboxItemId,
-          webflowItemId: webflowItemId,
-          contentType: contentType,
-          title: webflowItem.title || 'Untitled',
-          subtitle: webflowItem.subtitle || null,
-          content: webflowItem.content || null,
-          imageUrl: imageUrl || null,
-          color: webflowItem.color || null,
-          threadType: webflowItem['thread-type'] || null,
-          targetAudience: webflowItem['target-audience'] || 'all_users',
-          isActive: webflowItem['is-active'] !== false,
-          updatedAt: new Date(),
-        };
-
         if (existingItem) {
           // Update existing item
           await db
             .update(InboxItems)
-            .set(inboxItemData)
+            .set({
+              webflowItemId: webflowItemId,
+              contentType: contentType,
+              title: webflowItem.title || 'Untitled',
+              subtitle: webflowItem.subtitle || null,
+              content: webflowItem.content || null,
+              imageUrl: imageUrl || null,
+              color: webflowItem.color || null,
+              threadType: webflowItem['thread-type'] || null,
+              targetAudience: webflowItem['target-audience'] || 'all_users',
+              isActive: webflowItem['is-active'] !== false,
+              updatedAt: new Date(),
+            })
             .where(eq(InboxItems.id, inboxItemId));
         } else {
           // Create new item
-          inboxItemData.createdAt = new Date();
-          await db.insert(InboxItems).values(inboxItemData);
+          await db.insert(InboxItems).values({
+            id: inboxItemId,
+            webflowItemId: webflowItemId,
+            contentType: contentType,
+            title: webflowItem.title || 'Untitled',
+            subtitle: webflowItem.subtitle || null,
+            content: webflowItem.content || null,
+            imageUrl: imageUrl || null,
+            color: webflowItem.color || null,
+            threadType: webflowItem['thread-type'] || null,
+            targetAudience: webflowItem['target-audience'] || 'all_users',
+            isActive: webflowItem['is-active'] !== false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
         }
 
         // If it's a thread, handle thread notes

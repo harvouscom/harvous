@@ -7,7 +7,7 @@ interface Thread {
   title: string;
   noteCount: number;
   backgroundGradient: string;
-  color?: string;
+  color?: string | null;
   isPublic?: boolean;
 }
 

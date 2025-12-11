@@ -518,7 +518,6 @@ export const GET: APIRoute = async ({ locals, request }) => {
         userId: TEST_USER_ID,
         highestSimpleNoteId: 0,
         createdAt: new Date(),
-        lastSessionEnd: null,
         lastMonthlyVisit: null,
         churchAddedAt: null,
         currentSeason: null

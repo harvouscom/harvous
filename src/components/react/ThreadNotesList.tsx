@@ -28,7 +28,7 @@ interface Note {
   id: string;
   title: string | null;
   content: string;
-  noteType?: string;
+  noteType?: 'default' | 'scripture' | 'resource';
   updatedAt?: Date;
   createdAt?: Date;
   // Resource metadata (for resource note type)
@@ -146,10 +146,10 @@ export default function ThreadNotesList({
       }
     };
 
-    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
 
     return () => {
-      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
     };
   }, [threadId]);
 
@@ -367,7 +367,7 @@ export default function ThreadNotesList({
             <CardNote 
               title={note.noteType === 'resource' && note.resourceTitle ? note.resourceTitle : (note.title || "Untitled Note")}
               content={note.noteType === 'resource' && note.resourceDescription ? note.resourceDescription : truncatedContent}
-              noteType={note.noteType || 'default'}
+              noteType={(note.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
               resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
               resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
               resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}

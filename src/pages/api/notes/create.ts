@@ -168,6 +168,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         lastName: null,
         profileImageUrl: null,
         clerkDataUpdatedAt: null,
+        churchName: null,
+        churchCity: null,
+        churchState: null,
+        churchCountry: null,
+        currentSeason: null,
+        lastMonthlyVisit: null,
+        churchAddedAt: null,
         createdAt: new Date(),
         updatedAt: null
       };

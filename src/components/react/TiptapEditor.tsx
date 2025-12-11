@@ -1750,7 +1750,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   };
 
   return (
-    <div className="tiptap-editor-container flex flex-col" style={{ height: '100%', minHeight: 0 }}>
+    <div className="tiptap-editor-container flex flex-col" style={{ height: '100%', minHeight: 0, width: '100%' }}>
       {/* Hidden input for form submission */}
       <input
         ref={hiddenInputRef}

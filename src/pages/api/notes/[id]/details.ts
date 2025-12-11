@@ -81,7 +81,16 @@ export const GET: APIRoute = async ({ params, locals }) => {
       .all();
 
     // Get threads from junction table (many-to-many)
-    let allThreads = [];
+    let allThreads: Array<{
+      id: string;
+      title: string;
+      subtitle: string | null;
+      color: string | null;
+      isPublic: boolean;
+      isPinned: boolean;
+      createdAt: Date;
+      updatedAt: Date | null;
+    }> = [];
     try {
       const junctionThreads = await db
         .select({

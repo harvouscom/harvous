@@ -24,23 +24,31 @@ function decodeHtmlEntities(text: string): string {
 function cleanTitle(title: string): string {
   if (!title) return '';
   
-  // Common SEO suffixes/prefixes to remove
-  // Matches: " | Site Name", " - Site Name", " — Site Name", " :: Site Name", " >> Site Name"
-  const seoPatterns = [
-    /\s*[\|–—\-:]+\s*[^|\-–—:]+$/,  // Suffix like " | Site Name" or " - Company"
-    /^[^|\-–—:]+\s*[\|–—\-:]+\s*/,   // Prefix like "Site Name | " (less common)
-  ];
-  
   let cleaned = title.trim();
   
-  // Only remove suffix if it's relatively short compared to main title
-  // This prevents removing important parts of the title
-  for (const pattern of seoPatterns) {
-    const match = cleaned.match(pattern);
-    if (match && match[0].length < cleaned.length * 0.5) {
-      cleaned = cleaned.replace(pattern, '').trim();
+  // Only remove common site name suffixes, NOT prefixes
+  // Prefixes like "Dying is Hard | Pastor James..." are actual content, not SEO garbage
+  // Common suffixes to remove: " - YouTube", " | Site Name", " — Company Name"
+  
+  // Count how many separators are in the title
+  const separatorCount = (cleaned.match(/[\|–—]/g) || []).length;
+  
+  // Only clean suffix if there's exactly one separator (likely site name suffix)
+  // If there are multiple separators, the title itself uses them (like sermon titles)
+  if (separatorCount === 1) {
+    // Suffix pattern: " | Site Name" or " - Site Name" at the end
+    const suffixPattern = /\s*[\|–—\-]\s*[^|\-–—]+$/;
+    const match = cleaned.match(suffixPattern);
+    
+    // Only remove if the suffix is relatively short (less than 30% of title)
+    // and looks like a site name (typically short, no additional separators)
+    if (match && match[0].length < cleaned.length * 0.3) {
+      cleaned = cleaned.replace(suffixPattern, '').trim();
     }
   }
+  
+  // Special case: remove " - YouTube" suffix specifically (very common)
+  cleaned = cleaned.replace(/\s*-\s*YouTube\s*$/i, '').trim();
   
   return cleaned;
 }
@@ -144,7 +152,7 @@ export const POST: APIRoute = async ({ request }) => {
     const ogImageMatch = html.match(ogImagePattern) || html.match(ogImagePattern2);
     const ogSiteNameMatch = html.match(ogSiteNamePattern) || html.match(ogSiteNamePattern2);
 
-    // Extract actual page title and headings (prefer these over og:title for cleaner titles)
+    // Extract actual page title and headings
     const pageTitleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
     // Match h1/h2 with potential nested tags, then strip HTML
     const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
@@ -153,22 +161,41 @@ export const POST: APIRoute = async ({ request }) => {
     // Helper to strip HTML tags from heading content
     const stripHtmlTags = (str: string) => str.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
     
-    // Title priority: h1 > cleaned page title > h2 > og:title
-    // h1 is usually the actual article title without SEO garbage
+    // Check if this is a video platform (YouTube, Vimeo, etc.)
+    const isVideoSite = parsedUrl.hostname.includes('youtube.com') || 
+                        parsedUrl.hostname.includes('youtu.be') ||
+                        parsedUrl.hostname.includes('vimeo.com');
+    
+    // Title priority depends on site type:
+    // - Video sites: og:title is usually the clean video title
+    // - Article sites: h1 > cleaned page title > h2 > og:title
     let bestTitle = '';
-    if (h1Match && h1Match[1]) {
-      const h1Text = stripHtmlTags(h1Match[1]);
-      if (h1Text) bestTitle = decodeHtmlEntities(h1Text);
-    }
-    if (!bestTitle && pageTitleMatch && pageTitleMatch[1].trim()) {
-      bestTitle = cleanTitle(decodeHtmlEntities(pageTitleMatch[1].trim()));
-    }
-    if (!bestTitle && h2Match && h2Match[1]) {
-      const h2Text = stripHtmlTags(h2Match[1]);
-      if (h2Text) bestTitle = decodeHtmlEntities(h2Text);
-    }
-    if (!bestTitle && ogTitleMatch && ogTitleMatch[1].trim()) {
-      bestTitle = cleanTitle(decodeHtmlEntities(ogTitleMatch[1].trim()));
+    
+    if (isVideoSite) {
+      // For video sites, prefer og:title (it's the actual video title)
+      if (ogTitleMatch && ogTitleMatch[1].trim()) {
+        bestTitle = cleanTitle(decodeHtmlEntities(ogTitleMatch[1].trim()));
+      }
+      if (!bestTitle && pageTitleMatch && pageTitleMatch[1].trim()) {
+        bestTitle = cleanTitle(decodeHtmlEntities(pageTitleMatch[1].trim()));
+      }
+    } else {
+      // For articles/other sites: h1 > cleaned page title > h2 > og:title
+      // h1 is usually the actual article title without SEO garbage
+      if (h1Match && h1Match[1]) {
+        const h1Text = stripHtmlTags(h1Match[1]);
+        if (h1Text) bestTitle = decodeHtmlEntities(h1Text);
+      }
+      if (!bestTitle && pageTitleMatch && pageTitleMatch[1].trim()) {
+        bestTitle = cleanTitle(decodeHtmlEntities(pageTitleMatch[1].trim()));
+      }
+      if (!bestTitle && h2Match && h2Match[1]) {
+        const h2Text = stripHtmlTags(h2Match[1]);
+        if (h2Text) bestTitle = decodeHtmlEntities(h2Text);
+      }
+      if (!bestTitle && ogTitleMatch && ogTitleMatch[1].trim()) {
+        bestTitle = cleanTitle(decodeHtmlEntities(ogTitleMatch[1].trim()));
+      }
     }
 
     // Description: prefer og:description, fallback to meta description
@@ -193,9 +220,12 @@ export const POST: APIRoute = async ({ request }) => {
       siteName: ogSiteNameMatch ? decodeHtmlEntities(ogSiteNameMatch[1].trim()) : null
     };
 
-    // Log for debugging (remove in production if needed)
+    // Log for debugging
     console.log('Metadata extracted:', {
-      hasTitle: !!extractedMetadata.title,
+      title: extractedMetadata.title,
+      isVideoSite,
+      ogTitle: ogTitleMatch ? ogTitleMatch[1] : null,
+      pageTitle: pageTitleMatch ? pageTitleMatch[1] : null,
       hasDescription: !!extractedMetadata.description,
       hasImage: !!extractedMetadata.image,
       siteName: extractedMetadata.siteName,

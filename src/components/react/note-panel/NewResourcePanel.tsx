@@ -47,6 +47,15 @@ export default function NewResourcePanel({
     setIsPasteEvent(true);
   };
 
+  // Handle keyboard shortcuts
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Handle Select All (Cmd+A on Mac, Ctrl+A on Windows/Linux)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+      e.preventDefault();
+      inputRef.current?.select();
+    }
+  };
+
   // Fetch metadata when URL changes (debounced)
   useEffect(() => {
     // Clear any pending timeout
@@ -148,6 +157,7 @@ export default function NewResourcePanel({
             value={resourceUrl}
             onChange={(e) => onResourceUrlChange(e.target.value)}
             onPaste={handlePaste}
+            onKeyDown={handleKeyDown}
             placeholder="Paste or enter URL..."
             tabIndex={1}
             className="search-input__field"

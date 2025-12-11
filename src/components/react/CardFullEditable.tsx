@@ -197,7 +197,11 @@ export default function CardFullEditable({
       setScrollPosition(currentScroll);
     }
     
-    setEditTitle(displayTitle);
+    // For resource notes, use resourceTitle as fallback for initial title
+    const initialTitle = (noteType === 'resource') 
+      ? (displayTitle || resourceTitle || '') 
+      : displayTitle;
+    setEditTitle(initialTitle);
     // For resource notes, use resourceDescription as initial content if displayContent is empty
     const initialContent = (noteType === 'resource' && !displayContent && resourceDescription) 
       ? resourceDescription 
@@ -571,8 +575,63 @@ export default function CardFullEditable({
           
           {/* Header with title and newspaper icon */}
           <div className="card-image-link__header" style={{ flexShrink: 0 }}>
-            <div className="card-image-link__title">
-              <p>{effectiveTitle}</p>
+            <div className="card-image-link__title" style={{ flex: 1, minWidth: 0 }}>
+              {!isEditing ? (
+                <p
+                  className="cursor-pointer rounded"
+                  style={{
+                    margin: 0,
+                    padding: '4px 8px',
+                    marginLeft: '-8px',
+                    marginRight: '-8px',
+                  }}
+                  onClick={() => startEditing('title')}
+                >
+                  {effectiveTitle}
+                </p>
+              ) : (
+                <div>
+                  <input 
+                    ref={titleInputRef}
+                    value={editTitle}
+                    onChange={handleTitleChange}
+                    type="text"
+                    maxLength={TITLE_HARD_LIMIT}
+                    className="w-full bg-transparent border-0 rounded focus:outline-none font-bold"
+                    style={{
+                      lineHeight: '1.2',
+                      margin: 0,
+                      padding: '4px 8px',
+                      marginLeft: '-8px',
+                      marginRight: '-8px',
+                      fontSize: 'inherit',
+                      fontWeight: 'inherit',
+                      fontFamily: 'inherit',
+                      color: 'inherit',
+                      boxSizing: 'border-box',
+                      width: 'calc(100% + 16px)',
+                    }}
+                    placeholder="Resource title"
+                    onKeyDown={handleKeyDown}
+                  />
+                  {/* Character counter */}
+                  {editTitle.length >= TITLE_SOFT_LIMIT && (
+                    <div 
+                      style={{
+                        fontSize: '11px',
+                        fontFamily: 'var(--font-sans)',
+                        textAlign: 'right',
+                        marginTop: '4px',
+                        color: editTitle.length >= TITLE_HARD_LIMIT 
+                          ? 'var(--color-caring-coral)' 
+                          : 'var(--color-graceful-gold)',
+                      }}
+                    >
+                      {editTitle.length}/{TITLE_HARD_LIMIT}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="card-image-link__bookmark">
               <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
@@ -580,12 +639,12 @@ export default function CardFullEditable({
           </div>
           
           {/* Editable content area with TiptapEditor */}
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%' }}>
             {!isEditing ? (
               <div 
                 ref={contentDisplayRef}
                 className="flex-1 overflow-auto cursor-pointer rounded px-3"
-                style={{ lineHeight: '1.6', minHeight: 0 }}
+                style={{ lineHeight: '1.6', minHeight: 0, width: '100%' }}
                 onClick={handleContentClick}
               >
                 {effectiveContent ? (
@@ -598,8 +657,8 @@ export default function CardFullEditable({
                 )}
               </div>
             ) : (
-              <div className="flex-1 flex flex-col min-h-0" style={{ overflow: 'hidden' }}>
-                <div className="flex-1 min-h-0 px-3" style={{ overflow: 'hidden' }}>
+              <div className="flex-1 flex flex-col min-h-0" style={{ overflow: 'hidden', width: '100%' }}>
+                <div className="flex-1 min-h-0 px-3" style={{ overflow: 'hidden', width: '100%' }}>
                   <Suspense fallback={<div className="min-h-[100px]" />}>
                     <TiptapEditor
                       content={editContent}

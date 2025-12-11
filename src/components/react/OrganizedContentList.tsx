@@ -15,7 +15,7 @@ interface OrganizedContentItem {
   noteId?: string;
   accentColor?: string;
   lastUpdated?: string;
-  noteType?: string;
+  noteType?: 'default' | 'scripture' | 'resource';
   isPrivate?: boolean;
   resourceTitle?: string | null;
   resourceDescription?: string | null;
@@ -348,7 +348,7 @@ export default function OrganizedContentList({
         {item.type === 'note' && isScriptureNote ? (
           <CondensedNoteItem 
             title={item.title}
-            noteType={item.noteType || 'default'}
+            noteType={(item.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
             href={href}
           />
         ) : item.type === 'note' ? (
@@ -359,7 +359,7 @@ export default function OrganizedContentList({
             <CardNote 
               title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
               content={item.noteType === 'resource' && item.resourceDescription ? item.resourceDescription : (item.content || '')}
-              noteType={item.noteType || 'default'}
+              noteType={(item.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
               resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
               resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
               resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}

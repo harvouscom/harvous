@@ -35,6 +35,16 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const { id } = params;
     const { threadId } = await request.json();
 
+    if (!id) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Note ID is required' 
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     if (!threadId) {
       return new Response(JSON.stringify({ 
         success: false, 

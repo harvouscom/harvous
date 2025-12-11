@@ -33,6 +33,16 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const { id } = params;
     const { content } = await request.json();
 
+    if (!id) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Note ID is required' 
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     if (!content || typeof content !== 'string') {
       return new Response(JSON.stringify({ 
         success: false, 

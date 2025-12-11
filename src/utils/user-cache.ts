@@ -62,7 +62,7 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
         firstName: userMetadata.firstName || '',
         lastName: userMetadata.lastName || '',
         email: userMetadata.email || '',
-        profileImageUrl: userMetadata.profileImageUrl,
+        profileImageUrl: userMetadata.profileImageUrl || undefined,
         initials: generateInitials(userMetadata.firstName || '', userMetadata.lastName || ''),
         displayName: generateDisplayName(userMetadata.firstName || '', userMetadata.lastName || ''),
         userColor: userMetadata.userColor || 'paper',

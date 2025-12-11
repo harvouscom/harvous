@@ -69,7 +69,7 @@ export async function detectActiveThreadFromPath(currentPath: string, userId: st
             return {
               id: unorganizedData.id,
               title: unorganizedData.title,
-              color: unorganizedData.color,
+              color: unorganizedData.color || 'paper',
               noteCount: unorganizedData.noteCount,
               backgroundGradient: unorganizedData.backgroundGradient,
             };

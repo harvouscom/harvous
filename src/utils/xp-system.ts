@@ -477,7 +477,7 @@ export async function awardSessionXP(
       userId,
       ACTIVITY_TYPES.SESSION_COMPLETED,
       sessionXP,
-      null,
+      undefined,
       { sessionNumber: todaySessions.length + 1 }
     );
 
@@ -523,7 +523,7 @@ export async function awardCreationBonusXP(
         userId,
         ACTIVITY_TYPES.CREATION_BONUS,
         xpToAward,
-        null,
+        undefined,
         { itemType }
       );
     }
@@ -557,8 +557,8 @@ export async function awardChurchAddedXP(userId: string): Promise<boolean> {
       userId,
       ACTIVITY_TYPES.CHURCH_ADDED,
       XP_VALUES.CHURCH_ADDED,
-      null,
-      null
+      undefined,
+      undefined
     );
 
     return true;
@@ -595,7 +595,7 @@ export async function awardMonthlyAttendanceXP(userId: string): Promise<boolean>
       userId,
       ACTIVITY_TYPES.MONTHLY_ATTENDANCE,
       XP_VALUES.MONTHLY_ATTENDANCE,
-      null,
+      undefined,
       {
         month: now.getMonth() + 1,
         year: now.getFullYear(),
@@ -681,7 +681,7 @@ export async function calculateAndAwardWeeklyStreak(userId: string): Promise<num
         userId,
         ACTIVITY_TYPES.WEEKLY_STREAK,
         streakXP,
-        null,
+        undefined,
         {
           weekStart: weekStart.toISOString(),
           daysWithSessions: dayCount,

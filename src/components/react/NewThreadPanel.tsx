@@ -15,7 +15,7 @@ interface Note {
   title: string | null;
   content: string;
   spaceId: string | null;
-  noteType?: string;
+  noteType?: 'default' | 'scripture' | 'resource';
   [key: string]: any;
 }
 
@@ -639,7 +639,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                                 <CardNote 
                                   title={note.noteType === 'resource' && note.resourceTitle ? note.resourceTitle : (note.title || "Untitled Note")}
                                   content={note.noteType === 'resource' && note.resourceDescription ? note.resourceDescription : stripHtml(note.content)}
-                                  noteType={note.noteType || 'default'}
+                                  noteType={(note.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
                                   resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
                                   resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
                                   resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
@@ -744,7 +744,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                                   key={note.id}
                                   title={note.noteType === 'resource' && note.resourceTitle ? note.resourceTitle : note.title}
                                   content={note.noteType === 'resource' && note.resourceDescription ? note.resourceDescription : note.content}
-                                  noteType={note.noteType || 'default'}
+                                  noteType={(note.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
                                   resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
                                   resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
                                   resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
