@@ -12,7 +12,7 @@ import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 import RecentSearches from "@/components/react/RecentSearches";
 import FindSearchInput from "@/components/react/FindSearchInput";
-import { db, Notes, Threads, Tags, NoteTags, NoteThreads, eq, and, or, like, desc, count } from "astro:db";
+import { db, Notes, Threads, Tags, NoteTags, NoteThreads, ResourceMetadata, eq, and, or, like, desc, count, inArray } from "astro:db";
 import { getThreadColorCSS } from "@/utils/colors";
 import { getInboxCount } from "@/utils/dashboard-data";
 
@@ -322,28 +322,64 @@ if (query.trim()) {
       })
     );
 
+    // Fetch resource metadata for resource notes
+    const resourceNoteIds = notesWithTags
+      .filter(note => note.noteType === 'resource')
+      .map(note => note.id);
+    
+    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+    
+    if (resourceNoteIds.length > 0) {
+      try {
+        const resourceMetadata = await db.select({
+          noteId: ResourceMetadata.noteId,
+          sourceTitle: ResourceMetadata.sourceTitle,
+          sourceDescription: ResourceMetadata.sourceDescription,
+          sourceImage: ResourceMetadata.sourceImage,
+        })
+        .from(ResourceMetadata)
+        .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
+        .all();
+        
+        resourceMetadataMap = resourceMetadata.reduce((acc, meta) => {
+          acc[meta.noteId] = {
+            sourceTitle: meta.sourceTitle,
+            sourceDescription: meta.sourceDescription,
+            sourceImage: meta.sourceImage,
+          };
+          return acc;
+        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }>);
+      } catch (error) {
+        // Resource metadata fetch failed - continue without it
+      }
+    }
+
     // Format notes results with relevance scoring
     notesResults = notesWithTags.map(note => {
       const cleanContent = stripHtml(note.content);
+      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const noteData: any = {
         id: `note-${note.id}`,
         type: "note" as const,
-        title: note.title || "Untitled Note",
-        content: cleanContent,
+        title: resourceMeta?.sourceTitle || note.title || "Untitled Note",
+        content: resourceMeta?.sourceDescription || cleanContent,
         noteId: note.id,
         threadId: note.threadId,
         spaceId: note.spaceId,
         noteType: note.noteType || 'default',
         lastUpdated: note.updatedAt || note.createdAt,
         updatedAt: note.updatedAt || note.createdAt,
-        tags: note.tags
+        tags: note.tags,
+        resourceTitle: resourceMeta?.sourceTitle || null,
+        resourceDescription: resourceMeta?.sourceDescription || null,
+        resourceImage: resourceMeta?.sourceImage || null
       };
       
       // Calculate relevance score
       noteData.relevanceScore = calculateRelevanceScore(noteData, query.trim());
       
       // Truncate content for display
-      noteData.content = cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
+      noteData.content = (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : "");
       
       return noteData;
     });
@@ -468,9 +504,12 @@ if (query.trim()) {
                       >
                         {item.type === 'note' ? (
                           <CardNote 
-                            title={item.title}
-                            content={item.content}
+                            title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
+                            content={item.noteType === 'resource' && item.resourceDescription ? item.resourceDescription : item.content}
                             noteType={item.noteType || 'default'}
+                            resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
+                            resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
+                            resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
                           />
                         ) : (
                           <CardThread 
@@ -508,9 +547,12 @@ if (query.trim()) {
                         class="block transition-transform duration-200 hover:scale-[1.002]"
                       >
                         <CardNote 
-                          title={item.title}
-                          content={item.content}
+                          title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
+                          content={item.noteType === 'resource' && item.resourceDescription ? item.resourceDescription : item.content}
                           noteType={item.noteType || 'default'}
+                          resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
+                          resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
+                          resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
                         />
                       </a>
                     </div>

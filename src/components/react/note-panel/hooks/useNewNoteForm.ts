@@ -6,6 +6,12 @@ export interface UseNewNoteFormOptions {
   currentSpace?: { id: string; title: string; color?: string; backgroundGradient?: string } | null;
 }
 
+export interface ResourceMetadata {
+  title: string;
+  description: string;
+  image: string;
+}
+
 export interface UseNewNoteFormReturn {
   // State
   title: string;
@@ -20,6 +26,8 @@ export interface UseNewNoteFormReturn {
   setScriptureVersion: (version: string) => void;
   resourceUrl: string;
   setResourceUrl: (url: string) => void;
+  resourceMetadata: ResourceMetadata | null;
+  setResourceMetadata: (metadata: ResourceMetadata | null) => void;
   sourceNoteId: string | null;
   sourceSelectionFrom: number | null;
   sourceSelectionTo: number | null;
@@ -48,6 +56,7 @@ export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteF
   const [scriptureReference, setScriptureReference] = useState('');
   const [scriptureVersion, setScriptureVersion] = useState('NET');
   const [resourceUrl, setResourceUrl] = useState('');
+  const [resourceMetadata, setResourceMetadata] = useState<ResourceMetadata | null>(null);
   const [sourceNoteId, setSourceNoteId] = useState<string | null>(null);
   const [sourceSelectionFrom, setSourceSelectionFrom] = useState<number | null>(null);
   const [sourceSelectionTo, setSourceSelectionTo] = useState<number | null>(null);
@@ -210,6 +219,7 @@ export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteF
     setScriptureReference('');
     setScriptureVersion('NET');
     setResourceUrl('');
+    setResourceMetadata(null);
   };
 
   // Clear localStorage entries
@@ -234,6 +244,8 @@ export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteF
     setScriptureVersion,
     resourceUrl,
     setResourceUrl,
+    resourceMetadata,
+    setResourceMetadata,
     sourceNoteId,
     sourceSelectionFrom,
     sourceSelectionTo,

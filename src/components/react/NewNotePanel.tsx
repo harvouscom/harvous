@@ -93,6 +93,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     scriptureReference: form.scriptureReference,
     scriptureVersion: form.scriptureVersion,
     resourceUrl: form.resourceUrl,
+    resourceMetadata: form.resourceMetadata,
     sourceNoteId: form.sourceNoteId,
     addToSpace: form.addToSpace,
     currentSpace,
@@ -394,6 +395,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
               resourceUrl={form.resourceUrl}
               onResourceUrlChange={form.setResourceUrl}
               nextNoteId={nextNoteId}
+              onMetadataFetched={form.setResourceMetadata}
             />
           )}
         </div>

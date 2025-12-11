@@ -3,7 +3,7 @@ import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { normalizeUrl } from '@/utils/validation';
-import type { NoteType } from './useNewNoteForm';
+import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
 
 export interface UseNoteSubmissionOptions {
@@ -14,6 +14,7 @@ export interface UseNoteSubmissionOptions {
   scriptureReference: string;
   scriptureVersion: string;
   resourceUrl: string;
+  resourceMetadata: ResourceMetadata | null;
   sourceNoteId: string | null;
   addToSpace: boolean;
   currentSpace?: { id: string } | null;
@@ -52,6 +53,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     scriptureReference,
     scriptureVersion,
     resourceUrl,
+    resourceMetadata,
     sourceNoteId,
     addToSpace,
     currentSpace,
@@ -245,6 +247,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         formData.set('scriptureVersion', scriptureVersion);
       } else if (noteType === 'resource') {
         formData.set('resourceUrl', normalizedResourceUrl);
+        // Pass pre-fetched metadata to avoid re-fetching on the server
+        if (resourceMetadata) {
+          formData.set('resourceMetadata', JSON.stringify(resourceMetadata));
+        }
       }
 
       const response = await fetch('/api/notes/create', {
@@ -429,6 +435,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         formData.set('scriptureVersion', scriptureVersion);
       } else if (noteType === 'resource') {
         formData.set('resourceUrl', resourceUrl);
+        // Pass pre-fetched metadata to avoid re-fetching on the server
+        if (resourceMetadata) {
+          formData.set('resourceMetadata', JSON.stringify(resourceMetadata));
+        }
       }
 
       const response = await fetch('/api/notes/create', {

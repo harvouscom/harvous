@@ -17,6 +17,9 @@ interface OrganizedContentItem {
   lastUpdated?: string;
   noteType?: string;
   isPrivate?: boolean;
+  resourceTitle?: string | null;
+  resourceDescription?: string | null;
+  resourceImage?: string | null;
 }
 
 interface OrganizedContentListProps {
@@ -354,9 +357,12 @@ export default function OrganizedContentList({
             className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
           >
             <CardNote 
-              title={item.title}
-              content={item.content || ''}
+              title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
+              content={item.noteType === 'resource' && item.resourceDescription ? item.resourceDescription : (item.content || '')}
               noteType={item.noteType || 'default'}
+              resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
+              resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
+              resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
             />
           </a>
         ) : (

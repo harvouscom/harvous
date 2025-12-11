@@ -403,8 +403,6 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       .filter(note => note.noteType === 'resource')
       .map(note => note.id);
     
-    console.log('getNotesForThread: Found resource notes:', resourceNoteIds.length, resourceNoteIds);
-    
     let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
     
     if (resourceNoteIds.length > 0) {
@@ -419,15 +417,12 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
         .all();
         
-        console.log('getNotesForThread: Fetched resource metadata:', resourceMetadata.length, 'records');
-        
         resourceMetadataMap = resourceMetadata.reduce((acc, meta) => {
           acc[meta.noteId] = {
             sourceTitle: meta.sourceTitle,
             sourceDescription: meta.sourceDescription,
             sourceImage: meta.sourceImage,
           };
-          console.log(`getNotesForThread: Metadata for ${meta.noteId}:`, acc[meta.noteId]);
           return acc;
         }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }>);
       } catch (error) {
@@ -437,26 +432,13 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     
     return sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
-      const result = {
+      return {
         ...note,
         lastUpdated: note.updatedAt || note.createdAt,
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
       };
-      
-      // Debug logging for resource notes
-      if (note.noteType === 'resource') {
-        console.log(`getNotesForThread: Resource note ${note.id}:`, {
-          hasMetadata: !!resourceMeta,
-          resourceTitle: result.resourceTitle,
-          resourceDescription: result.resourceDescription ? result.resourceDescription.substring(0, 50) + '...' : null,
-          resourceImage: result.resourceImage,
-          originalTitle: note.title
-        });
-      }
-      
-      return result;
     });
   } catch (error) {
     console.error("Error fetching notes for thread:", error);
@@ -653,35 +635,76 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
       accentColor: thread.accentColor,
     }));
 
+    // Fetch resource metadata for all resource notes
+    const allNoteIds = [...assignedNotes, ...unorganizedNotes].map(n => n.id);
+    const resourceNoteIds = [...assignedNotes, ...unorganizedNotes]
+      .filter(note => note.noteType === 'resource')
+      .map(note => note.id);
+    
+    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+    
+    if (resourceNoteIds.length > 0) {
+      try {
+        const resourceMetadata = await db.select({
+          noteId: ResourceMetadata.noteId,
+          sourceTitle: ResourceMetadata.sourceTitle,
+          sourceDescription: ResourceMetadata.sourceDescription,
+          sourceImage: ResourceMetadata.sourceImage,
+        })
+        .from(ResourceMetadata)
+        .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
+        .all();
+        
+        resourceMetadataMap = resourceMetadata.reduce((acc, meta) => {
+          acc[meta.noteId] = {
+            sourceTitle: meta.sourceTitle,
+            sourceDescription: meta.sourceDescription,
+            sourceImage: meta.sourceImage,
+          };
+          return acc;
+        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }>);
+      } catch (error) {
+        // Resource metadata fetch failed - continue without it
+      }
+    }
+
     const assignedNoteItems = assignedNotes.map(note => {
       const cleanContent = stripHtml(note.content);
+      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       return {
         id: `note-${note.id}`,
         type: "note" as const,
-        title: note.title || "Untitled Note",
-        content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        title: resourceMeta?.sourceTitle || note.title || "Untitled Note",
+        content: (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : ""),
         noteId: note.id, // Full ID including prefix
         threadId: note.threadId,
         spaceId: note.spaceId,
         noteType: note.noteType || 'default',
         lastUpdated: note.lastUpdated,
         updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
+        resourceTitle: resourceMeta?.sourceTitle || null,
+        resourceDescription: resourceMeta?.sourceDescription || null,
+        resourceImage: resourceMeta?.sourceImage || null,
       };
     });
 
     const unorganizedNoteItems = unorganizedNotes.map(note => {
       const cleanContent = stripHtml(note.content);
+      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       return {
         id: `note-${note.id}`,
         type: "note" as const,
-        title: note.title || "Untitled Note",
-        content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        title: resourceMeta?.sourceTitle || note.title || "Untitled Note",
+        content: (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : ""),
         noteId: note.id, // Full ID including prefix
         threadId: note.threadId,
         spaceId: note.spaceId,
         noteType: note.noteType || 'default',
         lastUpdated: note.lastUpdated,
         updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
+        resourceTitle: resourceMeta?.sourceTitle || null,
+        resourceDescription: resourceMeta?.sourceDescription || null,
+        resourceImage: resourceMeta?.sourceImage || null,
       };
     });
 

@@ -47,7 +47,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const scriptureReference = formData.get('scriptureReference') as string | null;
     const scriptureVersion = formData.get('scriptureVersion') as string | null;
     const resourceUrl = formData.get('resourceUrl') as string | null;
+    const resourceMetadataStr = formData.get('resourceMetadata') as string | null;
     const spaceId = formData.get('spaceId') as string | null;
+    
+    // Parse pre-fetched resource metadata if provided
+    let prefetchedResourceMetadata: { title?: string; description?: string; image?: string } | null = null;
+    if (resourceMetadataStr) {
+      try {
+        prefetchedResourceMetadata = JSON.parse(resourceMetadataStr);
+      } catch (e) {
+        // Failed to parse, will fetch from URL instead
+      }
+    }
 
     // Validate noteType first (needed to determine if content is required)
     const noteTypeValidation = validateNoteType(noteType);
@@ -320,61 +331,44 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Create ResourceMetadata record if this is a resource note
-    // IMPORTANT: This must complete before returning the response to avoid timing issues
+    // IMPORTANT: Use pre-fetched metadata from frontend if available to avoid timing issues
     if (finalNoteType === 'resource' && resourceUrl) {
       try {
         // Normalize URL by adding https:// if missing
         const normalizedResourceUrl = normalizeUrl(resourceUrl);
         
-        // Fetch metadata from the resource URL (with timeout to prevent hanging)
-        let resourceMetadata: { title?: string; description?: string; image?: string } | null = null;
+        // Use pre-fetched metadata if available, otherwise fetch it
+        let resourceMetadata: { title?: string; description?: string; image?: string } | null = prefetchedResourceMetadata;
         
-        try {
-          console.log('Creating resource note, fetching metadata for URL:', normalizedResourceUrl);
-          
-          // Add timeout to metadata fetch (10 seconds max)
-          const metadataFetchPromise = fetch(`${new URL(request.url).origin}/api/resource/metadata`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ url: normalizedResourceUrl }),
-          });
-          
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Metadata fetch timeout')), 10000)
-          );
-          
-          const metadataResponse = await Promise.race([metadataFetchPromise, timeoutPromise]) as Response;
-
-          console.log('Metadata API response status:', metadataResponse.status);
-          
-          if (metadataResponse.ok) {
-            const metadataData = await metadataResponse.json();
-            console.log('Metadata API response data:', metadataData);
-            if (metadataData.success && metadataData.metadata) {
-              resourceMetadata = metadataData.metadata;
-              console.log('Metadata fetched successfully:', {
-                title: resourceMetadata.title,
-                description: resourceMetadata.description,
-                image: resourceMetadata.image,
-                hasTitle: !!resourceMetadata.title,
-                hasDescription: !!resourceMetadata.description,
-                hasImage: !!resourceMetadata.image
-              });
-            } else {
-              console.warn('Metadata response not successful:', metadataData);
+        // Only fetch if no pre-fetched metadata was provided
+        if (!resourceMetadata) {
+          try {
+            const metadataFetchPromise = fetch(`${new URL(request.url).origin}/api/resource/metadata`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ url: normalizedResourceUrl }),
+            });
+            
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Metadata fetch timeout')), 10000)
+            );
+            
+            const metadataResponse = await Promise.race([metadataFetchPromise, timeoutPromise]) as Response;
+            
+            if (metadataResponse.ok) {
+              const metadataData = await metadataResponse.json();
+              if (metadataData.success && metadataData.metadata) {
+                resourceMetadata = metadataData.metadata;
+              }
             }
-          } else {
-            const errorData = await metadataResponse.json().catch(() => ({ error: 'Unknown error' }));
-            console.error('Metadata fetch failed:', metadataResponse.status, errorData);
+          } catch (error) {
+            // Non-critical - note will still be created without metadata
           }
-        } catch (error) {
-          // Log error but still create the resource note
-          console.error('Error fetching resource metadata (non-critical):', error);
         }
 
-        // Create ResourceMetadata record (even if metadata fetch failed, store the URL)
+        // Create ResourceMetadata record
         const resourceMetadataRecord = {
           id: `resource_${newNote.id}_${Date.now()}`,
           noteId: newNote.id,
@@ -384,18 +378,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
           sourceImage: resourceMetadata?.image || null,
           createdAt: new Date()
         };
-        console.log('Creating ResourceMetadata record:', {
-          noteId: resourceMetadataRecord.noteId,
-          sourceUrl: resourceMetadataRecord.sourceUrl,
-          sourceTitle: resourceMetadataRecord.sourceTitle,
-          sourceDescription: resourceMetadataRecord.sourceDescription ? resourceMetadataRecord.sourceDescription.substring(0, 50) + '...' : null,
-          sourceImage: resourceMetadataRecord.sourceImage,
-          hasTitle: !!resourceMetadataRecord.sourceTitle,
-          hasDescription: !!resourceMetadataRecord.sourceDescription,
-          hasImage: !!resourceMetadataRecord.sourceImage
-        });
+        
         await db.insert(ResourceMetadata).values(resourceMetadataRecord);
-        console.log('ResourceMetadata record created successfully');
 
         // Update note with metadata if available
         // For resource notes, always use metadata title if available (not the URL)

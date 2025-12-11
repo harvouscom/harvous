@@ -637,9 +637,12 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                                 aria-label={`View note: ${note.title || 'Untitled note'}`}
                               >
                                 <CardNote 
-                                  title={note.title || "Untitled Note"}
-                                  content={stripHtml(note.content)}
+                                  title={note.noteType === 'resource' && note.resourceTitle ? note.resourceTitle : (note.title || "Untitled Note")}
+                                  content={note.noteType === 'resource' && note.resourceDescription ? note.resourceDescription : stripHtml(note.content)}
                                   noteType={note.noteType || 'default'}
+                                  resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
+                                  resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
+                                  resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
                                 />
                               </a>
                               {/* Remove from selection button */}
@@ -739,8 +742,12 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                               {recentNotes.map((note) => (
                                 <CardNote
                                   key={note.id}
-                                  title={note.title}
-                                  content={note.content}
+                                  title={note.noteType === 'resource' && note.resourceTitle ? note.resourceTitle : note.title}
+                                  content={note.noteType === 'resource' && note.resourceDescription ? note.resourceDescription : note.content}
+                                  noteType={note.noteType || 'default'}
+                                  resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
+                                  resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
+                                  resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
                                   onClick={() => {
                                     safeNavigate(`/note_${note.id}`, { history: 'replace' });
                                   }}

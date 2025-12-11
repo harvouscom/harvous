@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, ResourceMetadata, NoteScriptureReferences, eq, and, count, desc } from 'astro:db';
+import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, ResourceMetadata, NoteScriptureReferences, eq, and, count, desc, inArray } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ params, locals }) => {
@@ -189,6 +189,9 @@ export const GET: APIRoute = async ({ params, locals }) => {
       noteType: string;
       createdAt: Date;
       updatedAt: Date | null;
+      resourceTitle: string | null;
+      resourceDescription: string | null;
+      resourceImage: string | null;
     }> = [];
     
     if (note.noteType === 'scripture') {
@@ -214,15 +217,53 @@ export const GET: APIRoute = async ({ params, locals }) => {
           .orderBy(desc(Notes.updatedAt))
           .all();
         
-        referencingNotes = junctionEntries.map(entry => ({
-          id: entry.id,
-          title: entry.title,
-          content: entry.content,
-          simpleNoteId: entry.simpleNoteId,
-          noteType: entry.noteType || 'default',
-          createdAt: entry.createdAt,
-          updatedAt: entry.updatedAt
-        }));
+        // Fetch resource metadata for resource notes
+        const resourceNoteIds = junctionEntries
+          .filter(entry => entry.noteType === 'resource')
+          .map(entry => entry.id);
+        
+        let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+        
+        if (resourceNoteIds.length > 0) {
+          try {
+            const resourceMetadata = await db.select({
+              noteId: ResourceMetadata.noteId,
+              sourceTitle: ResourceMetadata.sourceTitle,
+              sourceDescription: ResourceMetadata.sourceDescription,
+              sourceImage: ResourceMetadata.sourceImage,
+            })
+            .from(ResourceMetadata)
+            .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
+            .all();
+            
+            resourceMetadataMap = resourceMetadata.reduce((acc, meta) => {
+              acc[meta.noteId] = {
+                sourceTitle: meta.sourceTitle,
+                sourceDescription: meta.sourceDescription,
+                sourceImage: meta.sourceImage,
+              };
+              return acc;
+            }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }>);
+          } catch (error) {
+            // Resource metadata fetch failed - continue without it
+          }
+        }
+        
+        referencingNotes = junctionEntries.map(entry => {
+          const resourceMeta = entry.noteType === 'resource' ? resourceMetadataMap[entry.id] : null;
+          return {
+            id: entry.id,
+            title: entry.title,
+            content: entry.content,
+            simpleNoteId: entry.simpleNoteId,
+            noteType: entry.noteType || 'default',
+            createdAt: entry.createdAt,
+            updatedAt: entry.updatedAt,
+            resourceTitle: resourceMeta?.sourceTitle || null,
+            resourceDescription: resourceMeta?.sourceDescription || null,
+            resourceImage: resourceMeta?.sourceImage || null,
+          };
+        });
       } catch (error) {
         // If error (e.g., table doesn't exist yet), just return empty array
         referencingNotes = [];
@@ -281,7 +322,10 @@ export const GET: APIRoute = async ({ params, locals }) => {
         simpleNoteId: refNote.simpleNoteId,
         noteType: refNote.noteType,
         createdAt: refNote.createdAt,
-        updatedAt: refNote.updatedAt
+        updatedAt: refNote.updatedAt,
+        resourceTitle: refNote.resourceTitle,
+        resourceDescription: refNote.resourceDescription,
+        resourceImage: refNote.resourceImage
       }))
     };
 
