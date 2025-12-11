@@ -19,13 +19,21 @@ export default function NewTagPanel({
 }: NewTagPanelProps) {
   const [tagName, setTagName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  // Initialize isMobile immediately to prevent autoFocus on first render
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 1160;
+    }
+    // Default to true (mobile) for SSR safety
+    return true;
+  });
 
-  // Check if we're on mobile (viewport width < 1160px)
+  // Check if we're on mobile (viewport width < 1160px) and handle resize
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 1160);
     };
+    // Re-check on mount in case initial state was wrong
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
