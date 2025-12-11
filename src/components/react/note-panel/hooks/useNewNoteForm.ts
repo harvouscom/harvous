@@ -10,6 +10,7 @@ export interface ResourceMetadata {
   title: string;
   description: string;
   image: string;
+  siteName?: string | null;
 }
 
 export interface UseNewNoteFormReturn {

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { handleAPIError } from '@/utils/error-handling';
-import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
+import { normalizeUrl, validateResourceUrl, getDomainFriendlyName, extractDomain } from '@/utils/validation';
 import { extractArticleContent } from '@/utils/content-extractor';
 
 // Helper function to decode HTML entities
@@ -128,6 +128,26 @@ function extractFirstContentImage(html: string, baseUrl: string): string | null 
     }
     
     return imageUrl;
+  }
+  
+  return null;
+}
+
+// Helper function to extract site name from title suffix
+// Extracts patterns like "Article Title | SiteName" or "Article Title - SiteName"
+function extractSiteNameFromTitle(title: string): string | null {
+  if (!title) return null;
+  
+  const trimmed = title.trim();
+  const separators = /\s*[\|–—\-·]\s*/;
+  const parts = trimmed.split(separators);
+  
+  if (parts.length >= 2) {
+    const lastPart = parts[parts.length - 1].trim();
+    // Only use if it's short (under 30 chars) and looks like a site name
+    if (lastPart.length > 0 && lastPart.length < 30) {
+      return lastPart;
+    }
   }
   
   return null;
@@ -394,12 +414,43 @@ export const POST: APIRoute = async ({ request }) => {
       }
     }
 
+    // Get siteName with fallback chain:
+    // 1. og:site_name from metadata
+    // 2. Extracted from title suffix
+    // 3. Friendly domain name from mapping
+    // 4. Formatted domain (remove .com/.org, capitalize)
+    let siteName: string | null = ogSiteNameMatch ? decodeHtmlEntities(ogSiteNameMatch[1].trim()) : null;
+    
+    if (!siteName && bestTitle) {
+      // Try extracting from title suffix
+      siteName = extractSiteNameFromTitle(bestTitle);
+    }
+    
+    if (!siteName) {
+      const domain = extractDomain(normalizedUrl);
+      if (domain) {
+        const friendlyName = getDomainFriendlyName(domain);
+        // Only use friendly name if it's different from the raw domain
+        if (friendlyName && friendlyName !== domain) {
+          siteName = friendlyName;
+        } else {
+          // Format domain: remove .com/.org, capitalize
+          const formatted = domain
+            .replace(/\.(com|org|net|io|co|edu|gov)$/i, '')
+            .split(/[.\-]/)
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
+          siteName = formatted;
+        }
+      }
+    }
+
     const extractedMetadata = {
       title: bestTitle,
       description: descriptionMatch ? decodeHtmlEntities(descriptionMatch[1].trim()) : '',
       image: imageUrl,
       url: normalizedUrl,
-      siteName: ogSiteNameMatch ? decodeHtmlEntities(ogSiteNameMatch[1].trim()) : null
+      siteName
     };
 
     // Extract article content if requested

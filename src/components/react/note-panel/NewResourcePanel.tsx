@@ -15,7 +15,7 @@ export interface NewResourcePanelProps {
   resourceUrl: string;
   onResourceUrlChange: (url: string) => void;
   nextNoteId: string;
-  onMetadataFetched?: (metadata: { title: string; description: string; image: string }) => void;
+  onMetadataFetched?: (metadata: { title: string; description: string; image: string; siteName?: string | null }) => void;
   onDuplicateFound?: (duplicate: DuplicateResource | null) => void;
   onReadyStateChange?: (isReady: boolean) => void;
 }
@@ -33,7 +33,7 @@ export default function NewResourcePanel({
   onReadyStateChange,
 }: NewResourcePanelProps) {
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
-  const [metadata, setMetadata] = useState<{ title: string; description: string; image: string } | null>(null);
+  const [metadata, setMetadata] = useState<{ title: string; description: string; image: string; siteName?: string | null } | null>(null);
   const [fetchAttempted, setFetchAttempted] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [urlErrorCode, setUrlErrorCode] = useState<string | null>(null);

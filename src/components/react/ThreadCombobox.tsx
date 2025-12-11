@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SearchInput from './SearchInput';
-// Removed Check and ChevronsUpDown imports - using clean design without arrow icons
+import ActionButton from './ActionButton';
 
 interface Thread {
   id: string;
@@ -9,6 +9,8 @@ interface Thread {
   backgroundGradient: string;
   color?: string | null;
   isPublic?: boolean;
+  isSuggested?: boolean;
+  suggestedReason?: string;
 }
 
 interface ThreadComboboxProps {
@@ -16,16 +18,30 @@ interface ThreadComboboxProps {
   onThreadSelect: (thread: string) => void;
   threads: Thread[];
   placeholder?: string;
+  suggestedThreadIds?: string[];
+  suggestedThreadName?: string | null;
+  onCreateThread?: (threadName: string) => void;
 }
 
 const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   selectedThread,
   onThreadSelect,
   threads,
-  placeholder = "Select thread..."
+  placeholder = "Select thread...",
+  suggestedThreadIds = [],
+  suggestedThreadName,
+  onCreateThread,
 }) => {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
+  const [editedThreadName, setEditedThreadName] = useState(suggestedThreadName || '');
+
+  // Update editedThreadName when suggestedThreadName changes
+  useEffect(() => {
+    if (suggestedThreadName) {
+      setEditedThreadName(suggestedThreadName);
+    }
+  }, [suggestedThreadName]);
 
   // Filter threads based on search
   const filteredThreads = threads.filter(thread =>
@@ -92,6 +108,79 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                 }
               }
             `}</style>
+            
+            {/* Create Thread Suggestion - show if suggestedThreadName exists and no matching thread found */}
+            {suggestedThreadName && onCreateThread && !filteredThreads.some(t => t.title === editedThreadName || t.title === suggestedThreadName) && (
+              <div
+                className="relative group"
+                style={{
+                  animation: 'fadeIn 0.3s ease-out forwards',
+                  opacity: 0
+                }}
+              >
+                <div
+                  className="relative rounded-xl h-[48px] w-full overflow-hidden"
+                  style={{
+                    backgroundColor: 'white',
+                    boxShadow: 'none'
+                  }}
+                >
+                  {/* Accent bar on left - matches thread rows */}
+                  <div 
+                    className="absolute inset-y-0 left-0 w-11 rounded-l-xl" 
+                    style={{ backgroundColor: 'var(--color-paper)' }}
+                  />
+                  
+                  {/* Content - matches thread row styling */}
+                  <div className="flex items-center gap-6 pl-3 pr-3 h-full">
+                    {/* Layer group icon (thread icon) - same opacity as thread icons */}
+                    <div className="relative shrink-0 size-5">
+                      <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 576 512">
+                        <path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/>
+                      </svg>
+                    </div>
+                    
+                    {/* Editable input - matches thread title styling */}
+                    <input
+                      type="text"
+                      value={editedThreadName}
+                      onChange={(e) => setEditedThreadName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (editedThreadName.trim()) {
+                            onCreateThread(editedThreadName.trim());
+                            setOpen(false);
+                            setSearchValue('');
+                          }
+                        }
+                      }}
+                      className="flex-1 font-sans font-bold text-[var(--color-deep-grey)] text-[16px] bg-transparent border-none outline-none min-w-0"
+                      placeholder={suggestedThreadName}
+                      autoFocus
+                    />
+                    
+                    {/* Confirm button using ActionButton */}
+                    <ActionButton
+                      variant="Add"
+                      onClick={() => {
+                        if (editedThreadName.trim()) {
+                          onCreateThread(editedThreadName.trim());
+                          setOpen(false);
+                          setSearchValue('');
+                        }
+                      }}
+                      disabled={!editedThreadName.trim()}
+                      style={{
+                        opacity: editedThreadName.trim() ? 1 : 0.5,
+                        cursor: editedThreadName.trim() ? 'pointer' : 'not-allowed'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {filteredThreads.length > 0 ? (
               filteredThreads.map((thread) => {
                 // Get thread color - Unorganized should use paper, otherwise use color property or default to purple
@@ -146,11 +235,23 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                         </div>
                         
                         {/* Text content - only title, no subtitle or count */}
-                        <div className="flex flex-col gap-1 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
                           {/* Title */}
                           <div className="font-sans font-bold text-[var(--color-deep-grey)] text-[16px] truncate">
                             {thread.title}
                           </div>
+                          
+                          {/* Suggestion badge */}
+                          {thread.isSuggested && thread.suggestedReason && (
+                            <span 
+                              className="px-2 py-0.5 rounded-full text-[11px] font-sans font-medium text-[var(--color-stone-grey)] whitespace-nowrap"
+                              style={{ 
+                                backgroundColor: 'var(--color-light-paper)',
+                              }}
+                            >
+                              {thread.suggestedReason}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </button>

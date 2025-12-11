@@ -76,6 +76,7 @@ const DOMAIN_FRIENDLY_NAMES: Record<string, string> = {
   'reformedwiki.com': 'Reformed Wiki',
   'thirdmill.org': 'Third Millennium',
   'biblia.com': 'Biblia',
+  'bibleproject.com': 'BibleProject',
   'medium.com': 'Medium',
   'substack.com': 'Substack',
   'spotify.com': 'Spotify',

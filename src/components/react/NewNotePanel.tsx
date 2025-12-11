@@ -40,6 +40,12 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [hasDuplicateResource, setHasDuplicateResource] = useState(false);
   const [isResourceReady, setIsResourceReady] = useState(false);
+  
+  // State for thread suggestions based on resource domain or note content
+  const [suggestedThreadIds, setSuggestedThreadIds] = useState<string[]>([]);
+  const [suggestedThreadName, setSuggestedThreadName] = useState<string | null>(null);
+  const [suggestedDomain, setSuggestedDomain] = useState<string | null>(null);
+  const [suggestionReasons, setSuggestionReasons] = useState<Record<string, string>>({});
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -53,6 +59,9 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   const threadSelection = useThreadSelection({
     currentThread,
     navigationHistory,
+    suggestedThreadIds: suggestedThreadIds.length > 0 ? suggestedThreadIds : undefined,
+    suggestedDomain: suggestedDomain || undefined,
+    suggestionReasons: Object.keys(suggestionReasons).length > 0 ? suggestionReasons : undefined,
   });
 
   // Use extracted scripture detection hook
@@ -138,6 +147,134 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   useEffect(() => {
     loadNextNoteId();
   }, []);
+
+  // Fetch thread suggestions for resource notes when metadata is loaded (only when defaulting to Unorganized)
+  useEffect(() => {
+    // Only fetch suggestions for resource notes when selected thread is Unorganized
+    if (form.noteType !== 'resource' || threadSelection.selectedThread !== 'Unorganized') {
+      if (form.noteType === 'resource') {
+        setSuggestedThreadIds([]);
+        setSuggestedThreadName(null);
+        setSuggestedDomain(null);
+        setSuggestionReasons({});
+      }
+      return;
+    }
+
+    // Only fetch if resourceUrl is valid
+    if (!form.resourceUrl || form.resourceUrl.trim() === '') {
+      setSuggestedThreadIds([]);
+      setSuggestedThreadName(null);
+      setSuggestedDomain(null);
+      setSuggestionReasons({});
+      return;
+    }
+
+    // Wait for metadata to be loaded before fetching suggestions (for siteName)
+    // The siteName is used for clean thread name suggestions
+    if (!form.resourceMetadata) {
+      return;
+    }
+
+    // Debounce the suggestion fetch
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await safeFetch('/api/resource/suggest-threads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            resourceUrl: form.resourceUrl,
+            sourceName: form.resourceMetadata?.siteName || null
+          }),
+          retries: 1,
+          retryDelay: 500
+        });
+
+        if (response && response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setSuggestedThreadIds(data.suggestedThreadIds || []);
+            setSuggestedThreadName(data.suggestedThreadName || null);
+            setSuggestedDomain(data.domain || null);
+            // Note: Threads will automatically update with suggestions via useEffect in useThreadSelection
+          }
+        }
+      } catch (error) {
+        // Silently fail - suggestions are non-critical
+        captureException(error as Error);
+        setSuggestedThreadIds([]);
+        setSuggestedThreadName(null);
+        setSuggestedDomain(null);
+        setSuggestionReasons({});
+      }
+    }, 100); // Short debounce since metadata is already loaded
+
+    return () => clearTimeout(timeoutId);
+  }, [form.noteType, form.resourceUrl, form.resourceMetadata, threadSelection.selectedThread]);
+
+  // Fetch thread suggestions for default notes when content changes (only when defaulting to Unorganized)
+  useEffect(() => {
+    // Only fetch suggestions for default notes when selected thread is Unorganized
+    if (form.noteType !== 'default' || threadSelection.selectedThread !== 'Unorganized') {
+      if (form.noteType === 'default') {
+        setSuggestedThreadIds([]);
+        setSuggestedThreadName(null);
+        setSuggestedDomain(null);
+        setSuggestionReasons({});
+      }
+      return;
+    }
+
+    // Only fetch if we have some content (title or content)
+    if ((!form.title || form.title.trim() === '') && (!form.content || form.content.trim() === '')) {
+      setSuggestedThreadIds([]);
+      setSuggestedThreadName(null);
+      setSuggestedDomain(null);
+      setSuggestionReasons({});
+      return;
+    }
+
+    // Debounce the suggestion fetch
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await safeFetch('/api/notes/suggest-threads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            title: form.title || '',
+            content: form.content || ''
+          }),
+          retries: 1,
+          retryDelay: 500
+        });
+
+        if (response && response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setSuggestedThreadIds(data.suggestedThreadIds || []);
+            setSuggestedThreadName(null); // No thread name suggestion for default notes
+            // Store suggestion reasons in a map for ThreadCombobox
+            const reasons: Record<string, string> = {};
+            if (data.suggestedThreads) {
+              data.suggestedThreads.forEach((thread: { id: string; reason: string }) => {
+                reasons[thread.id] = thread.reason;
+              });
+            }
+            setSuggestionReasons(reasons);
+          }
+        }
+      } catch (error) {
+        // Silently fail - suggestions are non-critical
+        captureException(error as Error);
+        setSuggestedThreadIds([]);
+        setSuggestedThreadName(null);
+        setSuggestedDomain(null);
+        setSuggestionReasons({});
+      }
+    }, 500); // Debounce for default notes
+
+    return () => clearTimeout(timeoutId);
+  }, [form.noteType, form.title, form.content, threadSelection.selectedThread]);
 
   // Store timeout ref for cleanup
   const pendingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -335,6 +472,46 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     }
   };
 
+  // Handle creating a thread from suggestion
+  const handleCreateSuggestedThread = async (threadName: string) => {
+    try {
+      // Create thread via API
+      const formData = new FormData();
+      formData.append('title', threadName);
+      formData.append('color', 'paper'); // Use paper/neutral color for suggested threads
+      formData.append('isPublic', 'false');
+      if (currentSpace?.id) {
+        formData.append('spaceId', currentSpace.id);
+      }
+
+      const response = await safeFetch('/api/threads/create', {
+        method: 'POST',
+        body: formData,
+        retries: 1,
+        retryDelay: 500
+      });
+
+      if (response && response.ok) {
+        const result = await response.json();
+        if (result.thread && result.thread.id) {
+          // Select the newly created thread
+          threadSelection.handleThreadSelect(result.thread.title);
+          // Reload threads to get updated list
+          await threadSelection.loadThreads();
+          // Clear suggestions since we've created the thread
+          setSuggestedThreadIds([]);
+          setSuggestedThreadName(null);
+          setSuggestedDomain(null);
+        }
+      }
+    } catch (error) {
+      captureException(error as Error);
+      if (window.toast) {
+        window.toast.error('Failed to create thread. Please try again.');
+      }
+    }
+  };
+
   return (
     <>
       <NewNotePanelStyles />
@@ -356,6 +533,9 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
             onThreadSelect={threadSelection.handleThreadSelect}
             threads={threadSelection.threadOptions}
             placeholder="Select thread..."
+            suggestedThreadIds={suggestedThreadIds}
+            suggestedThreadName={suggestedThreadName}
+            onCreateThread={handleCreateSuggestedThread}
           />
         </div>
 

@@ -8,11 +8,16 @@ export interface Thread {
   color: string | null;
   noteCount: number;
   backgroundGradient: string;
+  isSuggested?: boolean;
+  suggestedReason?: string;
 }
 
 export interface UseThreadSelectionOptions {
   currentThread?: { id: string; title: string } | null;
   navigationHistory?: Array<{ id: string; title: string }>;
+  suggestedThreadIds?: string[];
+  suggestedDomain?: string;
+  suggestionReasons?: Record<string, string>;
 }
 
 export interface UseThreadSelectionReturn {
@@ -37,7 +42,7 @@ const DEFAULT_UNORGANIZED_THREAD: Thread = {
  * Hook for managing thread selection and loading
  */
 export function useThreadSelection(options: UseThreadSelectionOptions = {}): UseThreadSelectionReturn {
-  const { currentThread, navigationHistory } = options;
+  const { currentThread, navigationHistory, suggestedThreadIds, suggestedDomain, suggestionReasons } = options;
   
   const [threadOptions, setThreadOptions] = useState<Thread[]>([DEFAULT_UNORGANIZED_THREAD]);
   const [selectedThread, setSelectedThread] = useState('Unorganized');
@@ -106,13 +111,30 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
       
       if (response && response.ok) {
         const threads = await response.json();
-        const formattedThreads: Thread[] = threads.map((thread: any) => ({
-          id: thread.id,
-          title: thread.title,
-          color: thread.color,
-          noteCount: thread.noteCount || 0,
-          backgroundGradient: thread.backgroundGradient
-        }));
+        const formattedThreads: Thread[] = threads.map((thread: any) => {
+          const isSuggested = suggestedThreadIds?.includes(thread.id) || false;
+          let suggestedReason: string | undefined = undefined;
+          
+          if (isSuggested) {
+            if (suggestionReasons && suggestionReasons[thread.id]) {
+              // Use reason from suggestionReasons map (for default notes)
+              suggestedReason = suggestionReasons[thread.id];
+            } else if (suggestedDomain) {
+              // Use domain-based reason (for resource notes)
+              suggestedReason = `From ${suggestedDomain}`;
+            }
+          }
+          
+          return {
+            id: thread.id,
+            title: thread.title,
+            color: thread.color,
+            noteCount: thread.noteCount || 0,
+            backgroundGradient: thread.backgroundGradient,
+            isSuggested,
+            suggestedReason,
+          };
+        });
         
         // Ensure 'Unorganized' thread exists
         const hasUnorganizedThread = formattedThreads.some((thread: Thread) => 
@@ -149,7 +171,7 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     } finally {
       loadThreadsRef.current.isLoading = false;
     }
-  }, [hasSetThreadFromSaved]);
+  }, [hasSetThreadFromSaved, suggestedThreadIds, suggestedDomain, suggestionReasons]);
 
   // Separate effect to handle currentThread when it becomes available
   useEffect(() => {
@@ -270,6 +292,37 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
   useEffect(() => {
     loadThreads();
   }, [loadThreads]);
+
+  // Update thread suggestions when suggestedThreadIds, suggestedDomain, or suggestionReasons changes
+  useEffect(() => {
+    if (suggestedThreadIds && suggestedThreadIds.length > 0) {
+      setThreadOptions(prev => prev.map(thread => {
+        const isSuggested = suggestedThreadIds.includes(thread.id);
+        let suggestedReason: string | undefined = undefined;
+        
+        if (isSuggested) {
+          if (suggestionReasons && suggestionReasons[thread.id]) {
+            suggestedReason = suggestionReasons[thread.id];
+          } else if (suggestedDomain) {
+            suggestedReason = `From ${suggestedDomain}`;
+          }
+        }
+        
+        return {
+          ...thread,
+          isSuggested,
+          suggestedReason,
+        };
+      }));
+    } else if (suggestedThreadIds && suggestedThreadIds.length === 0) {
+      // Clear suggestions
+      setThreadOptions(prev => prev.map(thread => ({
+        ...thread,
+        isSuggested: false,
+        suggestedReason: undefined,
+      })));
+    }
+  }, [suggestedThreadIds, suggestedDomain, suggestionReasons]);
 
   // Handle manual thread selection from user
   const handleThreadSelect = useCallback((threadTitle: string) => {
