@@ -50,6 +50,9 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
 
   // Get the selected thread object
   const selectedThreadObj = threads.find(thread => thread.title === selectedThread);
+  
+  // Determine if this is a suggested new thread (not in the list)
+  const isSuggestedNewThread = !selectedThreadObj && suggestedThreadName && selectedThread === suggestedThreadName;
 
   return (
     <div className="relative">
@@ -64,10 +67,14 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
         }}
       >
         <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+          {/* Thread name */}
           <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
             {selectedThread}
           </span>
+          
+          {/* Right side: badge count + suggestion label */}
           <div className="flex items-center gap-2">
+            {/* Badge count - with original padding */}
             <div className="p-[20px]">
               <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
                 <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
@@ -75,6 +82,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                 </span>
               </div>
             </div>
+            
           </div>
         </div>
       </button>

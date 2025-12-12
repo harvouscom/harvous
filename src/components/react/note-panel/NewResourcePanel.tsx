@@ -1,23 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../Icon';
-import CardNote from '../CardNote';
-import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
-
-export interface DuplicateResource {
-  simpleNoteId: string;
-  title: string;
-  description: string | null;
-  image: string | null;
-  url: string;
-}
+import { normalizeUrl } from '@/utils/validation';
 
 export interface NewResourcePanelProps {
   resourceUrl: string;
   onResourceUrlChange: (url: string) => void;
   nextNoteId: string;
-  onMetadataFetched?: (metadata: { title: string; description: string; image: string; siteName?: string | null }) => void;
-  onDuplicateFound?: (duplicate: DuplicateResource | null) => void;
-  onReadyStateChange?: (isReady: boolean) => void;
+  onMetadataFetched?: (metadata: { title: string; description: string; image: string; articleContent?: string; siteName?: string }) => void;
+  onSuggestedThread?: (threadId: string, threadTitle: string) => void;
 }
 
 /**
@@ -29,19 +19,18 @@ export default function NewResourcePanel({
   onResourceUrlChange,
   nextNoteId,
   onMetadataFetched,
-  onDuplicateFound,
-  onReadyStateChange,
+  onSuggestedThread,
 }: NewResourcePanelProps) {
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
-  const [metadata, setMetadata] = useState<{ title: string; description: string; image: string; siteName?: string | null } | null>(null);
+  const [metadata, setMetadata] = useState<{ title: string; description: string; image: string; articleContent?: string; siteName?: string } | null>(null);
+  const [detectedScriptures, setDetectedScriptures] = useState<Array<{ reference: string; text: string }>>([]);
+  const [isDetectingScriptures, setIsDetectingScriptures] = useState(false);
   const [fetchAttempted, setFetchAttempted] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
-  const [urlErrorCode, setUrlErrorCode] = useState<string | null>(null);
   const [isPasteEvent, setIsPasteEvent] = useState(false);
-  const [isPDF, setIsPDF] = useState(false);
-  const [duplicateNote, setDuplicateNote] = useState<DuplicateResource | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasAutoSelectedThreadRef = useRef(false);
 
   // Auto-focus input when component mounts
   useEffect(() => {
@@ -52,13 +41,10 @@ export default function NewResourcePanel({
   const handleClear = () => {
     onResourceUrlChange('');
     setMetadata(null);
+    setDetectedScriptures([]);
     setFetchAttempted(false);
     setUrlError(null);
-    setUrlErrorCode(null);
-    setIsPDF(false);
-    setDuplicateNote(null);
-    onDuplicateFound?.(null);
-    onReadyStateChange?.(false);
+    hasAutoSelectedThreadRef.current = false;
     inputRef.current?.focus();
   };
 
@@ -86,33 +72,30 @@ export default function NewResourcePanel({
 
     if (!resourceUrl || resourceUrl.trim() === '') {
       setMetadata(null);
+      setDetectedScriptures([]);
+      setIsDetectingScriptures(false);
       setFetchAttempted(false);
       setUrlError(null);
-      setUrlErrorCode(null);
-      setIsPDF(false);
-      setDuplicateNote(null);
-      onDuplicateFound?.(null);
-      onReadyStateChange?.(false);
+      hasAutoSelectedThreadRef.current = false;
       return;
     }
 
-    // Validate URL with comprehensive security checks
-    const validation = validateResourceUrl(resourceUrl);
-    
-    if (!validation.isValid) {
-      setUrlError(validation.error || 'Invalid URL');
-      setUrlErrorCode(validation.code || 'INVALID_URL');
+    // Normalize URL by adding https:// if missing
+    const normalizedUrl = normalizeUrl(resourceUrl.trim());
+
+    // Basic URL validation
+    let validUrl: string;
+    try {
+      new URL(normalizedUrl);
+      validUrl = normalizedUrl;
+      setUrlError(null);
+    } catch {
+      // Invalid URL even after normalization
+      setUrlError('Invalid URL format');
       setFetchAttempted(false);
       setMetadata(null);
-      setIsPDF(false);
       return;
     }
-
-    // URL is valid, use normalized version
-    const validUrl = validation.normalizedUrl!;
-    setIsPDF(validation.isPDF || false);
-    setUrlError(null);
-    setUrlErrorCode(null);
 
     // Reset fetch attempted when URL changes
     setFetchAttempted(false);
@@ -123,58 +106,87 @@ export default function NewResourcePanel({
     fetchTimeoutRef.current = setTimeout(async () => {
       setIsFetchingMetadata(true);
       setIsPasteEvent(false); // Reset paste flag
-      setDuplicateNote(null); // Reset duplicate state
-      
       try {
-        // Check for duplicates and fetch metadata in parallel
-        const [duplicateResponse, metadataResponse] = await Promise.all([
-          fetch('/api/resource/check-duplicate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ url: validUrl }),
-          }),
-          fetch('/api/resource/metadata', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ url: validUrl }),
-          })
-        ]);
+        const response = await fetch('/api/resource/metadata', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ url: validUrl, extractContent: true }),
+        });
 
-        // Track results for ready state
-        let isDuplicate = false;
-        let metadataLoaded = false;
-
-        // Handle duplicate check
-        if (duplicateResponse.ok) {
-          const duplicateData = await duplicateResponse.json();
-          if (duplicateData.exists) {
-            isDuplicate = true;
-            const duplicate: DuplicateResource = {
-              simpleNoteId: duplicateData.simpleNoteId,
-              title: duplicateData.title,
-              description: duplicateData.description,
-              image: duplicateData.image,
-              url: duplicateData.url
-            };
-            setDuplicateNote(duplicate);
-            onDuplicateFound?.(duplicate);
-          } else {
-            setDuplicateNote(null);
-            onDuplicateFound?.(null);
-          }
-        }
-
-        // Handle metadata
-        if (metadataResponse.ok) {
-          const data = await metadataResponse.json();
+        if (response.ok) {
+          const data = await response.json();
           if (data.success && data.metadata) {
-            metadataLoaded = true;
             setMetadata(data.metadata);
             setUrlError(null);
             if (onMetadataFetched) {
               onMetadataFetched(data.metadata);
+            }
+
+            // Reset detected scriptures before detecting new ones
+            setDetectedScriptures([]);
+            
+            // Detect scripture references if article content is available
+            if (data.metadata.articleContent) {
+              setIsDetectingScriptures(true);
+              try {
+                const scriptureResponse = await fetch('/api/scripture/detect', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({ text: data.metadata.articleContent }),
+                });
+
+                if (scriptureResponse.ok) {
+                  const scriptureData = await scriptureResponse.json();
+                  if (scriptureData.references && scriptureData.references.length > 0) {
+                    setDetectedScriptures(scriptureData.references.map((ref: any) => ({
+                      reference: ref.reference || ref.text || '',
+                      text: ref.text || ref.reference || '',
+                    })));
+                  }
+                }
+              } catch (error) {
+                // Non-critical - scripture detection failure shouldn't block preview
+                console.error('Error detecting scriptures:', error);
+              } finally {
+                setIsDetectingScriptures(false);
+              }
+            }
+
+            // Fetch thread suggestions and auto-select if available
+            if (!hasAutoSelectedThreadRef.current && onSuggestedThread) {
+              try {
+                const suggestResponse = await fetch('/api/resource/suggest-threads', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    resourceUrl: validUrl,
+                    sourceName: data.metadata.siteName || null,
+                  }),
+                });
+
+                if (suggestResponse.ok) {
+                  const suggestions = await suggestResponse.json();
+                  
+                  if (suggestions.success && suggestions.suggestedThreads && suggestions.suggestedThreads.length > 0) {
+                    // Auto-select the first suggested thread
+                    const firstSuggestion = suggestions.suggestedThreads[0];
+                    onSuggestedThread(firstSuggestion.id, firstSuggestion.title);
+                    hasAutoSelectedThreadRef.current = true;
+                  } else if (suggestions.success && suggestions.suggestedThreadName) {
+                    // No existing threads match, but we have a suggested name for a new thread
+                    // Auto-select the suggested thread name (will create if needed)
+                    onSuggestedThread('', suggestions.suggestedThreadName);
+                    hasAutoSelectedThreadRef.current = true;
+                  }
+                }
+              } catch (error) {
+                console.error('Error fetching thread suggestions:', error);
+              }
             }
           } else {
             setUrlError('Unable to load preview');
@@ -182,12 +194,8 @@ export default function NewResourcePanel({
         } else {
           setUrlError('Unable to load preview');
         }
-
-        // Ready to submit only if metadata loaded AND not a duplicate
-        onReadyStateChange?.(metadataLoaded && !isDuplicate);
       } catch (error) {
         setUrlError('Unable to load preview');
-        onReadyStateChange?.(false);
       } finally {
         setIsFetchingMetadata(false);
         setFetchAttempted(true);
@@ -199,25 +207,39 @@ export default function NewResourcePanel({
         clearTimeout(fetchTimeoutRef.current);
       }
     };
-  }, [resourceUrl, onMetadataFetched, isPasteEvent]);
+  }, [resourceUrl, onMetadataFetched, onSuggestedThread, isPasteEvent]);
+
+  // Get content for preview
+  // Note: Scripture highlighting disabled for now due to regex matching issues
+  // The detected scriptures will be used when the note is actually created
+  const getPreviewContent = (): string => {
+    if (!metadata) return '';
+    
+    // Prefer article content, fallback to description
+    return metadata.articleContent || metadata.description || '';
+  };
+
+  // Get full content for preview (no truncation - show everything)
+  const getFullPreview = (): string => {
+    return getPreviewContent();
+  };
 
   // Check if we have a valid URL
   const hasValidUrl = (() => {
     if (!resourceUrl || resourceUrl.trim() === '') return false;
-    const validation = validateResourceUrl(resourceUrl);
-    return validation.isValid;
+    try {
+      new URL(normalizeUrl(resourceUrl.trim()));
+      return true;
+    } catch {
+      return false;
+    }
   })();
 
   return (
     <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
       {/* URL Input - matches SearchInput pattern */}
       <div className="w-full shrink-0">
-        <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-          {/* Link Icon */}
-          <svg width="20" height="20" className="search-input__icon" viewBox="0 0 640 512">
-            <path d="M579.8 267.7c56.5-56.5 56.5-148 0-204.5c-50-50-128.8-56.5-186.3-15.4l-1.6 1.1c-14.4 10.3-17.7 30.3-7.4 44.6s30.3 17.7 44.6 7.4l1.6-1.1c32.1-22.9 76-19.3 103.8 8.6c31.5 31.5 31.5 82.5 0 114L422.3 334.8c-31.5 31.5-82.5 31.5-114 0c-27.9-27.9-31.5-71.8-8.6-103.8l1.1-1.6c10.3-14.4 6.9-34.4-7.4-44.6s-34.4-6.9-44.6 7.4l-1.1 1.6C206.5 251.2 213 330 263 380c56.5 56.5 148 56.5 204.5 0L579.8 267.7zM60.2 244.3c-56.5 56.5-56.5 148 0 204.5c50 50 128.8 56.5 186.3 15.4l1.6-1.1c14.4-10.3 17.7-30.3 7.4-44.6s-30.3-17.7-44.6-7.4l-1.6 1.1c-32.1 22.9-76 19.3-103.8-8.6C74 372 74 321 105.5 289.5L217.7 177.2c31.5-31.5 82.5-31.5 114 0c27.9 27.9 31.5 71.8 8.6 103.9l-1.1 1.6c-10.3 14.4-6.9 34.4 7.4 44.6s34.4 6.9 44.6-7.4l1.1-1.6C433.5 260.8 427 182 377 132c-56.5-56.5-148-56.5-204.5 0L60.2 244.3z"/>
-          </svg>
-          
+        <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full" style={{ gridTemplateColumns: '1fr auto' }}>
           <input 
             ref={inputRef}
             type="text"
@@ -248,7 +270,7 @@ export default function NewResourcePanel({
           )}
         </div>
 
-        {/* Error message with specific messages based on error code */}
+        {/* Error message */}
         {urlError && (
           <div style={{
             marginTop: '8px',
@@ -257,30 +279,24 @@ export default function NewResourcePanel({
             color: 'var(--color-caring-coral)',
             fontFamily: 'var(--font-sans)'
           }}>
-            {urlErrorCode === 'INVALID_DOMAIN' && 'Please enter a complete URL (e.g., example.com/article)'}
-            {urlErrorCode === 'LOCAL_URL' && 'Local URLs cannot be saved as resources'}
-            {urlErrorCode === 'PRIVATE_IP' && 'Private network URLs are not supported'}
-            {urlErrorCode === 'UNSUPPORTED_PROTOCOL' && 'Only web links (http/https) are supported'}
-            {urlErrorCode === 'INVALID_PROTOCOL' && 'Invalid URL protocol'}
-            {urlErrorCode === 'URL_TOO_LONG' && 'URL is too long'}
-            {!['INVALID_DOMAIN', 'LOCAL_URL', 'PRIVATE_IP', 'UNSUPPORTED_PROTOCOL', 'INVALID_PROTOCOL', 'URL_TOO_LONG'].includes(urlErrorCode || '') && urlError}
+            {urlError}
           </div>
         )}
-
       </div>
 
-      {/* Preview Area - Takes up available height */}
+      {/* Preview Area - Takes up available height with scrolling for long content */}
       <div 
         className="w-full mt-4"
         style={{
           flex: 1,
           minHeight: 0,
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          overflowY: 'auto'
         }}
       >
         {/* Skeleton Loader - simple light gray background */}
-        {isFetchingMetadata && !metadata && !duplicateNote && (
+        {(isFetchingMetadata || isDetectingScriptures) && !metadata && (
           <div 
             className="card-image-link"
             style={{ 
@@ -292,32 +308,13 @@ export default function NewResourcePanel({
           />
         )}
 
-        {/* Duplicate found - show existing CardNote that links to the resource */}
-        {duplicateNote && !urlError && (
-          <a 
-            href={`/${duplicateNote.simpleNoteId}`}
-            style={{ 
-              textDecoration: 'none', 
-              display: 'block',
-              animation: 'fadeInUp 0.3s ease-out forwards'
-            }}
-          >
-            <CardNote
-              noteType="resource"
-              variant={duplicateNote.image ? 'withImage' : 'default'}
-              title={duplicateNote.title}
-              content={duplicateNote.description || ''}
-              imageUrl={duplicateNote.image || undefined}
-            />
-          </a>
-        )}
-
-        {/* Actual Preview using card-image-link layout - only show if NOT a duplicate */}
-        {!duplicateNote && metadata && (metadata.title || metadata.description || metadata.image) && (
+        {/* Actual Preview using card-image-link layout */}
+        {metadata && (metadata.title || metadata.description || metadata.image) && (
           <div 
             className="card-image-link"
             style={{
-              flex: 1,
+              flex: 'none',
+              overflow: 'visible',
               animation: 'fadeInUp 0.3s ease-out forwards'
             }}
           >
@@ -341,33 +338,24 @@ export default function NewResourcePanel({
               </div>
             </div>
             
-            {/* Description */}
-            {metadata.description && (
+            {/* Description or Article Content - show full content with proper paragraph spacing */}
+            {(metadata.description || metadata.articleContent) && (
               <div className="card-image-link__content">
-                <div className="card-image-link__content-text">
-                  <p>{metadata.description}</p>
-                </div>
+                <div 
+                  className="card-image-link__content-text resource-preview-content"
+                  dangerouslySetInnerHTML={{ 
+                    __html: getFullPreview() || metadata.description || '' 
+                  }}
+                  style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: '14px',
+                    lineHeight: '1.6',
+                    color: 'var(--color-deep-grey)'
+                  }}
+                />
               </div>
             )}
             
-            {/* Source bar with hostname and external link icon */}
-            <div className="card-image-link__source">
-              <div className="card-image-link__source-content" style={{ justifyContent: 'space-between' }}>
-                <div className="card-image-link__source-text">
-                  <p>{isPDF ? 'View PDF' : (() => {
-                    try {
-                      const url = new URL(normalizeUrl(resourceUrl.trim()));
-                      return url.hostname.replace('www.', '');
-                    } catch {
-                      return resourceUrl;
-                    }
-                  })()}</p>
-                </div>
-                <div className="card-image-link__source-icon">
-                  <Icon name={isPDF ? 'file-pdf' : 'arrow-up-right-from-square'} size={20} />
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
@@ -391,6 +379,33 @@ export default function NewResourcePanel({
         )}
       </div>
 
+      {/* Source bar - fixed at bottom of panel */}
+      {metadata && (metadata.title || metadata.description || metadata.image) && (
+        <div 
+          className="card-image-link__source"
+          style={{
+            flexShrink: 0,
+            marginTop: '12px'
+          }}
+        >
+          <div className="card-image-link__source-content" style={{ justifyContent: 'space-between' }}>
+            <div className="card-image-link__source-text">
+              <p>{(() => {
+                try {
+                  const url = new URL(normalizeUrl(resourceUrl.trim()));
+                  return url.hostname.replace('www.', '');
+                } catch {
+                  return resourceUrl;
+                }
+              })()}</p>
+            </div>
+            <div className="card-image-link__source-icon">
+              <Icon name="arrow-up-right-from-square" size={20} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer with date and note ID - moved below preview */}
       <div 
         className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" 
@@ -404,7 +419,7 @@ export default function NewResourcePanel({
         </div>
       </div>
 
-      {/* Animations */}
+      {/* Animations and content styling */}
       <style>{`
         @keyframes fadeInUp {
           from {
@@ -419,6 +434,45 @@ export default function NewResourcePanel({
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
+        }
+        
+        /* Resource preview content - proper paragraph spacing */
+        .resource-preview-content p {
+          margin: 0 0 1em 0;
+        }
+        .resource-preview-content p:last-child {
+          margin-bottom: 0;
+        }
+        .resource-preview-content h1,
+        .resource-preview-content h2,
+        .resource-preview-content h3,
+        .resource-preview-content h4,
+        .resource-preview-content h5,
+        .resource-preview-content h6 {
+          margin: 1.5em 0 0.5em 0;
+          font-weight: 700;
+          line-height: 1.3;
+        }
+        .resource-preview-content h1:first-child,
+        .resource-preview-content h2:first-child,
+        .resource-preview-content h3:first-child,
+        .resource-preview-content h4:first-child {
+          margin-top: 0;
+        }
+        .resource-preview-content ul,
+        .resource-preview-content ol {
+          margin: 0.5em 0 1em 0;
+          padding-left: 1.5em;
+        }
+        .resource-preview-content li {
+          margin-bottom: 0.25em;
+        }
+        .resource-preview-content blockquote {
+          margin: 1em 0;
+          padding: 0.75em 1em;
+          border-left: 3px solid var(--color-stone-grey);
+          background-color: var(--color-light-paper);
+          border-radius: 4px;
         }
       `}</style>
     </div>
