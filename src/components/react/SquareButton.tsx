@@ -41,7 +41,7 @@ export default function SquareButton({
     if (variant === "Add") {
       return [
         { action: "openNewThreadPanel", label: "Add Thread", icon: ThreadIcon },
-        // { action: "openNewResourcePanel", label: "Add Resource", icon: NewspaperIcon },
+        { action: "openNewResourcePanel", label: "Add Resource", icon: NewspaperIcon },
         { action: "openNewNotePanel", label: "Add Note", icon: NoteStickyIcon }
       ];
     } else if (variant === "More" && contentType) {
