@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getSeasonalXP, getLifetimeXP, checkLifetimeMilestones, getAllSeasonalXP } from '@/utils/xp-system';
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
 import { handleAPIError } from '@/utils/error-handling';
+import { db, Notes, Threads, count, eq, and, ne } from 'astro:db';
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
@@ -14,11 +15,40 @@ export const GET: APIRoute = async ({ locals }) => {
       });
     }
 
-    const [seasonalXP, lifetimeXP, milestoneIds, allSeasons] = await Promise.all([
+    const [seasonalXP, lifetimeXP, milestoneIds, allSeasons, totalNotesResult, scriptureNotesResult, resourceNotesResult, threadsResult] = await Promise.all([
       getSeasonalXP(userId),
       getLifetimeXP(userId),
       checkLifetimeMilestones(userId),
-      getAllSeasonalXP(userId)
+      getAllSeasonalXP(userId),
+      // Total notes count
+      db.select({ count: count() })
+        .from(Notes)
+        .where(eq(Notes.userId, userId))
+        .get(),
+      // Scripture notes count
+      db.select({ count: count() })
+        .from(Notes)
+        .where(and(
+          eq(Notes.userId, userId),
+          eq(Notes.noteType, 'scripture')
+        ))
+        .get(),
+      // Resource notes count
+      db.select({ count: count() })
+        .from(Notes)
+        .where(and(
+          eq(Notes.userId, userId),
+          eq(Notes.noteType, 'resource')
+        ))
+        .get(),
+      // Threads count (excluding unorganized)
+      db.select({ count: count() })
+        .from(Threads)
+        .where(and(
+          eq(Threads.userId, userId),
+          ne(Threads.id, 'thread_unorganized')
+        ))
+        .get()
     ]);
 
     // Filter out current season from allSeasons (only show past seasons)
@@ -46,7 +76,11 @@ export const GET: APIRoute = async ({ locals }) => {
       lifetimeXP,
       seasonName: getSeasonDisplayName(),
       milestones,
-      allSeasons: pastSeasons
+      allSeasons: pastSeasons,
+      totalNotes: totalNotesResult?.count || 0,
+      scriptureNotes: scriptureNotesResult?.count || 0,
+      resourceNotes: resourceNotesResult?.count || 0,
+      threadsCreated: threadsResult?.count || 0
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
