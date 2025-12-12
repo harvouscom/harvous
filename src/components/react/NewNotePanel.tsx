@@ -23,6 +23,7 @@ import {
 } from './note-panel';
 
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
+import SuggestedThreadDialog from './dialogs/SuggestedThreadDialog';
 
 interface NewNotePanelProps {
   currentThread?: any;
@@ -39,6 +40,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   const [nextNoteId, setNextNoteId] = useState('#New');
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [suggestedThreadName, setSuggestedThreadName] = useState<string | null>(null);
+  const [showSuggestedThreadDialog, setShowSuggestedThreadDialog] = useState(false);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -320,7 +322,56 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       e.preventDefault();
       return;
     }
+    
+    // Check if we should show the suggested thread dialog
+    if (
+      form.noteType === 'resource' &&
+      threadSelection.selectedThread === 'Unorganized' &&
+      suggestedThreadName
+    ) {
+      e.preventDefault();
+      setShowSuggestedThreadDialog(true);
+      return;
+    }
+    
     await submission.handleSubmit(e);
+  };
+
+  // Handle suggested thread dialog actions
+  const handleUseSuggestedThread = async () => {
+    setShowSuggestedThreadDialog(false);
+    
+    // Select the suggested thread
+    threadSelection.handleThreadSelect(suggestedThreadName!);
+    
+    // Clear the suggestion
+    setSuggestedThreadName(null);
+    
+    // Wait a tick for state to update, then submit
+    await new Promise(resolve => setTimeout(resolve, 0));
+    
+    // Submit the form
+    const formElement = document.querySelector('.new-note-panel form') as HTMLFormElement;
+    if (formElement) {
+      // Create a synthetic submit event
+      const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent;
+      await submission.handleSubmit(syntheticEvent);
+    }
+  };
+
+  const handleKeepUnorganized = async () => {
+    setShowSuggestedThreadDialog(false);
+    
+    // Clear the suggestion
+    setSuggestedThreadName(null);
+    
+    // Submit the form as-is
+    const formElement = document.querySelector('.new-note-panel form') as HTMLFormElement;
+    if (formElement) {
+      // Create a synthetic submit event
+      const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent;
+      await submission.handleSubmit(syntheticEvent);
+    }
   };
 
   // Handle Cmd+Enter to submit form (for elements outside TiptapEditor)
@@ -429,6 +480,16 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
         onDiscard={handleDiscardChanges}
         onSaveAndClose={handleSaveAndClose}
       />
+
+      {/* Suggested Thread Dialog */}
+      {suggestedThreadName && (
+        <SuggestedThreadDialog
+          isOpen={showSuggestedThreadDialog}
+          suggestedThreadName={suggestedThreadName}
+          onUseSuggested={handleUseSuggestedThread}
+          onKeepUnorganized={handleKeepUnorganized}
+        />
+      )}
     </>
   );
 }
