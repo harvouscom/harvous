@@ -18,10 +18,6 @@ interface XPData {
   lifetimeXP: number;
   seasonName: string;
   allSeasons: SeasonData[];
-  totalNotes: number;
-  scriptureNotes: number;
-  resourceNotes: number;
-  threadsCreated: number;
 }
 
 export default function MyAchievementsPanel({ 
@@ -32,11 +28,7 @@ export default function MyAchievementsPanel({
     seasonalXP: 0,
     lifetimeXP: 0,
     seasonName: '',
-    allSeasons: [],
-    totalNotes: 0,
-    scriptureNotes: 0,
-    resourceNotes: 0,
-    threadsCreated: 0
+    allSeasons: []
   });
   const [showPastSeasons, setShowPastSeasons] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,11 +50,7 @@ export default function MyAchievementsPanel({
           seasonalXP: data.seasonalXP || 0,
           lifetimeXP: data.lifetimeXP || 0,
           seasonName: data.seasonName || '',
-          allSeasons: data.allSeasons || [],
-          totalNotes: data.totalNotes || 0,
-          scriptureNotes: data.scriptureNotes || 0,
-          resourceNotes: data.resourceNotes || 0,
-          threadsCreated: data.threadsCreated || 0
+          allSeasons: data.allSeasons || []
         });
       }
     } catch (error) {
@@ -119,157 +107,6 @@ export default function MyAchievementsPanel({
                       <div>
                         <div className="panel__grid-card-value">{xpData.lifetimeXP.toLocaleString()} XP</div>
                         <div className="panel__grid-card-label">All Time</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Stats Cards */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
-                    {/* Notes Added Card */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      width: '100%',
-                      height: '48px',
-                      padding: '0 1rem',
-                      backgroundColor: 'white',
-                      border: '1px solid var(--color-fog-white)',
-                      borderRadius: '0.75rem',
-                      gap: '0.75rem'
-                    }}>
-                      <Icon name="note-sticky" size={16} style={{ color: 'var(--color-deep-grey)', flexShrink: 0 }} />
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flex: 1,
-                        minWidth: 0
-                      }}>
-                        <span style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '0.875rem',
-                          color: 'var(--color-pebble-grey)',
-                          whiteSpace: 'nowrap'
-                        }}>Notes Added</span>
-                        <span style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '1.125rem',
-                          fontWeight: 600,
-                          color: 'var(--color-deep-grey)',
-                          marginLeft: '0.75rem',
-                          whiteSpace: 'nowrap'
-                        }}>{xpData.totalNotes.toLocaleString()}</span>
-                      </div>
-                    </div>
-
-                    {/* Scripture Notes Card */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      width: '100%',
-                      height: '48px',
-                      padding: '0 1rem',
-                      backgroundColor: 'white',
-                      border: '1px solid var(--color-fog-white)',
-                      borderRadius: '0.75rem',
-                      gap: '0.75rem'
-                    }}>
-                      <Icon name="scroll" size={16} style={{ color: 'var(--color-deep-grey)', flexShrink: 0 }} />
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flex: 1,
-                        minWidth: 0
-                      }}>
-                        <span style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '0.875rem',
-                          color: 'var(--color-pebble-grey)',
-                          whiteSpace: 'nowrap'
-                        }}>Scripture Notes</span>
-                        <span style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '1.125rem',
-                          fontWeight: 600,
-                          color: 'var(--color-deep-grey)',
-                          marginLeft: '0.75rem',
-                          whiteSpace: 'nowrap'
-                        }}>{xpData.scriptureNotes.toLocaleString()}</span>
-                      </div>
-                    </div>
-
-                    {/* Resources Added Card */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      width: '100%',
-                      height: '48px',
-                      padding: '0 1rem',
-                      backgroundColor: 'white',
-                      border: '1px solid var(--color-fog-white)',
-                      borderRadius: '0.75rem',
-                      gap: '0.75rem'
-                    }}>
-                      <Icon name="newspaper" size={16} style={{ color: 'var(--color-deep-grey)', flexShrink: 0 }} />
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flex: 1,
-                        minWidth: 0
-                      }}>
-                        <span style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '0.875rem',
-                          color: 'var(--color-pebble-grey)',
-                          whiteSpace: 'nowrap'
-                        }}>Resources Added</span>
-                        <span style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '1.125rem',
-                          fontWeight: 600,
-                          color: 'var(--color-deep-grey)',
-                          marginLeft: '0.75rem',
-                          whiteSpace: 'nowrap'
-                        }}>{xpData.resourceNotes.toLocaleString()}</span>
-                      </div>
-                    </div>
-
-                    {/* Threads Added Card */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      width: '100%',
-                      height: '48px',
-                      padding: '0 1rem',
-                      backgroundColor: 'white',
-                      border: '1px solid var(--color-fog-white)',
-                      borderRadius: '0.75rem',
-                      gap: '0.75rem'
-                    }}>
-                      <Icon name="layer-group" size={16} style={{ color: 'var(--color-deep-grey)', flexShrink: 0 }} />
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flex: 1,
-                        minWidth: 0
-                      }}>
-                        <span style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '0.875rem',
-                          color: 'var(--color-pebble-grey)',
-                          whiteSpace: 'nowrap'
-                        }}>Threads Added</span>
-                        <span style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '1.125rem',
-                          fontWeight: 600,
-                          color: 'var(--color-deep-grey)',
-                          marginLeft: '0.75rem',
-                          whiteSpace: 'nowrap'
-                        }}>{xpData.threadsCreated.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
