@@ -38,6 +38,11 @@ function htmlToCleanParagraphs(html: string): string {
       return '';
     }
     
+    // Preserve line breaks
+    if (tagName === 'br') {
+      return '<br>';
+    }
+    
     // Handle inline formatting
     let text = '';
     for (const child of node.childNodes || []) {
