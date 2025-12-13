@@ -156,18 +156,26 @@ export default function AddToSection({
           onClick={onClick}
           className="relative rounded-xl h-[48px] cursor-pointer transition-transform duration-200 w-full text-left overflow-hidden hover:scale-[1.002]"
           style={{
-            backgroundColor: 'var(--color-snow-white)',
+            backgroundColor: 'white',
             boxShadow: '0px 2px 8px 0px rgba(120, 118, 111, 0.1)'
           }}
         >
           {/* Accent bar on left - wider like CardThread so icon sits on it */}
           <div 
-            className="absolute inset-y-0 left-0 w-11 rounded-l-xl" 
+            className="absolute inset-y-0 left-0 w-11 rounded-l-xl z-10" 
             style={{ backgroundColor: threadAccentColor }}
           />
           
+          {/* White background for content area (starts after colored bar) */}
+          <div 
+            className="absolute inset-y-0 left-11 right-0 rounded-r-xl"
+            style={{ backgroundColor: 'white' }}
+          />
+          
           {/* Content */}
-          <div className="flex items-center gap-6 pl-3 pr-12 h-full">
+          <div 
+            className="flex items-center gap-6 pl-3 pr-12 h-full relative z-20"
+          >
             {/* User icon (Private) or User group icon (Shared) - positioned on colored background */}
             <div className="relative shrink-0 size-5">
               {item.isPublic === true ? (

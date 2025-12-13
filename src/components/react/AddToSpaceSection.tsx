@@ -244,7 +244,7 @@ const ThreadItem: React.FC<{
           width: '100%',
           textAlign: 'left',
           backgroundColor: 'white',
-          boxShadow: 'none',
+          boxShadow: '0px 2px 8px 0px rgba(120, 118, 111, 0.1)',
           border: isSelected ? '2px solid var(--color-bold-blue)' : 'none',
           transition: 'transform 0.2s',
           cursor: 'pointer'
@@ -269,7 +269,22 @@ const ThreadItem: React.FC<{
             borderTopLeftRadius: '0.75rem',
             borderBottomLeftRadius: '0.75rem',
             overflow: 'hidden',
-            backgroundColor: threadAccentColor
+            backgroundColor: threadAccentColor,
+            zIndex: 10
+          }}
+        />
+        
+        {/* White background for content area (starts after colored bar) */}
+        <div 
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: '2.75rem',
+            right: 0,
+            borderTopRightRadius: '0.75rem',
+            borderBottomRightRadius: '0.75rem',
+            backgroundColor: 'white'
           }}
         />
         
@@ -282,7 +297,9 @@ const ThreadItem: React.FC<{
             paddingLeft: '0.75rem',
             paddingRight: '3rem',
             height: '100%',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            position: 'relative',
+            zIndex: 20
           }}
         >
           {/* User icon (Private) or User group icon (Shared) */}
