@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount } from '@/utils/dashboard-data';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
+import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
@@ -16,10 +17,11 @@ export const GET: APIRoute = async ({ locals }) => {
     }
     
     // Fetch navigation data in parallel
-    const [threads, spaces, inboxCount] = await Promise.all([
+    const [threads, spaces, inboxCount, unorganizedThreadData] = await Promise.all([
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
-      getInboxDisplayCount(userId)
+      getInboxDisplayCount(userId),
+      ensureUnorganizedThread(userId)
     ]);
     
     // Ensure threads and spaces have backgroundGradient property
@@ -27,6 +29,26 @@ export const GET: APIRoute = async ({ locals }) => {
       ...thread,
       backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
     }));
+    
+    // Add unorganized thread to the threads array if it has notes
+    // This ensures refreshNavigationCounts() can update the unorganized count
+    if (unorganizedThreadData.noteCount > 0) {
+      threadsWithGradients.push({
+        id: 'thread_unorganized',
+        title: 'Unorganized',
+        subtitle: 'Notes that haven\'t been organized into threads yet',
+        color: null,
+        spaceId: null,
+        isPublic: true,
+        isPinned: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        noteCount: unorganizedThreadData.noteCount,
+        lastUpdated: new Date(),
+        accentColor: getThreadGradientCSS('paper'),
+        backgroundGradient: unorganizedThreadData.backgroundGradient || getThreadGradientCSS('paper')
+      });
+    }
     
     const spacesWithGradients = spaces.map(space => ({
       ...space,

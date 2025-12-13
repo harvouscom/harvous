@@ -7,6 +7,7 @@ import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor, validateSpaceId } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { getNextUntitledThreadName } from '@/utils/untitled-naming';
+import { moveScriptureNotesToThread } from '@/utils/move-scripture-notes-to-thread';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -197,6 +198,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
               .set({ threadId: newThread.id })
               .where(eq(Notes.id, noteId));
           }
+
+          // Move scripture notes referenced by this note to the same thread (fire and forget)
+          // Don't await to avoid database lock contention - let it run asynchronously
+          // The helper function has built-in delays and retry logic to handle SQLITE_BUSY errors
+          moveScriptureNotesToThread(noteId, newThread.id, userId).catch((error) => {
+            console.error(`Error moving scripture notes for note ${noteId} (non-blocking):`, error);
+          });
         } catch (error: any) {
           // Log error but continue with other notes
           console.error(`Error adding note ${noteId} to thread:`, error);

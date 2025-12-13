@@ -866,6 +866,21 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         refreshHistory();
         trackNavigationAccess();
         
+        // Check if we're on a note page and refresh navigation counts
+        // This ensures badge counts are accurate when navigating to note pages
+        // This is especially important after creating a note with a suggested thread and redirecting
+        const currentPath = window.location.pathname;
+        const isNotePage = currentPath.startsWith('/note_');
+        
+        if (isNotePage) {
+          // Refresh navigation counts immediately and again after a short delay
+          // This ensures counts are accurate after redirect from note creation
+          refreshNavigationCounts();
+          setTimeout(() => {
+            refreshNavigationCounts();
+          }, 500);
+        }
+        
         // Only validate if cache is stale - don't validate on every page load
         // Validation will happen automatically via debouncedValidate if needed
       });
@@ -1011,9 +1026,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
         
         // Refresh counts from API after a delay to ensure database is committed
+        // Use shorter delay to match handleNoteAddedToThread for faster updates
         setTimeout(() => {
           refreshNavigationCounts();
-        }, 300);
+        }, 100);
       }
     };
 
@@ -1079,11 +1095,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Listen for note addition to thread events
     const handleNoteAddedToThread = (event: CustomEvent) => {
       const { noteId, threadId } = event.detail;
-      if (threadId) {
-        // Check if this note was just created (within last 2 seconds)
-        // If so, it was never actually in unorganized, so don't decrement unorganized count
-        const wasJustCreated = recentlyCreatedNotes.current.has(noteId);
-        
+      if (threadId && threadId !== 'thread_unorganized') {
+        // Notes always start in unorganized, so when moved to a thread, decrement unorganized
         // Use current React state instead of reading from localStorage
         // Combine both updates into a single state update to prevent double renders
         setNavigationHistory(currentHistory => {
@@ -1098,9 +1111,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               const oldCount = item.count || 0;
               return { ...item, count: oldCount + 1 };
             }
-            if (index === unorganizedIndex && !wasJustCreated) {
-              // Only decrement unorganized if the note was NOT just created
-              // (i.e., it was actually moved from unorganized to a thread)
+            if (index === unorganizedIndex) {
+              // Always decrement unorganized when a note is moved to a thread
+              // Notes always start in unorganized, so this is correct
               const oldUnorganizedCount = item.count || 0;
               const newUnorganizedCount = Math.max(0, oldUnorganizedCount - 1);
               
@@ -1114,6 +1127,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
             return item;
           }).filter(item => item !== null) as NavigationItem[];
+          
+          // If unorganized wasn't in navigation history but we need to decrement it,
+          // we'll rely on the API refresh to get the correct count
+          // This handles the case where a note is created with a thread and unorganized
+          // isn't in navigation history yet
           
           saveNavigationHistory(updatedHistory);
           
@@ -1131,14 +1149,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
         
         // Remove from recently created set after processing
-        if (wasJustCreated) {
-          recentlyCreatedNotes.current.delete(noteId);
-        }
+        recentlyCreatedNotes.current.delete(noteId);
         
-        // Refresh counts from API after a delay to ensure database is committed
+        // Refresh navigation counts from API after a short delay to ensure accuracy
+        // This corrects any client-side inaccuracies and ensures database is committed
         setTimeout(() => {
           refreshNavigationCounts();
-        }, 300);
+        }, 100);
       }
     };
 

@@ -3,6 +3,7 @@ import { db, Notes, NoteThreads, eq, and } from 'astro:db';
 import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { removeScriptureNotesFromThread } from '@/utils/remove-scripture-notes-from-thread';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -107,6 +108,13 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
           .where(eq(Notes.id, id));
       }
       // Note: If note still has other threads, no action needed - primary threadId stays as legacy field
+
+      // Remove scripture notes referenced by this note from the thread (fire and forget)
+      // Don't await to avoid database lock contention - let it run asynchronously
+      // The helper function has built-in delays and retry logic to handle SQLITE_BUSY errors
+      removeScriptureNotesFromThread(id, threadId, userId).catch((error) => {
+        console.error('Error removing scripture notes (non-blocking):', error);
+      });
     } catch (deleteError) {
       const standardError = handleAPIError(deleteError, {
         endpoint: '/api/notes/[id]/remove-thread',
