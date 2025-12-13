@@ -122,6 +122,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Validate resourceUrl if this is a resource note
     let validatedResourceUrl: string | null = null;
+    let isPDF = false;
     if (finalNoteType === 'resource') {
       if (!resourceUrl || !resourceUrl.trim()) {
         return new Response(JSON.stringify({ 
@@ -144,8 +145,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
         });
       }
       
-      // Use validated normalized URL
+      // Use validated normalized URL and store PDF flag
       validatedResourceUrl = urlValidation.normalizedUrl!;
+      isPDF = urlValidation.isPDF || false;
     }
 
     const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
@@ -388,31 +390,34 @@ export const POST: APIRoute = async ({ request, locals }) => {
         };
         
         // Extract full article content directly (avoid internal HTTP call which has auth issues)
-        try {
-          const htmlResponse = await fetch(normalizedResourceUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-            },
-            signal: AbortSignal.timeout(15000) // 15 second timeout
-          });
-          
-          if (htmlResponse.ok) {
-            const html = await htmlResponse.text();
+        // Skip extraction for PDFs to prevent garbled OCR-like content from being saved
+        if (!isPDF) {
+          try {
+            const htmlResponse = await fetch(normalizedResourceUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+              },
+              signal: AbortSignal.timeout(15000) // 15 second timeout
+            });
             
-            // Extract article content using @extractus/article-extractor (with Readability fallback)
-            const articleContent = await extractArticleContent(html, normalizedResourceUrl);
-            
-            if (articleContent) {
-              resourceMetadata = {
-                ...resourceMetadata,
-                articleContent
-              };
+            if (htmlResponse.ok) {
+              const html = await htmlResponse.text();
+              
+              // Extract article content using @extractus/article-extractor (with Readability fallback)
+              const articleContent = await extractArticleContent(html, normalizedResourceUrl);
+              
+              if (articleContent) {
+                resourceMetadata = {
+                  ...resourceMetadata,
+                  articleContent
+                };
+              }
             }
+          } catch (error) {
+            // Non-critical - note will still be created with description
+            console.error('Error extracting article content:', error);
           }
-        } catch (error) {
-          // Non-critical - note will still be created with description
-          console.error('Error extracting article content:', error);
         }
 
         // Create ResourceMetadata record
