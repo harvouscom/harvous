@@ -14,7 +14,8 @@ export default function DeleteAccountConfirmDialog({
     <div style={{
       display: 'flex',
       gap: '0.75rem',
-      justifyContent: 'flex-end'
+      justifyContent: 'flex-end',
+      flexWrap: 'wrap'
     }}>
       <ButtonSmall
         type="button"
