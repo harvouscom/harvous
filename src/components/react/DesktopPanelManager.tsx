@@ -434,6 +434,7 @@ export default function DesktopPanelManager({
                 key={`new-resource-${state.panelKey}`}
                 currentThread={currentThread}
                 currentSpace={currentSpace}
+                initialNoteType="resource"
                 onClose={handleCloseNewResource}
               />
             </div>

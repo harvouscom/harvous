@@ -220,13 +220,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     const handleOpenNewResource = () => {
       if (isMobile) {
         // Set noteType to resource before opening - ensure it's set synchronously
-        // This must happen before openBottomSheet to ensure localStorage is available when component remounts
+        // This is a fallback in case initialNoteType prop doesn't work
         localStorage.setItem('newNoteType', 'resource');
-        // Small delay to ensure localStorage write completes before remount
-        // The panelKey increment will force remount and re-read localStorage
-        requestAnimationFrame(() => {
-          openBottomSheet('resource');
-        });
+        // Open immediately - initialNoteType prop will be used, localStorage is fallback
+        openBottomSheet('resource');
       }
     };
 
@@ -399,6 +396,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 key={`mobile-resource-${panelKey}`}
                 currentThread={currentThread}
                 currentSpace={currentSpace}
+                initialNoteType="resource"
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
                 }}

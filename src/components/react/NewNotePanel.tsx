@@ -30,9 +30,10 @@ interface NewNotePanelProps {
   currentThread?: any;
   currentSpace?: any;
   onClose?: () => void;
+  initialNoteType?: 'default' | 'scripture' | 'resource';
 }
 
-export default function NewNotePanel({ currentThread, currentSpace, onClose }: NewNotePanelProps) {
+export default function NewNotePanel({ currentThread, currentSpace, onClose, initialNoteType }: NewNotePanelProps) {
   // Get navigation context
   const navigation = useNavigation();
   const { addToNavigationHistory, navigationHistory } = navigation;
@@ -51,6 +52,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   // Use extracted form hook
   const form = useNewNoteForm({
     currentSpace,
+    initialNoteType,
   });
 
   // Use extracted thread selection hook
@@ -337,12 +339,19 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     
     // Check if we should show the suggested thread dialog
     // Only show if there are multiple scripture references (as the dialog text states)
-    if (
+    // Show dialog when:
+    // 1. Note type is resource
+    // 2. Selected thread is Unorganized (user hasn't manually selected the suggested thread)
+    // 3. A suggested thread name exists (either existing thread or new thread name)
+    // 4. There are multiple scripture references detected
+    const shouldShowDialog = 
       form.noteType === 'resource' &&
       threadSelection.selectedThread === 'Unorganized' &&
       suggestedThreadName &&
-      scriptureCount > 1
-    ) {
+      suggestedThreadName.trim() !== '' &&
+      scriptureCount > 1;
+    
+    if (shouldShowDialog) {
       e.preventDefault();
       setShowSuggestedThreadDialog(true);
       return;
@@ -604,7 +613,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
       />
 
       {/* Suggested Thread Dialog */}
-      {suggestedThreadName && (
+      {suggestedThreadName && suggestedThreadName.trim() !== '' && (
         <SuggestedThreadDialog
           isOpen={showSuggestedThreadDialog}
           suggestedThreadName={suggestedThreadName}

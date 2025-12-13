@@ -4,6 +4,7 @@ export type NoteType = 'default' | 'scripture' | 'resource';
 
 export interface UseNewNoteFormOptions {
   currentSpace?: { id: string; title: string; color?: string; backgroundGradient?: string } | null;
+  initialNoteType?: NoteType;
 }
 
 export interface ResourceMetadata {
@@ -49,12 +50,13 @@ export interface UseNewNoteFormReturn {
  * Hook for managing new note form state and localStorage persistence
  */
 export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteFormReturn {
-  const { currentSpace } = options;
+  const { currentSpace, initialNoteType } = options;
   
   // Form state
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [noteType, setNoteType] = useState<NoteType>('default');
+  // Initialize noteType from prop if provided, otherwise default
+  const [noteType, setNoteType] = useState<NoteType>(initialNoteType || 'default');
   const [scriptureReference, setScriptureReference] = useState('');
   const [scriptureVersion, setScriptureVersion] = useState('NET');
   const [resourceUrl, setResourceUrl] = useState('');
@@ -92,6 +94,33 @@ export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteF
     }
     if (savedSourceSelectionTo) {
       setSourceSelectionTo(parseInt(savedSourceSelectionTo, 10));
+    }
+    
+    // Priority: initialNoteType prop > localStorage > default
+    // If initialNoteType is provided, use it immediately
+    if (initialNoteType) {
+      setNoteType(initialNoteType);
+      if (initialNoteType === 'resource') {
+        const savedResourceUrl = localStorage.getItem('newNoteResourceUrl') || '';
+        if (savedResourceUrl) {
+          setResourceUrl(savedResourceUrl);
+        }
+        // Clear localStorage after reading
+        localStorage.removeItem('newNoteType');
+        localStorage.removeItem('newNoteResourceUrl');
+      }
+      setTimeout(() => {
+        isLoadingFromLocalStorage.current = false;
+      }, 100);
+      // Still load title/content if available
+      if (savedTitle) {
+        setTitle(savedTitle);
+      }
+      if (savedContent && initialNoteType !== 'scripture') {
+        setContent(savedContent);
+        localStorage.removeItem('newNoteContent');
+      }
+      return;
     }
     
     // Set note type if detected from selection

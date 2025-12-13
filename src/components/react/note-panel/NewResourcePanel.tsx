@@ -91,6 +91,7 @@ export default function NewResourcePanel({
       setDuplicateInfo(null);
       setImageRemoved(false);
       onDuplicateDetected?.(null);
+      onScriptureCountChange?.(0); // Reset scripture count when URL is cleared
       hasAutoSelectedThreadRef.current = false;
       return;
     }
