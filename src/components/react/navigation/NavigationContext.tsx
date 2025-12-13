@@ -644,6 +644,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const threads = data.threads || [];
       const spaces = data.spaces || [];
       const history = getNavigationHistory();
+      
+      // Get unorganized thread from API response
+      const unorganizedThreadFromAPI = threads.find((t: any) => t.id === 'thread_unorganized');
+      const unorganizedCountFromAPI = unorganizedThreadFromAPI?.noteCount || 0;
+      
       const updatedHistory = history.map((item) => {
         // Check if this is a thread
         if (item.id.startsWith('thread_')) {
@@ -669,14 +674,33 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (unorganizedThread) {
               const newCount = unorganizedThread.noteCount || 0;
               const currentCount = item.count || 0;
+              
+              // If unorganized has 0 notes, remove it from navigation history
+              // This prevents it from appearing when notes are created with suggested threads
+              if (newCount === 0) {
+                return null; // Mark for removal
+              }
+              
               // Only update if API count is higher or equal
               if (currentCount !== newCount && newCount >= currentCount) {
                 return { ...item, count: newCount };
+              }
+            } else {
+              // Unorganized not in API response - if current count is 0, remove it
+              if ((item.count || 0) === 0) {
+                return null; // Mark for removal
               }
             }
             return item; // Keep current count if API doesn't have it or count is stale
           } else {
             // Thread not found in API - might be deleted
+            // But if this is unorganized and it's not in history yet, check if we should add it
+            // Only add if it actually has notes (count > 0)
+            if (item.id === 'thread_unorganized' && unorganizedCountFromAPI > 0) {
+              // Unorganized has notes but wasn't in history - add it
+              const newCount = unorganizedCountFromAPI;
+              return { ...item, count: newCount };
+            }
             return item; // Keep as is
           }
         } 
@@ -702,13 +726,28 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return item;
       });
 
-      // Check if any counts actually changed
-      const hasChanges = history.some((item, index) => item.count !== updatedHistory[index].count);
+      // Filter out items marked for removal (null values) and unorganized with 0 notes
+      const filteredHistory = updatedHistory
+        .filter(item => {
+          if (item === null) return false;
+          // Remove unorganized if it has 0 notes
+          if (item.id === 'thread_unorganized' && (item.count || 0) === 0) {
+            return false;
+          }
+          return true;
+        }) as NavigationItem[];
+      
+      // Check if any counts actually changed or items were removed
+      const hasChanges = history.length !== filteredHistory.length || 
+        history.some((item, index) => {
+          const filteredItem = filteredHistory[index];
+          return !filteredItem || item.count !== filteredItem.count;
+        });
 
       // Save and update state if there were changes
       if (hasChanges) {
-        saveNavigationHistory(updatedHistory);
-        setNavigationHistory(updatedHistory);
+        saveNavigationHistory(filteredHistory);
+        setNavigationHistory(filteredHistory);
       }
     } catch (error) {
       console.error('NavigationContext: Error refreshing navigation counts:', error);
@@ -967,6 +1006,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // This prevents unorganized from appearing when a note is created with a suggested thread
         // The note was never actually in unorganized (it was immediately added to the thread via junction table)
         const wasCreatedWithThread = event.detail?.actualThreadId && event.detail.actualThreadId !== 'thread_unorganized';
+        
+        // CRITICAL: If note was created with a specific thread (not unorganized), never add unorganized
+        // Even if the legacy threadId field is 'thread_unorganized', the note is actually in the specified thread
+        // via the junction table, so unorganized should not appear in navigation
         // Use current React state to check if thread exists and update/add it
         setNavigationHistory(currentHistory => {
           const threadIndex = currentHistory.findIndex((item: any) => item.id === actualThreadId);
@@ -1037,7 +1080,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               console.error('NavigationContext: Error fetching thread data:', error);
               // Fallback: add unorganized thread with minimal data if fetch fails
               // Only if the note actually belongs to unorganized (no junction entries)
-              if (actualThreadId === 'thread_unorganized') {
+              // Don't add unorganized if the note was created with a specific thread
+              if (actualThreadId === 'thread_unorganized' && !wasCreatedWithThread) {
                 addToNavigationHistory({
                   id: 'thread_unorganized',
                   title: 'Unorganized',
@@ -1096,10 +1140,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             const unorganizedInHistory = history.find(i => i.id === 'thread_unorganized');
             if (!unorganizedInHistory && isItemClosed('thread_unorganized')) {
               // It's closed, let's get the count and see if we should reopen
-              const response = await safeFetch('/api/threads/list');
+              // But only if it actually has notes (count > 0)
+              const response = await safeFetch('/api/navigation/data');
               if (response && response.ok) {
-                const threads = await response.json();
+                const data = await response.json();
+                const threads = data.threads || [];
                 const unorganizedThread = threads.find((t: any) => t.id === 'thread_unorganized');
+                // Only reopen if unorganized has notes (count > 0)
+                // This prevents it from appearing when notes are created with suggested threads
                 if (unorganizedThread && unorganizedThread.noteCount > 0) {
                   // Reopen it
                   addToNavigationHistory({
@@ -1120,12 +1168,34 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const handleNoteAddedToThread = (event: CustomEvent) => {
       const { noteId, threadId } = event.detail;
       if (threadId && threadId !== 'thread_unorganized') {
+        // Check if this note was just created (within last 2 seconds)
+        // If so, it was never actually in unorganized, so don't add unorganized to navigation
+        const wasJustCreated = recentlyCreatedNotes.current.has(noteId);
+        
         // Notes always start in unorganized, so when moved to a thread, decrement unorganized
         // Use current React state instead of reading from localStorage
         // Combine both updates into a single state update to prevent double renders
         setNavigationHistory(currentHistory => {
           const threadIndex = currentHistory.findIndex((item: any) => item.id === threadId);
           const unorganizedIndex = currentHistory.findIndex((item: any) => item.id === 'thread_unorganized');
+          
+          // If note was just created and unorganized isn't in history, don't add it
+          // This prevents unorganized from appearing when notes are created with suggested threads
+          if (wasJustCreated && unorganizedIndex === -1) {
+            // Note was just created with a thread, so unorganized shouldn't appear
+            // Just update the thread count and return
+            if (threadIndex !== -1) {
+              const updatedHistory = currentHistory.map((item, index) => {
+                if (index === threadIndex) {
+                  const oldCount = item.count || 0;
+                  return { ...item, count: oldCount + 1 };
+                }
+                return item;
+              });
+              saveNavigationHistory(updatedHistory);
+              return updatedHistory;
+            }
+          }
           
           // Build updated history in a single pass
           let shouldRemoveUnorganized = false;
