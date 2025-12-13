@@ -22,6 +22,7 @@ interface ThreadComboboxProps {
   suggestedThreadIds?: string[];
   suggestedThreadName?: string | null;
   onCreateThread?: (threadName: string) => void;
+  onSuggestedThreadNameChange?: (threadName: string) => void;
 }
 
 const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
@@ -32,6 +33,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   suggestedThreadIds = [],
   suggestedThreadName,
   onCreateThread,
+  onSuggestedThreadNameChange,
 }) => {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
@@ -159,7 +161,14 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       <input
                         type="text"
                         value={editedThreadName}
-                        onChange={(e) => setEditedThreadName(e.target.value)}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          setEditedThreadName(newValue);
+                          // Sync the edited name back to parent component
+                          if (onSuggestedThreadNameChange) {
+                            onSuggestedThreadNameChange(newValue);
+                          }
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();

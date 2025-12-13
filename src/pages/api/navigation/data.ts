@@ -30,25 +30,24 @@ export const GET: APIRoute = async ({ locals }) => {
       backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
     }));
     
-    // Add unorganized thread to the threads array if it has notes
-    // This ensures refreshNavigationCounts() can update the unorganized count
-    if (unorganizedThreadData.noteCount > 0) {
-      threadsWithGradients.push({
-        id: 'thread_unorganized',
-        title: 'Unorganized',
-        subtitle: 'Notes that haven\'t been organized into threads yet',
-        color: null,
-        spaceId: null,
-        isPublic: true,
-        isPinned: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        noteCount: unorganizedThreadData.noteCount,
-        lastUpdated: new Date(),
-        accentColor: getThreadGradientCSS('paper'),
-        backgroundGradient: unorganizedThreadData.backgroundGradient || getThreadGradientCSS('paper')
-      });
-    }
+    // Always include unorganized thread in the threads array (even if count is 0)
+    // This ensures refreshNavigationCounts() can always update the unorganized count
+    // and prevents stale counts from persisting
+    threadsWithGradients.push({
+      id: 'thread_unorganized',
+      title: 'Unorganized',
+      subtitle: 'Notes that haven\'t been organized into threads yet',
+      color: null,
+      spaceId: null,
+      isPublic: true,
+      isPinned: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      noteCount: unorganizedThreadData.noteCount || 0,
+      lastUpdated: new Date(),
+      accentColor: getThreadGradientCSS('paper'),
+      backgroundGradient: unorganizedThreadData.backgroundGradient || getThreadGradientCSS('paper')
+    });
     
     const spacesWithGradients = spaces.map(space => ({
       ...space,

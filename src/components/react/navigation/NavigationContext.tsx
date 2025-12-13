@@ -560,9 +560,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             addToNavigationHistory(itemData);
             
             // Refresh counts from API after adding new item to ensure accuracy
-            setTimeout(() => {
-              refreshNavigationCounts();
-            }, 300);
+            // Use debounced version to prevent multiple rapid refreshes
+            debouncedRefreshNavigationCounts();
           } else {
             // Item is closed and user didn't explicitly navigate to it - don't add it back
             // This prevents closed items from reappearing when navigating to other items
@@ -614,6 +613,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setNavigationHistory(history);
   };
 
+  // Debounce ref for refreshNavigationCounts to prevent multiple rapid refreshes
+  const refreshCountsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const REFRESH_DEBOUNCE_DELAY = 500; // 500ms debounce to prevent overwriting with stale data
+
   // Refresh navigation counts (threads and spaces) from API to ensure accuracy
   const refreshNavigationCounts = async () => {
     // Handle SSR - do nothing if not in browser
@@ -649,26 +652,29 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           
           if (threadData) {
             const newCount = threadData.noteCount || 0;
-            // Always update count (even if same) to ensure accuracy
-            // This handles cases where the count was stale
-            if (item.count !== newCount) {
+            const currentCount = item.count || 0;
+            
+            // Only update if counts differ AND the API count is higher or equal
+            // This prevents overwriting correct client-side counts with stale lower API counts
+            // The API count being higher indicates it's more recent/accurate
+            if (currentCount !== newCount && newCount >= currentCount) {
               return { ...item, count: newCount };
             }
-            return item; // No change needed
+            // If API count is lower, it might be stale - keep current count
+            return item;
           } else if (item.id === 'thread_unorganized') {
-            // Special handling for unorganized thread - may not be in API response
-            // Try to find it or fetch separately
+            // Unorganized thread should always be in API response now
+            // But handle gracefully if it's missing
             const unorganizedThread = threads.find((t: any) => t.id === 'thread_unorganized');
             if (unorganizedThread) {
               const newCount = unorganizedThread.noteCount || 0;
-              if (item.count !== newCount) {
+              const currentCount = item.count || 0;
+              // Only update if API count is higher or equal
+              if (currentCount !== newCount && newCount >= currentCount) {
                 return { ...item, count: newCount };
               }
-            } else {
-              // Unorganized thread not in API response - API should include it now, but fallback
-              // Keep current count if API doesn't have it (shouldn't happen with new API fix)
             }
-            return item; // No change needed
+            return item; // Keep current count if API doesn't have it or count is stale
           } else {
             // Thread not found in API - might be deleted
             return item; // Keep as is
@@ -681,12 +687,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           
           if (spaceData) {
             const newCount = spaceData.totalItemCount || 0;
-            // Always update count (even if same) to ensure accuracy
-            // This handles cases where the count was stale
-            if (item.count !== newCount) {
+            const currentCount = item.count || 0;
+            // Only update if API count is higher or equal
+            if (currentCount !== newCount && newCount >= currentCount) {
               return { ...item, count: newCount };
             }
-            return item; // No change needed
+            return item;
           } else {
             // Space not found in API - might be deleted
             return item; // Keep as is
@@ -707,6 +713,20 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch (error) {
       console.error('NavigationContext: Error refreshing navigation counts:', error);
     }
+  };
+
+  // Debounced version of refreshNavigationCounts to prevent multiple rapid refreshes
+  const debouncedRefreshNavigationCounts = () => {
+    // Clear any pending refresh
+    if (refreshCountsTimeoutRef.current) {
+      clearTimeout(refreshCountsTimeoutRef.current);
+    }
+    
+    // Schedule a new refresh after debounce delay
+    refreshCountsTimeoutRef.current = setTimeout(() => {
+      refreshCountsTimeoutRef.current = null;
+      refreshNavigationCounts();
+    }, REFRESH_DEBOUNCE_DELAY);
   };
 
   // Validation cache to prevent redundant API calls
@@ -873,12 +893,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const isNotePage = currentPath.startsWith('/note_');
         
         if (isNotePage) {
-          // Refresh navigation counts immediately and again after a short delay
-          // This ensures counts are accurate after redirect from note creation
-          refreshNavigationCounts();
-          setTimeout(() => {
-            refreshNavigationCounts();
-          }, 500);
+          // Refresh navigation counts after a delay to ensure counts are accurate after redirect
+          // Use debounced version to prevent multiple rapid refreshes from overwriting each other
+          debouncedRefreshNavigationCounts();
         }
         
         // Only validate if cache is stale - don't validate on every page load
@@ -933,6 +950,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const handleNoteCreated = async (event: CustomEvent) => {
       const note = event.detail?.note;
       // Use actualThreadId from junction table, not the legacy threadId field
+      // If actualThreadId is provided, use it (it's the correct thread from junction table)
+      // Only fall back to note.threadId if actualThreadId is not provided
       const actualThreadId = event.detail?.actualThreadId || note?.threadId;
       if (note && actualThreadId) {
         // Track this note as recently created to avoid double-counting in noteAddedToThread
@@ -943,6 +962,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             recentlyCreatedNotes.current.delete(note.id);
           }, 2000);
         }
+        
+        // If actualThreadId is provided and it's not unorganized, don't add unorganized to navigation
+        // This prevents unorganized from appearing when a note is created with a suggested thread
+        // The note was never actually in unorganized (it was immediately added to the thread via junction table)
+        const wasCreatedWithThread = event.detail?.actualThreadId && event.detail.actualThreadId !== 'thread_unorganized';
         // Use current React state to check if thread exists and update/add it
         setNavigationHistory(currentHistory => {
           const threadIndex = currentHistory.findIndex((item: any) => item.id === actualThreadId);
@@ -997,8 +1021,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   count: threadData.noteCount || 1, // Use fetched count or at least 1 (the new note)
                   backgroundGradient: threadData.backgroundGradient || 'var(--color-gradient-gray)'
                 });
-              } else if (actualThreadId === 'thread_unorganized') {
+              } else if (actualThreadId === 'thread_unorganized' && !wasCreatedWithThread) {
                 // Special handling for unorganized thread (only if note actually has no junction entries)
+                // Don't add unorganized if the note was created with a specific thread (wasCreatedWithThread)
+                // This prevents unorganized from appearing when a note is created with a suggested thread
                 addToNavigationHistory({
                   id: 'thread_unorganized',
                   title: 'Unorganized',
@@ -1026,10 +1052,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
         
         // Refresh counts from API after a delay to ensure database is committed
-        // Use shorter delay to match handleNoteAddedToThread for faster updates
-        setTimeout(() => {
-          refreshNavigationCounts();
-        }, 100);
+        // Use debounced version to prevent multiple rapid refreshes from overwriting each other
+        debouncedRefreshNavigationCounts();
       }
     };
 
@@ -1152,10 +1176,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         recentlyCreatedNotes.current.delete(noteId);
         
         // Refresh navigation counts from API after a short delay to ensure accuracy
-        // This corrects any client-side inaccuracies and ensures database is committed
-        setTimeout(() => {
-          refreshNavigationCounts();
-        }, 100);
+        // Use debounced version to prevent multiple rapid refreshes from overwriting each other
+        debouncedRefreshNavigationCounts();
       }
     };
 
@@ -1205,9 +1227,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
         
         // Refresh counts from API after a delay to ensure database is fully consistent
-        setTimeout(() => {
-          refreshNavigationCounts();
-        }, 500);
+        // Use debounced version to prevent multiple rapid refreshes from overwriting each other
+        debouncedRefreshNavigationCounts();
       }
     };
     

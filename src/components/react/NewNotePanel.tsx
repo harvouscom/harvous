@@ -557,6 +557,13 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
             threads={threadSelection.threadOptions}
             placeholder="Select thread..."
             suggestedThreadName={suggestedThreadName}
+            onSuggestedThreadNameChange={(editedName) => {
+              // Sync edited thread name back to suggestedThreadName state
+              // This ensures the SuggestedThreadDialog shows the edited name
+              if (editedName && editedName.trim()) {
+                setSuggestedThreadName(editedName.trim());
+              }
+            }}
             onCreateThread={(threadName) => {
               threadSelection.handleThreadSelect(threadName);
               setSuggestedThreadName(null); // Clear after confirming
