@@ -714,6 +714,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const VALIDATION_CACHE_DURATION = 60 * 1000; // 1 minute cache
   const VALIDATION_DEBOUNCE_DELAY = 2000; // 2 seconds debounce
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Track recently created notes to avoid double-counting
+  // When a note is created with a suggested thread, it's immediately added to that thread
+  // We shouldn't decrement unorganized if the note was never actually in unorganized
+  const recentlyCreatedNotes = useRef<Set<string>>(new Set());
 
   // Function to validate navigation history and remove deleted threads
   const validateNavigationHistory = async (force = false) => {
@@ -915,6 +920,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Use actualThreadId from junction table, not the legacy threadId field
       const actualThreadId = event.detail?.actualThreadId || note?.threadId;
       if (note && actualThreadId) {
+        // Track this note as recently created to avoid double-counting in noteAddedToThread
+        // Remove it after 2 seconds (enough time for noteAddedToThread to fire)
+        if (note.id) {
+          recentlyCreatedNotes.current.add(note.id);
+          setTimeout(() => {
+            recentlyCreatedNotes.current.delete(note.id);
+          }, 2000);
+        }
         // Use current React state to check if thread exists and update/add it
         setNavigationHistory(currentHistory => {
           const threadIndex = currentHistory.findIndex((item: any) => item.id === actualThreadId);
@@ -1067,6 +1080,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const handleNoteAddedToThread = (event: CustomEvent) => {
       const { noteId, threadId } = event.detail;
       if (threadId) {
+        // Check if this note was just created (within last 2 seconds)
+        // If so, it was never actually in unorganized, so don't decrement unorganized count
+        const wasJustCreated = recentlyCreatedNotes.current.has(noteId);
+        
         // Use current React state instead of reading from localStorage
         // Combine both updates into a single state update to prevent double renders
         setNavigationHistory(currentHistory => {
@@ -1081,8 +1098,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               const oldCount = item.count || 0;
               return { ...item, count: oldCount + 1 };
             }
-            if (index === unorganizedIndex) {
-              // Decrement unorganized thread count (note was moved from unorganized to a thread)
+            if (index === unorganizedIndex && !wasJustCreated) {
+              // Only decrement unorganized if the note was NOT just created
+              // (i.e., it was actually moved from unorganized to a thread)
               const oldUnorganizedCount = item.count || 0;
               const newUnorganizedCount = Math.max(0, oldUnorganizedCount - 1);
               
@@ -1111,6 +1129,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           
           return updatedHistory;
         });
+        
+        // Remove from recently created set after processing
+        if (wasJustCreated) {
+          recentlyCreatedNotes.current.delete(noteId);
+        }
         
         // Refresh counts from API after a delay to ensure database is committed
         setTimeout(() => {

@@ -375,6 +375,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
         const formData = new FormData();
         formData.set('title', desiredTitle);
         formData.set('isPublic', 'false');
+        formData.set('color', 'paper'); // Suggested threads always use paper color
         // Optional; empty string is treated as no space
         formData.set('spaceId', currentSpace?.id || '');
 

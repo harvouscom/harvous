@@ -305,9 +305,8 @@ let inboxCount: number = 0;
     if (isThread) {
       // Special handling for unorganized thread
       if (id === 'thread_unorganized') {
-        // Ensure the unorganized thread exists in database
-        await ensureUnorganizedThread(authenticatedUserId);
-        
+        // Ensure the unorganized thread exists in database and get actual count
+        const unorganizedThreadData = await ensureUnorganizedThread(authenticatedUserId);
         const notesData = await getNotesForThread(id!, authenticatedUserId);
         
         content = {
@@ -317,21 +316,21 @@ let inboxCount: number = 0;
           color: null,
           spaceId: null,
           notes: notesData,
-          noteCount: notesData.length
+          noteCount: unorganizedThreadData.noteCount
         };
         currentThread = {
           id: 'thread_unorganized',
           title: 'Unorganized',
           color: null,
-          noteCount: notesData.length,
+          noteCount: unorganizedThreadData.noteCount,
           backgroundGradient: getThreadGradientCSS('paper')
         };
         
-        // Set threadNotes for template rendering
-        threadNotes = notesData;
-        
-        pageTitle = 'Unorganized';
-        pageContent = `${notesData.length} notes`;
+          // Set threadNotes for template rendering
+          threadNotes = notesData;
+          
+          pageTitle = 'Unorganized';
+          pageContent = `${unorganizedThreadData.noteCount} notes`;
       } else {
         // Fetch thread and its notes from database
         const [threadData, notesData] = await Promise.all([
@@ -347,13 +346,13 @@ let inboxCount: number = 0;
             color: threadData.color,
             spaceId: threadData.spaceId,
             notes: notesData,
-            noteCount: notesData.length
+            noteCount: threadData.noteCount
           };
           currentThread = {
             id: threadData.id,
             title: threadData.title,
             color: threadData.color,
-            noteCount: notesData.length,
+            noteCount: threadData.noteCount,
             backgroundGradient: getThreadGradientCSS(threadData.color)
           };
           
@@ -361,7 +360,7 @@ let inboxCount: number = 0;
           threadNotes = notesData;
           
           pageTitle = threadData.title;
-          pageContent = `${notesData.length} notes`;
+          pageContent = `${threadData.noteCount} notes`;
         }
       }
     } else if (isNote) {
@@ -547,24 +546,34 @@ let inboxCount: number = 0;
 
         // Get the selected thread context
         if (selectedThreadId === 'thread_unorganized') {
-          // Special handling for unorganized thread
-          const noteCount = await getNotesForThread('thread_unorganized', authenticatedUserId).then(notes => notes.length);
+          // Special handling for unorganized thread - get actual count
+          const unorganizedThreadData = await ensureUnorganizedThread(authenticatedUserId);
           currentThread = {
             id: 'thread_unorganized',
             title: 'Unorganized',
             color: null,
-            noteCount: noteCount,
+            noteCount: unorganizedThreadData.noteCount,
             backgroundGradient: getThreadGradientCSS('paper')
           };
         } else if (selectedThreadId) {
           const thread = await db.select().from(Threads).where(eq(Threads.id, selectedThreadId)).get();
           
           if (thread) {
+            // Get actual note count from database using junction table
+            const noteCountResult = await db.select({ count: count() })
+              .from(Notes)
+              .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+              .where(and(
+                eq(NoteThreads.threadId, selectedThreadId),
+                eq(Notes.userId, authenticatedUserId)
+              ))
+              .get();
+            
             currentThread = {
               id: thread.id,
               title: thread.title,
               color: thread.color,
-              noteCount: await getNotesForThread(thread.id, authenticatedUserId).then(notes => notes.length),
+              noteCount: noteCountResult?.count || 0,
               backgroundGradient: getThreadGradientCSS(thread.color)
             };
           } else {
@@ -586,11 +595,21 @@ let inboxCount: number = 0;
                   .get();
                 
                 if (fallbackThread) {
+                  // Get actual note count from database using junction table
+                  const noteCountResult = await db.select({ count: count() })
+                    .from(Notes)
+                    .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+                    .where(and(
+                      eq(NoteThreads.threadId, fallbackThread.id),
+                      eq(Notes.userId, authenticatedUserId)
+                    ))
+                    .get();
+                  
                   currentThread = {
                     id: fallbackThread.id,
                     title: fallbackThread.title,
                     color: fallbackThread.color,
-                    noteCount: await getNotesForThread(fallbackThread.id, authenticatedUserId).then(notes => notes.length),
+                    noteCount: noteCountResult?.count || 0,
                     backgroundGradient: getThreadGradientCSS(fallbackThread.color)
                   };
                   break;
@@ -600,24 +619,24 @@ let inboxCount: number = 0;
             
             // If still no thread found, fall back to unorganized
             if (!currentThread) {
-              const noteCount = await getNotesForThread('thread_unorganized', authenticatedUserId).then(notes => notes.length);
+              const unorganizedThreadData = await ensureUnorganizedThread(authenticatedUserId);
               currentThread = {
                 id: 'thread_unorganized',
                 title: 'Unorganized',
                 color: null,
-                noteCount: noteCount,
+                noteCount: unorganizedThreadData.noteCount,
                 backgroundGradient: getThreadGradientCSS('paper')
               };
             }
           }
         } else {
           // Fallback: no valid thread selected, use unorganized
-          const noteCount = await getNotesForThread('thread_unorganized', authenticatedUserId).then(notes => notes.length);
+          const unorganizedThreadData = await ensureUnorganizedThread(authenticatedUserId);
           currentThread = {
             id: 'thread_unorganized',
             title: 'Unorganized',
             color: null,
-            noteCount: noteCount,
+            noteCount: unorganizedThreadData.noteCount,
             backgroundGradient: getThreadGradientCSS('paper')
           };
         }
