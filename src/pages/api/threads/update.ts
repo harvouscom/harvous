@@ -3,6 +3,7 @@ import { threads } from '@/actions/threads';
 import { db, Notes, Threads, NoteThreads, eq, and } from 'astro:db';
 import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { moveScriptureNotesToThread } from '@/utils/move-scripture-notes-to-thread';
 
 export const POST: APIRoute = async ({ request, locals, callAction }) => {
   try {
@@ -156,6 +157,13 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
                 .set({ threadId: threadId })
                 .where(eq(Notes.id, noteId));
             }
+
+            // Move scripture notes referenced by this note to the same thread (fire and forget)
+            // Don't await to avoid database lock contention - let it run asynchronously
+            // The helper function has built-in delays and retry logic to handle SQLITE_BUSY errors
+            moveScriptureNotesToThread(noteId, threadId, userId).catch((error) => {
+              console.error(`Error moving scripture notes for note ${noteId} (non-blocking):`, error);
+            });
           } catch (error: any) {
             // Log error but continue with other notes
             console.error(`Error adding note ${noteId} to thread:`, error);
