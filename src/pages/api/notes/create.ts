@@ -391,8 +391,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
           if (htmlResponse.ok) {
             const html = await htmlResponse.text();
             
-            // Extract article content using Readability
-            const articleContent = extractArticleContent(html, normalizedResourceUrl);
+            // Extract article content using @extractus/article-extractor (with Readability fallback)
+            const articleContent = await extractArticleContent(html, normalizedResourceUrl);
             
             if (articleContent) {
               resourceMetadata = {
@@ -471,9 +471,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
       // Determine the actual thread ID (the thread the note was created in)
       const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
       
-      // Call processing function directly
+      // Get the latest note content (may have been updated with articleContent)
+      const latestNote = await db.select()
+        .from(Notes)
+        .where(eq(Notes.id, newNote.id))
+        .get();
+      
+      // Use the latest content to ensure we process all scripture references
+      // This is especially important for resource notes where content is updated after creation
+      const contentToProcess = latestNote?.content || newNote.content;
+      
+      // Call processing function directly with content override to ensure we use the latest content
       const { processScriptureReferences } = await import('@/utils/process-scripture-references');
-      const processResult = await processScriptureReferences(newNote.id, userId, actualThreadId);
+      const processResult = await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
       scriptureResults = processResult.results || [];
     } catch (error: any) {
       // Don't fail note creation if scripture processing fails

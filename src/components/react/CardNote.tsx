@@ -14,6 +14,7 @@ interface CardNoteProps {
   resourceDescription?: string | null;
   resourceImage?: string | null;
   resourceUrl?: string | null;
+  showSource?: boolean; // Control whether to show source bar for resource notes
 }
 
 // Helper function to convert HTML to readable text
@@ -114,7 +115,8 @@ const CardNote: React.FC<CardNoteProps> = ({
   resourceTitle,
   resourceDescription,
   resourceImage,
-  resourceUrl
+  resourceUrl,
+  showSource = true
 }) => {
   // For resource notes, prioritize metadata over regular props
   const effectiveTitle = noteType === 'resource' 
@@ -156,29 +158,41 @@ const CardNote: React.FC<CardNoteProps> = ({
                 <div className="card-note__title">
                   <p>{effectiveTitle || "Quick Tour of Harvous"}</p>
                 </div>
-                {/* Show excerpt for non-resource notes, or resource notes without URL */}
-                {(noteType !== 'resource' || !resourceUrl) && (
+                {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
+                {(noteType !== 'resource' || !resourceUrl || !showSource) && (
                   <div className="card-note__excerpt">
                     <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
-                  </div>
-                )}
-                {/* Show source URL for resource notes */}
-                {noteType === 'resource' && resourceUrl && (
-                  <div className="card-note__source">
-                    <Icon name="link" size={10} style={{ color: 'var(--color-pebble-grey)', flexShrink: 0 }} />
-                    <span>{(() => {
-                      try {
-                        const url = new URL(resourceUrl);
-                        return url.hostname.replace('www.', '');
-                      } catch {
-                        return resourceUrl;
-                      }
-                    })()}</span>
                   </div>
                 )}
               </div>
             </div>
           </div>
+          {/* Source bar for resource notes - outside content area to match normal preview */}
+          {noteType === 'resource' && resourceUrl && showSource && (
+            <div 
+              className="card-image-link__source"
+              style={{
+                flexShrink: 0,
+                marginTop: '12px'
+              }}
+            >
+              <div className="card-image-link__source-content" style={{ justifyContent: 'space-between' }}>
+                <div className="card-image-link__source-text">
+                  <p>{(() => {
+                    try {
+                      const url = new URL(resourceUrl);
+                      return url.hostname.replace('www.', '');
+                    } catch {
+                      return resourceUrl;
+                    }
+                  })()}</p>
+                </div>
+                <div className="card-image-link__source-icon">
+                  <Icon name="arrow-up-right-from-square" size={20} />
+                </div>
+              </div>
+            </div>
+          )}
           <div aria-hidden="true" className="card__border" style={{ borderColor: '#f7f7f6' }} />
         </div>
       )}
@@ -213,29 +227,41 @@ const CardNote: React.FC<CardNoteProps> = ({
                 <div className="card-note__title">
                   <p>{effectiveTitle || "Note with Image"}</p>
                 </div>
-                {/* Show excerpt for non-resource notes, or resource notes without URL */}
-                {(noteType !== 'resource' || !resourceUrl) && (
+                {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
+                {(noteType !== 'resource' || !resourceUrl || !showSource) && (
                   <div className="card-note__excerpt">
                     <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
-                  </div>
-                )}
-                {/* Show source URL for resource notes */}
-                {noteType === 'resource' && resourceUrl && (
-                  <div className="card-note__source">
-                    <Icon name="link" size={10} style={{ color: 'var(--color-pebble-grey)', flexShrink: 0 }} />
-                    <span>{(() => {
-                      try {
-                        const url = new URL(resourceUrl);
-                        return url.hostname.replace('www.', '');
-                      } catch {
-                        return resourceUrl;
-                      }
-                    })()}</span>
                   </div>
                 )}
               </div>
             </div>
           </div>
+          {/* Source bar for resource notes - outside content area to match normal preview */}
+          {noteType === 'resource' && resourceUrl && showSource && (
+            <div 
+              className="card-image-link__source"
+              style={{
+                flexShrink: 0,
+                marginTop: '12px'
+              }}
+            >
+              <div className="card-image-link__source-content" style={{ justifyContent: 'space-between' }}>
+                <div className="card-image-link__source-text">
+                  <p>{(() => {
+                    try {
+                      const url = new URL(resourceUrl);
+                      return url.hostname.replace('www.', '');
+                    } catch {
+                      return resourceUrl;
+                    }
+                  })()}</p>
+                </div>
+                <div className="card-image-link__source-icon">
+                  <Icon name="arrow-up-right-from-square" size={20} />
+                </div>
+              </div>
+            </div>
+          )}
           <div aria-hidden="true" className="card__border" />
         </div>
       )}

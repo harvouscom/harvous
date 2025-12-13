@@ -30,6 +30,7 @@
     "@astrojs/react": "^4.4.0",
     "@clerk/astro": "^2.7.2",
     "@clerk/backend": "^2.19.3",
+    "@extractus/article-extractor": "^8.0.20",
     "@fontsource/reddit-mono": "^5.1.1",
     "@fontsource/reddit-sans": "^5.1.1",
     "@fortawesome/fontawesome-free": "^6.7.2",

@@ -3,6 +3,7 @@ import ThreadCombobox from './ThreadCombobox';
 import { useNavigation } from './navigation/NavigationContext';
 import { safeFetch } from '@/utils/safe-fetch';
 import { captureException } from '@/utils/posthog';
+import { getThreadGradientCSS } from '@/utils/colors';
 
 // Import extracted hooks
 import {
@@ -41,6 +42,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [suggestedThreadName, setSuggestedThreadName] = useState<string | null>(null);
   const [showSuggestedThreadDialog, setShowSuggestedThreadDialog] = useState(false);
+  const [scriptureCount, setScriptureCount] = useState(0);
+  const [duplicateInfo, setDuplicateInfo] = useState<{ exists: boolean; noteId?: string; simpleNoteId?: number; title?: string; description?: string; image?: string; url?: string } | null>(null);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -158,7 +161,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     const handleNoteCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
       const note = customEvent.detail?.note;
-      const threadId = note?.threadId;
+      // Use actualThreadId from event detail (from junction table), fallback to legacy threadId
+      const threadId = customEvent.detail?.actualThreadId || note?.threadId;
       
       if (threadId) {
         threadSelection.setThreadOptions(prev => prev.map(thread => 
@@ -316,6 +320,14 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     closePanel();
   };
 
+  const showToast = (message: string, type: 'info' | 'success' | 'warning' | 'error') => {
+    if (window.toast && typeof window.toast[type] === 'function') {
+      window.toast[type](message);
+    } else {
+      window.dispatchEvent(new CustomEvent('toast', { detail: { message, type } }));
+    }
+  };
+
   // Handle form submission with dialog check
   const handleFormSubmit = async (e: React.FormEvent) => {
     if (showUnsavedDialog) {
@@ -324,10 +336,12 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     }
     
     // Check if we should show the suggested thread dialog
+    // Only show if there are multiple scripture references (as the dialog text states)
     if (
       form.noteType === 'resource' &&
       threadSelection.selectedThread === 'Unorganized' &&
-      suggestedThreadName
+      suggestedThreadName &&
+      scriptureCount > 1
     ) {
       e.preventDefault();
       setShowSuggestedThreadDialog(true);
@@ -339,24 +353,132 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
 
   // Handle suggested thread dialog actions
   const handleUseSuggestedThread = async () => {
+    const rawSuggested = suggestedThreadName || '';
+    const desiredTitle = rawSuggested.trim();
+    if (!desiredTitle) {
+      setShowSuggestedThreadDialog(false);
+      return;
+    }
+
     setShowSuggestedThreadDialog(false);
-    
-    // Select the suggested thread
-    threadSelection.handleThreadSelect(suggestedThreadName!);
-    
-    // Clear the suggestion
-    setSuggestedThreadName(null);
-    
-    // Wait a tick for state to update, then submit
-    await new Promise(resolve => setTimeout(resolve, 0));
-    
-    // Submit the form
-    const formElement = document.querySelector('.new-note-panel form') as HTMLFormElement;
-    if (formElement) {
-      // Create a synthetic submit event
+
+    try {
+      // If a thread already exists with this name, use it.
+      const existingThread = threadSelection.threadOptions.find(
+        (t) => t.title.trim().toLowerCase() === desiredTitle.toLowerCase()
+      );
+
+      let threadToUse: Thread;
+
+      if (!existingThread) {
+        // Create the thread so we have a real threadId to submit with.
+        const formData = new FormData();
+        formData.set('title', desiredTitle);
+        formData.set('isPublic', 'false');
+        // Optional; empty string is treated as no space
+        formData.set('spaceId', currentSpace?.id || '');
+
+        const response = await fetch('/api/threads/create', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => null);
+          throw new Error(err?.error || 'Failed to create thread');
+        }
+
+        const data = await response.json();
+        const created = data?.thread;
+        if (!created?.id || !created?.title) {
+          throw new Error('Thread create response missing thread info');
+        }
+
+        // Create thread object for the new thread
+        threadToUse = {
+          id: created.id,
+          title: created.title,
+          noteCount: 0,
+          backgroundGradient: getThreadGradientCSS(created.color || 'paper'),
+          color: created.color ?? null,
+          isPublic: created.isPublic ?? false,
+        };
+
+        // Ensure the new thread is available in the combobox options immediately.
+        threadSelection.setThreadOptions((prev) => {
+          if (prev.some((t) => t.id === created.id)) return prev;
+          const unorganizedIdx = prev.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+          if (unorganizedIdx === -1) return [...prev, threadToUse];
+          return [...prev.slice(0, unorganizedIdx + 1), threadToUse, ...prev.slice(unorganizedIdx + 1)];
+        });
+      } else {
+        threadToUse = existingThread;
+      }
+
+      // Select the thread and clear the suggestion.
+      threadSelection.handleThreadSelect(threadToUse.title);
+      setSuggestedThreadName(null);
+
+      // Wait for state to update - need to ensure threadOptions and selectedThread are updated
+      // Wait a bit longer to ensure React state has propagated
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      // Verify the thread is actually selected before submitting
+      let currentSelected = threadSelection.getSelectedThread();
+      let retries = 0;
+      while ((currentSelected.title !== threadToUse.title && currentSelected.id !== threadToUse.id) && retries < 3) {
+        // If still not selected, wait a bit more and check again
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        currentSelected = threadSelection.getSelectedThread();
+        retries++;
+      }
+
+      // Ensure thread is in options and selected
+      // Add to options if it's a newly created thread and not already there
+      if (!existingThread) {
+        const alreadyInOptions = threadSelection.threadOptions.some(t => t.id === threadToUse.id);
+        if (!alreadyInOptions) {
+          threadSelection.setThreadOptions((prev) => {
+            if (prev.some((t) => t.id === threadToUse.id)) return prev;
+            const unorganizedIdx = prev.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+            if (unorganizedIdx === -1) return [...prev, threadToUse];
+            return [...prev.slice(0, unorganizedIdx + 1), threadToUse, ...prev.slice(unorganizedIdx + 1)];
+          });
+          // Wait for options to update
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+
+      // Force selection by setting selectedThread directly
+      threadSelection.setSelectedThread(threadToUse.title);
+      
+      // Wait longer to ensure all state has propagated
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Verify one more time
+      currentSelected = threadSelection.getSelectedThread();
+      if (currentSelected.id !== threadToUse.id) {
+        // Last resort: directly update the selectedThread state
+        threadSelection.setSelectedThread(threadToUse.title);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      // Pass threadId directly to avoid state timing issues
+      const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent;
+      await submission.handleSubmit(syntheticEvent, threadToUse.id);
+    } catch (err: any) {
+      console.error('[SuggestedThreadDialog] Failed to use suggested thread:', err);
+      showToast('Could not use suggested thread. Saving to Unorganized.', 'warning');
+      setSuggestedThreadName(null);
       const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent;
       await submission.handleSubmit(syntheticEvent);
     }
+  };
+
+  const handleCloseDialog = () => {
+    // Just close the dialog without submitting
+    setShowSuggestedThreadDialog(false);
   };
 
   const handleKeepUnorganized = async () => {
@@ -366,12 +488,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
     setSuggestedThreadName(null);
     
     // Submit the form as-is
-    const formElement = document.querySelector('.new-note-panel form') as HTMLFormElement;
-    if (formElement) {
-      // Create a synthetic submit event
-      const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent;
-      await submission.handleSubmit(syntheticEvent);
-    }
+    const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent;
+    await submission.handleSubmit(syntheticEvent);
   };
 
   // Handle Cmd+Enter to submit form (for elements outside TiptapEditor)
@@ -461,6 +579,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
                 // User can see "Suggested" badge and open dropdown to select/edit
                 setSuggestedThreadName(threadTitle);
               }}
+              onScriptureCountChange={setScriptureCount}
+              onDuplicateDetected={setDuplicateInfo}
             />
           )}
         </div>
@@ -470,6 +590,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
           isSubmitting={submission.isSubmitting}
           onClose={handleClose}
           noteType={form.noteType}
+          duplicateInfo={duplicateInfo}
         />
       </form>
 
@@ -488,6 +609,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose }: N
           suggestedThreadName={suggestedThreadName}
           onUseSuggested={handleUseSuggestedThread}
           onKeepUnorganized={handleKeepUnorganized}
+          onClose={handleCloseDialog}
         />
       )}
     </>

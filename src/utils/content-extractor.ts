@@ -1,9 +1,10 @@
 /**
- * Content extraction utility using Mozilla Readability
+ * Content extraction utility using @extractus/article-extractor (primary) and Mozilla Readability (fallback)
  * Extracts main article content from web pages, removing ads, navigation, etc.
  * Outputs clean text wrapped in paragraphs - no images, videos, or complex HTML
  */
 
+import { extract } from '@extractus/article-extractor';
 // @ts-ignore - linkedom types conflict with native DOM types
 import { Readability } from '@mozilla/readability';
 // @ts-ignore - linkedom types conflict with native DOM types
@@ -78,8 +79,6 @@ function htmlToCleanParagraphs(html: string): string {
       /^(jpg|jpeg|png|gif|webp|mp4|mov|avi)/i.test(lower) ||
       // Timestamps like "5:19" or "1:23:45"
       /^\d{1,2}:\d{2}(:\d{2})?$/.test(lower) ||
-      // Very short text (likely captions or labels)
-      lower.length < 10 ||
       // Common video/media caption patterns
       lower === 'play' ||
       lower === 'pause' ||
@@ -126,20 +125,40 @@ function htmlToCleanParagraphs(html: string): string {
     return false;
   }
   
-  // Check if an element is a sibling of media elements (likely a caption)
+  // Check if an element is a sibling of media elements AND looks like a caption/credit
+  // (Some sites structure real article text as siblings of media; don't skip those.)
   function isSiblingOfMedia(node: any): boolean {
     const parent = node.parentElement;
     if (!parent) return false;
     
     // Check if any sibling is a media element
+    let hasMediaSibling = false;
     for (const sibling of parent.children || []) {
       if (sibling === node) continue;
       const tag = sibling.tagName?.toLowerCase();
       if (['video', 'audio', 'img', 'picture', 'iframe', 'canvas'].includes(tag)) {
-        return true;
+        hasMediaSibling = true;
+        break;
       }
     }
-    return false;
+
+    if (!hasMediaSibling) return false;
+
+    const tagName = node.tagName?.toLowerCase() || '';
+    const id = (node.id || '').toLowerCase();
+    const className = (node.className || '').toLowerCase();
+
+    // Only treat as caption if it advertises itself as one
+    const looksCaptiony =
+      tagName === 'figcaption' ||
+      id.includes('caption') ||
+      className.includes('caption') ||
+      id.includes('credit') ||
+      className.includes('credit') ||
+      id.includes('source') ||
+      className.includes('source');
+
+    return looksCaptiony;
   }
   
   // Process block-level elements
@@ -158,7 +177,7 @@ function htmlToCleanParagraphs(html: string): string {
       return;
     }
     
-    // Skip if this element is a sibling of media (likely a caption)
+    // Skip if this element is a sibling of media AND is labeled like a caption/credit
     if (isSiblingOfMedia(node)) {
       // Only skip if it's short text (actual captions are usually brief)
       const textContent = (node.textContent || '').trim();
@@ -249,6 +268,12 @@ function htmlToCleanParagraphs(html: string): string {
     for (const child of node.childNodes || []) {
       if (child.nodeType === 1) {
         processBlock(child);
+      } else if (child.nodeType === 3) {
+        // Handle direct text nodes (not wrapped in p tags)
+        const text = (child.textContent || '').replace(/\s+/g, ' ').trim();
+        if (text && text.length > 20 && !isMediaMetadata(text)) {
+          output.push(`<p>${text}</p>`);
+        }
       }
     }
   }
@@ -257,6 +282,12 @@ function htmlToCleanParagraphs(html: string): string {
   for (const child of root.childNodes || []) {
     if (child.nodeType === 1) {
       processBlock(child);
+    } else if (child.nodeType === 3) {
+      // Handle direct text nodes (not wrapped in p tags)
+      const text = (child.textContent || '').replace(/\s+/g, ' ').trim();
+      if (text && text.length > 20 && !isMediaMetadata(text)) {
+        output.push(`<p>${text}</p>`);
+      }
     }
   }
   
@@ -550,38 +581,133 @@ function extractCalloutsWithContext(html: string): CalloutWithContext[] {
 }
 
 /**
+ * Remove images and captions from HTML content
+ */
+function removeImagesAndCaptions(content: string): string {
+  // Parse the HTML to properly remove elements
+  const { document } = parseHTML(`<div>${content}</div>`);
+  const root = document.querySelector('div');
+  if (!root) return content;
+  
+  // Remove all image-related elements
+  const imageElements = root.querySelectorAll('img, picture, figure, figcaption, [class*="image"], [class*="photo"], [class*="caption"], [id*="image"], [id*="photo"], [id*="caption"]');
+  imageElements.forEach(el => el.remove());
+  
+  // Remove elements that are likely captions based on content/positioning
+  // Look for short text nodes that might be captions
+  const allElements = root.querySelectorAll('*');
+  allElements.forEach(el => {
+    const tagName = el.tagName?.toLowerCase() || '';
+    const className = (el.className || '').toLowerCase();
+    const id = (el.id || '').toLowerCase();
+    const textContent = (el.textContent || '').trim();
+    
+    // Remove if it looks like a caption/credit/source
+    if (
+      className.includes('caption') ||
+      className.includes('credit') ||
+      className.includes('source') ||
+      className.includes('image-credit') ||
+      id.includes('caption') ||
+      id.includes('credit') ||
+      id.includes('source') ||
+      // Remove very short paragraphs that might be captions (but keep headings)
+      (tagName === 'p' && textContent.length < 50 && (
+        textContent.toLowerCase().includes('credit') ||
+        textContent.toLowerCase().includes('photo') ||
+        textContent.toLowerCase().includes('image') ||
+        /^(photo|image|credit|source):/i.test(textContent)
+      ))
+    ) {
+      el.remove();
+    }
+  });
+  
+  return root.innerHTML;
+}
+
+/**
  * Extract article content from HTML string
  * @param html - Raw HTML content from the page
  * @param url - URL of the page (for resolving relative URLs)
  * @returns Extracted article content as clean HTML string, or null if extraction fails
  */
-export function extractArticleContent(html: string, url: string): string | null {
+export async function extractArticleContent(html: string, url: string): Promise<string | null> {
   try {
-    // First, extract callouts before Readability strips them
+    // First, extract callouts before any processing strips them
     const callouts = extractCalloutsWithContext(html);
     
-    // Parse HTML using linkedom
-    const { document } = parseHTML(html);
+    // Try @extractus/article-extractor first (more reliable for modern sites)
+    // It already returns clean HTML, so we trust it directly
+    let cleanedContent: string | null = null;
     
-    // Create Readability instance
-    // @ts-ignore - document type from linkedom
-    const reader = new Readability(document, {
-      debug: false,
-      maxElemsToParseToMainContent: 0, // No limit
-      nbTopCandidates: 5,
-      charThreshold: 500, // Minimum characters to consider it an article
-    });
+    try {
+      const extracted = await extract(url, {
+        html,
+        fetchOptions: {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)'
+          }
+        }
+      });
+      
+      if (extracted && extracted.content) {
+        // @extractus/article-extractor already returns clean HTML with proper structure
+        // Just ensure it's a string and has content
+        cleanedContent = typeof extracted.content === 'string' 
+          ? extracted.content 
+          : String(extracted.content);
+      }
+    } catch (error) {
+      // Fall through to Readability fallback
+      console.warn('@extractus/article-extractor failed, trying Readability:', error);
+    }
     
-    // Extract article
-    const article = reader.parse();
+    // Fallback to Readability if extractus didn't work or didn't return enough content
+    if (!cleanedContent || cleanedContent.replace(/<[^>]+>/g, '').trim().length < 200) {
+      // Parse HTML using linkedom
+      const { document } = parseHTML(html);
+      
+      // Create Readability instance
+      // @ts-ignore - document type from linkedom
+      const reader = new Readability(document, {
+        debug: false,
+        maxElemsToParseToMainContent: 0, // No limit
+        nbTopCandidates: 5,
+        charThreshold: 500, // Minimum characters to consider it an article
+      });
+      
+      // Extract article
+      const article = reader.parse();
+      
+      if (article && article.content) {
+        // Convert to clean text paragraphs (no images, videos, complex HTML)
+        const readabilityContent = htmlToCleanParagraphs(article.content);
+        if (readabilityContent && readabilityContent.replace(/<[^>]+>/g, '').trim().length > (cleanedContent?.replace(/<[^>]+>/g, '').trim().length || 0)) {
+          cleanedContent = readabilityContent;
+        }
+      }
+      
+      // Last resort: try extracting from main/article tags directly
+      if (!cleanedContent || cleanedContent.replace(/<[^>]+>/g, '').trim().length < 200) {
+        const { document: fallbackDoc } = parseHTML(html);
+        const mainContent = fallbackDoc.querySelector('main, article, [role="main"]');
+        if (mainContent) {
+          const fallbackContent = htmlToCleanParagraphs(mainContent.innerHTML);
+          if (fallbackContent && fallbackContent.replace(/<[^>]+>/g, '').trim().length > (cleanedContent?.replace(/<[^>]+>/g, '').trim().length || 0)) {
+            cleanedContent = fallbackContent;
+          }
+        }
+      }
+    }
     
-    if (!article) {
-      console.warn('Readability failed to extract article content');
+    if (!cleanedContent) {
+      console.warn('All extraction methods failed');
       return null;
     }
     
-    // Convert to clean text paragraphs (no images, videos, complex HTML)
-    let cleanedContent = htmlToCleanParagraphs(article.content);
+    // Remove images and captions from the extracted content
+    cleanedContent = removeImagesAndCaptions(cleanedContent);
     
     // Insert callouts that weren't captured by Readability
     for (const callout of callouts) {

@@ -7,6 +7,7 @@ export interface SuggestedThreadDialogProps {
   suggestedThreadName: string;
   onUseSuggested: () => void;
   onKeepUnorganized: () => void;
+  onClose?: () => void;
 }
 
 /**
@@ -18,6 +19,7 @@ export default function SuggestedThreadDialog({
   suggestedThreadName,
   onUseSuggested,
   onKeepUnorganized,
+  onClose,
 }: SuggestedThreadDialogProps) {
   // Don't render on server or if closed
   if (typeof document === 'undefined' || !isOpen) {
@@ -44,8 +46,9 @@ export default function SuggestedThreadDialog({
       }}
       onClick={(e) => {
         // Close dialog if clicking on the overlay (but not the dialog content)
+        // Just close, don't submit - user can click buttons to submit
         if (e.target === e.currentTarget) {
-          onKeepUnorganized();
+          onClose ? onClose() : onKeepUnorganized();
         }
       }}
     >

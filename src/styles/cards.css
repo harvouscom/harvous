@@ -773,6 +773,30 @@
   border-radius: 12px;
   flex-shrink: 0;
   width: 100%;
+  position: relative;
+}
+
+.card-image-link__remove-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.card-image-link__image:hover .card-image-link__remove-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Show remove button on touch devices */
+@media (hover: none) {
+  .card-image-link__remove-button {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .card-image-link__header {

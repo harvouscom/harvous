@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
 import Icon from './Icon';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 // Note Item Component with hover state
 const NoteItem: React.FC<{
@@ -317,7 +318,7 @@ const ThreadItem: React.FC<{
               {item.count !== undefined && item.count !== null && item.count > 0 && (
                 <div className="badge-count" style={{ flexShrink: 0 }}>
                   <span className="badge-number">
-                    {item.count}
+                    {formatBadgeCount(item.count)}
                   </span>
                 </div>
               )}

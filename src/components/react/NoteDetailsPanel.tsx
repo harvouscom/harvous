@@ -8,6 +8,7 @@ import ButtonSmall from './ButtonSmall';
 import NewTagPanel from './NewTagPanel';
 import NewThreadPanel from './NewThreadPanel';
 import { toast } from '@/utils/toast';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 interface Thread {
   id: string;
@@ -545,7 +546,7 @@ export default function NoteDetailsPanel({
                           >
                             <span className="tab-btn__label">Notes</span>
                             <div className="badge-count">
-                              <span className="badge-number">{localReferencingNotes.length}</span>
+                              <span className="badge-number">{formatBadgeCount(localReferencingNotes.length)}</span>
                             </div>
                             {activeTab === 'notes' && (
                               <div className="tab-btn__indicator">
@@ -564,7 +565,7 @@ export default function NoteDetailsPanel({
                         >
                           <span className="tab-btn__label">Threads</span>
                           <div className="badge-count">
-                            <span className="badge-number">{localThreads.length}</span>
+                            <span className="badge-number">{formatBadgeCount(localThreads.length)}</span>
                           </div>
                           {activeTab === 'threads' && (
                             <div className="tab-btn__indicator">
@@ -582,7 +583,7 @@ export default function NoteDetailsPanel({
                         >
                           <span className="tab-btn__label">Tags</span>
                           <div className="badge-count">
-                            <span className="badge-number">{localTags.length}</span>
+                            <span className="badge-number">{formatBadgeCount(localTags.length)}</span>
                           </div>
                           {activeTab === 'tags' && (
                             <div className="tab-btn__indicator">

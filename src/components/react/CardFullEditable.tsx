@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ButtonSmall from './ButtonSmall';
+import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
@@ -49,6 +50,7 @@ export default function CardFullEditable({
   const [hasChanges, setHasChanges] = useState(false);
   const [displayTitle, setDisplayTitle] = useState(title);
   const [displayContent, setDisplayContent] = useState(content);
+  const [imageRemoved, setImageRemoved] = useState(false);
   
   const titleInputRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -570,15 +572,99 @@ export default function CardFullEditable({
       >
         <div className="card-image-link" style={{ gap: '1rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {/* Full-width image at top */}
-          {resourceImage && (
+          {resourceImage && !imageRemoved && (
             <div 
               className="card-image-link__image"
               style={{ 
                 backgroundImage: `url('${resourceImage}')`,
                 minHeight: '180px',
-                flexShrink: 0
+                flexShrink: 0,
+                position: 'relative'
               }}
-            />
+            >
+              {/* Remove image button - only show on hover - TEMPORARILY DISABLED */}
+              {/* <div className="card-image-link__remove-button">
+                <ActionButton
+                  variant="Close"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    
+                    // Update resource metadata to remove image (don't hide immediately to avoid flicker)
+                    if (noteId) {
+                      try {
+                        // Use the notes update endpoint which supports resourceImage updates
+                        const response = await fetch(`/api/notes/update`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            noteId: noteId,
+                            title: displayTitle,
+                            content: displayContent,
+                            resourceImage: ''
+                          }),
+                          credentials: 'include'
+                        });
+                        
+                        if (response.ok) {
+                          const result = await response.json();
+                          if (result.success) {
+                            // Only hide and reload after successful update
+                            setImageRemoved(true);
+                            // Reload the page to reflect the change
+                            window.location.reload();
+                          } else {
+                            // If update fails, show error
+                            const errorMessage = result.error || 'Error removing image. Please try again.';
+                            window.dispatchEvent(new CustomEvent('toast', {
+                              detail: {
+                                message: errorMessage,
+                                type: 'error'
+                              }
+                            }));
+                          }
+                        } else {
+                          // If response not ok, try to parse error
+                          try {
+                            const errorResult = await response.json();
+                            window.dispatchEvent(new CustomEvent('toast', {
+                              detail: {
+                                message: errorResult.error || 'Error removing image. Please try again.',
+                                type: 'error'
+                              }
+                            }));
+                          } catch {
+                            window.dispatchEvent(new CustomEvent('toast', {
+                              detail: {
+                                message: 'Error removing image. Please try again.',
+                                type: 'error'
+                              }
+                            }));
+                          }
+                        }
+                      } catch (error: any) {
+                        console.error('Error removing image:', error);
+                        window.dispatchEvent(new CustomEvent('toast', {
+                          detail: {
+                            message: 'Error removing image. Please try again.',
+                            type: 'error'
+                          }
+                        }));
+                      }
+                    } else {
+                      // No noteId, just hide it locally
+                      setImageRemoved(true);
+                    }
+                  }}
+                  aria-label="Remove image"
+                  className=""
+                  style={{
+                    width: '32px',
+                    height: '32px'
+                  }}
+                />
+              </div> */}
+            </div>
           )}
           
           {/* Header with title and newspaper icon */}

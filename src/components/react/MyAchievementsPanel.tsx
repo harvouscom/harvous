@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatBadgeCount } from '@/utils/badge-count';
 import SquareButton from './SquareButton';
 import Icon from './Icon';
 
@@ -130,7 +131,7 @@ export default function MyAchievementsPanel({
                           <div className="p-[20px] flex-shrink-0">
                             <div className="badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
                               <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                                {xpData.allSeasons.length}
+                                {formatBadgeCount(xpData.allSeasons.length)}
                               </span>
                             </div>
                           </div>

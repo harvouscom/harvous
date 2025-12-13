@@ -5,6 +5,7 @@ import AddToSpaceSection from './AddToSpaceSection';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import Icon from './Icon';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 interface Note {
   id: string;
@@ -446,7 +447,7 @@ export default function EditSpacePanel({
                 (thread.noteCount !== undefined && thread.noteCount !== null && thread.noteCount > 0)) && (
                 <div className="badge-count" style={{ flexShrink: 0 }}>
                   <span className="badge-number">
-                    {thread.count ?? thread.noteCount ?? 0}
+                    {formatBadgeCount(thread.count ?? thread.noteCount)}
                   </span>
                 </div>
               )}

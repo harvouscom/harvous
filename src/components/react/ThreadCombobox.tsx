@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 interface Thread {
   id: string;
@@ -62,7 +63,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
         onClick={() => setOpen(!open)}
         className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full flex items-center justify-between"
         style={{ 
-          backgroundImage: selectedThreadObj?.backgroundGradient || 'var(--color-gradient-gray)',
+          backgroundImage: selectedThreadObj?.backgroundGradient || (isSuggestedNewThread ? 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)' : 'var(--color-gradient-gray)'),
           boxShadow: 'none'
         }}
       >
@@ -78,7 +79,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             <div className="p-[20px]">
               <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
                 <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                  {selectedThreadObj?.noteCount || 0}
+                  {formatBadgeCount(selectedThreadObj?.noteCount)}
                 </span>
               </div>
             </div>
@@ -118,7 +119,12 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             `}</style>
             
             {/* Create Thread Suggestion - show if suggestedThreadName exists and no matching thread found */}
-            {suggestedThreadName && onCreateThread && !filteredThreads.some(t => t.title === editedThreadName || t.title === suggestedThreadName) && (
+            {suggestedThreadName && onCreateThread && !filteredThreads.some(t => {
+              const threadTitle = t.title.trim().toLowerCase();
+              const editedName = editedThreadName.trim().toLowerCase();
+              const suggestedName = suggestedThreadName.trim().toLowerCase();
+              return threadTitle === editedName || threadTitle === suggestedName;
+            }) && (
               <div
                 className="relative group"
                 style={{
@@ -148,25 +154,37 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       </svg>
                     </div>
                     
-                    {/* Editable input - matches thread title styling */}
-                    <input
-                      type="text"
-                      value={editedThreadName}
-                      onChange={(e) => setEditedThreadName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          if (editedThreadName.trim()) {
-                            onCreateThread(editedThreadName.trim());
-                            setOpen(false);
-                            setSearchValue('');
+                    {/* Editable input with suggested badge - matches thread title styling */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={editedThreadName}
+                        onChange={(e) => setEditedThreadName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (editedThreadName.trim()) {
+                              onCreateThread(editedThreadName.trim());
+                              setOpen(false);
+                              setSearchValue('');
+                            }
                           }
-                        }
-                      }}
-                      className="flex-1 font-sans font-bold text-[var(--color-deep-grey)] text-[16px] bg-transparent border-none outline-none min-w-0"
-                      placeholder={suggestedThreadName}
-                      autoFocus
-                    />
+                        }}
+                        className="flex-1 font-sans font-bold text-[var(--color-deep-grey)] text-[16px] bg-transparent border-none outline-none min-w-0"
+                        placeholder={suggestedThreadName}
+                        autoFocus
+                      />
+                      
+                      {/* Suggested badge */}
+                      <span 
+                        className="px-2 py-0.5 rounded-full text-[11px] font-sans font-medium text-[var(--color-stone-grey)] whitespace-nowrap"
+                        style={{ 
+                          backgroundColor: 'var(--color-light-paper)',
+                        }}
+                      >
+                        Suggested
+                      </span>
+                    </div>
                     
                     {/* Confirm button using ActionButton */}
                     <ActionButton
@@ -197,6 +215,11 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                   ? "var(--color-paper)" 
                   : (thread.color ? `var(--color-${thread.color})` : "var(--color-purple)");
                 
+                // Check if this thread matches the suggested thread name (case-insensitive, trimmed)
+                const matchesSuggestedName = suggestedThreadName && 
+                  thread.title.trim().toLowerCase() === suggestedThreadName.trim().toLowerCase();
+                const isSuggested = thread.isSuggested || matchesSuggestedName;
+                
                 return (
                   <div
                     key={thread.id}
@@ -226,7 +249,10 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       />
                       
                       {/* Content */}
-                      <div className="flex items-center gap-6 pl-3 pr-12 h-full">
+                      <div 
+                        className="flex items-center gap-6 pl-3 pr-12 h-full"
+                        style={{ backgroundColor: 'white' }}
+                      >
                         {/* User icon (Private) or User group icon (Shared) - positioned on colored background */}
                         <div className="relative shrink-0 size-5">
                           {thread.isPublic === true ? (
@@ -249,15 +275,15 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                             {thread.title}
                           </div>
                           
-                          {/* Suggestion badge */}
-                          {thread.isSuggested && thread.suggestedReason && (
+                          {/* Suggestion badge - show if thread is suggested OR matches suggestedThreadName */}
+                          {isSuggested && (
                             <span 
                               className="px-2 py-0.5 rounded-full text-[11px] font-sans font-medium text-[var(--color-stone-grey)] whitespace-nowrap"
                               style={{ 
                                 backgroundColor: 'var(--color-light-paper)',
                               }}
                             >
-                              {thread.suggestedReason}
+                              {thread.suggestedReason || 'Suggested'}
                             </span>
                           )}
                         </div>

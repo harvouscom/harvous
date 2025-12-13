@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { marked } from 'marked';
 import Icon from '../Icon';
+import CardNote from '../CardNote';
+import ActionButton from '../ActionButton';
 import { normalizeUrl } from '@/utils/validation';
 
 export interface NewResourcePanelProps {
@@ -8,6 +11,8 @@ export interface NewResourcePanelProps {
   nextNoteId: string;
   onMetadataFetched?: (metadata: { title: string; description: string; image: string; articleContent?: string; siteName?: string }) => void;
   onSuggestedThread?: (threadId: string, threadTitle: string) => void;
+  onScriptureCountChange?: (count: number) => void;
+  onDuplicateDetected?: (duplicateInfo: { exists: boolean; noteId?: string; simpleNoteId?: number; title?: string; description?: string; image?: string; url?: string } | null) => void;
 }
 
 /**
@@ -20,6 +25,8 @@ export default function NewResourcePanel({
   nextNoteId,
   onMetadataFetched,
   onSuggestedThread,
+  onScriptureCountChange,
+  onDuplicateDetected,
 }: NewResourcePanelProps) {
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   const [metadata, setMetadata] = useState<{ title: string; description: string; image: string; articleContent?: string; siteName?: string } | null>(null);
@@ -28,6 +35,8 @@ export default function NewResourcePanel({
   const [fetchAttempted, setFetchAttempted] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [isPasteEvent, setIsPasteEvent] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<{ exists: boolean; noteId?: string; simpleNoteId?: number; title?: string; description?: string; image?: string; url?: string } | null>(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutoSelectedThreadRef = useRef(false);
@@ -44,6 +53,9 @@ export default function NewResourcePanel({
     setDetectedScriptures([]);
     setFetchAttempted(false);
     setUrlError(null);
+    setDuplicateInfo(null);
+    setImageRemoved(false);
+    onDuplicateDetected?.(null);
     hasAutoSelectedThreadRef.current = false;
     inputRef.current?.focus();
   };
@@ -76,6 +88,9 @@ export default function NewResourcePanel({
       setIsDetectingScriptures(false);
       setFetchAttempted(false);
       setUrlError(null);
+      setDuplicateInfo(null);
+      setImageRemoved(false);
+      onDuplicateDetected?.(null);
       hasAutoSelectedThreadRef.current = false;
       return;
     }
@@ -119,14 +134,56 @@ export default function NewResourcePanel({
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.metadata) {
-            setMetadata(data.metadata);
+            // If user removed the image, don't restore it
+            const metadataToSet = imageRemoved 
+              ? { ...data.metadata, image: '' }
+              : data.metadata;
+            setMetadata(metadataToSet);
             setUrlError(null);
             if (onMetadataFetched) {
-              onMetadataFetched(data.metadata);
+              onMetadataFetched(metadataToSet);
+            }
+
+            // Check for duplicate resource
+            try {
+              const duplicateResponse = await fetch('/api/resource/check-duplicate', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({ url: validUrl }),
+              });
+
+              if (duplicateResponse.ok) {
+                const duplicateData = await duplicateResponse.json();
+                if (duplicateData.exists) {
+                  const duplicateInfo = {
+                    exists: true,
+                    noteId: duplicateData.noteId,
+                    simpleNoteId: duplicateData.simpleNoteId,
+                    title: duplicateData.title,
+                    description: duplicateData.description || undefined,
+                    image: duplicateData.image || undefined,
+                    url: duplicateData.url || undefined,
+                  };
+                  setDuplicateInfo(duplicateInfo);
+                  onDuplicateDetected?.(duplicateInfo);
+                } else {
+                  setDuplicateInfo({ exists: false });
+                  onDuplicateDetected?.(null);
+                }
+              }
+            } catch (error) {
+              // Non-critical - duplicate check failure shouldn't block preview
+              console.error('Error checking for duplicate resource:', error);
+              setDuplicateInfo({ exists: false });
+              onDuplicateDetected?.(null);
             }
 
             // Reset detected scriptures before detecting new ones
             setDetectedScriptures([]);
+            onScriptureCountChange?.(0);
             
             // Detect scripture references if article content is available
             if (data.metadata.articleContent) {
@@ -142,11 +199,17 @@ export default function NewResourcePanel({
                 if (scriptureResponse.ok) {
                   const scriptureData = await scriptureResponse.json();
                   if (scriptureData.references && scriptureData.references.length > 0) {
-                    setDetectedScriptures(scriptureData.references.map((ref: any) => ({
+                    const scriptures = scriptureData.references.map((ref: any) => ({
                       reference: ref.reference || ref.text || '',
                       text: ref.text || ref.reference || '',
-                    })));
+                    }));
+                    setDetectedScriptures(scriptures);
+                    onScriptureCountChange?.(scriptures.length);
+                  } else {
+                    onScriptureCountChange?.(0);
                   }
+                } else {
+                  onScriptureCountChange?.(0);
                 }
               } catch (error) {
                 // Non-critical - scripture detection failure shouldn't block preview
@@ -219,6 +282,19 @@ export default function NewResourcePanel({
     return metadata.articleContent || metadata.description || '';
   };
 
+  const formatPreviewHtml = (raw: string): string => {
+    const trimmed = (raw || '').trim();
+    if (!trimmed) return '';
+    
+    // Trust the extractor completely - it already produces clean HTML
+    // Only handle edge case: if it's pure plain text, wrap in paragraph
+    if (!trimmed.includes('<')) {
+      return `<p>${trimmed}</p>`;
+    }
+    
+    return trimmed;
+  };
+
   // Get full content for preview (no truncation - show everything)
   const getFullPreview = (): string => {
     return getPreviewContent();
@@ -236,7 +312,7 @@ export default function NewResourcePanel({
   })();
 
   return (
-    <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
+    <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start pb-3 pt-3 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
       {/* URL Input - matches SearchInput pattern */}
       <div className="w-full shrink-0">
         <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full" style={{ gridTemplateColumns: '1fr auto' }}>
@@ -282,6 +358,7 @@ export default function NewResourcePanel({
             {urlError}
           </div>
         )}
+
       </div>
 
       {/* Preview Area - Takes up available height with scrolling for long content */}
@@ -295,92 +372,130 @@ export default function NewResourcePanel({
           overflowY: 'auto'
         }}
       >
-        {/* Skeleton Loader - simple light gray background */}
-        {(isFetchingMetadata || isDetectingScriptures) && !metadata && (
-          <div 
-            className="card-image-link"
-            style={{ 
-              flex: 1,
-              backgroundColor: 'var(--color-light-paper)',
-              borderRadius: '12px',
-              animation: 'fadeIn 0.2s ease-out'
-            }}
+        {/* Show CardNote if duplicate exists */}
+        {duplicateInfo?.exists ? (
+          <CardNote
+            noteType="resource"
+            resourceTitle={duplicateInfo.title}
+            resourceDescription={duplicateInfo.description}
+            resourceImage={duplicateInfo.image}
+            resourceUrl={duplicateInfo.url}
+            className="w-full"
+            showSource={false}
           />
-        )}
-
-        {/* Actual Preview using card-image-link layout */}
-        {metadata && (metadata.title || metadata.description || metadata.image) && (
-          <div 
-            className="card-image-link"
-            style={{
-              flex: 'none',
-              overflow: 'visible',
-              animation: 'fadeInUp 0.3s ease-out forwards'
-            }}
-          >
-            {/* Full-width image at top */}
-            {metadata.image && (
+        ) : (
+          <>
+            {/* Skeleton Loader - simple light gray background */}
+            {(isFetchingMetadata || isDetectingScriptures) && !metadata && (
               <div 
-                className="card-image-link__image card-image-link__bg--image"
+                className="card-image-link"
                 style={{ 
-                  backgroundImage: `url('${metadata.image}')`
+                  flex: 1,
+                  backgroundColor: 'var(--color-light-paper)',
+                  borderRadius: '12px',
+                  animation: 'fadeIn 0.2s ease-out'
                 }}
               />
             )}
-            
-            {/* Header with title and newspaper icon */}
-            <div className="card-image-link__header">
-              <div className="card-image-link__title">
-                <p>{metadata.title || 'Untitled Resource'}</p>
-              </div>
-              <div className="card-image-link__bookmark">
-                <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-              </div>
-            </div>
-            
-            {/* Description or Article Content - show full content with proper paragraph spacing */}
-            {(metadata.description || metadata.articleContent) && (
-              <div className="card-image-link__content">
-                <div 
-                  className="card-image-link__content-text resource-preview-content"
-                  dangerouslySetInnerHTML={{ 
-                    __html: getFullPreview() || metadata.description || '' 
-                  }}
-                  style={{
-                    fontFamily: 'var(--font-sans)',
-                    fontSize: '14px',
-                    lineHeight: '1.6',
-                    color: 'var(--color-deep-grey)'
-                  }}
-                />
+
+            {/* Actual Preview using card-image-link layout */}
+            {metadata && (metadata.title || metadata.description || metadata.image) && (
+              <div 
+                className="card-image-link"
+                style={{
+                  flex: 'none',
+                  overflow: 'visible',
+                  animation: 'fadeInUp 0.3s ease-out forwards'
+                }}
+              >
+                {/* Full-width image at top */}
+                {metadata.image && (
+                  <div 
+                    className="card-image-link__image card-image-link__bg--image"
+                    style={{ 
+                      backgroundImage: `url('${metadata.image}')`,
+                      position: 'relative'
+                    }}
+                  >
+                    {/* Remove image button */}
+                    <ActionButton
+                      variant="Close"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setImageRemoved(true);
+                        const updatedMetadata = { ...metadata, image: '' };
+                        setMetadata(updatedMetadata);
+                        if (onMetadataFetched) {
+                          onMetadataFetched(updatedMetadata);
+                        }
+                      }}
+                      aria-label="Remove image"
+                      className=""
+                      style={{
+                        position: 'absolute',
+                        top: '12px',
+                        right: '12px',
+                        width: '32px',
+                        height: '32px'
+                      }}
+                    />
+                  </div>
+                )}
+                
+                {/* Header with title and newspaper icon */}
+                <div className="card-image-link__header">
+                  <div className="card-image-link__title">
+                    <p>{metadata.title || 'Untitled Resource'}</p>
+                  </div>
+                  <div className="card-image-link__bookmark">
+                    <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                  </div>
+                </div>
+                
+                {/* Description or Article Content - show full content with proper paragraph spacing */}
+                {(metadata.description || metadata.articleContent) && (
+                  <div className="card-image-link__content">
+                    <div 
+                      className="card-image-link__content-text resource-preview-content"
+                      dangerouslySetInnerHTML={{ 
+                        __html: formatPreviewHtml(getFullPreview() || metadata.description || '') 
+                      }}
+                      style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: '14px',
+                        lineHeight: '1.6',
+                        color: 'var(--color-deep-grey)'
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
-            
-          </div>
-        )}
 
-        {/* Empty state - only show after fetch attempted and failed */}
-        {!isFetchingMetadata && !metadata && fetchAttempted && hasValidUrl && !urlError && (
-          <div 
-            style={{
-              height: '88px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'var(--color-snow-white)',
-              borderRadius: '12px',
-              color: 'var(--color-pebble-grey)',
-              fontSize: '13px',
-              fontFamily: 'var(--font-sans)'
-            }}
-          >
-            Unable to load preview
-          </div>
+            {/* Empty state - only show after fetch attempted and failed */}
+            {!isFetchingMetadata && !metadata && fetchAttempted && hasValidUrl && !urlError && (
+              <div 
+                style={{
+                  height: '88px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'var(--color-snow-white)',
+                  borderRadius: '12px',
+                  color: 'var(--color-pebble-grey)',
+                  fontSize: '13px',
+                  fontFamily: 'var(--font-sans)'
+                }}
+              >
+                Unable to load preview
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* Source bar - fixed at bottom of panel */}
-      {metadata && (metadata.title || metadata.description || metadata.image) && (
+      {/* Source bar - fixed at bottom of panel, outside scrollable area */}
+      {!duplicateInfo?.exists && metadata && (metadata.title || metadata.description || metadata.image) && (
         <div 
           className="card-image-link__source"
           style={{
@@ -443,21 +558,44 @@ export default function NewResourcePanel({
         .resource-preview-content p:last-child {
           margin-bottom: 0;
         }
+        /* Ensure spacing before headings - always add top margin */
         .resource-preview-content h1,
         .resource-preview-content h2,
         .resource-preview-content h3,
         .resource-preview-content h4,
         .resource-preview-content h5,
         .resource-preview-content h6 {
-          margin: 1.5em 0 0.5em 0;
+          margin: 2em 0 0.5em 0;
           font-weight: 700;
           line-height: 1.3;
+          page-break-after: avoid;
         }
+        /* First heading at top of content doesn't need top margin */
         .resource-preview-content h1:first-child,
         .resource-preview-content h2:first-child,
         .resource-preview-content h3:first-child,
-        .resource-preview-content h4:first-child {
+        .resource-preview-content h4:first-child,
+        .resource-preview-content h5:first-child,
+        .resource-preview-content h6:first-child {
           margin-top: 0;
+        }
+        /* Ensure paragraphs before headings have extra bottom margin */
+        .resource-preview-content p + h1,
+        .resource-preview-content p + h2,
+        .resource-preview-content p + h3,
+        .resource-preview-content p + h4,
+        .resource-preview-content p + h5,
+        .resource-preview-content p + h6 {
+          margin-top: 2em;
+        }
+        /* Ensure blockquotes before headings have spacing */
+        .resource-preview-content blockquote + h1,
+        .resource-preview-content blockquote + h2,
+        .resource-preview-content blockquote + h3,
+        .resource-preview-content blockquote + h4,
+        .resource-preview-content blockquote + h5,
+        .resource-preview-content blockquote + h6 {
+          margin-top: 2em;
         }
         .resource-preview-content ul,
         .resource-preview-content ol {

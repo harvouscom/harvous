@@ -38,7 +38,7 @@ export interface UseNoteSubmissionOptions {
 export interface UseNoteSubmissionReturn {
   isSubmitting: boolean;
   setIsSubmitting: (submitting: boolean) => void;
-  handleSubmit: (e: React.FormEvent) => Promise<void>;
+  handleSubmit: (e: React.FormEvent, overrideThreadId?: string) => Promise<void>;
   handleSaveAndClose: () => Promise<void>;
 }
 
@@ -153,7 +153,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
   }, [addToNavigationHistory]);
 
   // Handle form submission
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent, overrideThreadId?: string) => {
     e.preventDefault();
     
     if (isSubmitting) return;
@@ -235,7 +235,9 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       }
       
       formData.set('content', editorContent);
-      formData.set('threadId', getSelectedThread().id);
+      // Allow threadId override (useful when state hasn't updated yet)
+      const threadIdToUse = overrideThreadId || getSelectedThread().id;
+      formData.set('threadId', threadIdToUse);
       formData.set('noteType', noteType);
       
       if (addToSpace && currentSpace && currentSpace.id) {
@@ -278,12 +280,16 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
         }
         
-        const actualThreadId = getSelectedThread().id;
+        // Use overrideThreadId if provided, otherwise get from selected thread
+        const actualThreadId = overrideThreadId || getSelectedThread().id;
         
         // Add thread to navigation history
         if (result.note && actualThreadId && addToNavigationHistory) {
-          const selectedThreadData = getSelectedThread();
-          const threadData = selectedThreadData || threadOptions.find(thread => thread.id === actualThreadId);
+          // When overrideThreadId is provided, look it up directly from threadOptions
+          // Otherwise use getSelectedThread() which might have stale state
+          const threadData = overrideThreadId 
+            ? threadOptions.find(thread => thread.id === actualThreadId) || getSelectedThread()
+            : getSelectedThread();
           
           if (threadData && actualThreadId !== 'thread_unorganized') {
             updateNavigationHistory(threadData, false);

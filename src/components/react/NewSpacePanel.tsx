@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { formatBadgeCount } from '@/utils/badge-count';
 import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import AddToSpaceSection from './AddToSpaceSection';
@@ -537,7 +538,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 (thread.noteCount !== undefined && thread.noteCount !== null && thread.noteCount > 0)) && (
                 <div className="badge-count" style={{ flexShrink: 0 }}>
                   <span className="badge-number">
-                    {thread.count ?? thread.noteCount ?? 0}
+                    {formatBadgeCount(thread.count ?? thread.noteCount)}
                   </span>
                 </div>
               )}

@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, NoteThreads, eq, and } from 'astro:db';
+import { db, Notes, Threads, NoteThreads, ResourceMetadata, eq, and } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
@@ -35,7 +35,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
 
     // Parse request body
     const body = await request.json();
-    const { noteId, title, content } = body;
+    const { noteId, title, content, resourceImage } = body;
 
     if (!noteId) {
       return new Response(JSON.stringify({ error: 'Note ID is required' }), {
@@ -129,6 +129,27 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     } catch (error) {
       // Don't fail note update if auto-tagging fails
       // Auto-tag regeneration failed (non-critical)
+    }
+
+    // Update ResourceMetadata if this is a resource note and resourceImage is provided
+    if (existingNote.noteType === 'resource' && resourceImage !== undefined) {
+      try {
+        const resourceMetadata = await db.select()
+          .from(ResourceMetadata)
+          .where(eq(ResourceMetadata.noteId, noteId))
+          .get();
+        
+        if (resourceMetadata) {
+          await db.update(ResourceMetadata)
+            .set({ 
+              sourceImage: resourceImage || null
+            })
+            .where(eq(ResourceMetadata.noteId, noteId));
+        }
+      } catch (error: any) {
+        // Don't fail note update if ResourceMetadata update fails
+        console.error('Error updating ResourceMetadata (non-critical):', error);
+      }
     }
 
     // Process scripture references in the note content (background processing)

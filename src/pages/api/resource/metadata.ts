@@ -457,7 +457,7 @@ export const POST: APIRoute = async ({ request }) => {
     let articleContent: string | null = null;
     if (extractContent === true) {
       try {
-        articleContent = extractArticleContent(html, normalizedUrl);
+        articleContent = await extractArticleContent(html, normalizedUrl);
       } catch (error) {
         console.error('Error extracting article content:', error);
         // Non-critical - continue without article content

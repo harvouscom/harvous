@@ -4,6 +4,7 @@ import SpaceButton from './SpaceButton';
 import Avatar from './Avatar';
 import { getThreadGradientCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 import Icon from '../Icon';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 /**
  * Check if Clerk authentication is ready
@@ -449,7 +450,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           </div>
                           <div className="space-btn__badge-wrapper">
                             <div className="badge-count">
-                              <span className="badge-number">{inboxCount}</span>
+                              <span className="badge-number">{formatBadgeCount(inboxCount)}</span>
                             </div>
                           </div>
                         </div>
@@ -483,7 +484,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           <div className="space-btn__badge-wrapper">
                             <div className="badge-count">
                               <span className="badge-number" style={{ color: getTextColor(activeSpace.backgroundGradient, true) }}>
-                                {activeSpace.totalItemCount}
+                                {formatBadgeCount(activeSpace.totalItemCount)}
                               </span>
                             </div>
                           </div>
@@ -518,7 +519,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           <div className="space-btn__badge-wrapper">
                             <div className="badge-count">
                               <span className="badge-number" style={{ color: getTextColor(activeThread.backgroundGradient, true) }}>
-                                {activeThread.noteCount}
+                                {formatBadgeCount(activeThread.noteCount)}
                               </span>
                             </div>
                           </div>
@@ -569,7 +570,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   <Icon name="xmark" size={14} style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }} />
                                 ) : (
                                   <span className="badge-number" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}>
-                                    {activePersistentSpace.count || 0}
+                                    {formatBadgeCount(activePersistentSpace.count)}
                                   </span>
                                 )}
                               </div>
@@ -622,7 +623,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   <Icon name="xmark" size={14} style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }} />
                                 ) : (
                                   <span className="badge-number" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
-                                    {activePersistentThread.count || 0}
+                                    {formatBadgeCount(activePersistentThread.count)}
                                   </span>
                                 )}
                               </div>
@@ -700,7 +701,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                     <Icon name="xmark" size={14} style={{ color: getTextColor(space.backgroundGradient, false) }} />
                                   ) : (
                                     <span className="badge-number" style={{ color: getTextColor(space.backgroundGradient, false) }}>
-                                      {space.count || 0}
+                                      {formatBadgeCount(space.count)}
                                     </span>
                                   )}
                                 </div>
@@ -748,7 +749,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                     <Icon name="xmark" size={14} style={{ color: getTextColor(thread.backgroundGradient, false) }} />
                                   ) : (
                                     <span className="badge-number" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
-                                      {thread.count || 0}
+                                      {formatBadgeCount(thread.count)}
                                     </span>
                                   )}
                                 </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatBadgeCount } from '@/utils/badge-count';
 import { useNavigation } from './NavigationContext';
 import { getThreadTextColorCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 
@@ -163,7 +164,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
           <div className="space-btn__badge-wrapper">
             <div className="badge-count">
               <span className="badge-number">
-                {String(count ?? 0)}
+                {formatBadgeCount(count)}
               </span>
             </div>
           </div>
@@ -194,7 +195,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
             <div className="space-btn__badge-wrapper">
               <div className="badge-count">
                 <span className="badge-number">
-                  {String(count ?? 0)}
+                  {formatBadgeCount(count)}
                 </span>
               </div>
             </div>
@@ -266,7 +267,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
             <div className="space-btn__badge-wrapper">
               <div className="badge-count">
                 <span className="badge-number">
-                  {String(count ?? 0)}
+                  {formatBadgeCount(count)}
                 </span>
               </div>
             </div>

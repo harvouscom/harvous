@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 interface AddableItem {
   id: string;
@@ -203,7 +204,7 @@ export default function AddToSection({
                   {item.count !== undefined && item.count !== null && (
                     <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl px-2 h-5 flex-shrink-0">
                       <span className="text-[11px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                        {String(item.count ?? 0)}
+                        {formatBadgeCount(item.count)}
                       </span>
                     </div>
                   )}

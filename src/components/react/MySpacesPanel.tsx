@@ -3,6 +3,7 @@ import SquareButton from './SquareButton';
 import SearchInput from './SearchInput';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 interface Space {
   id: string;
@@ -256,7 +257,7 @@ export default function MySpacesPanel({
             {space.totalItemCount > 0 && (
               <div className="badge-count">
                 <span className="badge-number">
-                  {space.totalItemCount}
+                  {formatBadgeCount(space.totalItemCount)}
                 </span>
               </div>
             )}
