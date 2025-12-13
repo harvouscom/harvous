@@ -13,6 +13,9 @@ import {
   useNoteSubmission,
 } from './note-panel/hooks';
 
+// Import Thread type from useThreadSelection
+import type { Thread } from './note-panel/hooks/useThreadSelection';
+
 // Import extracted components
 import {
   DefaultNoteForm,
@@ -167,11 +170,28 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       const threadId = customEvent.detail?.actualThreadId || note?.threadId;
       
       if (threadId) {
-        threadSelection.setThreadOptions(prev => prev.map(thread => 
-          thread.id === threadId 
-            ? { ...thread, noteCount: (thread.noteCount || 0) + 1 }
-            : thread
-        ));
+        // Only update the count for the actual thread where the note was created
+        // If actualThreadId is provided, use that (it's the correct thread from junction table)
+        // If not, use note.threadId but only if it's not unorganized (to avoid double-counting)
+        const targetThreadId = customEvent.detail?.actualThreadId || (note?.threadId !== 'thread_unorganized' ? note?.threadId : null);
+        
+        if (targetThreadId && targetThreadId !== 'thread_unorganized') {
+          threadSelection.setThreadOptions(prev => prev.map(thread => 
+            thread.id === targetThreadId 
+              ? { ...thread, noteCount: (thread.noteCount || 0) + 1 }
+              : thread
+          ));
+        } else if (targetThreadId === 'thread_unorganized') {
+          // Only increment unorganized if actualThreadId is explicitly 'thread_unorganized'
+          // (not if it's just the fallback from note.threadId)
+          if (customEvent.detail?.actualThreadId === 'thread_unorganized') {
+            threadSelection.setThreadOptions(prev => prev.map(thread => 
+              thread.id === 'thread_unorganized' 
+                ? { ...thread, noteCount: (thread.noteCount || 0) + 1 }
+                : thread
+            ));
+          }
+        }
       }
       
       scheduleLoadThreads();
@@ -344,12 +364,12 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
     // 2. Selected thread is Unorganized (user hasn't manually selected the suggested thread)
     // 3. A suggested thread name exists (either existing thread or new thread name)
     // 4. There are multiple scripture references detected
-    const shouldShowDialog = 
-      form.noteType === 'resource' &&
-      threadSelection.selectedThread === 'Unorganized' &&
-      suggestedThreadName &&
-      suggestedThreadName.trim() !== '' &&
-      scriptureCount > 1;
+    const isResource = form.noteType === 'resource';
+    const isUnorganized = threadSelection.selectedThread === 'Unorganized';
+    const hasSuggestedThread = suggestedThreadName && suggestedThreadName.trim() !== '';
+    const hasMultipleScriptures = scriptureCount > 1;
+    
+    const shouldShowDialog = isResource && isUnorganized && hasSuggestedThread && hasMultipleScriptures;
     
     if (shouldShowDialog) {
       e.preventDefault();
@@ -411,8 +431,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
           title: created.title,
           noteCount: 0,
           backgroundGradient: getThreadGradientCSS(created.color || 'paper'),
-          color: created.color ?? null,
-          isPublic: created.isPublic ?? false,
+          color: created.color || null, // Ensure color is string | null, not undefined
         };
 
         // Ensure the new thread is available in the combobox options immediately.
