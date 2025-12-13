@@ -160,9 +160,31 @@ export const POST: APIRoute = async ({ request, locals }) => {
       )
       .all();
 
-    // Get note counts for each thread (count how many matching resource notes are in each thread)
+    // Check if any of the suggested threads match the suggested thread name
+    // Only suggest existing threads if their name matches the source name
+    const matchingThreads = suggestedThreads.filter(thread => {
+      if (!suggestedThreadName) return false;
+      // Case-insensitive comparison
+      return thread.title.trim().toLowerCase() === suggestedThreadName.trim().toLowerCase();
+    });
+
+    // If no threads match the source name, suggest creating a new thread instead
+    if (matchingThreads.length === 0) {
+      return new Response(JSON.stringify({
+        success: true,
+        suggestedThreadIds: [],
+        suggestedThreads: [],
+        suggestedThreadName, // Suggest creating a new thread with this name
+        domain,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Get note counts for each matching thread (count how many matching resource notes are in each thread)
     const threadNoteCounts = await Promise.all(
-      suggestedThreads.map(async (thread) => {
+      matchingThreads.map(async (thread) => {
         const matchingNotesInThread = await db
           .select()
           .from(NoteThreads)
@@ -182,7 +204,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
 
     // Format response with thread metadata
-    const suggestedThreadIds = suggestedThreads.map(thread => {
+    const suggestedThreadIds = matchingThreads.map(thread => {
       const noteCount = threadNoteCounts.find(tc => tc.threadId === thread.id)?.count || 0;
       return {
         id: thread.id,
@@ -199,7 +221,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       success: true,
       suggestedThreadIds: suggestedThreadIds.map(t => t.id),
       suggestedThreads: suggestedThreadIds,
-      suggestedThreadName: null, // No need to suggest creating new thread if we have matches
+      suggestedThreadName: null, // No need to suggest creating new thread if we have matching threads
       domain,
     }), {
       status: 200,

@@ -351,8 +351,9 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
   // Pattern 3: "Book Chapter" (single chapter without verses, e.g., "Matthew 5")
   // Must not be followed by a colon or dash to avoid matching partial references
   // Also must not be followed by space+digit (which might indicate a split reference like "Genesis 1 2:1-8")
+  // IMPORTANT: Must not match when followed by dash+digit (e.g., "Exodus 33-34" should not match "Exodus 3")
   const chapterOnlyPattern = new RegExp(
-    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)(?!:)(?!\\s*${dashPattern})(?!\\d)(?!\\s+\\d)`,
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)(?!:)(?!\\s*${dashPattern}\\s*\\d)(?!\\d)(?!\\s+\\d)`,
     'gi'
   );
 

@@ -558,44 +558,22 @@ export default function NewResourcePanel({
         .resource-preview-content p:last-child {
           margin-bottom: 0;
         }
-        /* Ensure spacing before headings - always add top margin */
+        /* Ensure paragraphs have bottom margin */
+        .resource-preview-content p {
+          margin-bottom: 1.5em;
+        }
+        /* Headings styling - no top margin */
         .resource-preview-content h1,
         .resource-preview-content h2,
         .resource-preview-content h3,
         .resource-preview-content h4,
         .resource-preview-content h5,
         .resource-preview-content h6 {
-          margin: 2em 0 0.5em 0;
+          margin-top: 0;
+          margin-bottom: 0.5em;
           font-weight: 700;
           line-height: 1.3;
           page-break-after: avoid;
-        }
-        /* First heading at top of content doesn't need top margin */
-        .resource-preview-content h1:first-child,
-        .resource-preview-content h2:first-child,
-        .resource-preview-content h3:first-child,
-        .resource-preview-content h4:first-child,
-        .resource-preview-content h5:first-child,
-        .resource-preview-content h6:first-child {
-          margin-top: 0;
-        }
-        /* Ensure paragraphs before headings have extra bottom margin */
-        .resource-preview-content p + h1,
-        .resource-preview-content p + h2,
-        .resource-preview-content p + h3,
-        .resource-preview-content p + h4,
-        .resource-preview-content p + h5,
-        .resource-preview-content p + h6 {
-          margin-top: 2em;
-        }
-        /* Ensure blockquotes before headings have spacing */
-        .resource-preview-content blockquote + h1,
-        .resource-preview-content blockquote + h2,
-        .resource-preview-content blockquote + h3,
-        .resource-preview-content blockquote + h4,
-        .resource-preview-content blockquote + h5,
-        .resource-preview-content blockquote + h6 {
-          margin-top: 2em;
         }
         .resource-preview-content ul,
         .resource-preview-content ol {
