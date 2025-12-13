@@ -219,9 +219,14 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
     const handleOpenNewResource = () => {
       if (isMobile) {
-        // Set noteType to resource before opening
+        // Set noteType to resource before opening - ensure it's set synchronously
+        // This must happen before openBottomSheet to ensure localStorage is available when component remounts
         localStorage.setItem('newNoteType', 'resource');
-        openBottomSheet('resource');
+        // Small delay to ensure localStorage write completes before remount
+        // The panelKey increment will force remount and re-read localStorage
+        requestAnimationFrame(() => {
+          openBottomSheet('resource');
+        });
       }
     };
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import ButtonSmall from './ButtonSmall';
 
 interface InfiniteScrollListProps<T> {
   initialItems: T[];
@@ -123,14 +122,8 @@ export default function InfiniteScrollList<T>({
       {hasMore && (
         <>
           <div ref={observerTarget} className="h-4" />
-          <div className="flex justify-end gap-2 mt-4 mb-3 shrink-0">
-            <ButtonSmall
-              state="Secondary"
-              onClick={handleLoadMore}
-              disabled={isLoading}
-            >
-              {isLoading ? 'Loading...' : 'Load More Items'}
-            </ButtonSmall>
+          <div className="text-[12px] text-[var(--color-stone-grey)] font-sans text-center mt-4 mb-3">
+            {isLoading ? 'Loading...' : 'Load more'}
           </div>
         </>
       )}
