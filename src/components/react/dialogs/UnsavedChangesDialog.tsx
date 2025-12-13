@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import ButtonSmall from '../ButtonSmall';
 
@@ -18,6 +18,26 @@ export default function UnsavedChangesDialog({
   onDiscard,
   onSaveAndClose,
 }: UnsavedChangesDialogProps) {
+  // Prevent body scroll when dialog is open
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = '';
+      }
+    };
+  }, [isOpen]);
+
   // Don't render on server or if closed
   if (typeof document === 'undefined' || !isOpen) {
     return null;

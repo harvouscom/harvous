@@ -50,6 +50,26 @@ export default function Drawer({
     }
   }, [externalIsOpen]);
 
+  // Prevent body scroll when drawer is open
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = '';
+      }
+    };
+  }, [isOpen]);
+
   const handleClose = () => {
     setIsOpen(false);
     onClose?.();
