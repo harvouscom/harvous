@@ -487,12 +487,14 @@ export default function Menu({
       <style>{`
         .menu {
           min-width: 223px;
+          box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
         }
         
         .menu-item {
           border: none !important;
           outline: none !important;
           box-shadow: none !important;
+          background-color: var(--color-snow-white);
         }
         
         .menu-item:hover {
