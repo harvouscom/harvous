@@ -9,8 +9,9 @@ import Icon from './Icon';
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
 
 // Title character limits
-const TITLE_SOFT_LIMIT = 150;  // Show warning
-const TITLE_HARD_LIMIT = 250;  // Maximum allowed
+const TITLE_SOFT_LIMIT = 30;  // Show counter when >= 30
+const TITLE_WARNING_LIMIT = 45;  // Red text when >= 45 (within 5 of limit)
+const TITLE_HARD_LIMIT = 50;  // Maximum allowed
 
 interface CardFullEditableProps {
   title: string;
@@ -51,8 +52,9 @@ export default function CardFullEditable({
   const [displayTitle, setDisplayTitle] = useState(title);
   const [displayContent, setDisplayContent] = useState(content);
   const [imageRemoved, setImageRemoved] = useState(false);
+  const [isTitleFocused, setIsTitleFocused] = useState(false);
   
-  const titleInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLTextAreaElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const contentDisplayRef = useRef<HTMLDivElement>(null);
   const editorInstanceRef = useRef<any>(null);
@@ -219,7 +221,7 @@ export default function CardFullEditable({
     
     // Focus immediately after state update
     if (focus === 'title') {
-      // Use requestAnimationFrame to ensure input is rendered
+      // Use requestAnimationFrame to ensure textarea is rendered
       requestAnimationFrame(() => {
         if (titleInputRef.current) {
           titleInputRef.current.focus();
@@ -406,8 +408,8 @@ export default function CardFullEditable({
     } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       saveChanges();
     } else {
-      // Handle Select All for title input (Cmd+A on Mac, Ctrl+A on Windows/Linux)
-      const target = e.target as HTMLInputElement;
+      // Handle Select All for title textarea (Cmd+A on Mac, Ctrl+A on Windows/Linux)
+      const target = e.target as HTMLTextAreaElement;
       if (target === titleInputRef.current) {
         if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
           e.preventDefault();
@@ -415,8 +417,8 @@ export default function CardFullEditable({
           return;
         }
         
-        // Auto-capitalize first letter for title input
-        // Check if cursor is at the start of the title input
+        // Auto-capitalize first letter for title textarea
+        // Check if cursor is at the start of the title textarea
         if (target.selectionStart === 0 && target.selectionEnd === 0) {
           // Cursor is at the start
           if (e.key.length === 1 && /^[a-z]$/.test(e.key)) {
@@ -446,7 +448,7 @@ export default function CardFullEditable({
     setHasChanges(editTitle !== displayTitle || newContent !== displayContent);
   };
 
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value.slice(0, TITLE_HARD_LIMIT); // Enforce hard limit
     setEditTitle(newValue);
     setHasChanges(newValue !== displayTitle || editContent !== displayContent);
@@ -685,12 +687,12 @@ export default function CardFullEditable({
                 </p>
               ) : (
                 <div>
-                  <input 
+                  <textarea 
                     ref={titleInputRef}
                     value={editTitle}
                     onChange={handleTitleChange}
-                    type="text"
                     maxLength={TITLE_HARD_LIMIT}
+                    rows={2}
                     className="w-full bg-transparent border-0 rounded focus:outline-none font-bold"
                     style={{
                       lineHeight: '1.2',
@@ -704,26 +706,13 @@ export default function CardFullEditable({
                       color: 'inherit',
                       boxSizing: 'border-box',
                       width: 'calc(100% + 16px)',
+                      resize: 'none',
                     }}
                     placeholder="Resource title"
                     onKeyDown={handleKeyDown}
+                    onFocus={() => setIsTitleFocused(true)}
+                    onBlur={() => setIsTitleFocused(false)}
                   />
-                  {/* Character counter */}
-                  {editTitle.length >= TITLE_SOFT_LIMIT && (
-                    <div 
-                      style={{
-                        fontSize: '11px',
-                        fontFamily: 'var(--font-sans)',
-                        textAlign: 'right',
-                        marginTop: '4px',
-                        color: editTitle.length >= TITLE_HARD_LIMIT 
-                          ? 'var(--color-caring-coral)' 
-                          : 'var(--color-graceful-gold)',
-                      }}
-                    >
-                      {editTitle.length}/{TITLE_HARD_LIMIT}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -772,21 +761,37 @@ export default function CardFullEditable({
                 </div>
                 
                 {/* Save/Cancel buttons */}
-                <div className="flex justify-end gap-2 mt-4 mb-3 shrink-0 px-3">
-                  <ButtonSmall
-                    state="Secondary"
-                    onClick={cancelEdit}
-                    disabled={isSaving}
-                  >
-                    Cancel
-                  </ButtonSmall>
-                  <ButtonSmall
-                    state="Default"
-                    onClick={saveChanges}
-                    disabled={!hasChanges || isSaving}
-                  >
-                    {isSaving ? 'Saving...' : 'Save'}
-                  </ButtonSmall>
+                <div className="flex items-center gap-2 mt-4 mb-3 shrink-0 px-3">
+                  {/* Character counter - only show when title is focused */}
+                  {isTitleFocused && editTitle.length >= TITLE_SOFT_LIMIT && (
+                    <div 
+                      style={{
+                        fontSize: '11px',
+                        fontFamily: 'var(--font-sans)',
+                        color: editTitle.length >= TITLE_WARNING_LIMIT 
+                          ? 'var(--color-red)' 
+                          : 'var(--color-deep-grey)',
+                      }}
+                    >
+                      {editTitle.length}/{TITLE_HARD_LIMIT}
+                    </div>
+                  )}
+                  <div className="flex gap-2 ml-auto">
+                    <ButtonSmall
+                      state="Secondary"
+                      onClick={cancelEdit}
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </ButtonSmall>
+                    <ButtonSmall
+                      state="Default"
+                      onClick={saveChanges}
+                      disabled={!hasChanges || isSaving}
+                    >
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </ButtonSmall>
+                  </div>
                 </div>
               </div>
             )}
@@ -855,12 +860,12 @@ export default function CardFullEditable({
             </p>
           ) : (
             <div style={{ flex: 1, minWidth: 0 }}>
-              <input 
+              <textarea 
                 ref={titleInputRef}
                 value={editTitle}
                 onChange={handleTitleChange}
-                type="text"
                 maxLength={TITLE_HARD_LIMIT}
+                rows={2}
                 className="w-full bg-transparent border-0 rounded focus:outline-none font-bold"
                 style={{
                   lineHeight: '1.2',
@@ -871,30 +876,13 @@ export default function CardFullEditable({
                   fontFamily: 'var(--font-sans)',
                   color: 'var(--color-deep-grey)',
                   boxSizing: 'border-box',
-                  minHeight: '28.8px',
-                  height: 'auto',
-                  verticalAlign: 'middle'
+                  resize: 'none',
                 }}
                 placeholder="Note title"
                 onKeyDown={handleKeyDown}
+                onFocus={() => setIsTitleFocused(true)}
+                onBlur={() => setIsTitleFocused(false)}
               />
-              {/* Character counter */}
-              <div 
-                style={{
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-sans)',
-                  textAlign: 'right',
-                  marginTop: '4px',
-                  color: editTitle.length >= TITLE_HARD_LIMIT 
-                    ? 'var(--color-caring-coral)' 
-                    : editTitle.length >= TITLE_SOFT_LIMIT 
-                      ? 'var(--color-graceful-gold)' 
-                      : 'var(--color-pebble-grey)',
-                  opacity: editTitle.length >= TITLE_SOFT_LIMIT ? 1 : 0.6
-                }}
-              >
-                {editTitle.length}/{TITLE_HARD_LIMIT}
-              </div>
             </div>
           )}
         </div>
@@ -970,21 +958,37 @@ export default function CardFullEditable({
               </div>
               
               {/* Save/Cancel buttons */}
-              <div className="flex justify-end gap-2 mt-4 mb-3 shrink-0">
-                <ButtonSmall
-                  state="Secondary"
-                  onClick={cancelEdit}
-                  disabled={isSaving}
-                >
-                  Cancel
-                </ButtonSmall>
-                <ButtonSmall
-                  state="Default"
-                  onClick={saveChanges}
-                  disabled={!hasChanges || isSaving}
-                >
-                  {isSaving ? 'Saving...' : 'Save'}
-                </ButtonSmall>
+              <div className="flex items-center gap-2 mt-4 mb-3 shrink-0" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
+                {/* Character counter - only show when title is focused */}
+                {isTitleFocused && editTitle.length >= TITLE_SOFT_LIMIT && (
+                  <div 
+                    style={{
+                      fontSize: '11px',
+                      fontFamily: 'var(--font-sans)',
+                      color: editTitle.length >= TITLE_WARNING_LIMIT 
+                        ? 'var(--color-red)' 
+                        : 'var(--color-deep-grey)',
+                    }}
+                  >
+                    {editTitle.length}/{TITLE_HARD_LIMIT}
+                  </div>
+                )}
+                <div className="flex gap-2 ml-auto">
+                  <ButtonSmall
+                    state="Secondary"
+                    onClick={cancelEdit}
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </ButtonSmall>
+                  <ButtonSmall
+                    state="Default"
+                    onClick={saveChanges}
+                    disabled={!hasChanges || isSaving}
+                  >
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </ButtonSmall>
+                </div>
               </div>
             </div>
           )}

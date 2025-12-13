@@ -774,6 +774,13 @@
   flex-shrink: 0;
   width: 100%;
   position: relative;
+  
+  /* On mobile layout: full width with percentage of screen height */
+  @media (max-width: 1159px) {
+    height: calc(20vh);
+    min-height: calc(20vh) !important;
+    max-height: calc(20vh) !important;
+  }
 }
 
 .card-image-link__remove-button {

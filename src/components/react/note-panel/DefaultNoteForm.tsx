@@ -2,8 +2,9 @@ import React from 'react';
 import TiptapEditor from '../TiptapEditor';
 
 // Title character limits
-const TITLE_SOFT_LIMIT = 150;  // Show warning
-const TITLE_HARD_LIMIT = 250;  // Maximum allowed
+const TITLE_SOFT_LIMIT = 30;  // Show counter when >= 30
+const TITLE_WARNING_LIMIT = 45;  // Red text when >= 45 (within 5 of limit)
+const TITLE_HARD_LIMIT = 50;  // Maximum allowed
 
 export interface DefaultNoteFormProps {
   title: string;
@@ -77,9 +78,9 @@ export default function DefaultNoteForm({
                 fontFamily: 'var(--font-sans)',
                 textAlign: 'right',
                 marginTop: '4px',
-                color: title.length >= TITLE_HARD_LIMIT 
-                  ? 'var(--color-caring-coral)' 
-                  : 'var(--color-graceful-gold)',
+                color: title.length >= TITLE_WARNING_LIMIT 
+                  ? 'var(--color-red)' 
+                  : 'var(--color-deep-grey)',
               }}
             >
               {title.length}/{TITLE_HARD_LIMIT}

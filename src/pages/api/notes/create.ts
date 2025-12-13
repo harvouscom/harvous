@@ -10,6 +10,15 @@ import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { getNextUntitledNoteName } from '@/utils/untitled-naming';
 import { extractArticleContent } from '@/utils/content-extractor';
 
+// Title character limits
+const TITLE_HARD_LIMIT = 50;  // Maximum allowed
+
+// Helper function to truncate and capitalize title
+const truncateAndCapitalizeTitle = (title: string): string => {
+  const truncated = title.slice(0, TITLE_HARD_LIMIT);
+  return truncated.charAt(0).toUpperCase() + truncated.slice(1);
+};
+
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     // Get userId from authenticated context
@@ -141,12 +150,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
     
-    // Generate numbered untitled name if title is empty, otherwise capitalize
+    // Generate numbered untitled name if title is empty, otherwise truncate and capitalize
     let capitalizedTitle: string;
     if (!title || !title.trim()) {
       capitalizedTitle = await getNextUntitledNoteName(userId);
     } else {
-      capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+      capitalizedTitle = truncateAndCapitalizeTitle(title);
     }
     
     // Always create note in unorganized as primary threadId
@@ -428,9 +437,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
             updatedAt: new Date()
           };
           
-          // Set title from metadata
+          // Set title from metadata (truncate auto-generated titles)
           if (resourceMetadata.title) {
-            updateData.title = resourceMetadata.title.charAt(0).toUpperCase() + resourceMetadata.title.slice(1);
+            updateData.title = truncateAndCapitalizeTitle(resourceMetadata.title);
           }
           
           // Prefer extracted article content, fallback to description for scripture detection
