@@ -1068,6 +1068,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 // Special handling for unorganized thread (only if note actually has no junction entries)
                 // Don't add unorganized if the note was created with a specific thread (wasCreatedWithThread)
                 // This prevents unorganized from appearing when a note is created with a suggested thread
+                // IMPORTANT: If wasCreatedWithThread is true, unorganized should NEVER be added
                 addToNavigationHistory({
                   id: 'thread_unorganized',
                   title: 'Unorganized',
@@ -1075,12 +1076,15 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
                 });
               }
+              // If wasCreatedWithThread is true and actualThreadId is not 'thread_unorganized',
+              // we've already added the thread above, so unorganized should NOT be added here
             })
             .catch(error => {
               console.error('NavigationContext: Error fetching thread data:', error);
               // Fallback: add unorganized thread with minimal data if fetch fails
               // Only if the note actually belongs to unorganized (no junction entries)
               // Don't add unorganized if the note was created with a specific thread
+              // IMPORTANT: If wasCreatedWithThread is true, unorganized should NEVER be added, even on error
               if (actualThreadId === 'thread_unorganized' && !wasCreatedWithThread) {
                 addToNavigationHistory({
                   id: 'thread_unorganized',
@@ -1089,6 +1093,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
                 });
               }
+              // If wasCreatedWithThread is true, we should NOT add unorganized even if the fetch fails
+              // The note was created with a specific thread, so unorganized should never appear
             });
           
           // Return current state unchanged - the async fetch will update it via addToNavigationHistory
