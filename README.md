@@ -71,6 +71,6 @@ Built with ❤️ for Bible study enthusiasts
 
 ---
 
-**Version:** 0.171.5  
+**Version:** 0.171.6  
 **Last Updated:** January 2025  
 **Status:** ✅ V1 Ready - Production Release Candidate
