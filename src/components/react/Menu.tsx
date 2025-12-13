@@ -494,7 +494,7 @@ export default function Menu({
           border: none !important;
           outline: none !important;
           box-shadow: none !important;
-          background-color: var(--color-snow-white);
+          background-color: white;
         }
         
         .menu-item:hover {
