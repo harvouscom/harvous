@@ -2,8 +2,6 @@
 
 A modern Bible study notes application built with **Astro 5** and **React Islands architecture**. Harvous provides a flexible, hierarchical organization system (Spaces → Threads → Notes) with rich text editing, auto-tagging, XP gamification, and PWA capabilities.
 
-**Current Status**: ✅ **V1 Ready** - All core features implemented and production-ready
-
 ---
 
 ## Overview
