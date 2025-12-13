@@ -5,7 +5,8 @@ Complete documentation index for the Harvous Bible study notes application.
 ## Quick Navigation
 
 ### Getting Started
-- **[README.md](../README.md)** - Project overview, quick start, and setup
+- **[README.md](../README.md)** - Project overview
+- **[GETTING_STARTED.md](./GETTING_STARTED.md)** - Setup, development, and quick start guide
 - **[USER_GUIDE.md](./USER_GUIDE.md)** - Complete user guide
 - **[FEATURES.md](./FEATURES.md)** - Feature overview and examples
 
