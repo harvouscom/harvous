@@ -134,6 +134,8 @@ The system uses a dual ID approach for notes:
 
 ## Database Schema & Relationships
 
+> **Detailed Documentation**: See [DATABASE.md](./DATABASE.md) for complete database schema, ERD diagrams, table definitions, and special patterns.
+
 The system uses a hybrid approach for note-thread relationships:
 
 - **Primary Relationship**: Each note has a required `threadId` field pointing to its primary thread (used primarily for unorganized thread fallback)
@@ -860,6 +862,14 @@ Add a **"Manage Threads"** section to note pages and cards:
   </div>
 </div>
 ```
+
+## Related Documentation
+
+- [DATABASE.md](./DATABASE.md) - Complete database schema and relationships
+- [COMPONENTS.md](./COMPONENTS.md) - Component system and hierarchy
+- [DATA_FLOW.md](./DATA_FLOW.md) - Data flow diagrams and sequence diagrams
+- [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) - Project organization
+- [TECH_STACK.md](./TECH_STACK.md) - Technology stack details
 
 ## Key Files
 
