@@ -479,39 +479,87 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    // Process scripture references in the note content (background processing)
+    // Process scripture references in the note content
+    // For resource notes: process asynchronously after response to allow immediate redirect
+    // For other notes: process synchronously before response (current behavior)
     let scriptureResults: any[] = [];
-    try {
-      // Determine the actual thread ID (the thread the note was created in)
-      const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
+    
+    if (finalNoteType === 'resource') {
+      // For resource notes: return response immediately, process scripture references asynchronously
+      // This allows the frontend to redirect immediately while scripture notes are created in the background
       
-      // Get the latest note content (may have been updated with articleContent)
-      const latestNote = await db.select()
-        .from(Notes)
-        .where(eq(Notes.id, newNote.id))
-        .get();
+      // Prepare async scripture processing function
+      const processScriptureReferencesAsync = async () => {
+        try {
+          // Determine the actual thread ID (the thread the note was created in)
+          const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
+          
+          // Get the latest note content (may have been updated with articleContent)
+          const latestNote = await db.select()
+            .from(Notes)
+            .where(eq(Notes.id, newNote.id))
+            .get();
+          
+          // Use the latest content to ensure we process all scripture references
+          // This is especially important for resource notes where content is updated after creation
+          const contentToProcess = latestNote?.content || newNote.content;
+          
+          // Call processing function directly with content override to ensure we use the latest content
+          const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+          await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
+        } catch (error: any) {
+          // Don't fail note creation if scripture processing fails
+          console.error('Error processing scripture references asynchronously (non-critical):', error);
+        }
+      };
       
-      // Use the latest content to ensure we process all scripture references
-      // This is especially important for resource notes where content is updated after creation
-      const contentToProcess = latestNote?.content || newNote.content;
+      // Start async processing (fire-and-forget)
+      processScriptureReferencesAsync().catch((error) => {
+        console.error('Unhandled error in async scripture processing:', error);
+      });
       
-      // Call processing function directly with content override to ensure we use the latest content
-      const { processScriptureReferences } = await import('@/utils/process-scripture-references');
-      const processResult = await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
-      scriptureResults = processResult.results || [];
-    } catch (error: any) {
-      // Don't fail note creation if scripture processing fails
-      console.error('Error processing scripture references (non-critical):', error);
-    }
+      // Return response immediately with empty scriptureResults
+      return new Response(JSON.stringify({ 
+        success: "Note created!",
+        note: newNote,
+        scriptureResults: []
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } else {
+      // For non-resource notes: process synchronously before response (current behavior)
+      try {
+        // Determine the actual thread ID (the thread the note was created in)
+        const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
+        
+        // Get the latest note content (may have been updated with articleContent)
+        const latestNote = await db.select()
+          .from(Notes)
+          .where(eq(Notes.id, newNote.id))
+          .get();
+        
+        // Use the latest content to ensure we process all scripture references
+        const contentToProcess = latestNote?.content || newNote.content;
+        
+        // Call processing function directly with content override to ensure we use the latest content
+        const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+        const processResult = await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
+        scriptureResults = processResult.results || [];
+      } catch (error: any) {
+        // Don't fail note creation if scripture processing fails
+        console.error('Error processing scripture references (non-critical):', error);
+      }
 
-    return new Response(JSON.stringify({ 
-      success: "Note created!",
-      note: newNote,
-      scriptureResults
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+      return new Response(JSON.stringify({ 
+        success: "Note created!",
+        note: newNote,
+        scriptureResults
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
   } catch (error: any) {
     const standardError = handleAPIError(error, {
