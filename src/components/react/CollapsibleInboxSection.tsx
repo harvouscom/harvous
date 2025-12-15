@@ -189,7 +189,7 @@ export default function CollapsibleInboxSection({
   return (
     <div className="flex flex-col gap-3 pb-0">
       {/* TabNav and Auto-archive Text Row */}
-      <div className="flex items-center justify-between pb-0 pt-[4px] pr-3 relative w-full">
+      <div className="flex items-center justify-between pb-0 pt-0 pr-3 relative w-full">
         <div className="tab-nav-container inbox-archive-tabs">
           <div className="tab-nav">
             <button
