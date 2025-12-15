@@ -150,7 +150,13 @@ export default function CollapsibleInboxSection({
     setIsCollapsed(prev => !prev);
   };
 
-  const handleTabClick = (tabId: 'inbox' | 'archive', e?: React.MouseEvent) => {
+  const handleTabClick = (tabId: 'inbox' | 'archive', e?: React.MouseEvent | React.TouchEvent) => {
+    // Prevent tab-manager.js from interfering
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    
     // If clicking the active tab, toggle collapsed state
     if (tabId === activeTab) {
       const newCollapsedState = !isCollapsed;
@@ -199,6 +205,8 @@ export default function CollapsibleInboxSection({
               data-active={activeTab === 'inbox' && !isCollapsed ? 'true' : 'false'}
               data-tab-button
               onClick={(e) => handleTabClick('inbox', e)}
+              onTouchStart={(e) => handleTabClick('inbox', e)}
+              style={{ touchAction: 'manipulation' }}
             >
               <span className="tab-nav__label">Inbox</span>
             </button>
@@ -208,6 +216,8 @@ export default function CollapsibleInboxSection({
               data-active={activeTab === 'archive' && !isCollapsed ? 'true' : 'false'}
               data-tab-button
               onClick={(e) => handleTabClick('archive', e)}
+              onTouchStart={(e) => handleTabClick('archive', e)}
+              style={{ touchAction: 'manipulation' }}
             >
               <span className="tab-nav__label">Archive</span>
             </button>
