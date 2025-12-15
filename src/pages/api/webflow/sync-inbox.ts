@@ -469,7 +469,7 @@ export const POST: APIRoute = async ({ request }) => {
         syncedItems.push(inboxItemId);
 
         // Auto-assign to users based on targetAudience
-        const targetAudience = inboxItemData.targetAudience || 'all_users';
+        const targetAudience = webflowItem['target-audience'] || 'all_users';
         if (targetAudience === 'all_users') {
           try {
             // Get all existing users

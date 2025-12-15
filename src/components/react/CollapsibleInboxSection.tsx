@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import InboxItemsList from './InboxItemsList';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 interface InboxItem {
   id: string;
@@ -222,6 +223,11 @@ export default function CollapsibleInboxSection({
               style={{ touchAction: 'manipulation' }}
             >
               <span className="tab-nav__label">Inbox</span>
+              {inboxItemCount > 0 && (
+                <div className="badge-count">
+                  <span className="badge-number">{formatBadgeCount(inboxItemCount)}</span>
+                </div>
+              )}
             </button>
             <button
               className={`tab-nav__button ${activeTab === 'archive' && !isCollapsed ? 'opacity-100' : 'opacity-50'}`}
