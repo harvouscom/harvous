@@ -49,9 +49,9 @@ Complete documentation is available in the [`docs/`](./docs/) directory:
 
 ## License
 
-This project is licensed under a Non-Commercial License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the O'Saasy License - see the [LICENSE](LICENSE) file for details.
 
-**Summary**: Free for personal and non-commercial use. Commercial use requires explicit permission from Testament Made, LLC.
+**Summary**: MIT-like license that allows use, modification, and distribution, but reserves the right to offer this software as a hosted SaaS product exclusively for Testament Made, LLC.
 
 ---
 
