@@ -48,7 +48,7 @@ function loadPersistentNavigation(retryCount) {
       return;
     }
     
-    // Find the "For You" button and insert persistent navigation after it
+    // Find the "My Home" button and insert persistent navigation after it
     // Use more specific selector to ensure we find the right element
     const forYouButton = document.querySelector('a[href="/"]');
     if (!forYouButton) {
@@ -382,11 +382,11 @@ function loadPersistentNavigation(retryCount) {
       persistentNav.appendChild(itemDiv);
     });
     
-    // Insert persistent navigation after the "For You" button but before the bottom section
+    // Insert persistent navigation after the "My Home" button but before the bottom section
     // Find the navigation buttons container (the div that contains all navigation items)
     const navigationButtonsContainer = forYouButton.closest('.flex.flex-col.items-start.justify-start.w-full');
     if (navigationButtonsContainer) {
-      // Insert after the "For You" button but within the navigation buttons container
+      // Insert after the "My Home" button but within the navigation buttons container
       navigationButtonsContainer.insertBefore(persistentNav, forYouButton.nextSibling);
     } else {
       // Fallback to original behavior

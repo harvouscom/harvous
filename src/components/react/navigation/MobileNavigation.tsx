@@ -348,7 +348,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     
     // Check if the clicked item is the currently active item
     const isActiveItem = itemId === undefined || itemId === '' 
-      ? !currentSpace && !currentThread && !currentItemId // "For You" is active
+      ? !currentSpace && !currentThread && !currentItemId // "My Home" is active
       : itemId === currentActiveItemId; // Other items match currentActiveItemId
     
     // If it's the active item AND we're not on a note page, prevent navigation and just close the dropdown
@@ -406,7 +406,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       <div className="mobile-nav__dropdown-wrapper">
         {!isDropdownOpen && (
           <SpaceButton 
-            text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "For You"}
+            text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "My Home"}
             count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
             state="DropdownTrigger"
             backgroundGradient={currentThread?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
@@ -446,7 +446,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       <div className="space-btn pl-4" style={{ backgroundImage: getThreadGradientCSS('paper') }}>
                         <div className="space-btn__content">
                           <div className="space-btn__text-wrapper">
-                            <span className="space-btn__text">For You</span>
+                            <span className="space-btn__text">My Home</span>
                           </div>
                           <div className="space-btn__badge-wrapper">
                             <div className="badge-count">
@@ -638,7 +638,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 return null;
               })()}
               
-              {/* For You - Only if not active */}
+              {/* My Home - Only if not active */}
               {currentSpace || currentThread || currentItemId ? (
                 <a 
                   href="/" 
@@ -650,7 +650,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   <div className="space-btn pl-4">
                     <div className="space-btn__content">
                       <div className="space-btn__text-wrapper">
-                        <span className="space-btn__text">For You</span>
+                        <span className="space-btn__text">My Home</span>
                       </div>
                       <div className="space-btn__badge-wrapper">
                         <div className="badge-count">

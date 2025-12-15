@@ -19,7 +19,7 @@ interface SpaceButtonProps {
 
 const SpaceButton: React.FC<SpaceButtonProps> = ({
   className = "",
-  text = "For You",
+  text = "My Home",
   count = 1,
   state = "Default",
   showCount = false,

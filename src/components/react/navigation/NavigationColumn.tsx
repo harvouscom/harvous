@@ -292,7 +292,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           <div className="nav-column-buttons">
             <a href="/" className="nav-link" data-astro-prefetch="hover">
               <SpaceButton 
-                text="For You" 
+                text="My Home" 
                 count={inboxCount} 
                 state="WithCount" 
                 isActive={isDashboard}

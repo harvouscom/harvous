@@ -150,11 +150,25 @@ export default function CollapsibleInboxSection({
     setIsCollapsed(prev => !prev);
   };
 
+  // Track if we've handled a touch event to prevent double-firing with onClick
+  const touchHandledRef = React.useRef(false);
+
   const handleTabClick = (tabId: 'inbox' | 'archive', e?: React.MouseEvent | React.TouchEvent) => {
-    // Prevent tab-manager.js from interfering
+    // Prevent tab-manager.js from interfering (though we removed data-tab-button so it shouldn't attach)
     if (e) {
       e.stopPropagation();
-      e.preventDefault();
+      
+      // Handle touch events separately to prevent double-firing
+      if (e.type === 'touchstart') {
+        e.preventDefault();
+        touchHandledRef.current = true;
+        setTimeout(() => {
+          touchHandledRef.current = false;
+        }, 300);
+      } else if (e.type === 'click' && touchHandledRef.current) {
+        // Already handled as touch, skip click to prevent double-firing
+        return;
+      }
     }
     
     // If clicking the active tab, toggle collapsed state
@@ -203,7 +217,6 @@ export default function CollapsibleInboxSection({
               className={`tab-nav__button ${activeTab === 'inbox' && !isCollapsed ? 'opacity-100' : 'opacity-50'}`}
               data-tab-id="inbox"
               data-active={activeTab === 'inbox' && !isCollapsed ? 'true' : 'false'}
-              data-tab-button
               onClick={(e) => handleTabClick('inbox', e)}
               onTouchStart={(e) => handleTabClick('inbox', e)}
               style={{ touchAction: 'manipulation' }}
@@ -214,7 +227,6 @@ export default function CollapsibleInboxSection({
               className={`tab-nav__button ${activeTab === 'archive' && !isCollapsed ? 'opacity-100' : 'opacity-50'}`}
               data-tab-id="archive"
               data-active={activeTab === 'archive' && !isCollapsed ? 'true' : 'false'}
-              data-tab-button
               onClick={(e) => handleTabClick('archive', e)}
               onTouchStart={(e) => handleTabClick('archive', e)}
               style={{ touchAction: 'manipulation' }}
