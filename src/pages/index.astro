@@ -263,14 +263,14 @@ try {
                     </div>
                     
                     <!-- Inbox Content (reserved for external content only) -->
-                    <div class="inbox-content min-h-[200px]" data-tab-content="inbox">
+                    <div class="inbox-content min-h-[120px]" data-tab-content="inbox">
                       {inboxContent.length > 0 ? (
                         <InboxItemsList 
                           client:visible
                           items={inboxContent}
                         />
                       ) : (
-                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; width: 100%; text-align: center; padding-left: 0.75rem; padding-right: 0.75rem; padding-top: 64px; padding-bottom: 64px;">
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 120px; width: 100%; text-align: center; padding-left: 0.75rem; padding-right: 0.75rem; padding-top: 32px; padding-bottom: 32px;">
                           <div style="display: flex; flex-direction: column; gap: 0.5rem; align-items: center; justify-content: center;">
                             <div style="font-family: var(--font-sans); font-weight: 600; color: #4a473d; font-size: 18px; line-height: 1.2;">
                               <p>Your inbox is empty</p>
@@ -284,14 +284,14 @@ try {
                     </div>
                     
                     <!-- Archive Content (dismissed items) -->
-                    <div class="archive-content hidden min-h-[200px]" data-tab-content="archive">
+                    <div class="archive-content hidden min-h-[120px]" data-tab-content="archive">
                       {archivedItems.length > 0 ? (
                         <InboxItemsList 
                           client:visible
                           items={archivedItems}
                         />
                       ) : (
-                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; width: 100%; text-align: center; padding-left: 0.75rem; padding-right: 0.75rem; padding-top: 64px; padding-bottom: 64px;">
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 120px; width: 100%; text-align: center; padding-left: 0.75rem; padding-right: 0.75rem; padding-top: 32px; padding-bottom: 32px;">
                           <div style="display: flex; flex-direction: column; gap: 0.5rem; align-items: center; justify-content: center;">
                             <div style="font-family: var(--font-sans); font-weight: 600; color: #4a473d; font-size: 18px; line-height: 1.2;">
                               <p>Your archive is empty</p>
