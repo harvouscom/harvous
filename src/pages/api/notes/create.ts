@@ -321,31 +321,34 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Auto-generate and apply tags based on note content
-    try {
-      // Check if auto-tag functions are available
-      if (!generateAutoTags || !applyAutoTags) {
-        throw new Error('Auto-tag functions not available');
+    // For resource notes, skip initial auto-tagging - will run after content is extracted
+    if (finalNoteType !== 'resource') {
+      try {
+        // Check if auto-tag functions are available
+        if (!generateAutoTags || !applyAutoTags) {
+          throw new Error('Auto-tag functions not available');
+        }
+        
+        // Generate auto-tag suggestions based on note content (80% confidence threshold)
+        const autoTagResult = await generateAutoTags(
+          capitalizedTitle || '',
+          capitalizedContent,
+          userId,
+          0.8 // Generate high-confidence tags
+        );
+        
+           // Apply the auto-generated tags if any were found
+           if (autoTagResult.suggestions.length > 0) {
+             const applyResult = await applyAutoTags(
+               newNote.id,
+               autoTagResult.suggestions,
+               userId
+             );
+           }
+      } catch (error: unknown) {
+        // Don't fail note creation if auto-tagging fails
+        console.error('Auto-tagging failed (non-critical):', error);
       }
-      
-      // Generate auto-tag suggestions based on note content (80% confidence threshold)
-      const autoTagResult = await generateAutoTags(
-        capitalizedTitle || '',
-        capitalizedContent,
-        userId,
-        0.8 // Generate high-confidence tags
-      );
-      
-         // Apply the auto-generated tags if any were found
-         if (autoTagResult.suggestions.length > 0) {
-           const applyResult = await applyAutoTags(
-             newNote.id,
-             autoTagResult.suggestions,
-             userId
-           );
-         }
-    } catch (error: unknown) {
-      // Don't fail note creation if auto-tagging fails
-      console.error('Auto-tagging failed (non-critical):', error);
     }
 
     // Create ScriptureMetadata record if this is a scripture note
@@ -471,6 +474,39 @@ export const POST: APIRoute = async ({ request, locals }) => {
                 capitalizedTitle = updateData.title;
               }
             }
+          }
+          
+          // Auto-generate and apply tags based on extracted content
+          // This runs after content is extracted so tags are based on the full article content
+          try {
+            // Check if auto-tag functions are available
+            if (!generateAutoTags || !applyAutoTags) {
+              throw new Error('Auto-tag functions not available');
+            }
+            
+            // Use the updated content for tag generation
+            const contentForTagging = updateData.content || newNote.content || '';
+            const titleForTagging = updateData.title || capitalizedTitle || '';
+            
+            // Generate auto-tag suggestions based on extracted content (80% confidence threshold)
+            const autoTagResult = await generateAutoTags(
+              titleForTagging,
+              contentForTagging,
+              userId,
+              0.8 // Generate high-confidence tags
+            );
+            
+            // Apply the auto-generated tags if any were found
+            if (autoTagResult.suggestions.length > 0) {
+              const applyResult = await applyAutoTags(
+                newNote.id,
+                autoTagResult.suggestions,
+                userId
+              );
+            }
+          } catch (error: unknown) {
+            // Don't fail note creation if auto-tagging fails
+            console.error('Auto-tagging failed for resource note (non-critical):', error);
           }
         }
       } catch (error: any) {
