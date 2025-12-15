@@ -99,26 +99,6 @@ export default function CollapsibleInboxSection({
     updateInboxArchiveText();
   }, [activeTab]);
 
-  // Ensure content visibility is correct when activeTab changes
-  // This fixes issues where tab-manager.js might interfere
-  useEffect(() => {
-    const inboxContent = document.querySelector('.inbox-content[data-tab-content="inbox"]');
-    const archiveContent = document.querySelector('.archive-content[data-tab-content="archive"]');
-    
-    if (inboxContent && archiveContent) {
-      if (activeTab === 'inbox') {
-        inboxContent.classList.remove('hidden');
-        inboxContent.style.display = '';
-        archiveContent.classList.add('hidden');
-        archiveContent.style.display = 'none';
-      } else {
-        inboxContent.classList.add('hidden');
-        inboxContent.style.display = 'none';
-        archiveContent.classList.remove('hidden');
-        archiveContent.style.display = '';
-      }
-    }
-  }, [activeTab]);
 
   // Handle tab switching - sync with tab-manager.js (but our onClick handler takes priority)
   useEffect(() => {
@@ -254,7 +234,6 @@ export default function CollapsibleInboxSection({
         {/* Inbox Content */}
         <div 
           className={`inbox-content min-h-[120px] ${activeTab === 'inbox' ? '' : 'hidden'}`}
-          data-tab-content="inbox"
           style={{ paddingBottom: 0, marginBottom: 0 }}
         >
           {inboxContent.length > 0 ? (
@@ -308,7 +287,6 @@ export default function CollapsibleInboxSection({
         {/* Archive Content */}
         <div 
           className={`archive-content min-h-[120px] ${activeTab === 'archive' ? '' : 'hidden'}`}
-          data-tab-content="archive"
           style={{ paddingBottom: 0, marginBottom: 0 }}
         >
           {archivedItems.length > 0 ? (
