@@ -54,13 +54,22 @@ export default function CollapsibleInboxSection({
 
   const [isCollapsed, setIsCollapsed] = useState(getInitialState);
   const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
+  const previousCountRef = useRef<number>(inboxItemCount);
 
-  // Auto-expand when items are added (count changes from 0 to >0)
+  // Auto-expand when items are first added (count changes from 0 to >0)
+  // But don't auto-expand if user manually collapsed it
   useEffect(() => {
-    if (inboxItemCount > 0 && isCollapsed) {
+    const previousCount = previousCountRef.current;
+    const countIncreased = previousCount === 0 && inboxItemCount > 0;
+    
+    // Only auto-expand if count went from 0 to >0 (new items added)
+    if (countIncreased && isCollapsed) {
       setIsCollapsed(false);
       localStorage.setItem(STORAGE_KEY, 'false');
     }
+    
+    // Update ref for next comparison
+    previousCountRef.current = inboxItemCount;
   }, [inboxItemCount, isCollapsed]);
 
   // Persist collapsed state to localStorage
@@ -191,11 +200,6 @@ export default function CollapsibleInboxSection({
               onClick={(e) => handleTabClick('inbox', e)}
             >
               <span className="tab-nav__label">Inbox</span>
-              {inboxItemCount > 0 && (
-                <div className="badge-count">
-                  <span className="badge-number">{inboxItemCount > 99 ? '99+' : String(inboxItemCount)}</span>
-                </div>
-              )}
             </button>
             <button
               className={`tab-nav__button ${activeTab === 'archive' && !isCollapsed ? 'opacity-100' : 'opacity-50'}`}
@@ -205,11 +209,6 @@ export default function CollapsibleInboxSection({
               onClick={(e) => handleTabClick('archive', e)}
             >
               <span className="tab-nav__label">Archive</span>
-              {archivedItems.length > 0 && (
-                <div className="badge-count">
-                  <span className="badge-number">{archivedItems.length > 99 ? '99+' : String(archivedItems.length)}</span>
-                </div>
-              )}
             </button>
           </div>
         </div>
