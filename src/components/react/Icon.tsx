@@ -65,7 +65,7 @@ const Icon: React.FC<IconProps> = ({ name, size = 20, className = '', style = {}
 
   // Add width/height attributes to SVG to ensure proper sizing
   const sizedSvg = svgContent.replace(
-    '<svg ',
+    /<svg\s+/,
     `<svg width="${size}" height="${size}" style="display:block" `
   );
 
@@ -79,7 +79,7 @@ const Icon: React.FC<IconProps> = ({ name, size = 20, className = '', style = {}
         width: size,
         height: size,
         color: 'inherit',
-        ...style,
+        ...style, // Include opacity in span style so it cascades to SVG
       }}
       dangerouslySetInnerHTML={{ __html: sizedSvg }}
     />
