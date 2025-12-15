@@ -143,7 +143,8 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
 
     // Use single-line style for consistency with highlightScriptureReferences output
     // This ensures regex patterns in process-scripture-references can reliably match both formats
-    const baseStyle = 'background-color: var(--color-paper); border-radius: 4px; padding: 0px 8px 0px 6px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none;';
+    // font-style: normal prevents inheritance of italic formatting from parent elements
+    const baseStyle = 'background-color: var(--color-paper); border-radius: 4px; padding: 0px 8px 0px 6px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none;';
     const cursorStyle = ' cursor: pointer;';
 
     return [

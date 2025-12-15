@@ -109,26 +109,42 @@ export function highlightScriptureReferences(
     // Escape special regex characters in the reference
     const escapedReference = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
-    // Create regex pattern that matches the reference
-    // Make whitespace flexible to handle HTML formatting
-    const pattern = new RegExp(
-      `(${escapedReference.replace(/\s+/g, '\\s+')})`,
-      'gi'
-    );
+    // Create regex pattern that matches the reference, allowing HTML tags between words
+    // This handles cases like <em>John 3:16</em> or <i>John</i> 3:16
+    // Split reference into tokens (words, numbers, punctuation, spaces)
+    const tokens = escapedReference.match(/\S+|\s+/g) || [];
+    const flexiblePattern = tokens.map(token => {
+      if (/^\s+$/.test(token)) {
+        // Whitespace: allow optional HTML tags around it
+        return `\\s*(?:<[^>]+>)*\\s*`;
+      } else {
+        // Word/number/punctuation: allow optional HTML tags before and after
+        // Use word boundary to prevent partial matches
+        return `(?:<[^>]+>)*${token}(?:<[^>]+>)*`;
+      }
+    }).join('');
+    
+    const pattern = new RegExp(`(${flexiblePattern})`, 'gi');
 
     // Find all matches and their positions
-    const matches: Array<{ match: string; index: number }> = [];
+    const matches: Array<{ match: string; index: number; cleanText: string }> = [];
     let match;
     while ((match = pattern.exec(updatedContent)) !== null) {
-      matches.push({
-        match: match[0],
-        index: match.index
-      });
+      // Extract the clean text (without HTML tags) for validation
+      const cleanText = match[0].replace(/<[^>]+>/g, '').trim();
+      // Only add if the clean text matches the reference (case-insensitive)
+      if (cleanText.toLowerCase() === reference.toLowerCase()) {
+        matches.push({
+          match: match[0],
+          index: match.index,
+          cleanText: reference // Use original reference (always plain text, no formatting)
+        });
+      }
     }
 
     // Process matches in reverse order to preserve indices
     for (let i = matches.length - 1; i >= 0; i--) {
-      const { match: matchText, index } = matches[i];
+      const { match: matchText, index, cleanText } = matches[i];
       
       const beforeMatch = updatedContent.substring(0, index);
       const matchEnd = index + matchText.length;
@@ -203,8 +219,11 @@ export function highlightScriptureReferences(
       }
       
       // Wrap the match with scripture pill span format with inline styles
-      // This ensures proper rendering both in Tiptap and when displayed via dangerouslySetInnerHTML
-      const wrapped = `<span data-scripture-reference="${matchText}" data-note-id="${noteId}" class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 4px; padding: 0px 8px 0px 6px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; cursor: pointer;">${matchText}</span>`;
+      // Always use cleanText (plain text, no formatting) for display inside the pill
+      // This ensures scripture pills always have consistent standard text formatting
+      // regardless of how the original reference was formatted (italicized, bolded, etc.)
+      // font-style: normal prevents inheritance of italic formatting from parent elements
+      const wrapped = `<span data-scripture-reference="${cleanText}" data-note-id="${noteId}" class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 4px; padding: 0px 8px 0px 6px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; cursor: pointer;">${cleanText}</span>`;
       updatedContent = updatedContent.substring(0, index) + wrapped + updatedContent.substring(index + matchText.length);
     }
   }
