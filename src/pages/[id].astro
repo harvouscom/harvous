@@ -1062,6 +1062,23 @@ if (!content) {
 </script>
  
 <script type="text/javascript">
+  // Helper function to safely import and use astro:transitions/client
+  // Falls back to window.location if the module fails to load (e.g., on Mobile Safari)
+  async function safeNavigate(path, options) {
+    try {
+      const { navigate } = await import('astro:transitions/client');
+      navigate(path, options);
+    } catch (error) {
+      // Module failed to load - fall back to window.location
+      // This prevents unhandled promise rejections that PostHog catches
+      if (options?.history === 'replace') {
+        window.location.replace(path);
+      } else {
+        window.location.href = path;
+      }
+    }
+  }
+  
   // Set the global save callback for CardFullEditable
   var noteSaveCallback = async function(newTitle, newContent) {
     try {
@@ -1103,32 +1120,30 @@ if (!content) {
   // Listen for note thread changes and refresh the page using View Transitions
   window.addEventListener('noteAddedToThread', async (event) => {
     const { noteId, threadId } = event.detail;
-    const { navigate } = await import('astro:transitions/client');
     
     // Check if we're on the affected thread page
     const currentThreadId = window.location.pathname.substring(1);
     if (currentThreadId === threadId) {
       // Navigate using View Transitions to show updated note list
-      navigate(window.location.pathname + window.location.search, { history: 'replace' });
+      await safeNavigate(window.location.pathname + window.location.search, { history: 'replace' });
       return;
     }
     
     // Also refresh if we're viewing unorganized and a note was added to another thread
     // (the note is no longer in unorganized when it has a thread association)
     if (currentThreadId === 'thread_unorganized' && threadId !== 'thread_unorganized') {
-      navigate(window.location.pathname + window.location.search, { history: 'replace' });
+      await safeNavigate(window.location.pathname + window.location.search, { history: 'replace' });
     }
   });
   
   window.addEventListener('noteRemovedFromThread', async (event) => {
     const { noteId, threadId, remainingThreadIds } = event.detail;
-    const { navigate } = await import('astro:transitions/client');
     
     // Check if we're on the affected thread page
     const currentThreadId = window.location.pathname.substring(1);
     if (currentThreadId === threadId) {
       // Navigate using View Transitions to show updated note list
-      navigate(window.location.pathname + window.location.search, { history: 'replace' });
+      await safeNavigate(window.location.pathname + window.location.search, { history: 'replace' });
       return;
     }
     
@@ -1174,14 +1189,13 @@ if (!content) {
       }
       
       // Navigate to the target URL
-      navigate(targetUrl, { history: 'replace' });
+      await safeNavigate(targetUrl, { history: 'replace' });
     }
   });
   
   // Listen for thread deletion - navigate if viewing note in that thread
   document.addEventListener('threadDeleted', async (event) => {
     const { threadId } = event.detail;
-    const { navigate } = await import('astro:transitions/client');
     
     // Check if we're viewing a note that might have been in the deleted thread
     const noteContainer = document.querySelector('[data-note-id]');
@@ -1219,7 +1233,7 @@ if (!content) {
         }
         
         // Navigate to the target URL
-        navigate(targetUrl, { history: 'replace' });
+        await safeNavigate(targetUrl, { history: 'replace' });
       }
     }
   });
@@ -1227,7 +1241,6 @@ if (!content) {
   // Listen for space deletion - navigate if viewing space or content within it
   document.addEventListener('spaceDeleted', async (event) => {
     const { spaceId } = event.detail;
-    const { navigate } = await import('astro:transitions/client');
     
     const currentPath = window.location.pathname;
     const currentId = currentPath.substring(1);
@@ -1235,7 +1248,7 @@ if (!content) {
     // Check if we're viewing the deleted space
     if (currentId === spaceId) {
       // Navigate to dashboard
-      navigate('/', { history: 'replace' });
+      await safeNavigate('/', { history: 'replace' });
       return;
     }
     
@@ -1246,21 +1259,20 @@ if (!content) {
     
     if (currentSpaceId === spaceId) {
       // Navigate to dashboard
-      navigate('/', { history: 'replace' });
+      await safeNavigate('/', { history: 'replace' });
     }
   });
   
   // Listen for items removed from space - refresh space page if viewing it
   document.addEventListener('itemRemovedFromSpace', async (event) => {
     const { spaceId } = event.detail;
-    const { navigate } = await import('astro:transitions/client');
     
     const currentPath = window.location.pathname;
     const currentId = currentPath.substring(1);
     
     // If viewing the space, refresh it to show updated content
     if (currentId === spaceId) {
-      navigate(window.location.pathname + window.location.search, { history: 'replace' });
+      await safeNavigate(window.location.pathname + window.location.search, { history: 'replace' });
     }
   });
   
