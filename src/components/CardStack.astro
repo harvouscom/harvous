@@ -34,33 +34,35 @@ const textColor = getThreadTextColorCSS(colorName);
 ---
 
 <div class={`card-stack ${className}`} {...(id ? { id } : {})}>
-  <!-- Header section with dynamic background -->
-  {Astro.slots.has('header') ? (
-    <slot name="header" />
-  ) : (
-    <div class="card-stack__header" style={`background-color: ${headerBgColor}; color: ${textColor}`}>
-      {subtitle ? (
-        <>
-          <div class={`card-stack__title ${centerTitle ? 'card-stack__title--center' : ''}`}>
+  <div class="card-stack__container">
+    <!-- Header section with dynamic background -->
+    {Astro.slots.has('header') ? (
+      <slot name="header" />
+    ) : (
+      <div class="card-stack__header" style={`background-color: ${headerBgColor}; color: ${textColor}`}>
+        {subtitle ? (
+          <>
+            <div class={`card-stack__title ${centerTitle ? 'card-stack__title--center' : ''}`}>
+              <p>{title}</p>
+            </div>
+            <div class="card-stack__subtitle">
+              <p>{subtitle}</p>
+            </div>
+          </>
+        ) : (
+          <div class="card-stack__title card-stack__title--center">
             <p>{title}</p>
           </div>
-          <div class="card-stack__subtitle">
-            <p>{subtitle}</p>
-          </div>
-        </>
-      ) : (
-        <div class="card-stack__title card-stack__title--center">
-          <p>{title}</p>
+        )}
+      </div>
+    )}
+    
+    <!-- Content area -->
+    <div class="card-stack__content">
+      <div class="card-stack__inner">
+        <div class="card-stack__inner-content">
+          <slot />
         </div>
-      )}
-    </div>
-  )}
-  
-  <!-- Content area -->
-  <div class="card-stack__content">
-    <div class="card-stack__inner">
-      <div class="card-stack__inner-content">
-        <slot />
       </div>
     </div>
   </div>
