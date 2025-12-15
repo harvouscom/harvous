@@ -4,6 +4,7 @@ export interface Props {
     id: string;
     label: string;
     isActive?: boolean;
+    count?: number;
   }>;
   onTabChange?: (tabId: string) => void;
   class?: string;
@@ -30,6 +31,11 @@ const { tabs, class: className = "" } = Astro.props;
         <span class="tab-nav__label">
           {tab.label}
         </span>
+        {tab.count !== undefined && tab.count > 0 && (
+          <div class="badge-count">
+            <span class="badge-number">{tab.count > 99 ? '99+' : String(tab.count)}</span>
+          </div>
+        )}
       </button>
     ))}
   </div>

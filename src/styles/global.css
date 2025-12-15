@@ -1300,3 +1300,23 @@ button .menu-item__label {
   transition: opacity 0.2s ease-in;
 }
 
+/* ==========================================================================
+   Collapsible Inbox Section
+   ========================================================================== */
+.inbox-section-content {
+  overflow: hidden;
+  transition: max-height 0.3s ease-out;
+}
+
+.inbox-toggle-button {
+  transition: color 0.2s ease;
+}
+
+.inbox-toggle-button:hover {
+  color: var(--color-deep-grey);
+}
+
+.inbox-chevron {
+  transition: transform 0.2s ease;
+}
+
