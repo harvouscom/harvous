@@ -42,7 +42,20 @@ export default function CollapsibleInboxSection({
   };
 
   const [isCollapsed, setIsCollapsed] = useState(getInitialState);
-  const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
+  
+  // Initialize activeTab from URL query parameter if present, otherwise default to 'inbox'
+  const getInitialTab = (): 'inbox' | 'archive' => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      if (tabParam === 'inbox' || tabParam === 'archive') {
+        return tabParam;
+      }
+    }
+    return 'inbox';
+  };
+  
+  const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>(getInitialTab);
   const previousCountRef = useRef<number>(inboxItemCount);
   const [isMounted, setIsMounted] = useState(false);
   
@@ -62,6 +75,14 @@ export default function CollapsibleInboxSection({
         if (stored !== null) {
           setIsCollapsed(stored === 'true');
         }
+      }
+      
+      // Clean up the tab query parameter after reading it (to avoid URL clutter)
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('tab')) {
+        urlParams.delete('tab');
+        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+        window.history.replaceState({}, '', newUrl);
       }
     }
   }, []); // Only run once after mount
@@ -259,10 +280,23 @@ export default function CollapsibleInboxSection({
     }
     
     // Force full page reload to get fresh server data
-    // Use a longer delay to allow user to see the optimistic update and tab switch
+    // Use a longer delay in production to ensure database transaction has committed
+    // Production databases may have replication lag, so we wait longer
+    const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
+    const reloadDelay = isProduction ? 2000 : 500; // 2s in production, 500ms in dev
+    
+    // Determine which tab should be active after reload
+    // If we're unarchiving (from archive tab), we want inbox tab after reload
+    // If we're archiving (from inbox tab), we want archive tab after reload
+    const targetTab = activeTab === 'archive' ? 'inbox' : 'archive';
+    
     setTimeout(() => {
-      window.location.reload();
-    }, 500);
+      // Add cache-busting query parameter and preserve tab state
+      const url = new URL(window.location.href);
+      url.searchParams.set('_t', Date.now().toString());
+      url.searchParams.set('tab', targetTab); // Preserve which tab should be active
+      window.location.href = url.toString();
+    }, reloadDelay);
   };
 
   const currentItems = activeTab === 'inbox' ? localInboxContent : localArchivedItems;
