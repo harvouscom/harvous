@@ -23,7 +23,7 @@ export default function CondensedNoteItem({
     } else {
       // Default note - use bookmark icon
       return (
-        <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
+        <svg className="block max-w-none size-full" fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
           <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
         </svg>
       );
