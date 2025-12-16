@@ -56,6 +56,16 @@ export default function CollapsibleInboxSection({
   const [isCollapsed, setIsCollapsed] = useState(getInitialState);
   const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
   const previousCountRef = useRef<number>(inboxItemCount);
+  
+  // Local state for inbox and archive items (initialized from props)
+  const [localInboxContent, setLocalInboxContent] = useState<InboxItem[]>(inboxContent);
+  const [localArchivedItems, setLocalArchivedItems] = useState<InboxItem[]>(archivedItems);
+  
+  // Sync local state when props change (handles View Transitions updates)
+  useEffect(() => {
+    setLocalInboxContent(inboxContent);
+    setLocalArchivedItems(archivedItems);
+  }, [inboxContent, archivedItems]);
 
   // Auto-expand when items are first added (count changes from 0 to >0)
   // But don't auto-expand if user manually collapsed it
@@ -205,7 +215,29 @@ export default function CollapsibleInboxSection({
     }
   };
 
-  const currentItems = activeTab === 'inbox' ? inboxContent : archivedItems;
+  // Handle item archived/unarchived - optimistically update state and reload page
+  const handleItemArchived = (inboxItemId?: string) => {
+    // If unarchiving (itemId provided and we're in archive tab), move from archive to inbox
+    if (inboxItemId && activeTab === 'archive') {
+      const itemToUnarchive = localArchivedItems.find(item => item.id === inboxItemId);
+      if (itemToUnarchive) {
+        // Optimistically update: remove from archive, add to inbox
+        setLocalArchivedItems(prev => prev.filter(item => item.id !== inboxItemId));
+        setLocalInboxContent(prev => [itemToUnarchive, ...prev]);
+      }
+    } else if (inboxItemId && activeTab === 'inbox') {
+      // If archiving (itemId provided and we're in inbox tab), remove from inbox
+      setLocalInboxContent(prev => prev.filter(item => item.id !== inboxItemId));
+    }
+    
+    // Force full page reload to get fresh server data
+    // Use a small delay to allow optimistic update to render first
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
+  };
+
+  const currentItems = activeTab === 'inbox' ? localInboxContent : localArchivedItems;
   const isEmpty = currentItems.length === 0;
 
   return (
@@ -264,9 +296,10 @@ export default function CollapsibleInboxSection({
           className={`inbox-content min-h-[120px] ${activeTab === 'inbox' ? '' : 'hidden'}`}
           style={{ paddingBottom: 0, marginBottom: 0 }}
         >
-          {inboxContent.length > 0 ? (
+          {localInboxContent.length > 0 ? (
             <InboxItemsList 
-              items={inboxContent}
+              items={localInboxContent}
+              onItemArchived={handleItemArchived}
             />
           ) : (
             <div style={{
@@ -317,9 +350,10 @@ export default function CollapsibleInboxSection({
           className={`archive-content min-h-[120px] ${activeTab === 'archive' ? '' : 'hidden'}`}
           style={{ paddingBottom: 0, marginBottom: 0 }}
         >
-          {archivedItems.length > 0 ? (
+          {localArchivedItems.length > 0 ? (
             <InboxItemsList 
-              items={archivedItems}
+              items={localArchivedItems}
+              onItemArchived={handleItemArchived}
             />
           ) : (
             <div style={{

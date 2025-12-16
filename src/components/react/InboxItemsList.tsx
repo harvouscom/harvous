@@ -22,7 +22,7 @@ interface InboxItem {
 interface InboxItemsListProps {
   items: InboxItem[];
   onItemAdded?: () => void;
-  onItemArchived?: () => void;
+  onItemArchived?: (inboxItemId?: string) => void;
 }
 
 export default function InboxItemsList({ items, onItemAdded, onItemArchived }: InboxItemsListProps) {
@@ -232,23 +232,28 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
         const result = await response.json();
         if (result.success) {
-          if (onItemArchived) {
-            onItemArchived();
-          }
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
-          // Navigate with URL-based toast using View Transitions
-          const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.set('toast', 'success');
-          // Use contentType from API response, fallback to items array lookup, then generic message
+          
+          // Show success toast
           const contentType = result.contentType || items.find(item => item.id === inboxItemId)?.type;
           const message = contentType === 'thread' 
             ? 'Thread moved to archive' 
             : contentType === 'note' 
             ? 'Note moved to archive' 
             : 'Item archived'; // Fallback if contentType not available
-          currentUrl.searchParams.set('message', encodeURIComponent(message));
-          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          toast.success(message);
+          
+          // Trigger callback for optimistic update (pass inboxItemId so parent can remove item)
+          if (onItemArchived) {
+            onItemArchived(inboxItemId);
+          } else {
+            // If no callback, use View Transitions for smooth navigation
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('toast', 'success');
+            currentUrl.searchParams.set('message', encodeURIComponent(message));
+            safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          }
         }
       } catch (error) {
         console.error('Error archiving:', error);
@@ -280,23 +285,25 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
         const result = await response.json();
         if (result.success) {
-          if (onItemArchived) {
-            onItemArchived();
-          }
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
-          // Navigate with URL-based toast using View Transitions
-          const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.set('toast', 'success');
-          // Use contentType from API response, fallback to items array lookup, then generic message
+          
+          // Show success toast
           const contentType = result.contentType || items.find(item => item.id === inboxItemId)?.type;
           const message = contentType === 'thread' 
             ? 'Thread moved back to inbox' 
             : contentType === 'note' 
             ? 'Note moved back to inbox' 
             : 'Item unarchived'; // Fallback if contentType not available
-          currentUrl.searchParams.set('message', encodeURIComponent(message));
-          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          toast.success(message);
+          
+          // Trigger callback for optimistic update (pass inboxItemId so parent can move item)
+          if (onItemArchived) {
+            onItemArchived(inboxItemId);
+          } else {
+            // If no callback, just reload to get fresh data
+            window.location.reload();
+          }
         }
       } catch (error) {
         console.error('Error unarchiving:', error);
