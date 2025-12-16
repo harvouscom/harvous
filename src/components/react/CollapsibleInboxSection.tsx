@@ -32,30 +32,39 @@ export default function CollapsibleInboxSection({
   const STORAGE_KEY = 'harvous_inbox_collapsed';
   const contentRef = useRef<HTMLDivElement>(null);
   
+  // Use deterministic initial state (same on server and client) to prevent hydration mismatch
   // Default to collapsed if empty, expanded if has items
+  // We'll update from localStorage after hydration in useEffect
   const getInitialState = (): boolean => {
-    if (typeof window === 'undefined') {
-      return inboxItemCount === 0;
-    }
-    
-    // Auto-expand if items exist
-    if (inboxItemCount > 0) {
-      return false; // expanded
-    }
-    
-    // Check localStorage for preference when empty
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) {
-      return stored === 'true';
-    }
-    
-    // Default to collapsed when empty
-    return true;
+    // Always use the same logic on server and client
+    // Auto-expand if items exist, collapse if empty
+    return inboxItemCount === 0;
   };
 
   const [isCollapsed, setIsCollapsed] = useState(getInitialState);
   const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
   const previousCountRef = useRef<number>(inboxItemCount);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // After hydration, update collapsed state from localStorage if available
+  useEffect(() => {
+    setIsMounted(true);
+    
+    // Only check localStorage after component is mounted (client-side only)
+    if (typeof window !== 'undefined') {
+      // Auto-expand if items exist (override localStorage)
+      if (inboxItemCount > 0) {
+        setIsCollapsed(false);
+        localStorage.setItem(STORAGE_KEY, 'false');
+      } else {
+        // Check localStorage for preference when empty
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored !== null) {
+          setIsCollapsed(stored === 'true');
+        }
+      }
+    }
+  }, []); // Only run once after mount
   
   // Local state for inbox and archive items (initialized from props)
   const [localInboxContent, setLocalInboxContent] = useState<InboxItem[]>(inboxContent);
@@ -90,29 +99,15 @@ export default function CollapsibleInboxSection({
     }
   }, [isCollapsed]);
 
-  // Update inbox/archive text based on active tab
-  useEffect(() => {
-    const updateInboxArchiveText = () => {
-      const inboxText = document.querySelector('.inbox-auto-text');
-      const archiveText = document.querySelector('.archive-auto-text');
-      
-      if (inboxText && archiveText) {
-        if (activeTab === 'inbox') {
-          inboxText.classList.remove('hidden');
-          archiveText.classList.add('hidden');
-        } else {
-          inboxText.classList.add('hidden');
-          archiveText.classList.remove('hidden');
-        }
-      }
-    };
-    
-    updateInboxArchiveText();
-  }, [activeTab]);
+  // Note: inbox/archive text visibility is now handled directly in JSX via className
+  // No need for useEffect DOM manipulation - this prevents hydration mismatches
 
 
   // Handle tab switching - sync with tab-manager.js (but our onClick handler takes priority)
+  // Only run after mount to prevent hydration mismatches
   useEffect(() => {
+    if (!isMounted) return;
+    
     const handleTabSwitch = () => {
       const inboxButton = document.querySelector('.inbox-archive-tabs [data-tab-id="inbox"]');
       const archiveButton = document.querySelector('.inbox-archive-tabs [data-tab-id="archive"]');
@@ -155,7 +150,7 @@ export default function CollapsibleInboxSection({
     return () => {
       observer.disconnect();
     };
-  }, [activeTab]);
+  }, [activeTab, isMounted]);
 
   const toggleCollapsed = () => {
     setIsCollapsed(prev => !prev);
@@ -217,24 +212,57 @@ export default function CollapsibleInboxSection({
 
   // Handle item archived/unarchived - optimistically update state and reload page
   const handleItemArchived = (inboxItemId?: string) => {
+    if (!inboxItemId) {
+      // If no itemId, just reload to get fresh data
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+      return;
+    }
+
     // If unarchiving (itemId provided and we're in archive tab), move from archive to inbox
-    if (inboxItemId && activeTab === 'archive') {
+    if (activeTab === 'archive') {
       const itemToUnarchive = localArchivedItems.find(item => item.id === inboxItemId);
       if (itemToUnarchive) {
         // Optimistically update: remove from archive, add to inbox
         setLocalArchivedItems(prev => prev.filter(item => item.id !== inboxItemId));
         setLocalInboxContent(prev => [itemToUnarchive, ...prev]);
+        // Auto-switch to inbox tab to show the unarchived item
+        setActiveTab('inbox');
+        setIsCollapsed(false);
+        // Update DOM attributes
+        const inboxButton = document.querySelector('.inbox-archive-tabs [data-tab-id="inbox"]');
+        const archiveButton = document.querySelector('.inbox-archive-tabs [data-tab-id="archive"]');
+        if (inboxButton && archiveButton) {
+          inboxButton.setAttribute('data-active', 'true');
+          archiveButton.setAttribute('data-active', 'false');
+        }
       }
-    } else if (inboxItemId && activeTab === 'inbox') {
-      // If archiving (itemId provided and we're in inbox tab), remove from inbox
-      setLocalInboxContent(prev => prev.filter(item => item.id !== inboxItemId));
+    } else if (activeTab === 'inbox') {
+      // If archiving (itemId provided and we're in inbox tab), move from inbox to archive
+      const itemToArchive = localInboxContent.find(item => item.id === inboxItemId);
+      if (itemToArchive) {
+        // Optimistically update: remove from inbox, add to archive
+        setLocalInboxContent(prev => prev.filter(item => item.id !== inboxItemId));
+        setLocalArchivedItems(prev => [itemToArchive, ...prev]);
+        // Auto-switch to archive tab to show the archived item
+        setActiveTab('archive');
+        setIsCollapsed(false);
+        // Update DOM attributes
+        const inboxButton = document.querySelector('.inbox-archive-tabs [data-tab-id="inbox"]');
+        const archiveButton = document.querySelector('.inbox-archive-tabs [data-tab-id="archive"]');
+        if (inboxButton && archiveButton) {
+          inboxButton.setAttribute('data-active', 'false');
+          archiveButton.setAttribute('data-active', 'true');
+        }
+      }
     }
     
     // Force full page reload to get fresh server data
-    // Use a small delay to allow optimistic update to render first
+    // Use a longer delay to allow user to see the optimistic update and tab switch
     setTimeout(() => {
       window.location.reload();
-    }, 100);
+    }, 500);
   };
 
   const currentItems = activeTab === 'inbox' ? localInboxContent : localArchivedItems;
@@ -253,6 +281,7 @@ export default function CollapsibleInboxSection({
               onClick={(e) => handleTabClick('inbox', e)}
               onTouchStart={(e) => handleTabClick('inbox', e)}
               style={{ touchAction: 'manipulation' }}
+              suppressHydrationWarning
             >
               <span className="tab-nav__label">Inbox</span>
               {inboxItemCount > 0 && (
@@ -268,14 +297,25 @@ export default function CollapsibleInboxSection({
               onClick={(e) => handleTabClick('archive', e)}
               onTouchStart={(e) => handleTabClick('archive', e)}
               style={{ touchAction: 'manipulation' }}
+              suppressHydrationWarning
             >
               <span className="tab-nav__label">Archive</span>
             </button>
           </div>
         </div>
         <div className="flex flex-col font-sans font-normal justify-center relative shrink-0 text-[12px] text-[#78766f]">
-          <p className="leading-[1.3] whitespace-nowrap inbox-auto-text">14 day auto archive</p>
-          <p className="leading-[1.3] whitespace-nowrap archive-auto-text hidden">30 day auto delete</p>
+          <p 
+            className={`leading-[1.3] whitespace-nowrap inbox-auto-text ${activeTab === 'inbox' ? '' : 'hidden'}`}
+            suppressHydrationWarning
+          >
+            14 day auto archive
+          </p>
+          <p 
+            className={`leading-[1.3] whitespace-nowrap archive-auto-text ${activeTab === 'archive' ? '' : 'hidden'}`}
+            suppressHydrationWarning
+          >
+            30 day auto delete
+          </p>
         </div>
       </div>
 

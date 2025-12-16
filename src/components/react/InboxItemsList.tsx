@@ -224,13 +224,25 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          const errorMessage = error.error || 'Failed to archive';
+          let errorMessage = 'Failed to archive';
+          try {
+            const error = await response.json();
+            errorMessage = error.error || errorMessage;
+          } catch (parseError) {
+            errorMessage = `Failed to archive (${response.status} ${response.statusText})`;
+          }
           toast.error(errorMessage);
           throw new Error(errorMessage);
         }
 
-        const result = await response.json();
+        let result;
+        try {
+          result = await response.json();
+        } catch (parseError) {
+          toast.error('Failed to archive item - invalid response');
+          throw new Error('Invalid response from server');
+        }
+
         if (result.success) {
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
@@ -244,21 +256,25 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
             : 'Item archived'; // Fallback if contentType not available
           toast.success(message);
           
-          // Trigger callback for optimistic update (pass inboxItemId so parent can remove item)
+          // Trigger callback for optimistic update (pass inboxItemId so parent can move item)
           if (onItemArchived) {
             onItemArchived(inboxItemId);
           } else {
-            // If no callback, use View Transitions for smooth navigation
-            const currentUrl = new URL(window.location.href);
-            currentUrl.searchParams.set('toast', 'success');
-            currentUrl.searchParams.set('message', encodeURIComponent(message));
-            safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+            // If no callback, just reload to get fresh data
+            window.location.reload();
           }
+        } else {
+          const errorMessage = result.error || result.message || 'Failed to archive item';
+          toast.error(errorMessage);
+          throw new Error(errorMessage);
         }
       } catch (error) {
         console.error('Error archiving:', error);
         // Show toast for network errors (API errors already show toast before throwing)
         if (error instanceof TypeError) {
+          toast.error('Failed to archive item - network error');
+        } else if (!(error instanceof Error && error.message.includes('Failed to archive'))) {
+          // Only show generic error if we haven't already shown a specific error
           toast.error('Failed to archive item');
         }
         throw error;
