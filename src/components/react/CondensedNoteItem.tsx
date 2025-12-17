@@ -6,6 +6,10 @@ interface CondensedNoteItemProps {
   noteType?: 'default' | 'scripture' | 'resource';
   href: string;
   className?: string;
+  'client:load'?: boolean;
+  'client:visible'?: boolean;
+  'client:idle'?: boolean;
+  'client:only'?: string | boolean;
 }
 
 export default function CondensedNoteItem({

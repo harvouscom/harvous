@@ -49,6 +49,7 @@ Complete documentation index for the Harvous Bible study notes application.
 
 ### Specialized Guides
 - **[TYPESCRIPT_INLINE_SCRIPTS.md](./TYPESCRIPT_INLINE_SCRIPTS.md)** - TypeScript syntax in inline scripts
+- **[TYPESCRIPT_JSX_CONFIGURATION.md](./TYPESCRIPT_JSX_CONFIGURATION.md)** - ⚠️ Critical: JSX/TypeScript config for Astro + React (prevents runtime errors)
 - **[KEYBOARD_SHORTCUTS.md](./KEYBOARD_SHORTCUTS.md)** - Keyboard shortcuts reference
 - **[PWA_INITIAL_LOAD_OPTIMIZATIONS.md](./PWA_INITIAL_LOAD_OPTIMIZATIONS.md)** - PWA optimization strategies
 

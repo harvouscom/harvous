@@ -44,7 +44,8 @@ export default function CardFullEditable({
   isEditable = true,
   onSave 
 }: CardFullEditableProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isTitleEditing, setIsTitleEditing] = useState(false);
+  const [isContentEditing, setIsContentEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -75,7 +76,7 @@ export default function CardFullEditable({
   // Listen for keyboard shortcut to start editing
   useEffect(() => {
     const handleEditNote = () => {
-      if (!isEditing && isEditable) {
+      if (!isContentEditing && !isTitleEditing && isEditable) {
         // Save current scroll position
         if (contentDisplayRef.current) {
           const currentScroll = contentDisplayRef.current.scrollTop;
@@ -84,7 +85,7 @@ export default function CardFullEditable({
         
         setEditTitle(displayTitle);
         setEditContent(displayContent);
-        setIsEditing(true);
+        setIsContentEditing(true);
         setHasChanges(false);
         
         // Focus editor when it's ready
@@ -96,7 +97,7 @@ export default function CardFullEditable({
     return () => {
       window.removeEventListener('editNote', handleEditNote);
     };
-  }, [isEditing, isEditable, displayTitle, displayContent]);
+  }, [isContentEditing, isTitleEditing, isEditable, displayTitle, displayContent]);
 
   // Listen for hyperlink creation event
   useEffect(() => {
@@ -168,7 +169,7 @@ export default function CardFullEditable({
 
   // Detect parent thread ID from DOM when editing starts
   useEffect(() => {
-    if (isEditing) {
+    if (isContentEditing || isTitleEditing) {
       // Try to find parent thread ID from data attributes
       // First, check if current element or parent has data-parent-thread-id
       const cardElement = document.querySelector('[data-card-full-editable]');
@@ -191,7 +192,7 @@ export default function CardFullEditable({
       // Default to unorganized if not found
       setParentThreadId(detectedThreadId || 'thread_unorganized');
     }
-  }, [isEditing]);
+  }, [isContentEditing, isTitleEditing]);
 
 
   const startEditing = (focus: 'title' | 'content' = 'title') => {
@@ -211,23 +212,23 @@ export default function CardFullEditable({
       ? resourceDescription 
       : displayContent;
     setEditContent(initialContent);
-    setIsEditing(true);
-    setHasChanges(false);
     
-    // Set flag to focus editor when it's ready
-    if (focus === 'content') {
-      shouldFocusEditorRef.current = true;
-    }
-    
-    // Focus immediately after state update
+    // Set the appropriate editing state based on focus
     if (focus === 'title') {
-      // Use requestAnimationFrame to ensure textarea is rendered
+      setIsTitleEditing(true);
+      // Focus immediately after state update
       requestAnimationFrame(() => {
         if (titleInputRef.current) {
           titleInputRef.current.focus();
         }
       });
+    } else {
+      setIsContentEditing(true);
+      // Set flag to focus editor when it's ready
+      shouldFocusEditorRef.current = true;
     }
+    
+    setHasChanges(false);
   };
 
   // Handle editor ready callback
@@ -265,7 +266,8 @@ export default function CardFullEditable({
   };
 
   const cancelEdit = () => {
-    setIsEditing(false);
+    setIsTitleEditing(false);
+    setIsContentEditing(false);
     setEditTitle(displayTitle);
     setEditContent(displayContent);
     setHasChanges(false);
@@ -273,7 +275,8 @@ export default function CardFullEditable({
 
   const saveChanges = async () => {
     if (!hasChanges) {
-      setIsEditing(false);
+      setIsTitleEditing(false);
+      setIsContentEditing(false);
       return;
     }
 
@@ -337,7 +340,8 @@ export default function CardFullEditable({
             // Update display content with the final content
             setDisplayTitle(editTitle);
             setDisplayContent(finalContent);
-            setIsEditing(false);
+            setIsTitleEditing(false);
+            setIsContentEditing(false);
             setHasChanges(false);
           }
         }, 200);
@@ -350,7 +354,8 @@ export default function CardFullEditable({
         // Update display content
         setDisplayTitle(editTitle);
         setDisplayContent(editorContent);
-        setIsEditing(false);
+        setIsTitleEditing(false);
+        setIsContentEditing(false);
         setHasChanges(false);
       }
     } catch (error) {
@@ -375,7 +380,7 @@ export default function CardFullEditable({
   useEffect(() => {
     const handleSaveContent = () => {
       // Only save if we're in edit mode, have changes, and not already saving
-      if (isEditing && hasChanges && !isSaving) {
+      if ((isTitleEditing || isContentEditing) && hasChanges && !isSaving) {
         saveChangesRef.current();
       }
     };
@@ -384,14 +389,14 @@ export default function CardFullEditable({
     return () => {
       window.removeEventListener('saveContent', handleSaveContent);
     };
-  }, [isEditing, hasChanges, isSaving]);
+  }, [isTitleEditing, isContentEditing, hasChanges, isSaving]);
 
   // Listen for Cmd+Enter to save (dispatched from TiptapEditor)
   useEffect(() => {
     const handleSubmitPanelForm = () => {
       // Only save if we're in edit mode and not already saving
       // Use saveChangesRef to always call the latest version with current state
-      if (isEditing && !isSaving) {
+      if ((isTitleEditing || isContentEditing) && !isSaving) {
         saveChangesRef.current();
       }
     };
@@ -400,7 +405,7 @@ export default function CardFullEditable({
     return () => {
       window.removeEventListener('submitPanelForm', handleSubmitPanelForm);
     };
-  }, [isEditing, isSaving]);
+  }, [isTitleEditing, isContentEditing, isSaving]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -672,7 +677,7 @@ export default function CardFullEditable({
           {/* Header with title and newspaper icon */}
           <div className="card-image-link__header" style={{ flexShrink: 0 }}>
             <div className="card-image-link__title" style={{ flex: 1, minWidth: 0 }}>
-              {!isEditing ? (
+              {!isTitleEditing ? (
                 <p
                   className="cursor-pointer rounded"
                   style={{
@@ -716,14 +721,14 @@ export default function CardFullEditable({
                 </div>
               )}
             </div>
-            <div className="card-image-link__bookmark">
+            <div className="card-image-link__bookmark" style={{ marginTop: '4px' }}>
               <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
             </div>
           </div>
           
           {/* Editable content area with TiptapEditor */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%' }}>
-            {!isEditing ? (
+            {!isContentEditing ? (
               <div 
                 ref={contentDisplayRef}
                 className="flex-1 overflow-auto cursor-pointer rounded px-3"
@@ -752,7 +757,7 @@ export default function CardFullEditable({
                       minimalToolbar={false}
                       onContentChange={handleContentChange}
                       scrollPosition={scrollPosition}
-                      enableCreateNoteFromSelection={isEditing}
+                      enableCreateNoteFromSelection={isContentEditing}
                       parentThreadId={parentThreadId}
                       sourceNoteId={noteId}
                       onEditorReady={handleEditorReady}
@@ -829,14 +834,14 @@ export default function CardFullEditable({
     <>
       <div 
         className={`card-full-editable ${className}`}
-        style={{ maxHeight: '100%' }}
+        style={{ maxHeight: '100%', gap: 0 }}
         data-card-full-editable
       >
       {/* Header with title, version (scripture only), and bookmark icon */}
-      <div className="box-border content-stretch flex gap-3 items-center px-3 py-0 relative shrink-0 w-full">
+      <div className="box-border content-stretch flex gap-3 items-start px-3 py-0 relative shrink-0 w-full">
         <div className="basis-0 font-sans font-bold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
           {/* Display mode */}
-          {!isEditing ? (
+          {!isTitleEditing ? (
             <p 
               className="cursor-pointer rounded"
               style={{
@@ -913,7 +918,7 @@ export default function CardFullEditable({
           };
           const config = noteTypeConfig[noteType];
           return (
-            <div className="relative shrink-0 size-5" title={`${config.label} type`}>
+            <div className="relative shrink-0 size-5" title={`${config.label} type`} style={{ marginTop: '4px' }}>
               {config.icon}
             </div>
           );
@@ -921,10 +926,10 @@ export default function CardFullEditable({
       </div>
       
       {/* Content */}
-      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px' }}>
+      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px', marginTop: '0' }}>
         <div className="flex-1 flex flex-col font-sans font-medium min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
           {/* Display mode */}
-          {!isEditing ? (
+          {!isContentEditing ? (
             <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
                 <div 
@@ -949,7 +954,7 @@ export default function CardFullEditable({
                     minimalToolbar={false}
                     onContentChange={handleContentChange}
                     scrollPosition={scrollPosition}
-                    enableCreateNoteFromSelection={isEditing}
+                    enableCreateNoteFromSelection={isContentEditing}
                     parentThreadId={parentThreadId}
                     sourceNoteId={noteId}
                     onEditorReady={handleEditorReady}

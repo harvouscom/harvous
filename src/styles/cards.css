@@ -821,7 +821,7 @@
   box-sizing: border-box;
   display: flex;
   gap: 12px;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding-left: 12px;
   padding-right: 12px;

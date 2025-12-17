@@ -109,68 +109,8 @@ let currentSpace: any = null;
 let threadNotes: any[] = [];
 let inboxCount: number = 0;
 
-// Get active thread context for navigation
-  const activeThread = await detectActiveThreadFromPath(Astro.url.pathname, authenticatedUserId);
-
-  // Ensure unorganized thread exists in database and check if it has notes
-  let unorganizedThread: any = null;
-  let otherThreads: any[] = [];
-  
-  try {
-    const threadData = await ensureUnorganizedThread(authenticatedUserId);
-    if (threadData.noteCount > 0) {
-      unorganizedThread = threadData;
-    }
-    
-    // If we're on the unorganized thread, get other threads to show in navigation
-    if (id === 'thread_unorganized') {
-      
-      const threads = await db.select({
-        id: Threads.id,
-        title: Threads.title,
-        subtitle: Threads.subtitle,
-        color: Threads.color,
-        spaceId: Threads.spaceId,
-        isPublic: Threads.isPublic,
-        isPinned: Threads.isPinned,
-        createdAt: Threads.createdAt,
-        updatedAt: Threads.updatedAt,
-      })
-      .from(Threads)
-      .where(and(
-        eq(Threads.userId, authenticatedUserId),
-        ne(Threads.id, "thread_unorganized") // Exclude unorganized thread
-      ))
-      .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt));
-
-      // Get note counts for each thread
-      otherThreads = await Promise.all(
-        threads.map(async (thread) => {
-          const threadNoteCount = await db.select({ count: count() })
-            .from(Notes)
-            .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-            .where(and(
-              eq(NoteThreads.threadId, thread.id),
-              eq(Notes.userId, authenticatedUserId)
-            ))
-            .get();
-
-          return {
-            ...thread,
-            noteCount: threadNoteCount?.count || 0,
-            backgroundGradient: thread.color 
-              ? getThreadGradientCSS(thread.color)
-              : 'var(--color-gradient-gray)'
-          };
-        })
-      );
-    }
-  } catch (error) {
-    // Error checking unorganized thread notes
-  }
-
-  // Always use real database data
-  try {
+// Always use real database data
+try {
     if (isThread) {
       // Special handling for unorganized thread
       if (id === 'thread_unorganized') {
@@ -568,13 +508,13 @@ let inboxCount: number = 0;
     threads = [...allThreads, ...threads]; // Combine with space-specific threads
     inboxCount = inboxCountData;
     
-  } catch (error) {
-    // Fallback to empty data
-    content = null;
-    threads = [];
-    spaces = [];
-    inboxCount = 0;
-  }
+} catch (error) {
+  // Fallback to empty data
+  content = null;
+  threads = [];
+  spaces = [];
+  inboxCount = 0;
+}
 
 
 
@@ -615,7 +555,7 @@ if (!content) {
               data-parent-thread-color={currentThread?.color || 'blue'}
               data-selected-thread-id={currentThread?.id || 'thread_unorganized'}
               class="h-full min-h-0 overflow-hidden flex flex-col"
-              style={{ maxHeight: '100%' }}
+              style="max-height: 100%"
             >
               <CardFullEditableReact 
                 title={content.title || "Untitled Note"}

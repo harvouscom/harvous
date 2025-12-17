@@ -40,6 +40,11 @@ interface Note {
 interface ThreadNotesListProps {
   initialNotes: Note[];
   threadId: string;
+  'client:load'?: boolean;
+  'client:visible'?: boolean;
+  'client:idle'?: boolean;
+  'client:only'?: string | boolean;
+  [key: string]: any; // Allow Astro directives and other dynamic props
 }
 
 export default function ThreadNotesList({ 

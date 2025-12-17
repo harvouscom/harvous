@@ -1,6 +1,24 @@
 /// <reference types="astro/client" />
 /// <reference path="../.astro/types.d.ts" />
 
+// Ensure JSX types are available for Astro templates
+declare namespace JSX {
+  interface IntrinsicElements {
+    [elem: string]: any;
+  }
+}
+
+// Allow Astro directives on React components
+declare module 'react' {
+  interface ComponentProps<T> {
+    'client:load'?: boolean;
+    'client:visible'?: boolean;
+    'client:idle'?: boolean;
+    'client:only'?: string | boolean;
+    slot?: string;
+  }
+}
+
 declare global {
   interface Window {
     toast: {

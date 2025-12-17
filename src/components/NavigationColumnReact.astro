@@ -3,6 +3,7 @@ import NavigationColumn from "./react/navigation/NavigationColumn.tsx";
 import { NavigationProvider } from "./react/navigation/NavigationContext.tsx";
 
 interface Props {
+  slot?: string;
   inboxCount?: number;
   spaces?: Array<{
     id: string;

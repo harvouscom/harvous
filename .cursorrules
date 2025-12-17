@@ -80,6 +80,14 @@ When converting Alpine.js to React:
 - **For `is:inline` scripts**: Write plain JavaScript only
 - See `TYPESCRIPT_INLINE_SCRIPTS.md` for detailed examples and best practices
 
+### TypeScript JSX Configuration (Astro + React)
+- **CRITICAL**: Never add `jsx: "preserve"` or `jsxImportSource: "astro"` to `tsconfig.json` when using React
+- **These settings break React components** - causes "Objects are not valid as a React child" runtime errors
+- **Astro handles JSX automatically** - no manual JSX configuration needed
+- **Fix TypeScript JSX errors** by adding `JSX.IntrinsicElements` declaration to `src/env.d.ts` (not tsconfig.json)
+- **Astro templates use string syntax** for style attributes: `style="..."` not `style={{...}}`
+- See `TYPESCRIPT_JSX_CONFIGURATION.md` for complete guide and troubleshooting
+
 ## Note ID System
 - **CRITICAL**: Never reuse deleted note IDs - always increment from highest ever used
 - Use UserMetadata table to track `highestSimpleNoteId` per user
