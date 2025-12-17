@@ -49,11 +49,9 @@ Complete documentation is available in the [`docs/`](./docs/) directory:
 
 ## License
 
-This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0) - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the O'Saasy License - see the [LICENSE](LICENSE) file for details.
 
-**Summary**: This license allows you to use, share, and adapt this work for non-commercial purposes. You must give appropriate credit, provide a link to the license, and indicate if changes were made. You may not use this work for commercial purposes.
-
-For more information, visit: https://creativecommons.org/licenses/by-nc/4.0/
+**Summary**: MIT-like license that allows use, modification, and distribution, but reserves the right to offer this software as a hosted SaaS product exclusively for Testament Made, LLC.
 
 ---
 
