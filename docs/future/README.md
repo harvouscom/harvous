@@ -117,9 +117,9 @@ See `CLERK_MONETIZATION_ARCHITECTURE.md` for complete database schemas.
 
 ## 📚 Related Documentation
 
-- **`../V1_ROADMAP.md`** - Current V1 priorities
 - **`../ARCHITECTURE.md`** - Core app architecture
 - **`../FEATURES.md`** - Current feature set
+- **`../CHANGELOG.md`** - V1 release notes and feature history
 
 ## 💡 Key Principles
 

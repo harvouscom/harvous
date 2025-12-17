@@ -40,11 +40,9 @@ Complete documentation index for the Harvous Bible study notes application.
 - **[ANIMATION_GUIDELINES.md](./ANIMATION_GUIDELINES.md)** - Animation patterns and guidelines
 
 ### Development Plans
-- **[V1_ROADMAP.md](./V1_ROADMAP.md)** - V1 release timeline
 - **[ALPINE_TO_REACT_MIGRATION_PLAN.md](./ALPINE_TO_REACT_MIGRATION_PLAN.md)** - Migration strategy from Alpine.js to React
 
 ### Issue Tracking & Lessons
-- **[V1_ISSUES.md](./V1_ISSUES.md)** - Known issues and fixes
 - **[ALPINE_JS_LESSONS.md](./ALPINE_JS_LESSONS.md)** - Alpine.js lessons learned
 - **[NAVIGATION_HISTORY_PERSISTENCE_LESSONS.md](./NAVIGATION_HISTORY_PERSISTENCE_LESSONS.md)** - Navigation persistence patterns
 - **[REACT_PORTAL_CLICK_OUTSIDE_LESSONS.md](./REACT_PORTAL_CLICK_OUTSIDE_LESSONS.md)** - Portal patterns and lessons
