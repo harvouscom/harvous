@@ -3,9 +3,17 @@
  * 
  * Provides type-safe event tracking functions for PostHog
  * Use these functions throughout the app to track user actions
+ * 
+ * In self-hosted mode, all tracking functions are no-ops
  */
 
-import { captureEvent, captureException } from './posthog';
+// Check if we're in self-hosted mode
+const isSelfHosted = import.meta.env.SELF_HOSTED === 'true';
+
+// Import PostHog functions only if not self-hosted
+const { captureEvent: posthogCaptureEvent, captureException: posthogCaptureException } = isSelfHosted 
+  ? { captureEvent: () => {}, captureException: () => {} }
+  : await import('./posthog').then(m => ({ captureEvent: m.captureEvent, captureException: m.captureException }));
 
 /**
  * Track note creation
@@ -18,7 +26,7 @@ export function trackNoteCreated(data: {
   hasContent: boolean;
   contentLength?: number;
 }) {
-  captureEvent('note_created', {
+  posthogCaptureEvent('note_created', {
     note_id: data.noteId,
     thread_id: data.threadId,
     space_id: data.spaceId,
@@ -112,7 +120,7 @@ export function trackError(data: {
 }) {
   const error = data.error || new Error(data.errorMessage);
   
-  captureException(error, {
+  posthogCaptureException(error, {
     context: data.context,
     user_id: data.userId,
     error_stack: data.errorStack || error.stack,

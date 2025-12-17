@@ -23,6 +23,12 @@ import { ClientRouter, fade } from "astro:transitions";
 // Initialize toast utility globally
 import "@/utils/toast";
 
+// Check if we're in self-hosted mode
+const isSelfHosted = import.meta.env.SELF_HOSTED === 'true';
+
+// Conditionally include PostHog components only if not self-hosted
+const shouldIncludePostHog = !isSelfHosted;
+
 interface Props {
   classNames?: string;
   title?: string;
@@ -73,8 +79,8 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     
-    <!-- PostHog Analytics (Official Astro Integration) -->
-    <PostHog />
+    <!-- PostHog Analytics (Official Astro Integration) - Skip in self-hosted mode -->
+    {shouldIncludePostHog ? <PostHog /> : null}
     
     <!-- Performance Tracking Script -->
     <script is:inline>
@@ -312,7 +318,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
   >
     <ToastProvider client:load />
     <KeyboardShortcutsInit client:load />
-    <PostHogUserInit client:idle userId={userId} userData={userData} />
+    {shouldIncludePostHog ? <PostHogUserInit client:idle userId={userId} userData={userData} /> : null}
 
     <div class="app-layout" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->

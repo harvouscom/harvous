@@ -1,11 +1,8 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
-import db from '@astrojs/db';
-import clerk from '@clerk/astro';
 import react from '@astrojs/react';
 
-import netlify from '@astrojs/netlify';
-
+// Self-hosted configuration - no Clerk, no Astro DB
 // https://astro.build/config
 export default defineConfig({
   devToolbar: {
@@ -15,35 +12,30 @@ export default defineConfig({
     clientPrerender: true
   },
   prefetch: {
-    defaultStrategy: 'hover',  // Prefetch when user hovers over link
-    prefetchAll: false         // Only prefetch on hover, not all links
+    defaultStrategy: 'hover',
+    prefetchAll: false
   },
   vite: {
     server: {
       port: 4321,
-      // Fix HMR WebSocket connection issues
       hmr: {
         port: 4321,
         clientPort: 4321,
         overlay: false,
         host: 'localhost'
       },
-      // Fix MIME type issues for .astro files
       fs: {
         strict: false
       },
-      // Additional headers for development
       headers: {
         'Cache-Control': 'no-cache'
       }
     },
     build: {
-      // Optimize chunks to improve browser performance
       chunkSizeWarningLimit: 1000,
       cssCodeSplit: true,
       rollupOptions: {
         output: {
-          // Improve chunk splitting for better caching
           manualChunks: {
             editor: ['isomorphic-dompurify'],
             tiptap: [
@@ -67,36 +59,27 @@ export default defineConfig({
         }
       }
     },
-    // Add performance optimizations to Vite dev server
     optimizeDeps: {
       exclude: [],
-      include: ['@clerk/astro/client']
     },
-    // Fix MIME type issues in development
     define: {
       _DEFINES_: JSON.stringify({}),
-      // Fix environment variable issues
       'import.meta.env.DEV': JSON.stringify(import.meta.env.DEV),
-      'import.meta.env.PROD': JSON.stringify(import.meta.env.PROD)
+      'import.meta.env.PROD': JSON.stringify(import.meta.env.PROD),
+      'import.meta.env.SELF_HOSTED': JSON.stringify('true')
     },
-    // Improve CSS handling
     css: {
       devSourcemap: false
     }
   },
 
   integrations: [
-    db(),
-    clerk({
-      enableEnvSchema: true
-    }),
     react(),
+    // Note: No db() or clerk() integrations for self-hosted mode
   ],
 
-  // Use different output modes for development vs production
   output: "server",
-  adapter: import.meta.env.DEV ? undefined : netlify({
-    // Only use Netlify adapter in production
-    edgeMiddleware: false
-  }),
+  // For self-hosted, we'll use Node.js adapter instead of Netlify
+  adapter: undefined, // Will need to add @astrojs/node adapter for production
 });
+

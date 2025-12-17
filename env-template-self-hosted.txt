@@ -1,0 +1,26 @@
+# Harvous Self-Hosted Environment Variables
+# Copy this file to .env and update values as needed
+
+# Self-hosted mode (required)
+SELF_HOSTED=true
+
+# Database Configuration (required)
+# Format: postgresql://user:password@host:port/database
+DATABASE_URL=postgresql://harvous:changeme@postgres:5432/harvous
+
+# Application Configuration
+NODE_ENV=production
+PORT=4321
+HOSTNAME=0.0.0.0
+
+# Optional: Initialize database on startup
+INIT_DB=false
+
+# Note: The following SaaS variables are NOT needed in self-hosted mode:
+# - PUBLIC_CLERK_PUBLISHABLE_KEY
+# - CLERK_SECRET_KEY
+# - PUBLIC_POSTHOG_KEY
+# - PUBLIC_POSTHOG_HOST
+# - ASTRO_DB_REMOTE_URL
+# - ASTRO_DB_APP_TOKEN
+

@@ -77,20 +77,30 @@ declare global {
 
 interface ImportMetaEnv {
   /** https://docs.astro.build/en/guides/astro-db/#libsql */
-  readonly ASTRO_DB_REMOTE_URL: string;
+  readonly ASTRO_DB_REMOTE_URL?: string;
   /** https://docs.astro.build/en/guides/astro-db/#libsql */
-  readonly ASTRO_DB_APP_TOKEN: string;
+  readonly ASTRO_DB_APP_TOKEN?: string;
   
   // Astro Environment Variables
   readonly DEV: boolean;
   readonly PROD: boolean;
   readonly MODE: string;
   
-  // Clerk Environment Variables
-  readonly PUBLIC_CLERK_PUBLISHABLE_KEY: string;
-  readonly CLERK_SECRET_KEY: string;
+  // Self-hosted mode flag
+  readonly SELF_HOSTED?: string;
+  
+  // Database URL for self-hosted mode
+  readonly DATABASE_URL?: string;
+  
+  // Clerk Environment Variables (optional in self-hosted mode)
+  readonly PUBLIC_CLERK_PUBLISHABLE_KEY?: string;
+  readonly CLERK_SECRET_KEY?: string;
   readonly PUBLIC_CLERK_SIGN_IN_URL?: string;
   readonly PUBLIC_CLERK_SIGN_UP_URL?: string;
+  
+  // PostHog Analytics (optional in self-hosted mode)
+  readonly PUBLIC_POSTHOG_KEY?: string;
+  readonly PUBLIC_POSTHOG_HOST?: string;
   
   // Webflow CMS API token for syncing inbox items
   readonly WEBFLOW_API_TOKEN?: string;

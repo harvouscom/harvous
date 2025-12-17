@@ -20,6 +20,11 @@ interface PostHogInitProps {
 
 export default function PostHogInit({ userId, userData }: PostHogInitProps) {
   useEffect(() => {
+    // Skip PostHog in self-hosted mode
+    if (import.meta.env.SELF_HOSTED === 'true') {
+      return;
+    }
+
     // Initialize PostHog after component mounts
     initPostHog();
 

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: harvous-postgres
+    environment:
+      POSTGRES_USER: harvous
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: harvous
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/postgres-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harvous"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: harvous-app
+    environment:
+      SELF_HOSTED: "true"
+      DATABASE_URL: postgresql://harvous:${POSTGRES_PASSWORD:-changeme}@postgres:5432/harvous
+      NODE_ENV: production
+      PORT: 4321
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "4321:4321"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      # Mount for persistent data if needed
+      - app_data:/app/data
+
+volumes:
+  postgres_data:
+    driver: local
+  app_data:
+    driver: local
+

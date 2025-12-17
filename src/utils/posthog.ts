@@ -23,6 +23,11 @@ declare global {
  * Should be called after page load to avoid blocking initial render
  */
 export function initPostHog() {
+  // Skip PostHog in self-hosted mode
+  if (import.meta.env.SELF_HOSTED === 'true') {
+    return;
+  }
+
   // Only run on client-side
   if (typeof window === 'undefined') {
     return;
