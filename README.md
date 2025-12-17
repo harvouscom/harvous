@@ -1,6 +1,6 @@
 # Harvous
 
-A Bible study notes application built with **Astro 5** and **React Islands architecture**. Harvous helps you remember what you learn, organize your study, and build a better daily practice—not just on Sundays.
+A Bible study notes app. Trying to help you organize, remember, and keep findable what you learn—for a practice that isn't just on Sundays.
 
 ---
 
