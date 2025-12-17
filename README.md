@@ -24,10 +24,8 @@ Harvous is a Bible study notes application designed specifically for people who 
 - **Rich Text Editing**: Modern Tiptap editor with formatting options
 - **Auto-Tagging**: Intelligent tagging with 1000+ biblical keywords
 - **Scripture Detection**: Automatic detection and parsing of Bible references
-- **XP Gamification**: Points for creating content, daily bonuses, activity tracking
 - **Multi-Thread Support**: Notes can belong to multiple threads (because Bible study topics naturally overlap)
 - **PWA Ready**: Installable on mobile and desktop
-- **Real-Time Updates**: Event-driven architecture for instant UI updates
 
 Think of Harvous like a digital filing cabinet specifically designed for Bible study, where:
 - **Spaces** are like the main drawers (Bible Study, Prayer Journal, Sermon Notes)
