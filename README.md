@@ -1,21 +1,38 @@
 # Harvous
 
-A modern Bible study notes application built with **Astro 5** and **React Islands architecture**. Harvous provides a flexible, hierarchical organization system (Spaces → Threads → Notes) with rich text editing, auto-tagging, XP gamification, and PWA capabilities.
+A Bible study notes application built with **Astro 5** and **React Islands architecture**. Harvous helps you remember what you learn, organize your study, and build a better daily practice—not just on Sundays.
 
 ---
 
-## Overview
+## About Me & Why Harvous Exists
 
-Harvous is designed specifically for Bible study workflows, providing:
+Hey, I'm **Derek Castelli**. I'm a designer who's been designing websites and making them in Webflow since 2018. I'm also a believer since 2016, and this is my first app—something I've dreamed of making for years.
 
-- **Flexible Organization**: Hierarchical system with Spaces → Threads → Notes
+Harvous started during a house church event where I received a prophetic word with the key scripture being **Proverbs 25:2**. As a designer and new believer, I wondered how I could positively impact Bible study. I was learning every Sunday morning, but I struggled to remember what we covered the week before. I needed a better practice—something that extended beyond Sunday mornings.
+
+So in 2022, I started working on this. It's gone through many iterations (it was actually going to be a ["Duolingo for Bible study"](https://www.reddit.com/r/Episcopalian/comments/1agt3xt/comment/nk4yzk1/?context=3) before those started being more prevalnet) before arriving where it is now—a Bible notes app that is thoughtful and good.
+
+As I continue to work on Harvous, I think about where I was in 2015, one of the darkest times of my life. I think about my wife's friend in the UK who is getting more and more curious about God. For how beautiful God is, some software that helps people remember and know more about the Bible deserves, in my opinion, to also be beautiful.
+
+---
+
+## What is Harvous?
+
+Harvous is a Bible study notes application designed specifically for people who want to organize their spiritual study in a meaningful way. Unlike generic note-taking apps, Harvous understands that Bible study has unique needs:
+
+- **Flexible Organization**: Hierarchical system with Spaces → Threads → Notes that adapts to how you think
 - **Rich Text Editing**: Modern Tiptap editor with formatting options
 - **Auto-Tagging**: Intelligent tagging with 1000+ biblical keywords
 - **Scripture Detection**: Automatic detection and parsing of Bible references
 - **XP Gamification**: Points for creating content, daily bonuses, activity tracking
-- **Multi-Thread Support**: Notes can belong to multiple threads
+- **Multi-Thread Support**: Notes can belong to multiple threads (because Bible study topics naturally overlap)
 - **PWA Ready**: Installable on mobile and desktop
 - **Real-Time Updates**: Event-driven architecture for instant UI updates
+
+Think of Harvous like a digital filing cabinet specifically designed for Bible study, where:
+- **Spaces** are like the main drawers (Bible Study, Prayer Journal, Sermon Notes)
+- **Threads** are like folders within those drawers (Gospel of John, Romans Study, Daily Prayers)
+- **Notes** are like individual documents in those folders (your thoughts, insights, and reflections)
 
 ---
 
@@ -36,6 +53,7 @@ Complete documentation is available in the [`docs/`](./docs/) directory:
 - **[docs/USER_GUIDE.md](./docs/USER_GUIDE.md)** - User guide
 - **[docs/TECH_STACK.md](./docs/TECH_STACK.md)** - Technology stack
 - **[docs/PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)** - Project organization
+- **[docs/HOW_IT_WORKS.md](./docs/HOW_IT_WORKS.md)** - Complete guide explaining how everything works
 
 ### Documentation Categories
 
@@ -47,9 +65,23 @@ Complete documentation is available in the [`docs/`](./docs/) directory:
 
 ---
 
+## Development
+
+You are welcome—and encouraged—to modify Harvous to your liking. Please see our [Development guide](./docs/GETTING_STARTED.md) for how to get Harvous set up for local development.
+
+---
+
+## How to Contribute
+
+We welcome contributions! Please read our [development guide](./docs/GETTING_STARTED.md) and [architecture documentation](./docs/ARCHITECTURE.md) before submitting code. For code style and patterns, see our [refactoring plan](./docs/REFACTORING_PLAN.md) and [React Islands strategy](./docs/REACT_ISLANDS_STRATEGY.md).
+
+---
+
 ## License
 
-This project is licensed under the O'Saasy License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the [O'Saasy License](https://world.hey.com/dhh/the-o-saasy-license-336c5c8f) - see the [LICENSE](LICENSE) file for details.
+
+The O'Saasy License was created by [David Heinemeier Hansson (DHH)](https://world.hey.com/dhh/the-o-saasy-license-336c5c8f) and the team at 37signals. It's basically the do-whatever-you-want MIT license, but with the commercial rights to run the software as a service (SaaS) reserved for the copyright holder, thus encouraging more code to be open source while allowing the original creators to see a return on their investment.
 
 **Summary**: MIT-like license that allows use, modification, and distribution, but reserves the right to offer this software as a hosted SaaS product exclusively for Testament Made, LLC.
 
@@ -57,9 +89,11 @@ This project is licensed under the O'Saasy License - see the [LICENSE](LICENSE) 
 
 ## Credits
 
-Built with ❤️ for Bible study enthusiasts
+Many thanks to my friends **Cameron Pak** and **Corey Moen** for their initial support and continued encouragement. Also shoutout to the very first users who have provided oh so helpful feedback.
 
-**Technologies:**
+Also, Harvous is continuously inspired by the work of 37signals. We use [HEY](https://hey.com) for email and [Fizzy](https://fizzy.do) to get work done, and we're grateful for their commitment to building thoughtful software and supporting the open source community.
+
+## Technologies:
 - [Astro](https://astro.build) - SSR framework
 - [React](https://react.dev) - Interactive components
 - [Turso](https://turso.tech) - Serverless database
@@ -71,6 +105,5 @@ Built with ❤️ for Bible study enthusiasts
 
 ---
 
-**Version:** 0.177.2  
-**Last Updated:** January 2025  
-**Status:** ✅ V1 Ready - Production Release Candidate
+**Version:** 0.177.2    
+**Status:** Almost ready for V1 release
