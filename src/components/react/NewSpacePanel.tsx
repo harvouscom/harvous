@@ -117,6 +117,21 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     return title.trim().length > 0 || selectedItems.length > 0;
   };
 
+  // Store pending navigation when user tries to navigate with unsaved changes
+  const [pendingNavigation, setPendingNavigation] = useState<{ path: string; options?: { history?: 'replace' | 'push' } } | null>(null);
+
+  // Navigation guard wrapper that checks for unsaved changes
+  const safeNavigateWithGuard = async (path: string, options?: { history?: 'replace' | 'push' }) => {
+    if (hasUnsavedChanges()) {
+      // Store the pending navigation to execute after user confirms
+      setPendingNavigation({ path, options });
+      setShowUnsavedDialog(true);
+      return;
+    }
+    // No unsaved changes, proceed with navigation
+    await safeNavigate(path, options);
+  };
+
   // Handle navigation away - show unsaved changes dialog if needed
   const handleNavigationAway = (e?: Event) => {
     if (hasUnsavedChanges()) {
@@ -157,16 +172,6 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         setShowUnsavedDialog(true);
       }
     };
-
-    // Intercept programmatic navigation via safeNavigate
-    const originalSafeNavigate = (window as any).__originalSafeNavigate;
-    if (!originalSafeNavigate) {
-      // Store original if not already stored
-      (window as any).__originalSafeNavigate = true;
-      
-      // Override safeNavigate temporarily (this is a bit hacky but necessary)
-      // We'll handle this via event listener instead
-    }
 
     document.addEventListener('click', handleLinkClick, true);
     
@@ -315,19 +320,34 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         if (onSpaceCreated) {
           onSpaceCreated();
         } else {
-          // Default behavior: redirect to the newly created space
-          window.dispatchEvent(new CustomEvent('closeNewSpacePanel'));
-          if (onClose) {
-            onClose();
-          }
-
-          // Redirect to the newly created space
-          if (result.space && result.space.id) {
-            const redirectUrl = `/${result.space.id}`;
-            // Add a small delay to ensure localStorage is updated before navigation
+          // Check if there's a pending navigation from unsaved changes dialog
+          if (pendingNavigation) {
+            // Execute the pending navigation (user wanted to navigate after saving)
+            const navPath = pendingNavigation.path;
+            const navOptions = pendingNavigation.options;
+            setPendingNavigation(null);
+            window.dispatchEvent(new CustomEvent('closeNewSpacePanel'));
+            if (onClose) {
+              onClose();
+            }
             setTimeout(() => {
-              safeNavigate(redirectUrl, { history: 'replace' });
+              safeNavigate(navPath, navOptions);
             }, 100);
+          } else {
+            // Default behavior: redirect to the newly created space
+            window.dispatchEvent(new CustomEvent('closeNewSpacePanel'));
+            if (onClose) {
+              onClose();
+            }
+
+            // Redirect to the newly created space
+            if (result.space && result.space.id) {
+              const redirectUrl = `/${result.space.id}`;
+              // Add a small delay to ensure localStorage is updated before navigation
+              setTimeout(() => {
+                safeNavigate(redirectUrl, { history: 'replace' });
+              }, 100);
+            }
           }
         }
       } else {
@@ -376,7 +396,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     }
   };
 
-  const handleDiscardChanges = () => {
+  const handleDiscardChanges = async () => {
     setTitle('');
     setSelectedColor('paper');
     setSelectedType('Private');
@@ -386,15 +406,23 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     localStorage.removeItem('newSpaceType');
     setShowUnsavedDialog(false);
     
-    // Close the panel - navigation will proceed naturally
-    window.dispatchEvent(new CustomEvent('closeNewSpacePanel'));
-    if (onClose) {
-      onClose();
+    // Execute pending navigation if there was one
+    if (pendingNavigation) {
+      await safeNavigate(pendingNavigation.path, pendingNavigation.options);
+      setPendingNavigation(null);
+    } else {
+      // Close the panel - navigation will proceed naturally
+      window.dispatchEvent(new CustomEvent('closeNewSpacePanel'));
+      if (onClose) {
+        onClose();
+      }
     }
   };
 
   const handleSaveAndClose = () => {
     setShowUnsavedDialog(false);
+    // Store that we should navigate after save
+    // The form submission will handle the navigation after successful save
     const form = document.querySelector('form');
     if (form) {
       form.requestSubmit();
@@ -849,7 +877,10 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       {/* Unsaved Changes Dialog */}
       <UnsavedChangesDialog
         isOpen={showUnsavedDialog}
-        onCancel={() => setShowUnsavedDialog(false)}
+        onCancel={() => {
+          setShowUnsavedDialog(false);
+          setPendingNavigation(null);
+        }}
         onDiscard={handleDiscardChanges}
         onSaveAndClose={handleSaveAndClose}
       />
