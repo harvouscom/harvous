@@ -33,12 +33,11 @@ export default function CollapsibleInboxSection({
   const contentRef = useRef<HTMLDivElement>(null);
   
   // Use deterministic initial state (same on server and client) to prevent hydration mismatch
-  // Default to collapsed if empty, expanded if has items
-  // We'll update from localStorage after hydration in useEffect
+  // Always start collapsed - useEffect will expand if needed based on items and localStorage
   const getInitialState = (): boolean => {
-    // Always use the same logic on server and client
-    // Auto-expand if items exist, collapse if empty
-    return inboxItemCount === 0;
+    // Always start as collapsed to ensure server/client match
+    // The useEffect will handle expanding if items exist or based on localStorage
+    return true;
   };
 
   const [isCollapsed, setIsCollapsed] = useState(getInitialState);
@@ -339,13 +338,15 @@ export default function CollapsibleInboxSection({
         </div>
         <div className="flex flex-col font-sans font-normal justify-center relative shrink-0 text-[12px] text-[#78766f]">
           <p 
-            className={`leading-[1.3] whitespace-nowrap inbox-auto-text ${activeTab === 'inbox' ? '' : 'hidden'}`}
+            className="leading-[1.3] whitespace-nowrap inbox-auto-text"
+            style={{ display: activeTab === 'inbox' && !isCollapsed && isMounted ? 'block' : 'none' }}
             suppressHydrationWarning
           >
             14 day auto archive
           </p>
           <p 
-            className={`leading-[1.3] whitespace-nowrap archive-auto-text ${activeTab === 'archive' ? '' : 'hidden'}`}
+            className="leading-[1.3] whitespace-nowrap archive-auto-text"
+            style={{ display: activeTab === 'archive' && !isCollapsed && isMounted ? 'block' : 'none' }}
             suppressHydrationWarning
           >
             30 day auto delete
