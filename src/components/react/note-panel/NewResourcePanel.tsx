@@ -37,9 +37,14 @@ export default function NewResourcePanel({
   const [isPasteEvent, setIsPasteEvent] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<{ exists: boolean; noteId?: string; simpleNoteId?: number; title?: string; description?: string; image?: string; url?: string } | null>(null);
   const [imageRemoved, setImageRemoved] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutoSelectedThreadRef = useRef(false);
+  const originalTitleRef = useRef<string>('');
+  const currentUrlRef = useRef<string>('');
 
   // Auto-focus input when component mounts
   useEffect(() => {
@@ -55,6 +60,10 @@ export default function NewResourcePanel({
     setUrlError(null);
     setDuplicateInfo(null);
     setImageRemoved(false);
+    setIsEditingTitle(false);
+    setEditedTitle('');
+    originalTitleRef.current = '';
+    currentUrlRef.current = '';
     onDuplicateDetected?.(null);
     hasAutoSelectedThreadRef.current = false;
     inputRef.current?.focus();
@@ -75,6 +84,60 @@ export default function NewResourcePanel({
     }
   };
 
+  // Handle title editing
+  const handleTitleClick = () => {
+    setIsEditingTitle(true);
+    // Focus the input after state update
+    setTimeout(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }, 0);
+  };
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditedTitle(e.target.value);
+  };
+
+  const handleTitleBlur = () => {
+    saveTitleEdit();
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveTitleEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      // Revert to original title
+      setEditedTitle(originalTitleRef.current);
+      setIsEditingTitle(false);
+    }
+  };
+
+  const saveTitleEdit = () => {
+    const trimmedTitle = editedTitle.trim();
+    
+    // If empty, revert to original title
+    if (!trimmedTitle) {
+      setEditedTitle(originalTitleRef.current);
+      setIsEditingTitle(false);
+      return;
+    }
+
+    // Update metadata with edited title
+    if (metadata) {
+      const updatedMetadata = { ...metadata, title: trimmedTitle };
+      setMetadata(updatedMetadata);
+      
+      // Sync with parent component
+      if (onMetadataFetched) {
+        onMetadataFetched(updatedMetadata);
+      }
+    }
+    
+    setIsEditingTitle(false);
+  };
+
   // Fetch metadata when URL changes (debounced)
   useEffect(() => {
     // Clear any pending timeout
@@ -90,6 +153,10 @@ export default function NewResourcePanel({
       setUrlError(null);
       setDuplicateInfo(null);
       setImageRemoved(false);
+      setIsEditingTitle(false);
+      setEditedTitle('');
+      originalTitleRef.current = '';
+      currentUrlRef.current = '';
       onDuplicateDetected?.(null);
       onScriptureCountChange?.(0); // Reset scripture count when URL is cleared
       hasAutoSelectedThreadRef.current = false;
@@ -139,6 +206,23 @@ export default function NewResourcePanel({
             const metadataToSet = imageRemoved 
               ? { ...data.metadata, image: '' }
               : data.metadata;
+            
+            // Only reset edited title if this is a new URL (not just a re-fetch)
+            const isNewUrl = currentUrlRef.current !== validUrl;
+            const originalTitle = metadataToSet.title || '';
+            
+            if (isNewUrl) {
+              // Store original title and initialize edited title for new URL
+              originalTitleRef.current = originalTitle;
+              setEditedTitle(originalTitle);
+              currentUrlRef.current = validUrl;
+            } else {
+              // For same URL, preserve edited title (user may have edited it)
+              // Only update the original title reference in case metadata changed
+              originalTitleRef.current = originalTitle;
+              // Don't reset editedTitle - preserve user's edits
+            }
+            
             setMetadata(metadataToSet);
             setUrlError(null);
             if (onMetadataFetched) {
@@ -424,7 +508,12 @@ export default function NewResourcePanel({
                       onClick={(e) => {
                         e.stopPropagation();
                         setImageRemoved(true);
-                        const updatedMetadata = { ...metadata, image: '' };
+                        // Preserve edited title when removing image
+                        const updatedMetadata = { 
+                          ...metadata, 
+                          image: '',
+                          title: editedTitle || metadata.title || ''
+                        };
                         setMetadata(updatedMetadata);
                         if (onMetadataFetched) {
                           onMetadataFetched(updatedMetadata);
@@ -446,7 +535,39 @@ export default function NewResourcePanel({
                 {/* Header with title and newspaper icon */}
                 <div className="card-image-link__header">
                   <div className="card-image-link__title">
-                    <p>{metadata.title || 'Untitled Resource'}</p>
+                    {isEditingTitle ? (
+                      <input
+                        ref={titleInputRef}
+                        type="text"
+                        value={editedTitle}
+                        onChange={handleTitleChange}
+                        onBlur={handleTitleBlur}
+                        onKeyDown={handleTitleKeyDown}
+                        className="card-image-link__title-input"
+                        style={{
+                          width: '100%',
+                          border: 'none',
+                          outline: 'none',
+                          background: 'transparent',
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: 'inherit',
+                          fontWeight: 'inherit',
+                          color: 'inherit',
+                          padding: 0,
+                          margin: 0
+                        }}
+                      />
+                    ) : (
+                      <p 
+                        onClick={handleTitleClick}
+                        style={{
+                          cursor: 'pointer',
+                          userSelect: 'none'
+                        }}
+                      >
+                        {editedTitle || metadata.title || 'Untitled Resource'}
+                      </p>
+                    )}
                   </div>
                   <div className="card-image-link__bookmark">
                     <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
