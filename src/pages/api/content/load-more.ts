@@ -14,7 +14,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const url = new URL(request.url);
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
     const limit = parseInt(url.searchParams.get('limit') || '20', 10);
-    const filter = url.searchParams.get('filter') || 'all'; // 'all' | 'threads' | 'notes'
+    const filter = url.searchParams.get('filter') || 'all'; // 'all' | 'threads' | 'notes' | 'scripture' | 'resources'
 
     // Fetch more items than needed to check if there are more
     const fetchLimit = filter === 'all' ? limit : limit * 3; 
@@ -26,6 +26,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
       filteredItems = items.filter(item => item.type === 'thread');
     } else if (filter === 'notes') {
       filteredItems = items.filter(item => item.type === 'note');
+    } else if (filter === 'scripture') {
+      filteredItems = items.filter(item => item.type === 'note' && item.noteType === 'scripture');
+    } else if (filter === 'resources') {
+      filteredItems = items.filter(item => item.type === 'note' && item.noteType === 'resource');
     }
 
     // Take only the requested limit

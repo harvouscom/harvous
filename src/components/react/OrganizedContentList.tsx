@@ -3,6 +3,7 @@ import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
 import CardThread from './CardThread';
 import CondensedNoteItem from './CondensedNoteItem';
+import { getThreadColorCSS } from '@/utils/colors';
 
 interface OrganizedContentItem {
   id: string;
@@ -24,7 +25,7 @@ interface OrganizedContentItem {
 
 interface OrganizedContentListProps {
   initialItems: OrganizedContentItem[];
-  filter?: 'all' | 'threads' | 'notes';
+  filter?: 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 }
 
 export default function OrganizedContentList({ 
@@ -64,10 +65,11 @@ export default function OrganizedContentList({
     }
     
     // Debounce: Check if enough time has passed since last refresh
+    // Allow immediate refresh if lastRefreshTime is 0 (forced refresh)
     const now = Date.now();
     const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
-    if (timeSinceLastRefresh < DEBOUNCE_WINDOW_MS) {
-      // Too soon since last refresh, skip this one
+    if (lastRefreshTimeRef.current > 0 && timeSinceLastRefresh < DEBOUNCE_WINDOW_MS) {
+      // Too soon since last refresh, skip this one (unless forced)
       return;
     }
     
@@ -85,38 +87,72 @@ export default function OrganizedContentList({
     isRefreshingRef.current = true;
     lastRefreshTimeRef.current = now;
     
-    try {
-      const url = new URL('/api/content/load-more', window.location.origin);
-      url.searchParams.set('offset', '0');
-      url.searchParams.set('limit', '20');
-      url.searchParams.set('filter', filter);
+    // Retry logic for refresh failures
+    const attemptRefresh = async (retryCount = 0): Promise<void> => {
+      const maxRetries = 2;
+      try {
+        const url = new URL('/api/content/load-more', window.location.origin);
+        url.searchParams.set('offset', '0');
+        url.searchParams.set('limit', '20');
+        url.searchParams.set('filter', filter);
 
-      const response = await fetch(url.toString(), {
-        credentials: 'include'
-      });
+        const response = await fetch(url.toString(), {
+          credentials: 'include'
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to refresh content');
-      }
+        if (!response.ok) {
+          throw new Error(`Failed to refresh content: ${response.status}`);
+        }
 
-      const data = await response.json();
-      // Filter out deleted items from refreshed items
-      const filteredItems = data.items.filter((item: OrganizedContentItem) => {
-        return !deletedItemIdsRef.current.has(item.id);
-      });
-      
-      // Double-check we're still on dashboard and mounted before updating
-      if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current) {
-        setCurrentItems(filteredItems);
+        const data = await response.json();
+        const threadItems = data.items?.filter((i: OrganizedContentItem) => i.type === 'thread') || [];
+        console.log('[OrganizedContentList] Refresh response:', { 
+          itemCount: data.items?.length, 
+          filter,
+          threadItemsCount: threadItems.length,
+          threadTitles: threadItems.map((i: OrganizedContentItem) => i.title),
+          threadIds: threadItems.map((i: OrganizedContentItem) => i.threadId),
+          retryCount
+        });
+        // Filter out deleted items from refreshed items
+        const filteredItems = data.items.filter((item: OrganizedContentItem) => {
+          return !deletedItemIdsRef.current.has(item.id);
+        });
+        
+        console.log('[OrganizedContentList] Filtered items:', {
+          total: filteredItems.length,
+          threads: filteredItems.filter(i => i.type === 'thread').length,
+          threadIds: filteredItems.filter(i => i.type === 'thread').map(i => i.threadId)
+        });
+        
+        // Double-check we're still on dashboard and mounted before updating
+        if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current) {
+          setCurrentItems(filteredItems);
+          console.log('[OrganizedContentList] Updated currentItems with', filteredItems.length, 'items');
+        } else {
+          console.log('[OrganizedContentList] Skipped update - not on dashboard or navigating');
+        }
+      } catch (error) {
+        console.error(`[OrganizedContentList] Error refreshing content (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
+        // Retry if we haven't exceeded max retries
+        if (retryCount < maxRetries && isMountedRef.current && window.location.pathname === '/') {
+          console.log(`[OrganizedContentList] Retrying refresh in 500ms...`);
+          setTimeout(() => {
+            if (isMountedRef.current && !isNavigatingRef.current) {
+              attemptRefresh(retryCount + 1);
+            }
+          }, 500);
+        } else {
+          console.error('[OrganizedContentList] Max retries reached or component unmounted, giving up');
+        }
+      } finally {
+        if (isMountedRef.current && retryCount === 0) {
+          isRefreshingRef.current = false;
+        }
       }
-    } catch (error) {
-      console.error('Error refreshing content:', error);
-      // Don't update state on error - keep existing items
-    } finally {
-      if (isMountedRef.current) {
-        isRefreshingRef.current = false;
-      }
-    }
+    };
+
+    attemptRefresh();
   }, [filter]);
 
   // Keep ref in sync with state
@@ -130,9 +166,33 @@ export default function OrganizedContentList({
       setCurrentItems([]);
       return;
     }
-    const filtered = initialItems.filter(item => item && item.id && !deletedItemIds.has(item.id));
+    // Filter out deleted items first
+    let filtered = initialItems.filter(item => item && item.id && !deletedItemIds.has(item.id));
+    
+    // Apply additional filtering based on filter type
+    if (filter === 'threads') {
+      // Ensure only threads are shown (initialItems should already be filtered, but double-check)
+      filtered = filtered.filter(item => item.type === 'thread');
+    } else if (filter === 'notes') {
+      // Ensure only notes are shown (initialItems should already be filtered, but double-check)
+      filtered = filtered.filter(item => item.type === 'note');
+    } else if (filter === 'scripture') {
+      filtered = filtered.filter(item => item.type === 'note' && item.noteType === 'scripture');
+    } else if (filter === 'resources') {
+      filtered = filtered.filter(item => item.type === 'note' && item.noteType === 'resource');
+    }
+    // For 'all' filter, no additional filtering needed
+    
+    console.log('[OrganizedContentList] Updating currentItems from initialItems:', {
+      initialItemsCount: initialItems.length,
+      filteredCount: filtered.length,
+      filter,
+      threadCount: filtered.filter(i => i.type === 'thread').length,
+      noteCount: filtered.filter(i => i.type === 'note').length
+    });
+    
     setCurrentItems(filtered);
-  }, [initialItems, deletedItemIds]);
+  }, [initialItems, deletedItemIds, filter]);
 
   // Listen for deletion events to track deleted items
   useEffect(() => {
@@ -193,16 +253,58 @@ export default function OrganizedContentList({
       }, 300);
     };
 
-    const handleThreadCreated = () => {
-      // Small delay to ensure database is updated
+    const handleThreadCreated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const thread = customEvent.detail?.thread;
+      console.log('[OrganizedContentList] threadCreated event received:', thread, 'filter:', filter);
+      
+      if (!thread || !thread.id) {
+        console.warn('[OrganizedContentList] threadCreated event missing thread data');
+        return;
+      }
+      
+      // Immediately add the thread to the list if it matches the current filter
+      // This provides instant feedback while the API refresh happens
+      if (filter === 'all' || filter === 'threads') {
+        const threadItem: OrganizedContentItem = {
+          id: `thread-${thread.id}`,
+          type: 'thread',
+          title: thread.title || 'Untitled Thread',
+          subtitle: '0 notes',
+          threadId: thread.id,
+          spaceId: thread.spaceId || null,
+          count: 0,
+          lastUpdated: thread.updatedAt || thread.createdAt || new Date().toISOString(),
+          updatedAt: thread.updatedAt || thread.createdAt || new Date().toISOString(),
+          accentColor: thread.color ? getThreadColorCSS(thread.color) : undefined,
+          isPrivate: !thread.isPublic,
+        };
+        
+        setCurrentItems(prev => {
+          // Check if thread already exists to avoid duplicates
+          const exists = prev.some(item => item.threadId === thread.id);
+          if (exists) {
+            console.log('[OrganizedContentList] Thread already in list, skipping add');
+            return prev;
+          }
+          console.log('[OrganizedContentList] Adding thread to list immediately:', threadItem.title);
+          // Add to beginning of list (newest first)
+          return [threadItem, ...prev];
+        });
+      }
+      
+      // Longer delay to ensure database is updated and committed (increased to 1500ms for new threads)
       // Clear any pending timeout first
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
       }
       pendingRefreshTimeoutRef.current = setTimeout(() => {
         pendingRefreshTimeoutRef.current = null;
+        console.log('[OrganizedContentList] Refreshing content after threadCreated, filter:', filter);
+        // Force refresh by resetting lastRefreshTime to allow immediate refresh
+        lastRefreshTimeRef.current = 0;
         checkAndRefresh();
-      }, 300);
+      }, 1500);
     };
 
     const handleSpaceDeleted = () => {

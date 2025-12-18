@@ -804,8 +804,9 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
     // Apply offset and limit after sorting
     const allItems = Array.from(allItemsMap.values())
       .sort((a, b) => {
-        const aTime = new Date(a.updatedAt).getTime();
-        const bTime = new Date(b.updatedAt).getTime();
+        // Handle null/undefined updatedAt by falling back to createdAt or current time
+        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
         return bTime - aTime; // Newest first
       })
       .slice(offset, offset + limit);

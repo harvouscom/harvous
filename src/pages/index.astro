@@ -66,7 +66,7 @@ try {
     // Fetch all data in parallel for better performance
     const [featuredContentData, contentItemsData, threadsData, spacesData, inboxCountData] = await Promise.all([
       getFeaturedContent(userId),
-      getContentItems(userId),
+      getContentItems(userId, 100, 0), // Increase limit to ensure all threads are included
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
       getInboxCount(userId)
@@ -115,13 +115,13 @@ try {
 const inboxContent = featuredContent; // Now includes both threads and notes from inbox
 // Organized content should only include contentItems, not featuredContent notes
 // to avoid duplication of unorganized notes
-const organizedContent = contentItems;
+const organizedContent = Array.isArray(contentItems) ? contentItems : [];
 // Use the actual count of items displayed in inbox, not the total inbox count
 const inboxItemCount = inboxContent.length;
 
 // Calculate counts for scripture and resource notes
-const scriptureCount = organizedContent.filter(item => item.type === 'note' && item.noteType === 'scripture').length;
-const resourceCount = organizedContent.filter(item => item.type === 'note' && item.noteType === 'resource').length;
+const scriptureCount = organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'scripture').length;
+const resourceCount = organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'resource').length;
 
 // Get archived items, active thread, and unorganized thread in parallel
 let archivedItems: any[] = [];
@@ -259,12 +259,14 @@ try {
                   
                   <!-- Second TabNav Group -->
                   <div class="flex flex-col gap-3">
-                    <!-- Second TabNav - All/Threads/Notes -->
+                    <!-- Second TabNav - All/Threads/Notes/Scripture/Resources -->
                     <TabNav 
                       tabs={[
                         { id: "all", label: "All", isActive: true },
                         { id: "threads", label: "Threads", isActive: false },
-                        { id: "notes", label: "Notes", isActive: false }
+                        { id: "notes", label: "Notes", isActive: false },
+                        { id: "scripture", label: "Scripture", isActive: false },
+                        { id: "resources", label: "Resources", isActive: false }
                       ]}
                       class="content-tabs"
                     />
@@ -319,6 +321,50 @@ try {
                         <OrganizedContentList 
                           initialItems={organizedContent.filter(item => item.type === 'note')}
                           filter="notes"
+                          client:visible
+                        />
+                      ) : (
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; width: 100%; text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                          <div class="empty-state-message">
+                            <div style="font-family: var(--font-sans); font-weight: 600; color: #4a473d; font-size: 18px; line-height: 1.2;">
+                              <p>So when's move-in day?</p>
+                            </div>
+                            <div style="font-family: var(--font-sans); font-weight: 400; color: #78766f; font-size: 14px; line-height: 1.3; max-width: 250px;">
+                              <p>Add to your Harvous and this area will start to feel lived in.</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <!-- Scripture Only Content -->
+                    <div class="organized-content flex flex-col hidden" data-tab-content="scripture">
+                      {organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'scripture').length > 0 ? (
+                        <OrganizedContentList 
+                          initialItems={organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'scripture')}
+                          filter="scripture"
+                          client:visible
+                        />
+                      ) : (
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; width: 100%; text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                          <div class="empty-state-message">
+                            <div style="font-family: var(--font-sans); font-weight: 600; color: #4a473d; font-size: 18px; line-height: 1.2;">
+                              <p>So when's move-in day?</p>
+                            </div>
+                            <div style="font-family: var(--font-sans); font-weight: 400; color: #78766f; font-size: 14px; line-height: 1.3; max-width: 250px;">
+                              <p>Add to your Harvous and this area will start to feel lived in.</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <!-- Resources Only Content -->
+                    <div class="organized-content flex flex-col hidden" data-tab-content="resources">
+                      {organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'resource').length > 0 ? (
+                        <OrganizedContentList 
+                          initialItems={organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'resource')}
+                          filter="resources"
                           client:visible
                         />
                       ) : (

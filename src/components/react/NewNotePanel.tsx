@@ -437,6 +437,15 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
 
         console.log('[NewNotePanel] Thread created successfully:', created.id, created.title);
 
+        // Dispatch threadCreated event to refresh dashboard and navigation
+        // Add a small delay to ensure database commit before dispatching
+        setTimeout(() => {
+          console.log('[NewNotePanel] Dispatching threadCreated event for:', created.id);
+          window.dispatchEvent(new CustomEvent('threadCreated', {
+            detail: { thread: created }
+          }));
+        }, 100);
+
         // Create thread object for the new thread
         threadToUse = {
           id: created.id,
@@ -509,6 +518,10 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
+      // Store the threadId so handleFormSubmit can use it (matching onCreateThread pattern)
+      (window as any).__pendingThreadId = threadToUse.id;
+      console.log('[NewNotePanel] handleUseSuggestedThread - Stored pending threadId:', threadToUse.id);
+      
       // Pass threadId directly to avoid state timing issues
       console.log('[NewNotePanel] handleUseSuggestedThread - threadToUse:', threadToUse);
       console.log('[NewNotePanel] handleUseSuggestedThread - threadToUse.id:', threadToUse.id);
@@ -610,6 +623,15 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
                 }
 
                 console.log('[NewNotePanel] onCreateThread - Thread created successfully:', created.id, created.title);
+
+                // Dispatch threadCreated event to refresh dashboard and navigation
+                // Add a small delay to ensure database commit before dispatching
+                setTimeout(() => {
+                  console.log('[NewNotePanel] onCreateThread - Dispatching threadCreated event for:', created.id);
+                  window.dispatchEvent(new CustomEvent('threadCreated', {
+                    detail: { thread: created }
+                  }));
+                }, 100);
 
                 // Create thread object for the new thread
                 const threadToUse: Thread = {

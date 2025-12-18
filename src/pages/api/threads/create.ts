@@ -136,6 +136,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const capitalizedTitle = finalTitle.charAt(0).toUpperCase() + finalTitle.slice(1);
     
+    const now = new Date();
     const newThread = await db.insert(Threads)
       .values({
         id: generateThreadId(),
@@ -146,7 +147,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         isPublic,
         color: threadColor,
         isPinned: false,
-        createdAt: new Date()
+        createdAt: now,
+        updatedAt: now // Set updatedAt to createdAt so new threads appear at top when sorted
       })
       .returning()
       .get();
