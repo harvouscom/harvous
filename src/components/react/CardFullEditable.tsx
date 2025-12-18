@@ -727,7 +727,7 @@ export default function CardFullEditable({
           </div>
           
           {/* Editable content area with TiptapEditor */}
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%' }}>
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%', marginTop: '12px' }}>
             {!isContentEditing ? (
               <div 
                 ref={contentDisplayRef}
@@ -891,42 +891,45 @@ export default function CardFullEditable({
             </div>
           )}
         </div>
-        {/* Version (scripture notes only) */}
-        {noteType === 'scripture' && version && (
-          <div className="relative shrink-0">
-            <p className="leading-[normal] text-nowrap whitespace-pre font-sans font-normal text-[var(--color-stone-grey)] text-[12px]">{version}</p>
-          </div>
-        )}
-        {(() => {
-          const noteTypeConfig: Record<'default' | 'scripture' | 'resource', { label: string; icon: React.ReactElement }> = {
-            scripture: {
-              label: 'Scripture',
-              icon: <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-            },
-            resource: {
-              label: 'Resource',
-              icon: <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-            },
-            default: {
-              label: 'Note',
-              icon: (
-                <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-                </svg>
-              )
-            }
-          };
-          const config = noteTypeConfig[noteType];
-          return (
-            <div className="relative shrink-0 size-5" title={`${config.label} type`} style={{ marginTop: '4px' }}>
-              {config.icon}
+        {noteType === 'scripture' ? (
+          /* Version and icon wrapper for scripture notes */
+          <div className="relative shrink-0 flex items-center gap-2" style={{ marginTop: '4px' }}>
+            {version && (
+              <p className="leading-[normal] text-nowrap whitespace-pre font-sans font-normal text-[var(--color-stone-grey)] text-[12px] m-0">{version}</p>
+            )}
+            <div className="relative shrink-0 size-5" title="Scripture type">
+              <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
             </div>
-          );
-        })()}
+          </div>
+        ) : (
+          /* Icon only for non-scripture notes */
+          (() => {
+            const noteTypeConfig: Record<'resource' | 'default', { label: string; icon: React.ReactElement }> = {
+              resource: {
+                label: 'Resource',
+                icon: <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+              },
+              default: {
+                label: 'Note',
+                icon: (
+                  <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                  </svg>
+                )
+              }
+            };
+            const config = noteTypeConfig[noteType];
+            return (
+              <div className="relative shrink-0 size-5" title={`${config.label} type`} style={{ marginTop: '4px' }}>
+                {config.icon}
+              </div>
+            );
+          })()
+        )}
       </div>
       
       {/* Content */}
-      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px', marginTop: '0' }}>
+      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px', marginTop: '12px' }}>
         <div className="flex-1 flex flex-col font-sans font-medium min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
           {/* Display mode */}
           {!isContentEditing ? (
