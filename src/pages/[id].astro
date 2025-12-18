@@ -13,7 +13,7 @@ import ThreadNotesList from "@/components/react/ThreadNotesList";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
-import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount } from "@/utils/dashboard-data";
+import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
@@ -107,6 +107,7 @@ let pageContent = "";
 let currentThread: any = null;
 let currentSpace: any = null;
 let threadNotes: any[] = [];
+let noteTypeCounts: { all: number; default: number; scripture: number; resource: number } | null = null;
 let inboxCount: number = 0;
 
 // Always use real database data
@@ -116,7 +117,10 @@ try {
       if (id === 'thread_unorganized') {
         // Ensure the unorganized thread exists in database and get actual count
         const unorganizedThreadData = await ensureUnorganizedThread(authenticatedUserId);
-        const notesData = await getNotesForThread(id!, authenticatedUserId);
+        const [notesData, noteTypeCountsData] = await Promise.all([
+          getNotesForThread(id!, authenticatedUserId),
+          getThreadNoteTypeCounts(id!, authenticatedUserId)
+        ]);
         
         content = {
           id: 'thread_unorganized',
@@ -137,14 +141,17 @@ try {
         
           // Set threadNotes for template rendering
           threadNotes = notesData;
+          // Store note type counts for tab badges
+          noteTypeCounts = noteTypeCountsData;
           
           pageTitle = 'Unorganized';
           pageContent = `${unorganizedThreadData.noteCount} notes`;
       } else {
         // Fetch thread and its notes from database
-        const [threadData, notesData] = await Promise.all([
+        const [threadData, notesData, noteTypeCountsData] = await Promise.all([
           getAllThreadsWithCounts(authenticatedUserId).then(threads => threads.find(t => t.id === id)),
-          getNotesForThread(id!, authenticatedUserId)
+          getNotesForThread(id!, authenticatedUserId),
+          getThreadNoteTypeCounts(id!, authenticatedUserId)
         ]);
         
         if (threadData) {
@@ -167,6 +174,8 @@ try {
           
           // Set threadNotes for template rendering
           threadNotes = notesData;
+          // Store note type counts for tab badges
+          noteTypeCounts = noteTypeCountsData;
           
           pageTitle = threadData.title;
           pageContent = `${threadData.noteCount} notes`;
@@ -595,12 +604,95 @@ if (!content) {
             >
               <div class="flex flex-col gap-6">
                 
-                {isThread && threadNotes && threadNotes.length > 0 ? (
-                  <ThreadNotesList 
-                    initialNotes={threadNotes}
-                    threadId={id!}
-                    client:visible
-                  />
+                {isThread && threadNotes ? (
+                  <div class="flex flex-col gap-3">
+                    {/* Use total note counts from database, fallback to visible notes if counts not available */}
+                    {(() => {
+                      const allCount = noteTypeCounts?.all ?? threadNotes.length;
+                      const notesCount = noteTypeCounts?.default ?? threadNotes.filter((n: any) => !n.noteType || n.noteType === 'default').length;
+                      const scriptureCount = noteTypeCounts?.scripture ?? threadNotes.filter((n: any) => n.noteType === 'scripture').length;
+                      const resourcesCount = noteTypeCounts?.resource ?? threadNotes.filter((n: any) => n.noteType === 'resource').length;
+                      
+                      return (
+                        <>
+                          {/* Tab Navigation */}
+                          <TabNav 
+                            tabs={[
+                              { id: "all", label: "All", isActive: true, count: allCount },
+                              { id: "notes", label: "Notes", isActive: false, count: notesCount },
+                              { id: "scripture", label: "Scripture", isActive: false, count: scriptureCount },
+                              { id: "resources", label: "Resources", isActive: false, count: resourcesCount }
+                            ]}
+                            class="content-tabs"
+                          />
+                          
+                          {/* All Notes Content */}
+                          <div class="flex flex-col" data-tab-content="all">
+                            {threadNotes.length > 0 ? (
+                              <ThreadNotesList 
+                                initialNotes={threadNotes}
+                                threadId={id!}
+                                noteTypeFilter="all"
+                                client:visible
+                              />
+                            ) : (
+                              <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                                <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Notes Only Content */}
+                          <div class="flex flex-col hidden" data-tab-content="notes">
+                            {notesCount > 0 ? (
+                              <ThreadNotesList 
+                                initialNotes={threadNotes}
+                                threadId={id!}
+                                noteTypeFilter="default"
+                                client:visible
+                              />
+                            ) : (
+                              <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                                <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Scripture Only Content */}
+                          <div class="flex flex-col hidden" data-tab-content="scripture">
+                            {scriptureCount > 0 ? (
+                              <ThreadNotesList 
+                                initialNotes={threadNotes}
+                                threadId={id!}
+                                noteTypeFilter="scripture"
+                                client:visible
+                              />
+                            ) : (
+                              <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                                <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No scripture notes found in this thread.</p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Resources Only Content */}
+                          <div class="flex flex-col hidden" data-tab-content="resources">
+                            {resourcesCount > 0 ? (
+                              <ThreadNotesList 
+                                initialNotes={threadNotes}
+                                threadId={id!}
+                                noteTypeFilter="resource"
+                                client:visible
+                              />
+                            ) : (
+                              <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                                <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No resource notes found in this thread.</p>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
                 ) : isSpace && content ? (
                   <div class="flex flex-col gap-3">
                     {/* Tab Navigation */}

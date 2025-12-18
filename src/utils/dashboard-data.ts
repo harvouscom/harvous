@@ -450,6 +450,67 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
   }
 }
 
+// Get total note counts by type for a thread
+export async function getThreadNoteTypeCounts(threadId: string, userId: string) {
+  try {
+    let allCount = 0;
+    let defaultCount = 0;
+    let scriptureCount = 0;
+    let resourceCount = 0;
+
+    if (threadId === 'thread_unorganized') {
+      // For unorganized thread, count notes with NO junction table entries
+      const allNotes = await db.select({
+        noteType: Notes.noteType,
+      })
+      .from(Notes)
+      .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+      .where(and(
+        eq(Notes.userId, userId),
+        isNull(NoteThreads.id) // No junction entry = unorganized
+      ))
+      .all();
+
+      allCount = allNotes.length;
+      defaultCount = allNotes.filter(n => !n.noteType || n.noteType === 'default').length;
+      scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;
+      resourceCount = allNotes.filter(n => n.noteType === 'resource').length;
+    } else {
+      // For regular threads, use junction table
+      const allNotes = await db.select({
+        noteType: Notes.noteType,
+      })
+      .from(Notes)
+      .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+      .where(and(
+        eq(NoteThreads.threadId, threadId),
+        eq(Notes.userId, userId)
+      ))
+      .all();
+
+      allCount = allNotes.length;
+      defaultCount = allNotes.filter(n => !n.noteType || n.noteType === 'default').length;
+      scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;
+      resourceCount = allNotes.filter(n => n.noteType === 'resource').length;
+    }
+
+    return {
+      all: allCount,
+      default: defaultCount,
+      scripture: scriptureCount,
+      resource: resourceCount
+    };
+  } catch (error) {
+    console.error("Error fetching note type counts for thread:", error);
+    return {
+      all: 0,
+      default: 0,
+      scripture: 0,
+      resource: 0
+    };
+  }
+}
+
 // Fetch notes for a specific space (both in threads and standalone)
 export async function getNotesForSpace(spaceId: string, userId: string, limit = 20) {
   try {

@@ -119,6 +119,10 @@ const organizedContent = contentItems;
 // Use the actual count of items displayed in inbox, not the total inbox count
 const inboxItemCount = inboxContent.length;
 
+// Calculate counts for scripture and resource notes
+const scriptureCount = organizedContent.filter(item => item.type === 'note' && item.noteType === 'scripture').length;
+const resourceCount = organizedContent.filter(item => item.type === 'note' && item.noteType === 'resource').length;
+
 // Get archived items, active thread, and unorganized thread in parallel
 let archivedItems: any[] = [];
 let activeThread = null;

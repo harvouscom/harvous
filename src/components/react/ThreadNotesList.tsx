@@ -40,6 +40,7 @@ interface Note {
 interface ThreadNotesListProps {
   initialNotes: Note[];
   threadId: string;
+  noteTypeFilter?: 'all' | 'default' | 'scripture' | 'resource';
   'client:load'?: boolean;
   'client:visible'?: boolean;
   'client:idle'?: boolean;
@@ -47,9 +48,21 @@ interface ThreadNotesListProps {
   [key: string]: any; // Allow Astro directives and other dynamic props
 }
 
+// Helper function to filter notes by type
+function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scripture' | 'resource'): Note[] {
+  if (!filter || filter === 'all') {
+    return notes;
+  }
+  return notes.filter(note => {
+    const noteType = note.noteType || 'default';
+    return noteType === filter;
+  });
+}
+
 export default function ThreadNotesList({ 
   initialNotes, 
-  threadId 
+  threadId,
+  noteTypeFilter = 'all'
 }: ThreadNotesListProps) {
   // Manage notes list state for real-time updates
   const [notes, setNotes] = useState<Note[]>(initialNotes);
@@ -67,9 +80,15 @@ export default function ThreadNotesList({
 
   // Update notes when initialNotes change (e.g., page navigation)
   useEffect(() => {
-    const filtered = initialNotes.filter(note => !deletedNoteIds.has(note.id));
-    setNotes(filtered);
-  }, [initialNotes, deletedNoteIds]);
+    const filtered = initialNotes
+      .filter(note => !deletedNoteIds.has(note.id));
+    const typeFiltered = filterNotesByType(filtered, noteTypeFilter);
+    // Deduplicate by note ID to prevent duplicates
+    const uniqueNotes = Array.from(
+      new Map(typeFiltered.map(note => [note.id, note])).values()
+    );
+    setNotes(uniqueNotes);
+  }, [initialNotes, deletedNoteIds, noteTypeFilter]);
 
   // Listen for note deletion events
   useEffect(() => {
@@ -135,14 +154,27 @@ export default function ThreadNotesList({
             };
 
             // Add note to the beginning of the list (most recent first)
+            // Only add if it matches the current filter
             setNotes(prev => {
               // Check if note already exists (double-check with current state)
               if (prev.some(n => n.id === noteId)) {
                 return prev;
               }
               
+              // Check if note matches the current filter
+              const noteType = newNote.noteType || 'default';
+              const matchesFilter = noteTypeFilter === 'all' || noteType === noteTypeFilter;
+              
+              if (!matchesFilter) {
+                return prev; // Don't add if it doesn't match filter
+              }
+              
               // Insert at the beginning for immediate visibility
-              return [newNote, ...prev];
+              // Deduplicate just to be safe
+              const newNotes = [newNote, ...prev];
+              return Array.from(
+                new Map(newNotes.map(note => [note.id, note])).values()
+              );
             });
           }
         } catch (error) {
@@ -156,7 +188,7 @@ export default function ThreadNotesList({
     return () => {
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
     };
-  }, [threadId]);
+  }, [threadId, noteTypeFilter]);
 
   // Listen for note removed from thread events
   useEffect(() => {
@@ -257,7 +289,7 @@ export default function ThreadNotesList({
     setNoteToDelete(null);
   };
 
-  // Filter out deleted notes
+  // Filter out deleted notes (note type filtering is already applied in state)
   const filteredNotes = notes.filter(note => !deletedNoteIds.has(note.id));
 
   const loadMore = useCallback(async (offset: number, limit: number) => {
@@ -275,16 +307,22 @@ export default function ThreadNotesList({
 
     const data = await response.json();
     // Filter out deleted notes from loaded notes using ref to get latest state
-    const filteredNotes = data.notes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+    const filteredDeleted = data.notes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+    // Apply note type filter
+    const filteredByType = filterNotesByType(filteredDeleted, noteTypeFilter);
     return {
-      items: filteredNotes,
+      items: filteredByType,
       hasMore: data.hasMore
     };
-  }, [threadId]);
+  }, [threadId, noteTypeFilter]);
 
   // Handle items change from InfiniteScrollList (when loading more)
   const handleItemsChange = useCallback((newItems: Note[]) => {
-    setNotes(newItems);
+    // Deduplicate by note ID to prevent duplicates
+    const uniqueNotes = Array.from(
+      new Map(newItems.map(note => [note.id, note])).values()
+    );
+    setNotes(uniqueNotes);
   }, []);
 
   const renderItem = (note: Note, index: number) => {
