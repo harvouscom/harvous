@@ -283,6 +283,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
             createdAt: new Date()
           });
           
+          // Update the note's threadId field to the target thread
+          // This ensures the note is properly associated with the thread in both the junction table AND the note's primary threadId field
+          await db.update(Notes)
+            .set({ threadId: threadId })
+            .where(eq(Notes.id, newNote.id));
+          
           // Update the target thread's timestamp
           await db.update(Threads)
             .set({ updatedAt: new Date() })
