@@ -13,6 +13,7 @@ import { parseHTML } from 'linkedom';
 /**
  * Convert HTML to clean formatted content
  * Preserves headings, paragraphs, lists, and blockquotes
+ * Expands accordions (details/summary) - displays summary as heading and all content expanded
  * Removes images, videos, and other media
  */
 function htmlToCleanParagraphs(html: string): string {
@@ -231,6 +232,12 @@ function htmlToCleanParagraphs(html: string): string {
       return;
     }
     
+    // Handle details/accordion elements - expand content instead of preserving structure
+    if (tagName === 'details') {
+      expandDetailsContent(node, extractText, isMediaMetadata);
+      return;
+    }
+    
     // Handle paragraphs and divs
     if (tagName === 'p' || tagName === 'div') {
       // Check if this is a callout-classed div
@@ -245,7 +252,7 @@ function htmlToCleanParagraphs(html: string): string {
       // Check if this div contains block elements (don't process as paragraph)
       const hasBlockChildren = Array.from(node.childNodes || []).some((child: any) => {
         const childTag = child.tagName?.toLowerCase();
-        return ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'blockquote', 'aside'].includes(childTag);
+        return ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'blockquote', 'aside', 'details'].includes(childTag);
       });
       
       if (hasBlockChildren) {
@@ -371,6 +378,12 @@ function processCallout(node: any, extractText: (n: any) => string, isMediaMetad
       return;
     }
     
+    // Handle details/accordion elements inside callouts - expand them
+    if (tagName === 'details') {
+      expandDetailsInCallout(child, extractText, isMediaMetadata, output);
+      return;
+    }
+    
     // For containers, recurse
     if (tagName === 'div' || tagName === 'section' || !tagName) {
       for (const grandchild of child.childNodes || []) {
@@ -406,6 +419,201 @@ function processCallout(node: any, extractText: (n: any) => string, isMediaMetad
   }
   
   return output;
+}
+
+/**
+ * Expand a details/accordion element - extract summary as heading and expand all content
+ */
+function expandDetailsContent(node: any, extractText: (n: any) => string, isMediaMetadata: (t: string) => boolean): void {
+  if (!node) return;
+  
+  let summaryText = '';
+  let hasSummary = false;
+  
+  // Process children to find summary and content
+  for (const child of node.childNodes || []) {
+    if (child.nodeType === 1) {
+      const childTag = child.tagName?.toLowerCase() || '';
+      
+      // Handle summary element - extract and display as heading
+      if (childTag === 'summary') {
+        hasSummary = true;
+        summaryText = extractText(child).replace(/\s+/g, ' ').trim();
+        // Output summary as a heading (h4 to differentiate from main content headings)
+        if (summaryText && !isMediaMetadata(summaryText)) {
+          output.push(`<h4>${summaryText}</h4>`);
+        }
+        continue;
+      }
+      
+      // Process other children as regular content (including nested accordions)
+      // Nested accordions will be recursively expanded by processBlock
+      processBlock(child);
+    } else if (child.nodeType === 3) {
+      // Handle text nodes directly inside details (not in summary)
+      const text = (child.textContent || '').trim();
+      if (text && text.length > 20 && !isMediaMetadata(text)) {
+        output.push(`<p>${text}</p>`);
+      }
+    }
+  }
+  
+  // If no summary but there's content, still process it
+  if (!hasSummary) {
+    // Process all children as regular content
+    for (const child of node.childNodes || []) {
+      if (child.nodeType === 1) {
+        processBlock(child);
+      } else if (child.nodeType === 3) {
+        const text = (child.textContent || '').trim();
+        if (text && text.length > 20 && !isMediaMetadata(text)) {
+          output.push(`<p>${text}</p>`);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Expand a details/accordion element inside a callout - extract summary as heading and expand all content
+ */
+function expandDetailsInCallout(
+  node: any, 
+  extractText: (n: any) => string, 
+  isMediaMetadata: (t: string) => boolean,
+  output: string[]
+): void {
+  if (!node) return;
+  
+  let summaryText = '';
+  let hasSummary = false;
+  
+  // Process children to find summary and content
+  for (const child of node.childNodes || []) {
+    if (child.nodeType === 1) {
+      const childTag = child.tagName?.toLowerCase() || '';
+      
+      // Handle summary element - extract and display as heading
+      if (childTag === 'summary') {
+        hasSummary = true;
+        summaryText = extractText(child).replace(/\s+/g, ' ').trim();
+        // Output summary as a heading (h4 for callout context)
+        if (summaryText && !isMediaMetadata(summaryText)) {
+          output.push(`<h4>${summaryText}</h4>`);
+        }
+        continue;
+      }
+      
+      // Handle nested accordions - recursively expand them
+      if (childTag === 'details') {
+        expandDetailsInCallout(child, extractText, isMediaMetadata, output);
+        continue;
+      }
+      
+      // Process other children as regular content
+      // Handle headings
+      if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(childTag)) {
+        const text = extractText(child).replace(/\s+/g, ' ').trim();
+        if (text && !isMediaMetadata(text)) {
+          output.push(`<h4>${text}</h4>`);
+        }
+        continue;
+      }
+      
+      // Handle paragraphs
+      if (childTag === 'p') {
+        const text = extractText(child).replace(/\s+/g, ' ').trim();
+        if (text && !isMediaMetadata(text)) {
+          output.push(`<p>${text}</p>`);
+        }
+        continue;
+      }
+      
+      // Handle lists
+      if (childTag === 'ul' || childTag === 'ol') {
+        const listItems: string[] = [];
+        for (const li of child.childNodes || []) {
+          if (li.tagName?.toLowerCase() === 'li') {
+            const text = extractText(li).replace(/\s+/g, ' ').trim();
+            if (text && !isMediaMetadata(text)) {
+              listItems.push(`<li>${text}</li>`);
+            }
+          }
+        }
+        if (listItems.length > 0) {
+          output.push(`<${childTag}>${listItems.join('')}</${childTag}>`);
+        }
+        continue;
+      }
+      
+      // Handle blockquotes
+      if (childTag === 'blockquote') {
+        const text = extractText(child).replace(/\s+/g, ' ').trim();
+        if (text && !isMediaMetadata(text)) {
+          output.push(`<blockquote>${text}</blockquote>`);
+        }
+        continue;
+      }
+      
+      // For containers, recurse into children
+      if (childTag === 'div' || childTag === 'section' || !childTag) {
+        for (const grandchild of child.childNodes || []) {
+          if (grandchild.nodeType === 1) {
+            // Recursively handle nested elements
+            if (grandchild.tagName?.toLowerCase() === 'details') {
+              expandDetailsInCallout(grandchild, extractText, isMediaMetadata, output);
+            } else {
+              // Process other elements
+              const text = extractText(grandchild).replace(/\s+/g, ' ').trim();
+              if (text && text.length > 10 && !isMediaMetadata(text)) {
+                output.push(`<p>${text}</p>`);
+              }
+            }
+          } else if (grandchild.nodeType === 3) {
+            const text = (grandchild.textContent || '').trim();
+            if (text && text.length > 10 && !isMediaMetadata(text)) {
+              output.push(`<p>${text}</p>`);
+            }
+          }
+        }
+        continue;
+      }
+      
+      // Default: try to extract text
+      const text = extractText(child).replace(/\s+/g, ' ').trim();
+      if (text && text.length > 10 && !isMediaMetadata(text)) {
+        output.push(`<p>${text}</p>`);
+      }
+    } else if (child.nodeType === 3) {
+      // Handle text nodes directly inside details (not in summary)
+      const text = (child.textContent || '').trim();
+      if (text && text.length > 10 && !isMediaMetadata(text)) {
+        output.push(`<p>${text}</p>`);
+      }
+    }
+  }
+  
+  // If no summary but there's content, still process it
+  if (!hasSummary) {
+    for (const child of node.childNodes || []) {
+      if (child.nodeType === 1) {
+        const childTag = child.tagName?.toLowerCase() || '';
+        if (childTag === 'details') {
+          expandDetailsInCallout(child, extractText, isMediaMetadata, output);
+        } else {
+          const text = extractText(child).replace(/\s+/g, ' ').trim();
+          if (text && text.length > 10 && !isMediaMetadata(text)) {
+            output.push(`<p>${text}</p>`);
+          }
+        }
+      } else if (child.nodeType === 3) {
+        const text = (child.textContent || '').trim();
+        if (text && text.length > 10 && !isMediaMetadata(text)) {
+          output.push(`<p>${text}</p>`);
+        }
+      }
+    }
+  }
 }
 
 interface CalloutWithContext {
@@ -581,6 +789,86 @@ function extractCalloutsWithContext(html: string): CalloutWithContext[] {
 }
 
 /**
+ * Expand all accordion (details/summary) elements in HTML content
+ * Converts summary to heading and expands all content
+ * Handles nested accordions by processing from innermost to outermost
+ */
+function expandAccordionsInContent(content: string): string {
+  if (!content || !content.includes('<details')) {
+    return content;
+  }
+  
+  const { document } = parseHTML(`<div>${content}</div>`);
+  const root = document.querySelector('div');
+  if (!root) return content;
+  
+  // Process all details elements, starting with the deepest nested ones first
+  // We'll keep processing until no details elements remain
+  let hasDetails = true;
+  let iterations = 0;
+  const maxIterations = 10; // Safety limit to prevent infinite loops
+  
+  while (hasDetails && iterations < maxIterations) {
+    iterations++;
+    const detailsElements = Array.from(root.querySelectorAll('details'));
+    hasDetails = detailsElements.length > 0;
+    
+    for (const detailsEl of detailsElements) {
+      let summaryText = '';
+      let hasSummary = false;
+      const expandedNodes: any[] = [];
+      
+      // Process children to find summary and content
+      for (const child of Array.from(detailsEl.childNodes || [])) {
+        if (child.nodeType === 1) {
+          const childTag = child.tagName?.toLowerCase() || '';
+          
+          // Handle summary element - extract text for heading
+          if (childTag === 'summary') {
+            hasSummary = true;
+            summaryText = (child.textContent || '').replace(/\s+/g, ' ').trim();
+            continue;
+          }
+          
+          // For other children, clone them (nested details will be processed in next iteration)
+          expandedNodes.push(child.cloneNode(true));
+        } else if (child.nodeType === 3) {
+          // Handle text nodes directly inside details (not in summary)
+          const text = (child.textContent || '').trim();
+          if (text && text.length > 0) {
+            const p = document.createElement('p');
+            p.textContent = text;
+            expandedNodes.push(p);
+          }
+        }
+      }
+      
+      // Create replacement container
+      const fragment = document.createDocumentFragment();
+      
+      // Add summary as heading if present
+      if (hasSummary && summaryText) {
+        const heading = document.createElement('h4');
+        heading.textContent = summaryText;
+        fragment.appendChild(heading);
+      }
+      
+      // Add expanded content
+      for (const node of expandedNodes) {
+        fragment.appendChild(node);
+      }
+      
+      // Replace the details element with the expanded content
+      if (detailsEl.parentNode) {
+        detailsEl.parentNode.replaceChild(fragment, detailsEl);
+      }
+    }
+  }
+  
+  return root.innerHTML;
+}
+
+/**
  * Remove images and captions from HTML content
  */
 function removeImagesAndCaptions(content: string): string {
@@ -657,6 +945,9 @@ export async function extractArticleContent(html: string, url: string): Promise<
         cleanedContent = typeof extracted.content === 'string' 
           ? extracted.content 
           : String(extracted.content);
+        
+        // Expand any accordions in the extracted content
+        cleanedContent = expandAccordionsInContent(cleanedContent);
       }
     } catch (error) {
       // Fall through to Readability fallback

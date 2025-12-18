@@ -377,7 +377,16 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       return;
     }
     
-    await submission.handleSubmit(e);
+    // Check if there's a pending threadId from onCreateThread
+    const pendingThreadId = (window as any).__pendingThreadId;
+    if (pendingThreadId) {
+      console.log('[NewNotePanel] handleFormSubmit - Using pending threadId:', pendingThreadId);
+      // Clear it so it's only used once
+      delete (window as any).__pendingThreadId;
+      await submission.handleSubmit(e, pendingThreadId);
+    } else {
+      await submission.handleSubmit(e);
+    }
   };
 
   // Handle suggested thread dialog actions
@@ -422,8 +431,11 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
         const data = await response.json();
         const created = data?.thread;
         if (!created?.id || !created?.title) {
+          console.error('[NewNotePanel] Thread create response missing thread info:', data);
           throw new Error('Thread create response missing thread info');
         }
+
+        console.log('[NewNotePanel] Thread created successfully:', created.id, created.title);
 
         // Create thread object for the new thread
         threadToUse = {
@@ -433,6 +445,10 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
           backgroundGradient: getThreadGradientCSS(created.color || 'paper'),
           color: created.color || null, // Ensure color is string | null, not undefined
         };
+        
+        // Verify thread exists in database before proceeding (small delay to ensure commit)
+        console.log('[NewNotePanel] Waiting 100ms to ensure thread is committed to database...');
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Ensure the new thread is available in the combobox options immediately.
         threadSelection.setThreadOptions((prev) => {
@@ -494,6 +510,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       }
 
       // Pass threadId directly to avoid state timing issues
+      console.log('[NewNotePanel] handleUseSuggestedThread - threadToUse:', threadToUse);
+      console.log('[NewNotePanel] handleUseSuggestedThread - threadToUse.id:', threadToUse.id);
       const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent;
       await submission.handleSubmit(syntheticEvent, threadToUse.id);
     } catch (err: any) {
@@ -564,9 +582,71 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
                 setSuggestedThreadName(editedName.trim());
               }
             }}
-            onCreateThread={(threadName) => {
-              threadSelection.handleThreadSelect(threadName);
-              setSuggestedThreadName(null); // Clear after confirming
+            onCreateThread={async (threadName) => {
+              try {
+                // Create the thread via API (same logic as handleUseSuggestedThread)
+                const formData = new FormData();
+                formData.set('title', threadName);
+                formData.set('isPublic', 'false');
+                formData.set('color', 'paper'); // Suggested threads always use paper color
+                formData.set('spaceId', currentSpace?.id || '');
+
+                const response = await fetch('/api/threads/create', {
+                  method: 'POST',
+                  body: formData,
+                  credentials: 'include',
+                });
+
+                if (!response.ok) {
+                  const err = await response.json().catch(() => null);
+                  throw new Error(err?.error || 'Failed to create thread');
+                }
+
+                const data = await response.json();
+                const created = data?.thread;
+                if (!created?.id || !created?.title) {
+                  console.error('[NewNotePanel] onCreateThread - Thread create response missing thread info:', data);
+                  throw new Error('Thread create response missing thread info');
+                }
+
+                console.log('[NewNotePanel] onCreateThread - Thread created successfully:', created.id, created.title);
+
+                // Create thread object for the new thread
+                const threadToUse: Thread = {
+                  id: created.id,
+                  title: created.title,
+                  noteCount: 0,
+                  backgroundGradient: getThreadGradientCSS(created.color || 'paper'),
+                  color: created.color || null,
+                };
+
+                // Add thread to options
+                threadSelection.setThreadOptions((prev) => {
+                  if (prev.some((t) => t.id === created.id)) return prev;
+                  const unorganizedIdx = prev.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+                  if (unorganizedIdx === -1) return [...prev, threadToUse];
+                  return [...prev.slice(0, unorganizedIdx + 1), threadToUse, ...prev.slice(unorganizedIdx + 1)];
+                });
+
+                // Wait a bit to ensure state updates
+                await new Promise((resolve) => setTimeout(resolve, 100));
+
+                // Select the thread
+                threadSelection.handleThreadSelect(threadToUse.title);
+                setSuggestedThreadName(null);
+
+                // Wait for state to propagate
+                await new Promise((resolve) => setTimeout(resolve, 100));
+
+                // Store the threadId so we can use it when submitting the note
+                // We'll need to pass it as overrideThreadId when the form is submitted
+                // Store it in a ref or state that handleFormSubmit can access
+                (window as any).__pendingThreadId = created.id;
+                console.log('[NewNotePanel] onCreateThread - Stored pending threadId:', created.id);
+              } catch (err: any) {
+                console.error('[NewNotePanel] onCreateThread - Failed to create thread:', err);
+                showToast('Could not create thread. Please try again.', 'error');
+              }
             }}
           />
         </div>

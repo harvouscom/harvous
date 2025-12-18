@@ -56,6 +56,24 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   
   // Determine if this is a suggested new thread (not in the list)
   const isSuggestedNewThread = !selectedThreadObj && suggestedThreadName && selectedThread === suggestedThreadName;
+  
+  // Determine background gradient for the button
+  // Priority: 1) thread's backgroundGradient, 2) paper gradient if color is 'paper', 3) paper gradient for suggested new thread, 4) default gray
+  const getButtonBackground = () => {
+    if (selectedThreadObj?.backgroundGradient) {
+      return selectedThreadObj.backgroundGradient;
+    }
+    // If thread has color 'paper' or is null/undefined, use paper gradient
+    if (selectedThreadObj?.color === 'paper' || selectedThreadObj?.color === null || selectedThreadObj?.color === undefined) {
+      return 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
+    }
+    // For suggested new thread, use paper gradient
+    if (isSuggestedNewThread) {
+      return 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
+    }
+    // Default fallback
+    return 'var(--color-gradient-gray)';
+  };
 
   return (
     <div className="relative">
@@ -65,7 +83,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
         onClick={() => setOpen(!open)}
         className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full flex items-center justify-between"
         style={{ 
-          backgroundImage: selectedThreadObj?.backgroundGradient || (isSuggestedNewThread ? 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)' : 'var(--color-gradient-gray)'),
+          backgroundImage: getButtonBackground(),
           boxShadow: 'none'
         }}
       >

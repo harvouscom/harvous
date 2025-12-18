@@ -223,10 +223,18 @@ export default function NewResourcePanel({
               // Don't reset editedTitle - preserve user's edits
             }
             
-            setMetadata(metadataToSet);
+            // Use edited title if user has edited it, otherwise use original
+            // For new URL, editedTitle was just set to originalTitle, so they're the same
+            // For existing URL, preserve editedTitle if it exists (user may have edited it)
+            const titleToUse = isNewUrl 
+              ? originalTitle 
+              : (editedTitle || originalTitle);
+            const metadataWithEditedTitle = { ...metadataToSet, title: titleToUse };
+            
+            setMetadata(metadataWithEditedTitle);
             setUrlError(null);
             if (onMetadataFetched) {
-              onMetadataFetched(metadataToSet);
+              onMetadataFetched(metadataWithEditedTitle);
             }
 
             // Check for duplicate resource

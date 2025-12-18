@@ -237,7 +237,22 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       formData.set('content', editorContent);
       // Allow threadId override (useful when state hasn't updated yet)
       const threadIdToUse = overrideThreadId || getSelectedThread().id;
+      
+      // Debug logging to verify threadId is being passed correctly
+      if (overrideThreadId) {
+        console.log('[useNoteSubmission] Using overrideThreadId:', overrideThreadId);
+        console.log('[useNoteSubmission] overrideThreadId type:', typeof overrideThreadId);
+        console.log('[useNoteSubmission] overrideThreadId length:', overrideThreadId?.length);
+      }
+      console.log('[useNoteSubmission] threadIdToUse:', threadIdToUse);
+      console.log('[useNoteSubmission] threadIdToUse type:', typeof threadIdToUse);
+      console.log('[useNoteSubmission] threadIdToUse === "thread_unorganized":', threadIdToUse === 'thread_unorganized');
+      
       formData.set('threadId', threadIdToUse);
+      
+      // Verify it was set correctly
+      const verifyThreadId = formData.get('threadId');
+      console.log('[useNoteSubmission] Verified threadId in formData:', verifyThreadId);
       formData.set('noteType', noteType);
       
       if (addToSpace && currentSpace && currentSpace.id) {
@@ -363,12 +378,33 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        // Navigate to newly created note (with scripture toast if applicable)
+        // Navigate to thread if overrideThreadId was provided (like new thread creation)
+        // Otherwise navigate to the note
         if (result.note && result.note.id) {
-          let redirectUrl = `/${result.note.id}`;
-          if (scriptureToastMessage) {
-            redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
+          let redirectUrl: string;
+          
+          // If overrideThreadId is provided and not unorganized, redirect to thread
+          if (overrideThreadId && overrideThreadId !== 'thread_unorganized') {
+            redirectUrl = `/${overrideThreadId}`;
+            // Find thread name for toast message
+            const threadData = threadOptions.find(thread => thread.id === overrideThreadId);
+            if (threadData) {
+              const toastMessage = `Note added to ${threadData.title}`;
+              redirectUrl += `?toast=success&message=${encodeURIComponent(toastMessage)}`;
+            } else if (scriptureToastMessage) {
+              // If we have a scripture message, include it
+              redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
+            }
+            console.log('[useNoteSubmission] Redirecting to thread:', redirectUrl);
+          } else {
+            // Default: redirect to note (with scripture toast if applicable)
+            redirectUrl = `/${result.note.id}`;
+            if (scriptureToastMessage) {
+              redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
+            }
+            console.log('[useNoteSubmission] Redirecting to note:', redirectUrl);
           }
+          
           safeNavigate(redirectUrl, { history: 'replace' });
         }
 
