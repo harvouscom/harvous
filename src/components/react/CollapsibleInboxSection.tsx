@@ -90,10 +90,69 @@ export default function CollapsibleInboxSection({
   const [localInboxContent, setLocalInboxContent] = useState<InboxItem[]>(inboxContent);
   const [localArchivedItems, setLocalArchivedItems] = useState<InboxItem[]>(archivedItems);
   
+  // Track pending optimistic updates to prevent sync from overwriting them
+  const pendingOptimisticUpdateRef = useRef<{
+    itemId: string;
+    direction: 'archive' | 'unarchive';
+    item: InboxItem;
+    timestamp: number;
+  } | null>(null);
+  
   // Sync local state when props change (handles View Transitions updates)
+  // But preserve optimistic updates to prevent items from disappearing
   useEffect(() => {
-    setLocalInboxContent(inboxContent);
-    setLocalArchivedItems(archivedItems);
+    // If we have a pending optimistic update, merge it instead of replacing
+    if (pendingOptimisticUpdateRef.current) {
+      const { itemId, direction, item } = pendingOptimisticUpdateRef.current;
+      
+      if (direction === 'archive') {
+        // Item was moved to archive - ensure it's in localArchivedItems even if not in props yet
+        setLocalArchivedItems(prev => {
+          // Check if item is already in local state
+          const existsInLocal = prev.some(i => i.id === itemId);
+          // Check if item is in props (database has committed)
+          const existsInProps = archivedItems.some(i => i.id === itemId);
+          
+          if (existsInProps) {
+            // Database has committed, use props (which includes the item)
+            return archivedItems;
+          } else if (existsInLocal) {
+            // Item is in local state but not in props yet - keep it and merge with props
+            return [item, ...archivedItems.filter(i => i.id !== itemId)];
+          } else {
+            // Item not in local or props - add it (shouldn't happen, but safe fallback)
+            return [item, ...archivedItems];
+          }
+        });
+        // Sync inbox content normally (item should be removed from props)
+        setLocalInboxContent(inboxContent);
+      } else {
+        // Item was moved to inbox - ensure it's in localInboxContent even if not in props yet
+        setLocalInboxContent(prev => {
+          // Check if item is already in local state
+          const existsInLocal = prev.some(i => i.id === itemId);
+          // Check if item is in props (database has committed)
+          const existsInProps = inboxContent.some(i => i.id === itemId);
+          
+          if (existsInProps) {
+            // Database has committed, use props (which includes the item)
+            return inboxContent;
+          } else if (existsInLocal) {
+            // Item is in local state but not in props yet - keep it and merge with props
+            return [item, ...inboxContent.filter(i => i.id !== itemId)];
+          } else {
+            // Item not in local or props - add it (shouldn't happen, but safe fallback)
+            return [item, ...inboxContent];
+          }
+        });
+        // Sync archived items normally (item should be removed from props)
+        setLocalArchivedItems(archivedItems);
+      }
+    } else {
+      // No pending optimistic update, sync normally
+      setLocalInboxContent(inboxContent);
+      setLocalArchivedItems(archivedItems);
+    }
   }, [inboxContent, archivedItems]);
 
   // Auto-expand when items are first added (count changes from 0 to >0)
@@ -244,6 +303,14 @@ export default function CollapsibleInboxSection({
     if (activeTab === 'archive') {
       const itemToUnarchive = localArchivedItems.find(item => item.id === inboxItemId);
       if (itemToUnarchive) {
+        // Track optimistic update to prevent sync from overwriting it
+        pendingOptimisticUpdateRef.current = {
+          itemId: inboxItemId,
+          direction: 'unarchive',
+          item: itemToUnarchive,
+          timestamp: Date.now(),
+        };
+        
         // Optimistically update: remove from archive, add to inbox
         setLocalArchivedItems(prev => prev.filter(item => item.id !== inboxItemId));
         setLocalInboxContent(prev => [itemToUnarchive, ...prev]);
@@ -262,6 +329,14 @@ export default function CollapsibleInboxSection({
       // If archiving (itemId provided and we're in inbox tab), move from inbox to archive
       const itemToArchive = localInboxContent.find(item => item.id === inboxItemId);
       if (itemToArchive) {
+        // Track optimistic update to prevent sync from overwriting it
+        pendingOptimisticUpdateRef.current = {
+          itemId: inboxItemId,
+          direction: 'archive',
+          item: itemToArchive,
+          timestamp: Date.now(),
+        };
+        
         // Optimistically update: remove from inbox, add to archive
         setLocalInboxContent(prev => prev.filter(item => item.id !== inboxItemId));
         setLocalArchivedItems(prev => [itemToArchive, ...prev]);
@@ -278,25 +353,20 @@ export default function CollapsibleInboxSection({
       }
     }
     
-    // Force full page reload to get fresh server data
-    // Use a longer delay in production to ensure database transaction has committed
-    // Production databases may have replication lag, so we wait longer
-    // Note: We now ensure InboxItems.isActive = true in the API, so items will appear correctly
-    const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
-    const reloadDelay = isProduction ? 1000 : 500; // 1s in production (reduced from 2s since we fix root cause), 500ms in dev
-    
-    // Determine which tab should be active after reload
-    // If we're unarchiving (from archive tab), we want inbox tab after reload
-    // If we're archiving (from inbox tab), we want archive tab after reload
-    const targetTab = activeTab === 'archive' ? 'inbox' : 'archive';
-    
+    // Don't automatically reload - the optimistic update already shows the correct state
+    // The item will be correct after the next natural page navigation or manual refresh
+    // Automatic reload was causing issues because it happened before database commits
+    // Clear the optimistic update ref after a delay (in case props update from elsewhere)
+    // This allows the sync effect to eventually use server data once it's available
     setTimeout(() => {
-      // Add cache-busting query parameter and preserve tab state
-      const url = new URL(window.location.href);
-      url.searchParams.set('_t', Date.now().toString());
-      url.searchParams.set('tab', targetTab); // Preserve which tab should be active
-      window.location.href = url.toString();
-    }, reloadDelay);
+      // Clear the optimistic update ref after enough time for database to commit
+      // This allows future prop updates to sync normally
+      const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
+      const clearDelay = isProduction ? 3000 : 2000; // 3s in production, 2s in dev
+      setTimeout(() => {
+        pendingOptimisticUpdateRef.current = null;
+      }, clearDelay);
+    }, 100);
   };
 
   const currentItems = activeTab === 'inbox' ? localInboxContent : localArchivedItems;
@@ -318,9 +388,9 @@ export default function CollapsibleInboxSection({
               suppressHydrationWarning
             >
               <span className="tab-nav__label">Inbox</span>
-              {inboxItemCount > 0 && (
+              {localInboxContent.length > 0 && (
                 <div className="badge-count">
-                  <span className="badge-number">{formatBadgeCount(inboxItemCount)}</span>
+                  <span className="badge-number">{formatBadgeCount(localInboxContent.length)}</span>
                 </div>
               )}
             </button>
