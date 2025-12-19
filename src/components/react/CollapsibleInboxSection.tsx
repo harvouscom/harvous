@@ -337,20 +337,31 @@ export default function CollapsibleInboxSection({
           </div>
         </div>
         <div className="flex flex-col font-sans font-normal justify-center relative shrink-0 text-[12px] text-[#78766f]">
-          <p 
-            className="leading-[1.3] whitespace-nowrap inbox-auto-text"
-            style={{ display: activeTab === 'inbox' && !isCollapsed && isMounted ? 'block' : 'none' }}
-            suppressHydrationWarning
-          >
-            14 day auto archive
-          </p>
-          <p 
-            className="leading-[1.3] whitespace-nowrap archive-auto-text"
-            style={{ display: activeTab === 'archive' && !isCollapsed && isMounted ? 'block' : 'none' }}
-            suppressHydrationWarning
-          >
-            30 day auto delete
-          </p>
+          {isCollapsed ? (
+            <p 
+              className="leading-[1.3] whitespace-nowrap"
+              suppressHydrationWarning
+            >
+              Inbox is currently hidden
+            </p>
+          ) : (
+            <>
+              <p 
+                className="leading-[1.3] whitespace-nowrap inbox-auto-text"
+                style={{ display: activeTab === 'inbox' && !isCollapsed && isMounted ? 'block' : 'none' }}
+                suppressHydrationWarning
+              >
+                14 day auto archive
+              </p>
+              <p 
+                className="leading-[1.3] whitespace-nowrap archive-auto-text"
+                style={{ display: activeTab === 'archive' && !isCollapsed && isMounted ? 'block' : 'none' }}
+                suppressHydrationWarning
+              >
+                30 day auto delete
+              </p>
+            </>
+          )}
         </div>
       </div>
 
