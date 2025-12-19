@@ -231,13 +231,21 @@ export function highlightScriptureReferences(
         continue;
       }
       
+      // Extract leading and trailing whitespace from the original match
+      // matchText includes HTML tags, so we need to extract spaces from the text content
+      const cleanMatchText = matchText.replace(/<[^>]+>/g, ''); // Remove HTML tags to get text
+      const leadingSpaces = cleanMatchText.match(/^\s*/)?.[0] || '';
+      const trailingSpaces = cleanMatchText.match(/\s*$/)?.[0] || '';
+      
       // Wrap the match with scripture pill span format with inline styles
       // Always use cleanText (plain text, no formatting) for display inside the pill
       // This ensures scripture pills always have consistent standard text formatting
       // regardless of how the original reference was formatted (italicized, bolded, etc.)
       // font-style: normal prevents inheritance of italic formatting from parent elements
       const wrapped = `<span data-scripture-reference="${cleanText}" data-note-id="${noteId}" class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 4px; padding: 0px 8px 0px 6px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; cursor: pointer;">${cleanText}</span>`;
-      updatedContent = updatedContent.substring(0, index) + wrapped + updatedContent.substring(index + matchText.length);
+      
+      // Preserve leading and trailing spaces outside the pill span
+      updatedContent = updatedContent.substring(0, index) + leadingSpaces + wrapped + trailingSpaces + updatedContent.substring(index + matchText.length);
     }
   }
 

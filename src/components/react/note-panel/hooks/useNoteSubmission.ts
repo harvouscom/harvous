@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
-import { safeNavigate } from '@/utils/safe-navigate';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
@@ -321,15 +320,11 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
         }));
 
-        // Dispatch noteAddedToThread event if note was created with a specific thread
-        if (result.note && result.note.id && actualThreadId && actualThreadId !== 'thread_unorganized') {
-          window.dispatchEvent(new CustomEvent('noteAddedToThread', {
-            detail: { 
-              noteId: result.note.id,
-              threadId: actualThreadId
-            }
-          }));
-        }
+        // NOTE: We do NOT dispatch noteAddedToThread event here because we're about to navigate
+        // to the note page. The event listener in [id].astro would refresh the thread page,
+        // which would override our navigation to the note. Since we're leaving the thread page
+        // anyway, the refresh isn't needed.
+        // The event is only useful when staying on the thread page, which we're not doing.
 
         // Verify thread in localStorage
         if (result.note && actualThreadId) {
@@ -417,72 +412,103 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           localStorage.removeItem('newNoteSourceSelectionPlainText');
         }
 
+        // Small delay to ensure any async operations complete
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        // Navigate to thread if overrideThreadId was provided (like new thread creation)
-        // Otherwise navigate to the note
+        // Always navigate to the note (not the thread) after creation
+        // This matches the behavior when creating a note from the dashboard
+        console.log('[useNoteSubmission] ===== NOTE CREATION COMPLETE =====');
+        console.log('[useNoteSubmission] Full result object:', JSON.stringify(result, null, 2));
+        console.log('[useNoteSubmission] result.note:', result.note);
+        console.log('[useNoteSubmission] result.note?.id:', result.note?.id);
+        console.log('[useNoteSubmission] overrideThreadId:', overrideThreadId);
+        
+        // CRITICAL CHECK: Ensure we have a valid note ID
+        if (!result.note) {
+          console.error('[useNoteSubmission] ERROR: result.note is missing!');
+          console.error('[useNoteSubmission] Full result:', result);
+        }
+        if (!result.note?.id) {
+          console.error('[useNoteSubmission] ERROR: result.note.id is missing!');
+          console.error('[useNoteSubmission] result.note:', result.note);
+        }
+        
         if (result.note && result.note.id) {
-          let redirectUrl: string;
+          // ALWAYS navigate to the note, never to the thread
+          let redirectUrl = `/${result.note.id}`;
+          console.log('[useNoteSubmission] Initial redirect URL (note):', redirectUrl);
           
-          // If overrideThreadId is provided and not unorganized, redirect to thread
-          if (overrideThreadId && overrideThreadId !== 'thread_unorganized') {
-            redirectUrl = `/${overrideThreadId}`;
-            // Find thread name for toast message
+          // Add toast message if applicable
+          if (scriptureToastMessage) {
+            redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
+            console.log('[useNoteSubmission] Added scripture toast to URL');
+          } else if (overrideThreadId && overrideThreadId !== 'thread_unorganized') {
+            // If note was added to a thread, show a success message
             const threadData = threadOptions.find(thread => thread.id === overrideThreadId);
             if (threadData) {
               const toastMessage = `Note added to ${threadData.title}`;
               redirectUrl += `?toast=success&message=${encodeURIComponent(toastMessage)}`;
-            } else if (scriptureToastMessage) {
-              // If we have a scripture message, include it
-              redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
+              console.log('[useNoteSubmission] Added thread toast to URL');
             }
-            console.log('[useNoteSubmission] Redirecting to thread:', redirectUrl);
-          } else {
-            // Default: redirect to note (with scripture toast if applicable)
-            redirectUrl = `/${result.note.id}`;
-            if (scriptureToastMessage) {
-              redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
-            }
-            console.log('[useNoteSubmission] Redirecting to note:', redirectUrl);
           }
           
-          // Close panel BEFORE navigation to ensure it closes
+          console.log('[useNoteSubmission] Final redirect URL:', redirectUrl);
+          console.log('[useNoteSubmission] Current URL before navigation:', window.location.href);
+          
+          // CRITICAL: Remove panel state from localStorage entirely (not just set to 'false')
+          // This prevents DesktopPanelManager from reopening the panel on the new page
+          // Do this FIRST before any other operations
+          localStorage.removeItem('showNewNotePanel');
+          localStorage.removeItem('showNewThreadPanel');
+          localStorage.removeItem('showNewResourcePanel');
+          console.log('[useNoteSubmission] Cleared panel state from localStorage');
+          
+          // Verify removal (for debugging)
+          if (localStorage.getItem('showNewNotePanel') === 'true') {
+            console.warn('[useNoteSubmission] WARNING: showNewNotePanel still true after removal!');
+          }
+          
+          // Reset form and clear localStorage
+          resetForm();
+          setSelectedThread('Unorganized');
+          setIsSubmitting(false);
+          clearLocalStorage();
+          console.log('[useNoteSubmission] Reset form and cleared localStorage');
+          
+          // Close panel
           if (onClose) {
             onClose();
-          } else {
-            // Fallback: dispatch close event if onClose callback not provided
-            window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
           }
+          // Dispatch close event to ensure panel manager closes it
+          window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+          console.log('[useNoteSubmission] Dispatched closeNewNotePanel event');
           
-          // Navigate to the note/thread
-          try {
-            await safeNavigate(redirectUrl, { history: 'replace' });
-          } catch (navError) {
-            console.error('[useNoteSubmission] Navigation error:', navError);
-            // Fallback to window.location if safeNavigate fails
-            window.location.href = redirectUrl;
-          }
+          // CRITICAL: Navigation must happen synchronously and immediately
+          // Do NOT await anything after this point - navigation should be the last operation
+          const absoluteUrl = `${window.location.origin}${redirectUrl}`;
+          console.log('[useNoteSubmission] ===== NAVIGATING NOW =====');
+          console.log('[useNoteSubmission] Absolute URL:', absoluteUrl);
+          console.log('[useNoteSubmission] About to call window.location.replace()');
+          
+          // Use replace for immediate navigation (no back button)
+          // This MUST be the last operation - nothing after this will execute
+          window.location.replace(absoluteUrl);
+          
+          // This should never execute, but log it if it does
+          console.error('[useNoteSubmission] ERROR: Code executed after window.location.replace() - navigation may have failed!');
         } else {
           // If no note was created, still close the panel
+          localStorage.removeItem('showNewNotePanel');
+          resetForm();
+          setSelectedThread('Unorganized');
+          setIsSubmitting(false);
+          clearLocalStorage();
+          
           if (onClose) {
             onClose();
           } else {
-            // Fallback: dispatch close event if onClose callback not provided
             window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
           }
-        }
-
-        // Reset form
-        resetForm();
-        setSelectedThread('Unorganized');
-        setIsSubmitting(false);
-        clearLocalStorage();
-        
-        // Refresh next note ID
-        loadNextNoteId();
-        
-        if (onSuccess) {
-          onSuccess();
         }
       } else {
         const error = await response.json();
@@ -585,9 +611,21 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           if (scriptureToastMessage) {
             redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
           }
-          setTimeout(() => {
-            safeNavigate(redirectUrl, { history: 'replace' });
-          }, 100);
+          
+          // CRITICAL: Remove panel state from localStorage entirely (not just set to 'false')
+          // This prevents DesktopPanelManager from reopening the panel on the new page
+          localStorage.removeItem('showNewNotePanel');
+          localStorage.removeItem('showNewThreadPanel');
+          localStorage.removeItem('showNewResourcePanel');
+          
+          // Use window.location.replace() for guaranteed navigation with full page reload
+          try {
+            window.location.replace(redirectUrl);
+          } catch (error) {
+            // If replace fails, try href as fallback
+            console.error('[useNoteSubmission] Navigation failed:', error);
+            window.location.href = redirectUrl;
+          }
         }
       } else {
         const error = await response.json();
