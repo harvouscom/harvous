@@ -1268,12 +1268,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       
                       // After adding to thread, fire event to create hyperlink in the source note
                       const { from, to } = editor.state.selection;
+                      // Get plainText for HTML manipulation fallback (view mode)
+                      const plainTextForMatching = editor.state.doc.textBetween(from, to, ' ');
                       window.dispatchEvent(new CustomEvent('createHyperlink', {
                           detail: {
                               sourceNoteId,
                               newNoteId: existingCheck.noteId, // Use the ID of the existing note
                               from,
                               to,
+                              plainText: plainTextForMatching || null, // Include plainText for fallback text matching
                           }
                       }));
                     } else if (addThreadResponse.status === 400) {
@@ -1300,12 +1303,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         
                         // After confirming note is in thread, fire event to create hyperlink in the source note
                         const { from, to } = editor.state.selection;
+                        // Get plainText for HTML manipulation fallback (view mode)
+                        const plainTextForMatching = editor.state.doc.textBetween(from, to, ' ');
                         window.dispatchEvent(new CustomEvent('createHyperlink', {
                             detail: {
                                 sourceNoteId,
                                 newNoteId: existingCheck.noteId, // Use the ID of the existing note
                                 from,
                                 to,
+                                plainText: plainTextForMatching || null, // Include plainText for fallback text matching
                             }
                         }));
                       } else {

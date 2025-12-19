@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
 
@@ -64,10 +65,17 @@ export default function CardFullEditable({
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
 
+  // Track if we've updated content locally (e.g., with a highlight)
+  const hasLocalContentUpdate = useRef(false);
+
   // Initialize display content
   useEffect(() => {
     setDisplayTitle(title);
-    setDisplayContent(content);
+    // Only reset displayContent if we haven't updated it locally
+    // This prevents the highlight from disappearing when content prop updates
+    if (!hasLocalContentUpdate.current) {
+      setDisplayContent(content);
+    }
   }, [title, content]);
 
   // Focus handling is now done directly in startEditing
@@ -101,47 +109,72 @@ export default function CardFullEditable({
 
   // Listen for hyperlink creation event
   useEffect(() => {
-    const handleCreateHyperlink = (event: CustomEvent) => {
-        const { sourceNoteId, newNoteId, from, to } = event.detail;
+    const handleCreateHyperlink = async (event: CustomEvent) => {
+        const { sourceNoteId, newNoteId, from, to, plainText } = event.detail;
 
-        if (sourceNoteId === noteId && editorInstanceRef.current) {
+        // Only process if this is the source note
+        if (sourceNoteId !== noteId) return;
+
+        // Try editor-based approach first (if editor is available)
+        if (editorInstanceRef.current) {
             const editor = editorInstanceRef.current;
             
             // Check if editor is still valid (not destroyed)
-            if (!editor || editor.isDestroyed) return;
-            if (!editor.view || !editor.view.docView) return;
-            
-            try {
-              // Use Tiptap API to apply the mark
-              editor.chain()
-                  .focus()
-                  .setTextSelection({ from, to })
-                  .unsetAllMarks()
-                  .setMark('noteLink', { noteId: newNoteId })
-                  .setTextSelection(to)  // Move cursor to end of link
-                  .unsetAllMarks()        // Clear marks so new text isn't linked
-                  .run();
+            if (editor && !editor.isDestroyed && editor.view && editor.view.docView) {
+              // Helper function to apply noteLink mark at a specific position
+              const applyNoteLink = (positionFrom: number, positionTo: number): boolean => {
+              try {
+                // Validate positions are within document bounds
+                const docSize = editor.state.doc.content.size;
+                if (positionFrom < 0 || positionTo < 0 || positionFrom >= docSize || positionTo > docSize || positionFrom >= positionTo) {
+                  console.warn('[CardFullEditable] Invalid position range:', { positionFrom, positionTo, docSize });
+                  return false;
+                }
 
-              // After applying the mark, the content has changed. Trigger a save.
-              // A small delay ensures the editor update is processed before getting HTML
-              setTimeout(() => {
+                // Use Tiptap API to apply the mark
+                editor.chain()
+                    .focus()
+                    .setTextSelection({ from: positionFrom, to: positionTo })
+                    .unsetAllMarks()
+                    .setMark('noteLink', { noteId: newNoteId })
+                    .setTextSelection(positionTo)  // Move cursor to end of link
+                    .unsetAllMarks()        // Clear marks so new text isn't linked
+                    .run();
+
+                return true;
+              } catch (e) {
+                console.error('[CardFullEditable] Error applying noteLink mark:', e);
+                return false;
+              }
+              };
+
+            // Helper function to save the updated content
+            const saveUpdatedContent = () => {
+              setTimeout(async () => {
                   // Check again if editor is still valid
                   if (!editor || editor.isDestroyed) return;
                   if (!editor.view || !editor.view.docView) return;
                   
                   try {
                     const updatedContent = editor.getHTML();
-                    setEditContent(updatedContent); // Update local state
+                    // Mark that we've updated content locally to prevent useEffect from resetting it
+                    hasLocalContentUpdate.current = true;
+                    // Update both editContent and displayContent so highlight is visible in both edit and view modes
+                    setEditContent(updatedContent);
+                    setDisplayContent(updatedContent);
                     
                     // Trigger save
                     if (onSave) {
-                        onSave(editTitle, updatedContent);
+                        await onSave(editTitle, updatedContent);
                     } else {
                         const globalCallback = (window as any).noteSaveCallback;
                         if (globalCallback) {
-                            globalCallback(editTitle, updatedContent);
+                            await globalCallback(editTitle, updatedContent);
                         }
                     }
+
+                    // Notify that highlight has been saved (so navigation can proceed)
+                    window.dispatchEvent(new CustomEvent('highlightSaved'));
 
                     // Show a temporary confirmation
                     window.dispatchEvent(new CustomEvent('toast', {
@@ -151,12 +184,141 @@ export default function CardFullEditable({
                         }
                     }));
                   } catch (e) {
-                    // Ignore errors during save
+                    console.error('[CardFullEditable] Error saving updated content:', e);
+                    // Still notify even on error so navigation doesn't hang
+                    window.dispatchEvent(new CustomEvent('highlightSaved'));
                   }
               }, 50);
-            } catch (e) {
-              // Ignore errors during hyperlink creation
+              };
+
+              // Try to apply mark using stored positions first
+              let success = false;
+              if (from !== undefined && to !== undefined) {
+                success = applyNoteLink(from, to);
+              }
+
+              // If direct position application failed, try text matching fallback
+              if (!success) {
+                // Try to get plainText from event detail first, fallback to localStorage
+                const sourceSelectionPlainText = plainText || localStorage.getItem('newNoteSourceSelectionPlainText');
+                
+                if (sourceSelectionPlainText && sourceSelectionPlainText.trim().length > 0) {
+                  console.log('[CardFullEditable] Position-based mark application failed, trying text matching fallback');
+                  
+                  try {
+                    const textPosition = findFirstUnmarkedTextPosition(editor, sourceSelectionPlainText);
+                    
+                    if (textPosition) {
+                      success = applyNoteLink(textPosition.from, textPosition.to);
+                      if (success) {
+                        console.log('[CardFullEditable] Successfully applied noteLink using text matching fallback');
+                      } else {
+                        console.warn('[CardFullEditable] Found text position but failed to apply mark:', textPosition);
+                      }
+                    } else {
+                      console.warn('[CardFullEditable] Could not find matching text in editor:', sourceSelectionPlainText);
+                    }
+                  } catch (e) {
+                    console.error('[CardFullEditable] Error during text matching fallback:', e);
+                  }
+                } else {
+                  console.warn('[CardFullEditable] No sourceSelectionPlainText available for fallback');
+                }
+              }
+
+              // If we successfully applied the mark, save the updated content
+              if (success) {
+                saveUpdatedContent();
+                return; // Successfully handled with editor
+              }
+              // Editor-based approach failed, fall through to HTML manipulation
             }
+        }
+
+        // HTML manipulation approach (for when editor is not available or editor approach failed)
+        // This handles the case when the note is in view mode (not editing)
+        console.log('[CardFullEditable] Using HTML manipulation approach (editor not available or editor approach failed)');
+        
+        const sourceSelectionPlainText = plainText || localStorage.getItem('newNoteSourceSelectionPlainText');
+        
+        if (sourceSelectionPlainText && sourceSelectionPlainText.trim().length > 0 && noteId) {
+          try {
+            // Get current content (use displayContent which is the displayed content)
+            const currentContent = displayContent || content;
+            
+            // Try to wrap the text with noteLink in HTML
+            const updatedContent = wrapTextWithNoteLink(currentContent, sourceSelectionPlainText, newNoteId);
+            
+            if (updatedContent) {
+              // Save via API directly
+              const response = await fetch(`/api/notes/${noteId}/update-content`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                  content: updatedContent
+                })
+              });
+
+              if (response.ok) {
+                console.log('[CardFullEditable] Highlight saved successfully via API');
+                // Mark that we've updated content locally to prevent useEffect from resetting it
+                hasLocalContentUpdate.current = true;
+                // Update local state to reflect the change immediately
+                // This makes the highlight visible without page reload
+                // Use functional updates to ensure we're working with latest state
+                setDisplayContent(updatedContent);
+                setEditContent(updatedContent);
+                
+                // Notify that highlight has been saved (so navigation can proceed)
+                console.log('[CardFullEditable] Dispatching highlightSaved event');
+                window.dispatchEvent(new CustomEvent('highlightSaved'));
+                
+                // Show success message
+                window.dispatchEvent(new CustomEvent('toast', {
+                  detail: {
+                    message: 'Link created in source note.',
+                    type: 'success'
+                  }
+                }));
+              } else {
+                const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                console.error('[CardFullEditable] Failed to save updated content:', errorData);
+                window.dispatchEvent(new CustomEvent('toast', {
+                  detail: {
+                    message: 'Could not create link in source note.',
+                    type: 'warning'
+                  }
+                }));
+              }
+            } else {
+              console.warn('[CardFullEditable] Could not find text to wrap in HTML:', sourceSelectionPlainText);
+              window.dispatchEvent(new CustomEvent('toast', {
+                detail: {
+                  message: 'Could not find selected text to create link.',
+                  type: 'warning'
+                }
+              }));
+            }
+          } catch (e) {
+            console.error('[CardFullEditable] Error during HTML manipulation fallback:', e);
+            window.dispatchEvent(new CustomEvent('toast', {
+              detail: {
+                message: 'Could not create link in source note.',
+                type: 'warning'
+              }
+            }));
+          }
+        } else {
+          console.error('[CardFullEditable] Failed to create hyperlink - no plainText available');
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Could not create link in source note.',
+              type: 'warning'
+            }
+          }));
         }
     };
 
@@ -460,8 +622,23 @@ export default function CardFullEditable({
   };
 
   const handleContentClick = async (e: React.MouseEvent<HTMLDivElement>) => {
-    // Check if click is on a scripture pill
+    // Check if click is on a note-link (highlighted text linking to another note)
     const target = e.target as HTMLElement;
+    const noteLinkElement = target.closest('.note-link');
+    
+    if (noteLinkElement) {
+      const noteId = noteLinkElement.getAttribute('data-note-id');
+      
+      if (noteId) {
+        // Navigate to the linked note
+        e.preventDefault();
+        e.stopPropagation();
+        safeNavigate(`/${noteId}`, { history: 'replace' });
+        return;
+      }
+    }
+    
+    // Check if click is on a scripture pill
     const pillElement = target.closest('.scripture-pill');
     
     if (pillElement) {
@@ -544,7 +721,7 @@ export default function CardFullEditable({
       }
     }
     
-    // If not a scripture pill, enter edit mode
+    // If not a note-link or scripture pill, enter edit mode
     startEditing('content');
   };
 

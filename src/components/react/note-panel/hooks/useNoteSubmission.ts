@@ -358,16 +358,57 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         if (sourceNoteId && result.note && result.note.id) {
           const from = localStorage.getItem('newNoteSourceSelectionFrom');
           const to = localStorage.getItem('newNoteSourceSelectionTo');
+          const plainText = localStorage.getItem('newNoteSourceSelectionPlainText');
 
-          if (from && to) {
-            window.dispatchEvent(new CustomEvent('createHyperlink', {
-              detail: {
-                sourceNoteId,
-                newNoteId: result.note.id,
-                from: parseInt(from, 10),
-                to: parseInt(to, 10),
-              }
-            }));
+          // Dispatch event if we have either positions (for editor mode) or plainText (for view mode)
+          // The handler will use editor positions if available, or fall back to HTML text matching
+          if ((from && to) || plainText) {
+            console.log('[useNoteSubmission] Setting up highlight save wait...');
+            // Create a promise that resolves when the highlight is saved
+            const highlightSavedPromise = new Promise<void>((resolve) => {
+              let resolved = false;
+              
+              const handleHighlightSaved = () => {
+                if (resolved) return;
+                resolved = true;
+                console.log('[useNoteSubmission] Highlight saved event received');
+                window.removeEventListener('highlightSaved', handleHighlightSaved);
+                resolve();
+              };
+              
+              // Set up listener BEFORE dispatching event to avoid race condition
+              window.addEventListener('highlightSaved', handleHighlightSaved);
+              
+              // Small delay to ensure listener is registered
+              setTimeout(() => {
+                // Dispatch the createHyperlink event
+                console.log('[useNoteSubmission] Dispatching createHyperlink event');
+                window.dispatchEvent(new CustomEvent('createHyperlink', {
+                  detail: {
+                    sourceNoteId,
+                    newNoteId: result.note.id,
+                    from: from ? parseInt(from, 10) : undefined,
+                    to: to ? parseInt(to, 10) : undefined,
+                    plainText: plainText || null, // Include plainText for fallback text matching
+                  }
+                }));
+              }, 10);
+              
+              // Timeout after 3 seconds to prevent hanging if highlight save fails
+              setTimeout(() => {
+                if (!resolved) {
+                  console.warn('[useNoteSubmission] Highlight save timeout - proceeding anyway');
+                  resolved = true;
+                  window.removeEventListener('highlightSaved', handleHighlightSaved);
+                  resolve();
+                }
+              }, 3000);
+            });
+            
+            // Wait for highlight to be saved before continuing
+            console.log('[useNoteSubmission] Waiting for highlight to be saved...');
+            await highlightSavedPromise;
+            console.log('[useNoteSubmission] Highlight save complete, proceeding with navigation');
           }
           
           localStorage.removeItem('newNoteSourceNoteId');

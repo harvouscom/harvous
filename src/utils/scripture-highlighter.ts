@@ -3,6 +3,8 @@
  * Wraps scripture references with NoteLink spans for clickable links
  */
 
+import { detectScriptureReferences } from './scripture-detector';
+
 export interface ScriptureReference {
   reference: string;
   noteId: string;
@@ -12,6 +14,7 @@ export interface ScriptureReference {
  * Strips note-link formatted scripture references from HTML content
  * These are legacy format spans that have class="note-link" and data-note-id but no data-scripture-reference
  * The text inside will be re-wrapped as proper scripture pills by highlightScriptureReferences
+ * IMPORTANT: Only strips note-link spans that contain scripture references, preserves regular note links
  */
 function stripNoteLinkScriptureSpans(content: string): string {
   let result = content;
@@ -36,10 +39,20 @@ function stripNoteLinkScriptureSpans(content: string): string {
     }
   }
   
-  // Replace note-link spans with their inner content (stripping the span tags)
-  // The inner content might have nested HTML like <strong> which we preserve
+  // Only replace note-link spans that contain scripture references
+  // This preserves regular note links (highlights) that don't contain scripture references
   for (const span of spans) {
-    result = result.replace(span.fullMatch, span.innerContent);
+    // Extract plain text from inner content (remove HTML tags)
+    const plainText = span.innerContent.replace(/<[^>]*>/g, '').trim();
+    
+    // Check if this text contains a scripture reference
+    const scriptureRefs = detectScriptureReferences(plainText);
+    
+    // Only strip if it contains a scripture reference
+    if (scriptureRefs.length > 0) {
+      result = result.replace(span.fullMatch, span.innerContent);
+    }
+    // Otherwise, preserve the note-link span (it's a regular highlight, not a scripture reference)
   }
   
   return result;
