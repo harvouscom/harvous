@@ -174,8 +174,8 @@ export default function OrganizedContentList({
       // Ensure only threads are shown (initialItems should already be filtered, but double-check)
       filtered = filtered.filter(item => item.type === 'thread');
     } else if (filter === 'notes') {
-      // Ensure only notes are shown (initialItems should already be filtered, but double-check)
-      filtered = filtered.filter(item => item.type === 'note');
+      // Ensure only default note type notes are shown (exclude scripture and resource notes)
+      filtered = filtered.filter(item => item.type === 'note' && (item.noteType === 'default' || !item.noteType));
     } else if (filter === 'scripture') {
       filtered = filtered.filter(item => item.type === 'note' && item.noteType === 'scripture');
     } else if (filter === 'resources') {

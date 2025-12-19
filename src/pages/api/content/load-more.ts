@@ -25,7 +25,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
     if (filter === 'threads') {
       filteredItems = items.filter(item => item.type === 'thread');
     } else if (filter === 'notes') {
-      filteredItems = items.filter(item => item.type === 'note');
+      // Only show default note type (exclude scripture and resource notes)
+      filteredItems = items.filter(item => item.type === 'note' && (item.noteType === 'default' || !item.noteType));
     } else if (filter === 'scripture') {
       filteredItems = items.filter(item => item.type === 'note' && item.noteType === 'scripture');
     } else if (filter === 'resources') {

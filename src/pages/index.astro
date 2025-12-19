@@ -317,9 +317,9 @@ try {
                     
                     <!-- Notes Only Content -->
                     <div class="organized-content flex flex-col hidden" data-tab-content="notes">
-                      {organizedContent.filter(item => item.type === 'note').length > 0 ? (
+                      {organizedContent.filter((item: any) => item?.type === 'note' && (item?.noteType === 'default' || !item?.noteType)).length > 0 ? (
                         <OrganizedContentList 
-                          initialItems={organizedContent.filter(item => item.type === 'note')}
+                          initialItems={organizedContent.filter((item: any) => item?.type === 'note' && (item?.noteType === 'default' || !item?.noteType))}
                           filter="notes"
                           client:visible
                         />
