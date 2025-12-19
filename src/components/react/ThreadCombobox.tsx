@@ -38,6 +38,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [editedThreadName, setEditedThreadName] = useState(suggestedThreadName || '');
+  const [createThreadName, setCreateThreadName] = useState('');
 
   // Update editedThreadName when suggestedThreadName changes
   useEffect(() => {
@@ -46,10 +47,34 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
     }
   }, [suggestedThreadName]);
 
+  // Update createThreadName when searchValue changes (for create from search feature)
+  // Initialize with searchValue if it exists, otherwise keep current value or empty
+  useEffect(() => {
+    if (searchValue.trim().length > 0) {
+      setCreateThreadName(searchValue);
+    } else if (!createThreadName) {
+      // Only clear if createThreadName is empty - preserve user edits
+      setCreateThreadName('');
+    }
+  }, [searchValue]);
+
   // Filter threads based on search
   const filteredThreads = threads.filter(thread =>
     thread.title.toLowerCase().includes(searchValue.toLowerCase())
   );
+
+  // Determine if suggested thread option is showing
+  const isSuggestedThreadShowing = suggestedThreadName && onCreateThread && !filteredThreads.some(t => {
+    const threadTitle = t.title.trim().toLowerCase();
+    const editedName = editedThreadName.trim().toLowerCase();
+    const suggestedName = suggestedThreadName.trim().toLowerCase();
+    return threadTitle === editedName || threadTitle === suggestedName;
+  });
+
+  // Determine if we should show the create thread option
+  // Show when: onCreateThread exists and no suggested thread option is showing
+  // The create option should always be visible (not just when searching)
+  const shouldShowCreateFromSearch = onCreateThread && !isSuggestedThreadShowing;
 
   // Get the selected thread object
   const selectedThreadObj = threads.find(thread => thread.title === selectedThread);
@@ -139,12 +164,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             `}</style>
             
             {/* Create Thread Suggestion - show if suggestedThreadName exists and no matching thread found */}
-            {suggestedThreadName && onCreateThread && !filteredThreads.some(t => {
-              const threadTitle = t.title.trim().toLowerCase();
-              const editedName = editedThreadName.trim().toLowerCase();
-              const suggestedName = suggestedThreadName.trim().toLowerCase();
-              return threadTitle === editedName || threadTitle === suggestedName;
-            }) && (
+            {isSuggestedThreadShowing && (
               <div
                 className="relative group"
                 style={{
@@ -320,8 +340,101 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                 );
               })
             ) : (
-              <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm font-sans">
-                No threads found
+              // Only show "No threads found" if we're not showing create option and search has value
+              !shouldShowCreateFromSearch && searchValue.trim().length > 0 && (
+                <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm font-sans">
+                  No threads found
+                </div>
+              )
+            )}
+            
+            {/* Create Thread option - always visible at bottom when onCreateThread is available */}
+            {shouldShowCreateFromSearch && (
+              <div
+                className="relative group"
+                style={{
+                  animation: 'fadeIn 0.3s ease-out forwards',
+                  opacity: 0
+                }}
+              >
+                <div
+                  className="relative rounded-xl h-[48px] w-full overflow-hidden"
+                  style={{
+                    backgroundColor: 'white',
+                    boxShadow: 'none'
+                  }}
+                >
+                  {/* Accent bar on left - matches thread rows */}
+                  <div 
+                    className="absolute inset-y-0 left-0 w-11 rounded-l-xl" 
+                    style={{ backgroundColor: 'var(--color-paper)' }}
+                  />
+                  
+                  {/* Content - matches thread row styling */}
+                  <div className="flex items-center gap-6 pl-3 pr-3 h-full">
+                    {/* Wand magic sparkles icon - same as suggested thread */}
+                    <div className="relative shrink-0 size-5">
+                      <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 576 512">
+                        <path d="M234.7 42.7L197 56.8c-3 1.1-5 4-5 7.2s2 6.1 5 7.2l37.7 14.1L248.8 123c1.1 3 4 5 7.2 5s6.1-2 7.2-5l14.1-37.7L315 71.2c3-1.1 5-4 5-7.2s-2-6.1-5-7.2L277.3 42.7 263.2 5c-1.1-3-4-5-7.2-5s-6.1 2-7.2 5L234.7 42.7zM46.1 395.4c-18.7 18.7-18.7 49.1 0 67.9l34.6 34.6c18.7 18.7 49.1 18.7 67.9 0L529.9 116.5c18.7-18.7 18.7-49.1 0-67.9L495.3 14.1c-18.7-18.7-49.1-18.7-67.9 0L46.1 395.4zM484.6 82.6l-105 105-23.3-23.3 105-105 23.3 23.3zM7.5 117.2C3 118.9 0 123.2 0 128s3 9.1 7.5 10.8L64 160l21.2 56.5c1.7 4.5 6 7.5 10.8 7.5s9.1-3 10.8-7.5L128 160l56.5-21.2c4.5-1.7 7.5-6 7.5-10.8s-3-9.1-7.5-10.8L128 96 106.8 39.5C105.1 35 100.8 32 96 32s-9.1 3-10.8 7.5L64 96 7.5 117.2zm352 256c-4.5 1.7-7.5 6-7.5 10.8s3 9.1 7.5 10.8L416 416l21.2 56.5c1.7 4.5 6 7.5 10.8 7.5s9.1-3 10.8-7.5L480 416l56.5-21.2c4.5-1.7 7.5-6 7.5-10.8s-3-9.1-7.5-10.8L480 352l-21.2-56.5c-1.7-4.5-6-7.5-10.8-7.5s-9.1 3-10.8 7.5L416 352l-56.5 21.2z"/>
+                      </svg>
+                    </div>
+                    
+                    {/* Editable input with create badge - matches thread title styling */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={createThreadName}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          setCreateThreadName(newValue);
+                          // Also update search value to keep them in sync
+                          setSearchValue(newValue);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (createThreadName.trim()) {
+                              onCreateThread(createThreadName.trim());
+                              setOpen(false);
+                              setSearchValue('');
+                              setCreateThreadName('');
+                            }
+                          }
+                        }}
+                        className="flex-1 font-sans font-bold text-[var(--color-deep-grey)] text-[16px] bg-transparent border-none outline-none min-w-0"
+                        placeholder="Thread name..."
+                      />
+                      
+                      {/* Create badge */}
+                      <span 
+                        className="px-2 py-0.5 rounded-full text-[11px] font-sans font-medium text-[var(--color-stone-grey)] whitespace-nowrap"
+                        style={{ 
+                          backgroundColor: 'var(--color-light-paper)',
+                        }}
+                      >
+                        Create
+                      </span>
+                    </div>
+                    
+                    {/* Confirm button using ActionButton */}
+                    <ActionButton
+                      variant="Add"
+                      onClick={() => {
+                        if (createThreadName.trim()) {
+                          onCreateThread(createThreadName.trim());
+                          setOpen(false);
+                          setSearchValue('');
+                          setCreateThreadName('');
+                        }
+                      }}
+                      disabled={!createThreadName.trim()}
+                      style={{
+                        opacity: createThreadName.trim() ? 1 : 0.5,
+                        cursor: createThreadName.trim() ? 'pointer' : 'not-allowed'
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </div>
