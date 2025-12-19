@@ -84,6 +84,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
         )
       );
 
+    // Ensure the InboxItems record is active so it appears in inbox
+    // getInboxItems() filters by isActive: true, so we need to ensure it's set
+    await db.update(InboxItems)
+      .set({
+        isActive: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(InboxItems.id, inboxItemId));
+
     return new Response(JSON.stringify({
       success: true,
       message: 'Item unarchived',

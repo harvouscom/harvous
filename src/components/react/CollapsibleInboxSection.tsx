@@ -281,8 +281,9 @@ export default function CollapsibleInboxSection({
     // Force full page reload to get fresh server data
     // Use a longer delay in production to ensure database transaction has committed
     // Production databases may have replication lag, so we wait longer
+    // Note: We now ensure InboxItems.isActive = true in the API, so items will appear correctly
     const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
-    const reloadDelay = isProduction ? 2000 : 500; // 2s in production, 500ms in dev
+    const reloadDelay = isProduction ? 1000 : 500; // 1s in production (reduced from 2s since we fix root cause), 500ms in dev
     
     // Determine which tab should be active after reload
     // If we're unarchiving (from archive tab), we want inbox tab after reload
