@@ -120,6 +120,74 @@ function loadPersistentNavigation(retryCount) {
       link.href = `/${item.id}`;
       link.className = 'w-full relative block';
       
+      // Add breadcrumb navigation click handler
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Breadcrumb navigation logic
+        const currentPath = window.location.pathname;
+        const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+        
+        // If we're already on the thread/space page, do nothing
+        if (currentItemId === item.id) {
+          return;
+        }
+        
+        // Check if we're in the context of this thread/space
+        let isInContext = false;
+        
+        // If we're on a note page, check if it belongs to this thread/space
+        if (currentItemId.startsWith('note_')) {
+          // Check note element for data-parent-thread-id or data-parent-space-id
+          const noteElement = document.querySelector('[data-note-id]');
+          if (noteElement) {
+            const parentThreadId = noteElement.getAttribute('data-parent-thread-id');
+            const parentSpaceId = noteElement.getAttribute('data-parent-space-id');
+            
+            if (parentThreadId === item.id || parentSpaceId === item.id) {
+              isInContext = true;
+            }
+          }
+          
+          // Check navigation element for data-parent-thread-id or data-thread-id
+          if (!isInContext) {
+            const navigationElement = document.querySelector('[slot="navigation"]');
+            if (navigationElement) {
+              const navThreadId = navigationElement.getAttribute('data-parent-thread-id') || 
+                                 navigationElement.getAttribute('data-thread-id');
+              const navSpaceId = navigationElement.getAttribute('data-parent-space-id') || 
+                                navigationElement.getAttribute('data-space-id');
+              
+              if (navThreadId === item.id || navSpaceId === item.id) {
+                isInContext = true;
+              }
+            }
+          }
+        }
+        
+        // If in context, go back one step in history
+        if (isInContext) {
+          if (window.history.length > 1) {
+            window.history.back();
+          } else {
+            // Fallback: navigate directly if no history
+            if (window.astroNavigate) {
+              window.astroNavigate(`/${item.id}`);
+            } else {
+              window.location.href = `/${item.id}`;
+            }
+          }
+        } else {
+          // Not in context - navigate directly
+          if (window.astroNavigate) {
+            window.astroNavigate(`/${item.id}`);
+          } else {
+            window.location.href = `/${item.id}`;
+          }
+        }
+      });
+      
       // Helper function to determine if background is a colored thread background
       function isColoredBackground(gradient) {
         if (!gradient || gradient === 'var(--color-gradient-gray)' || gradient === 'var(--color-paper)') {

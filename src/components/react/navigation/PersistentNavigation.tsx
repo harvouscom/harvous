@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Icon from '../Icon';
+import { handleBreadcrumbNavigation } from '@/utils/navigation-breadcrumb';
 
 const PersistentNavigation: React.FC = () => {
   const contextValue = useNavigation();
@@ -77,10 +78,21 @@ const PersistentNavigation: React.FC = () => {
       {persistentItems.map((item) => {
         const isActive = item.id === currentActiveItemId;
         
+        const handleClick = (e: React.MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleBreadcrumbNavigation(item.id);
+        };
+        
         return (
           <div key={item.id} data-navigation-item={item.id} className="nav-item-container">
             <div className="nav-item-wrapper">
-              <a href={`/${item.id}`} className="nav-link" data-astro-prefetch="hover">
+              <a 
+                href={`/${item.id}`} 
+                className="nav-link" 
+                data-astro-prefetch="hover"
+                onClick={handleClick}
+              >
                 <SpaceButton
                   text={item.title}
                   count={item.count || 0}
