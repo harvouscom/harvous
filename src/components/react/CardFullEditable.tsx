@@ -633,7 +633,7 @@ export default function CardFullEditable({
         // Navigate to the linked note
         e.preventDefault();
         e.stopPropagation();
-        safeNavigate(`/${noteId}`, { history: 'replace' });
+        safeNavigate(`/${noteId}`, { history: 'push' });
         return;
       }
     }
@@ -716,7 +716,7 @@ export default function CardFullEditable({
           console.error('Error checking/restoring note:', error);
         }
         
-        safeNavigate(`/${targetNoteId}`, { history: 'replace' });
+        safeNavigate(`/${targetNoteId}`, { history: 'push' });
         return;
       }
     }

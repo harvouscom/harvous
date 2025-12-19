@@ -798,7 +798,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           const navigateUrl = currentThreadId 
             ? `/${targetNoteId}?thread=${encodeURIComponent(currentThreadId)}`
             : `/${targetNoteId}`;
-          safeNavigate(navigateUrl, { history: 'replace' });
+          safeNavigate(navigateUrl, { history: 'push' });
           return true;
         }
 
@@ -948,7 +948,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
             const navigateUrl = currentThreadId 
               ? `/${targetNoteId}?thread=${encodeURIComponent(currentThreadId)}`
               : `/${targetNoteId}`;
-            safeNavigate(navigateUrl, { history: 'replace' });
+            safeNavigate(navigateUrl, { history: 'push' });
             return true;
           }
         }

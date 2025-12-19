@@ -108,7 +108,7 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
         if (noteId) {
           event.preventDefault();
           // Navigate to note using Astro view transitions
-          safeNavigate(`/${noteId}`, { history: 'replace' });
+          safeNavigate(`/${noteId}`, { history: 'push' });
           return true;
         }
 
@@ -118,7 +118,7 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
           const clickedNoteId = target.getAttribute('data-note-id');
           if (clickedNoteId) {
             event.preventDefault();
-            safeNavigate(`/${clickedNoteId}`, { history: 'replace' });
+            safeNavigate(`/${clickedNoteId}`, { history: 'push' });
             return true;
           }
         }
