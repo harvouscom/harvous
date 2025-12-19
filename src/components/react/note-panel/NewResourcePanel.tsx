@@ -4,6 +4,7 @@ import Icon from '../Icon';
 import CardNote from '../CardNote';
 import ActionButton from '../ActionButton';
 import { normalizeUrl } from '@/utils/validation';
+import { safeNavigate } from '@/utils/safe-navigate';
 
 export interface NewResourcePanelProps {
   resourceUrl: string;
@@ -475,6 +476,11 @@ export default function NewResourcePanel({
             resourceUrl={duplicateInfo.url}
             className="w-full"
             showSource={false}
+            onClick={() => {
+              if (duplicateInfo.noteId) {
+                safeNavigate(`/${duplicateInfo.noteId}`, { history: 'replace' });
+              }
+            }}
           />
         ) : (
           <>
