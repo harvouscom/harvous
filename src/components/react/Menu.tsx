@@ -200,13 +200,6 @@ export default function Menu({
       } catch (error) {
         console.error('Error dispatching openNewThreadPanel event:', error);
       }
-    } else if (action === 'openNewResourcePanel') {
-      // Handle Add Resource action
-      try {
-        window.dispatchEvent(new CustomEvent('openNewResourcePanel'));
-      } catch (error) {
-        console.error('Error dispatching openNewResourcePanel event:', error);
-      }
     } else if (action === 'openNewNotePanel') {
       // Handle Add Note action
       try {

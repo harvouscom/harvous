@@ -611,7 +611,6 @@ if (!content) {
                       const allCount = noteTypeCounts?.all ?? threadNotes.length;
                       const notesCount = noteTypeCounts?.default ?? threadNotes.filter((n: any) => !n.noteType || n.noteType === 'default').length;
                       const scriptureCount = noteTypeCounts?.scripture ?? threadNotes.filter((n: any) => n.noteType === 'scripture').length;
-                      const resourcesCount = noteTypeCounts?.resource ?? threadNotes.filter((n: any) => n.noteType === 'resource').length;
                       
                       return (
                         <>
@@ -620,8 +619,7 @@ if (!content) {
                             tabs={[
                               { id: "all", label: "All", isActive: true, count: allCount },
                               { id: "notes", label: "Notes", isActive: false, count: notesCount },
-                              { id: "scripture", label: "Scripture", isActive: false, count: scriptureCount },
-                              { id: "resources", label: "Resources", isActive: false, count: resourcesCount }
+                              { id: "scripture", label: "Scripture", isActive: false, count: scriptureCount }
                             ]}
                             class="content-tabs"
                           />
@@ -670,22 +668,6 @@ if (!content) {
                             ) : (
                               <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
                                 <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No scripture notes found in this thread.</p>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Resources Only Content */}
-                          <div class="flex flex-col hidden" data-tab-content="resources">
-                            {resourcesCount > 0 ? (
-                              <ThreadNotesList 
-                                initialNotes={threadNotes}
-                                threadId={id!}
-                                noteTypeFilter="resource"
-                                client:visible
-                              />
-                            ) : (
-                              <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                                <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No resource notes found in this thread.</p>
                               </div>
                             )}
                           </div>
