@@ -446,7 +446,30 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             console.log('[useNoteSubmission] Redirecting to note:', redirectUrl);
           }
           
-          safeNavigate(redirectUrl, { history: 'replace' });
+          // Close panel BEFORE navigation to ensure it closes
+          if (onClose) {
+            onClose();
+          } else {
+            // Fallback: dispatch close event if onClose callback not provided
+            window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+          }
+          
+          // Navigate to the note/thread
+          try {
+            await safeNavigate(redirectUrl, { history: 'replace' });
+          } catch (navError) {
+            console.error('[useNoteSubmission] Navigation error:', navError);
+            // Fallback to window.location if safeNavigate fails
+            window.location.href = redirectUrl;
+          }
+        } else {
+          // If no note was created, still close the panel
+          if (onClose) {
+            onClose();
+          } else {
+            // Fallback: dispatch close event if onClose callback not provided
+            window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+          }
         }
 
         // Reset form
@@ -457,11 +480,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         
         // Refresh next note ID
         loadNextNoteId();
-        
-        // Close panel
-        if (onClose) {
-          onClose();
-        }
         
         if (onSuccess) {
           onSuccess();
