@@ -4,6 +4,7 @@ import SearchInput from './SearchInput';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { formatBadgeCount } from '@/utils/badge-count';
+import { error as logError } from '@/utils/logger';
 
 interface Space {
   id: string;
@@ -32,14 +33,17 @@ export default function MySpacesPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(0);
+  const hasFetchedRef = useRef<boolean>(false); // Track if we've fetched at least once
 
   const fetchSpaces = useCallback(async (force = false) => {
-    // Debounce: prevent duplicate fetches within 500ms (unless forced)
+    // Debounce: prevent duplicate fetches within 2 seconds (unless forced)
+    // Increased from 500ms to prevent rapid reloads on mobile
     const now = Date.now();
-    if (!force && now - lastFetchTimeRef.current < 500) {
+    if (!force && now - lastFetchTimeRef.current < 2000) {
       return;
     }
     lastFetchTimeRef.current = now;
+    hasFetchedRef.current = true;
 
     try {
       setIsLoading(true);
@@ -66,7 +70,7 @@ export default function MySpacesPanel({
 
       setSpaces(spacesWithGradients);
     } catch (err) {
-      console.error('Error fetching spaces:', err);
+      logError('Error fetching spaces:', { error: err });
       setError(err instanceof Error ? err.message : 'Failed to load spaces');
     } finally {
       setIsLoading(false);
@@ -74,7 +78,19 @@ export default function MySpacesPanel({
   }, []);
 
   // Only fetch on mount if no initialSpaces provided (backward compatibility)
+  // For bottom sheets, we rely on the event listener instead to avoid duplicate fetches
   useEffect(() => {
+    if (inBottomSheet) {
+      // For bottom sheets, use initialSpaces if provided, otherwise wait for event listener
+      if (initialSpaces.length > 0) {
+        setSpaces(initialSpaces);
+        setIsLoading(false);
+      }
+      // Don't fetch on mount for bottom sheets - let the event listener handle it
+      return;
+    }
+    
+    // For desktop panels, fetch on mount if no initial data
     if (initialSpaces.length === 0) {
       // No initial data, fetch on mount
       fetchSpaces(true);
@@ -83,11 +99,15 @@ export default function MySpacesPanel({
       setSpaces(initialSpaces);
       setIsLoading(false);
     }
-  }, [fetchSpaces, initialSpaces]);
+  }, [fetchSpaces, initialSpaces, inBottomSheet]);
 
   // Visibility-based refetch: refetch when panel becomes visible (backup mechanism)
-  // This is a fallback in case the panel activation listener doesn't fire
+  // DISABLED for bottom sheets - they use event listeners instead
+  // This prevents flickering/reload issues on mobile
   useEffect(() => {
+    // Skip IntersectionObserver for bottom sheets - they have event listeners
+    if (inBottomSheet) return;
+    
     if (!containerRef.current) return;
 
     let timeoutId: NodeJS.Timeout | null = null;
@@ -98,10 +118,12 @@ export default function MySpacesPanel({
       (entries) => {
         entries.forEach((entry) => {
           // When panel becomes visible, refetch spaces to ensure latest data
-          // Only trigger if it's been more than 500ms since mount (to avoid duplicate with mount fetch)
-          if (entry.isIntersecting && entry.intersectionRatio > 0 && !hasFetchedOnVisible) {
+          // Only trigger if it's been more than 2 seconds since mount (to avoid duplicate with mount fetch)
+          // And only if we haven't already fetched on visible
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5 && !hasFetchedOnVisible) {
             const timeSinceMount = Date.now() - mountTime;
-            if (timeSinceMount > 500) {
+            // Increased threshold to 2 seconds to prevent rapid reloads
+            if (timeSinceMount > 2000) {
               hasFetchedOnVisible = true;
               // Force fetch to bypass debounce
               timeoutId = setTimeout(() => {
@@ -109,17 +131,21 @@ export default function MySpacesPanel({
               }, 100);
             }
           } else if (!entry.isIntersecting) {
-            // Reset flag when panel becomes hidden so it can refetch when shown again
-            hasFetchedOnVisible = false;
+            // Only reset after panel has been hidden for at least 1 second
+            // This prevents rapid flickering from causing repeated fetches
             if (timeoutId) {
               clearTimeout(timeoutId);
               timeoutId = null;
             }
+            // Don't reset hasFetchedOnVisible immediately - wait a bit
+            setTimeout(() => {
+              hasFetchedOnVisible = false;
+            }, 1000);
           }
         });
       },
       {
-        threshold: 0.1, // Trigger when at least 10% visible
+        threshold: 0.5, // Increased from 0.1 to 0.5 - need 50% visible to trigger (more stable)
         rootMargin: '0px'
       }
     );
@@ -132,14 +158,21 @@ export default function MySpacesPanel({
         clearTimeout(timeoutId);
       }
     };
-  }, [fetchSpaces]);
+  }, [fetchSpaces, inBottomSheet]);
 
   // Panel activation listener: refetch when panel is opened via event
+  // This is the primary mechanism for bottom sheets
   useEffect(() => {
     const handlePanelOpened = (event: CustomEvent) => {
       const panelName = event.detail?.panelName;
       // Refetch when this specific panel is opened
       if (panelName === 'mySpaces') {
+        // Check if we've already fetched recently (within last 2 seconds)
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current < 2000) {
+          return; // Skip if we just fetched
+        }
+        
         // Small delay to ensure panel is mounted before fetching, force to bypass debounce
         setTimeout(() => {
           fetchSpaces(true);
