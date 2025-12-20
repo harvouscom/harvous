@@ -3,6 +3,7 @@ import ButtonSmall from './ButtonSmall';
 import CardNote from './CardNote';
 import SquareButton from './SquareButton';
 import { getThreadTextColorCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
+import { safeRenderHtml } from '@/utils/content-renderer';
 
 interface InboxItemNote {
   id: string;
@@ -89,7 +90,12 @@ function stripHtml(html: string): string {
 
 // Helper to normalize HTML content - ensure paragraphs are properly formatted
 function normalizeHtmlContent(html: string | null | undefined): string {
-  if (!html) return '';
+  // Ensure input is a string first
+  if (html === null || html === undefined) return '';
+  if (typeof html !== 'string') {
+    console.warn('[normalizeHtmlContent] Non-string content received:', typeof html);
+    return '';
+  }
   
   // If content already has paragraph tags, return as-is (but clean up any issues)
   if (html.includes('<p>') || html.includes('<p ')) {
@@ -454,7 +460,7 @@ export default function InboxItemPreviewPanel({
                         minHeight: 0, 
                         paddingBottom: '12px' 
                       }}
-                      dangerouslySetInnerHTML={{ __html: normalizeHtmlContent(selectedNote.content) }}
+                      dangerouslySetInnerHTML={{ __html: safeRenderHtml(normalizeHtmlContent(selectedNote.content)) }}
                     />
                   )}
                 </div>

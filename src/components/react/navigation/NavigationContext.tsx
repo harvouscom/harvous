@@ -384,9 +384,23 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         .then(({ navigate }) => {
           navigate(targetUrl, { history: 'replace' });
         })
-        .catch((error) => {
+        .catch(async (error) => {
           // Fallback to standard navigation if dynamic import fails
-          console.warn('View Transitions import failed, using standard navigation:', error);
+          const errorObj = error instanceof Error ? error : new Error(String(error));
+          console.warn('View Transitions import failed, using standard navigation:', errorObj);
+          
+          // Track error in PostHog if available
+          try {
+            const { captureException } = await import('@/utils/posthog');
+            captureException(errorObj, {
+              context: 'navigation-context',
+              action: 'remove-item-navigate',
+              targetUrl: targetUrl
+            });
+          } catch {
+            // Ignore PostHog import errors
+          }
+          
           window.location.href = targetUrl;
         });
       return; // Exit early since we're navigating

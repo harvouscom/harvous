@@ -5,6 +5,7 @@ import CardNote from '../CardNote';
 import ActionButton from '../ActionButton';
 import { normalizeUrl } from '@/utils/validation';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { safeRenderHtml } from '@/utils/content-renderer';
 
 export interface NewResourcePanelProps {
   resourceUrl: string;
@@ -376,8 +377,15 @@ export default function NewResourcePanel({
     return metadata.articleContent || metadata.description || '';
   };
 
-  const formatPreviewHtml = (raw: string): string => {
-    const trimmed = (raw || '').trim();
+  const formatPreviewHtml = (raw: string | null | undefined): string => {
+    // Ensure input is a string first
+    if (raw === null || raw === undefined) return '';
+    if (typeof raw !== 'string') {
+      console.warn('[formatPreviewHtml] Non-string content received:', typeof raw);
+      return '';
+    }
+    
+    const trimmed = raw.trim();
     if (!trimmed) return '';
     
     // Trust the extractor completely - it already produces clean HTML
@@ -594,7 +602,7 @@ export default function NewResourcePanel({
                     <div 
                       className="card-image-link__content-text resource-preview-content"
                       dangerouslySetInnerHTML={{ 
-                        __html: formatPreviewHtml(getFullPreview() || metadata.description || '') 
+                        __html: safeRenderHtml(formatPreviewHtml(getFullPreview() || metadata.description || '')) 
                       }}
                       style={{
                         fontFamily: 'var(--font-sans)',

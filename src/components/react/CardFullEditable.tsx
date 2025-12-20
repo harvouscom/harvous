@@ -4,6 +4,7 @@ import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
 import { debug } from '@/utils/logger';
+import { safeRenderHtml } from '@/utils/content-renderer';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
 
@@ -916,7 +917,7 @@ export default function CardFullEditable({
                 {effectiveContent ? (
                   <div 
                     className="card-image-link__content-text"
-                    dangerouslySetInnerHTML={{ __html: effectiveContent }}
+                    dangerouslySetInnerHTML={{ __html: safeRenderHtml(effectiveContent) }}
                   />
                 ) : (
                   <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>
@@ -1118,7 +1119,7 @@ export default function CardFullEditable({
                   className="flex-1 overflow-auto cursor-pointer rounded"
                   style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
                   onClick={handleContentClick}
-                  dangerouslySetInnerHTML={{ __html: displayContent }}
+                  dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
                 />
               </div>
             </div>

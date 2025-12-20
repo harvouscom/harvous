@@ -5,6 +5,7 @@
  * Following 37signals #nobuild philosophy - no CDN dependency
  */
 import React from 'react';
+import { safeRenderHtml } from '@/utils/content-renderer';
 
 // SVG icons with fill="currentColor" to inherit CSS color
 const icons = {
@@ -63,11 +64,20 @@ const Icon: React.FC<IconProps> = ({ name, size = 20, className = '', style = {}
     return null;
   }
 
+  // Ensure svgContent is a string
+  if (typeof svgContent !== 'string') {
+    console.error(`Icon "${name}" has invalid content type:`, typeof svgContent);
+    return null;
+  }
+
   // Add width/height attributes to SVG to ensure proper sizing
   const sizedSvg = svgContent.replace(
     /<svg\s+/,
     `<svg width="${size}" height="${size}" style="display:block" `
   );
+
+  // Use safe renderer to ensure content is always a valid string
+  const safeSvg = safeRenderHtml(sizedSvg);
 
   return (
     <span
@@ -81,7 +91,7 @@ const Icon: React.FC<IconProps> = ({ name, size = 20, className = '', style = {}
         color: 'inherit',
         ...style, // Include opacity in span style so it cascades to SVG
       }}
-      dangerouslySetInnerHTML={{ __html: sizedSvg }}
+      dangerouslySetInnerHTML={{ __html: safeSvg }}
     />
   );
 };

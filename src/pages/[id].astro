@@ -1046,6 +1046,21 @@ if (!content) {
     } catch (error) {
       // Module failed to load - fall back to window.location
       // This prevents unhandled promise rejections that PostHog catches
+      console.warn('[Safe Navigate] Failed to load astro:transitions/client, using window.location:', error);
+      
+      // Track error in PostHog if available
+      try {
+        if (window.posthog && typeof window.posthog.captureException === 'function') {
+          window.posthog.captureException(error instanceof Error ? error : new Error(String(error)), {
+            context: 'safe-navigate-script',
+            action: 'navigate',
+            path: path
+          });
+        }
+      } catch (posthogError) {
+        // Ignore PostHog errors
+      }
+      
       if (options?.history === 'replace') {
         window.location.replace(path);
       } else {
