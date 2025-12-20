@@ -97,6 +97,40 @@ const PersistentNavigation: React.FC = () => {
         const isActive = item.id === currentActiveItemId;
         
         const handleClick = (e: React.MouseEvent) => {
+          // CRITICAL: Log IMMEDIATELY with console.error so it's always visible
+          console.error('[PersistentNavigation] ===== NAVIGATION BUTTON CLICKED (REACT) =====', {
+            timestamp: Date.now(),
+            itemId: item.id,
+            itemIdType: typeof item.id,
+            itemIdValid: item.id && typeof item.id === 'string' && item.id.trim() !== '',
+            itemTitle: item.title
+          });
+          
+          // CRITICAL: Log the click event with full item details
+          // Also check localStorage directly to see if there's a mismatch
+          let localStorageHistory: any[] = [];
+          try {
+            const stored = localStorage.getItem('harvous-navigation-history-v2');
+            localStorageHistory = stored ? JSON.parse(stored) : [];
+          } catch (error) {
+            console.error('[PersistentNavigation] Error reading localStorage:', error);
+          }
+          
+          console.error('[PersistentNavigation] ===== NAVIGATION BUTTON CLICKED (FULL DETAILS) =====', {
+            item: item,
+            itemId: item.id,
+            itemIdType: typeof item.id,
+            itemIdValid: item.id && typeof item.id === 'string' && item.id.trim() !== '',
+            itemTitle: item.title,
+            itemFull: JSON.stringify(item),
+            navigationHistoryLength: navigationHistory.length,
+            allNavigationHistoryIds: navigationHistory.map((h: any) => ({ id: h.id, title: h.title })),
+            localStorageHistoryLength: localStorageHistory.length,
+            localStorageHistoryIds: localStorageHistory.map((h: any) => ({ id: h.id, title: h.title })),
+            itemExistsInLocalStorage: localStorageHistory.some((h: any) => h.id === item.id),
+            localStorageItem: localStorageHistory.find((h: any) => h.id === item.id)
+          });
+          
           // CRITICAL: Validate item.id before ANY navigation
           if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
             console.error('[PersistentNavigation] CRITICAL: Invalid item.id - blocking navigation:', {
@@ -155,18 +189,42 @@ const PersistentNavigation: React.FC = () => {
           }
           
           // NOT in breadcrumb context - use normal link navigation
-          // DO NOT preventDefault - let the href attribute handle navigation
-          // This is the original working behavior before breadcrumb was added
-          console.log('[PersistentNavigation] Using normal link navigation (href):', {
+          // CRITICAL: Prevent default and handle navigation manually to ensure we control it
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const navigationUrl = `/${item.id}`;
+          console.error('[PersistentNavigation] ===== EXECUTING NAVIGATION (REACT) =====', {
             itemId: item.id,
             itemTitle: item.title,
             currentItemId: currentItemId,
             isOnNotePage: isOnNotePage,
-            href: `/${item.id}`
+            navigationUrl: navigationUrl,
+            hrefValid: navigationUrl && !navigationUrl.includes('undefined') && (navigationUrl.startsWith('/thread_') || navigationUrl.startsWith('/space_') || navigationUrl.startsWith('/note_'))
           });
           
-          // Explicitly allow default link behavior - don't prevent it
-          // The href will navigate normally, just like before breadcrumb was added
+          // CRITICAL: Double-check the URL is valid before allowing navigation
+          if (!navigationUrl || navigationUrl.includes('undefined') || navigationUrl === '/') {
+            console.error('[PersistentNavigation] CRITICAL: Invalid navigation URL - blocking navigation:', {
+              navigationUrl: navigationUrl,
+              itemId: item.id,
+              itemTitle: item.title
+            });
+            return;
+          }
+          
+          // CRITICAL: Validate the URL format one more time
+          if (!item.id.startsWith('thread_') && !item.id.startsWith('space_') && !item.id.startsWith('note_')) {
+            console.error('[PersistentNavigation] CRITICAL: Invalid ID format - blocking navigation:', {
+              itemId: item.id,
+              navigationUrl: navigationUrl
+            });
+            return;
+          }
+          
+          // Navigate manually using window.location.href to ensure we control the navigation
+          console.error('[PersistentNavigation] ===== NAVIGATING TO =====', navigationUrl);
+          window.location.href = navigationUrl;
         };
         
         // Skip rendering if item.id is invalid (shouldn't happen due to filter, but double-check)

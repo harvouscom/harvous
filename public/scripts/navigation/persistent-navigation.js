@@ -100,8 +100,11 @@ function loadPersistentNavigation(retryCount) {
     
     // Debug: Log all persistent items to see what's in navigation history
     console.log('[persistent-navigation.js] ===== RENDERING PERSISTENT ITEMS =====');
+    console.log(`[persistent-navigation.js] Total items: ${persistentItems.length}`);
     persistentItems.forEach((item, index) => {
-      console.log(`[persistent-navigation.js] Item ${index + 1}:`, {
+      // Log with inline values so they're visible even if objects are collapsed
+      console.log(`[persistent-navigation.js] Item ${index + 1}: id="${item.id}", title="${item.title}", idType=${typeof item.id}, idValid=${!!(item.id && typeof item.id === 'string' && item.id.trim() !== '')}, href="/${item.id}"`);
+      console.log(`[persistent-navigation.js] Item ${index + 1} full object:`, {
         id: item.id,
         title: item.title,
         idType: typeof item.id,
@@ -118,14 +121,19 @@ function loadPersistentNavigation(retryCount) {
       if (rawHistory) {
         const parsed = JSON.parse(rawHistory);
         console.log('[persistent-navigation.js] ===== RAW NAVIGATION HISTORY FROM LOCALSTORAGE =====');
+        console.log(`[persistent-navigation.js] Total history items: ${parsed.length}`);
         parsed.forEach((item, index) => {
-          console.log(`[persistent-navigation.js] History item ${index + 1}:`, {
+          // Log with inline values so they're visible even if objects are collapsed
+          console.log(`[persistent-navigation.js] History item ${index + 1}: id="${item.id}", title="${item.title}"`);
+          console.log(`[persistent-navigation.js] History item ${index + 1} full object:`, {
             id: item.id,
             title: item.title,
             firstAccessed: item.firstAccessed,
             lastAccessed: item.lastAccessed
           });
         });
+      } else {
+        console.log('[persistent-navigation.js] No raw history found in localStorage');
       }
     } catch (e) {
       console.error('[persistent-navigation.js] Error reading raw history:', e);
@@ -191,14 +199,54 @@ function loadPersistentNavigation(retryCount) {
       link.href = `/${item.id}`;
       link.className = 'w-full relative block';
       
+      // CRITICAL: Add data attribute for debugging
+      link.setAttribute('data-debug-item-id', item.id);
+      link.setAttribute('data-debug-href', `/${item.id}`);
+      
       // Add breadcrumb navigation click handler
       link.addEventListener('click', (e) => {
+        // CRITICAL: Log immediately when click happens, before any other logic
+        console.error('[persistent-navigation.js] ===== CLICK EVENT FIRED =====', {
+          timestamp: Date.now(),
+          itemId: item.id,
+          itemIdType: typeof item.id,
+          itemIdValid: item.id && typeof item.id === 'string' && item.id.trim() !== '',
+          href: link.href,
+          targetHref: e.target?.href || e.currentTarget?.href,
+          eventTarget: e.target,
+          eventCurrentTarget: e.currentTarget
+        });
+        // CRITICAL: Log the click event with full item details
+        // Also check localStorage directly to see if there's a mismatch
+        let localStorageHistory = [];
+        try {
+          const stored = localStorage.getItem('harvous-navigation-history-v2');
+          localStorageHistory = stored ? JSON.parse(stored) : [];
+        } catch (error) {
+          console.error('[persistent-navigation.js] Error reading localStorage:', error);
+        }
+        
+        console.log('[persistent-navigation.js] ===== NAVIGATION BUTTON CLICKED =====');
+        console.log(`[persistent-navigation.js] Clicked item: id="${item.id}", title="${item.title}", idType=${typeof item.id}, idValid=${!!(item.id && typeof item.id === 'string' && item.id.trim() !== '')}`);
+        console.log('[persistent-navigation.js] Clicked item full object:', {
+          item: item,
+          itemId: item.id,
+          itemIdType: typeof item.id,
+          itemIdValid: item.id && typeof item.id === 'string' && item.id.trim() !== '',
+          itemTitle: item.title,
+          localStorageHistoryLength: localStorageHistory.length,
+          localStorageHistoryIds: localStorageHistory.map((h) => ({ id: h.id, title: h.title })),
+          itemExistsInLocalStorage: localStorageHistory.some((h) => h.id === item.id),
+          localStorageItem: localStorageHistory.find((h) => h.id === item.id)
+        });
+        
         // CRITICAL: Validate item.id before ANY navigation
         if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
           console.error('[persistent-navigation.js] CRITICAL: Invalid item.id - blocking navigation:', {
             item: item,
             itemId: item.id,
-            itemTitle: item.title
+            itemTitle: item.title,
+            itemIdType: typeof item.id
           });
           e.preventDefault();
           e.stopPropagation();
@@ -209,7 +257,10 @@ function loadPersistentNavigation(retryCount) {
         if (!item.id.startsWith('thread_') && !item.id.startsWith('space_') && !item.id.startsWith('note_')) {
           console.error('[persistent-navigation.js] CRITICAL: Invalid item.id format - blocking navigation:', {
             itemId: item.id,
-            itemTitle: item.title
+            itemTitle: item.title,
+            startsWithThread: item.id.startsWith('thread_'),
+            startsWithSpace: item.id.startsWith('space_'),
+            startsWithNote: item.id.startsWith('note_')
           });
           e.preventDefault();
           e.stopPropagation();
@@ -262,14 +313,24 @@ function loadPersistentNavigation(retryCount) {
             e.preventDefault();
             e.stopPropagation();
             
+            console.log('[persistent-navigation.js] Using breadcrumb navigation:', {
+              itemId: item.id,
+              itemTitle: item.title,
+              currentItemId: currentItemId,
+              parentThreadId: noteElement?.getAttribute('data-parent-thread-id'),
+              itemFull: item
+            });
+            
             if (window.history.length > 1) {
               window.history.back();
             } else {
               // Fallback: navigate directly if no history
+              const fallbackUrl = `/${item.id}`;
+              console.log('[persistent-navigation.js] Breadcrumb fallback - navigating to:', fallbackUrl);
               if (window.astroNavigate) {
-                window.astroNavigate(`/${item.id}`);
+                window.astroNavigate(fallbackUrl);
               } else {
-                window.location.href = `/${item.id}`;
+                window.location.href = fallbackUrl;
               }
             }
             return;
@@ -279,15 +340,29 @@ function loadPersistentNavigation(retryCount) {
         // NOT in breadcrumb context - use normal link navigation
         // DO NOT preventDefault - let the href attribute handle navigation
         // This is the original working behavior before breadcrumb was added
-        console.log('[persistent-navigation.js] ===== NAVIGATION BUTTON CLICKED =====', {
+        const navigationUrl = `/${item.id}`;
+        console.log('[persistent-navigation.js] Using normal link navigation (href):', {
           itemId: item.id,
           itemTitle: item.title,
           currentItemId: currentItemId,
           isOnNotePage: isOnNotePage,
-          href: `/${item.id}`,
-          willNavigateTo: `/${item.id}`,
+          href: navigationUrl,
+          hrefValid: navigationUrl && !navigationUrl.includes('undefined') && (navigationUrl.startsWith('/thread_') || navigationUrl.startsWith('/space_') || navigationUrl.startsWith('/note_')),
+          willNavigateTo: navigationUrl,
           fullItem: item
         });
+        
+        // CRITICAL: Double-check the URL is valid before allowing navigation
+        if (!navigationUrl || navigationUrl.includes('undefined') || navigationUrl === '/') {
+          console.error('[persistent-navigation.js] CRITICAL: Invalid navigation URL - blocking navigation:', {
+            navigationUrl: navigationUrl,
+            itemId: item.id,
+            itemTitle: item.title
+          });
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         
         // Explicitly allow default link behavior - don't prevent it
         // The href will navigate normally, just like before breadcrumb was added
@@ -791,4 +866,38 @@ document.addEventListener('noteAddedToThread', (event) => {
     loadPersistentNavigation();
   }, 100);
 });
+
+// CRITICAL: Global navigation listener to catch ALL navigation attempts
+// This helps debug when navigation goes to unexpected URLs
+window.addEventListener('beforeunload', (e) => {
+  const currentUrl = window.location.href;
+  const currentPath = window.location.pathname;
+  console.error('[persistent-navigation.js] ===== NAVIGATION OCCURRING =====', {
+    timestamp: Date.now(),
+    currentUrl: currentUrl,
+    currentPath: currentPath,
+    pathnameValid: currentPath && !currentPath.includes('undefined') && currentPath !== '/',
+    isProfile: currentPath === '/profile',
+    isInvalid: currentPath.includes('undefined') || currentPath === '/'
+  });
+});
+
+// Also listen for actual navigation events
+document.addEventListener('click', (e) => {
+  const target = e.target;
+  if (target && (target.tagName === 'A' || target.closest('a'))) {
+    const link = target.tagName === 'A' ? target : target.closest('a');
+    const href = link?.getAttribute('href') || link?.href;
+    if (href && (href.startsWith('/thread_') || href.startsWith('/space_') || href.startsWith('/note_'))) {
+      console.error('[persistent-navigation.js] ===== GLOBAL CLICK ON NAVIGATION LINK =====', {
+        timestamp: Date.now(),
+        href: href,
+        linkElement: link,
+        dataDebugItemId: link?.getAttribute('data-debug-item-id'),
+        dataDebugHref: link?.getAttribute('data-debug-href'),
+        isValid: href && !href.includes('undefined') && href !== '/'
+      });
+    }
+  }
+}, true); // Use capture phase to catch all clicks
 

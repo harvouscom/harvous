@@ -531,9 +531,36 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
               color: null
             };
             
+            // CRITICAL: Log the minimal entry before storing it
+            console.log('[useNoteSubmission] ===== CREATING MINIMAL NAVIGATION ENTRY =====', {
+              minimalThreadData: minimalThreadData,
+              finalThreadId: finalThreadId,
+              finalThreadIdType: typeof finalThreadId,
+              finalThreadIdValid: finalThreadId && typeof finalThreadId === 'string' && finalThreadId.trim() !== '',
+              overrideThreadId: overrideThreadId,
+              getSelectedThreadId: getSelectedThread().id
+            });
+            
             // Add to navigation history synchronously with minimal data
             // This ensures the thread appears in navigation immediately
             updateNavigationHistory(minimalThreadData, false);
+            
+            // CRITICAL: Verify the entry was stored correctly by reading from localStorage
+            try {
+              const stored = localStorage.getItem('harvous-navigation-history-v2');
+              const history = stored ? JSON.parse(stored) : [];
+              const storedEntry = history.find((item: any) => item.id === finalThreadId);
+              console.log('[useNoteSubmission] ===== VERIFIED STORED ENTRY =====', {
+                finalThreadId: finalThreadId,
+                storedEntry: storedEntry,
+                storedEntryId: storedEntry?.id,
+                storedEntryTitle: storedEntry?.title,
+                storedEntryIdValid: storedEntry?.id && typeof storedEntry.id === 'string' && storedEntry.id.trim() !== '',
+                allHistoryIds: history.map((item: any) => ({ id: item.id, title: item.title }))
+              });
+            } catch (error) {
+              console.error('[useNoteSubmission] Error verifying stored entry:', error);
+            }
             
             console.log('[useNoteSubmission] Created minimal navigation entry with threadId:', finalThreadId, 'noteCreated handler will update with full data');
           }
