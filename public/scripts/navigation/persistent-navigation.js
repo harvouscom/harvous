@@ -30,9 +30,23 @@ function loadPersistentNavigation(retryCount) {
     const navigationElement = document.querySelector('[slot="navigation"]');
     const activeThreadId = navigationElement ? navigationElement.getAttribute('data-thread-id') : null;
     
+    // CRITICAL: Filter out items with invalid IDs (undefined, null, empty string)
+    // This prevents navigation to invalid URLs like /undefined
     let persistentItems = sortedHistory.filter((item) => {
+      // Validate item has a valid ID
+      if (!item || !item.id || typeof item.id !== 'string' || item.id.trim() === '') {
+        console.warn('[persistent-navigation.js] Filtering out item with invalid ID:', item);
+        return false;
+      }
+      
       // Don't show dashboard
       if (item.id === 'dashboard') {
+        return false;
+      }
+      
+      // CRITICAL: Validate item.id format - must be thread_, space_, or note_
+      if (!item.id.startsWith('thread_') && !item.id.startsWith('space_') && !item.id.startsWith('note_')) {
+        console.warn('[persistent-navigation.js] Filtering out item with invalid ID format:', item);
         return false;
       }
       
@@ -84,8 +98,53 @@ function loadPersistentNavigation(retryCount) {
     persistentNav.id = 'persistent-navigation';
     persistentNav.className = 'w-full';
     
+    // Debug: Log all persistent items to see what's in navigation history
+    console.log('[persistent-navigation.js] ===== RENDERING PERSISTENT ITEMS =====');
+    persistentItems.forEach((item, index) => {
+      console.log(`[persistent-navigation.js] Item ${index + 1}:`, {
+        id: item.id,
+        title: item.title,
+        idType: typeof item.id,
+        idValid: item.id && typeof item.id === 'string' && item.id.trim() !== '',
+        firstAccessed: item.firstAccessed,
+        lastAccessed: item.lastAccessed,
+        href: `/${item.id}`
+      });
+    });
+    
+    // Also log the raw history from localStorage for debugging
+    try {
+      const rawHistory = localStorage.getItem('harvous-navigation-history-v2');
+      if (rawHistory) {
+        const parsed = JSON.parse(rawHistory);
+        console.log('[persistent-navigation.js] ===== RAW NAVIGATION HISTORY FROM LOCALSTORAGE =====');
+        parsed.forEach((item, index) => {
+          console.log(`[persistent-navigation.js] History item ${index + 1}:`, {
+            id: item.id,
+            title: item.title,
+            firstAccessed: item.firstAccessed,
+            lastAccessed: item.lastAccessed
+          });
+        });
+      }
+    } catch (e) {
+      console.error('[persistent-navigation.js] Error reading raw history:', e);
+    }
+    
     // Add each item in chronological order (oldest first)
     persistentItems.forEach((item) => {
+      // CRITICAL: Validate item.id before creating any DOM elements
+      if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
+        console.error('[persistent-navigation.js] CRITICAL: Skipping item with invalid ID:', item);
+        return; // Skip this item
+      }
+      
+      // CRITICAL: Validate item.id format
+      if (!item.id.startsWith('thread_') && !item.id.startsWith('space_') && !item.id.startsWith('note_')) {
+        console.error('[persistent-navigation.js] CRITICAL: Skipping item with invalid ID format:', item);
+        return; // Skip this item
+      }
+      
       const itemDiv = document.createElement('div');
       itemDiv.className = 'w-full nav-item-container';
       itemDiv.setAttribute('data-navigation-item', item.id);
@@ -117,29 +176,62 @@ function loadPersistentNavigation(retryCount) {
       outerContainer.className = 'relative w-full';
       
       const link = document.createElement('a');
+      // CRITICAL: Validate item.id before creating href
+      if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
+        console.error('[persistent-navigation.js] CRITICAL: Skipping item with invalid ID:', item);
+        return; // Skip this item
+      }
+      
+      // CRITICAL: Validate item.id format
+      if (!item.id.startsWith('thread_') && !item.id.startsWith('space_') && !item.id.startsWith('note_')) {
+        console.error('[persistent-navigation.js] CRITICAL: Skipping item with invalid ID format:', item);
+        return; // Skip this item
+      }
+      
       link.href = `/${item.id}`;
       link.className = 'w-full relative block';
       
       // Add breadcrumb navigation click handler
       link.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        // CRITICAL: Validate item.id before ANY navigation
+        if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
+          console.error('[persistent-navigation.js] CRITICAL: Invalid item.id - blocking navigation:', {
+            item: item,
+            itemId: item.id,
+            itemTitle: item.title
+          });
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         
-        // Breadcrumb navigation logic
+        // CRITICAL: Validate item.id format
+        if (!item.id.startsWith('thread_') && !item.id.startsWith('space_') && !item.id.startsWith('note_')) {
+          console.error('[persistent-navigation.js] CRITICAL: Invalid item.id format - blocking navigation:', {
+            itemId: item.id,
+            itemTitle: item.title
+          });
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        
         const currentPath = window.location.pathname;
         const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
         
         // If we're already on the thread/space page, do nothing
         if (currentItemId === item.id) {
+          e.preventDefault();
           return;
         }
         
-        // Check if we're in the context of this thread/space
-        let isInContext = false;
+        const isOnNotePage = currentItemId.startsWith('note_');
         
-        // If we're on a note page, check if it belongs to this thread/space
-        if (currentItemId.startsWith('note_')) {
-          // Check note element for data-parent-thread-id or data-parent-space-id
+        // ONLY use breadcrumb navigation if we're on a note page AND the note belongs to this thread
+        // Otherwise, use normal link navigation (don't preventDefault)
+        if (isOnNotePage) {
+          // Check if note belongs to this thread
+          let isInContext = false;
           const noteElement = document.querySelector('[data-note-id]');
           if (noteElement) {
             const parentThreadId = noteElement.getAttribute('data-parent-thread-id');
@@ -164,28 +256,41 @@ function loadPersistentNavigation(retryCount) {
               }
             }
           }
+          
+          // If in breadcrumb context, use breadcrumb navigation
+          if (isInContext) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              // Fallback: navigate directly if no history
+              if (window.astroNavigate) {
+                window.astroNavigate(`/${item.id}`);
+              } else {
+                window.location.href = `/${item.id}`;
+              }
+            }
+            return;
+          }
         }
         
-        // If in context, go back one step in history
-        if (isInContext) {
-          if (window.history.length > 1) {
-            window.history.back();
-          } else {
-            // Fallback: navigate directly if no history
-            if (window.astroNavigate) {
-              window.astroNavigate(`/${item.id}`);
-            } else {
-              window.location.href = `/${item.id}`;
-            }
-          }
-        } else {
-          // Not in context - navigate directly
-          if (window.astroNavigate) {
-            window.astroNavigate(`/${item.id}`);
-          } else {
-            window.location.href = `/${item.id}`;
-          }
-        }
+        // NOT in breadcrumb context - use normal link navigation
+        // DO NOT preventDefault - let the href attribute handle navigation
+        // This is the original working behavior before breadcrumb was added
+        console.log('[persistent-navigation.js] ===== NAVIGATION BUTTON CLICKED =====', {
+          itemId: item.id,
+          itemTitle: item.title,
+          currentItemId: currentItemId,
+          isOnNotePage: isOnNotePage,
+          href: `/${item.id}`,
+          willNavigateTo: `/${item.id}`,
+          fullItem: item
+        });
+        
+        // Explicitly allow default link behavior - don't prevent it
+        // The href will navigate normally, just like before breadcrumb was added
       });
       
       // Helper function to determine if background is a colored thread background

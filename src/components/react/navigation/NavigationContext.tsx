@@ -1015,11 +1015,51 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const threadIndex = currentHistory.findIndex((item: any) => item.id === actualThreadId);
           
           if (threadIndex !== -1) {
-            // Thread exists in history - just update the count immediately for UI responsiveness
-            // Use immutable updates to ensure React detects the change
-            const oldCount = currentHistory[threadIndex].count || 0;
+            // Thread exists in history - update the count immediately for UI responsiveness
+            // Also check if we need to update title/backgroundGradient if they're incomplete
+            // (e.g., if a minimal entry was created with just the threadId)
+            const existingItem = currentHistory[threadIndex];
+            const oldCount = existingItem.count || 0;
             const newCount = oldCount + 1;
             
+            // Check if entry has incomplete data (title is same as id, indicating minimal entry)
+            const needsFullData = existingItem.title === existingItem.id || !existingItem.backgroundGradient || existingItem.backgroundGradient === 'var(--color-paper)';
+            
+            if (needsFullData) {
+              // Fetch full thread data to update the entry
+              safeFetch('/api/threads/list')
+                .then(response => {
+                  if (response && response.ok) {
+                    return response.json();
+                  }
+                  return null;
+                })
+                .then(threads => {
+                  if (threads) {
+                    const threadData = threads.find((t: any) => t.id === actualThreadId);
+                    if (threadData) {
+                      // Update the existing entry with full data
+                      const updatedHistory = currentHistory.map((item, index) => 
+                        index === threadIndex 
+                          ? { 
+                              ...item, 
+                              count: newCount,
+                              title: threadData.title,
+                              backgroundGradient: threadData.backgroundGradient || item.backgroundGradient
+                            }
+                          : item
+                      );
+                      saveNavigationHistory(updatedHistory);
+                      setNavigationHistory(updatedHistory);
+                    }
+                  }
+                })
+                .catch(error => {
+                  console.error('NavigationContext: Error fetching thread data for update:', error);
+                });
+            }
+            
+            // Update count immediately (even if we're fetching full data)
             const updatedHistory = currentHistory.map((item, index) => 
               index === threadIndex 
                 ? { ...item, count: newCount }

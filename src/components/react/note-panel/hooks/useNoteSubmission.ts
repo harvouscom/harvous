@@ -83,19 +83,68 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
   // Helper to update navigation history in localStorage
   const updateNavigationHistory = useCallback((threadData: Thread, isUnorganized: boolean) => {
     try {
+      // CRITICAL: Validate threadData before accessing its properties
+      if (!isUnorganized && (!threadData || !threadData.id)) {
+        console.error('[updateNavigationHistory] Invalid threadData:', {
+          isUnorganized,
+          threadDataExists: !!threadData,
+          threadDataId: threadData?.id,
+          threadDataTitle: threadData?.title
+        });
+        return;
+      }
+      
       const stored = localStorage.getItem('harvous-navigation-history-v2');
       let history = stored ? JSON.parse(stored) : [];
       
       const threadId = isUnorganized ? 'thread_unorganized' : threadData.id;
       const threadTitle = isUnorganized ? 'Unorganized' : threadData.title;
+      
+      // Validate threadId is not undefined
+      if (!threadId) {
+        console.error('[updateNavigationHistory] threadId is undefined:', {
+          isUnorganized,
+          threadDataId: threadData?.id
+        });
+        return;
+      }
+      
+      console.log('[updateNavigationHistory] ===== STORING THREAD IN NAVIGATION HISTORY =====', {
+        threadId: threadId,
+        threadTitle: threadTitle,
+        isUnorganized: isUnorganized,
+        threadDataId: threadData?.id,
+        threadDataTitle: threadData?.title
+      });
+      
       const existingIndex = history.findIndex((item: any) => item.id === threadId);
+      
+      console.log('[updateNavigationHistory] Looking for existing thread in history:', {
+        threadId: threadId,
+        existingIndex: existingIndex,
+        historyLength: history.length,
+        existingItem: existingIndex !== -1 ? {
+          id: history[existingIndex].id,
+          title: history[existingIndex].title,
+          firstAccessed: history[existingIndex].firstAccessed
+        } : null,
+        allHistoryIds: history.map((item: any) => ({ id: item.id, title: item.title }))
+      });
       
       let threadItem: any;
       if (existingIndex !== -1) {
+        // Thread already exists in history - update it
         const existingItem = history[existingIndex];
+        console.log('[updateNavigationHistory] Updating existing thread in history:', {
+          existingId: existingItem.id,
+          existingTitle: existingItem.title,
+          newId: threadId,
+          newTitle: threadTitle
+        });
+        
         threadItem = {
           ...existingItem,
-          id: threadId,
+          id: threadId, // CRITICAL: Ensure we use the correct threadId
           title: threadTitle,
           count: isUnorganized ? (existingItem.count || 0) + 1 : (threadData.noteCount || 0) + 1,
           backgroundGradient: isUnorganized 
@@ -105,6 +154,12 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         };
         history[existingIndex] = threadItem;
       } else {
+        // Thread doesn't exist - add it as new
+        console.log('[updateNavigationHistory] ✅ Adding NEW thread to history:', {
+          id: threadId,
+          title: threadTitle,
+          firstAccessed: Date.now()
+        });
         threadItem = {
           id: threadId,
           title: threadTitle,
@@ -128,6 +183,15 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       
       localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
       sessionStorage.setItem('harvous-pending-thread', JSON.stringify(threadItem));
+      
+      console.log('[updateNavigationHistory] ✅ Saved to localStorage:', {
+        threadId: threadId,
+        threadTitle: threadTitle,
+        count: threadItem.count,
+        firstAccessed: threadItem.firstAccessed,
+        historyLength: history.length,
+        historyIds: history.map((item: any) => ({ id: item.id, title: item.title }))
+      });
       
       // Update React state via callback
       if (addToNavigationHistory) {
@@ -295,28 +359,199 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
         
         // Use overrideThreadId if provided, otherwise get from selected thread
-        const actualThreadId = overrideThreadId || getSelectedThread().id;
+        // CRITICAL: If overrideThreadId is provided, ALWAYS use it - never fall back to getSelectedThread().id
+        // This is the source of truth for newly created threads
+        // getSelectedThread().id might return stale data (last selected thread, not the new one)
+        const actualThreadId = overrideThreadId ?? getSelectedThread().id;
         
-        // Add thread to navigation history
-        if (result.note && actualThreadId && addToNavigationHistory) {
-          // When overrideThreadId is provided, look it up directly from threadOptions
-          // Otherwise use getSelectedThread() which might have stale state
-          const threadData = overrideThreadId 
-            ? threadOptions.find(thread => thread.id === actualThreadId) || getSelectedThread()
+        // CRITICAL: Define finalThreadId to use consistently throughout this function
+        // Since actualThreadId already prioritizes overrideThreadId, finalThreadId is the same
+        // but we use this name for clarity in navigation history updates
+        const finalThreadId = actualThreadId;
+        
+        // CRITICAL: Log which thread ID we're using and why
+        console.log('[useNoteSubmission] ===== THREAD ID SELECTION =====', {
+          overrideThreadId: overrideThreadId,
+          overrideThreadIdProvided: overrideThreadId !== undefined && overrideThreadId !== null,
+          getSelectedThreadId: getSelectedThread().id,
+          getSelectedThreadTitle: getSelectedThread().title,
+          actualThreadId: actualThreadId,
+          finalThreadId: finalThreadId,
+          usingOverride: overrideThreadId !== undefined && overrideThreadId !== null,
+          noteId: result.note?.id
+        });
+        
+        // CRITICAL: If overrideThreadId was provided but we're not using it, that's an error
+        if (overrideThreadId && overrideThreadId !== actualThreadId) {
+          console.error('[useNoteSubmission] CRITICAL ERROR: overrideThreadId provided but not used!', {
+            overrideThreadId: overrideThreadId,
+            actualThreadId: actualThreadId,
+            getSelectedThreadId: getSelectedThread().id,
+            reason: 'This should never happen - actualThreadId should equal overrideThreadId when overrideThreadId is provided'
+          });
+          // Force use overrideThreadId - it's the source of truth
+          const forcedThreadId = overrideThreadId;
+          console.warn('[useNoteSubmission] FORCING use of overrideThreadId:', forcedThreadId);
+          // We'll use forcedThreadId below instead of actualThreadId
+        }
+        
+        // CRITICAL: Log actualThreadId to debug navigation issues
+        console.log('[useNoteSubmission] ===== NAVIGATION HISTORY UPDATE =====', {
+          actualThreadId: actualThreadId,
+          actualThreadIdType: typeof actualThreadId,
+          actualThreadIdValid: actualThreadId && typeof actualThreadId === 'string' && actualThreadId.trim() !== '',
+          overrideThreadId: overrideThreadId,
+          getSelectedThreadId: getSelectedThread().id,
+          getSelectedThreadTitle: getSelectedThread().title,
+          hasNote: !!result.note,
+          hasAddToNavigationHistory: !!addToNavigationHistory,
+          noteId: result.note?.id
+        });
+        
+        // CRITICAL: If overrideThreadId is provided, it should be used for navigation history
+        // This ensures the newly created thread is added, not the last selected thread
+        if (overrideThreadId && overrideThreadId !== actualThreadId) {
+          console.warn('[useNoteSubmission] WARNING: overrideThreadId differs from actualThreadId:', {
+            overrideThreadId: overrideThreadId,
+            actualThreadId: actualThreadId,
+            getSelectedThreadId: getSelectedThread().id
+          });
+        }
+        
+        // CRITICAL: Validate actualThreadId before proceeding
+        if (!actualThreadId || typeof actualThreadId !== 'string' || actualThreadId.trim() === '') {
+          console.error('[useNoteSubmission] CRITICAL: actualThreadId is invalid - skipping navigation history update:', {
+            actualThreadId: actualThreadId,
+            type: typeof actualThreadId
+          });
+          // Don't add to navigation history if threadId is invalid - let noteCreated handler handle it
+        } else if (result.note && addToNavigationHistory) {
+          // CRITICAL: Use finalThreadId (which is overrideThreadId if provided) for all lookups
+          // This ensures we use the newly created thread, not the last selected thread
+          let threadData = finalThreadId 
+            ? threadOptions.find(thread => thread.id === finalThreadId) || getSelectedThread()
             : getSelectedThread();
           
-          if (threadData && actualThreadId !== 'thread_unorganized') {
+          // CRITICAL: If finalThreadId doesn't match threadData, force lookup by finalThreadId
+          if (threadData && threadData.id !== finalThreadId) {
+            console.warn('[useNoteSubmission] WARNING: threadData.id does not match finalThreadId, forcing lookup:', {
+              finalThreadId: finalThreadId,
+              threadDataId: threadData.id,
+              threadDataTitle: threadData.title,
+              overrideThreadId: overrideThreadId
+            });
+            // Force lookup by finalThreadId instead
+            threadData = threadOptions.find(thread => thread.id === finalThreadId);
+          }
+          
+          // CRITICAL: If threadData is undefined (e.g., newly created thread not in threadOptions yet),
+          // fetch it from the API to ensure we have valid thread data for navigation history
+          if (!threadData && finalThreadId && finalThreadId !== 'thread_unorganized') {
+            try {
+              console.log('[useNoteSubmission] Thread data not found locally, fetching from API for threadId:', finalThreadId);
+              const response = await fetch('/api/threads/list', {
+                credentials: 'include'
+              });
+              if (response.ok) {
+                const threads = await response.json();
+                threadData = threads.find((t: any) => t.id === finalThreadId);
+                console.log('[useNoteSubmission] API fetch result:', threadData ? `Found: ${threadData.title} (id: ${threadData.id})` : `Not found for threadId: ${finalThreadId}`);
+              } else {
+                console.error('[useNoteSubmission] API fetch failed with status:', response.status);
+              }
+            } catch (error) {
+              console.error('[useNoteSubmission] Error fetching thread from API:', error);
+            }
+          }
+          
+          // CRITICAL: Validate threadData exists and has a valid id before calling updateNavigationHistory
+          // If threadData is undefined or missing id, create a minimal entry with just the threadId
+          // The noteCreated event handler in NavigationContext will update it with full data later
+          // IMPORTANT: Use finalThreadId (overrideThreadId if provided) for all checks
+          if (finalThreadId === 'thread_unorganized') {
+            // For unorganized, threadData might be undefined - use getSelectedThread() as fallback
+            const unorganizedThreadData = threadData || getSelectedThread();
+            if (unorganizedThreadData && unorganizedThreadData.id) {
+              console.log('[useNoteSubmission] Adding unorganized thread to navigation history:', unorganizedThreadData.id);
+              updateNavigationHistory(unorganizedThreadData, true);
+            } else {
+              console.warn('[useNoteSubmission] Skipping navigation history update - unorganized thread data invalid');
+            }
+          } else if (threadData && threadData.id && threadData.id === finalThreadId) {
+            // Validate that threadData has a valid id that matches finalThreadId
+            console.log('[useNoteSubmission] Adding thread to navigation history with threadData:', {
+              threadId: threadData.id,
+              title: threadData.title,
+              noteCount: threadData.noteCount,
+              finalThreadId: finalThreadId,
+              overrideThreadId: overrideThreadId,
+              matches: threadData.id === finalThreadId
+            });
             updateNavigationHistory(threadData, false);
-          } else if (actualThreadId === 'thread_unorganized') {
-            updateNavigationHistory(threadData || getSelectedThread(), true);
+          } else if (finalThreadId && finalThreadId !== 'thread_unorganized') {
+            // CRITICAL: Validate finalThreadId is a valid string before creating minimal entry
+            if (!finalThreadId || typeof finalThreadId !== 'string' || finalThreadId.trim() === '') {
+              console.error('[useNoteSubmission] Cannot create minimal entry - finalThreadId is invalid:', {
+                finalThreadId: finalThreadId,
+                type: typeof finalThreadId
+              });
+              // Skip creating entry - let noteCreated handler handle it
+              return;
+            }
+            
+            // CRITICAL: If overrideThreadId was provided, we MUST use it for navigation history
+            // Even if threadData is not found, we should create a minimal entry with the overrideThreadId
+            // This ensures the newly created thread is added, not the last selected thread
+            if (overrideThreadId && overrideThreadId !== finalThreadId) {
+              console.error('[useNoteSubmission] CRITICAL: overrideThreadId mismatch!', {
+                overrideThreadId: overrideThreadId,
+                finalThreadId: finalThreadId,
+                reason: 'This should never happen - finalThreadId should equal overrideThreadId when overrideThreadId is provided'
+              });
+            }
+            
+            // Thread data not found, but we have a valid threadId (from overrideThreadId or getSelectedThread)
+            // Create a minimal entry with just the threadId to ensure navigation works
+            // The noteCreated event handler will update it with full data asynchronously
+            console.warn('[useNoteSubmission] Thread data not found, creating minimal entry with threadId only:', {
+              finalThreadId: finalThreadId,
+              overrideThreadId: overrideThreadId,
+              threadDataExists: !!threadData,
+              threadDataId: threadData?.id,
+              getSelectedThreadId: getSelectedThread().id
+            });
+            
+            // CRITICAL: Use finalThreadId (which should be overrideThreadId if provided)
+            // This ensures we add the correct thread to navigation history
+            const minimalThreadData: Thread = {
+              id: finalThreadId, // Use finalThreadId (overrideThreadId if provided, otherwise getSelectedThread().id)
+              title: finalThreadId, // Temporary title, will be updated by noteCreated handler
+              noteCount: 1, // At least 1 (the new note)
+              backgroundGradient: 'var(--color-paper)', // Default, will be updated
+              color: null
+            };
+            
+            // Add to navigation history synchronously with minimal data
+            // This ensures the thread appears in navigation immediately
+            updateNavigationHistory(minimalThreadData, false);
+            
+            console.log('[useNoteSubmission] Created minimal navigation entry with threadId:', finalThreadId, 'noteCreated handler will update with full data');
           }
         }
         
-        // Dispatch note created event
+        // Dispatch note created event with the correct thread ID
+        // Use finalThreadId (overrideThreadId if provided) as the source of truth
+        const threadIdForEvent = finalThreadId;
+        console.log('[useNoteSubmission] Dispatching noteCreated event with threadId:', threadIdForEvent, {
+          overrideThreadId: overrideThreadId,
+          actualThreadId: actualThreadId,
+          finalThreadId: finalThreadId
+        });
+        
         window.dispatchEvent(new CustomEvent('noteCreated', {
           detail: { 
             note: result.note,
-            actualThreadId: actualThreadId
+            actualThreadId: threadIdForEvent // Use the correct thread ID (overrideThreadId if provided)
           }
         }));
 

@@ -154,6 +154,8 @@ try {
           getThreadNoteTypeCounts(id!, authenticatedUserId)
         ]);
         
+        console.log(`[id].astro] Thread lookup for ${id}:`, threadData ? `Found: ${threadData.title}` : 'Not found in getAllThreadsWithCounts');
+        
         if (threadData) {
           content = {
             id: threadData.id,
@@ -179,6 +181,93 @@ try {
           
           pageTitle = threadData.title;
           pageContent = `${threadData.noteCount} notes`;
+        } else {
+          // Fallback: Query thread directly by ID if not found in getAllThreadsWithCounts
+          // This can happen for newly created threads that haven't been indexed yet
+          console.log(`[id].astro] Fallback: Querying thread directly by ID: ${id}`);
+          
+          // Retry logic for newly created threads that might not be committed yet
+          let thread = null;
+          let retries = 0;
+          const maxRetries = 3;
+          
+          while (!thread && retries < maxRetries) {
+            try {
+              thread = await db.select()
+                .from(Threads)
+                .where(and(eq(Threads.id, id!), eq(Threads.userId, authenticatedUserId)))
+                .get();
+              
+              if (!thread && retries < maxRetries - 1) {
+                // Small delay before retry (for database commit timing)
+                await new Promise(resolve => setTimeout(resolve, 100));
+                retries++;
+                console.log(`[id].astro] Thread not found, retry ${retries}/${maxRetries}`);
+              } else {
+                break;
+              }
+            } catch (error) {
+              console.error(`[id].astro] Error querying thread ${id} (attempt ${retries + 1}):`, error);
+              if (retries < maxRetries - 1) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                retries++;
+              } else {
+                break;
+              }
+            }
+          }
+          
+          console.log(`[id].astro] Direct thread query result:`, thread ? `Found: ${thread.title}` : 'Not found after retries');
+          
+          if (thread) {
+            // Get actual note count from database using junction table
+            const noteCountResult = await db.select({ count: count() })
+              .from(Notes)
+              .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+              .where(and(
+                eq(NoteThreads.threadId, thread.id),
+                eq(Notes.userId, authenticatedUserId)
+              ))
+              .get();
+            
+            const noteCount = noteCountResult?.count || 0;
+            console.log(`[id].astro] Thread note count: ${noteCount}`);
+            
+            content = {
+              id: thread.id,
+              title: thread.title,
+              subtitle: thread.subtitle,
+              color: thread.color,
+              spaceId: thread.spaceId,
+              notes: notesData,
+              noteCount: noteCount
+            };
+            currentThread = {
+              id: thread.id,
+              title: thread.title,
+              color: thread.color,
+              noteCount: noteCount,
+              backgroundGradient: getThreadGradientCSS(thread.color)
+            };
+            
+            // Set threadNotes for template rendering
+            threadNotes = notesData;
+            // Store note type counts for tab badges
+            noteTypeCounts = noteTypeCountsData;
+            
+            pageTitle = thread.title;
+            pageContent = `${noteCount} notes`;
+            console.log(`[id].astro] Successfully set up thread content for: ${thread.title}`);
+          } else {
+            // Thread not found even in direct query - log for debugging
+            console.error(`[id].astro] Thread not found in direct query: ${id} for user: ${authenticatedUserId}`);
+            // Also check if thread exists at all (without userId check) for debugging
+            const anyThread = await db.select()
+              .from(Threads)
+              .where(eq(Threads.id, id!))
+              .get();
+            console.error(`[id].astro] Thread exists in DB (any user):`, !!anyThread, anyThread ? `userId: ${anyThread.userId}` : 'N/A');
+          }
         }
       }
     } else if (isNote) {
