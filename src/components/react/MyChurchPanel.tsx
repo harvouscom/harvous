@@ -7,35 +7,82 @@ import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-c
 interface MyChurchPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
+  initialChurchData?: {
+    churchName: string | null;
+    churchCity: string | null;
+    churchState: string | null;
+  };
 }
 
 
 export default function MyChurchPanel({ 
   onClose,
-  inBottomSheet = false
+  inBottomSheet = false,
+  initialChurchData
 }: MyChurchPanelProps) {
-  const [formData, setFormData] = useState({
-    churchName: '',
-    churchCity: '',
-    churchState: '' // State/Province/Region (full name, not abbreviation)
-  });
-  const [originalFormData, setOriginalFormData] = useState({
-    churchName: '',
-    churchCity: '',
-    churchState: ''
-  });
+  // Initialize form data from props if provided, otherwise empty
+  const getInitialFormData = () => {
+    if (initialChurchData) {
+      return {
+        churchName: initialChurchData.churchName ?? '',
+        churchCity: initialChurchData.churchCity ?? '',
+        churchState: initialChurchData.churchState ?? ''
+      };
+    }
+    return {
+      churchName: '',
+      churchCity: '',
+      churchState: ''
+    };
+  };
+
+  const [formData, setFormData] = useState(getInitialFormData());
+  const [originalFormData, setOriginalFormData] = useState(getInitialFormData());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [hasExistingData, setHasExistingData] = useState(false);
-  const [viewMode, setViewMode] = useState<'view' | 'edit'>('edit');
+  const [hasExistingData, setHasExistingData] = useState(() => {
+    // Check if we have initial data
+    if (initialChurchData) {
+      return !!(initialChurchData.churchName || initialChurchData.churchCity || initialChurchData.churchState);
+    }
+    return false;
+  });
+  const [viewMode, setViewMode] = useState<'view' | 'edit'>(() => {
+    // Set view mode based on initial data
+    if (initialChurchData) {
+      const hasData = !!(initialChurchData.churchName || initialChurchData.churchCity || initialChurchData.churchState);
+      return hasData ? 'view' : 'edit';
+    }
+    return 'edit';
+  });
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
   // Load existing church data when component mounts
   useEffect(() => {
-    // Check cache first
+    // If we have initial data from props, use it and update cache
+    if (initialChurchData) {
+      const formDataFromProps = {
+        churchName: initialChurchData.churchName ?? '',
+        churchCity: initialChurchData.churchCity ?? '',
+        churchState: initialChurchData.churchState ?? ''
+      };
+      
+      setFormData(formDataFromProps);
+      setOriginalFormData(formDataFromProps);
+      
+      // Update cache with initial data
+      updateCachedProfileData({
+        churchName: initialChurchData.churchName,
+        churchCity: initialChurchData.churchCity,
+        churchState: initialChurchData.churchState
+      });
+      
+      return; // Don't fetch if we have initial data
+    }
+    
+    // No initial data provided - check cache first, then fetch if needed
     const cached = getCachedProfileData();
-    // Check if cache exists and has church data (any field is not null/undefined)
     const hasCachedChurchData = cached && (
       cached.churchName !== null && cached.churchName !== undefined ||
       cached.churchCity !== null && cached.churchCity !== undefined ||
@@ -58,9 +105,10 @@ export default function MyChurchPanel({
       setHasExistingData(hasData);
       setViewMode(hasData ? 'view' : 'edit');
     } else {
+      // No cache, fetch from API (backward compatibility)
       loadChurchData();
     }
-  }, []);
+  }, [initialChurchData]);
 
   // Prevent body scroll when dialog is open
   useEffect(() => {

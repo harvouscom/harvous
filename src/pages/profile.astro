@@ -9,6 +9,7 @@ import { getSeasonalXP, getLifetimeXP } from "@/utils/xp-system";
 import { getSeasonDisplayName } from "@/utils/season-helpers";
 import { getThreadGradientCSS } from "@/utils/colors";
 import { getCachedUserData, type CachedUserData } from '@/utils/user-cache';
+import { db, UserMetadata, eq } from 'astro:db';
 import ProfilePageReact from "@/components/ProfilePageReact.astro";
 import ProfileContent from "@/components/profile/ProfileContent.astro";
 import ProfileCardStackHeader from "@/components/react/ProfileCardStackHeader.tsx";
@@ -56,21 +57,27 @@ if (createdAt) {
   joinDate = `${currentMonth} ${currentYear}`;
 }
 
-// Fetch navigation data
+// Fetch navigation data and church data
 let spaces: any[] = [];
 let threads: any[] = [];
 let inboxCount: number = 0;
 let seasonalXP: number = 0;
 let lifetimeXP: number = 0;
 let seasonName: string = '';
+let churchData = {
+  churchName: null as string | null,
+  churchCity: null as string | null,
+  churchState: null as string | null
+};
 
 try {
-  const [spacesData, threadsData, inboxCountData, seasonalXPData, lifetimeXPData] = await Promise.all([
+  const [spacesData, threadsData, inboxCountData, seasonalXPData, lifetimeXPData, userMetadata] = await Promise.all([
     getSpacesWithCounts(userId),
     getAllThreadsWithCounts(userId),
     getInboxCount(userId),
     getSeasonalXP(userId),
-    getLifetimeXP(userId)
+    getLifetimeXP(userId),
+    db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get()
   ]);
   
   spaces = spacesData.map(space => ({
@@ -85,6 +92,15 @@ try {
   seasonalXP = seasonalXPData;
   lifetimeXP = lifetimeXPData;
   seasonName = getSeasonDisplayName();
+  
+  // Extract church data from UserMetadata
+  if (userMetadata) {
+    churchData = {
+      churchName: userMetadata.churchName ?? null,
+      churchCity: userMetadata.churchCity ?? null,
+      churchState: userMetadata.churchState ?? null
+    };
+  }
   
 } catch (error) {
   console.error("Error fetching navigation data:", error);
@@ -166,6 +182,8 @@ const contentId = "profile";
     seasonName={seasonName}
     firstName={firstName}
     lastName={lastName}
+    spaces={spaces}
+    churchData={churchData}
   />
 
   <!-- Mobile Navigation -->

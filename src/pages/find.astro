@@ -508,7 +508,7 @@ if (query.trim()) {
           <FindSearchInput client:load initialQuery={query} />
 
           <!-- Recent Searches -->
-          <RecentSearches client:only="react" />
+          <RecentSearches client:idle />
 
           <!-- Tab Navigation -->
           {query && (

@@ -17,14 +17,17 @@ interface Space {
 interface MySpacesPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
+  initialSpaces?: Space[]; // Spaces fetched in Astro, passed as props
 }
 
 export default function MySpacesPanel({ 
   onClose,
-  inBottomSheet = false
+  inBottomSheet = false,
+  initialSpaces = []
 }: MySpacesPanelProps) {
-  const [spaces, setSpaces] = useState<Space[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Use initialSpaces if provided (from Astro), otherwise start empty
+  const [spaces, setSpaces] = useState<Space[]>(initialSpaces);
+  const [isLoading, setIsLoading] = useState(false); // No loading if we have initial data
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,10 +73,17 @@ export default function MySpacesPanel({
     }
   }, []);
 
+  // Only fetch on mount if no initialSpaces provided (backward compatibility)
   useEffect(() => {
-    // Force fetch on mount to ensure fresh data
-    fetchSpaces(true);
-  }, [fetchSpaces]);
+    if (initialSpaces.length === 0) {
+      // No initial data, fetch on mount
+      fetchSpaces(true);
+    } else {
+      // We have initial data from Astro, use it
+      setSpaces(initialSpaces);
+      setIsLoading(false);
+    }
+  }, [fetchSpaces, initialSpaces]);
 
   // Visibility-based refetch: refetch when panel becomes visible (backup mechanism)
   // This is a fallback in case the panel activation listener doesn't fire

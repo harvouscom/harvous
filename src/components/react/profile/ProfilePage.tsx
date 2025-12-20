@@ -23,6 +23,19 @@ export interface ProfilePageProps {
   lifetimeXP?: number;
   seasonName?: string;
   version?: string;
+  spaces?: Array<{
+    id: string;
+    title: string;
+    color?: string;
+    backgroundGradient?: string;
+    totalItemCount: number;
+    isPublic?: boolean;
+  }>;
+  churchData?: {
+    churchName: string | null;
+    churchCity: string | null;
+    churchState: string | null;
+  };
 }
 
 // Type definition for a panel name
@@ -36,6 +49,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   firstName,
   lastName,
   version = '0.10.0',
+  spaces = [],
+  churchData,
 }) => {
   const [activePanel, setActivePanel] = useState<PanelName>(null);
   const [panelOpenTime, setPanelOpenTime] = useState<number>(0);
@@ -308,9 +323,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       case 'emailPassword':
         return <EmailPasswordPanel />;
       case 'myChurch':
-        return <MyChurchPanel />;
+        return <MyChurchPanel initialChurchData={churchData} />;
       case 'mySpaces':
-        return <MySpacesPanel key={`mySpaces-${panelOpenTime}`} />;
+        return <MySpacesPanel key={`mySpaces-${panelOpenTime}`} initialSpaces={spaces} />;
       case 'myData':
         return <MyDataPanel />;
       case 'myAchievements':

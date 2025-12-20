@@ -3,7 +3,21 @@ import ProfilePage from '@/components/react/profile/ProfilePage.tsx';
 import type { ProfilePageProps } from '@/components/react/profile/ProfilePage';
 import packageJson from '../../package.json';
 
-export type Props = ProfilePageProps;
+export interface Props extends ProfilePageProps {
+  spaces?: Array<{
+    id: string;
+    title: string;
+    color?: string;
+    backgroundGradient?: string;
+    totalItemCount: number;
+    isPublic?: boolean;
+  }>;
+  churchData?: {
+    churchName: string | null;
+    churchCity: string | null;
+    churchState: string | null;
+  };
+}
 ---
 
 <ProfilePage client:visible {...Astro.props} version={packageJson.version} />

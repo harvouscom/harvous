@@ -16,5 +16,5 @@ const { onClose, currentThread = null } = Astro.props;
     // Dispatch close event to Layout
     window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
   }}
-  client:only="react" 
+  client:load 
 />

@@ -29,7 +29,7 @@ const { variant = "More", withMenu = false, type = "button", contentType = "dash
       currentThreadId={currentThreadId} // Pass this prop
       onClick={onClick}
       className={className}
-      client:only="react"
+      client:load
     />
   </a>
 ) : (
@@ -42,7 +42,7 @@ const { variant = "More", withMenu = false, type = "button", contentType = "dash
     currentThreadId={currentThreadId} // Pass this prop
     onClick={onClick}
     className={className}
-    client:only="react"
+    client:load
   />
 )}
 

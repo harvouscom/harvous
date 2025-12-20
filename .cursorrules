@@ -57,6 +57,7 @@ When converting Alpine.js to React:
 
 ### Reference Documentation
 - See `REACT_ISLANDS_STRATEGY.md` for detailed migration patterns
+- See `REACT_ISLANDS_BEST_PRACTICES.md` for comprehensive best practices and decision trees
 - See `REFACTORING_PLAN.md` for state management rules and best practices
 
 ## Astro Development

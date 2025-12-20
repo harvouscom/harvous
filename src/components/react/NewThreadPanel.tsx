@@ -29,9 +29,11 @@ interface NewThreadPanelProps {
   initialColor?: ThreadColor;
   // Optional: automatically add this note to the newly created thread
   noteIdToAdd?: string;
+  // Optional: initial notes fetched in Astro (for better performance)
+  initialNotes?: Note[];
 }
 
-export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor, noteIdToAdd }: NewThreadPanelProps) {
+export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor, noteIdToAdd, initialNotes }: NewThreadPanelProps) {
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
@@ -42,9 +44,10 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   // const [recentNotes, setRecentNotes] = useState<any[]>([]);
   // const [isLoadingNotes, setIsLoadingNotes] = useState(false);
   const [addToSpace, setAddToSpace] = useState(false);
-  const [allNotes, setAllNotes] = useState<Note[]>([]);
+  // Use initialNotes if provided, otherwise start empty (will fetch)
+  const [allNotes, setAllNotes] = useState<Note[]>(initialNotes || []);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [isLoadingItems, setIsLoadingItems] = useState(true);
+  const [isLoadingItems, setIsLoadingItems] = useState(!initialNotes); // No loading if we have initial data
   // Shared functionality disabled for now
   // const [isShared, setIsShared] = useState(false);
   // const [sharedSettings, setSharedSettings] = useState({
@@ -122,9 +125,10 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   //   }
   // }, [activeTab]);
 
-  // Fetch all notes on mount (create mode only)
+  // Fetch all notes on mount (create mode only) if no initialNotes provided
   useEffect(() => {
-    if (!isEditMode) {
+    if (!isEditMode && !initialNotes) {
+      // No initial data provided, fetch from API (backward compatibility)
       const fetchItems = async () => {
         setIsLoadingItems(true);
         try {
@@ -151,8 +155,12 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
       };
 
       fetchItems();
+    } else if (!isEditMode && initialNotes) {
+      // We have initial data from Astro, use it
+      setAllNotes(initialNotes);
+      setIsLoadingItems(false);
     }
-  }, [isEditMode]);
+  }, [isEditMode, initialNotes]);
 
   // Auto-focus the thread name input when component mounts
   useEffect(() => {
