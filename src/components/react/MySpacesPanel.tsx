@@ -84,28 +84,18 @@ export default function MySpacesPanel({
   }, [fetchSpaces]);
 
   // Only fetch on mount if no initialSpaces provided (backward compatibility)
-  // For bottom sheets, we rely on the event listener instead to avoid duplicate fetches
+  // For bottom sheets, fetch on mount if no initialSpaces (event listener handles refreshes)
   useEffect(() => {
-    if (inBottomSheet) {
-      // For bottom sheets, use initialSpaces if provided, otherwise wait for event listener
-      if (initialSpaces.length > 0) {
-        setSpaces(initialSpaces);
-        setIsLoading(false);
-      }
-      // Don't fetch on mount for bottom sheets - let the event listener handle it
-      return;
-    }
-    
-    // For desktop panels, fetch on mount if no initial data
-    if (initialSpaces.length === 0) {
-      // No initial data, fetch on mount
-      fetchSpaces(true);
-    } else {
+    if (initialSpaces.length > 0) {
       // We have initial data from Astro, use it
       setSpaces(initialSpaces);
       setIsLoading(false);
+    } else {
+      // No initial data, fetch on mount (works for both desktop and mobile)
+      // For bottom sheets, the event listener will handle refreshes when panel opens
+      fetchSpaces(true);
     }
-  }, [fetchSpaces, initialSpaces, inBottomSheet]);
+  }, [fetchSpaces, initialSpaces]);
 
   // Visibility-based refetch: refetch when panel becomes visible (backup mechanism)
   // DISABLED for bottom sheets - they use event listeners instead
