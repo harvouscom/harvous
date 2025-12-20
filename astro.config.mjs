@@ -82,7 +82,7 @@ export default defineConfig({
     // Add performance optimizations to Vite dev server
     optimizeDeps: {
       exclude: [],
-      include: ['react', 'react-dom', '@astrojs/react/client', '@clerk/astro/client']
+      include: ['react', 'react-dom', '@clerk/astro/client']
     },
     // Fix MIME type issues in development
     define: {
