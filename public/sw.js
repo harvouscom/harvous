@@ -183,13 +183,21 @@ const isNavigationRoute = (url) => {
 
 // Helper to check if a response is from the sign-in page
 // This prevents serving cached sign-in HTML for authenticated routes
+// Enhanced with timeout and fallback detection
 const isSignInPageResponse = async (response) => {
   if (!response) return false;
   
   try {
     // Clone the response to avoid consuming the body
     const clonedResponse = response.clone();
-    const text = await clonedResponse.text();
+    
+    // Add timeout for reading response body (5 seconds max)
+    const textPromise = clonedResponse.text();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout')), 5000)
+    );
+    
+    const text = await Promise.race([textPromise, timeoutPromise]);
     
     // Check for sign-in page indicators in the HTML
     // These are unique elements from the sign-in page
@@ -198,7 +206,24 @@ const isSignInPageResponse = async (response) => {
            text.includes('ClerkSignIn') ||
            text.includes('<title>Sign In</title>');
   } catch (error) {
-    // If we can't read the response, assume it's not sign-in page
+    // If we can't read the response (timeout or error), use fallback detection
+    // Check response headers for content-type and size
+    if (response.headers) {
+      const contentType = response.headers.get('content-type') || '';
+      const contentLength = response.headers.get('content-length');
+      
+      // If response is very small (< 1000 bytes), it's likely an error page
+      if (contentLength && parseInt(contentLength) < 1000) {
+        return false; // Too small to be a real page
+      }
+      
+      // If content-type doesn't include html, it's not a sign-in page
+      if (!contentType.includes('text/html')) {
+        return false;
+      }
+    }
+    
+    // Safe default: assume it's not sign-in page if we can't determine
     return false;
   }
 };
@@ -305,8 +330,24 @@ self.addEventListener('fetch', (event) => {
   // This ensures authenticated users always get the dashboard, not cached sign-in page
   if (isRootRoute(event.request.url) && event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
+      Promise.race([
+        fetch(event.request),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Network timeout')), 10000)
+        )
+      ])
         .then(async (response) => {
+          // Validate response before using
+          if (!response || !response.ok) {
+            throw new Error('Invalid response');
+          }
+          
+          // Check response size - reject if too small (likely error)
+          const contentLength = response.headers.get('content-length');
+          if (contentLength && parseInt(contentLength) < 1000) {
+            throw new Error('Response too small');
+          }
+          
           // Cache the fresh response only if it's successful and NOT sign-in page
           if (shouldCacheResponse(response)) {
             // Check if this is a sign-in page response (shouldn't cache for root)
@@ -322,20 +363,27 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(async () => {
-          // If network fails, try cache but verify it's not sign-in page
+        .catch(async (error) => {
+          // If network fails or times out, try cache but verify it's not sign-in page
           const cachedResponse = await caches.match(event.request);
           if (cachedResponse) {
-            // Check if cached response is sign-in page - don't serve it
-            const isSignIn = await isSignInPageResponse(cachedResponse.clone());
-            if (!isSignIn) {
-              return cachedResponse;
+            // Validate cached response
+            const contentLength = cachedResponse.headers.get('content-length');
+            if (contentLength && parseInt(contentLength) < 1000) {
+              // Cached response is too small, don't use it
+            } else {
+              // Check if cached response is sign-in page - don't serve it
+              const isSignIn = await isSignInPageResponse(cachedResponse.clone());
+              if (!isSignIn) {
+                return cachedResponse;
+              }
             }
           }
-          // Fallback to offline page or error
-          return caches.match(OFFLINE_URL) || new Response('Network error', {
+          // Fallback: return a proper HTML error page instead of blank/error response
+          return new Response('<!DOCTYPE html><html><head><title>Network Error</title></head><body><h1>Network Error</h1><p>Please check your connection and try again.</p></body></html>', {
             status: 503,
-            statusText: 'Service Unavailable'
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/html' }
           });
         })
     );
@@ -549,15 +597,32 @@ self.addEventListener('fetch', (event) => {
           // This prevents serving sign-in page for any authenticated route
           let isSignInCached = false;
           if (cachedResponse && !isStale) {
-            isSignInCached = await isSignInPageResponse(cachedResponse.clone());
+            // Validate cached response size
+            const contentLength = cachedResponse.headers.get('content-length');
+            if (contentLength && parseInt(contentLength) < 1000) {
+              // Cached response is too small, treat as invalid
+            } else {
+              isSignInCached = await isSignInPageResponse(cachedResponse.clone());
+            }
           }
           
           if (cachedResponse && !isStale && !isSignInCached) {
             // Return cached response immediately for instant navigation
             // Refresh cache in the background
-            fetch(event.request)
+            Promise.race([
+              fetch(event.request),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Network timeout')), 10000)
+              )
+            ])
               .then(async response => {
-                if (shouldCacheResponse(response)) {
+                if (response && shouldCacheResponse(response)) {
+                  // Validate response size
+                  const contentLength = response.headers.get('content-length');
+                  if (contentLength && parseInt(contentLength) < 1000) {
+                    return; // Response too small, don't cache
+                  }
+                  
                   // Don't cache sign-in page responses for navigation routes
                   const isSignIn = await isSignInPageResponse(response.clone());
                   if (!isSignIn) {
@@ -570,14 +635,30 @@ self.addEventListener('fetch', (event) => {
                   }
                 }
               })
-              .catch(() => { /* Ignore errors */ });
+              .catch(() => { /* Ignore errors - use cached version */ });
             
             return cachedResponse;
           }
           
           // Cache is stale, missing, or contains sign-in page - fetch fresh data
-          return fetch(event.request)
+          return Promise.race([
+            fetch(event.request),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Network timeout')), 10000)
+            )
+          ])
             .then(async response => {
+              // Validate response before using
+              if (!response || !response.ok) {
+                throw new Error('Invalid response');
+              }
+              
+              // Check response size - reject if too small (likely error)
+              const contentLength = response.headers.get('content-length');
+              if (contentLength && parseInt(contentLength) < 1000) {
+                throw new Error('Response too small');
+              }
+              
               if (shouldCacheResponse(response)) {
                 // Don't cache sign-in page responses for navigation routes
                 const isSignIn = await isSignInPageResponse(response.clone());
@@ -596,19 +677,27 @@ self.addEventListener('fetch', (event) => {
             .catch(async () => {
               // If network fails and we have stale cache (that's not sign-in page), use it
               if (cachedResponse && !isSignInCached) {
-                return cachedResponse;
+                // Validate cached response size before serving
+                const contentLength = cachedResponse.headers.get('content-length');
+                if (!contentLength || parseInt(contentLength) >= 1000) {
+                  return cachedResponse;
+                }
               }
               // Try to serve cached dashboard first
               return caches.match('/dashboard')
                 .then(cachedDashboard => {
                   if (cachedDashboard) {
-                    // Return cached dashboard with offline indicator
-                    return cachedDashboard;
+                    // Validate dashboard response size
+                    const contentLength = cachedDashboard.headers.get('content-length');
+                    if (!contentLength || parseInt(contentLength) >= 1000) {
+                      return cachedDashboard;
+                    }
                   }
-                  // Fallback to offline page
-                  return caches.match(OFFLINE_URL) || new Response('Network error', {
+                  // Fallback: return a proper HTML error page instead of blank/error response
+                  return new Response('<!DOCTYPE html><html><head><title>Network Error</title></head><body><h1>Network Error</h1><p>Please check your connection and try again.</p></body></html>', {
                     status: 503,
-                    statusText: 'Service Unavailable'
+                    statusText: 'Service Unavailable',
+                    headers: { 'Content-Type': 'text/html' }
                   });
                 });
             });

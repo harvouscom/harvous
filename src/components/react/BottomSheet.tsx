@@ -511,6 +511,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {drawerType === 'mySpaces' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
               <MySpacesPanel 
+                key={`mobile-spaces-${panelKey}`}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}

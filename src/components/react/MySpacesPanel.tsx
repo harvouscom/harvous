@@ -34,6 +34,7 @@ export default function MySpacesPanel({
   const containerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(0);
   const hasFetchedRef = useRef<boolean>(false); // Track if we've fetched at least once
+  const fetchSpacesRef = useRef<((force?: boolean) => Promise<void>) | null>(null); // Store latest fetchSpaces function
 
   const fetchSpaces = useCallback(async (force = false) => {
     // Debounce: prevent duplicate fetches within 2 seconds (unless forced)
@@ -76,6 +77,11 @@ export default function MySpacesPanel({
       setIsLoading(false);
     }
   }, []);
+
+  // Store latest fetchSpaces in ref
+  useEffect(() => {
+    fetchSpacesRef.current = fetchSpaces;
+  }, [fetchSpaces]);
 
   // Only fetch on mount if no initialSpaces provided (backward compatibility)
   // For bottom sheets, we rely on the event listener instead to avoid duplicate fetches
@@ -162,20 +168,37 @@ export default function MySpacesPanel({
 
   // Panel activation listener: refetch when panel is opened via event
   // This is the primary mechanism for bottom sheets
+  // Use ref pattern to avoid dependency on fetchSpaces (prevents re-runs)
   useEffect(() => {
+    let hasHandledEvent = false;
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const handlePanelOpened = (event: CustomEvent) => {
       const panelName = event.detail?.panelName;
       // Refetch when this specific panel is opened
       if (panelName === 'mySpaces') {
+        // Prevent multiple rapid fires
+        if (hasHandledEvent) {
+          return;
+        }
+        hasHandledEvent = true;
+
         // Check if we've already fetched recently (within last 2 seconds)
         const now = Date.now();
         if (now - lastFetchTimeRef.current < 2000) {
+          hasHandledEvent = false; // Reset if we skipped
           return; // Skip if we just fetched
         }
         
         // Small delay to ensure panel is mounted before fetching, force to bypass debounce
-        setTimeout(() => {
-          fetchSpaces(true);
+        timeoutId = setTimeout(() => {
+          if (fetchSpacesRef.current) {
+            fetchSpacesRef.current(true);
+          }
+          // Reset flag after a delay to allow future events
+          setTimeout(() => {
+            hasHandledEvent = false;
+          }, 1000);
         }, 200);
       }
     };
@@ -184,10 +207,14 @@ export default function MySpacesPanel({
 
     return () => {
       window.removeEventListener('openProfilePanel', handlePanelOpened as EventListener);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
-  }, [fetchSpaces]);
+  }, []); // Empty deps - use ref pattern instead
 
   // Listen for space deletion events to refresh the list
+  // Use ref pattern to avoid dependency on fetchSpaces
   useEffect(() => {
     const handleSpaceDeleted = (event: CustomEvent) => {
       const spaceId = event.detail?.spaceId;
@@ -197,7 +224,9 @@ export default function MySpacesPanel({
         
         // Refetch spaces after a delay to ensure database is committed
         setTimeout(() => {
-          fetchSpaces();
+          if (fetchSpacesRef.current) {
+            fetchSpacesRef.current();
+          }
         }, 300);
       }
     };
@@ -208,7 +237,9 @@ export default function MySpacesPanel({
         // Refetch spaces to get the new space with proper counts
         // Force fetch to bypass debounce and ensure we get the new space
         setTimeout(() => {
-          fetchSpaces(true);
+          if (fetchSpacesRef.current) {
+            fetchSpacesRef.current(true);
+          }
         }, 300);
       }
     };
@@ -220,7 +251,7 @@ export default function MySpacesPanel({
       window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
       window.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
     };
-  }, [fetchSpaces]);
+  }, []); // Empty deps - use ref pattern instead
 
   const handleClose = () => {
     if (onClose) {

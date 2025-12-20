@@ -19,15 +19,21 @@ export default defineConfig({
     prefetchAll: false         // Only prefetch on hover, not all links
   },
   vite: {
+    // Fix React bundling - ensure single React instance (CRITICAL for Invalid Hook Call errors)
+    resolve: {
+      dedupe: ['react', 'react-dom']
+    },
     server: {
       port: 4321,
-      // Fix HMR WebSocket connection issues
-      hmr: {
-        port: 4321,
-        clientPort: 4321,
-        overlay: false,
-        host: 'localhost'
-      },
+      // Fix HMR WebSocket connection issues - ONLY in development
+      ...(import.meta.env.DEV && {
+        hmr: {
+          port: 4321,
+          clientPort: 4321,
+          overlay: false,
+          host: 'localhost'
+        }
+      }),
       // Fix MIME type issues for .astro files
       fs: {
         strict: false
@@ -41,10 +47,16 @@ export default defineConfig({
       // Optimize chunks to improve browser performance
       chunkSizeWarningLimit: 1000,
       cssCodeSplit: true,
+      commonjsOptions: {
+        include: [/node_modules/],
+        transformMixedEsModules: true
+      },
       rollupOptions: {
         output: {
           // Improve chunk splitting for better caching
           manualChunks: {
+            // CRITICAL: Ensure React is in a single vendor chunk
+            'react-vendor': ['react', 'react-dom'],
             editor: ['isomorphic-dompurify'],
             tiptap: [
               '@tiptap/react',
@@ -70,7 +82,7 @@ export default defineConfig({
     // Add performance optimizations to Vite dev server
     optimizeDeps: {
       exclude: [],
-      include: ['@clerk/astro/client']
+      include: ['react', 'react-dom', '@astrojs/react/client', '@clerk/astro/client']
     },
     // Fix MIME type issues in development
     define: {

@@ -287,10 +287,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     const handleOpenPanelEvent = (event: CustomEvent) => {
       if (window.innerWidth >= 1160) {
         const panelName = event.detail.panelName;
-        setActivePanel(panelName);
-        // Update timestamp when panel opens to force remount
-        if (panelName === 'mySpaces') {
-          setPanelOpenTime(Date.now());
+        // Only update if panel is actually changing (prevents unnecessary remounts)
+        if (activePanel !== panelName) {
+          setActivePanel(panelName);
+          // Update timestamp when panel opens to force remount (only if changing)
+          if (panelName === 'mySpaces') {
+            setPanelOpenTime(Date.now());
+          }
         }
       }
     };
