@@ -83,11 +83,11 @@ export default function MySpacesPanel({
     fetchSpacesRef.current = fetchSpaces;
   }, [fetchSpaces]);
 
-  // Only fetch on mount if no initialSpaces provided (backward compatibility)
-  // For bottom sheets, fetch on mount if no initialSpaces (event listener handles refreshes)
+  // Initialize only once on mount - prevent infinite loops from initialSpaces prop changes
   useEffect(() => {
+    // Only run once on mount
     if (initialSpaces.length > 0) {
-      // We have initial data from Astro, use it
+      // We have initial data from Astro, use it (only on mount)
       setSpaces(initialSpaces);
       setIsLoading(false);
     } else {
@@ -95,7 +95,8 @@ export default function MySpacesPanel({
       // For bottom sheets, the event listener will handle refreshes when panel opens
       fetchSpaces(true);
     }
-  }, [fetchSpaces, initialSpaces]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run once on mount
 
   // Visibility-based refetch: refetch when panel becomes visible (backup mechanism)
   // DISABLED for bottom sheets - they use event listeners instead
