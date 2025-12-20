@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Improves initial load and re-engagement performance
 
-const CACHE_NAME = 'harvous-cache-v7'; // Increment version to invalidate old cache (v7: fix sign-in page flash)
+const CACHE_NAME = 'harvous-cache-v8'; // Increment version to invalidate old cache (v8: clear cache after logger/incremental detection changes)
 // Note: OFFLINE_URL should not be '/' as it may contain sign-in page
 // Use a dedicated offline page or show error message instead
 const OFFLINE_URL = null; // Don't use cached root as offline fallback

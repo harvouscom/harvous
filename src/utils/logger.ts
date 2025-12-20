@@ -16,24 +16,45 @@ interface LogContext {
  * Check if we're in development mode
  */
 function isDevelopment(): boolean {
-  return import.meta.env.DEV || import.meta.env.MODE === 'development';
+  try {
+    // Check if import.meta is available (works in both client and server contexts)
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      return import.meta.env.DEV || import.meta.env.MODE === 'development';
+    }
+  } catch {
+    // If import.meta is not available, fall back to checking window
+  }
+  
+  // Fallback: check window location (client-side only)
+  if (typeof window !== 'undefined' && window.location) {
+    return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  }
+  
+  // Default to production mode if we can't determine
+  return false;
 }
 
 /**
  * Core logging function
  */
 function log(level: LogLevel, message: string, context?: LogContext): void {
-  // Always log errors and warnings
-  if (level === 'error' || level === 'warn') {
-    console[level](message, context || '');
-    return;
-  }
+  try {
+    // Always log errors and warnings
+    if (level === 'error' || level === 'warn') {
+      if (typeof console !== 'undefined' && console[level]) {
+        console[level](message, context || '');
+      }
+      return;
+    }
 
-  // Only log debug/info in development
-  if (isDevelopment()) {
-    console[level](message, context || '');
+    // Only log debug/info in development
+    if (isDevelopment() && typeof console !== 'undefined' && console[level]) {
+      console[level](message, context || '');
+    }
+    // In production, debug/info logs are silent
+  } catch {
+    // Silently fail if logging is not available (should never happen, but be safe)
   }
-  // In production, debug/info logs are silent
 }
 
 /**

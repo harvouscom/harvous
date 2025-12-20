@@ -513,7 +513,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
 }
 
 // Helper function to detect and create scripture notes
-async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: string) {
+async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: string, editorId?: string) {
   if (!editor) return;
 
   try {
@@ -529,18 +529,30 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
     }
 
     // Use incremental detection - only process if document has changed
-    const editorId = editor.options.editorProps?.attributes?.id || 'default';
-    if (!shouldProcessDocument(editorId, fullText)) {
-      return; // Document hasn't changed, skip detection
-    }
-
-    // Get text segment to process (optimized for incremental detection)
-    const { text: textToProcess, startPosition, isFullDocument } = getTextToProcess(editorId, fullText);
+    // Use provided editorId or fallback to 'default' if not available
+    const id = editorId || 'default';
+    let textForDetection: string = fullText;
     
-    // For incremental detection, we still need to check the full document context
-    // to find all occurrences, but we can optimize by only sending new text to API
-    // However, for now, we'll use the full text but track state to avoid reprocessing
-    const textForDetection = isFullDocument ? textToProcess : fullText; // Use full text for context
+    // Try incremental detection, but fall back gracefully if it fails
+    try {
+      if (typeof shouldProcessDocument === 'function' && typeof getTextToProcess === 'function') {
+        if (!shouldProcessDocument(id, fullText)) {
+          return; // Document hasn't changed, skip detection
+        }
+
+        // Get text segment to process (optimized for incremental detection)
+        const result = getTextToProcess(id, fullText);
+        
+        // For incremental detection, we still need to check the full document context
+        // to find all occurrences, but we can optimize by only sending new text to API
+        // However, for now, we'll use the full text but track state to avoid reprocessing
+        textForDetection = result.isFullDocument ? result.text : fullText; // Use full text for context
+      }
+    } catch (incrementalError) {
+      // If incremental detection fails, fall back to processing full text
+      // This ensures the app continues to work even if incremental detection has issues
+      textForDetection = fullText;
+    }
 
     // Call detection API with optimized text
     const detectResponse = await fetch('/api/scripture/detect', {
