@@ -980,6 +980,17 @@ if (!content) {
       }
     };
     
+    // CRITICAL: Log what URL we actually loaded
+    console.error('[id].astro] ===== PAGE LOADED =====', {
+      pathname: window.location.pathname,
+      href: window.location.href,
+      expectedThreadId: window.location.pathname.substring(1),
+      sessionStorageNavigatingTo: sessionStorage.getItem('harvous-navigating-to'),
+      sessionStorageTimestamp: sessionStorage.getItem('harvous-navigation-timestamp'),
+      isProfile: window.location.pathname === '/profile',
+      isDashboard: window.location.pathname === '/'
+    });
+    
     // Prefetch dashboard data in background (if on thread/note/space page)
     const currentPath = window.location.pathname;
     const isThreadPage = currentPath.startsWith('/thread_');

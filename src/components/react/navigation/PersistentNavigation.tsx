@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Icon from '../Icon';
-import { handleBreadcrumbNavigation } from '@/utils/navigation-breadcrumb';
 
 const PersistentNavigation: React.FC = () => {
   const contextValue = useNavigation();
@@ -77,6 +76,30 @@ const PersistentNavigation: React.FC = () => {
 
   const persistentItems = getPersistentItems();
 
+  // CRITICAL: Log that React component is rendering
+  useEffect(() => {
+    // Also check localStorage directly
+    let localStorageHistory: any[] = [];
+    try {
+      const stored = localStorage.getItem('harvous-navigation-history-v2');
+      localStorageHistory = stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('[PersistentNavigation] Error reading localStorage:', error);
+    }
+    
+    console.error('[PersistentNavigation] ===== REACT COMPONENT MOUNTED =====', {
+      timestamp: Date.now(),
+      navigationHistoryLength: navigationHistory.length,
+      navigationHistoryIds: navigationHistory.map(item => item.id),
+      persistentItemsCount: persistentItems.length,
+      persistentItemsIds: persistentItems.map(item => item.id),
+      localStorageHistoryLength: localStorageHistory.length,
+      localStorageHistoryIds: localStorageHistory.map((item: any) => item.id),
+      contextValueExists: !!contextValue
+    });
+  }, [navigationHistory, persistentItems, contextValue]);
+
+
   if (persistentItems.length === 0) {
     return null;
   }
@@ -97,40 +120,6 @@ const PersistentNavigation: React.FC = () => {
         const isActive = item.id === currentActiveItemId;
         
         const handleClick = (e: React.MouseEvent) => {
-          // CRITICAL: Log IMMEDIATELY with console.error so it's always visible
-          console.error('[PersistentNavigation] ===== NAVIGATION BUTTON CLICKED (REACT) =====', {
-            timestamp: Date.now(),
-            itemId: item.id,
-            itemIdType: typeof item.id,
-            itemIdValid: item.id && typeof item.id === 'string' && item.id.trim() !== '',
-            itemTitle: item.title
-          });
-          
-          // CRITICAL: Log the click event with full item details
-          // Also check localStorage directly to see if there's a mismatch
-          let localStorageHistory: any[] = [];
-          try {
-            const stored = localStorage.getItem('harvous-navigation-history-v2');
-            localStorageHistory = stored ? JSON.parse(stored) : [];
-          } catch (error) {
-            console.error('[PersistentNavigation] Error reading localStorage:', error);
-          }
-          
-          console.error('[PersistentNavigation] ===== NAVIGATION BUTTON CLICKED (FULL DETAILS) =====', {
-            item: item,
-            itemId: item.id,
-            itemIdType: typeof item.id,
-            itemIdValid: item.id && typeof item.id === 'string' && item.id.trim() !== '',
-            itemTitle: item.title,
-            itemFull: JSON.stringify(item),
-            navigationHistoryLength: navigationHistory.length,
-            allNavigationHistoryIds: navigationHistory.map((h: any) => ({ id: h.id, title: h.title })),
-            localStorageHistoryLength: localStorageHistory.length,
-            localStorageHistoryIds: localStorageHistory.map((h: any) => ({ id: h.id, title: h.title })),
-            itemExistsInLocalStorage: localStorageHistory.some((h: any) => h.id === item.id),
-            localStorageItem: localStorageHistory.find((h: any) => h.id === item.id)
-          });
-          
           // CRITICAL: Validate item.id before ANY navigation
           if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
             console.error('[PersistentNavigation] CRITICAL: Invalid item.id - blocking navigation:', {
@@ -160,48 +149,18 @@ const PersistentNavigation: React.FC = () => {
           
           const currentPath = window.location.pathname;
           const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-          const isOnNotePage = currentItemId.startsWith('note_');
           
-          // ONLY use breadcrumb navigation if we're on a note page AND the note belongs to this thread
-          // Otherwise, use normal link navigation (let href work)
-          if (isOnNotePage) {
-            // Check if note belongs to this thread
-            const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-            const parentThreadId = noteElement?.dataset.parentThreadId;
-            
-            // CRITICAL: Only use breadcrumb if parentThreadId matches AND is valid
-            if (parentThreadId && parentThreadId === item.id && 
-                (parentThreadId.startsWith('thread_') || parentThreadId.startsWith('space_'))) {
-              // We're in breadcrumb context - use breadcrumb navigation
-              e.preventDefault();
-              e.stopPropagation();
-              
-              console.log('[PersistentNavigation] Using breadcrumb navigation:', {
-                itemId: item.id,
-                itemTitle: item.title,
-                currentItemId: currentItemId,
-                parentThreadId: parentThreadId
-              });
-              
-              handleBreadcrumbNavigation(item.id);
-              return;
-            }
+          // If we're already on the thread/space page, do nothing
+          if (currentItemId === item.id) {
+            e.preventDefault();
+            return;
           }
           
-          // NOT in breadcrumb context - use normal link navigation
-          // CRITICAL: Prevent default and handle navigation manually to ensure we control it
+          // Always navigate directly to the thread/space
           e.preventDefault();
           e.stopPropagation();
           
           const navigationUrl = `/${item.id}`;
-          console.error('[PersistentNavigation] ===== EXECUTING NAVIGATION (REACT) =====', {
-            itemId: item.id,
-            itemTitle: item.title,
-            currentItemId: currentItemId,
-            isOnNotePage: isOnNotePage,
-            navigationUrl: navigationUrl,
-            hrefValid: navigationUrl && !navigationUrl.includes('undefined') && (navigationUrl.startsWith('/thread_') || navigationUrl.startsWith('/space_') || navigationUrl.startsWith('/note_'))
-          });
           
           // CRITICAL: Double-check the URL is valid before allowing navigation
           if (!navigationUrl || navigationUrl.includes('undefined') || navigationUrl === '/') {
@@ -213,17 +172,7 @@ const PersistentNavigation: React.FC = () => {
             return;
           }
           
-          // CRITICAL: Validate the URL format one more time
-          if (!item.id.startsWith('thread_') && !item.id.startsWith('space_') && !item.id.startsWith('note_')) {
-            console.error('[PersistentNavigation] CRITICAL: Invalid ID format - blocking navigation:', {
-              itemId: item.id,
-              navigationUrl: navigationUrl
-            });
-            return;
-          }
-          
-          // Navigate manually using window.location.href to ensure we control the navigation
-          console.error('[PersistentNavigation] ===== NAVIGATING TO =====', navigationUrl);
+          // Navigate directly to the thread/space
           window.location.href = navigationUrl;
         };
         

@@ -196,50 +196,36 @@ function loadPersistentNavigation(retryCount) {
         return; // Skip this item
       }
       
-      link.href = `/${item.id}`;
+      // CRITICAL: Validate item.id before setting href
+      if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
+        console.error('[persistent-navigation.js] CRITICAL: Cannot create link - item.id is invalid:', item);
+        return; // Skip this item
+      }
+      
+      // CRITICAL: Validate item.id format
+      if (!item.id.startsWith('thread_') && !item.id.startsWith('space_') && !item.id.startsWith('note_')) {
+        console.error('[persistent-navigation.js] CRITICAL: Cannot create link - item.id has invalid format:', item);
+        return; // Skip this item
+      }
+      
+      const linkHref = `/${item.id}`;
+      link.href = linkHref;
       link.className = 'w-full relative block';
       
       // CRITICAL: Add data attribute for debugging
       link.setAttribute('data-debug-item-id', item.id);
-      link.setAttribute('data-debug-href', `/${item.id}`);
+      link.setAttribute('data-debug-href', linkHref);
       
-      // Add breadcrumb navigation click handler
+      // CRITICAL: Log the link creation
+      console.error('[persistent-navigation.js] ===== LINK CREATED =====', {
+        itemId: item.id,
+        linkHref: linkHref,
+        linkElement: link,
+        hrefAttribute: link.getAttribute('href')
+      });
+      
+      // Add click handler for direct navigation
       link.addEventListener('click', (e) => {
-        // CRITICAL: Log immediately when click happens, before any other logic
-        console.error('[persistent-navigation.js] ===== CLICK EVENT FIRED =====', {
-          timestamp: Date.now(),
-          itemId: item.id,
-          itemIdType: typeof item.id,
-          itemIdValid: item.id && typeof item.id === 'string' && item.id.trim() !== '',
-          href: link.href,
-          targetHref: e.target?.href || e.currentTarget?.href,
-          eventTarget: e.target,
-          eventCurrentTarget: e.currentTarget
-        });
-        // CRITICAL: Log the click event with full item details
-        // Also check localStorage directly to see if there's a mismatch
-        let localStorageHistory = [];
-        try {
-          const stored = localStorage.getItem('harvous-navigation-history-v2');
-          localStorageHistory = stored ? JSON.parse(stored) : [];
-        } catch (error) {
-          console.error('[persistent-navigation.js] Error reading localStorage:', error);
-        }
-        
-        console.log('[persistent-navigation.js] ===== NAVIGATION BUTTON CLICKED =====');
-        console.log(`[persistent-navigation.js] Clicked item: id="${item.id}", title="${item.title}", idType=${typeof item.id}, idValid=${!!(item.id && typeof item.id === 'string' && item.id.trim() !== '')}`);
-        console.log('[persistent-navigation.js] Clicked item full object:', {
-          item: item,
-          itemId: item.id,
-          itemIdType: typeof item.id,
-          itemIdValid: item.id && typeof item.id === 'string' && item.id.trim() !== '',
-          itemTitle: item.title,
-          localStorageHistoryLength: localStorageHistory.length,
-          localStorageHistoryIds: localStorageHistory.map((h) => ({ id: h.id, title: h.title })),
-          itemExistsInLocalStorage: localStorageHistory.some((h) => h.id === item.id),
-          localStorageItem: localStorageHistory.find((h) => h.id === item.id)
-        });
-        
         // CRITICAL: Validate item.id before ANY navigation
         if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
           console.error('[persistent-navigation.js] CRITICAL: Invalid item.id - blocking navigation:', {
@@ -276,81 +262,11 @@ function loadPersistentNavigation(retryCount) {
           return;
         }
         
-        const isOnNotePage = currentItemId.startsWith('note_');
+        // Always navigate directly to the thread/space
+        e.preventDefault();
+        e.stopPropagation();
         
-        // ONLY use breadcrumb navigation if we're on a note page AND the note belongs to this thread
-        // Otherwise, use normal link navigation (don't preventDefault)
-        if (isOnNotePage) {
-          // Check if note belongs to this thread
-          let isInContext = false;
-          const noteElement = document.querySelector('[data-note-id]');
-          if (noteElement) {
-            const parentThreadId = noteElement.getAttribute('data-parent-thread-id');
-            const parentSpaceId = noteElement.getAttribute('data-parent-space-id');
-            
-            if (parentThreadId === item.id || parentSpaceId === item.id) {
-              isInContext = true;
-            }
-          }
-          
-          // Check navigation element for data-parent-thread-id or data-thread-id
-          if (!isInContext) {
-            const navigationElement = document.querySelector('[slot="navigation"]');
-            if (navigationElement) {
-              const navThreadId = navigationElement.getAttribute('data-parent-thread-id') || 
-                                 navigationElement.getAttribute('data-thread-id');
-              const navSpaceId = navigationElement.getAttribute('data-parent-space-id') || 
-                                navigationElement.getAttribute('data-space-id');
-              
-              if (navThreadId === item.id || navSpaceId === item.id) {
-                isInContext = true;
-              }
-            }
-          }
-          
-          // If in breadcrumb context, use breadcrumb navigation
-          if (isInContext) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            console.log('[persistent-navigation.js] Using breadcrumb navigation:', {
-              itemId: item.id,
-              itemTitle: item.title,
-              currentItemId: currentItemId,
-              parentThreadId: noteElement?.getAttribute('data-parent-thread-id'),
-              itemFull: item
-            });
-            
-            if (window.history.length > 1) {
-              window.history.back();
-            } else {
-              // Fallback: navigate directly if no history
-              const fallbackUrl = `/${item.id}`;
-              console.log('[persistent-navigation.js] Breadcrumb fallback - navigating to:', fallbackUrl);
-              if (window.astroNavigate) {
-                window.astroNavigate(fallbackUrl);
-              } else {
-                window.location.href = fallbackUrl;
-              }
-            }
-            return;
-          }
-        }
-        
-        // NOT in breadcrumb context - use normal link navigation
-        // DO NOT preventDefault - let the href attribute handle navigation
-        // This is the original working behavior before breadcrumb was added
         const navigationUrl = `/${item.id}`;
-        console.log('[persistent-navigation.js] Using normal link navigation (href):', {
-          itemId: item.id,
-          itemTitle: item.title,
-          currentItemId: currentItemId,
-          isOnNotePage: isOnNotePage,
-          href: navigationUrl,
-          hrefValid: navigationUrl && !navigationUrl.includes('undefined') && (navigationUrl.startsWith('/thread_') || navigationUrl.startsWith('/space_') || navigationUrl.startsWith('/note_')),
-          willNavigateTo: navigationUrl,
-          fullItem: item
-        });
         
         // CRITICAL: Double-check the URL is valid before allowing navigation
         if (!navigationUrl || navigationUrl.includes('undefined') || navigationUrl === '/') {
@@ -359,13 +275,11 @@ function loadPersistentNavigation(retryCount) {
             itemId: item.id,
             itemTitle: item.title
           });
-          e.preventDefault();
-          e.stopPropagation();
           return;
         }
         
-        // Explicitly allow default link behavior - don't prevent it
-        // The href will navigate normally, just like before breadcrumb was added
+        // Navigate directly to the thread/space
+        window.location.href = navigationUrl;
       });
       
       // Helper function to determine if background is a colored thread background
