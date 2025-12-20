@@ -14,6 +14,7 @@ import { HighlightCustom } from './TiptapHighlightCustom.ts';
 import ButtonSmall from './ButtonSmall';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
 import '@/styles/tiptap-editor.css';
 
 // Icon component for inline SVGs (allows CSS styling)
@@ -521,17 +522,31 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
     const currentCursorPos = currentSelection.anchor;
     
     // Extract plain text from editor
-    const plainText = editor.state.doc.textContent;
+    const fullText = editor.state.doc.textContent;
     
-    if (!plainText || plainText.trim().length < 5) {
+    if (!fullText || fullText.trim().length < 5) {
       return;
     }
 
-    // Call detection API
+    // Use incremental detection - only process if document has changed
+    const editorId = editor.options.editorProps?.attributes?.id || 'default';
+    if (!shouldProcessDocument(editorId, fullText)) {
+      return; // Document hasn't changed, skip detection
+    }
+
+    // Get text segment to process (optimized for incremental detection)
+    const { text: textToProcess, startPosition, isFullDocument } = getTextToProcess(editorId, fullText);
+    
+    // For incremental detection, we still need to check the full document context
+    // to find all occurrences, but we can optimize by only sending new text to API
+    // However, for now, we'll use the full text but track state to avoid reprocessing
+    const textForDetection = isFullDocument ? textToProcess : fullText; // Use full text for context
+
+    // Call detection API with optimized text
     const detectResponse = await fetch('/api/scripture/detect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: plainText }),
+      body: JSON.stringify({ text: textForDetection }),
       credentials: 'include'
     });
 
@@ -1020,7 +1035,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       editorRef.current = editor;
       // Initialize previous text content reference
     }
-  }, [editor]);
+    
+    // Cleanup tracker when editor is destroyed
+    return () => {
+      if (id) {
+        cleanupTracker(id);
+      }
+    };
+  }, [editor, id]);
 
   // Update content from props, but only if it's different and editor is not focused
   // This preserves marks that are already in the editor

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
+import { debug } from '@/utils/logger';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
 
@@ -109,38 +110,18 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         return;
       }
       
-      console.log('[updateNavigationHistory] ===== STORING THREAD IN NAVIGATION HISTORY =====', {
+      debug('[updateNavigationHistory] Storing thread in navigation history', {
         threadId: threadId,
         threadTitle: threadTitle,
-        isUnorganized: isUnorganized,
-        threadDataId: threadData?.id,
-        threadDataTitle: threadData?.title
+        isUnorganized: isUnorganized
       });
       
       const existingIndex = history.findIndex((item: any) => item.id === threadId);
-      
-      console.log('[updateNavigationHistory] Looking for existing thread in history:', {
-        threadId: threadId,
-        existingIndex: existingIndex,
-        historyLength: history.length,
-        existingItem: existingIndex !== -1 ? {
-          id: history[existingIndex].id,
-          title: history[existingIndex].title,
-          firstAccessed: history[existingIndex].firstAccessed
-        } : null,
-        allHistoryIds: history.map((item: any) => ({ id: item.id, title: item.title }))
-      });
       
       let threadItem: any;
       if (existingIndex !== -1) {
         // Thread already exists in history - update it
         const existingItem = history[existingIndex];
-        console.log('[updateNavigationHistory] Updating existing thread in history:', {
-          existingId: existingItem.id,
-          existingTitle: existingItem.title,
-          newId: threadId,
-          newTitle: threadTitle
-        });
         
         threadItem = {
           ...existingItem,
@@ -155,11 +136,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         history[existingIndex] = threadItem;
       } else {
         // Thread doesn't exist - add it as new
-        console.log('[updateNavigationHistory] ✅ Adding NEW thread to history:', {
-          id: threadId,
-          title: threadTitle,
-          firstAccessed: Date.now()
-        });
         threadItem = {
           id: threadId,
           title: threadTitle,
@@ -183,15 +159,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       
       localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
       sessionStorage.setItem('harvous-pending-thread', JSON.stringify(threadItem));
-      
-      console.log('[updateNavigationHistory] ✅ Saved to localStorage:', {
-        threadId: threadId,
-        threadTitle: threadTitle,
-        count: threadItem.count,
-        firstAccessed: threadItem.firstAccessed,
-        historyLength: history.length,
-        historyIds: history.map((item: any) => ({ id: item.id, title: item.title }))
-      });
       
       // Update React state via callback
       if (addToNavigationHistory) {
@@ -303,19 +270,15 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       
       // Debug logging to verify threadId is being passed correctly
       if (overrideThreadId) {
-        console.log('[useNoteSubmission] Using overrideThreadId:', overrideThreadId);
-        console.log('[useNoteSubmission] overrideThreadId type:', typeof overrideThreadId);
-        console.log('[useNoteSubmission] overrideThreadId length:', overrideThreadId?.length);
+        debug('[useNoteSubmission] Using overrideThreadId', { overrideThreadId });
       }
-      console.log('[useNoteSubmission] threadIdToUse:', threadIdToUse);
-      console.log('[useNoteSubmission] threadIdToUse type:', typeof threadIdToUse);
-      console.log('[useNoteSubmission] threadIdToUse === "thread_unorganized":', threadIdToUse === 'thread_unorganized');
+      debug('[useNoteSubmission] Thread ID selection', { threadIdToUse });
       
       formData.set('threadId', threadIdToUse);
       
       // Verify it was set correctly
       const verifyThreadId = formData.get('threadId');
-      console.log('[useNoteSubmission] Verified threadId in formData:', verifyThreadId);
+      debug('[useNoteSubmission] Verified threadId in formData', { verifyThreadId });
       formData.set('noteType', noteType);
       
       if (addToSpace && currentSpace && currentSpace.id) {
@@ -369,16 +332,11 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         // but we use this name for clarity in navigation history updates
         const finalThreadId = actualThreadId;
         
-        // CRITICAL: Log which thread ID we're using and why
-        console.log('[useNoteSubmission] ===== THREAD ID SELECTION =====', {
+        // Thread ID selection (debug only)
+        debug('[useNoteSubmission] Thread ID selection', {
           overrideThreadId: overrideThreadId,
-          overrideThreadIdProvided: overrideThreadId !== undefined && overrideThreadId !== null,
-          getSelectedThreadId: getSelectedThread().id,
-          getSelectedThreadTitle: getSelectedThread().title,
           actualThreadId: actualThreadId,
-          finalThreadId: finalThreadId,
-          usingOverride: overrideThreadId !== undefined && overrideThreadId !== null,
-          noteId: result.note?.id
+          finalThreadId: finalThreadId
         });
         
         // CRITICAL: If overrideThreadId was provided but we're not using it, that's an error
@@ -395,17 +353,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // We'll use forcedThreadId below instead of actualThreadId
         }
         
-        // CRITICAL: Log actualThreadId to debug navigation issues
-        console.log('[useNoteSubmission] ===== NAVIGATION HISTORY UPDATE =====', {
+        // Navigation history update (debug only)
+        debug('[useNoteSubmission] Navigation history update', {
           actualThreadId: actualThreadId,
-          actualThreadIdType: typeof actualThreadId,
-          actualThreadIdValid: actualThreadId && typeof actualThreadId === 'string' && actualThreadId.trim() !== '',
-          overrideThreadId: overrideThreadId,
-          getSelectedThreadId: getSelectedThread().id,
-          getSelectedThreadTitle: getSelectedThread().title,
-          hasNote: !!result.note,
-          hasAddToNavigationHistory: !!addToNavigationHistory,
-          noteId: result.note?.id
+          overrideThreadId: overrideThreadId
         });
         
         // CRITICAL: If overrideThreadId is provided, it should be used for navigation history
@@ -448,14 +399,13 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // fetch it from the API to ensure we have valid thread data for navigation history
           if (!threadData && finalThreadId && finalThreadId !== 'thread_unorganized') {
             try {
-              console.log('[useNoteSubmission] Thread data not found locally, fetching from API for threadId:', finalThreadId);
+              debug('[useNoteSubmission] Fetching thread from API', { threadId: finalThreadId });
               const response = await fetch('/api/threads/list', {
                 credentials: 'include'
               });
               if (response.ok) {
                 const threads = await response.json();
                 threadData = threads.find((t: any) => t.id === finalThreadId);
-                console.log('[useNoteSubmission] API fetch result:', threadData ? `Found: ${threadData.title} (id: ${threadData.id})` : `Not found for threadId: ${finalThreadId}`);
               } else {
                 console.error('[useNoteSubmission] API fetch failed with status:', response.status);
               }
@@ -472,20 +422,16 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             // For unorganized, threadData might be undefined - use getSelectedThread() as fallback
             const unorganizedThreadData = threadData || getSelectedThread();
             if (unorganizedThreadData && unorganizedThreadData.id) {
-              console.log('[useNoteSubmission] Adding unorganized thread to navigation history:', unorganizedThreadData.id);
+              debug('[useNoteSubmission] Adding unorganized thread to navigation history', { threadId: unorganizedThreadData.id });
               updateNavigationHistory(unorganizedThreadData, true);
             } else {
               console.warn('[useNoteSubmission] Skipping navigation history update - unorganized thread data invalid');
             }
           } else if (threadData && threadData.id && threadData.id === finalThreadId) {
             // Validate that threadData has a valid id that matches finalThreadId
-            console.log('[useNoteSubmission] Adding thread to navigation history with threadData:', {
+            debug('[useNoteSubmission] Adding thread to navigation history', {
               threadId: threadData.id,
-              title: threadData.title,
-              noteCount: threadData.noteCount,
-              finalThreadId: finalThreadId,
-              overrideThreadId: overrideThreadId,
-              matches: threadData.id === finalThreadId
+              finalThreadId: finalThreadId
             });
             updateNavigationHistory(threadData, false);
           } else if (finalThreadId && finalThreadId !== 'thread_unorganized') {
@@ -532,7 +478,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             };
             
             // CRITICAL: Log the minimal entry before storing it
-            console.log('[useNoteSubmission] ===== CREATING MINIMAL NAVIGATION ENTRY =====', {
+            debug('[useNoteSubmission] Creating minimal navigation entry', {
               minimalThreadData: minimalThreadData,
               finalThreadId: finalThreadId,
               finalThreadIdType: typeof finalThreadId,
@@ -550,30 +496,22 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
               const stored = localStorage.getItem('harvous-navigation-history-v2');
               const history = stored ? JSON.parse(stored) : [];
               const storedEntry = history.find((item: any) => item.id === finalThreadId);
-              console.log('[useNoteSubmission] ===== VERIFIED STORED ENTRY =====', {
+              debug('[useNoteSubmission] Verified stored entry', {
                 finalThreadId: finalThreadId,
-                storedEntry: storedEntry,
-                storedEntryId: storedEntry?.id,
-                storedEntryTitle: storedEntry?.title,
-                storedEntryIdValid: storedEntry?.id && typeof storedEntry.id === 'string' && storedEntry.id.trim() !== '',
-                allHistoryIds: history.map((item: any) => ({ id: item.id, title: item.title }))
+                storedEntryId: storedEntry?.id
               });
             } catch (error) {
               console.error('[useNoteSubmission] Error verifying stored entry:', error);
             }
             
-            console.log('[useNoteSubmission] Created minimal navigation entry with threadId:', finalThreadId, 'noteCreated handler will update with full data');
+            debug('[useNoteSubmission] Created minimal navigation entry', { threadId: finalThreadId });
           }
         }
         
         // Dispatch note created event with the correct thread ID
         // Use finalThreadId (overrideThreadId if provided) as the source of truth
         const threadIdForEvent = finalThreadId;
-        console.log('[useNoteSubmission] Dispatching noteCreated event with threadId:', threadIdForEvent, {
-          overrideThreadId: overrideThreadId,
-          actualThreadId: actualThreadId,
-          finalThreadId: finalThreadId
-        });
+        debug('[useNoteSubmission] Dispatching noteCreated event', { threadId: threadIdForEvent });
         
         window.dispatchEvent(new CustomEvent('noteCreated', {
           detail: { 
@@ -620,7 +558,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // Dispatch event if we have either positions (for editor mode) or plainText (for view mode)
           // The handler will use editor positions if available, or fall back to HTML text matching
           if ((from && to) || plainText) {
-            console.log('[useNoteSubmission] Setting up highlight save wait...');
+              debug('[useNoteSubmission] Setting up highlight save wait');
             // Create a promise that resolves when the highlight is saved
             const highlightSavedPromise = new Promise<void>((resolve) => {
               let resolved = false;
@@ -628,7 +566,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
               const handleHighlightSaved = () => {
                 if (resolved) return;
                 resolved = true;
-                console.log('[useNoteSubmission] Highlight saved event received');
+                debug('[useNoteSubmission] Highlight saved event received');
                 window.removeEventListener('highlightSaved', handleHighlightSaved);
                 resolve();
               };
@@ -639,7 +577,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
               // Small delay to ensure listener is registered
               setTimeout(() => {
                 // Dispatch the createHyperlink event
-                console.log('[useNoteSubmission] Dispatching createHyperlink event');
+                debug('[useNoteSubmission] Dispatching createHyperlink event');
                 window.dispatchEvent(new CustomEvent('createHyperlink', {
                   detail: {
                     sourceNoteId,
@@ -663,9 +601,9 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             });
             
             // Wait for highlight to be saved before continuing
-            console.log('[useNoteSubmission] Waiting for highlight to be saved...');
+            debug('[useNoteSubmission] Waiting for highlight to be saved');
             await highlightSavedPromise;
-            console.log('[useNoteSubmission] Highlight save complete, proceeding with navigation');
+            debug('[useNoteSubmission] Highlight save complete');
           }
           
           localStorage.removeItem('newNoteSourceNoteId');
@@ -679,11 +617,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
         // Always navigate to the note (not the thread) after creation
         // This matches the behavior when creating a note from the dashboard
-        console.log('[useNoteSubmission] ===== NOTE CREATION COMPLETE =====');
-        console.log('[useNoteSubmission] Full result object:', JSON.stringify(result, null, 2));
-        console.log('[useNoteSubmission] result.note:', result.note);
-        console.log('[useNoteSubmission] result.note?.id:', result.note?.id);
-        console.log('[useNoteSubmission] overrideThreadId:', overrideThreadId);
+        debug('[useNoteSubmission] Note creation complete', {
+          noteId: result.note?.id,
+          overrideThreadId: overrideThreadId
+        });
         
         // CRITICAL CHECK: Ensure we have a valid note ID
         if (!result.note) {
@@ -698,24 +635,19 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         if (result.note && result.note.id) {
           // ALWAYS navigate to the note, never to the thread
           let redirectUrl = `/${result.note.id}`;
-          console.log('[useNoteSubmission] Initial redirect URL (note):', redirectUrl);
-          
           // Add toast message if applicable
           if (scriptureToastMessage) {
             redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
-            console.log('[useNoteSubmission] Added scripture toast to URL');
           } else if (overrideThreadId && overrideThreadId !== 'thread_unorganized') {
             // If note was added to a thread, show a success message
             const threadData = threadOptions.find(thread => thread.id === overrideThreadId);
             if (threadData) {
               const toastMessage = `Note added to ${threadData.title}`;
               redirectUrl += `?toast=success&message=${encodeURIComponent(toastMessage)}`;
-              console.log('[useNoteSubmission] Added thread toast to URL');
             }
           }
           
-          console.log('[useNoteSubmission] Final redirect URL:', redirectUrl);
-          console.log('[useNoteSubmission] Current URL before navigation:', window.location.href);
+          debug('[useNoteSubmission] Navigation', { redirectUrl });
           
           // CRITICAL: Remove panel state from localStorage entirely (not just set to 'false')
           // This prevents DesktopPanelManager from reopening the panel on the new page
@@ -723,8 +655,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           localStorage.removeItem('showNewNotePanel');
           localStorage.removeItem('showNewThreadPanel');
           localStorage.removeItem('showNewResourcePanel');
-          console.log('[useNoteSubmission] Cleared panel state from localStorage');
-          
           // Verify removal (for debugging)
           if (localStorage.getItem('showNewNotePanel') === 'true') {
             console.warn('[useNoteSubmission] WARNING: showNewNotePanel still true after removal!');
@@ -735,7 +665,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           setSelectedThread('Unorganized');
           setIsSubmitting(false);
           clearLocalStorage();
-          console.log('[useNoteSubmission] Reset form and cleared localStorage');
           
           // Close panel
           if (onClose) {
@@ -743,14 +672,11 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
           // Dispatch close event to ensure panel manager closes it
           window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
-          console.log('[useNoteSubmission] Dispatched closeNewNotePanel event');
           
           // CRITICAL: Navigation must happen synchronously and immediately
           // Do NOT await anything after this point - navigation should be the last operation
           const absoluteUrl = `${window.location.origin}${redirectUrl}`;
-          console.log('[useNoteSubmission] ===== NAVIGATING NOW =====');
-          console.log('[useNoteSubmission] Absolute URL:', absoluteUrl);
-          console.log('[useNoteSubmission] About to call window.location.replace()');
+          debug('[useNoteSubmission] Navigating', { absoluteUrl });
           
           // Use replace for immediate navigation (no back button)
           // This MUST be the last operation - nothing after this will execute

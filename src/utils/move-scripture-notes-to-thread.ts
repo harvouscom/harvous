@@ -48,7 +48,7 @@ export async function moveScriptureNotesToThread(
         checkError.message?.includes('database is locked')
       ) {
         // Database is locked, skip this operation entirely
-        console.log('Database is locked, skipping scripture note move operation');
+        // Database is locked, skip operation (silent in production)
         return;
       }
       // Other errors, continue normally

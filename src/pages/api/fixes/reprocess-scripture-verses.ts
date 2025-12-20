@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { db, Notes, ScriptureMetadata, eq, and } from 'astro:db';
 import { fetchWithTimeout } from '@/utils/fetch-helpers';
 import { handleAPIError } from '@/utils/error-handling';
+import { debug } from '@/utils/logger';
 
 interface ReprocessResult {
   noteId: string;
@@ -27,7 +28,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const url = new URL(request.url);
     const dryRun = url.searchParams.get('dryRun') === 'true';
 
-    console.log(`🔍 Finding scripture notes for user: ${userId}`);
+    debug('Finding scripture notes for user', { userId: userId?.substring(0, 10) + '...' });
     
     // Find all scripture notes for this user
     const scriptureNotes = await db.select({
@@ -42,7 +43,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ))
       .all();
 
-    console.log(`📚 Found ${scriptureNotes.length} scripture notes`);
+    debug('Found scripture notes', { count: scriptureNotes.length });
 
     const results: ReprocessResult[] = [];
     let processedCount = 0;
@@ -57,7 +58,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .get();
 
       if (!metadata) {
-        console.log(`⚠️  Note ${note.noteId} has no ScriptureMetadata - skipping`);
+        debug('Note has no ScriptureMetadata - skipping', { noteId: note.noteId });
         results.push({
           noteId: note.noteId,
           reference: note.title || 'Unknown',
@@ -81,15 +82,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
         (!originalText.includes('<sup>') && originalText.length < reference.length + 20); // Rough heuristic
 
       if (!needsReprocessing) {
-        console.log(`✅ Note ${note.noteId} (${reference}) already has verse content - skipping`);
+        debug('Note already has verse content - skipping', { noteId: note.noteId, reference });
         skippedCount++;
         continue;
       }
 
-      console.log(`\n🔄 Reprocessing ${reference} (note: ${note.noteId})`);
+      debug('Reprocessing scripture reference', { reference, noteId: note.noteId });
 
       if (dryRun) {
-        console.log(`   [DRY RUN] Would fetch verse for: ${reference}`);
+        debug('[DRY RUN] Would fetch verse', { reference });
         results.push({
           noteId: note.noteId,
           reference,
@@ -138,7 +139,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           })
           .where(eq(ScriptureMetadata.noteId, note.noteId));
 
-        console.log(`   ✅ Successfully updated with verse content (${verseText.length} chars)`);
+        debug('Successfully updated with verse content', { noteId: note.noteId, reference, length: verseText.length });
         
         results.push({
           noteId: note.noteId,

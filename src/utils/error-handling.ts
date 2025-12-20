@@ -53,8 +53,9 @@ export function handleAPIError(
   } else if (typeof error === 'string') {
     errorMessage = error;
   } else if (error && typeof error === 'object' && 'message' in error) {
-    errorMessage = String((error as any).message);
-    errorCode = (error as any).code;
+    const errorObj = error as { message?: unknown; code?: string };
+    errorMessage = String(errorObj.message || 'An unexpected error occurred');
+    errorCode = errorObj.code;
   }
 
   const standardError = createError(errorMessage, errorCode, context);

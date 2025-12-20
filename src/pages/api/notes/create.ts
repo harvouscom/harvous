@@ -9,6 +9,7 @@ import { validateContent, validateNoteType, validateThreadId, validateSpaceId, n
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { getNextUntitledNoteName } from '@/utils/untitled-naming';
 import { extractArticleContent } from '@/utils/content-extractor';
+import { debug } from '@/utils/logger';
 
 // Title character limits
 const TITLE_HARD_LIMIT = 50;  // Maximum allowed
@@ -55,12 +56,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const threadId = formData.get('threadId') as string;
     const noteType = formData.get('noteType') as string;
     
-    // Debug logging to verify threadId is received
-    console.log('[api/notes/create] Received threadId:', threadId);
-    console.log('[api/notes/create] threadId type:', typeof threadId);
-    console.log('[api/notes/create] threadId length:', threadId?.length);
-    console.log('[api/notes/create] threadId === "thread_unorganized":', threadId === 'thread_unorganized');
-    console.log('[api/notes/create] Note type:', noteType);
+    // Debug logging (development only)
+    debug('[api/notes/create] Received request', { threadId, noteType });
     const scriptureReference = formData.get('scriptureReference') as string | null;
     const scriptureVersion = formData.get('scriptureVersion') as string | null;
     const resourceUrl = formData.get('resourceUrl') as string | null;
@@ -267,12 +264,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     
     // If a specific thread was requested (not unorganized), add the note to that thread via junction table
     // Note automatically removed from unorganized when junction entry is created
-    console.log('[api/notes/create] Checking threadId condition - threadId:', threadId, 'type:', typeof threadId, 'truthy:', !!threadId, 'not unorganized:', threadId !== 'thread_unorganized');
-    
     let noteStaysInUnorganized = true; // Track if note will stay in unorganized
     
     if (threadId && threadId.trim() !== '' && threadId !== 'thread_unorganized') {
-      console.log('[api/notes/create] Attempting to add note to thread:', threadId);
+      debug('[api/notes/create] Adding note to thread', { threadId });
       try {
         // Verify the target thread exists and belongs to the user
         const targetThread = await db.select()
@@ -280,13 +275,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
           .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)))
           .get();
         
-        console.log('[api/notes/create] Thread lookup result:', targetThread ? `Found: ${targetThread.title}` : 'Not found');
-        
         if (targetThread) {
-          console.log('[api/notes/create] Target thread found:', targetThread.title, 'id:', targetThread.id);
+          debug('[api/notes/create] Target thread found', { threadId: targetThread.id, title: targetThread.title });
           // Add note to the specific thread via junction table
           const junctionId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          console.log('[api/notes/create] Creating junction entry with id:', junctionId);
           
           await db.insert(NoteThreads).values({
             id: junctionId,
@@ -294,44 +286,40 @@ export const POST: APIRoute = async ({ request, locals }) => {
             threadId: threadId,
             createdAt: new Date()
           });
-          console.log('[api/notes/create] Junction table entry created successfully for note:', newNote.id, 'thread:', threadId);
+          debug('[api/notes/create] Junction table entry created', { noteId: newNote.id, threadId });
           
           // Update the note's threadId field to the target thread
           // This ensures the note is properly associated with the thread in both the junction table AND the note's primary threadId field
           await db.update(Notes)
             .set({ threadId: threadId })
             .where(eq(Notes.id, newNote.id));
-          console.log('[api/notes/create] Note threadId field updated to:', threadId);
+          debug('[api/notes/create] Note threadId field updated', { threadId });
           
           // Update the target thread's timestamp
           await db.update(Threads)
             .set({ updatedAt: new Date() })
             .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
-          console.log('[api/notes/create] Thread timestamp updated');
+          debug('[api/notes/create] Thread timestamp updated');
           
           // Note is being moved to specific thread, so it won't stay in unorganized
           noteStaysInUnorganized = false;
-          console.log('[api/notes/create] Note will be moved to specific thread, skipping unorganized timestamp update');
         } else {
-          console.error('[api/notes/create] Target thread not found or does not belong to user. threadId:', threadId, 'userId:', userId);
+          console.error('[api/notes/create] Target thread not found or does not belong to user', { threadId, userId: userId?.substring(0, 10) + '...' });
           // Try to find any thread with this ID to debug
           const anyThread = await db.select()
             .from(Threads)
             .where(eq(Threads.id, threadId))
             .get();
-          console.error('[api/notes/create] Thread exists in DB:', !!anyThread, 'but userId mismatch:', anyThread?.userId !== userId);
+          console.error('[api/notes/create] Thread exists in DB but userId mismatch', { exists: !!anyThread });
           // Target thread not found, note stays in unorganized
           noteStaysInUnorganized = true;
-          console.log('[api/notes/create] Target thread not found, note will stay in unorganized');
         }
       } catch (error) {
         console.error('[api/notes/create] Error adding note to specific thread:', error);
-        console.error('[api/notes/create] Error details:', error instanceof Error ? error.message : String(error));
-        console.error('[api/notes/create] Error stack:', error instanceof Error ? error.stack : 'No stack');
         // Don't fail the note creation if junction table insertion fails
       }
     } else {
-      console.log('[api/notes/create] Note will be created in unorganized. threadId:', threadId, 'reason: not provided or is unorganized');
+      debug('[api/notes/create] Note will be created in unorganized', { threadId });
       // Note stays in unorganized (no specific thread provided)
       noteStaysInUnorganized = true;
     }
@@ -340,13 +328,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // This prevents the unorganized thread from being updated when a note is created with a suggested thread
     // which would trigger navigation refresh logic that incorrectly counts the note as unorganized
     if (noteStaysInUnorganized) {
-      console.log('[api/notes/create] Updating unorganized thread timestamp - note is staying in unorganized');
+      debug('[api/notes/create] Updating unorganized thread timestamp');
       await db.update(Threads)
         .set({ updatedAt: new Date() })
         .where(and(eq(Threads.id, finalThreadId), eq(Threads.userId, userId)));
-      console.log('[api/notes/create] Unorganized thread timestamp updated');
-    } else {
-      console.log('[api/notes/create] Skipping unorganized thread timestamp update - note is being moved to specific thread');
     }
 
     // NON-CRITICAL OPERATIONS (can fail without affecting note creation)

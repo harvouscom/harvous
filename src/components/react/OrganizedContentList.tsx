@@ -4,6 +4,7 @@ import CardNote from './CardNote';
 import CardThread from './CardThread';
 import CondensedNoteItem from './CondensedNoteItem';
 import { getThreadColorCSS } from '@/utils/colors';
+import { debug } from '@/utils/logger';
 
 interface OrganizedContentItem {
   id: string;
@@ -106,37 +107,26 @@ export default function OrganizedContentList({
 
         const data = await response.json();
         const threadItems = data.items?.filter((i: OrganizedContentItem) => i.type === 'thread') || [];
-        console.log('[OrganizedContentList] Refresh response:', { 
+        debug('[OrganizedContentList] Refresh response', { 
           itemCount: data.items?.length, 
           filter,
-          threadItemsCount: threadItems.length,
-          threadTitles: threadItems.map((i: OrganizedContentItem) => i.title),
-          threadIds: threadItems.map((i: OrganizedContentItem) => i.threadId),
-          retryCount
+          threadItemsCount: threadItems.length
         });
         // Filter out deleted items from refreshed items
         const filteredItems = data.items.filter((item: OrganizedContentItem) => {
           return !deletedItemIdsRef.current.has(item.id);
         });
         
-        console.log('[OrganizedContentList] Filtered items:', {
-          total: filteredItems.length,
-          threads: filteredItems.filter(i => i.type === 'thread').length,
-          threadIds: filteredItems.filter(i => i.type === 'thread').map(i => i.threadId)
-        });
-        
         // Double-check we're still on dashboard and mounted before updating
         if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current) {
           setCurrentItems(filteredItems);
-          console.log('[OrganizedContentList] Updated currentItems with', filteredItems.length, 'items');
-        } else {
-          console.log('[OrganizedContentList] Skipped update - not on dashboard or navigating');
+          debug('[OrganizedContentList] Updated currentItems', { itemCount: filteredItems.length });
         }
       } catch (error) {
         console.error(`[OrganizedContentList] Error refreshing content (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
         // Retry if we haven't exceeded max retries
         if (retryCount < maxRetries && isMountedRef.current && window.location.pathname === '/') {
-          console.log(`[OrganizedContentList] Retrying refresh in 500ms...`);
+          debug('[OrganizedContentList] Retrying refresh');
           setTimeout(() => {
             if (isMountedRef.current && !isNavigatingRef.current) {
               attemptRefresh(retryCount + 1);
@@ -183,12 +173,10 @@ export default function OrganizedContentList({
     }
     // For 'all' filter, no additional filtering needed
     
-    console.log('[OrganizedContentList] Updating currentItems from initialItems:', {
+    debug('[OrganizedContentList] Updating currentItems from initialItems', {
       initialItemsCount: initialItems.length,
       filteredCount: filtered.length,
-      filter,
-      threadCount: filtered.filter(i => i.type === 'thread').length,
-      noteCount: filtered.filter(i => i.type === 'note').length
+      filter
     });
     
     setCurrentItems(filtered);
@@ -256,7 +244,7 @@ export default function OrganizedContentList({
     const handleThreadCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
       const thread = customEvent.detail?.thread;
-      console.log('[OrganizedContentList] threadCreated event received:', thread, 'filter:', filter);
+      debug('[OrganizedContentList] threadCreated event received', { threadId: thread?.id, filter });
       
       if (!thread || !thread.id) {
         console.warn('[OrganizedContentList] threadCreated event missing thread data');
@@ -284,10 +272,10 @@ export default function OrganizedContentList({
           // Check if thread already exists to avoid duplicates
           const exists = prev.some(item => item.threadId === thread.id);
           if (exists) {
-            console.log('[OrganizedContentList] Thread already in list, skipping add');
+            debug('[OrganizedContentList] Thread already in list, skipping add');
             return prev;
           }
-          console.log('[OrganizedContentList] Adding thread to list immediately:', threadItem.title);
+          debug('[OrganizedContentList] Adding thread to list immediately', { title: threadItem.title });
           // Add to beginning of list (newest first)
           return [threadItem, ...prev];
         });
@@ -300,7 +288,7 @@ export default function OrganizedContentList({
       }
       pendingRefreshTimeoutRef.current = setTimeout(() => {
         pendingRefreshTimeoutRef.current = null;
-        console.log('[OrganizedContentList] Refreshing content after threadCreated, filter:', filter);
+        debug('[OrganizedContentList] Refreshing content after threadCreated', { filter });
         // Force refresh by resetting lastRefreshTime to allow immediate refresh
         lastRefreshTimeRef.current = 0;
         checkAndRefresh();

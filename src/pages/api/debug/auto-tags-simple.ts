@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { generateAutoTags } from '@/utils/auto-tag-generator';
+import { debug } from '@/utils/logger';
 
 export const GET: APIRoute = async ({ request, locals }) => {
   // Restrict to development only
@@ -20,21 +21,17 @@ export const GET: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    console.log('Simple auto-tag test endpoint called');
+    debug('Simple auto-tag test endpoint called');
 
     // Test with sample biblical content
     const testContent = "Jesus Christ is our Lord and Savior. Through faith and repentance, we receive salvation and eternal life.";
     const testTitle = "Test Note";
     
-    console.log('Testing auto-tag generation with:', {
-      title: testTitle,
-      content: testContent.substring(0, 50) + '...',
-      userId: userId?.substring(0, 10) + '...'
-    });
+    debug('Testing auto-tag generation', { title: testTitle });
     
     const result = await generateAutoTags(testTitle, testContent, userId, 0.8);
     
-    console.log('Auto-tag test result:', result);
+    debug('Auto-tag test result', { tagCount: result.length });
     
     return new Response(JSON.stringify({
       success: true,

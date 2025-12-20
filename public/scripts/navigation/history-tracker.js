@@ -526,70 +526,7 @@ function initTracking() {
   trackNavigationAccess();
 }
 
-// Debug function to inspect localStorage
-window.debugNavigation = {
-  getHistory: () => {
-    const history = getNavigationHistory();
-    return history;
-  },
-  clearHistory: () => {
-    const storage = getStorage();
-    storage.removeItem('harvous-navigation-history-v2');
-  },
-  inspectStorage: () => {
-    const storage = getStorage();
-    const stored = storage.getItem('harvous-navigation-history-v2');
-    try {
-      const parsed = JSON.parse(stored || '[]');
-      return parsed;
-    } catch (error) {
-      console.error('❌ Error parsing storage:', error);
-      return null;
-    }
-  },
-  checkAllLocalStorage: () => {
-  },
-  testLocalStorage: () => {
-    const testKey = 'test-navigation-key';
-    const testValue = 'test-value-' + Date.now();
-    
-    try {
-      localStorage.setItem(testKey, testValue);
-      const retrieved = localStorage.getItem(testKey);
-      localStorage.removeItem(testKey);
-    } catch (error) {
-      console.error('🧪 localStorage test failed:', error);
-    }
-  },
-  monitorLocalStorage: () => {
-    const originalSetItem = localStorage.setItem;
-    const originalRemoveItem = localStorage.removeItem;
-    const originalClear = localStorage.clear;
-    
-    localStorage.setItem = function(key, value) {
-      if (key === 'harvous-navigation-history-v2') {
-      }
-      return originalSetItem.call(this, key, value);
-    };
-
-    localStorage.removeItem = function(key) {
-      if (key === 'harvous-navigation-history-v2') {
-      }
-      return originalRemoveItem.call(this, key);
-    };
-    
-    localStorage.clear = function() {
-      return originalClear.call(this);
-    };
-    
-  },
-  manualTrack: () => {
-    initTracking();
-  },
-  testTrackCurrentPage: () => {
-    trackNavigationAccess();
-  }
-};
+// Debug functions removed for production
 
 // Make functions globally available
 window.getNavigationHistory = getNavigationHistory;
@@ -627,17 +564,5 @@ document.addEventListener('astro:page-load', () => {
   }, 100);
 });
 
-// Test function to manually trigger navigation tracking
-window.testNavigationTracking = function() {
-  if (typeof trackNavigationAccess === 'function') {
-    trackNavigationAccess();
-  } else {
-    console.error('trackNavigationAccess function not found');
-  }
-};
-
-// Test function to verify script is working
-window.testNavigationScript = function() {
-  return 'Navigation script is working!';
-};
+// Test functions removed for production
 

@@ -73,6 +73,12 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     
+    <!-- Prefetch critical routes for faster navigation -->
+    <link rel="prefetch" href="/" />
+    <link rel="prefetch" href="/new-space" />
+    <link rel="prefetch" href="/find" />
+    <link rel="prefetch" href="/profile" />
+    
     <!-- PostHog Analytics (Official Astro Integration) -->
     <PostHog />
     

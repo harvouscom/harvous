@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 import { db, Tags, NoteTags, eq, and } from 'astro:db';
+import { debug } from '@/utils/logger';
 
 export const GET: APIRoute = async ({ request, locals }) => {
   // Restrict to development only
@@ -21,28 +22,20 @@ export const GET: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    console.log('Auto-tag debug endpoint called:', {
-      userId: userId?.substring(0, 10) + '...',
-      NODE_ENV: process.env.NODE_ENV,
-      isProduction: process.env.NODE_ENV === 'production'
-    });
+    debug('Auto-tag debug endpoint called', { userId: userId?.substring(0, 10) + '...' });
 
     // Test with sample biblical content
     const testContent = "Jesus Christ is our Lord and Savior. Through faith and repentance, we receive salvation and eternal life. The Holy Spirit guides us in prayer and worship.";
     const testTitle = "Test Note for Auto-Tags";
     
-    console.log('Testing auto-tag generation with:', {
-      title: testTitle,
-      content: testContent.substring(0, 50) + '...',
-      userId: userId?.substring(0, 10) + '...'
-    });
+    debug('Testing auto-tag generation', { title: testTitle });
     
     // Test database connectivity
     let dbTest = { connected: false, error: null };
     try {
       const testQuery = await db.select().from(Tags).where(eq(Tags.userId, userId)).limit(1);
       dbTest = { connected: true, error: null };
-      console.log('Database connectivity test passed');
+      debug('Database connectivity test passed');
     } catch (dbError) {
       dbTest = { connected: false, error: dbError instanceof Error ? dbError.message : String(dbError) };
       console.error('Database connectivity test failed:', dbError);
@@ -54,7 +47,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     
     try {
       autoTagResult = await generateAutoTags(testTitle, testContent, userId, 0.8);
-      console.log('Auto-tag generation test passed:', {
+      debug('Auto-tag generation test passed', {
         suggestionsCount: autoTagResult.suggestions.length,
         totalFound: autoTagResult.totalFound,
         highConfidence: autoTagResult.highConfidence

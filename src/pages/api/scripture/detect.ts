@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { detectScripture, getPrimaryReference, parseScriptureReference } from '@/utils/scripture-detector';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -32,9 +33,13 @@ export const POST: APIRoute = async ({ request }) => {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error: any) {
-    console.error('Error detecting scripture:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/scripture/detect',
+      action: 'detect_scripture'
+    });
     return new Response(JSON.stringify({ 
-      error: error.message || 'Error detecting scripture' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Icon from '../Icon';
+import { debug } from '@/utils/logger';
 
 const PersistentNavigation: React.FC = () => {
   const contextValue = useNavigation();
@@ -76,25 +77,11 @@ const PersistentNavigation: React.FC = () => {
 
   const persistentItems = getPersistentItems();
 
-  // CRITICAL: Log that React component is rendering
+  // Debug logging for navigation state (development only)
   useEffect(() => {
-    // Also check localStorage directly
-    let localStorageHistory: any[] = [];
-    try {
-      const stored = localStorage.getItem('harvous-navigation-history-v2');
-      localStorageHistory = stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('[PersistentNavigation] Error reading localStorage:', error);
-    }
-    
-    console.error('[PersistentNavigation] ===== REACT COMPONENT MOUNTED =====', {
-      timestamp: Date.now(),
+    debug('[PersistentNavigation] Component state', {
       navigationHistoryLength: navigationHistory.length,
-      navigationHistoryIds: navigationHistory.map(item => item.id),
       persistentItemsCount: persistentItems.length,
-      persistentItemsIds: persistentItems.map(item => item.id),
-      localStorageHistoryLength: localStorageHistory.length,
-      localStorageHistoryIds: localStorageHistory.map((item: any) => item.id),
       contextValueExists: !!contextValue
     });
   }, [navigationHistory, persistentItems, contextValue]);
@@ -104,14 +91,14 @@ const PersistentNavigation: React.FC = () => {
     return null;
   }
 
-  // Debug: Log all persistent items to see what's in navigation history
+  // Debug: Log persistent items (development only)
   if (typeof window !== 'undefined') {
-    console.log('[PersistentNavigation] Rendering persistent items:', persistentItems.map(item => ({
-      id: item.id,
-      title: item.title,
-      idType: typeof item.id,
-      idValid: item.id && typeof item.id === 'string' && item.id.trim() !== ''
-    })));
+    debug('[PersistentNavigation] Rendering persistent items', {
+      items: persistentItems.map(item => ({
+        id: item.id,
+        title: item.title
+      }))
+    });
   }
 
   return (

@@ -16,11 +16,16 @@ interface Note {
   content: string;
   spaceId: string | null;
   noteType?: 'default' | 'scripture' | 'resource';
-  [key: string]: any;
+  [key: string]: unknown;
+}
+
+interface CurrentSpace {
+  id: string;
+  title?: string;
 }
 
 interface NewThreadPanelProps {
-  currentSpace?: any;
+  currentSpace?: CurrentSpace | null;
   onClose?: () => void;
   onThreadCreated?: () => void;
   // Edit mode props

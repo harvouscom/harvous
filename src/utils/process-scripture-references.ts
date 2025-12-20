@@ -136,7 +136,7 @@ export async function processScriptureReferences(
   const detectedReferences = detectScriptureReferences(plainText);
 
   if (detectedReferences.length === 0) {
-    console.log('No scripture references detected');
+    // No scripture references detected - silent in production
     return {
       results: [],
       updatedContent: note.content

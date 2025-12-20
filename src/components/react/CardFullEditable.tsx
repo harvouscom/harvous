@@ -3,6 +3,7 @@ import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
+import { debug } from '@/utils/logger';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
 
@@ -203,7 +204,7 @@ export default function CardFullEditable({
                 const sourceSelectionPlainText = plainText || localStorage.getItem('newNoteSourceSelectionPlainText');
                 
                 if (sourceSelectionPlainText && sourceSelectionPlainText.trim().length > 0) {
-                  console.log('[CardFullEditable] Position-based mark application failed, trying text matching fallback');
+                  debug('[CardFullEditable] Trying text matching fallback');
                   
                   try {
                     const textPosition = findFirstUnmarkedTextPosition(editor, sourceSelectionPlainText);
@@ -211,7 +212,7 @@ export default function CardFullEditable({
                     if (textPosition) {
                       success = applyNoteLink(textPosition.from, textPosition.to);
                       if (success) {
-                        console.log('[CardFullEditable] Successfully applied noteLink using text matching fallback');
+                        debug('[CardFullEditable] Successfully applied noteLink using text matching');
                       } else {
                         console.warn('[CardFullEditable] Found text position but failed to apply mark:', textPosition);
                       }
@@ -237,7 +238,7 @@ export default function CardFullEditable({
 
         // HTML manipulation approach (for when editor is not available or editor approach failed)
         // This handles the case when the note is in view mode (not editing)
-        console.log('[CardFullEditable] Using HTML manipulation approach (editor not available or editor approach failed)');
+        debug('[CardFullEditable] Using HTML manipulation approach');
         
         const sourceSelectionPlainText = plainText || localStorage.getItem('newNoteSourceSelectionPlainText');
         
@@ -263,7 +264,7 @@ export default function CardFullEditable({
               });
 
               if (response.ok) {
-                console.log('[CardFullEditable] Highlight saved successfully via API');
+                debug('[CardFullEditable] Highlight saved successfully via API');
                 // Mark that we've updated content locally to prevent useEffect from resetting it
                 hasLocalContentUpdate.current = true;
                 // Update local state to reflect the change immediately
@@ -273,7 +274,7 @@ export default function CardFullEditable({
                 setEditContent(updatedContent);
                 
                 // Notify that highlight has been saved (so navigation can proceed)
-                console.log('[CardFullEditable] Dispatching highlightSaved event');
+                debug('[CardFullEditable] Dispatching highlightSaved event');
                 window.dispatchEvent(new CustomEvent('highlightSaved'));
                 
                 // Show success message

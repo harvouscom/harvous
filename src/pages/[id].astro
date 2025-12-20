@@ -17,6 +17,7 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThr
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
+import { debug } from "@/utils/logger";
 
 // Helper function to strip HTML tags and decode entities
 function stripHtml(html: string): string {
@@ -154,7 +155,7 @@ try {
           getThreadNoteTypeCounts(id!, authenticatedUserId)
         ]);
         
-        console.log(`[id].astro] Thread lookup for ${id}:`, threadData ? `Found: ${threadData.title}` : 'Not found in getAllThreadsWithCounts');
+        debug(`[id].astro] Thread lookup`, { id, found: !!threadData, title: threadData?.title });
         
         if (threadData) {
           content = {
@@ -184,7 +185,7 @@ try {
         } else {
           // Fallback: Query thread directly by ID if not found in getAllThreadsWithCounts
           // This can happen for newly created threads that haven't been indexed yet
-          console.log(`[id].astro] Fallback: Querying thread directly by ID: ${id}`);
+          debug(`[id].astro] Fallback: Querying thread directly`, { id });
           
           // Retry logic for newly created threads that might not be committed yet
           let thread = null;
@@ -202,7 +203,7 @@ try {
                 // Small delay before retry (for database commit timing)
                 await new Promise(resolve => setTimeout(resolve, 100));
                 retries++;
-                console.log(`[id].astro] Thread not found, retry ${retries}/${maxRetries}`);
+                debug(`[id].astro] Thread not found, retrying`, { retries, maxRetries });
               } else {
                 break;
               }
@@ -217,7 +218,7 @@ try {
             }
           }
           
-          console.log(`[id].astro] Direct thread query result:`, thread ? `Found: ${thread.title}` : 'Not found after retries');
+          debug(`[id].astro] Direct thread query result`, { found: !!thread, title: thread?.title });
           
           if (thread) {
             // Get actual note count from database using junction table
@@ -231,7 +232,7 @@ try {
               .get();
             
             const noteCount = noteCountResult?.count || 0;
-            console.log(`[id].astro] Thread note count: ${noteCount}`);
+            debug(`[id].astro] Thread note count`, { noteCount });
             
             content = {
               id: thread.id,
@@ -257,7 +258,7 @@ try {
             
             pageTitle = thread.title;
             pageContent = `${noteCount} notes`;
-            console.log(`[id].astro] Successfully set up thread content for: ${thread.title}`);
+            debug(`[id].astro] Successfully set up thread content`, { title: thread.title });
           } else {
             // Thread not found even in direct query - log for debugging
             console.error(`[id].astro] Thread not found in direct query: ${id} for user: ${authenticatedUserId}`);
@@ -980,16 +981,7 @@ if (!content) {
       }
     };
     
-    // CRITICAL: Log what URL we actually loaded
-    console.error('[id].astro] ===== PAGE LOADED =====', {
-      pathname: window.location.pathname,
-      href: window.location.href,
-      expectedThreadId: window.location.pathname.substring(1),
-      sessionStorageNavigatingTo: sessionStorage.getItem('harvous-navigating-to'),
-      sessionStorageTimestamp: sessionStorage.getItem('harvous-navigation-timestamp'),
-      isProfile: window.location.pathname === '/profile',
-      isDashboard: window.location.pathname === '/'
-    });
+    // Debug logging removed for production
     
     // Prefetch dashboard data in background (if on thread/note/space page)
     const currentPath = window.location.pathname;

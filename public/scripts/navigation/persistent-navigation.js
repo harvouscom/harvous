@@ -98,46 +98,7 @@ function loadPersistentNavigation(retryCount) {
     persistentNav.id = 'persistent-navigation';
     persistentNav.className = 'w-full';
     
-    // Debug: Log all persistent items to see what's in navigation history
-    console.log('[persistent-navigation.js] ===== RENDERING PERSISTENT ITEMS =====');
-    console.log(`[persistent-navigation.js] Total items: ${persistentItems.length}`);
-    persistentItems.forEach((item, index) => {
-      // Log with inline values so they're visible even if objects are collapsed
-      console.log(`[persistent-navigation.js] Item ${index + 1}: id="${item.id}", title="${item.title}", idType=${typeof item.id}, idValid=${!!(item.id && typeof item.id === 'string' && item.id.trim() !== '')}, href="/${item.id}"`);
-      console.log(`[persistent-navigation.js] Item ${index + 1} full object:`, {
-        id: item.id,
-        title: item.title,
-        idType: typeof item.id,
-        idValid: item.id && typeof item.id === 'string' && item.id.trim() !== '',
-        firstAccessed: item.firstAccessed,
-        lastAccessed: item.lastAccessed,
-        href: `/${item.id}`
-      });
-    });
-    
-    // Also log the raw history from localStorage for debugging
-    try {
-      const rawHistory = localStorage.getItem('harvous-navigation-history-v2');
-      if (rawHistory) {
-        const parsed = JSON.parse(rawHistory);
-        console.log('[persistent-navigation.js] ===== RAW NAVIGATION HISTORY FROM LOCALSTORAGE =====');
-        console.log(`[persistent-navigation.js] Total history items: ${parsed.length}`);
-        parsed.forEach((item, index) => {
-          // Log with inline values so they're visible even if objects are collapsed
-          console.log(`[persistent-navigation.js] History item ${index + 1}: id="${item.id}", title="${item.title}"`);
-          console.log(`[persistent-navigation.js] History item ${index + 1} full object:`, {
-            id: item.id,
-            title: item.title,
-            firstAccessed: item.firstAccessed,
-            lastAccessed: item.lastAccessed
-          });
-        });
-      } else {
-        console.log('[persistent-navigation.js] No raw history found in localStorage');
-      }
-    } catch (e) {
-      console.error('[persistent-navigation.js] Error reading raw history:', e);
-    }
+    // Debug logging removed for production
     
     // Add each item in chronological order (oldest first)
     persistentItems.forEach((item) => {
@@ -216,13 +177,7 @@ function loadPersistentNavigation(retryCount) {
       link.setAttribute('data-debug-item-id', item.id);
       link.setAttribute('data-debug-href', linkHref);
       
-      // CRITICAL: Log the link creation
-      console.error('[persistent-navigation.js] ===== LINK CREATED =====', {
-        itemId: item.id,
-        linkHref: linkHref,
-        linkElement: link,
-        hrefAttribute: link.getAttribute('href')
-      });
+      // Debug logging removed for production
       
       // Add click handler for direct navigation
       link.addEventListener('click', (e) => {
@@ -781,19 +736,9 @@ document.addEventListener('noteAddedToThread', (event) => {
   }, 100);
 });
 
-// CRITICAL: Global navigation listener to catch ALL navigation attempts
-// This helps debug when navigation goes to unexpected URLs
-window.addEventListener('beforeunload', (e) => {
-  const currentUrl = window.location.href;
-  const currentPath = window.location.pathname;
-  console.error('[persistent-navigation.js] ===== NAVIGATION OCCURRING =====', {
-    timestamp: Date.now(),
-    currentUrl: currentUrl,
-    currentPath: currentPath,
-    pathnameValid: currentPath && !currentPath.includes('undefined') && currentPath !== '/',
-    isProfile: currentPath === '/profile',
-    isInvalid: currentPath.includes('undefined') || currentPath === '/'
-  });
+// Global navigation listener (debug logging removed for production)
+window.addEventListener('beforeunload', () => {
+  // Navigation tracking removed for production
 });
 
 // Also listen for actual navigation events
@@ -802,16 +747,7 @@ document.addEventListener('click', (e) => {
   if (target && (target.tagName === 'A' || target.closest('a'))) {
     const link = target.tagName === 'A' ? target : target.closest('a');
     const href = link?.getAttribute('href') || link?.href;
-    if (href && (href.startsWith('/thread_') || href.startsWith('/space_') || href.startsWith('/note_'))) {
-      console.error('[persistent-navigation.js] ===== GLOBAL CLICK ON NAVIGATION LINK =====', {
-        timestamp: Date.now(),
-        href: href,
-        linkElement: link,
-        dataDebugItemId: link?.getAttribute('data-debug-item-id'),
-        dataDebugHref: link?.getAttribute('data-debug-href'),
-        isValid: href && !href.includes('undefined') && href !== '/'
-      });
-    }
+    // Debug logging removed for production
   }
 }, true); // Use capture phase to catch all clicks
 

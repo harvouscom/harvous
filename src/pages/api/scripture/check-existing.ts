@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, ScriptureMetadata, Notes, NoteThreads, eq, and, count, isNull } from 'astro:db';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -117,9 +118,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error: any) {
-    console.error('Error checking for existing scripture note:', error);
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/scripture/check-existing',
+      action: 'check_existing_scripture'
+    });
     return new Response(JSON.stringify({ 
-      error: error.message || 'Error checking for existing scripture note' 
+      error: standardError.message,
+      code: standardError.code
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

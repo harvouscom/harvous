@@ -4,6 +4,7 @@ import { useNavigation } from './navigation/NavigationContext';
 import { safeFetch } from '@/utils/safe-fetch';
 import { captureException } from '@/utils/posthog';
 import { getThreadGradientCSS } from '@/utils/colors';
+import { debug } from '@/utils/logger';
 
 // Import extracted hooks
 import {
@@ -380,7 +381,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
     // Check if there's a pending threadId from onCreateThread
     const pendingThreadId = (window as any).__pendingThreadId;
     if (pendingThreadId) {
-      console.log('[NewNotePanel] handleFormSubmit - Using pending threadId:', pendingThreadId);
+      debug('[NewNotePanel] Using pending threadId', { pendingThreadId });
       // Clear it so it's only used once
       delete (window as any).__pendingThreadId;
       await submission.handleSubmit(e, pendingThreadId);
@@ -435,12 +436,12 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
           throw new Error('Thread create response missing thread info');
         }
 
-        console.log('[NewNotePanel] Thread created successfully:', created.id, created.title);
+        debug('[NewNotePanel] Thread created successfully', { threadId: created.id, title: created.title });
 
         // Dispatch threadCreated event to refresh dashboard and navigation
         // Add a small delay to ensure database commit before dispatching
         setTimeout(() => {
-          console.log('[NewNotePanel] Dispatching threadCreated event for:', created.id);
+          debug('[NewNotePanel] Dispatching threadCreated event', { threadId: created.id });
           window.dispatchEvent(new CustomEvent('threadCreated', {
             detail: { thread: created }
           }));
@@ -456,7 +457,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
         };
         
         // Verify thread exists in database before proceeding (small delay to ensure commit)
-        console.log('[NewNotePanel] Waiting 100ms to ensure thread is committed to database...');
+        debug('[NewNotePanel] Waiting for thread commit');
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Ensure the new thread is available in the combobox options immediately.
@@ -520,11 +521,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
 
       // Store the threadId so handleFormSubmit can use it (matching onCreateThread pattern)
       (window as any).__pendingThreadId = threadToUse.id;
-      console.log('[NewNotePanel] handleUseSuggestedThread - Stored pending threadId:', threadToUse.id);
-      
-      // Pass threadId directly to avoid state timing issues
-      console.log('[NewNotePanel] handleUseSuggestedThread - threadToUse:', threadToUse);
-      console.log('[NewNotePanel] handleUseSuggestedThread - threadToUse.id:', threadToUse.id);
+      debug('[NewNotePanel] Stored pending threadId', { threadId: threadToUse.id });
       const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent;
       await submission.handleSubmit(syntheticEvent, threadToUse.id);
     } catch (err: any) {
@@ -622,12 +619,12 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
                   throw new Error('Thread create response missing thread info');
                 }
 
-                console.log('[NewNotePanel] onCreateThread - Thread created successfully:', created.id, created.title);
+                debug('[NewNotePanel] Thread created successfully', { threadId: created.id, title: created.title });
 
                 // Dispatch threadCreated event to refresh dashboard and navigation
                 // Add a small delay to ensure database commit before dispatching
                 setTimeout(() => {
-                  console.log('[NewNotePanel] onCreateThread - Dispatching threadCreated event for:', created.id);
+                  debug('[NewNotePanel] Dispatching threadCreated event', { threadId: created.id });
                   window.dispatchEvent(new CustomEvent('threadCreated', {
                     detail: { thread: created }
                   }));
@@ -664,7 +661,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
                 // We'll need to pass it as overrideThreadId when the form is submitted
                 // Store it in a ref or state that handleFormSubmit can access
                 (window as any).__pendingThreadId = created.id;
-                console.log('[NewNotePanel] onCreateThread - Stored pending threadId:', created.id);
+                debug('[NewNotePanel] Stored pending threadId', { threadId: created.id });
               } catch (err: any) {
                 console.error('[NewNotePanel] onCreateThread - Failed to create thread:', err);
                 showToast('Could not create thread. Please try again.', 'error');
