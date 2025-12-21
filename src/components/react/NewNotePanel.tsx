@@ -639,23 +639,26 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
                   color: created.color || null,
                 };
 
-                // Add thread to options
+                // Add thread to options and immediately select it
                 threadSelection.setThreadOptions((prev) => {
                   if (prev.some((t) => t.id === created.id)) return prev;
                   const unorganizedIdx = prev.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
-                  if (unorganizedIdx === -1) return [...prev, threadToUse];
-                  return [...prev.slice(0, unorganizedIdx + 1), threadToUse, ...prev.slice(unorganizedIdx + 1)];
+                  const updated = unorganizedIdx === -1 
+                    ? [...prev, threadToUse]
+                    : [...prev.slice(0, unorganizedIdx + 1), threadToUse, ...prev.slice(unorganizedIdx + 1)];
+                  
+                  // Queue selection after React processes this state update
+                  // Use setTimeout(0) to ensure selection happens after state update is processed
+                  setTimeout(() => {
+                    // handleThreadSelect sets both selectedThread and hasManualSelection flag
+                    threadSelection.handleThreadSelect(threadToUse.title);
+                  }, 0);
+                  
+                  return updated;
                 });
 
-                // Wait a bit to ensure state updates
-                await new Promise((resolve) => setTimeout(resolve, 100));
-
-                // Select the thread
-                threadSelection.handleThreadSelect(threadToUse.title);
+                // Clear suggested thread name
                 setSuggestedThreadName(null);
-
-                // Wait for state to propagate
-                await new Promise((resolve) => setTimeout(resolve, 100));
 
                 // Store the threadId so we can use it when submitting the note
                 // We'll need to pass it as overrideThreadId when the form is submitted

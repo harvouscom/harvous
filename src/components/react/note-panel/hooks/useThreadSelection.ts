@@ -201,6 +201,11 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
   // Handle thread selection when threadOptions are loaded
   // Priority: 1) currentThread, 2) client-side detection, 3) savedThreadId, 4) Unorganized
   useEffect(() => {
+    // Don't override manual selections
+    if (hasManualSelection.current) {
+      return;
+    }
+    
     // Priority 1: Use currentThread prop if available
     if (currentThread && currentThread.id && !hasInitializedFromCurrentThread.current) {
       const matchingThread = threadOptions.find(thread => thread.id === currentThread.id);
