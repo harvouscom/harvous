@@ -173,6 +173,10 @@ function validateAndWarn(ref: ScriptureReference): ScriptureReference {
 
 // Parse scripture reference from text
 const parseReference = (match: string): ScriptureReference | null => {
+  const DEBUG = process.env.NODE_ENV === 'development';
+  if (DEBUG) {
+    console.log('[Scripture Detection] parseReference called with:', match);
+  }
   // Patterns: "John 3:16", "1 Corinthians 13:4-7", "Matthew 26:6-13, 17-30"
   // Match: Book Chapter:VerseGroups where VerseGroups can be "6-13, 17-30" or "6-13" or "6"
   // Updated to handle optional spaces around dashes: "6 - 13" or "6-13"
@@ -194,6 +198,14 @@ const parseReference = (match: string): ScriptureReference | null => {
   for (const pattern of patterns) {
     const matchResult = normalizedMatch.match(pattern);
     if (!matchResult) continue;
+    
+    if (DEBUG) {
+      console.log('[Scripture Detection] Pattern matched:', {
+        pattern: pattern.toString(),
+        matchResult: matchResult,
+        groups: matchResult.slice(1)
+      });
+    }
 
     let bookPart = matchResult[1].trim();
     const chapter = parseInt(matchResult[2]);
@@ -293,15 +305,24 @@ const parseReference = (match: string): ScriptureReference | null => {
             });
           }
           // Fall through to single verse if parsing fails
-        } else if (matchResult.length === 4 && !matchResult[3].includes(',') && !matchResult[3].includes('-')) {
-          // Single verse
+        } else if (matchResult.length === 4 && !matchResult[3].includes(',') && !/[-–—]/.test(matchResult[3])) {
+          // Single verse - check for dash using regex to handle all dash types
           const verse = parseInt(matchResult[3]);
-          return validateAndWarn({
-            book: canonicalBook,
-            chapter,
-            verse,
-            reference: `${canonicalBook} ${chapter}:${verse}`
-          });
+          if (DEBUG) {
+            console.log('[Scripture Detection] Single verse parsed:', {
+              versePart: matchResult[3],
+              parsedVerse: verse,
+              fullMatch: normalizedMatch
+            });
+          }
+          if (!isNaN(verse)) {
+            return validateAndWarn({
+              book: canonicalBook,
+              chapter,
+              verse,
+              reference: `${canonicalBook} ${chapter}:${verse}`
+            });
+          }
         } else if (matchResult.length === 3) {
           // Chapter only
           return validateAndWarn({
@@ -323,6 +344,12 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
   const references: ScriptureReference[] = [];
   // Use variations (including synonyms) for detection, e.g., "Psalm" for "Psalms"
   const bookNames = getBookNameVariations();
+  
+  // Debug logging (can be removed after fixes are verified)
+  const DEBUG = process.env.NODE_ENV === 'development';
+  if (DEBUG) {
+    console.log('[Scripture Detection] Processing text:', text.substring(0, 200));
+  }
 
   // Build regex pattern for all book names
   // Escape special regex characters
@@ -337,8 +364,12 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
   // Captures comma-separated verse groups like "Matthew 26:6-13, 17-30"
   // Use a simpler pattern and validate matches afterward
   // Updated to handle different dash types (hyphen, en-dash, em-dash)
+  // FIXED: Ensure verse numbers are fully captured by using word boundary or end of string
+  // Changed negative lookahead to prevent matching when followed by digit that's part of another reference
+  // This ensures "John 1:14" matches fully, not "John 1:1" from "John 1:14"
+  // Use (?!\\d) to stop at word boundary or non-digit, but allow matching full multi-digit verses
   const referencePattern = new RegExp(
-    `\\b(${escapedBookNames.join('|')})\\s+(\\d+):(\\d+(?:\\s*${dashPattern}\\s*\\d+)?(?:,\\s*\\d+(?:\\s*${dashPattern}\\s*\\d+)?)*)(?!\\d)`,
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+):(\\d+(?:\\s*${dashPattern}\\s*\\d+)?(?:,\\s*\\d+(?:\\s*${dashPattern}\\s*\\d+)?)*)(?=\\s|$|[^\\d\\w])`,
     'gi'
   );
 
@@ -352,8 +383,11 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
   // Must not be followed by a colon or dash to avoid matching partial references
   // Also must not be followed by space+digit (which might indicate a split reference like "Genesis 1 2:1-8")
   // IMPORTANT: Must not match when followed by dash+digit (e.g., "Exodus 33-34" should not match "Exodus 3")
+  // FIXED: Relaxed (?!\\s+\\d) to allow matching at end of line/string and before punctuation
+  // Changed to (?!\\s+\\d\\s) to only prevent matching when followed by space+digit+space (split reference)
+  // This allows "Luke 2" to match even when followed by punctuation or at end of line
   const chapterOnlyPattern = new RegExp(
-    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)(?!:)(?!\\s*${dashPattern}\\s*\\d)(?!\\d)(?!\\s+\\d)`,
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)(?!:)(?!\\s*${dashPattern}\\s*\\d)(?!\\d)(?!\\s+\\d\\s)`,
     'gi'
   );
 
@@ -364,6 +398,15 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
     let fullMatch = match[0];
     const originalMatchEnd = match.index + fullMatch.length;
     let adjustedLastIndex = originalMatchEnd;
+    
+    if (DEBUG) {
+      console.log('[Scripture Detection] Found referencePattern match:', {
+        fullMatch,
+        index: match.index,
+        groups: match.slice(1),
+        textAfter: text.substring(originalMatchEnd, originalMatchEnd + 20)
+      });
+    }
     
     // Check if the match ends with ", number" and what follows forms a book name
     // This indicates we matched too much (e.g., "Hebrews 13:2, 1" when "1 Peter" follows)
@@ -409,6 +452,53 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
     
     const extracted = parseReference(fullMatch);
     if (extracted) {
+      if (DEBUG) {
+        console.log('[Scripture Detection] Parsed reference:', {
+          original: fullMatch,
+          parsed: extracted.reference,
+          book: extracted.book,
+          chapter: extracted.chapter,
+          verse: extracted.verse
+        });
+      }
+      
+      // Validation: Ensure the verse number in the parsed reference matches what was in the original match
+      // This prevents issues where "John 1:14" might be incorrectly parsed as "John 1:1"
+      const versePartInMatch = fullMatch.match(/:\s*(\d+)/);
+      if (versePartInMatch) {
+        const verseInMatch = parseInt(versePartInMatch[1]);
+        if (Array.isArray(extracted.verse)) {
+          // Verse range - check if start verse matches
+          if (extracted.verse[0] !== verseInMatch && extracted.verse[0] < verseInMatch) {
+            if (DEBUG) {
+              console.warn('[Scripture Detection] Verse mismatch detected:', {
+                originalMatch: fullMatch,
+                parsedVerse: extracted.verse[0],
+                matchVerse: verseInMatch
+              });
+            }
+            // Re-parse with the correct verse number from the match
+            const correctedVerse = verseInMatch;
+            extracted.verse = correctedVerse;
+            extracted.reference = `${extracted.book} ${extracted.chapter}:${correctedVerse}`;
+          }
+        } else {
+          // Single verse - check if it matches
+          if (extracted.verse !== verseInMatch && extracted.verse < verseInMatch) {
+            if (DEBUG) {
+              console.warn('[Scripture Detection] Verse mismatch detected:', {
+                originalMatch: fullMatch,
+                parsedVerse: extracted.verse,
+                matchVerse: verseInMatch
+              });
+            }
+            // Correct the verse number
+            extracted.verse = verseInMatch;
+            extracted.reference = `${extracted.book} ${extracted.chapter}:${verseInMatch}`;
+          }
+        }
+      }
+      
       // Preserve the original matched text for display (with spaces intact)
       // Override the cleaned reference with the original to maintain user's formatting
       extracted.reference = fullMatch;
@@ -470,6 +560,15 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
 
   // Finally, find single chapter references (e.g., "Matthew 5")
   while ((match = chapterOnlyPattern.exec(text)) !== null) {
+    if (DEBUG) {
+      console.log('[Scripture Detection] Found chapterOnlyPattern match:', {
+        fullMatch: match[0],
+        index: match.index,
+        bookPart: match[1],
+        chapter: match[2],
+        textAfter: text.substring(match.index + match[0].length, match.index + match[0].length + 20)
+      });
+    }
     const bookPart = match[1].trim();
     const chapter = parseInt(match[2]);
     
@@ -506,6 +605,9 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
     }
   }
 
+  if (DEBUG) {
+    console.log('[Scripture Detection] Final references:', references.map(r => r.reference));
+  }
   return references;
 };
 
