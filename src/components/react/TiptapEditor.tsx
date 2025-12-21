@@ -781,7 +781,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       },
       // NOTE: beforeinput handler removed - using plugin's handleTextInput instead
       // This prevents conflicts between DOM-level and ProseMirror-level handlers
-      handleDOMEvents: {},
+      handleDOMEvents: {
+        // Let ProseMirror handle all DOM events naturally
+        // This ensures cursor placement works correctly on tap
+      },
       transformPastedHTML: (html: string) => {
         // Transform heading levels when pasting:
         // H1 → H2, H2 → H3, H3 → H3, H4+ → H3
@@ -1496,6 +1499,26 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const handleFocus = () => {
       // Check if editor is still valid
       if (!isEditorValid(editor)) return;
+      
+      // Prevent unwanted scroll jumps on mobile by maintaining scroll position
+      // ProseMirror will handle cursor placement naturally at tap location
+      const editorElement = editor.view.dom;
+      const contentContainer = editorElement?.closest('.tiptap-content') as HTMLElement;
+      
+      if (contentContainer) {
+        // Store scroll position to prevent jumps when keyboard opens
+        const scrollTop = contentContainer.scrollTop;
+        
+        // Use requestAnimationFrame to maintain scroll after browser potentially scrolls
+        requestAnimationFrame(() => {
+          if (contentContainer && Math.abs(contentContainer.scrollTop - scrollTop) > 10) {
+            // Only restore if there was a significant jump (>10px)
+            // This prevents interference with intentional scrolling
+            contentContainer.scrollTop = scrollTop;
+          }
+        });
+      }
+      
       setIsEditorFocused(true);
     };
 
@@ -1544,36 +1567,56 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const visualViewport = window.visualViewport;
     if (!visualViewport) return;
     
+    let rafId: number | null = null;
     let delayedUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isUpdating = false;
 
     const updateToolbarPosition = () => {
-      // Calculate the distance from the bottom of the layout viewport to the bottom of the visual viewport
-      // This accounts for both keyboard height AND scroll position
-      const bottomOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
+      // Prevent multiple simultaneous updates
+      if (isUpdating) return;
       
-      // Only apply special positioning if keyboard is likely open (>150px threshold)
-      if (bottomOffset > 150) {
-        setKeyboardHeight(bottomOffset);
-        
-        // Schedule a delayed update to catch the final keyboard height after animation
-        // This fixes the issue where initial tap shows toolbar peeking behind keyboard
-        if (delayedUpdateTimeout) {
-          clearTimeout(delayedUpdateTimeout);
-        }
-        delayedUpdateTimeout = setTimeout(() => {
-          const finalOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
-          if (finalOffset > 150) {
-            setKeyboardHeight(finalOffset);
-          }
-        }, 150);
-      } else {
-        setKeyboardHeight(0);
+      // Use requestAnimationFrame for smoother updates
+      if (rafId) {
+        cancelAnimationFrame(rafId);
       }
+      
+      rafId = requestAnimationFrame(() => {
+        isUpdating = true;
+        
+        // Calculate the distance from the bottom of the layout viewport to the bottom of the visual viewport
+        // This accounts for both keyboard height AND scroll position
+        const bottomOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
+        
+        // Only apply special positioning if keyboard is likely open (>150px threshold)
+        if (bottomOffset > 150) {
+          // Update immediately for responsive positioning
+          setKeyboardHeight(bottomOffset);
+          
+          // Schedule a delayed update to catch the final keyboard height after animation
+          // This fixes the issue where initial tap shows toolbar peeking behind keyboard
+          if (delayedUpdateTimeout) {
+            clearTimeout(delayedUpdateTimeout);
+          }
+          delayedUpdateTimeout = setTimeout(() => {
+            const finalOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
+            if (finalOffset > 150) {
+              setKeyboardHeight(finalOffset);
+            }
+          }, 150);
+        } else {
+          setKeyboardHeight(0);
+        }
+        
+        isUpdating = false;
+      });
     };
 
     // Listen to both resize (keyboard open/close) and scroll (user scrolling with keyboard open)
     visualViewport.addEventListener('resize', updateToolbarPosition);
     visualViewport.addEventListener('scroll', updateToolbarPosition);
+    
+    // Also listen to window resize as fallback
+    window.addEventListener('resize', updateToolbarPosition);
     
     // Initial check
     updateToolbarPosition();
@@ -1581,6 +1624,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return () => {
       visualViewport.removeEventListener('resize', updateToolbarPosition);
       visualViewport.removeEventListener('scroll', updateToolbarPosition);
+      window.removeEventListener('resize', updateToolbarPosition);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
       if (delayedUpdateTimeout) {
         clearTimeout(delayedUpdateTimeout);
       }
@@ -1804,8 +1851,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       <div 
         className="tiptap-content flex-1 min-h-0 overflow-auto"
         style={{ height: 0 }}
-        onClick={() => {
+        onClick={(e) => {
           if (editor) {
+            // Let ProseMirror handle natural cursor placement at click position
+            // The CSS will prevent unwanted scrolling behavior
             editor.commands.focus();
           }
         }}

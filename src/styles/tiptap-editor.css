@@ -216,3 +216,19 @@
   background-color: rgba(255, 235, 59, 0.5) !important;
 }
 
+/* Prevent unwanted scrolling behavior on mobile */
+.tiptap-content {
+  scroll-behavior: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.tiptap-content .ProseMirror {
+  scroll-behavior: auto !important;
+}
+
+/* Prevent auto-scroll on focus for mobile cursor positioning */
+.tiptap-content .ProseMirror:focus {
+  scroll-margin: 0 !important;
+  scroll-padding: 0 !important;
+}
+
