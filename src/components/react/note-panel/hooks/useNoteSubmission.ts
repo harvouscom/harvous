@@ -649,9 +649,39 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           
           debug('[useNoteSubmission] Navigation', { redirectUrl });
           
+          // OPTIMIZATION: Prefetch the destination page before navigating
+          // This improves perceived performance, especially on slow connections
+          // Keep "Creating..." state visible during prefetch
+          const absoluteUrl = `${window.location.origin}${redirectUrl}`;
+          debug('[useNoteSubmission] Prefetching destination', { absoluteUrl });
+          
+          try {
+            // Prefetch the page with a timeout (max 500ms wait)
+            // This warms up the connection and starts loading resources
+            const prefetchPromise = fetch(absoluteUrl, {
+              method: 'HEAD',
+              credentials: 'include',
+              cache: 'no-cache'
+            });
+            
+            // Wait for prefetch with timeout
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Prefetch timeout')), 500)
+            );
+            
+            // Race between prefetch and timeout
+            await Promise.race([prefetchPromise, timeoutPromise]).catch(() => {
+              // Timeout is acceptable - we'll navigate anyway
+              debug('[useNoteSubmission] Prefetch timeout or error - proceeding with navigation');
+            });
+          } catch (prefetchError) {
+            // Prefetch failed - that's okay, we'll navigate anyway
+            debug('[useNoteSubmission] Prefetch failed - proceeding with navigation', prefetchError);
+          }
+          
           // CRITICAL: Remove panel state from localStorage entirely (not just set to 'false')
           // This prevents DesktopPanelManager from reopening the panel on the new page
-          // Do this FIRST before any other operations
+          // Do this AFTER prefetch but BEFORE navigation
           localStorage.removeItem('showNewNotePanel');
           localStorage.removeItem('showNewThreadPanel');
           localStorage.removeItem('showNewResourcePanel');
@@ -663,7 +693,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // Reset form and clear localStorage
           resetForm();
           setSelectedThread('Unorganized');
-          setIsSubmitting(false);
+          // Keep isSubmitting true until navigation starts (maintains "Creating..." state)
           clearLocalStorage();
           
           // Close panel
@@ -673,13 +703,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // Dispatch close event to ensure panel manager closes it
           window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
           
-          // CRITICAL: Navigation must happen synchronously and immediately
-          // Do NOT await anything after this point - navigation should be the last operation
-          const absoluteUrl = `${window.location.origin}${redirectUrl}`;
           debug('[useNoteSubmission] Navigating', { absoluteUrl });
           
           // Use replace for immediate navigation (no back button)
-          // This MUST be the last operation - nothing after this will execute
+          // isSubmitting will remain true until navigation completes (panel closes on navigation)
           window.location.replace(absoluteUrl);
           
           // This should never execute, but log it if it does
@@ -798,6 +825,34 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           let redirectUrl = `/${result.note.id}`;
           if (scriptureToastMessage) {
             redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
+          }
+          
+          // OPTIMIZATION: Prefetch the destination page before navigating
+          // This improves perceived performance, especially on slow connections
+          const absoluteUrl = `${window.location.origin}${redirectUrl}`;
+          debug('[useNoteSubmission] Prefetching destination (save and close)', { absoluteUrl });
+          
+          try {
+            // Prefetch the page with a timeout (max 500ms wait)
+            const prefetchPromise = fetch(absoluteUrl, {
+              method: 'HEAD',
+              credentials: 'include',
+              cache: 'no-cache'
+            });
+            
+            // Wait for prefetch with timeout
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Prefetch timeout')), 500)
+            );
+            
+            // Race between prefetch and timeout
+            await Promise.race([prefetchPromise, timeoutPromise]).catch(() => {
+              // Timeout is acceptable - we'll navigate anyway
+              debug('[useNoteSubmission] Prefetch timeout or error (save and close) - proceeding with navigation');
+            });
+          } catch (prefetchError) {
+            // Prefetch failed - that's okay, we'll navigate anyway
+            debug('[useNoteSubmission] Prefetch failed (save and close) - proceeding with navigation', prefetchError);
           }
           
           // CRITICAL: Remove panel state from localStorage entirely (not just set to 'false')

@@ -178,13 +178,20 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     const pendingTimeoutRef = { current: null as NodeJS.Timeout | null };
     const DEBOUNCE_WINDOW_MS = 2000; // 2 seconds minimum between refreshes
 
-    const refreshActiveThreadCount = async () => {
+    const refreshActiveThreadCount = async (skipDebounce: boolean = false) => {
       // Debounce: Check if enough time has passed since last refresh
-      const now = Date.now();
-      const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
-      if (timeSinceLastRefresh < DEBOUNCE_WINDOW_MS) {
-        // Too soon since last refresh, skip this one
-        return;
+      // Skip debounce for note creation events (they're infrequent and important)
+      if (!skipDebounce) {
+        const now = Date.now();
+        const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
+        if (timeSinceLastRefresh < DEBOUNCE_WINDOW_MS) {
+          // Too soon since last refresh, skip this one
+          return;
+        }
+        lastRefreshTimeRef.current = now;
+      } else {
+        // Update last refresh time even when skipping debounce
+        lastRefreshTimeRef.current = Date.now();
       }
 
       // Check if auth is ready before making API call
@@ -192,8 +199,6 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         // Auth not ready yet, skip silently
         return;
       }
-
-      lastRefreshTimeRef.current = now;
 
       try {
         // Fetch current thread data from API
@@ -230,20 +235,31 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       }
     };
 
-    const scheduleRefresh = () => {
+    const scheduleRefresh = (skipDebounce: boolean = false) => {
       // Clear any pending timeout first
       if (pendingTimeoutRef.current) {
         clearTimeout(pendingTimeoutRef.current);
       }
-      // Schedule refresh with delay
+      // Schedule refresh with minimal delay (100ms for note creation, 300ms for others)
+      const delay = skipDebounce ? 100 : 300;
       pendingTimeoutRef.current = setTimeout(() => {
         pendingTimeoutRef.current = null;
-        refreshActiveThreadCount();
-      }, 300);
+        refreshActiveThreadCount(skipDebounce);
+      }, delay);
     };
 
-    const handleNoteCreated = () => {
-      scheduleRefresh();
+    const handleNoteCreated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      // Extract actualThreadId from event detail (from junction table), fallback to legacy threadId
+      const actualThreadId = customEvent.detail?.actualThreadId || customEvent.detail?.note?.threadId;
+      
+      // Only refresh if the note was created in the active thread
+      if (actualThreadId === activeThread.id) {
+        // Refresh immediately with minimal delay, bypassing debounce
+        // Note is already in database when event fires, so minimal delay is sufficient
+        scheduleRefresh(true);
+      }
+      // If note was created in a different thread, skip refresh
     };
 
     const handleNoteDeleted = () => {
@@ -265,14 +281,14 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
 
     // Register event listeners
-    window.addEventListener('noteCreated', handleNoteCreated);
+    window.addEventListener('noteCreated', handleNoteCreated as EventListener);
     window.addEventListener('noteDeleted', handleNoteDeleted);
     window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
     window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
 
     // Cleanup
     return () => {
-      window.removeEventListener('noteCreated', handleNoteCreated);
+      window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
       window.removeEventListener('noteDeleted', handleNoteDeleted);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);

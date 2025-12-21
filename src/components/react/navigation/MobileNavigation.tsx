@@ -166,8 +166,18 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       }
     };
 
-    const handleNoteCreated = () => {
-      setTimeout(() => refreshCurrentThreadCount(), 300);
+    const handleNoteCreated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      // Extract actualThreadId from event detail (from junction table), fallback to legacy threadId
+      const actualThreadId = customEvent.detail?.actualThreadId || customEvent.detail?.note?.threadId;
+      
+      // Only refresh if the note was created in the current thread
+      if (actualThreadId === currentThread.id) {
+        // Refresh immediately with minimal delay (100ms) for database consistency
+        // Note is already in database when event fires, so minimal delay is sufficient
+        setTimeout(() => refreshCurrentThreadCount(), 100);
+      }
+      // If note was created in a different thread, skip refresh
     };
 
     const handleNoteDeleted = () => {
@@ -189,14 +199,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     };
 
     // Register event listeners
-    window.addEventListener('noteCreated', handleNoteCreated);
+    window.addEventListener('noteCreated', handleNoteCreated as EventListener);
     window.addEventListener('noteDeleted', handleNoteDeleted);
     window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
     window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
 
     // Cleanup
     return () => {
-      window.removeEventListener('noteCreated', handleNoteCreated);
+      window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
       window.removeEventListener('noteDeleted', handleNoteDeleted);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);

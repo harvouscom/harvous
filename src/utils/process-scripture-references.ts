@@ -146,6 +146,34 @@ export async function processScriptureReferences(
   const results: ProcessingResult[] = [];
   const referenceMap: Map<string, string> = new Map(); // reference -> noteId
 
+  // OPTIMIZATION: Batch fetch all user scripture notes once at the start
+  // This prevents N+1 query problem when processing multiple references
+  // Create a normalized lookup map for efficient reference matching
+  const normalizedScriptureMap = new Map<string, { noteId: string; reference: string }>();
+  
+  // Fetch all user scripture notes once (before the loop)
+  const allUserScripture = await db.select({
+    noteId: ScriptureMetadata.noteId,
+    reference: ScriptureMetadata.reference
+  })
+    .from(ScriptureMetadata)
+    .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+    .where(eq(Notes.userId, userId))
+    .all();
+
+  // Build normalized lookup map: normalizedReference -> { noteId, reference }
+  for (const scripture of allUserScripture) {
+    const normalizedStored = normalizeScriptureReference(scripture.reference);
+    // Store both the normalized reference and the original reference
+    // This allows us to match by normalized reference but preserve original format
+    if (!normalizedScriptureMap.has(normalizedStored)) {
+      normalizedScriptureMap.set(normalizedStored, {
+        noteId: scripture.noteId,
+        reference: scripture.reference
+      });
+    }
+  }
+
   // Process each detected reference
   for (const detectedRef of detectedReferences) {
     const reference = detectedRef.reference;
@@ -161,8 +189,8 @@ export async function processScriptureReferences(
     }
     
     try {
-      // Check if scripture note exists (direct database query)
-      // Try exact match first with normalized reference
+      // Check if scripture note exists
+      // First try exact match with normalized reference (direct database query for exact match)
       let existingScripture = await db.select({
         noteId: ScriptureMetadata.noteId,
         reference: ScriptureMetadata.reference
@@ -178,25 +206,15 @@ export async function processScriptureReferences(
         .limit(1)
         .get();
 
-      // If no exact match, try to find by normalizing stored references
+      // If no exact match, use the pre-built normalized map instead of querying database again
       // This handles legacy references that might not be normalized
       if (!existingScripture) {
-        const allUserScripture = await db.select({
-          noteId: ScriptureMetadata.noteId,
-          reference: ScriptureMetadata.reference
-        })
-          .from(ScriptureMetadata)
-          .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
-          .where(eq(Notes.userId, userId))
-          .all();
-
-        // Find matching reference by normalizing each stored reference
-        for (const scripture of allUserScripture) {
-          const normalizedStored = normalizeScriptureReference(scripture.reference);
-          if (normalizedStored === normalizedReference) {
-            existingScripture = scripture;
-            break;
-          }
+        const matchedScripture = normalizedScriptureMap.get(normalizedReference);
+        if (matchedScripture) {
+          existingScripture = {
+            noteId: matchedScripture.noteId,
+            reference: matchedScripture.reference
+          };
         }
       }
 
