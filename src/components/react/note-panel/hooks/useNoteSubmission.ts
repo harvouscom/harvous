@@ -33,6 +33,12 @@ export interface UseNoteSubmissionOptions {
   clearLocalStorage: () => void;
   loadNextNoteId: () => Promise<void>;
   setSelectedThread: (thread: string) => void;
+  
+  // State setters for scripture detection on submit
+  setNoteType: (type: NoteType) => void;
+  setScriptureReference: (ref: string) => void;
+  setScriptureVersion: (version: string) => void;
+  setContent: (content: string) => void;
 }
 
 export interface UseNoteSubmissionReturn {
@@ -66,6 +72,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     clearLocalStorage,
     loadNextNoteId,
     setSelectedThread,
+    setNoteType,
+    setScriptureReference,
+    setScriptureVersion,
+    setContent,
   } = options;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -216,15 +226,73 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       trimmedContent !== '<p><br></p>' &&
       trimmedContent !== '<br>';
     
-    // Type-specific validation
+    // Scripture detection on submit (if noteType is still default and title looks like scripture)
+    // This handles cases where user submits before the auto-detection debounce completes
+    let currentNoteType = noteType;
+    let currentScriptureReference = scriptureReference;
+    let currentScriptureVersion = scriptureVersion;
+    let currentContent = editorContent;
+    
+    if (currentNoteType === 'default' && trimmedTitle.length >= 5) {
+      try {
+        const detectionResponse = await fetch('/api/scripture/detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: trimmedTitle }),
+          credentials: 'include'
+        });
+
+        if (detectionResponse.ok) {
+          const detection = await detectionResponse.json();
+          
+          if (detection.isScripture && detection.confidence >= 0.7 && detection.primaryReference) {
+            // Fetch verse text
+            try {
+              const verseResponse = await fetch('/api/scripture/fetch-verse', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference: detection.primaryReference }),
+                credentials: 'include'
+              });
+
+              if (verseResponse.ok) {
+                const verseData = await verseResponse.json();
+                
+                // Update state via setters
+                setNoteType('scripture');
+                setScriptureReference(detection.primaryReference);
+                setScriptureVersion('NET');
+                
+                // Set verse text as content only if content is empty or very short
+                if (!currentContent || currentContent.trim().length < 10 || currentContent === '<p></p>' || currentContent === '<p><br></p>') {
+                  setContent(verseData.text);
+                  currentContent = verseData.text;
+                }
+                
+                // Update local variables for use in rest of function
+                currentNoteType = 'scripture';
+                currentScriptureReference = detection.primaryReference;
+                currentScriptureVersion = 'NET';
+              }
+            } catch {
+              // Silently fail - proceed with default note type
+            }
+          }
+        }
+      } catch {
+        // Silently fail - proceed with default note type
+      }
+    }
+    
+    // Type-specific validation (use currentNoteType which may have been updated by detection)
     let normalizedResourceUrl = '';
-    if (noteType === 'default') {
+    if (currentNoteType === 'default') {
       if (!trimmedTitle && !hasContent) {
         showToast('Please add a title or content to your note', 'warning');
         return;
       }
-    } else if (noteType === 'scripture') {
-      const apiReference = formatReferenceForAPI(trimmedScriptureRef);
+    } else if (currentNoteType === 'scripture') {
+      const apiReference = formatReferenceForAPI(currentScriptureReference.trim());
       if (!apiReference.trim()) {
         showToast('Please add a scripture reference (e.g., John 3:16)', 'warning');
         return;
@@ -233,7 +301,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         showToast('Please add your thoughts about this scripture', 'warning');
         return;
       }
-    } else if (noteType === 'resource') {
+    } else if (currentNoteType === 'resource') {
       if (!trimmedResourceUrl) {
         showToast('Please add a resource URL', 'warning');
         return;
@@ -255,16 +323,16 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     try {
       const formData = new FormData();
       
-      // Set title based on note type
-      if (noteType === 'default') {
+      // Set title based on note type (use currentNoteType which may have been updated by detection)
+      if (currentNoteType === 'default') {
         formData.set('title', title);
-      } else if (noteType === 'scripture') {
-        formData.set('title', scriptureReference);
-      } else if (noteType === 'resource') {
+      } else if (currentNoteType === 'scripture') {
+        formData.set('title', currentScriptureReference);
+      } else if (currentNoteType === 'resource') {
         formData.set('title', normalizedResourceUrl);
       }
       
-      formData.set('content', editorContent);
+      formData.set('content', currentContent);
       // Allow threadId override (useful when state hasn't updated yet)
       const threadIdToUse = overrideThreadId || getSelectedThread().id;
       
@@ -279,17 +347,17 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       // Verify it was set correctly
       const verifyThreadId = formData.get('threadId');
       debug('[useNoteSubmission] Verified threadId in formData', { verifyThreadId });
-      formData.set('noteType', noteType);
+      formData.set('noteType', currentNoteType);
       
       if (addToSpace && currentSpace && currentSpace.id) {
         formData.set('spaceId', currentSpace.id);
       }
       
-      if (noteType === 'scripture') {
-        const apiReference = formatReferenceForAPI(scriptureReference);
+      if (currentNoteType === 'scripture') {
+        const apiReference = formatReferenceForAPI(currentScriptureReference);
         formData.set('scriptureReference', apiReference);
-        formData.set('scriptureVersion', scriptureVersion);
-      } else if (noteType === 'resource') {
+        formData.set('scriptureVersion', currentScriptureVersion);
+      } else if (currentNoteType === 'resource') {
         formData.set('resourceUrl', normalizedResourceUrl);
         // Pass pre-fetched metadata to avoid re-fetching on the server
         if (resourceMetadata) {
@@ -745,7 +813,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     isSubmitting, content, title, scriptureReference, resourceUrl, noteType,
     scriptureVersion, addToSpace, currentSpace, getSelectedThread, threadOptions,
     addToNavigationHistory, sourceNoteId, resetForm, setSelectedThread, clearLocalStorage,
-    loadNextNoteId, onClose, onSuccess, showToast, updateNavigationHistory
+    loadNextNoteId, onClose, onSuccess, showToast, updateNavigationHistory,
+    setNoteType, setScriptureReference, setScriptureVersion, setContent
   ]);
 
   // Handle save and close from dialog

@@ -754,7 +754,7 @@ export default function NoteDetailsPanel({
                         textAlign: 'left'
                       }}
                     >
-                      Scripture quoted by permission. Quotations designated{' '}
+                      Quotations designated{' '}
                       <a 
                         href="https://netbible.org" 
                         target="_blank" 

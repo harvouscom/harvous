@@ -117,6 +117,10 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
     clearLocalStorage: form.clearLocalStorage,
     loadNextNoteId,
     setSelectedThread: threadSelection.setSelectedThread,
+    setNoteType: form.setNoteType,
+    setScriptureReference: form.setScriptureReference,
+    setScriptureVersion: form.setScriptureVersion,
+    setContent: form.setContent,
   });
 
   // Handle editor ready callback - focus the editor when it's initialized
