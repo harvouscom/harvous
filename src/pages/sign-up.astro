@@ -7,20 +7,8 @@ import SquareButton from "@/components/SquareButton.astro";
 <EmptyLayout title="Sign Up">
   <div id="sign-up-content" class="auth-page auth-page__hidden">
     <div class="auth-page__container">
-      <!-- Top Row (Mobile) / Left Column (Desktop): Video Background -->
+      <!-- Top Row (Mobile) / Left Column (Desktop): Animated Gradient Background -->
       <div class="auth-page__video-section thread-colors-mesh-gradient">
-        <!-- Video background -->
-        <video 
-          autoplay 
-          loop 
-          muted 
-          playsinline
-          class="auth-page__video"
-          aria-hidden="true"
-        >
-          <source src="/videos/harvous-wheat-art.mp4" type="video/mp4" />
-        </video>
-        
         <div class="auth-page__video-overlay">
           <!-- Back to home link using SquareButton Back variant -->
           <a href="https://harvous.com" class="auth-page__back-link">
@@ -186,10 +174,32 @@ import SquareButton from "@/components/SquareButton.astro";
     gap: 12px !important;
   }
 
-  /* Video background container */
+  /* Animated gradient background container */
   .thread-colors-mesh-gradient {
     position: relative;
     overflow: hidden;
+    background: linear-gradient(
+      135deg,
+      var(--color-blue) 0%,
+      var(--color-yellow) 25%,
+      var(--color-green) 50%,
+      var(--color-pink) 75%,
+      var(--color-orange) 100%
+    );
+    background-size: 400% 400%;
+    animation: gradient-shift 15s ease infinite;
+  }
+
+  @keyframes gradient-shift {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
   }
 
   /* Ensure SquareButton Back variant has proper shadow styling */
