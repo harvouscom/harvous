@@ -231,13 +231,13 @@ export default function NoteDetailsPanel({
           setLocalTags(data.tags || []);
           
           // Get remaining thread IDs from the updated data
-          remainingThreadIds = (data.threads || []).map((t: any) => t.id);
+          remainingThreadIds = (data.threads || []).map((t: Thread) => t.id);
         } else {
           // Fallback: update state from current localThreads, preserving current tab
           await fetchNoteDetails(true);
           remainingThreadIds = localThreads
-            .filter(t => t.id !== threadId)
-            .map(t => t.id);
+            .filter((t: Thread) => t.id !== threadId)
+            .map((t: Thread) => t.id);
         }
         
         // Dispatch note removed from thread event with remaining threads
@@ -305,13 +305,13 @@ export default function NoteDetailsPanel({
           setLocalTags(data.tags || []);
           
           // Get remaining thread IDs from the updated data
-          remainingThreadIds = (data.threads || []).map((t: any) => t.id);
+          remainingThreadIds = (data.threads || []).map((t: Thread) => t.id);
         } else {
           // Fallback: update state from current localThreads, preserving current tab
           await fetchNoteDetails(true);
           remainingThreadIds = localThreads
-            .filter(t => t.id !== threadToRemove)
-            .map(t => t.id);
+            .filter((t: Thread) => t.id !== threadToRemove)
+            .map((t: Thread) => t.id);
         }
         
         // Dispatch note removed from thread event with remaining threads
@@ -323,7 +323,7 @@ export default function NoteDetailsPanel({
         
         // If the note is not in this thread, just remove it from UI
         if (error.error === 'Note is not in this thread') {
-          setLocalThreads(prev => prev.filter(t => t.id !== threadToRemove));
+          setLocalThreads((prev: Thread[]) => prev.filter((t: Thread) => t.id !== threadToRemove));
           window.dispatchEvent(new CustomEvent('toast', {
             detail: {
               message: 'Note moved to Unorganized thread',
@@ -431,16 +431,14 @@ export default function NoteDetailsPanel({
             </p>
             <div className="modal-footer">
               <ButtonSmall
-                type="button"
-                onClick={handleCancelRemove}
+                {...({ onClick: handleCancelRemove } as any)}
                 state="Secondary"
                 disabled={isMovingThread}
               >
                 Cancel
               </ButtonSmall>
               <ButtonSmall
-                type="button"
-                onClick={handleConfirmRemove}
+                {...({ onClick: handleConfirmRemove } as any)}
                 state="Delete"
                 disabled={isMovingThread}
               >
@@ -609,7 +607,7 @@ export default function NoteDetailsPanel({
                         <div className="panel__empty-state">No threads found for this note.</div>
                       ) : (
                         <div className="panel__item-list">
-                          {localThreads.map(thread => (
+                          {localThreads.map((thread: Thread) => (
                             <div key={thread.id} className="panel__item-list-item">
                               <a 
                                 href={`/${thread.id}`}
@@ -621,11 +619,11 @@ export default function NoteDetailsPanel({
                               {/* Remove from thread button */}
                               <ActionButton
                                 variant="Remove"
-                                onClick={(e) => {
+                                {...({ onClick: (e: any) => {
                                   e.preventDefault();
                                   e.stopPropagation();
                                   handleRemoveFromThread(thread.id);
-                                }}
+                                } } as any)}
                                 className="panel__item-list-item-actions"
                                 disabled={isMovingThread}
                               />
@@ -638,7 +636,7 @@ export default function NoteDetailsPanel({
                     {/* Add to Thread Section - fills remaining space */}
                     <div className="tab-content__section--expand">
                       <AddToSection
-                        allItems={localAllUserThreads.filter(thread => thread.id !== 'thread_unorganized')}
+                        allItems={localAllUserThreads.filter((thread: Thread) => thread.id !== 'thread_unorganized')}
                         currentItems={localThreads}
                         onItemSelect={handleAddToThread}
                         isLoading={isMovingThread}
@@ -660,7 +658,7 @@ export default function NoteDetailsPanel({
                           </div>
                         ) : (
                           <div className="tag-list">
-                            {localTags.map(tag => (
+                            {localTags.map((tag: Tag) => (
                               <div key={tag.id} className="content-item tag-item">
                                 <div className="relative nav-item-container">
                                   <div className="btn btn--tag group w-auto">
@@ -673,7 +671,7 @@ export default function NoteDetailsPanel({
                                   </div>
                                   {/* Close icon - absolutely positioned, matches RecentSearches pattern */}
                                   <div
-                                    onClick={(e: React.MouseEvent) => {
+                                    onClick={(e: any) => {
                                       e.stopPropagation();
                                       e.preventDefault();
                                       removeTagFromNote(tag.id);
@@ -710,7 +708,7 @@ export default function NoteDetailsPanel({
                           </div>
                         ) : (
                           <div className="panel__item-list">
-                            {localReferencingNotes.map(refNote => (
+                            {localReferencingNotes.map((refNote: ReferencingNote) => (
                               <a
                                 key={refNote.id}
                                 href={`/${refNote.id}`}
