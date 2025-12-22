@@ -43,7 +43,8 @@ import SquareButton from "@/components/SquareButton.astro";
                   className: "clerk-form-card",
                   style: {
                     border: "none",
-                    borderWidth: "0"
+                    borderWidth: "0",
+                    overflowX: "hidden"
                   }
                 },
                 headerTitle: "clerk-form-header-title",
@@ -54,6 +55,17 @@ import SquareButton from "@/components/SquareButton.astro";
                 formFieldLabel: "hidden",
                 formFieldError: {
                   className: "clerk-form-error"
+                },
+                formFieldAlert: {
+                  className: "clerk-form-alert",
+                  style: {
+                    maxWidth: "100%",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    overflowWrap: "break-word",
+                    wordWrap: "break-word",
+                    whiteSpace: "normal"
+                  }
                 },
                 footerActionLink: "clerk-form-link",
                 dividerLine: "clerk-form-divider-line",
@@ -267,13 +279,56 @@ import SquareButton from "@/components/SquareButton.astro";
     min-height: 100svh;
   }
 
-  /* Ensure verification text wraps properly */
+  /* Card-level overflow protection for Clerk form elements */
+  :global(.clerk-form-card),
   :global(.cl-formCard),
-  :global(.cl-card),
-  :global([class*="cl-verification"]),
-  :global([class*="cl-verification"] *),
+  :global(.cl-card) {
+    overflow-x: hidden !important;
+  }
+
+  /* Ensure all Clerk form card children respect container width */
+  :global(.clerk-form-card *),
+  :global(.cl-formCard *),
+  :global(.cl-card *) {
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+  }
+
+  /* Comprehensive Clerk alert/verification container constraints */
   :global([class*="cl-alert"]),
+  :global([class*="cl-banner"]),
+  :global([class*="cl-toast"]),
+  :global([class*="cl-verification"]),
+  :global([class*="cl-formFieldAlert"]),
+  :global([class*="cl-formFieldWarning"]),
+  :global([class*="cl-formFieldInfo"]),
+  :global([class*="cl-formFieldSuccess"]) {
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+    overflow-wrap: break-word !important;
+    word-wrap: break-word !important;
+    white-space: normal !important;
+  }
+
+  /* Target all nested elements within alert containers */
   :global([class*="cl-alert"] *),
+  :global([class*="cl-banner"] *),
+  :global([class*="cl-toast"] *),
+  :global([class*="cl-verification"] *),
+  :global([class*="cl-formFieldAlert"] *),
+  :global([class*="cl-formFieldWarning"] *),
+  :global([class*="cl-formFieldInfo"] *),
+  :global([class*="cl-formFieldSuccess"] *) {
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+    overflow-wrap: break-word !important;
+    word-wrap: break-word !important;
+    white-space: normal !important;
+  }
+
+  /* Ensure verification text wraps properly */
   :global([class*="cl-formFieldDescription"]),
   :global([class*="cl-formFieldDescription"] *),
   :global([class*="cl-formFieldInfoText"]),
@@ -288,15 +343,60 @@ import SquareButton from "@/components/SquareButton.astro";
     white-space: normal !important;
   }
 
-  /* Specific targeting for orange verification text */
+  /* Specific targeting for orange verification text and containers */
   :global([class*="verification"]),
   :global([class*="verification"] *),
   :global([style*="orange"]),
-  :global([style*="orange"] *) {
+  :global([style*="orange"] *),
+  :global([style*="color: orange"]),
+  :global([style*="color: orange"] *),
+  :global([style*="color:rgb(255"]),
+  :global([style*="color:rgb(255"] *) {
+    box-sizing: border-box !important;
     word-wrap: break-word !important;
     overflow-wrap: break-word !important;
     max-width: 100% !important;
+    width: 100% !important;
     white-space: normal !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Target any element with text content that might overflow */
+  :global(.clerk-form-card > *),
+  :global(.cl-formCard > *),
+  :global(.cl-card > *) {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Aggressive targeting for any alert-like elements */
+  :global([role="alert"]),
+  :global([role="alert"] *),
+  :global([data-clerk-element*="alert"]),
+  :global([data-clerk-element*="alert"] *),
+  :global([data-clerk-element*="warning"]),
+  :global([data-clerk-element*="warning"] *),
+  :global([data-clerk-element*="verification"]),
+  :global([data-clerk-element*="verification"] *) {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-wrap: break-word !important;
+    word-wrap: break-word !important;
+    white-space: normal !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Clerk form alert class */
+  .clerk-form-alert,
+  .clerk-form-alert * {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-wrap: break-word !important;
+    word-wrap: break-word !important;
+    white-space: normal !important;
+    overflow-x: hidden !important;
   }
 
 </style>
