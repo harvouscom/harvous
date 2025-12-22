@@ -569,3 +569,35 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
   padding-left: 1rem;  /* 16px / px-4 */
   padding-right: 1rem;
 }
+
+/* Ensure all Clerk form text wraps properly, especially verification messages */
+:global(.cl-formCard),
+:global(.cl-card),
+:global([class*="cl-verification"]),
+:global([class*="cl-verification"] *),
+:global([class*="cl-alert"]),
+:global([class*="cl-alert"] *),
+:global([class*="cl-formFieldDescription"]),
+:global([class*="cl-formFieldDescription"] *),
+:global([class*="cl-formFieldInfoText"]),
+:global([class*="cl-formFieldInfoText"] *),
+:global([class*="cl-formFieldWarningText"]),
+:global([class*="cl-formFieldWarningText"] *),
+:global([class*="cl-formFieldSuccessText"]),
+:global([class*="cl-formFieldSuccessText"] *) {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+}
+
+/* Specific targeting for orange verification text */
+:global([class*="verification"]),
+:global([class*="verification"] *),
+:global([style*="orange"]),
+:global([style*="orange"] *) {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+}
