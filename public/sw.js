@@ -235,6 +235,48 @@ const isRootRoute = (url) => {
   return path === '/';
 };
 
+// Helper to create a network error page with authentication detection
+// Checks for Clerk cookies and redirects to sign-in if unauthenticated
+const createNetworkErrorPage = (currentUrl) => {
+  // Encode the current URL for the redirect parameter
+  const redirectUrl = encodeURIComponent(currentUrl);
+  
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <title>Network Error</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <h1>Network Error</h1>
+  <p>Please check your connection and try again.</p>
+  <script>
+    (function() {
+      // Check for Clerk authentication cookies
+      // Clerk typically sets cookies like __clerk_db_jwt, __session, __clerk_*, etc.
+      const cookies = document.cookie.split(';');
+      const hasClerkCookie = cookies.some(function(cookie) {
+        const trimmed = cookie.trim();
+        return trimmed.startsWith('__clerk') || trimmed.startsWith('__session');
+      });
+      
+      // If no auth cookies are found, redirect to sign-in page
+      // This allows the middleware to handle authentication properly
+      if (!hasClerkCookie) {
+        const signInUrl = '/sign-in?redirect_url=' + '${redirectUrl}';
+        window.location.replace(signInUrl);
+        return;
+      }
+      
+      // If cookies exist, show the error page (user might be authenticated but server is unreachable)
+      // The error message is already displayed in the HTML above
+    })();
+  </script>
+</body>
+</html>`;
+};
+
 // Helper to determine if a response should be cached
 // Only cache successful responses (200-299), but exclude 206 (Partial Content)
 // The Cache API doesn't support partial responses
@@ -379,8 +421,9 @@ self.addEventListener('fetch', (event) => {
               }
             }
           }
-          // Fallback: return a proper HTML error page instead of blank/error response
-          return new Response('<!DOCTYPE html><html><head><title>Network Error</title></head><body><h1>Network Error</h1><p>Please check your connection and try again.</p></body></html>', {
+          // Fallback: return a proper HTML error page with auth detection
+          // This will redirect to sign-in if user appears unauthenticated
+          return new Response(createNetworkErrorPage(event.request.url), {
             status: 503,
             statusText: 'Service Unavailable',
             headers: { 'Content-Type': 'text/html' }
@@ -693,8 +736,9 @@ self.addEventListener('fetch', (event) => {
                       return cachedDashboard;
                     }
                   }
-                  // Fallback: return a proper HTML error page instead of blank/error response
-                  return new Response('<!DOCTYPE html><html><head><title>Network Error</title></head><body><h1>Network Error</h1><p>Please check your connection and try again.</p></body></html>', {
+                  // Fallback: return a proper HTML error page with auth detection
+                  // This will redirect to sign-in if user appears unauthenticated
+                  return new Response(createNetworkErrorPage(event.request.url), {
                     status: 503,
                     statusText: 'Service Unavailable',
                     headers: { 'Content-Type': 'text/html' }
