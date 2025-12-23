@@ -42,6 +42,8 @@ export default function OrganizedContentList({
   const lastRefreshTimeRef = useRef<number>(0);
   const pendingRefreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isNavigatingRef = useRef(false);
+  const prevInitialItemsKeyRef = useRef<string>('');
+  const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
   const DEBOUNCE_WINDOW_MS = 2000; // 2 seconds minimum between refreshes
 
   // Refresh content by fetching fresh data from API
@@ -94,7 +96,7 @@ export default function OrganizedContentList({
       try {
         const url = new URL('/api/content/load-more', window.location.origin);
         url.searchParams.set('offset', '0');
-        url.searchParams.set('limit', '20');
+        url.searchParams.set('limit', '100'); // Match server-side limit
         url.searchParams.set('filter', filter);
 
         const response = await fetch(url.toString(), {
@@ -154,8 +156,27 @@ export default function OrganizedContentList({
   useEffect(() => {
     if (!initialItems || !Array.isArray(initialItems)) {
       setCurrentItems([]);
+      prevInitialItemsKeyRef.current = '';
       return;
     }
+    
+    // Create a lightweight key from initialItems to detect actual changes
+    // This helps detect changes during View Transitions even if the array reference is the same
+    const itemsKey = initialItems
+      .map((item: OrganizedContentItem) => item?.id ?? '')
+      .join(',') + `|${initialItems.length}`;
+    
+    // Only update if items actually changed (not just reference)
+    if (itemsKey === prevInitialItemsKeyRef.current) {
+      debug('[OrganizedContentList] initialItems unchanged, skipping update', {
+        itemCount: initialItems.length,
+        filter
+      });
+      return;
+    }
+    
+    prevInitialItemsKeyRef.current = itemsKey;
+    
     // Filter out deleted items first
     let filtered = initialItems.filter(item => item && item.id && !deletedItemIds.has(item.id));
     
@@ -176,7 +197,8 @@ export default function OrganizedContentList({
     debug('[OrganizedContentList] Updating currentItems from initialItems', {
       initialItemsCount: initialItems.length,
       filteredCount: filtered.length,
-      filter
+      filter,
+      itemsKey
     });
     
     setCurrentItems(filtered);
@@ -329,8 +351,15 @@ export default function OrganizedContentList({
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
+    // Initialize previous pathname on mount if not already set
+    if (previousPathnameRef.current === '') {
+      previousPathnameRef.current = window.location.pathname;
+    }
+    
     const handleBeforeNavigation = () => {
       isNavigatingRef.current = true;
+      // Store current pathname before navigation
+      previousPathnameRef.current = window.location.pathname;
       // Clear any pending refresh timeouts
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
@@ -342,9 +371,22 @@ export default function OrganizedContentList({
       // Reset navigation flag after page loads
       isNavigatingRef.current = false;
       
+      const isDashboard = window.location.pathname === '/';
+      const navigatedToDashboard = isDashboard && previousPathnameRef.current !== '/';
+      
       // Only refresh if we're on the dashboard page
-      if (window.location.pathname === '/' && isMountedRef.current) {
-        // Small delay to ensure page is fully loaded and database is ready
+      if (isDashboard && isMountedRef.current) {
+        // If we navigated TO the dashboard (not just refreshed on it), prioritize server-rendered data
+        // but also refresh to ensure we have the latest data
+        if (navigatedToDashboard) {
+          debug('[OrganizedContentList] Navigated to dashboard, will refresh after initialItems update', {
+            previousPath: previousPathnameRef.current
+          });
+          // Reset refresh time to allow immediate refresh after initialItems are processed
+          lastRefreshTimeRef.current = 0;
+        }
+        
+        // Small delay to ensure page is fully loaded, initialItems are processed, and database is ready
         // Clear any pending timeout first
         if (pendingRefreshTimeoutRef.current) {
           clearTimeout(pendingRefreshTimeoutRef.current);
@@ -352,10 +394,17 @@ export default function OrganizedContentList({
         pendingRefreshTimeoutRef.current = setTimeout(() => {
           pendingRefreshTimeoutRef.current = null;
           if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current) {
+            // Force refresh by resetting lastRefreshTime if we navigated to dashboard
+            if (navigatedToDashboard) {
+              lastRefreshTimeRef.current = 0;
+            }
             refreshContent();
           }
-        }, 200);
+        }, 300); // Slightly longer delay to ensure initialItems are processed first
       }
+      
+      // Update previous pathname for next navigation
+      previousPathnameRef.current = window.location.pathname;
     };
 
     // Listen for navigation start to skip refreshes during navigation

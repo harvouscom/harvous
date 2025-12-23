@@ -752,7 +752,7 @@ export default function NoteDetailsPanel({
                         textAlign: 'left'
                       }}
                     >
-                      Quotations designated{' '}
+                      Per Gratis use quotations designated{' '}
                       <a 
                         href="https://netbible.org" 
                         target="_blank" 
