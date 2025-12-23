@@ -80,10 +80,10 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
           }
 
           // Set spaceId to null
+          // Don't update updatedAt - only metadata change, not content change
           await db.update(Notes)
             .set({ 
-              spaceId: null,
-              updatedAt: new Date()
+              spaceId: null
             })
             .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
 
@@ -122,10 +122,10 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
           }
 
           // Set spaceId to null
+          // Don't update updatedAt - only metadata change, not content change
           await db.update(Threads)
             .set({ 
-              spaceId: null,
-              updatedAt: new Date()
+              spaceId: null
             })
             .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
 

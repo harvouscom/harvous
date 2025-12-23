@@ -57,18 +57,18 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     }
 
     // Remove threads from space (set spaceId to null) - preserve threads and their notes
+    // Don't update updatedAt - only metadata change, not content change
     await db.update(Threads)
       .set({ 
-        spaceId: null,
-        updatedAt: new Date()
+        spaceId: null
       })
       .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)));
 
     // Remove standalone notes from space (set spaceId to null) - preserve notes
+    // Don't update updatedAt - only metadata change, not content change
     await db.update(Notes)
       .set({ 
-        spaceId: null,
-        updatedAt: new Date()
+        spaceId: null
       })
       .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)));
 

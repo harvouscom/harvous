@@ -259,6 +259,16 @@ try {
             pageTitle = thread.title;
             pageContent = `${noteCount} notes`;
             debug(`[id].astro] Successfully set up thread content`, { title: thread.title });
+            
+            // Update lastVisited timestamp when thread is opened
+            try {
+              await db.update(Threads)
+                .set({ lastVisited: new Date() })
+                .where(and(eq(Threads.id, thread.id), eq(Threads.userId, authenticatedUserId)));
+            } catch (error) {
+              // Log error but don't fail page load
+              console.error(`[id].astro] Error updating lastVisited for thread ${thread.id}:`, error);
+            }
           } else {
             // Thread not found even in direct query - log for debugging
             console.error(`[id].astro] Thread not found in direct query: ${id} for user: ${authenticatedUserId}`);
@@ -331,6 +341,16 @@ try {
 
         // Set page title for note
         pageTitle = note.title || "Untitled Note";
+
+        // Update lastVisited timestamp when note is opened
+        try {
+          await db.update(Notes)
+            .set({ lastVisited: new Date() })
+            .where(and(eq(Notes.id, note.id), eq(Notes.userId, authenticatedUserId)));
+        } catch (error) {
+          // Log error but don't fail page load
+          console.error(`[id].astro] Error updating lastVisited for note ${note.id}:`, error);
+        }
 
         // Smart Default Logic for Multi-Thread Navigation
         // Priority order:

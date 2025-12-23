@@ -123,6 +123,7 @@ export async function getAllThreadsWithCounts(userId: string) {
       isPinned: Threads.isPinned,
       createdAt: Threads.createdAt,
       updatedAt: Threads.updatedAt,
+      lastVisited: Threads.lastVisited,
     })
     .from(Threads)
     .where(and(
@@ -170,6 +171,7 @@ export async function getAllThreadsWithCounts(userId: string) {
       isPinned: thread.isPinned,
       createdAt: thread.createdAt,
       updatedAt: thread.updatedAt,
+      lastVisited: thread.lastVisited,
       noteCount: thread.noteCount || 0,
       lastUpdated: thread.updatedAt || thread.createdAt,
       accentColor: getThreadColorCSS(thread.color),
@@ -696,6 +698,8 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
       spaceId: thread.spaceId,
       lastUpdated: thread.lastUpdated,
       updatedAt: thread.updatedAt || thread.createdAt, // Keep actual timestamp for sorting
+      lastVisited: thread.lastVisited,
+      createdAt: thread.createdAt,
       isPrivate: !thread.isPublic,
       accentColor: thread.accentColor,
     }));
@@ -751,6 +755,8 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
         noteType: note.noteType || 'default',
         lastUpdated: note.lastUpdated,
         updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
+        lastVisited: note.lastVisited,
+        createdAt: note.createdAt,
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
@@ -771,6 +777,8 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
         noteType: note.noteType || 'default',
         lastUpdated: note.lastUpdated,
         updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
+        lastVisited: note.lastVisited,
+        createdAt: note.createdAt,
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
@@ -800,13 +808,17 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
       }
     });
 
-    // Convert map to array and sort by actual timestamp (newest first)
+    // Convert map to array and sort by lastVisited (newest first)
     // Apply offset and limit after sorting
     const allItems = Array.from(allItemsMap.values())
       .sort((a, b) => {
-        // Handle null/undefined updatedAt by falling back to createdAt or current time
-        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        // Handle null/undefined lastVisited by falling back to createdAt
+        const aTime = a.lastVisited 
+          ? new Date(a.lastVisited).getTime() 
+          : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const bTime = b.lastVisited 
+          ? new Date(b.lastVisited).getTime() 
+          : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
         return bTime - aTime; // Newest first
       })
       .slice(offset, offset + limit);
@@ -835,6 +847,7 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
       isFeatured: Notes.isFeatured,
       createdAt: Notes.createdAt,
       updatedAt: Notes.updatedAt,
+      lastVisited: Notes.lastVisited,
     })
     .from(Notes)
     .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
@@ -874,6 +887,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
         isFeatured: Notes.isFeatured,
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
+        lastVisited: Notes.lastVisited,
       })
       .from(Notes)
       .where(eq(Notes.userId, userId))
@@ -899,6 +913,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       isFeatured: Notes.isFeatured,
       createdAt: Notes.createdAt,
       updatedAt: Notes.updatedAt,
+      lastVisited: Notes.lastVisited,
     })
     .from(Notes)
     .where(and(

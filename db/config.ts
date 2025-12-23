@@ -24,6 +24,7 @@ const Threads = defineTable({
     spaceId: column.text({ optional: true }), // Space this thread belongs to (optional)
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
+    lastVisited: column.date({ optional: true }), // Last time the thread was opened/visited
     userId: column.text(), // Clerk user id
     isPublic: column.boolean({ default: false }),
     isPinned: column.boolean({ default: false }), // Whether the thread is pinned
@@ -44,6 +45,7 @@ const Notes = defineTable({
     addedBy: column.text({ default: 'user' }), // 'user', 'harvous', etc. - tracks source/creator of note
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
+    lastVisited: column.date({ optional: true }), // Last time the note was opened/visited
     userId: column.text(), // Clerk user id
     isPublic: column.boolean({ default: false }),
     isFeatured: column.boolean({ default: false }),
