@@ -1563,6 +1563,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       setTimeout(() => {
         if (isEditorValid(editor) && !editor.isFocused) {
           setIsEditorFocused(false);
+          // Reset keyboard height when editor loses focus (keyboard closes)
+          setKeyboardHeight(0);
         }
       }, 100);
     };
@@ -1600,12 +1602,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       
       rafId = requestAnimationFrame(() => {
+        // Check if editor is focused - keyboard only matters when editor is active
+        const editorFocused = editor && isEditorValid(editor) && editor.isFocused;
+        
         // Simple calculation: keyboard height = difference between window height and visible viewport height
         // Don't use offsetTop as it changes with scroll and causes incorrect positioning
         const keyboardHeight = window.innerHeight - visualViewport.height;
 
-        // Only update if keyboard is likely open (>150px threshold)
-        if (keyboardHeight > 150) {
+        // Only update if keyboard is likely open (>150px threshold) AND editor is focused
+        // This prevents toolbar from staying at keyboard height when keyboard is closed
+        if (keyboardHeight > 150 && editorFocused) {
           // Store the detected keyboard height and keep it fixed
           storedKeyboardHeight = keyboardHeight;
           setKeyboardHeight(keyboardHeight);
@@ -1615,14 +1621,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             clearTimeout(delayedUpdateTimeout);
           }
           delayedUpdateTimeout = setTimeout(() => {
+            // Re-check focus state in case it changed
+            const stillFocused = editor && isEditorValid(editor) && editor.isFocused;
             const finalKeyboardHeight = window.innerHeight - visualViewport.height;
-            if (finalKeyboardHeight > 150) {
+            if (finalKeyboardHeight > 150 && stillFocused) {
               storedKeyboardHeight = finalKeyboardHeight;
               setKeyboardHeight(finalKeyboardHeight);
+            } else if (!stillFocused || finalKeyboardHeight <= 150) {
+              // Editor lost focus or keyboard closed - reset
+              storedKeyboardHeight = 0;
+              setKeyboardHeight(0);
             }
           }, 150);
         } else {
-          // Keyboard closed - reset stored height
+          // Keyboard closed or editor not focused - reset stored height
           storedKeyboardHeight = 0;
           setKeyboardHeight(0);
         }
@@ -1649,7 +1661,82 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         clearTimeout(delayedUpdateTimeout);
       }
     };
-  }, []);
+  }, [editor]); // Add editor dependency to check focus state
+
+  // Auto-scroll cursor above toolbar when typing
+  // This ensures cursor stays visible above the fixed toolbar
+  useEffect(() => {
+    if (!editor || !isEditorFocused || keyboardHeight === 0) return;
+    if (!isEditorValid(editor)) return;
+
+    const scrollCursorAboveToolbar = () => {
+      if (!isEditorValid(editor)) return;
+      
+      const editorElement = editor.view.dom;
+      const contentContainer = editorElement?.closest('.tiptap-content') as HTMLElement;
+      if (!contentContainer) return;
+
+      try {
+        // Get cursor position in the editor
+        const { from } = editor.state.selection;
+        
+        // Get the DOM coordinates for the cursor
+        const coords = editor.view.coordsAtPos(from);
+        if (!coords) return;
+
+        // Get container's viewport position
+        const containerRect = contentContainer.getBoundingClientRect();
+        
+        // Calculate where toolbar is positioned (keyboardHeight + 12px offset)
+        // Toolbar height is approximately 48px, so we want cursor at least 60px above keyboard
+        const toolbarTop = window.innerHeight - keyboardHeight - 12 - 48;
+        const safeAreaTop = toolbarTop - 20; // 20px padding above toolbar
+        
+        // Check if cursor is below the safe area
+        const cursorTop = coords.top;
+        const cursorBottom = coords.bottom;
+        
+        // If cursor is below or overlapping with toolbar area, scroll it up
+        if (cursorBottom > safeAreaTop || cursorTop < containerRect.top) {
+          // Calculate how much we need to scroll
+          // We want the cursor to be at the safe area top
+          const cursorRelativeTop = cursorTop - containerRect.top + contentContainer.scrollTop;
+          const targetScrollTop = cursorRelativeTop - (safeAreaTop - containerRect.top) - 20;
+          
+          // Scroll to keep cursor visible above toolbar
+          contentContainer.scrollTo({
+            top: Math.max(0, targetScrollTop),
+            behavior: 'smooth'
+          });
+        }
+      } catch (error) {
+        // Silently ignore errors (e.g., if editor is destroyed)
+      }
+    };
+
+    // Use requestAnimationFrame to debounce scroll updates
+    let rafId: number | null = null;
+    const debouncedScroll = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(scrollCursorAboveToolbar);
+    };
+
+    // Listen to selection updates and content updates
+    editor.on('selectionUpdate', debouncedScroll);
+    editor.on('update', debouncedScroll);
+
+    return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      if (editor && !editor.isDestroyed) {
+        editor.off('selectionUpdate', debouncedScroll);
+        editor.off('update', debouncedScroll);
+      }
+    };
+  }, [editor, isEditorFocused, keyboardHeight]);
 
   // Update active states when editor changes
   useEffect(() => {
