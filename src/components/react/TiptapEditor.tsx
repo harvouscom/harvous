@@ -1609,35 +1609,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         
         // Calculate the distance from the bottom of the layout viewport to the bottom of the visual viewport
         // This accounts for both keyboard height AND scroll position
+        // Since toolbar uses position:fixed, it's already relative to viewport, not bottom sheet
         const bottomOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
         
-        // Account for bottom sheet if editor is inside one
-        let adjustedOffset = bottomOffset;
-        if (isInBottomSheet()) {
-          const bottomSheetContainer = getBottomSheetContainer();
-          if (bottomSheetContainer) {
-            // Get the bottom sheet's position relative to viewport
-            const rect = bottomSheetContainer.getBoundingClientRect();
-            const bottomSheetBottom = rect.bottom;
-            const viewportBottom = window.innerHeight;
-            
-            // If bottom sheet doesn't extend to bottom of viewport, adjust calculation
-            // Bottom sheet uses 90dvh, so there's a gap at the bottom
-            const gapAtBottom = viewportBottom - bottomSheetBottom;
-            
-            // Adjust offset to account for bottom sheet's constrained viewport
-            // The keyboard height should be relative to the bottom sheet's bottom, not viewport bottom
-            if (bottomOffset > 150) {
-              // Keyboard is open - calculate relative to bottom sheet
-              adjustedOffset = bottomOffset - gapAtBottom;
-            }
-          }
-        }
-        
         // Only apply special positioning if keyboard is likely open (>150px threshold)
-        if (adjustedOffset > 150) {
+        if (bottomOffset > 150) {
           // Update immediately for responsive positioning
-          setKeyboardHeight(adjustedOffset);
+          // Toolbar will be positioned at bottom: ${bottomOffset + 12}px
+          setKeyboardHeight(bottomOffset);
           
           // Schedule a delayed update to catch the final keyboard height after animation
           // This fixes the issue where initial tap shows toolbar peeking behind keyboard
@@ -1646,24 +1625,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           }
           delayedUpdateTimeout = setTimeout(() => {
             const finalBottomOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
-            let finalAdjustedOffset = finalBottomOffset;
-            
-            if (isInBottomSheet()) {
-              const bottomSheetContainer = getBottomSheetContainer();
-              if (bottomSheetContainer) {
-                const rect = bottomSheetContainer.getBoundingClientRect();
-                const bottomSheetBottom = rect.bottom;
-                const viewportBottom = window.innerHeight;
-                const gapAtBottom = viewportBottom - bottomSheetBottom;
-                
-                if (finalBottomOffset > 150) {
-                  finalAdjustedOffset = finalBottomOffset - gapAtBottom;
-                }
-              }
-            }
-            
-            if (finalAdjustedOffset > 150) {
-              setKeyboardHeight(finalAdjustedOffset);
+            if (finalBottomOffset > 150) {
+              setKeyboardHeight(finalBottomOffset);
             }
           }, 150);
         } else {
@@ -1832,7 +1795,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return (
       <button
         type="button"
-        onMouseDown={(e) => {
+        onMouseDown={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
           // Use onMouseDown to prevent editor from losing focus
           e.preventDefault();
           e.stopPropagation();
@@ -1851,7 +1814,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }
           }, 0);
         }}
-        onClick={(e) => {
+        onClick={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
           // Prevent default click behavior
           e.preventDefault();
           e.stopPropagation();
@@ -1890,7 +1853,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             iconRef.current.style.setProperty('color', isActive ? 'var(--color-deep-grey)' : 'var(--color-gray)', 'important');
           }
         }}
-        onMouseUp={(e) => {
+        onMouseUp={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
           // Visual feedback for click
           e.currentTarget.style.setProperty('filter', 'none', 'important');
           e.currentTarget.style.setProperty('transform', 'none', 'important');
@@ -1945,7 +1908,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       <div 
         className="tiptap-content flex-1 min-h-0 overflow-auto"
         style={{ height: 0 }}
-        onClick={(e) => {
+        onClick={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
           if (editor) {
             // Let ProseMirror handle natural cursor placement at click position
             // The CSS will prevent unwanted scrolling behavior
@@ -1957,7 +1920,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         {enableCreateNoteFromSelection && (
           <BubbleMenu
             editor={editor}
-            shouldShow={({ editor }) => {
+            shouldShow={({ editor }: { editor: any }) => {
               // Check if editor is still valid before checking selection
               if (!isEditorValid(editor)) return false;
               return isValidSelection(editor);
@@ -1966,7 +1929,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             <div style={{ zIndex: 99999, pointerEvents: 'auto', display: 'inline-block' }}>
               <ButtonSmall
                 state="Default"
-                onMouseDown={(e: React.MouseEvent) => {
+                onMouseDown={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
                   // Use onMouseDown for better reliability in Floating UI portals
                   e.preventDefault();
                   e.stopPropagation();
