@@ -212,7 +212,8 @@ export default function OrganizedContentList({
       const { noteId } = event.detail;
       if (noteId) {
         setDeletedItemIds(prev => {
-          const newSet = new Set([...prev, noteId]);
+          // Add both raw ID and prefixed ID to match item.id format (note-${id})
+          const newSet = new Set([...prev, noteId, `note-${noteId}`]);
           deletedItemIdsRef.current = newSet;
           return newSet;
         });
@@ -223,7 +224,8 @@ export default function OrganizedContentList({
       const { threadId } = event.detail;
       if (threadId) {
         setDeletedItemIds(prev => {
-          const newSet = new Set([...prev, threadId]);
+          // Add both raw ID and prefixed ID to match item.id format (thread-${id})
+          const newSet = new Set([...prev, threadId, `thread-${threadId}`]);
           deletedItemIdsRef.current = newSet;
           return newSet;
         });

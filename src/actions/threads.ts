@@ -181,14 +181,14 @@ export const threads = {
           .where(eq(NoteThreads.threadId, id));
         
         // Set all affected notes' primary threadId to unorganized (legacy field)
+        // Don't update updatedAt - only metadata change, not content change
         if (affectedNotes.length > 0) {
           const noteIds = affectedNotes.map(n => n.noteId);
           // Update each note individually (Astro DB doesn't support IN clause directly)
           for (const noteId of noteIds) {
             await db.update(Notes)
               .set({ 
-                threadId: 'thread_unorganized',
-                updatedAt: new Date()
+                threadId: 'thread_unorganized'
               })
               .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
           }

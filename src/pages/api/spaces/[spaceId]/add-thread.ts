@@ -83,10 +83,10 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     }
 
     // Update the thread's spaceId
+    // Don't update updatedAt - only metadata change, not content change
     await db.update(Threads)
       .set({ 
-        spaceId: spaceId,
-        updatedAt: new Date()
+        spaceId: spaceId
       })
       .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
 

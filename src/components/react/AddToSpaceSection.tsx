@@ -55,7 +55,6 @@ const NoteItem: React.FC<{
 
   return (
     <div
-      key={item.id}
       className="group"
       style={{
         position: 'relative',
@@ -223,7 +222,6 @@ const ThreadItem: React.FC<{
 
   return (
     <div
-      key={item.id}
       className="group"
       style={{
         position: 'relative',
@@ -660,9 +658,13 @@ export default function AddToSpaceSection({
               <div className="flex flex-col gap-2">
                 {filteredItems.map(item => {
                   const onClick = () => handleItemClick(item.id, item.type);
-                  return item.type === 'note' 
-                    ? renderNoteItem(item, onClick)
-                    : renderThreadItem(item, onClick);
+                  return (
+                    <React.Fragment key={item.id}>
+                      {item.type === 'note' 
+                        ? renderNoteItem(item, onClick)
+                        : renderThreadItem(item, onClick)}
+                    </React.Fragment>
+                  );
                 })}
               </div>
             </>
@@ -697,9 +699,13 @@ export default function AddToSpaceSection({
                   <div className="flex flex-col gap-2">
                     {recentItems.map(item => {
                       const onClick = () => handleItemClick(item.id, item.type);
-                      return item.type === 'note' 
-                        ? renderNoteItem(item, onClick)
-                        : renderThreadItem(item, onClick);
+                      return (
+                        <React.Fragment key={item.id}>
+                          {item.type === 'note' 
+                            ? renderNoteItem(item, onClick)
+                            : renderThreadItem(item, onClick)}
+                        </React.Fragment>
+                      );
                     })}
                   </div>
                 </div>
@@ -730,9 +736,13 @@ export default function AddToSpaceSection({
                   <div className="flex flex-col gap-2">
                     {otherItems.map(item => {
                       const onClick = () => handleItemClick(item.id, item.type);
-                      return item.type === 'note' 
-                        ? renderNoteItem(item, onClick)
-                        : renderThreadItem(item, onClick);
+                      return (
+                        <React.Fragment key={item.id}>
+                          {item.type === 'note' 
+                            ? renderNoteItem(item, onClick)
+                            : renderThreadItem(item, onClick)}
+                        </React.Fragment>
+                      );
                     })}
                   </div>
                 </div>

@@ -7,24 +7,9 @@ interface RecentSearch {
 }
 
 const RecentSearches: React.FC = () => {
-  // Initialize from localStorage if available (component is client-only, so window is always available)
-  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
-        // Handle both old format (strings) and new format (objects)
-        return stored.map((item: any) => {
-          if (typeof item === 'string') {
-            return { term: item, count: 0 };
-          }
-          return item;
-        }).slice(0, 5);
-      } catch (error) {
-        return [];
-      }
-    }
-    return [];
-  });
+  // Always start with empty array to avoid hydration mismatch
+  // Will be populated from localStorage in useEffect after mount
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
 
   const updateRecentSearches = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -70,6 +55,10 @@ const RecentSearches: React.FC = () => {
 
   // Update recent searches on mount and listen for updates
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+    
+    // Load from localStorage on mount
     updateRecentSearches();
     
     // Listen for updates when items are removed or counts are updated
