@@ -601,8 +601,9 @@ try {
           ...spaceThreads.map((thread: any) => ({ ...thread, itemType: 'thread' as const })),
           ...spaceNotes.map((note: any) => ({ ...note, itemType: 'note' as const }))
         ].sort((a, b) => {
-          const aTime = a.lastUpdated || a.updatedAt || a.createdAt;
-          const bTime = b.lastUpdated || b.updatedAt || b.createdAt;
+          // Sort by lastVisited (newest first), fallback to createdAt if lastVisited is null
+          const aTime = a.lastVisited || a.createdAt;
+          const bTime = b.lastVisited || b.createdAt;
           const aDate = aTime instanceof Date ? aTime : new Date(aTime);
           const bDate = bTime instanceof Date ? bTime : new Date(bTime);
           return bDate.getTime() - aDate.getTime(); // Descending order (newest first)

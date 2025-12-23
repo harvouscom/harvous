@@ -279,10 +279,11 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
       isPinned: Threads.isPinned,
       createdAt: Threads.createdAt,
       updatedAt: Threads.updatedAt,
+      lastVisited: Threads.lastVisited,
     })
     .from(Threads)
     .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
-    .orderBy(desc(Threads.isPinned), desc(Threads.updatedAt || Threads.createdAt))
+    .orderBy(desc(Threads.isPinned), desc(Threads.lastVisited || Threads.createdAt))
     .all();
 
     // Get note counts for all threads in a single query using GROUP BY
@@ -323,6 +324,7 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
       isPinned: thread.isPinned,
       createdAt: thread.createdAt,
       updatedAt: thread.updatedAt,
+      lastVisited: thread.lastVisited,
       noteCount: thread.noteCount || 0,
       lastUpdated: thread.updatedAt || thread.createdAt,
       accentColor: getThreadColorCSS(thread.color),
@@ -354,6 +356,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         isFeatured: Notes.isFeatured,
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
+        lastVisited: Notes.lastVisited,
       })
       .from(Notes)
       .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
@@ -361,7 +364,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         eq(Notes.userId, userId),
         isNull(NoteThreads.id) // No junction entry = unorganized
       ))
-      .orderBy(desc(Notes.updatedAt || Notes.createdAt))
+      .orderBy(desc(Notes.lastVisited || Notes.createdAt))
       .limit(limit)
       .all();
       
@@ -380,22 +383,23 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         isFeatured: Notes.isFeatured,
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
+        lastVisited: Notes.lastVisited,
       })
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
-      .orderBy(desc(Notes.updatedAt || Notes.createdAt))
+      .orderBy(desc(Notes.lastVisited || Notes.createdAt))
       .limit(limit)
       .all();
       
       allNotes = junctionNotes;
     }
 
-    // Sort by updatedAt/createdAt, apply offset and limit
+    // Sort by lastVisited/createdAt, apply offset and limit
     const sortedNotes = allNotes
       .sort((a, b) => {
-        const aTime = a.updatedAt || a.createdAt;
-        const bTime = b.updatedAt || b.createdAt;
+        const aTime = a.lastVisited || a.createdAt;
+        const bTime = b.lastVisited || b.createdAt;
         return bTime.getTime() - aTime.getTime();
       })
       .slice(offset, offset + limit);
@@ -441,6 +445,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       return {
         ...note,
         lastUpdated: note.updatedAt || note.createdAt,
+        lastVisited: note.lastVisited,
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
@@ -530,16 +535,18 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
       isFeatured: Notes.isFeatured,
       createdAt: Notes.createdAt,
       updatedAt: Notes.updatedAt,
+      lastVisited: Notes.lastVisited,
     })
     .from(Notes)
     .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
-    .orderBy(desc(Notes.updatedAt || Notes.createdAt))
+    .orderBy(desc(Notes.lastVisited || Notes.createdAt))
     .limit(limit)
     .all();
 
     return notes.map(note => ({
       ...note,
       lastUpdated: note.updatedAt || note.createdAt,
+      lastVisited: note.lastVisited,
     }));
   } catch (error) {
     console.error("Error fetching notes for space:", error);
