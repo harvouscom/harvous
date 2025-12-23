@@ -700,6 +700,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
   const toolbarPositionUpdater = useRef<() => void>(() => {});
+  const scrollCursorAboveToolbarRef = useRef<() => void>(() => {});
 
   // Helper function to check if editor/view is valid before accessing docView
   // This prevents errors when editor is destroyed but handlers still fire
@@ -861,6 +862,29 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           event.preventDefault();
           window.dispatchEvent(new CustomEvent('submitPanelForm'));
           return true;
+        }
+        
+        // Handle regular Enter key - trigger auto-scroll after newline is created
+        if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey) {
+          // Let ProseMirror handle the Enter key first, then trigger auto-scroll
+          setTimeout(() => {
+            // Update toolbar position in case it changed
+            if (toolbarPositionUpdater.current) {
+              toolbarPositionUpdater.current();
+            }
+            // Trigger cursor scroll after newline renders
+            requestAnimationFrame(() => {
+              if (scrollCursorAboveToolbarRef.current) {
+                scrollCursorAboveToolbarRef.current();
+              }
+            });
+            // Additional delayed check to ensure newline is fully rendered
+            setTimeout(() => {
+              if (scrollCursorAboveToolbarRef.current) {
+                scrollCursorAboveToolbarRef.current();
+              }
+            }, 100);
+          }, 50);
         }
         
         // Handle Select All (Cmd+A on Mac, Ctrl+A on Windows/Linux)
@@ -1643,10 +1667,32 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     toolbarPositionUpdater.current = updateToolbarPosition;
 
-    // Only listen to resize events - not scroll events
-    // This prevents toolbar from moving when user scrolls
+    // Handle scroll events to update toolbar position
+    // This ensures toolbar follows scroll while maintaining 12px above keyboard
+    const handleScroll = () => {
+      // Update toolbar position based on current scroll state
+      // Maintain 12px above keyboard
+      updateToolbarPosition();
+    };
+
+    // Listen to resize events for keyboard open/close
     visualViewport.addEventListener('resize', updateToolbarPosition);
     window.addEventListener('resize', updateToolbarPosition);
+    
+    // Listen to scroll events to update toolbar position when scrolling
+    // Use visualViewport scroll if available (mobile browsers)
+    if (visualViewport.addEventListener) {
+      visualViewport.addEventListener('scroll', handleScroll);
+    }
+    
+    // Also listen to content container scroll as fallback
+    let contentContainer: HTMLElement | null = null;
+    if (editor?.view?.dom) {
+      contentContainer = editor.view.dom.closest('.tiptap-content') as HTMLElement;
+      if (contentContainer) {
+        contentContainer.addEventListener('scroll', handleScroll);
+      }
+    }
 
     // Initial check
     updateToolbarPosition();
@@ -1654,6 +1700,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return () => {
       visualViewport.removeEventListener('resize', updateToolbarPosition);
       window.removeEventListener('resize', updateToolbarPosition);
+      if (visualViewport.removeEventListener) {
+        visualViewport.removeEventListener('scroll', handleScroll);
+      }
+      if (contentContainer) {
+        contentContainer.removeEventListener('scroll', handleScroll);
+      }
       if (rafId) {
         cancelAnimationFrame(rafId);
       }
@@ -1714,6 +1766,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
 
+    // Store function in ref so it can be called from handleKeyDown
+    scrollCursorAboveToolbarRef.current = scrollCursorAboveToolbar;
+
     // Use requestAnimationFrame to debounce scroll updates
     let rafId: number | null = null;
     const debouncedScroll = () => {
@@ -1728,6 +1783,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editor.on('update', debouncedScroll);
 
     return () => {
+      scrollCursorAboveToolbarRef.current = () => {}; // Clear ref
       if (rafId) {
         cancelAnimationFrame(rafId);
       }
