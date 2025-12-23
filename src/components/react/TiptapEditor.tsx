@@ -699,6 +699,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
+  const toolbarPositionUpdater = useRef<() => void>(() => {});
 
   // Helper function to check if editor/view is valid before accessing docView
   // This prevents errors when editor is destroyed but handlers still fire
@@ -1520,6 +1521,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       
       setIsEditorFocused(true);
+
+      requestAnimationFrame(() => {
+        toolbarPositionUpdater.current?.();
+        setTimeout(() => {
+          toolbarPositionUpdater.current?.();
+        }, 50);
+      });
     };
 
     const handleBlur = (event: any) => {
@@ -1570,56 +1578,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     let rafId: number | null = null;
     let delayedUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
     let isUpdating = false;
-    let initializationTimeouts: ReturnType<typeof setTimeout>[] = [];
-    let resizeObserver: ResizeObserver | null = null;
-
-    // Detect if editor is inside bottom sheet
-    const isInBottomSheet = (): boolean => {
-      if (!editor?.view?.dom) return false;
-      const editorElement = editor.view.dom;
-      return !!(
-        editorElement.closest('.bottom-sheet') ||
-        editorElement.closest('.drawer-panel') ||
-        editorElement.closest('[data-radix-dialog-content]')
-      );
-    };
-
-    // Get bottom sheet container if it exists
-    const getBottomSheetContainer = (): HTMLElement | null => {
-      if (!editor?.view?.dom) return null;
-      const editorElement = editor.view.dom;
-      return (
-        editorElement.closest('.bottom-sheet') ||
-        editorElement.closest('.drawer-panel') ||
-        editorElement.closest('[data-radix-dialog-content]')
-      ) as HTMLElement | null;
-    };
 
     const updateToolbarPosition = () => {
-      // Prevent multiple simultaneous updates
-      if (isUpdating) return;
-      
-      // Use requestAnimationFrame for smoother updates
       if (rafId) {
         cancelAnimationFrame(rafId);
       }
       
       rafId = requestAnimationFrame(() => {
         isUpdating = true;
-        
-        // Calculate the distance from the bottom of the layout viewport to the bottom of the visual viewport
-        // This accounts for both keyboard height AND scroll position
-        // Since toolbar uses position:fixed, it's already relative to viewport, not bottom sheet
+
         const bottomOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
-        
-        // Only apply special positioning if keyboard is likely open (>150px threshold)
+
         if (bottomOffset > 150) {
-          // Update immediately for responsive positioning
-          // Toolbar will be positioned at bottom: ${bottomOffset + 12}px
           setKeyboardHeight(bottomOffset);
-          
-          // Schedule a delayed update to catch the final keyboard height after animation
-          // This fixes the issue where initial tap shows toolbar peeking behind keyboard
+
           if (delayedUpdateTimeout) {
             clearTimeout(delayedUpdateTimeout);
           }
@@ -1632,51 +1604,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         } else {
           setKeyboardHeight(0);
         }
-        
+
         isUpdating = false;
       });
     };
 
-    // Listen to both resize (keyboard open/close) and scroll (user scrolling with keyboard open)
+    toolbarPositionUpdater.current = updateToolbarPosition;
+
     visualViewport.addEventListener('resize', updateToolbarPosition);
-    visualViewport.addEventListener('scroll', updateToolbarPosition);
-    
-    // Also listen to window resize as fallback
     window.addEventListener('resize', updateToolbarPosition);
-    
-    // Watch for bottom sheet container size changes
-    if (isInBottomSheet()) {
-      const bottomSheetContainer = getBottomSheetContainer();
-      if (bottomSheetContainer && typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => {
-          updateToolbarPosition();
-        });
-        resizeObserver.observe(bottomSheetContainer);
-      }
-    }
-    
-    // Multiple initialization checks to catch viewport changes
-    // Immediate check (0ms)
+
     updateToolbarPosition();
-    
-    // After a brief delay (100ms) - catches initial render
-    initializationTimeouts.push(setTimeout(() => {
-      updateToolbarPosition();
-    }, 100));
-    
-    // After bottom sheet animation completes (~300ms)
-    initializationTimeouts.push(setTimeout(() => {
-      updateToolbarPosition();
-    }, 300));
-    
-    // After visual viewport stabilizes (500ms)
-    initializationTimeouts.push(setTimeout(() => {
-      updateToolbarPosition();
-    }, 500));
-    
+
     return () => {
       visualViewport.removeEventListener('resize', updateToolbarPosition);
-      visualViewport.removeEventListener('scroll', updateToolbarPosition);
       window.removeEventListener('resize', updateToolbarPosition);
       if (rafId) {
         cancelAnimationFrame(rafId);
@@ -1684,12 +1625,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (delayedUpdateTimeout) {
         clearTimeout(delayedUpdateTimeout);
       }
-      initializationTimeouts.forEach(timeout => clearTimeout(timeout));
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      }
     };
-  }, [editor]);
+  }, []);
 
   // Update active states when editor changes
   useEffect(() => {
