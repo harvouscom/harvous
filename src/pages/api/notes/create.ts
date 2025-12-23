@@ -582,7 +582,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
           
           // Call processing function directly with content override to ensure we use the latest content
           const { processScriptureReferences } = await import('@/utils/process-scripture-references');
-          await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
+          const processResult = await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
+          
+          // If scripture references were processed, set lastVisited to prioritize this note in the list
+          if (processResult.results && processResult.results.length > 0) {
+            await db.update(Notes)
+              .set({ lastVisited: new Date() })
+              .where(and(eq(Notes.id, newNote.id), eq(Notes.userId, userId)));
+          }
         } catch (error: any) {
           // Don't fail note creation if scripture processing fails
           console.error('Error processing scripture references asynchronously (non-critical):', error);
@@ -622,6 +629,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         const { processScriptureReferences } = await import('@/utils/process-scripture-references');
         const processResult = await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
         scriptureResults = processResult.results || [];
+        
+        // If scripture references were processed, set lastVisited to prioritize this note in the list
+        if (scriptureResults.length > 0) {
+          await db.update(Notes)
+            .set({ lastVisited: new Date() })
+            .where(and(eq(Notes.id, newNote.id), eq(Notes.userId, userId)));
+        }
       } catch (error: any) {
         // Don't fail note creation if scripture processing fails
         console.error('Error processing scripture references (non-critical):', error);
