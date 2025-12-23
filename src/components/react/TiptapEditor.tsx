@@ -1522,12 +1522,27 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       
       setIsEditorFocused(true);
 
-      requestAnimationFrame(() => {
-        toolbarPositionUpdater.current?.();
+      // Immediately detect keyboard height when editor focuses
+      // Use multiple checks to catch keyboard animation timing
+      if (toolbarPositionUpdater.current) {
+        // Immediate check
+        toolbarPositionUpdater.current();
+        
+        // After requestAnimationFrame (next frame)
+        requestAnimationFrame(() => {
+          toolbarPositionUpdater.current?.();
+        });
+        
+        // After short delay (100ms) - catches initial keyboard animation
         setTimeout(() => {
           toolbarPositionUpdater.current?.();
-        }, 50);
-      });
+        }, 100);
+        
+        // After longer delay (300ms) - catches final keyboard height
+        setTimeout(() => {
+          toolbarPositionUpdater.current?.();
+        }, 300);
+      }
     };
 
     const handleBlur = (event: any) => {
@@ -1569,15 +1584,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [editor]);
 
   // Handle virtual keyboard for consistent toolbar positioning
-  // On iOS Safari, we need to track both resize AND scroll events on visualViewport
-  // because position:fixed is relative to the layout viewport, not the visual viewport
+  // Calculate keyboard height as the difference between window height and visual viewport height
+  // This gives us the keyboard height without scroll interference
   useEffect(() => {
     const visualViewport = window.visualViewport;
     if (!visualViewport) return;
     
     let rafId: number | null = null;
     let delayedUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
-    let isUpdating = false;
+    let storedKeyboardHeight = 0; // Store detected keyboard height to keep it fixed
 
     const updateToolbarPosition = () => {
       if (rafId) {
@@ -1585,35 +1600,43 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       
       rafId = requestAnimationFrame(() => {
-        isUpdating = true;
+        // Simple calculation: keyboard height = difference between window height and visible viewport height
+        // Don't use offsetTop as it changes with scroll and causes incorrect positioning
+        const keyboardHeight = window.innerHeight - visualViewport.height;
 
-        const bottomOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
+        // Only update if keyboard is likely open (>150px threshold)
+        if (keyboardHeight > 150) {
+          // Store the detected keyboard height and keep it fixed
+          storedKeyboardHeight = keyboardHeight;
+          setKeyboardHeight(keyboardHeight);
 
-        if (bottomOffset > 150) {
-          setKeyboardHeight(bottomOffset);
-
+          // Schedule a delayed update to catch the final keyboard height after animation
           if (delayedUpdateTimeout) {
             clearTimeout(delayedUpdateTimeout);
           }
           delayedUpdateTimeout = setTimeout(() => {
-            const finalBottomOffset = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
-            if (finalBottomOffset > 150) {
-              setKeyboardHeight(finalBottomOffset);
+            const finalKeyboardHeight = window.innerHeight - visualViewport.height;
+            if (finalKeyboardHeight > 150) {
+              storedKeyboardHeight = finalKeyboardHeight;
+              setKeyboardHeight(finalKeyboardHeight);
             }
           }, 150);
         } else {
+          // Keyboard closed - reset stored height
+          storedKeyboardHeight = 0;
           setKeyboardHeight(0);
         }
-
-        isUpdating = false;
       });
     };
 
     toolbarPositionUpdater.current = updateToolbarPosition;
 
+    // Only listen to resize events - not scroll events
+    // This prevents toolbar from moving when user scrolls
     visualViewport.addEventListener('resize', updateToolbarPosition);
     window.addEventListener('resize', updateToolbarPosition);
 
+    // Initial check
     updateToolbarPosition();
 
     return () => {
