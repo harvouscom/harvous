@@ -310,9 +310,18 @@ export default function ThreadNotesList({
     const filteredDeleted = data.notes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
     // Apply note type filter
     const filteredByType = filterNotesByType(filteredDeleted, noteTypeFilter);
+    
+    // Determine hasMore accounting for filtering
+    // If filtering reduced the number of items but the API says there are more,
+    // we should continue loading to get enough filtered items
+    // hasMore is true if:
+    // 1. The API says there are more items (data.hasMore is true), OR
+    // 2. We got the full limit from the API but filtering reduced it (meaning there might be more filtered items)
+    const hasMore = data.hasMore || (data.notes.length === limit && filteredByType.length < limit && noteTypeFilter !== 'all');
+    
     return {
       items: filteredByType,
-      hasMore: data.hasMore
+      hasMore
     };
   }, [threadId, noteTypeFilter]);
 

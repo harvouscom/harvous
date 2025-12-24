@@ -339,6 +339,9 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
 // Fetch notes for a specific thread
 export async function getNotesForThread(threadId: string, userId: string, limit = 20, offset = 0) {
   try {
+    // Fetch limit + offset + 1 items to check if there are more
+    // The +1 allows us to determine if there are additional items beyond the requested range
+    const fetchLimit = limit + offset + 1;
     let allNotes = [];
     
     if (threadId === 'thread_unorganized') {
@@ -365,7 +368,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         isNull(NoteThreads.id) // No junction entry = unorganized
       ))
       .orderBy(desc(Notes.lastVisited || Notes.createdAt))
-      .limit(limit)
+      .limit(fetchLimit)
       .all();
       
       allNotes = unorganizedNotes;
@@ -389,20 +392,28 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
       .orderBy(desc(Notes.lastVisited || Notes.createdAt))
-      .limit(limit)
+      .limit(fetchLimit)
       .all();
       
       allNotes = junctionNotes;
     }
 
     // Sort by lastVisited/createdAt, apply offset and limit
-    const sortedNotes = allNotes
+    // Note: Database already orders by lastVisited/createdAt, but we sort again
+    // to ensure consistent ordering in case of ties
+    const sortedAllNotes = allNotes
       .sort((a, b) => {
         const aTime = a.lastVisited || a.createdAt;
         const bTime = b.lastVisited || b.createdAt;
         return bTime.getTime() - aTime.getTime();
-      })
-      .slice(offset, offset + limit);
+      });
+    
+    // Determine if there are more items beyond the requested range
+    // We fetched limit + offset + 1 items, so if we have more than offset + limit items, there are more
+    const hasMore = sortedAllNotes.length > offset + limit;
+    
+    // Slice to get exactly 'limit' items starting from 'offset'
+    const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
     
     // Fetch ResourceMetadata for resource notes
     const resourceNoteIds = sortedNotes
@@ -457,7 +468,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       })
     );
 
-    return notesWithThreadColors;
+    return { notes: notesWithThreadColors, hasMore };
   } catch (error) {
     console.error("Error fetching notes for thread:", error);
     return [];
@@ -526,11 +537,15 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
 }
 
 // Fetch notes for a specific space (both in threads and standalone)
-export async function getNotesForSpace(spaceId: string, userId: string, limit = 20) {
+export async function getNotesForSpace(spaceId: string, userId: string, limit = 20, offset = 0) {
   try {
+    // Fetch limit + offset + 1 items to check if there are more
+    // The +1 allows us to determine if there are additional items beyond the requested range
+    const fetchLimit = limit + offset + 1;
+    
     // Fetch all notes in the space (including notes that are in threads)
     // Notes can be in threads but still shown separately in the space view
-    const notes = await db.select({
+    const allNotes = await db.select({
       id: Notes.id,
       title: Notes.title,
       content: Notes.content,
@@ -547,11 +562,28 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
     .from(Notes)
     .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
     .orderBy(desc(Notes.lastVisited || Notes.createdAt))
-    .limit(limit)
+    .limit(fetchLimit)
     .all();
 
+    // Sort by lastVisited/createdAt, apply offset and limit
+    // Note: Database already orders by lastVisited/createdAt, but we sort again
+    // to ensure consistent ordering in case of ties
+    const sortedAllNotes = allNotes
+      .sort((a, b) => {
+        const aTime = a.lastVisited || a.createdAt;
+        const bTime = b.lastVisited || b.createdAt;
+        return bTime.getTime() - aTime.getTime();
+      });
+    
+    // Determine if there are more items beyond the requested range
+    // We fetched limit + offset + 1 items, so if we have more than offset + limit items, there are more
+    const hasMore = sortedAllNotes.length > offset + limit;
+    
+    // Slice to get exactly 'limit' items starting from 'offset'
+    const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
+
     // Fetch ResourceMetadata for resource notes
-    const resourceNoteIds = notes
+    const resourceNoteIds = sortedNotes
       .filter(note => note.noteType === 'resource')
       .map(note => note.id);
     
@@ -588,7 +620,7 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
 
     // Fetch thread colors for all notes
     const notesWithThreadColors = await Promise.all(
-      notes.map(async (note) => {
+      sortedNotes.map(async (note) => {
         const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
         const threadColors = await getThreadColorsForNote(note.id, userId);
         return {
@@ -603,10 +635,10 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
       })
     );
 
-    return notesWithThreadColors;
+    return { notes: notesWithThreadColors, hasMore };
   } catch (error) {
     console.error("Error fetching notes for space:", error);
-    return [];
+    return { notes: [], hasMore: false };
   }
 }
 

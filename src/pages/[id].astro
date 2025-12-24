@@ -118,10 +118,11 @@ try {
       if (id === 'thread_unorganized') {
         // Ensure the unorganized thread exists in database and get actual count
         const unorganizedThreadData = await ensureUnorganizedThread(authenticatedUserId);
-        const [notesData, noteTypeCountsData] = await Promise.all([
+        const [notesResult, noteTypeCountsData] = await Promise.all([
           getNotesForThread(id!, authenticatedUserId),
           getThreadNoteTypeCounts(id!, authenticatedUserId)
         ]);
+        const notesData = notesResult.notes;
         
         content = {
           id: 'thread_unorganized',
@@ -149,11 +150,12 @@ try {
           pageContent = `${unorganizedThreadData.noteCount} notes`;
       } else {
         // Fetch thread and its notes from database
-        const [threadData, notesData, noteTypeCountsData] = await Promise.all([
+        const [threadData, notesResult, noteTypeCountsData] = await Promise.all([
           getAllThreadsWithCounts(authenticatedUserId).then(threads => threads.find(t => t.id === id)),
           getNotesForThread(id!, authenticatedUserId),
           getThreadNoteTypeCounts(id!, authenticatedUserId)
         ]);
+        const notesData = notesResult.notes;
         
         debug(`[id].astro] Thread lookup`, { id, found: !!threadData, title: threadData?.title });
         
@@ -573,11 +575,12 @@ try {
       }
     } else if (isSpace) {
       // Fetch space, its threads, and standalone notes from database
-      const [spaceData, spaceThreads, spaceNotes] = await Promise.all([
+      const [spaceData, spaceThreads, spaceNotesResult] = await Promise.all([
         getSpacesWithCounts(authenticatedUserId).then(spaces => spaces.find(s => s.id === id)),
         getThreadsForSpace(id!, authenticatedUserId),
         getNotesForSpace(id!, authenticatedUserId)
       ]);
+      const spaceNotes = spaceNotesResult.notes;
       
       if (spaceData) {
         content = {

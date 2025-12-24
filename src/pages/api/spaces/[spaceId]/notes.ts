@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getNotesForThread } from '@/utils/dashboard-data';
+import { getNotesForSpace } from '@/utils/dashboard-data';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ params, request, locals }) => {
@@ -13,9 +13,9 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    const threadId = params.threadId;
-    if (!threadId) {
-      return new Response(JSON.stringify({ error: 'Thread ID is required' }), {
+    const { spaceId } = params;
+    if (!spaceId) {
+      return new Response(JSON.stringify({ error: 'Space ID is required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -25,9 +25,9 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
     const limit = parseInt(url.searchParams.get('limit') || '20', 10);
 
-    // getNotesForThread now returns { notes, hasMore }
+    // getNotesForSpace now returns { notes, hasMore }
     // It fetches limit + offset + 1 items internally to determine hasMore
-    const { notes, hasMore } = await getNotesForThread(threadId, userId, limit, offset);
+    const { notes, hasMore } = await getNotesForSpace(spaceId, userId, limit, offset);
 
     return new Response(JSON.stringify({
       notes,
@@ -41,9 +41,9 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 
   } catch (error: any) {
     const standardError = handleAPIError(error, {
-      endpoint: '/api/threads/[threadId]/notes',
-      action: 'get_thread_notes',
-      threadId: params.threadId
+      endpoint: '/api/spaces/[spaceId]/notes',
+      action: 'get_space_notes',
+      spaceId: params.spaceId
     });
     return new Response(JSON.stringify({ 
       error: standardError.message,

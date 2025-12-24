@@ -22,10 +22,12 @@ export const GET: APIRoute = async ({ params, locals }) => {
     }
 
     // Fetch notes and threads currently in the space
-    const [notes, threads] = await Promise.all([
+    // getNotesForSpace now returns { notes, hasMore }
+    const [notesResult, threads] = await Promise.all([
       getNotesForSpace(spaceId, userId, 100), // Get up to 100 notes
       getThreadsForSpace(spaceId, userId)
     ]);
+    const notes = notesResult.notes;
 
     return new Response(JSON.stringify({
       notes,
