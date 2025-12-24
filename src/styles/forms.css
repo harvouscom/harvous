@@ -395,9 +395,15 @@
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
-  align-items: center;
+  align-items: center; /* Center vertically on mobile */
   padding: 0.75rem;  /* 12px / p-3 */
   width: 100%;
+}
+
+@media (min-width: 1160px) {
+  .auth-page__video-overlay {
+    align-items: flex-start; /* Top align on desktop */
+  }
 }
 
 .auth-page__logo-container {
