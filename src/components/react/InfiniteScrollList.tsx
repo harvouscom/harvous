@@ -12,6 +12,8 @@ interface InfiniteScrollListProps<T> {
   items?: T[];
   onItemsChange?: (items: T[]) => void;
   initialHasMore?: boolean;
+  // Minimum expected count - if items.length < this and hasMore is true, trigger immediate load
+  minimumExpectedCount?: number;
 }
 
 export default function InfiniteScrollList<T>({
@@ -24,7 +26,8 @@ export default function InfiniteScrollList<T>({
   className = '',
   items: controlledItems,
   onItemsChange,
-  initialHasMore
+  initialHasMore,
+  minimumExpectedCount
 }: InfiniteScrollListProps<T>) {
   // Use controlled items if provided, otherwise use internal state
   const isControlled = controlledItems !== undefined;
@@ -84,6 +87,27 @@ export default function InfiniteScrollList<T>({
       loadingRef.current = false;
     }
   }, [items, limit, loadMore, hasMore, isLoading, isControlled, onItemsChange]);
+
+  // Trigger immediate load if hasMore is true but we have fewer items than expected
+  // This handles cases where filtering reduces visible items below the total count
+  useEffect(() => {
+    // Determine the threshold: use minimumExpectedCount if provided, otherwise use limit
+    const expectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
+    
+    // Only trigger if we have hasMore, not currently loading, and items are below expected count
+    // This ensures we load more items immediately when switching to filtered views
+    const shouldTriggerLoad = hasMore && !isLoading && !loadingRef.current && items.length < expectedCount;
+    
+    if (shouldTriggerLoad) {
+      // Small delay to avoid race conditions with other effects
+      const timer = setTimeout(() => {
+        if (hasMore && !isLoading && !loadingRef.current) {
+          handleLoadMore();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [hasMore, isLoading, items.length, limit, minimumExpectedCount, handleLoadMore]);
 
   // Intersection Observer for auto-loading
   useEffect(() => {

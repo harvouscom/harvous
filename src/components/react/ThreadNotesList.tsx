@@ -499,6 +499,7 @@ export default function ThreadNotesList({
           limit={20}
           className="flex flex-col gap-3"
           initialHasMore={initialHasMore}
+          minimumExpectedCount={totalCountForFilter}
         />
       </div>
 
