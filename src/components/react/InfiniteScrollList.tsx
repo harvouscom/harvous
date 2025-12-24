@@ -11,6 +11,7 @@ interface InfiniteScrollListProps<T> {
   // Optional controlled items - when provided, component uses these instead of internal state
   items?: T[];
   onItemsChange?: (items: T[]) => void;
+  initialHasMore?: boolean;
 }
 
 export default function InfiniteScrollList<T>({
@@ -22,7 +23,8 @@ export default function InfiniteScrollList<T>({
   threshold = 200,
   className = '',
   items: controlledItems,
-  onItemsChange
+  onItemsChange,
+  initialHasMore
 }: InfiniteScrollListProps<T>) {
   // Use controlled items if provided, otherwise use internal state
   const isControlled = controlledItems !== undefined;
@@ -30,7 +32,8 @@ export default function InfiniteScrollList<T>({
   const items = isControlled ? controlledItems : internalItems;
   
   const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(initialItems.length >= limit);
+  // Use initialHasMore if provided, otherwise calculate from initialItems length
+  const [hasMore, setHasMore] = useState(initialHasMore !== undefined ? initialHasMore : initialItems.length >= limit);
   const [error, setError] = useState<string | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -48,11 +51,11 @@ export default function InfiniteScrollList<T>({
     // Skip if controlled (parent manages state)
     if (!isControlled && itemsKey !== prevInitialItemsRef.current) {
       setInternalItems(initialItems);
-      setHasMore(initialItems.length >= limit);
+      setHasMore(initialHasMore !== undefined ? initialHasMore : initialItems.length >= limit);
       setError(null);
       prevInitialItemsRef.current = itemsKey;
     }
-  }, [initialItems, limit, isControlled]);
+  }, [initialItems, limit, isControlled, initialHasMore]);
 
   const handleLoadMore = useCallback(async () => {
     if (loadingRef.current || isLoading || !hasMore) return;

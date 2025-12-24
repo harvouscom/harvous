@@ -37,10 +37,18 @@ interface Note {
   resourceImage?: string | null;
 }
 
+interface NoteTypeCounts {
+  all: number;
+  default: number;
+  scripture: number;
+  resource: number;
+}
+
 interface ThreadNotesListProps {
   initialNotes: Note[];
   threadId: string;
   noteTypeFilter?: 'all' | 'default' | 'scripture' | 'resource';
+  noteTypeCounts?: NoteTypeCounts;
   'client:load'?: boolean;
   'client:visible'?: boolean;
   'client:idle'?: boolean;
@@ -62,7 +70,8 @@ function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scriptur
 export default function ThreadNotesList({ 
   initialNotes, 
   threadId,
-  noteTypeFilter = 'all'
+  noteTypeFilter = 'all',
+  noteTypeCounts
 }: ThreadNotesListProps) {
   // Manage notes list state for real-time updates
   const [notes, setNotes] = useState<Note[]>(initialNotes);
@@ -292,6 +301,31 @@ export default function ThreadNotesList({
   // Filter out deleted notes (note type filtering is already applied in state)
   const filteredNotes = notes.filter(note => !deletedNoteIds.has(note.id));
 
+  // Calculate initial hasMore based on filtered items vs total count for the filter type
+  const getTotalCountForFilter = (): number => {
+    if (!noteTypeCounts) {
+      // Fallback: if no counts provided, assume there might be more if we have a full page
+      return filteredNotes.length;
+    }
+    
+    switch (noteTypeFilter) {
+      case 'all':
+        return noteTypeCounts.all;
+      case 'default':
+        return noteTypeCounts.default;
+      case 'scripture':
+        return noteTypeCounts.scripture;
+      case 'resource':
+        return noteTypeCounts.resource;
+      default:
+        return noteTypeCounts.all;
+    }
+  };
+
+  const totalCountForFilter = getTotalCountForFilter();
+  // hasMore is true if we have fewer filtered items than the total count for this filter type
+  const initialHasMore = filteredNotes.length < totalCountForFilter;
+
   const loadMore = useCallback(async (offset: number, limit: number) => {
     const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
     url.searchParams.set('offset', offset.toString());
@@ -464,6 +498,7 @@ export default function ThreadNotesList({
           itemKey={(note) => note.id}
           limit={20}
           className="flex flex-col gap-3"
+          initialHasMore={initialHasMore}
         />
       </div>
 
