@@ -1,7 +1,6 @@
 ---
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignIn as ClerkSignIn } from "@clerk/astro/components";
-import SquareButton from "@/components/SquareButton.astro";
 
 // Get redirect URL from query params, fallback to home
 const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
@@ -13,12 +12,8 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
       <!-- Top Row (Mobile) / Left Column (Desktop): Animated Gradient Background -->
       <div class="auth-page__video-section thread-colors-mesh-gradient">
         <div class="auth-page__video-overlay">
-          <!-- Back to home link using SquareButton Back variant -->
-          <a href="https://harvous.com" class="auth-page__back-link">
-            <SquareButton variant="Back" />
-          </a>
           <!-- Harvous logo -->
-          <div class="auth-page__logo-container">
+          <a href="https://harvous.com" class="auth-page__logo-container">
             <svg 
               width="45" 
               height="64" 
@@ -30,7 +25,7 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
             >
               <path d="M44.8037 63.9941H0.0078125V0H44.8037V63.9941ZM34.5645 31.168C25.6988 34.2637 18.5024 41.2949 15.3711 50.543L14.2842 53.752H34.5645V31.168ZM10.2471 37.8643C15.8921 29.2487 24.5827 23.0353 34.5645 20.4824V10.2393H10.2471V37.8643Z" fill="#fff"/>
             </svg>
-          </div>
+          </a>
         </div>
       </div>
 

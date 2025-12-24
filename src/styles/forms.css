@@ -405,6 +405,14 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
+  text-decoration: none;
+  color: inherit;
+}
+
+.auth-page__logo-container:hover,
+.auth-page__logo-container:focus {
+  text-decoration: none;
+  color: inherit;
 }
 
 .auth-page__logo {
