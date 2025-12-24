@@ -87,6 +87,10 @@ export default function ThreadNotesList({
     deletedNoteIdsRef.current = deletedNoteIds;
   }, [deletedNoteIds]);
 
+  // Track total count for filter and accumulated filtered items count
+  const totalCountForFilterRef = useRef<number>(0);
+  const accumulatedFilteredCountRef = useRef<number>(0);
+
   // Update notes when initialNotes change (e.g., page navigation)
   useEffect(() => {
     const filtered = initialNotes
@@ -326,6 +330,12 @@ export default function ThreadNotesList({
   // hasMore is true if we have fewer filtered items than the total count for this filter type
   const initialHasMore = filteredNotes.length < totalCountForFilter;
 
+  // Update refs when total count or filtered notes change
+  useEffect(() => {
+    totalCountForFilterRef.current = totalCountForFilter;
+    accumulatedFilteredCountRef.current = filteredNotes.length;
+  }, [totalCountForFilter, filteredNotes.length]);
+
   const loadMore = useCallback(async (offset: number, limit: number) => {
     const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
     url.searchParams.set('offset', offset.toString());
@@ -345,13 +355,17 @@ export default function ThreadNotesList({
     // Apply note type filter
     const filteredByType = filterNotesByType(filteredDeleted, noteTypeFilter);
     
-    // Determine hasMore accounting for filtering
-    // If filtering reduced the number of items but the API says there are more,
-    // we should continue loading to get enough filtered items
+    // Determine hasMore accounting for filtering and expected count
+    // Check if we've reached the expected count based on current accumulated count
     // hasMore is true if:
-    // 1. The API says there are more items (data.hasMore is true), OR
-    // 2. We got the full limit from the API but filtering reduced it (meaning there might be more filtered items)
-    const hasMore = data.hasMore || (data.notes.length === limit && filteredByType.length < limit && noteTypeFilter !== 'all');
+    // 1. We haven't reached the expected count yet AND (the API says there are more OR we got a full batch), OR
+    // 2. The API says there are more items (data.hasMore is true), OR
+    // 3. We got the full limit from the API but filtering reduced it (meaning there might be more filtered items)
+    const currentFilteredCount = accumulatedFilteredCountRef.current + filteredByType.length;
+    const hasReachedExpectedCount = currentFilteredCount >= totalCountForFilterRef.current;
+    const hasMore = (!hasReachedExpectedCount && (data.hasMore || data.notes.length === limit))
+      || data.hasMore
+      || (data.notes.length === limit && filteredByType.length < limit && noteTypeFilter !== 'all');
     
     return {
       items: filteredByType,
@@ -366,7 +380,12 @@ export default function ThreadNotesList({
       new Map(newItems.map(note => [note.id, note])).values()
     );
     setNotes(uniqueNotes);
-  }, []);
+    
+    // Update accumulated filtered count based on actual filtered items
+    const filtered = uniqueNotes.filter(note => !deletedNoteIdsRef.current.has(note.id));
+    const typeFiltered = filterNotesByType(filtered, noteTypeFilter);
+    accumulatedFilteredCountRef.current = typeFiltered.length;
+  }, [noteTypeFilter]);
 
   const renderItem = (note: Note, index: number) => {
     const isScriptureNote = note.noteType === 'scripture';
