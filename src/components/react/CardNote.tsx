@@ -1,5 +1,6 @@
 import React from 'react';
 import Icon from './Icon';
+import { generateThreadMeshGradient } from '@/utils/colors';
 
 interface CardNoteProps {
   variant?: "default" | "withImage";
@@ -15,6 +16,8 @@ interface CardNoteProps {
   resourceImage?: string | null;
   resourceUrl?: string | null;
   showSource?: boolean; // Control whether to show source bar for resource notes
+  // Thread colors for mesh gradient background
+  threadColors?: Array<{ color: string; frequency: number }>;
 }
 
 // Helper function to convert HTML to readable text
@@ -116,7 +119,8 @@ const CardNote: React.FC<CardNoteProps> = ({
   resourceDescription,
   resourceImage,
   resourceUrl,
-  showSource = true
+  showSource = true,
+  threadColors
 }) => {
   // For resource notes, prioritize metadata over regular props
   const effectiveTitle = noteType === 'resource' 
@@ -132,13 +136,29 @@ const CardNote: React.FC<CardNoteProps> = ({
   // For resource notes with images, automatically use withImage variant
   const effectiveVariant = (noteType === 'resource' && effectiveImageUrl) ? "withImage" : variant;
   
+  // Generate mesh gradient from thread colors (only if no image present)
+  const meshGradient = !effectiveImageUrl && threadColors && threadColors.length > 0
+    ? generateThreadMeshGradient(threadColors)
+    : null;
+  
+  // Sidebar style: use gradient if available, otherwise default
+  const sidebarStyle = meshGradient
+    ? { 
+        backgroundColor: 'var(--color-light-paper)',
+        backgroundImage: meshGradient
+      }
+    : undefined;
+  
   return (
     <div className={`card card-note ${className}`} onClick={onClick}>
       {effectiveVariant === "default" && (
         <div className="card-note__inner">
           <div className="card-note__content">
             {/* Left sidebar with note type icon */}
-            <div className={`card-note__sidebar ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}>
+            <div 
+              className={`card-note__sidebar ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
+              style={sidebarStyle}
+            >
               <div className="card-note__sidebar-icon">
                 {noteType === 'scripture' ? (
                   <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
@@ -203,7 +223,10 @@ const CardNote: React.FC<CardNoteProps> = ({
             {/* Left sidebar with image background and note type icon */}
             <div 
               className={`card-note__sidebar card-note__sidebar--with-image ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
-              style={effectiveImageUrl ? { backgroundImage: `url('${effectiveImageUrl}')` } : undefined}
+              style={effectiveImageUrl 
+                ? { backgroundImage: `url('${effectiveImageUrl}')` } 
+                : sidebarStyle
+              }
             >
               {/* Hide icon for resource notes with image - the image is enough */}
               {!(noteType === 'resource' && effectiveImageUrl) && (

@@ -597,9 +597,14 @@ try {
         };
         
         // Create combined and sorted array for "All" tab (most recent first)
+        // Ensure threadColors are explicitly preserved when spreading notes
         const allItems = [
           ...spaceThreads.map((thread: any) => ({ ...thread, itemType: 'thread' as const })),
-          ...spaceNotes.map((note: any) => ({ ...note, itemType: 'note' as const }))
+          ...spaceNotes.map((note: any) => ({ 
+            ...note, 
+            itemType: 'note' as const,
+            threadColors: note.threadColors // Explicitly preserve threadColors
+          }))
         ].sort((a, b) => {
           // Sort by lastVisited (newest first), fallback to createdAt if lastVisited is null
           const aTime = a.lastVisited || a.createdAt;
@@ -825,6 +830,7 @@ if (!content) {
                                   title={item.title || "Untitled Note"}
                                   noteType={item.noteType || 'default'}
                                   href={`/${item.id}`}
+                                  threadColors={item.threadColors}
                                   client:visible
                                 />
                               ) : (
@@ -847,6 +853,7 @@ if (!content) {
                                     resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
                                     resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
                                     resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
+                                    threadColors={item.threadColors}
                                   />
                                 </a>
                               )}
@@ -897,6 +904,7 @@ if (!content) {
                                 title={note.title || "Untitled Note"}
                                 noteType={note.noteType || 'default'}
                                 href={`/${note.id}`}
+                                threadColors={note.threadColors}
                                 client:visible
                               />
                             ) : (
@@ -919,6 +927,7 @@ if (!content) {
                                   resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
                                   resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
                                   resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
+                                  threadColors={note.threadColors}
                                 />
                               </a>
                             )}

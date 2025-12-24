@@ -1,4 +1,6 @@
 ---
+import { generateThreadMeshGradient } from '@/utils/colors';
+
 export interface Props {
   variant?: "default" | "withImage";
   title?: string;
@@ -10,6 +12,8 @@ export interface Props {
   resourceTitle?: string | null;
   resourceDescription?: string | null;
   resourceImage?: string | null;
+  // Thread colors for mesh gradient background
+  threadColors?: Array<{ color: string; frequency: number }>;
 }
 
 const { 
@@ -21,7 +25,8 @@ const {
   class: className = "",
   resourceTitle,
   resourceDescription,
-  resourceImage
+  resourceImage,
+  threadColors
 } = Astro.props;
 
 // For resource notes, prioritize metadata over regular props
@@ -37,6 +42,16 @@ const effectiveImageUrl = noteType === 'resource'
 
 // For resource notes with images, automatically use withImage variant
 const effectiveVariant = (noteType === 'resource' && effectiveImageUrl) ? "withImage" : variant;
+
+// Generate mesh gradient from thread colors (only if no image present)
+const meshGradient = !effectiveImageUrl && threadColors && threadColors.length > 0
+  ? generateThreadMeshGradient(threadColors)
+  : null;
+
+// Sidebar style: use gradient if available, otherwise default
+const sidebarStyle = meshGradient
+  ? `background-color: var(--color-light-paper); background-image: ${meshGradient};`
+  : undefined;
 
 // Helper function to convert HTML to readable text
 function stripHtml(html: string): string {
@@ -99,7 +114,7 @@ function stripHtml(html: string): string {
     <div class="card-note__inner">
       <div class="card-note__content">
         <!-- Left sidebar with note type icon -->
-        <div class={`card-note__sidebar ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}>
+        <div class={`card-note__sidebar ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`} style={sidebarStyle}>
           <div class="card-note__sidebar-icon">
             {noteType === 'scripture' ? (
               <svg fill="currentColor" viewBox="0 0 576 512"><path d="M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z"/></svg>
@@ -140,7 +155,7 @@ function stripHtml(html: string): string {
     <div class="card-note__inner">
       <div class="card-note__content">
         <!-- Left sidebar with image background and note type icon -->
-        <div class={`card-note__sidebar card-note__sidebar--with-image ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`} style={effectiveImageUrl ? `background-image: url('${effectiveImageUrl}');` : ''}>
+        <div class={`card-note__sidebar card-note__sidebar--with-image ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`} style={effectiveImageUrl ? `background-image: url('${effectiveImageUrl}');` : sidebarStyle}>
           {/* Hide icon for resource notes with image - the image is enough */}
           {!(noteType === 'resource' && effectiveImageUrl) && (
             <div class="card-note__sidebar-icon">

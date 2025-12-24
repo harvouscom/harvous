@@ -22,6 +22,7 @@ interface OrganizedContentItem {
   resourceTitle?: string | null;
   resourceDescription?: string | null;
   resourceImage?: string | null;
+  threadColors?: Array<{ color: string; frequency: number }>;
 }
 
 interface OrganizedContentListProps {
@@ -491,6 +492,7 @@ export default function OrganizedContentList({
             title={item.title}
             noteType={(item.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
             href={href}
+            threadColors={item.threadColors}
           />
         ) : item.type === 'note' ? (
           <a 
@@ -504,6 +506,7 @@ export default function OrganizedContentList({
               resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
               resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
               resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
+              threadColors={item.threadColors}
             />
           </a>
         ) : (

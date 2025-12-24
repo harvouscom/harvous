@@ -1,11 +1,14 @@
 import React from 'react';
 import Icon from './Icon';
+import { generateThreadMeshGradient } from '@/utils/colors';
 
 interface CondensedNoteItemProps {
   title: string;
   noteType?: 'default' | 'scripture' | 'resource';
   href: string;
   className?: string;
+  // Thread colors for mesh gradient background
+  threadColors?: Array<{ color: string; frequency: number }>;
   'client:load'?: boolean;
   'client:visible'?: boolean;
   'client:idle'?: boolean;
@@ -16,8 +19,33 @@ export default function CondensedNoteItem({
   title,
   noteType = 'default',
   href,
-  className = ''
+  className = '',
+  threadColors
 }: CondensedNoteItemProps) {
+  // Generate mesh gradient from thread colors
+  const meshGradient = threadColors && threadColors.length > 0
+    ? generateThreadMeshGradient(threadColors)
+    : null;
+  
+  // Accent bar style: use gradient if available, otherwise default
+  const accentBarStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '2.75rem',
+    borderTopLeftRadius: '0.75rem',
+    borderBottomLeftRadius: '0.75rem',
+    overflow: 'hidden',
+    ...(meshGradient 
+      ? { 
+          backgroundColor: 'var(--color-light-paper)',
+          backgroundImage: meshGradient
+        }
+      : { backgroundColor: 'var(--color-light-paper)' }
+    )
+  };
+
   // Get note type icon
   const getNoteTypeIcon = () => {
     if (noteType === 'scripture') {
@@ -55,19 +83,7 @@ export default function CondensedNoteItem({
         }}
       >
         {/* Accent bar on left */}
-        <div 
-          style={{ 
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            width: '2.75rem',
-            borderTopLeftRadius: '0.75rem',
-            borderBottomLeftRadius: '0.75rem',
-            overflow: 'hidden',
-            backgroundColor: 'var(--color-light-paper)'
-          }}
-        />
+        <div style={accentBarStyle} />
         
         {/* Content */}
         <div 
