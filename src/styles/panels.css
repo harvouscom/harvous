@@ -162,12 +162,21 @@
   overflow-x: clip;
   overflow-y: auto;  /* Always allow vertical scrolling */
   padding: 12px;
+  padding-bottom: 0; /* Bottom padding handled by ::after for scrollable area */
   position: relative;
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
   width: 100%;
   flex: 1;
   min-height: 0;
+  
+  /* Add pseudo-element to ensure 12px bottom spacing is always visible when scrolling */
+  &::after {
+    content: '';
+    display: block;
+    height: 12px;
+    flex-shrink: 0;
+  }
 }
 
 /* ==========================================================================
