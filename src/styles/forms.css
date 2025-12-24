@@ -371,7 +371,8 @@
 
 .auth-page__video-section {
   display: flex;
-  height: 5.5625rem;  /* 89px / h-[89px] */
+  height: auto;
+  min-height: auto;
   position: relative;
   overflow: hidden;
   border-radius: 0.75rem;  /* 12px / rounded-[12px] */
@@ -405,6 +406,7 @@
   justify-content: center;
   text-decoration: none;
   color: inherit;
+  margin-left: -4px; /* Compensate for visual whitespace in SVG */
 }
 
 .auth-page__logo-container:hover,
