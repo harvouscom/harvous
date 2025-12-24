@@ -493,6 +493,7 @@ export default function OrganizedContentList({
             noteType={(item.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
             href={href}
             threadColors={item.threadColors}
+            noteId={item.noteId}
           />
         ) : item.type === 'note' ? (
           <a 
@@ -507,6 +508,7 @@ export default function OrganizedContentList({
               resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
               resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
               threadColors={item.threadColors}
+              noteId={item.noteId}
             />
           </a>
         ) : (

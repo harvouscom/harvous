@@ -9,6 +9,8 @@ interface CondensedNoteItemProps {
   className?: string;
   // Thread colors for mesh gradient background
   threadColors?: Array<{ color: string; frequency: number }>;
+  // Note ID for deterministic gradient variation
+  noteId?: string;
   'client:load'?: boolean;
   'client:visible'?: boolean;
   'client:idle'?: boolean;
@@ -20,11 +22,12 @@ export default function CondensedNoteItem({
   noteType = 'default',
   href,
   className = '',
-  threadColors
+  threadColors,
+  noteId
 }: CondensedNoteItemProps) {
   // Generate mesh gradient from thread colors
   const meshGradient = threadColors && threadColors.length > 0
-    ? generateThreadMeshGradient(threadColors)
+    ? generateThreadMeshGradient(threadColors, noteId)
     : null;
   
   // Accent bar style: use gradient if available, otherwise default

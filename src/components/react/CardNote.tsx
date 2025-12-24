@@ -18,6 +18,8 @@ interface CardNoteProps {
   showSource?: boolean; // Control whether to show source bar for resource notes
   // Thread colors for mesh gradient background
   threadColors?: Array<{ color: string; frequency: number }>;
+  // Note ID for deterministic gradient variation
+  noteId?: string;
 }
 
 // Helper function to convert HTML to readable text
@@ -120,7 +122,8 @@ const CardNote: React.FC<CardNoteProps> = ({
   resourceImage,
   resourceUrl,
   showSource = true,
-  threadColors
+  threadColors,
+  noteId
 }) => {
   // For resource notes, prioritize metadata over regular props
   const effectiveTitle = noteType === 'resource' 
@@ -138,7 +141,7 @@ const CardNote: React.FC<CardNoteProps> = ({
   
   // Generate mesh gradient from thread colors (only if no image present)
   const meshGradient = !effectiveImageUrl && threadColors && threadColors.length > 0
-    ? generateThreadMeshGradient(threadColors)
+    ? generateThreadMeshGradient(threadColors, noteId)
     : null;
   
   // Sidebar style: use gradient if available, otherwise default

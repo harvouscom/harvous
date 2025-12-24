@@ -66,6 +66,36 @@ const COLOR_THEORY_MAP: Record<string, ColorInfo> = {
   paper: { color: 'paper', hue: 90, position: { x: 50, y: 50 } },     // Center (neutral)
 };
 
+// Simple hash function to convert string to deterministic number
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash);
+}
+
+// Generate deterministic but varied offset from base position based on seed
+function getVariedPosition(
+  basePosition: { x: number; y: number },
+  seed: string,
+  maxOffset: number = 20 // Maximum offset in percentage
+): { x: number; y: number } {
+  const hash = hashString(seed);
+  
+  // Use hash to generate consistent but varied offsets
+  // Use different parts of hash for x and y to ensure variation
+  const xOffset = ((hash % (maxOffset * 2)) - maxOffset) * 0.8; // -16% to +16%
+  const yOffset = (((hash >> 8) % (maxOffset * 2)) - maxOffset) * 0.8; // -16% to +16%
+  
+  return {
+    x: Math.max(5, Math.min(95, basePosition.x + xOffset)),
+    y: Math.max(5, Math.min(95, basePosition.y + yOffset)),
+  };
+}
+
 // Calculate color harmony score between two colors
 // Returns: 1.0 = complementary (high harmony), 0.7 = analogous (medium), 0.3 = clashing (low), 0.5 = neutral
 function getColorHarmony(color1: string, color2: string): number {
@@ -87,7 +117,8 @@ function getColorHarmony(color1: string, color2: string): number {
 
 // Optimize positions based on color relationships
 function optimizeColorPositions(
-  colors: Array<{ color: string; frequency: number }>
+  colors: Array<{ color: string; frequency: number }>,
+  seed?: string // Optional seed for deterministic variation (e.g., noteId)
 ): Array<{ color: string; frequency: number; position: { x: number; y: number } }> {
   const colorInfos = colors.map(({ color, frequency }) => ({
     color,
@@ -100,20 +131,31 @@ function optimizeColorPositions(
   // Sort by frequency (most frequent first)
   colorInfos.sort((a, b) => b.frequency - a.frequency);
 
-  // For 1-2 colors: use their optimal positions
+  // For 1-2 colors: use their optimal positions with variation
   if (colorInfos.length <= 2) {
-    return colorInfos.map(({ color, frequency, info }) => ({
-      color,
-      frequency,
-      position: info.position,
-    }));
+    return colorInfos.map(({ color, frequency, info }, index) => {
+      const basePosition = info.position;
+      // Create seed from color + index + optional seed
+      const positionSeed = seed 
+        ? `${seed}-${color}-${index}` 
+        : `${color}-${frequency}-${index}`;
+      
+      return {
+        color,
+        frequency,
+        position: seed 
+          ? getVariedPosition(basePosition, positionSeed, 25) // Larger variation when seed provided
+          : basePosition, // No variation if no seed
+      };
+    });
   }
 
   // For 3+ colors: optimize positions to avoid clashing
   const optimized: Array<{ color: string; frequency: number; position: { x: number; y: number } }> = [];
   const usedPositions = new Set<string>();
 
-  for (const { color, frequency, info } of colorInfos) {
+  for (let i = 0; i < colorInfos.length; i++) {
+    const { color, frequency, info } = colorInfos[i];
     // Check if this color has complementary/analogous relationships
     let bestPosition = info.position;
     let minClash = Infinity;
@@ -139,6 +181,12 @@ function optimizeColorPositions(
           y: Math.max(5, Math.min(95, existing.position.y + offset)),
         };
       }
+    }
+
+    // Apply deterministic variation based on seed
+    if (seed) {
+      const positionSeed = `${seed}-${color}-${i}`;
+      bestPosition = getVariedPosition(bestPosition, positionSeed, 20);
     }
 
     // Ensure position isn't too close to existing ones
@@ -176,8 +224,10 @@ function optimizeColorPositions(
 // Uses color theory to position colors harmoniously
 // Returns null if no valid colors (for fallback to default background)
 // Each color gets an optimized position based on color relationships, and frequency increases the radius logarithmically
+// Optional seed parameter (e.g., noteId) adds deterministic variation so each note looks unique
 export function generateThreadMeshGradient(
-  threadColors: Array<{ color: string; frequency: number }>
+  threadColors: Array<{ color: string; frequency: number }>,
+  seed?: string // Optional: noteId or other identifier for deterministic variation
 ): string | null {
   if (!threadColors || threadColors.length === 0) {
     return null;
@@ -192,8 +242,8 @@ export function generateThreadMeshGradient(
     return null;
   }
 
-  // Optimize positions based on color theory
-  const optimizedColors = optimizeColorPositions(validColors);
+  // Optimize positions based on color theory with optional seed-based variation
+  const optimizedColors = optimizeColorPositions(validColors, seed);
 
   const gradientCircles: string[] = [];
 

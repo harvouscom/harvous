@@ -831,6 +831,7 @@ if (!content) {
                                   noteType={item.noteType || 'default'}
                                   href={`/${item.id}`}
                                   threadColors={item.threadColors}
+                                  noteId={item.itemType === 'note' ? item.id : undefined}
                                   client:visible
                                 />
                               ) : (
@@ -854,6 +855,7 @@ if (!content) {
                                     resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
                                     resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
                                     threadColors={item.threadColors}
+                                    noteId={item.itemType === 'note' ? item.id : undefined}
                                   />
                                 </a>
                               )}
@@ -905,6 +907,7 @@ if (!content) {
                                 noteType={note.noteType || 'default'}
                                 href={`/${note.id}`}
                                 threadColors={note.threadColors}
+                                noteId={note.id}
                                 client:visible
                               />
                             ) : (
@@ -928,6 +931,7 @@ if (!content) {
                                   resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
                                   resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
                                   threadColors={note.threadColors}
+                                  noteId={note.id}
                                 />
                               </a>
                             )}

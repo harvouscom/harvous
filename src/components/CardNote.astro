@@ -14,6 +14,8 @@ export interface Props {
   resourceImage?: string | null;
   // Thread colors for mesh gradient background
   threadColors?: Array<{ color: string; frequency: number }>;
+  // Note ID for deterministic gradient variation
+  noteId?: string;
 }
 
 const { 
@@ -26,7 +28,8 @@ const {
   resourceTitle,
   resourceDescription,
   resourceImage,
-  threadColors
+  threadColors,
+  noteId
 } = Astro.props;
 
 // For resource notes, prioritize metadata over regular props
@@ -45,7 +48,7 @@ const effectiveVariant = (noteType === 'resource' && effectiveImageUrl) ? "withI
 
 // Generate mesh gradient from thread colors (only if no image present)
 const meshGradient = !effectiveImageUrl && threadColors && threadColors.length > 0
-  ? generateThreadMeshGradient(threadColors)
+  ? generateThreadMeshGradient(threadColors, noteId)
   : null;
 
 // Sidebar style: use gradient if available, otherwise default
