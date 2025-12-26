@@ -122,15 +122,20 @@ export default function InfiniteScrollList<T>({
     // Check if component is visible before triggering auto-load
     const isVisible = isElementVisible(containerRef.current);
     
-    // Only trigger if we have hasMore, not currently loading, items are below expected count, and component is visible
-    // This ensures we load more items immediately when switching to filtered views, but only if the component is visible
-    const shouldTriggerLoad = hasMore && !isLoading && !loadingRef.current && items.length < expectedCount && isVisible;
+    // Trigger if:
+    // 1. Items are below expected count AND component is visible
+    // We should always try to load more if we're below the expected count, regardless of hasMore state
+    // because hasMore might be false due to filtering, but we still need more items
+    const needsMoreItems = items.length < expectedCount;
+    const shouldTriggerLoad = needsMoreItems && !isLoading && !loadingRef.current && isVisible;
     
     if (shouldTriggerLoad) {
       // Small delay to avoid race conditions with other effects
       const timer = setTimeout(() => {
         // Re-check visibility and conditions before loading
-        if (hasMore && !isLoading && !loadingRef.current && isElementVisible(containerRef.current)) {
+        const stillVisible = isElementVisible(containerRef.current);
+        const stillNeedsMore = items.length < expectedCount;
+        if (stillNeedsMore && !isLoading && !loadingRef.current && stillVisible) {
           handleLoadMore();
         }
       }, 100);
@@ -169,19 +174,32 @@ export default function InfiniteScrollList<T>({
 
   // Listen for tab visibility changes to trigger auto-load when tab becomes visible
   useEffect(() => {
+    let wasVisible = isElementVisible(containerRef.current);
+    
     const checkVisibilityAndLoad = () => {
-      if (!hasMore || isLoading || loadingRef.current) return;
-      
-      const expectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
       const isVisible = isElementVisible(containerRef.current);
+      const becameVisible = !wasVisible && isVisible;
+      wasVisible = isVisible;
       
-      if (isVisible && items.length < expectedCount) {
-        // Small delay to ensure DOM is ready
-        setTimeout(() => {
-          if (hasMore && !isLoading && !loadingRef.current && isElementVisible(containerRef.current)) {
-            handleLoadMore();
-          }
-        }, 150);
+      // If component just became visible, check if we need to load more
+      if (becameVisible || isVisible) {
+        if (isLoading || loadingRef.current) return;
+        
+        const expectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
+        
+        // Check if we need more items - we're below expected count
+        const needsMoreItems = items.length < expectedCount;
+        
+        if (needsMoreItems && isVisible) {
+          // Small delay to ensure DOM is ready
+          setTimeout(() => {
+            const stillVisible = isElementVisible(containerRef.current);
+            const stillNeedsMore = items.length < expectedCount;
+            if (stillNeedsMore && !isLoading && !loadingRef.current && stillVisible) {
+              handleLoadMore();
+            }
+          }, 150);
+        }
       }
     };
 
@@ -190,8 +208,8 @@ export default function InfiniteScrollList<T>({
 
     // Listen for tab change events (from tab-manager.js) - event bubbles to document
     const handleTabChange = (event: Event) => {
-      // Check if this tab change affects our component
-      checkVisibilityAndLoad();
+      // Small delay to let DOM update
+      setTimeout(checkVisibilityAndLoad, 50);
     };
 
     // Listen for custom tab change events on document (since they bubble)
@@ -200,8 +218,14 @@ export default function InfiniteScrollList<T>({
     // Also use MutationObserver to detect when hidden class is removed from parent elements
     let mutationObserver: MutationObserver | null = null;
     if (containerRef.current) {
-      mutationObserver = new MutationObserver(() => {
-        checkVisibilityAndLoad();
+      mutationObserver = new MutationObserver((mutations) => {
+        // Check if any mutation affected visibility
+        const hadVisibilityChange = mutations.some(mutation => 
+          mutation.type === 'attributes' && mutation.attributeName === 'class'
+        );
+        if (hadVisibilityChange) {
+          setTimeout(checkVisibilityAndLoad, 50);
+        }
       });
       
       // Find the closest parent with data-tab-content attribute (the tab content container)
