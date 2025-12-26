@@ -32,6 +32,51 @@
       });
     }
     
+    // Helper function to get storage key for current page
+    function getStorageKey() {
+      const path = window.location.pathname;
+      // For thread pages, use thread ID; otherwise use path
+      if (path.startsWith('/') && path.length > 1) {
+        const pageId = path.split('/').pop();
+        // Check if it's a thread (not dashboard, sign-in, etc.)
+        if (pageId && pageId !== '' && pageId !== 'sign-in' && pageId !== 'sign-up' && pageId !== 'find') {
+          return 'harvous_thread_tab_' + pageId;
+        }
+      }
+      // Fallback to path-based key
+      return 'harvous_tab_' + path.replace(/\//g, '_');
+    }
+    
+    // Helper function to restore active tab from localStorage
+    function restoreActiveTab() {
+      try {
+        const storageKey = getStorageKey();
+        const savedTabId = localStorage.getItem(storageKey);
+        
+        if (!savedTabId) return;
+        
+        // Find the tab button with the saved ID
+        const tabButtons = document.querySelectorAll('[data-tab-button]');
+        let targetButton = null;
+        
+        tabButtons.forEach(function(button) {
+          if (button.getAttribute('data-tab-id') === savedTabId) {
+            targetButton = button;
+          }
+        });
+        
+        if (targetButton) {
+          // Trigger the tab click to restore state
+          // Use a small delay to ensure DOM is ready
+          setTimeout(function() {
+            targetButton.click();
+          }, 50);
+        }
+      } catch (error) {
+        console.error('Error restoring active tab:', error);
+      }
+    }
+    
     function handleTabClick(e) {
       const clickedButton = e.currentTarget;
       if (!clickedButton) return;
@@ -40,6 +85,14 @@
       const tabNavContainer = clickedButton.closest('.tab-nav-container');
       
       if (!tabId || !tabNavContainer) return;
+      
+      // Store the active tab in localStorage
+      try {
+        const storageKey = getStorageKey();
+        localStorage.setItem(storageKey, tabId);
+      } catch (error) {
+        console.error('Error saving active tab:', error);
+      }
       
       // Update all tabs in this TabNav component
       const allTabsInNav = tabNavContainer.querySelectorAll('[data-tab-button]');
@@ -163,6 +216,11 @@
     // Initialize tabs
     setupTabHandlers();
     
+    // Restore active tab from localStorage after a short delay to ensure DOM is ready
+    setTimeout(function() {
+      restoreActiveTab();
+    }, 100);
+    
     // Also listen for dynamic content changes (for SPAs)
     const observer = new MutationObserver(function(mutations) {
       mutations.forEach(function(mutation) {
@@ -196,7 +254,29 @@
   
   // Re-initialize tabs after View Transitions page loads
   document.addEventListener('astro:page-load', () => {
-    setTimeout(initTabs, 50);
+    setTimeout(function() {
+      initTabs();
+      // Restore active tab after View Transitions
+      setTimeout(function() {
+        const storageKey = (function() {
+          const path = window.location.pathname;
+          if (path.startsWith('/') && path.length > 1) {
+            const pageId = path.split('/').pop();
+            if (pageId && pageId !== '' && pageId !== 'sign-in' && pageId !== 'sign-up' && pageId !== 'find') {
+              return 'harvous_thread_tab_' + pageId;
+            }
+          }
+          return 'harvous_tab_' + path.replace(/\//g, '_');
+        })();
+        const savedTabId = localStorage.getItem(storageKey);
+        if (savedTabId) {
+          const tabButton = document.querySelector('[data-tab-button][data-tab-id="' + savedTabId + '"]');
+          if (tabButton) {
+            tabButton.click();
+          }
+        }
+      }, 100);
+    }, 50);
   });
   
   // Also re-initialize after DOM swap for View Transitions
