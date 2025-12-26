@@ -39,8 +39,6 @@ export default function OrganizedContentList({
   const deletedItemIdsRef = useRef<Set<string>>(new Set());
   // Initialize currentItems directly from initialItems
   const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(initialItems || []);
-  const [isLoadingScripture, setIsLoadingScripture] = useState(false);
-  const [hasMoreScripture, setHasMoreScripture] = useState<boolean | undefined>(undefined);
   const isRefreshingRef = useRef(false);
   const isMountedRef = useRef(true);
   const lastRefreshTimeRef = useRef<number>(0);
@@ -215,23 +213,10 @@ export default function OrganizedContentList({
     if (filter === 'scripture') {
       // Only fetch if filter just changed to scripture (not on every render)
       if (prevFilterRef.current !== filter) {
-        // Filter currentItems to only show scripture notes while loading
-        // This prevents showing items from previous filter (e.g., threads or regular notes)
-        setCurrentItems((prev: OrganizedContentItem[]) => {
-          const scriptureOnly = prev.filter((item: OrganizedContentItem) => 
-            item.type === 'note' && item.noteType === 'scripture'
-          );
-          // If we have scripture notes from initialItems, show those; otherwise show empty array
-          return scriptureOnly.length > 0 ? scriptureOnly : [];
-        });
-        
-        setIsLoadingScripture(true);
+        setCurrentItems([]);
         
         const fetchScriptureNotes = async () => {
           try {
-            // Mark that we're fetching scripture notes to prevent refreshContent from interfering
-            isRefreshingItemsRef.current = true;
-            
             const url = new URL('/api/content/load-more', window.location.origin);
             url.searchParams.set('offset', '0');
             url.searchParams.set('limit', '200');
@@ -251,51 +236,14 @@ export default function OrganizedContentList({
               return !deletedItemIdsRef.current.has(item.id);
             });
             
-            // Store hasMore value from API response for pagination state
-            const apiHasMore = data.hasMore ?? false;
-            
-            // Create a key from the fetched items to track what we just loaded
-            const fetchedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
-            lastRefreshItemsKeyRef.current = fetchedItemsKey;
-            
-            // Only update if still mounted and still on scripture filter
-            // Double-check filter hasn't changed during fetch
-            if (isMountedRef.current && filterRef.current === 'scripture' && !isNavigatingRef.current) {
-              setCurrentItems(filteredItems);
-              setHasMoreScripture(apiHasMore);
-              setIsLoadingScripture(false);
-              debug('[OrganizedContentList] Scripture notes loaded', { 
-                itemCount: filteredItems.length,
-                hasMore: apiHasMore
-              });
-            } else {
-              debug('[OrganizedContentList] Skipping scripture notes update - filter changed or navigating', {
-                currentFilter: filterRef.current,
-                isNavigating: isNavigatingRef.current
-              });
-            }
+            setCurrentItems(filteredItems);
           } catch (error) {
             console.error('[OrganizedContentList] Error loading scripture notes:', error);
-            if (isMountedRef.current) {
-              setIsLoadingScripture(false);
-            }
-          } finally {
-            // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
-            setTimeout(() => {
-              isRefreshingItemsRef.current = false;
-            }, 100);
           }
         };
         
         fetchScriptureNotes();
-      } else {
-        // If filter is already 'scripture' and hasn't changed, ensure loading state is false
-        setIsLoadingScripture(false);
       }
-    } else {
-      // Not scripture filter, ensure loading state is false and clear hasMoreScripture
-      setIsLoadingScripture(false);
-      setHasMoreScripture(undefined);
     }
     prevFilterRef.current = filter;
   }, [filter]);
@@ -661,11 +609,6 @@ export default function OrganizedContentList({
       return !deletedItemIdsRef.current.has(item.id);
     });
     
-    // Update hasMoreScripture state when loadMore is called for scripture filter
-    if (currentFilter === 'scripture') {
-      setHasMoreScripture(data.hasMore ?? false);
-    }
-    
     debug('[OrganizedContentList] loadMore completed', {
       offset,
       limit,
@@ -740,13 +683,6 @@ export default function OrganizedContentList({
     );
   };
 
-  // Calculate initialHasMore based on filter
-  // For scripture filter, use the hasMoreScripture state from API response
-  // For other filters, calculate from initialItems length
-  const initialHasMore = filter === 'scripture' 
-    ? hasMoreScripture 
-    : (filteredInitialItems.length >= 20);
-
   return (
     <div className="flex flex-col">
       <InfiniteScrollList
@@ -755,14 +691,8 @@ export default function OrganizedContentList({
         renderItem={renderItem}
         itemKey={(item) => item.id}
         limit={20}
-        initialHasMore={initialHasMore}
         className="flex flex-col"
       />
-      {isLoadingScripture && (
-        <div className="text-[12px] text-[var(--color-stone-grey)] font-sans text-center py-4">
-          Loading scripture notes...
-        </div>
-      )}
     </div>
   );
 }
