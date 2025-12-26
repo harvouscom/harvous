@@ -86,7 +86,13 @@ export default function InfiniteScrollList<T>({
   }, [initialItems, limit, isControlled, initialHasMore]);
 
   const handleLoadMore = useCallback(async () => {
-    if (loadingRef.current || isLoading || !hasMore) return;
+    if (loadingRef.current || isLoading) return;
+    
+    // Check if we should load more - either hasMore is true OR we're below expected count
+    const expectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
+    const needsMoreItems = items.length < expectedCount;
+    
+    if (!hasMore && !needsMoreItems) return;
 
     loadingRef.current = true;
     setIsLoading(true);
@@ -103,7 +109,12 @@ export default function InfiniteScrollList<T>({
         // If uncontrolled, update internal state
         setInternalItems(newItems);
       }
-      setHasMore(result.hasMore);
+      
+      // Determine hasMore: use result.hasMore, but override if we still need more items
+      const newExpectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
+      const stillNeedsMore = newItems.length < newExpectedCount;
+      // Keep hasMore true if we still need more items OR the API says there are more
+      setHasMore(result.hasMore || stillNeedsMore);
     } catch (err: any) {
       console.error('Error loading more items:', err);
       setError(err.message || 'Failed to load more items');
@@ -111,7 +122,7 @@ export default function InfiniteScrollList<T>({
       setIsLoading(false);
       loadingRef.current = false;
     }
-  }, [items, limit, loadMore, hasMore, isLoading, isControlled, onItemsChange]);
+  }, [items, limit, loadMore, hasMore, isLoading, isControlled, onItemsChange, minimumExpectedCount]);
 
   // Trigger immediate load if hasMore is true but we have fewer items than expected
   // This handles cases where filtering reduces visible items below the total count
@@ -130,6 +141,11 @@ export default function InfiniteScrollList<T>({
     const shouldTriggerLoad = needsMoreItems && !isLoading && !loadingRef.current && isVisible;
     
     if (shouldTriggerLoad) {
+      // If we're below expected count, force hasMore to true to ensure we keep loading
+      if (needsMoreItems && !hasMore) {
+        setHasMore(true);
+      }
+      
       // Small delay to avoid race conditions with other effects
       const timer = setTimeout(() => {
         // Re-check visibility and conditions before loading

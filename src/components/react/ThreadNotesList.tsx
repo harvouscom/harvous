@@ -569,6 +569,10 @@ export default function ThreadNotesList({
     );
   };
 
+  // Force hasMore to be true if we're below expected count
+  // This ensures auto-load triggers even if the API says there are no more
+  const forceHasMore = filteredNotes.length < totalCountForFilter;
+
   return (
     <>
       <div ref={containerRef} style={{ paddingBottom: '12px' }}>
@@ -581,7 +585,7 @@ export default function ThreadNotesList({
           itemKey={(note) => note.id}
           limit={20}
           className="flex flex-col gap-3"
-          initialHasMore={shouldHaveMore}
+          initialHasMore={forceHasMore || shouldHaveMore}
           minimumExpectedCount={totalCountForFilter}
         />
       </div>
