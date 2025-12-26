@@ -147,17 +147,27 @@ export default function OrganizedContentList({
         // Double-check we're still on dashboard and mounted before updating
         // Also verify we're not on scripture filter (extra safety check)
         if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && filterRef.current !== 'scripture') {
-          // Mark that we're refreshing to prevent InfiniteScrollList from auto-loading
-          isRefreshingItemsRef.current = true;
-          lastRefreshItemsKeyRef.current = refreshedItemsKey;
-          
-          setCurrentItems(filteredItems);
-          debug('[OrganizedContentList] Updated currentItems', { itemCount: filteredItems.length });
-          
-          // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
-          setTimeout(() => {
-            isRefreshingItemsRef.current = false;
-          }, 100);
+          // Only update if items actually changed (avoid unnecessary updates that trigger loops)
+          if (refreshedItemsKey !== lastRefreshItemsKeyRef.current) {
+            // Mark that we're refreshing to prevent InfiniteScrollList from auto-loading
+            isRefreshingItemsRef.current = true;
+            lastRefreshItemsKeyRef.current = refreshedItemsKey;
+            
+            setCurrentItems(filteredItems);
+            debug('[OrganizedContentList] Updated currentItems', { itemCount: filteredItems.length });
+            
+            // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
+            setTimeout(() => {
+              isRefreshingItemsRef.current = false;
+            }, 100);
+          } else {
+            debug('[OrganizedContentList] Refresh returned same items, skipping update', { itemCount: filteredItems.length });
+            // Still clear refreshing flag even if we didn't update
+            isRefreshingRef.current = false;
+          }
+        } else {
+          // Not updating, so clear refreshing flag
+          isRefreshingRef.current = false;
         }
       } catch (error) {
         console.error(`[OrganizedContentList] Error refreshing content (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
@@ -282,6 +292,8 @@ export default function OrganizedContentList({
     // Clear refresh tracking when initialItems change (e.g., navigation)
     // This allows loadMore to work properly after navigation
     lastRefreshItemsKeyRef.current = '';
+    // Also clear refreshing flag to allow InfiniteScrollList to load more
+    isRefreshingItemsRef.current = false;
     
     // Filter out deleted items first
     let filtered = initialItems.filter((item: OrganizedContentItem) => item && item.id && !deletedItemIds.has(item.id));
@@ -581,11 +593,12 @@ export default function OrganizedContentList({
       return { items: [], hasMore: false };
     }
     
-    // If offset is 0 and we just refreshed, skip this load
+    // If offset is 0 and we just refreshed via refreshContent (not from initialItems), skip this load
     // refreshContent already loaded items from offset 0 (but not for scripture filter)
     // For scripture filter, the initial fetch in useEffect handles offset 0
-    if (offset === 0 && lastRefreshItemsKeyRef.current !== '' && currentFilter !== 'scripture') {
-      debug('[OrganizedContentList] Skipping loadMore offset 0 - already refreshed', { offset, filter: currentFilter });
+    // Only skip if we're actively refreshing (isRefreshingItemsRef) to avoid blocking normal pagination
+    if (offset === 0 && isRefreshingItemsRef.current && currentFilter !== 'scripture') {
+      debug('[OrganizedContentList] Skipping loadMore offset 0 - refresh in progress', { offset, filter: currentFilter });
       return { items: [], hasMore: false };
     }
     
