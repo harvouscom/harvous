@@ -40,6 +40,7 @@ export default function OrganizedContentList({
   // Initialize currentItems directly from initialItems
   const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(initialItems || []);
   const [isLoadingScripture, setIsLoadingScripture] = useState(false);
+  const [hasMoreScripture, setHasMoreScripture] = useState<boolean | undefined>(undefined);
   const isRefreshingRef = useRef(false);
   const isMountedRef = useRef(true);
   const lastRefreshTimeRef = useRef<number>(0);
@@ -250,6 +251,9 @@ export default function OrganizedContentList({
               return !deletedItemIdsRef.current.has(item.id);
             });
             
+            // Store hasMore value from API response for pagination state
+            const apiHasMore = data.hasMore ?? false;
+            
             // Create a key from the fetched items to track what we just loaded
             const fetchedItemsKey = filteredItems.map(item => item.id).join(',') + `|${filteredItems.length}`;
             lastRefreshItemsKeyRef.current = fetchedItemsKey;
@@ -258,8 +262,12 @@ export default function OrganizedContentList({
             // Double-check filter hasn't changed during fetch
             if (isMountedRef.current && filterRef.current === 'scripture' && !isNavigatingRef.current) {
               setCurrentItems(filteredItems);
+              setHasMoreScripture(apiHasMore);
               setIsLoadingScripture(false);
-              debug('[OrganizedContentList] Scripture notes loaded', { itemCount: filteredItems.length });
+              debug('[OrganizedContentList] Scripture notes loaded', { 
+                itemCount: filteredItems.length,
+                hasMore: apiHasMore
+              });
             } else {
               debug('[OrganizedContentList] Skipping scripture notes update - filter changed or navigating', {
                 currentFilter: filterRef.current,
@@ -285,8 +293,9 @@ export default function OrganizedContentList({
         setIsLoadingScripture(false);
       }
     } else {
-      // Not scripture filter, ensure loading state is false
+      // Not scripture filter, ensure loading state is false and clear hasMoreScripture
       setIsLoadingScripture(false);
+      setHasMoreScripture(undefined);
     }
     prevFilterRef.current = filter;
   }, [filter]);
@@ -654,6 +663,11 @@ export default function OrganizedContentList({
       return !deletedItemIdsRef.current.has(item.id);
     });
     
+    // Update hasMoreScripture state when loadMore is called for scripture filter
+    if (currentFilter === 'scripture') {
+      setHasMoreScripture(data.hasMore ?? false);
+    }
+    
     debug('[OrganizedContentList] loadMore completed', {
       offset,
       limit,
@@ -728,6 +742,13 @@ export default function OrganizedContentList({
     );
   };
 
+  // Calculate initialHasMore based on filter
+  // For scripture filter, use the hasMoreScripture state from API response
+  // For other filters, calculate from initialItems length
+  const initialHasMore = filter === 'scripture' 
+    ? hasMoreScripture 
+    : (filteredInitialItems.length >= 20);
+
   return (
     <div className="flex flex-col">
       <InfiniteScrollList
@@ -736,6 +757,7 @@ export default function OrganizedContentList({
         renderItem={renderItem}
         itemKey={(item) => item.id}
         limit={20}
+        initialHasMore={initialHasMore}
         className="flex flex-col"
       />
       {isLoadingScripture && (
