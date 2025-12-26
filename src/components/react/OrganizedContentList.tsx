@@ -64,6 +64,13 @@ export default function OrganizedContentList({
       return; // Don't refresh if not on dashboard
     }
     
+    // Skip refresh if filter is 'scripture' - scripture tab handles its own refresh
+    // This prevents refreshContent from overwriting scripture-specific fetch results
+    if (filterRef.current === 'scripture') {
+      debug('[OrganizedContentList] Skipping refreshContent - scripture filter has its own refresh logic');
+      return;
+    }
+    
     // Check if navigation is in progress
     if (isNavigatingRef.current) {
       return; // Skip refresh during navigation
@@ -101,10 +108,19 @@ export default function OrganizedContentList({
     const attemptRefresh = async (retryCount = 0): Promise<void> => {
       const maxRetries = 2;
       try {
+        // Use filterRef.current to get the current filter value (not closure value)
+        const currentFilter = filterRef.current;
+        
+        // Double-check we're not on scripture filter (should have been caught earlier, but extra safety)
+        if (currentFilter === 'scripture') {
+          debug('[OrganizedContentList] Skipping refreshContent attempt - scripture filter');
+          return;
+        }
+        
         const url = new URL('/api/content/load-more', window.location.origin);
         url.searchParams.set('offset', '0');
         url.searchParams.set('limit', '100'); // Match server-side limit
-        url.searchParams.set('filter', filter);
+        url.searchParams.set('filter', currentFilter);
 
         const response = await fetch(url.toString(), {
           credentials: 'include'
@@ -118,7 +134,7 @@ export default function OrganizedContentList({
         const threadItems = data.items?.filter((i: OrganizedContentItem) => i.type === 'thread') || [];
         debug('[OrganizedContentList] Refresh response', { 
           itemCount: data.items?.length, 
-          filter,
+          filter: currentFilter,
           threadItemsCount: threadItems.length
         });
         // Filter out deleted items from refreshed items
@@ -130,7 +146,8 @@ export default function OrganizedContentList({
         const refreshedItemsKey = filteredItems.map(item => item.id).join(',') + `|${filteredItems.length}`;
         
         // Double-check we're still on dashboard and mounted before updating
-        if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current) {
+        // Also verify we're not on scripture filter (extra safety check)
+        if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && filterRef.current !== 'scripture') {
           // Mark that we're refreshing to prevent InfiniteScrollList from auto-loading
           isRefreshingItemsRef.current = true;
           lastRefreshItemsKeyRef.current = refreshedItemsKey;
@@ -211,6 +228,9 @@ export default function OrganizedContentList({
         
         const fetchScriptureNotes = async () => {
           try {
+            // Mark that we're fetching scripture notes to prevent refreshContent from interfering
+            isRefreshingItemsRef.current = true;
+            
             const url = new URL('/api/content/load-more', window.location.origin);
             url.searchParams.set('offset', '0');
             url.searchParams.set('limit', '200');
@@ -230,16 +250,32 @@ export default function OrganizedContentList({
               return !deletedItemIdsRef.current.has(item.id);
             });
             
+            // Create a key from the fetched items to track what we just loaded
+            const fetchedItemsKey = filteredItems.map(item => item.id).join(',') + `|${filteredItems.length}`;
+            lastRefreshItemsKeyRef.current = fetchedItemsKey;
+            
             // Only update if still mounted and still on scripture filter
-            if (isMountedRef.current && filter === 'scripture') {
+            // Double-check filter hasn't changed during fetch
+            if (isMountedRef.current && filterRef.current === 'scripture' && !isNavigatingRef.current) {
               setCurrentItems(filteredItems);
               setIsLoadingScripture(false);
+              debug('[OrganizedContentList] Scripture notes loaded', { itemCount: filteredItems.length });
+            } else {
+              debug('[OrganizedContentList] Skipping scripture notes update - filter changed or navigating', {
+                currentFilter: filterRef.current,
+                isNavigating: isNavigatingRef.current
+              });
             }
           } catch (error) {
             console.error('[OrganizedContentList] Error loading scripture notes:', error);
             if (isMountedRef.current) {
               setIsLoadingScripture(false);
             }
+          } finally {
+            // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
+            setTimeout(() => {
+              isRefreshingItemsRef.current = false;
+            }, 100);
           }
         };
         
@@ -580,24 +616,28 @@ export default function OrganizedContentList({
       return { items: [], hasMore: false };
     }
     
+    // Use filterRef.current to get the current filter value (not closure value)
+    const currentFilter = filterRef.current;
+    
     // Don't load more if we're currently refreshing (refreshContent is running)
     // This prevents loading duplicates when refreshContent updates items
     if (isRefreshingRef.current || isRefreshingItemsRef.current) {
-      debug('[OrganizedContentList] Skipping loadMore - refresh in progress', { offset });
+      debug('[OrganizedContentList] Skipping loadMore - refresh in progress', { offset, filter: currentFilter });
       return { items: [], hasMore: false };
     }
     
     // If offset is 0 and we just refreshed, skip this load
-    // refreshContent already loaded items from offset 0
-    if (offset === 0 && lastRefreshItemsKeyRef.current !== '') {
-      debug('[OrganizedContentList] Skipping loadMore offset 0 - already refreshed', { offset });
+    // refreshContent already loaded items from offset 0 (but not for scripture filter)
+    // For scripture filter, the initial fetch in useEffect handles offset 0
+    if (offset === 0 && lastRefreshItemsKeyRef.current !== '' && currentFilter !== 'scripture') {
+      debug('[OrganizedContentList] Skipping loadMore offset 0 - already refreshed', { offset, filter: currentFilter });
       return { items: [], hasMore: false };
     }
     
     const url = new URL('/api/content/load-more', window.location.origin);
     url.searchParams.set('offset', offset.toString());
     url.searchParams.set('limit', limit.toString());
-    url.searchParams.set('filter', filter);
+    url.searchParams.set('filter', currentFilter);
 
     const response = await fetch(url.toString(), {
       credentials: 'include'
@@ -613,6 +653,15 @@ export default function OrganizedContentList({
       // Use item.id as the primary identifier (it's always present)
       return !deletedItemIdsRef.current.has(item.id);
     });
+    
+    debug('[OrganizedContentList] loadMore completed', {
+      offset,
+      limit,
+      filter: currentFilter,
+      itemsReturned: filteredItems.length,
+      hasMore: data.hasMore
+    });
+    
     return {
       items: filteredItems,
       hasMore: data.hasMore
