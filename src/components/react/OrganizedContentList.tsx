@@ -49,6 +49,8 @@ export default function OrganizedContentList({
   const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
   const refreshContentRef = useRef<(() => Promise<void>) | null>(null);
   const filterRef = useRef<string>(filter);
+  const isRefreshingItemsRef = useRef(false); // Track when we're refreshing to prevent auto-load
+  const lastRefreshItemsKeyRef = useRef<string>(''); // Track what items we last refreshed
   const DEBOUNCE_WINDOW_MS = 2000; // 2 seconds minimum between refreshes
 
   // Refresh content by fetching fresh data from API
@@ -124,13 +126,29 @@ export default function OrganizedContentList({
           return !deletedItemIdsRef.current.has(item.id);
         });
         
+        // Create a key from the refreshed items to track what we just loaded
+        const refreshedItemsKey = filteredItems.map(item => item.id).join(',') + `|${filteredItems.length}`;
+        
         // Double-check we're still on dashboard and mounted before updating
         if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current) {
+          // Mark that we're refreshing to prevent InfiniteScrollList from auto-loading
+          isRefreshingItemsRef.current = true;
+          lastRefreshItemsKeyRef.current = refreshedItemsKey;
+          
           setCurrentItems(filteredItems);
           debug('[OrganizedContentList] Updated currentItems', { itemCount: filteredItems.length });
+          
+          // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
+          setTimeout(() => {
+            isRefreshingItemsRef.current = false;
+          }, 100);
         }
       } catch (error) {
         console.error(`[OrganizedContentList] Error refreshing content (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
+        // Reset refreshing flags on error
+        if (isMountedRef.current && retryCount === 0) {
+          isRefreshingItemsRef.current = false;
+        }
         // Retry if we haven't exceeded max retries
         if (retryCount < maxRetries && isMountedRef.current && window.location.pathname === '/') {
           debug('[OrganizedContentList] Retrying refresh');
@@ -171,6 +189,9 @@ export default function OrganizedContentList({
   
   // Watch for filter changes and reload data for scripture tab
   useEffect(() => {
+    // Clear refresh tracking when filter changes
+    lastRefreshItemsKeyRef.current = '';
+    
     // If filter is 'scripture', always fetch all scripture notes (including referenced ones)
     // This ensures we show all scripture notes, not just the ones from initialItems
     if (filter === 'scripture') {
@@ -244,6 +265,7 @@ export default function OrganizedContentList({
     if (!initialItems || !Array.isArray(initialItems)) {
       setCurrentItems([]);
       prevInitialItemsKeyRef.current = '';
+      lastRefreshItemsKeyRef.current = ''; // Clear refresh tracking when items are cleared
       return;
     }
     
@@ -264,6 +286,9 @@ export default function OrganizedContentList({
     }
     
     prevInitialItemsKeyRef.current = itemsKey;
+    // Clear refresh tracking when initialItems change (e.g., navigation)
+    // This allows loadMore to work properly after navigation
+    lastRefreshItemsKeyRef.current = '';
     
     // Filter out deleted items first
     let filtered = initialItems.filter(item => item && item.id && !deletedItemIds.has(item.id));
@@ -466,6 +491,21 @@ export default function OrganizedContentList({
       
       // Only refresh if we're on the dashboard page
       if (isDashboard && isMountedRef.current) {
+        // Don't refresh if we're already refreshing or if refresh was called recently
+        const now = Date.now();
+        const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
+        const shouldSkipRefresh = isRefreshingRef.current || 
+          (lastRefreshTimeRef.current > 0 && timeSinceLastRefresh < DEBOUNCE_WINDOW_MS);
+        
+        if (shouldSkipRefresh) {
+          debug('[OrganizedContentList] Skipping refresh on page load - too soon or already refreshing', {
+            timeSinceLastRefresh,
+            isRefreshing: isRefreshingRef.current
+          });
+          previousPathnameRef.current = window.location.pathname;
+          return;
+        }
+        
         // If we navigated TO the dashboard (not just refreshed on it), prioritize server-rendered data
         // but also refresh to ensure we have the latest data
         if (navigatedToDashboard) {
@@ -484,11 +524,14 @@ export default function OrganizedContentList({
         pendingRefreshTimeoutRef.current = setTimeout(() => {
           pendingRefreshTimeoutRef.current = null;
           if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current) {
-            // Force refresh by resetting lastRefreshTime if we navigated to dashboard
-            if (navigatedToDashboard) {
-              lastRefreshTimeRef.current = 0;
+            // Double-check we're not already refreshing before calling
+            if (!isRefreshingRef.current) {
+              // Force refresh by resetting lastRefreshTime if we navigated to dashboard
+              if (navigatedToDashboard) {
+                lastRefreshTimeRef.current = 0;
+              }
+              refreshContentRef.current?.();
             }
-            refreshContentRef.current?.();
           }
         }, 300); // Slightly longer delay to ensure initialItems are processed first
       }
@@ -534,6 +577,20 @@ export default function OrganizedContentList({
   const loadMore = useCallback(async (offset: number, limit: number) => {
     // Guard against SSR
     if (typeof window === 'undefined') {
+      return { items: [], hasMore: false };
+    }
+    
+    // Don't load more if we're currently refreshing (refreshContent is running)
+    // This prevents loading duplicates when refreshContent updates items
+    if (isRefreshingRef.current || isRefreshingItemsRef.current) {
+      debug('[OrganizedContentList] Skipping loadMore - refresh in progress', { offset });
+      return { items: [], hasMore: false };
+    }
+    
+    // If offset is 0 and we just refreshed, skip this load
+    // refreshContent already loaded items from offset 0
+    if (offset === 0 && lastRefreshItemsKeyRef.current !== '') {
+      debug('[OrganizedContentList] Skipping loadMore offset 0 - already refreshed', { offset });
       return { items: [], hasMore: false };
     }
     
