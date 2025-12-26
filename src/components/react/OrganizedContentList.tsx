@@ -155,58 +155,57 @@ export default function OrganizedContentList({
   }, [deletedItemIds]);
 
   // Track previous filter to detect tab switches
-  const prevFilterRef = useRef(filter);
-  // Track if we've already fetched for scripture tab (to avoid refetching on every render)
-  const scriptureFetchedRef = useRef(false);
+  const prevFilterRef = useRef<string | null>(null);
   
   // Watch for filter changes and reload data for scripture tab
   useEffect(() => {
-    // If filter is 'scripture', fetch unfiltered data (either on mount or when switching to it)
-    // Only fetch if we haven't fetched for this filter yet, or if filter just changed to scripture
-    const shouldFetchScripture = filter === 'scripture' && 
-      (!scriptureFetchedRef.current || prevFilterRef.current !== filter);
-    
-    if (shouldFetchScripture) {
-      scriptureFetchedRef.current = true;
-      setCurrentItems([]);
-      
-      const fetchScriptureNotes = async () => {
-        try {
-          const url = new URL('/api/content/load-more', window.location.origin);
-          url.searchParams.set('offset', '0');
-          url.searchParams.set('limit', '200');
-          url.searchParams.set('filter', 'scripture');
+    // If filter is 'scripture', always fetch all scripture notes (including referenced ones)
+    // This ensures we show all scripture notes, not just the ones from initialItems
+    if (filter === 'scripture') {
+      // Only fetch if filter just changed to scripture (not on every render)
+      if (prevFilterRef.current !== filter) {
+        setCurrentItems([]);
+        
+        const fetchScriptureNotes = async () => {
+          try {
+            const url = new URL('/api/content/load-more', window.location.origin);
+            url.searchParams.set('offset', '0');
+            url.searchParams.set('limit', '200');
+            url.searchParams.set('filter', 'scripture');
 
-          const response = await fetch(url.toString(), {
-            credentials: 'include'
-          });
+            const response = await fetch(url.toString(), {
+              credentials: 'include'
+            });
 
-          if (!response.ok) {
-            throw new Error(`Failed to load scripture notes: ${response.status}`);
+            if (!response.ok) {
+              throw new Error(`Failed to load scripture notes: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            const filteredItems = data.items.filter((item: OrganizedContentItem) => {
+              return !deletedItemIdsRef.current.has(item.id);
+            });
+            
+            setCurrentItems(filteredItems);
+          } catch (error) {
+            console.error('[OrganizedContentList] Error loading scripture notes:', error);
           }
-
-          const data = await response.json();
-          
-          const filteredItems = data.items.filter((item: OrganizedContentItem) => {
-            return !deletedItemIdsRef.current.has(item.id);
-          });
-          
-          setCurrentItems(filteredItems);
-        } catch (error) {
-          console.error('[OrganizedContentList] Error loading scripture notes:', error);
-        }
-      };
-      
-      fetchScriptureNotes();
-    } else if (filter !== 'scripture') {
-      // Reset the flag when switching away from scripture tab
-      scriptureFetchedRef.current = false;
+        };
+        
+        fetchScriptureNotes();
+      }
     }
     prevFilterRef.current = filter;
   }, [filter]);
   
   // Update currentItems when initialItems change (e.g., after navigation)
   useEffect(() => {
+    // Skip updating from initialItems if filter is 'scripture' - the filter useEffect handles fetching all scripture notes
+    if (filter === 'scripture') {
+      return;
+    }
+    
     if (!initialItems || !Array.isArray(initialItems)) {
       setCurrentItems([]);
       prevInitialItemsKeyRef.current = '';
@@ -241,12 +240,11 @@ export default function OrganizedContentList({
     } else if (filter === 'notes') {
       // Ensure only default note type notes are shown (exclude scripture and resource notes)
       filtered = filtered.filter(item => item.type === 'note' && (item.noteType === 'default' || !item.noteType));
-    } else if (filter === 'scripture') {
-      filtered = filtered.filter(item => item.type === 'note' && item.noteType === 'scripture');
     } else if (filter === 'resources') {
       filtered = filtered.filter(item => item.type === 'note' && item.noteType === 'resource');
     }
     // For 'all' filter, no additional filtering needed - server handles filtering referenced scripture notes
+    // For 'scripture' filter, we skip this useEffect entirely and let the filter useEffect handle it
     
     debug('[OrganizedContentList] Updating currentItems from initialItems', {
       initialItemsCount: initialItems.length,
