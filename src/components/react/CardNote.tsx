@@ -265,7 +265,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '4px',
-                      maxHeight: '316px',
+                      maxHeight: '280px',
                       overflowY: 'auto',
                       paddingBottom: '4px',
                       animation: 'cardFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both'
@@ -504,7 +504,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '4px',
-                      maxHeight: '316px',
+                      maxHeight: '280px',
                       overflowY: 'auto',
                       paddingBottom: '4px',
                       animation: 'cardFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both'
