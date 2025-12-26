@@ -734,10 +734,16 @@ if (!content) {
                       return (
                         <>
                           {/* Inline script to restore active tab immediately on page load */}
-                          <script is:inline define:vars={{ threadId: id }}>
+                          <div data-thread-id={id} style="display: none;"></div>
+                          <script is:inline>
                             (function() {
                               function restoreTab() {
                                 try {
+                                  const threadIdElement = document.querySelector('[data-thread-id]');
+                                  if (!threadIdElement) return;
+                                  const threadId = threadIdElement.getAttribute('data-thread-id');
+                                  if (!threadId) return;
+                                  
                                   const storageKey = 'harvous_thread_tab_' + threadId;
                                   const savedTabId = localStorage.getItem(storageKey);
                                   
