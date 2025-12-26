@@ -168,7 +168,7 @@ const CardNote: React.FC<CardNoteProps> = ({
     <div className={`card card-note ${className}`} onClick={onClick}>
       {effectiveVariant === "default" && (
         <div className="card-note__inner">
-          <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {/* Horizontal container for sidebar and body */}
             <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
               {/* Left sidebar with note type icon */}
@@ -401,7 +401,7 @@ const CardNote: React.FC<CardNoteProps> = ({
 
       {effectiveVariant === "withImage" && (
         <div className="card-note__inner">
-          <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {/* Horizontal container for sidebar and body */}
             <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
               {/* Left sidebar with image background and note type icon */}
