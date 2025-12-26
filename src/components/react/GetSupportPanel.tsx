@@ -55,7 +55,7 @@ export default function GetSupportPanel({
             
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''} panel__content--no-bottom-padding`}>
                 
                 {/* Visit our help center button */}
                 <button

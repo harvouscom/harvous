@@ -760,7 +760,7 @@
   overflow-x: clip;
   overflow-y: auto;
   padding: 12px;
-  padding-bottom: 0; /* Bottom padding handled by inner-content for scrollable area */
+  padding-bottom: 12px;
   position: relative;
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;

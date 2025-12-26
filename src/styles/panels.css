@@ -177,6 +177,11 @@
     height: 12px;
     flex-shrink: 0;
   }
+  
+  /* Remove bottom spacing for panels that don't need it */
+  &.panel__content--no-bottom-padding::after {
+    display: none;
+  }
 }
 
 /* ==========================================================================
