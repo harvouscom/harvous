@@ -164,51 +164,55 @@ const CardNote: React.FC<CardNoteProps> = ({
       }
     : undefined;
   
+  // Determine if scripture refs will be shown
+  const hasScriptureRefs = showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0;
+  
   return (
     <div className={`card card-note ${className}`} onClick={onClick}>
       {effectiveVariant === "default" && (
-        <div className="card-note__inner">
-          <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {/* Horizontal container for sidebar and body */}
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
-              {/* Left sidebar with note type icon */}
-              <div 
-                className={`card-note__sidebar ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
-                style={sidebarStyle}
-              >
-                <div className="card-note__sidebar-icon">
-                  {noteType === 'scripture' ? (
-                    <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
-                  ) : noteType === 'resource' ? (
-                    <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
-                  ) : (
-                    <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
-                      <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-                    </svg>
-                  )}
+        hasScriptureRefs ? (
+          <div className="card-note__inner">
+            <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* When scripture refs exist, wrap sidebar and body in a container */}
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
+                {/* Left sidebar with note type icon */}
+                <div 
+                  className={`card-note__sidebar ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
+                  style={sidebarStyle}
+                >
+                  <div className="card-note__sidebar-icon">
+                    {noteType === 'scripture' ? (
+                      <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                    ) : noteType === 'resource' ? (
+                      <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                    ) : (
+                      <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
+                        <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Right content area */}
+                <div className="card-note__body">
+                  <div className="card-note__text">
+                    <div className="card-note__title">
+                      <p>{effectiveTitle || "Quick Tour of Harvous"}</p>
+                    </div>
+                    {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
+                    {(noteType !== 'resource' || !resourceUrl || !showSource) && (
+                      <div className="card-note__excerpt">
+                        <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               
-              {/* Right content area */}
-              <div className="card-note__body">
-                <div className="card-note__text">
-                  <div className="card-note__title">
-                    <p>{effectiveTitle || "Quick Tour of Harvous"}</p>
-                  </div>
-                  {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
-                  {(noteType !== 'resource' || !resourceUrl || !showSource) && (
-                    <div className="card-note__excerpt">
-                      <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            {/* Scripture references collapsible section (only in dashboard list view) */}
-            {showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0 && (
-              <div 
-                className="card-note__scripture-refs"
+              {/* Scripture references collapsible section (only in dashboard list view) */}
+              {showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0 && (
+                <div 
+                  className="card-note__scripture-refs"
                 style={{
                   backgroundColor: 'var(--color-snow-white)',
                   borderRadius: '8px',
@@ -397,57 +401,96 @@ const CardNote: React.FC<CardNoteProps> = ({
           )}
           <div aria-hidden="true" className="card__border" style={{ borderColor: '#f7f7f6' }} />
         </div>
-      )}
-
-      {effectiveVariant === "withImage" && (
-        <div className="card-note__inner">
-          <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {/* Horizontal container for sidebar and body */}
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
-              {/* Left sidebar with image background and note type icon */}
-              <div 
-                className={`card-note__sidebar card-note__sidebar--with-image ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
-                style={effectiveImageUrl 
-                  ? { backgroundImage: `url('${effectiveImageUrl}')` } 
-                  : sidebarStyle
-                }
-              >
-                {/* Hide icon for resource notes with image - the image is enough */}
-                {!(noteType === 'resource' && effectiveImageUrl) && (
-                  <div className="card-note__sidebar-icon">
-                    {noteType === 'scripture' ? (
-                      <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
-                    ) : noteType === 'resource' ? (
-                      <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
-                    ) : (
-                      <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
-                        <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-                      </svg>
-                    )}
-                  </div>
+        ) : (
+          /* When no scripture refs, skip card-note__inner wrapper - card-note__content is direct child */
+          <div className="card-note__content" style={{ padding: '8px' }}>
+            {/* Left sidebar with note type icon */}
+            <div 
+              className={`card-note__sidebar ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
+              style={sidebarStyle}
+            >
+              <div className="card-note__sidebar-icon">
+                {noteType === 'scripture' ? (
+                  <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                ) : noteType === 'resource' ? (
+                  <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                ) : (
+                  <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
+                    <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                  </svg>
                 )}
-              </div>
-              
-              {/* Right content area */}
-              <div className="card-note__body">
-                <div className="card-note__text">
-                  <div className="card-note__title">
-                    <p>{effectiveTitle || "Note with Image"}</p>
-                  </div>
-                  {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
-                  {(noteType !== 'resource' || !resourceUrl || !showSource) && (
-                    <div className="card-note__excerpt">
-                      <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
             
-            {/* Scripture references collapsible section (only in dashboard list view) */}
-            {showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0 && (
-              <div 
-                className="card-note__scripture-refs"
+            {/* Right content area */}
+            <div className="card-note__body">
+              <div className="card-note__text">
+                <div className="card-note__title">
+                  <p>{effectiveTitle || "Quick Tour of Harvous"}</p>
+                </div>
+                {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
+                {(noteType !== 'resource' || !resourceUrl || !showSource) && (
+                  <div className="card-note__excerpt">
+                    <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div aria-hidden="true" className="card__border" style={{ borderColor: '#f7f7f6' }} />
+          </div>
+        )
+      )}
+
+      {effectiveVariant === "withImage" && (
+        hasScriptureRefs ? (
+          <div className="card-note__inner">
+            <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* When scripture refs exist, wrap sidebar and body in a container */}
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
+                {/* Left sidebar with image background and note type icon */}
+                <div 
+                  className={`card-note__sidebar card-note__sidebar--with-image ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
+                  style={effectiveImageUrl 
+                    ? { backgroundImage: `url('${effectiveImageUrl}')` } 
+                    : sidebarStyle
+                  }
+                >
+                  {/* Hide icon for resource notes with image - the image is enough */}
+                  {!(noteType === 'resource' && effectiveImageUrl) && (
+                    <div className="card-note__sidebar-icon">
+                      {noteType === 'scripture' ? (
+                        <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                      ) : noteType === 'resource' ? (
+                        <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                      ) : (
+                        <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
+                          <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                        </svg>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Right content area */}
+                <div className="card-note__body">
+                  <div className="card-note__text">
+                    <div className="card-note__title">
+                      <p>{effectiveTitle || "Note with Image"}</p>
+                    </div>
+                    {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
+                    {(noteType !== 'resource' || !resourceUrl || !showSource) && (
+                      <div className="card-note__excerpt">
+                        <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Scripture references collapsible section (only in dashboard list view) */}
+              {showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0 && (
+                <div 
+                  className="card-note__scripture-refs"
                 style={{
                   backgroundColor: 'var(--color-snow-white)',
                   borderRadius: '8px',
@@ -636,6 +679,50 @@ const CardNote: React.FC<CardNoteProps> = ({
           )}
           <div aria-hidden="true" className="card__border" />
         </div>
+        ) : (
+          /* When no scripture refs, skip card-note__inner wrapper - card-note__content is direct child */
+          <div className="card-note__content" style={{ padding: '8px' }}>
+            {/* Left sidebar with image background and note type icon */}
+            <div 
+              className={`card-note__sidebar card-note__sidebar--with-image ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
+              style={effectiveImageUrl 
+                ? { backgroundImage: `url('${effectiveImageUrl}')` } 
+                : sidebarStyle
+              }
+            >
+              {/* Hide icon for resource notes with image - the image is enough */}
+              {!(noteType === 'resource' && effectiveImageUrl) && (
+                <div className="card-note__sidebar-icon">
+                  {noteType === 'scripture' ? (
+                    <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                  ) : noteType === 'resource' ? (
+                    <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                  ) : (
+                    <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
+                      <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                    </svg>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* Right content area */}
+            <div className="card-note__body">
+              <div className="card-note__text">
+                <div className="card-note__title">
+                  <p>{effectiveTitle || "Note with Image"}</p>
+                </div>
+                {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
+                {(noteType !== 'resource' || !resourceUrl || !showSource) && (
+                  <div className="card-note__excerpt">
+                    <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div aria-hidden="true" className="card__border" />
+          </div>
+        )
       )}
     </div>
   );
