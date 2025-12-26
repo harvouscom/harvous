@@ -1232,3 +1232,134 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
     return [];
   }
 }
+
+// Optimized function to fetch scripture notes directly from database
+// This avoids fetching all notes and filtering in memory
+export async function getScriptureNotesForDashboard(userId: string, limit = 20, offset = 0): Promise<{ items: any[]; hasMore: boolean }> {
+  try {
+    // Query scripture notes directly with proper pagination
+    // Fetch limit + 1 to check if there are more items
+    const fetchLimit = limit + 1;
+    const notes = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      threadId: Notes.threadId,
+      spaceId: Notes.spaceId,
+      simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
+      isPublic: Notes.isPublic,
+      isFeatured: Notes.isFeatured,
+      createdAt: Notes.createdAt,
+      updatedAt: Notes.updatedAt,
+      lastVisited: Notes.lastVisited,
+    })
+    .from(Notes)
+    .where(and(
+      eq(Notes.userId, userId),
+      eq(Notes.noteType, 'scripture')
+    ))
+    .orderBy(desc(Notes.lastVisited), desc(Notes.createdAt))
+    .limit(fetchLimit)
+    .offset(offset)
+    .all();
+
+    // Sort in JavaScript to ensure correct ordering (lastVisited with fallback to createdAt)
+    // This handles null lastVisited values correctly
+    const sortedNotes = notes.sort((a, b) => {
+      const aTime = a.lastVisited || a.createdAt;
+      const bTime = b.lastVisited || b.createdAt;
+      if (!aTime && !bTime) return 0;
+      if (!aTime) return 1; // null lastVisited goes after
+      if (!bTime) return -1; // null lastVisited goes after
+      return bTime.getTime() - aTime.getTime(); // Newest first
+    });
+
+    // Apply limit after sorting
+    const limitedNotes = sortedNotes.slice(0, limit);
+
+    // Batch fetch thread colors for all notes in parallel
+    // This is much more efficient than calling getThreadColorsForNote for each note
+    const noteIds = limitedNotes.map(note => note.id);
+    let threadColorsMap: Record<string, Array<{ color: string; frequency: number }>> = {};
+
+    if (noteIds.length > 0) {
+      try {
+        // Fetch all thread associations for all notes at once
+        const allNoteThreads = await db.select({
+          noteId: NoteThreads.noteId,
+          threadId: NoteThreads.threadId,
+          color: Threads.color,
+        })
+        .from(NoteThreads)
+        .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+        .where(and(
+          inArray(NoteThreads.noteId, noteIds),
+          eq(Threads.userId, userId),
+          ne(Threads.id, "thread_unorganized") // Exclude unorganized thread
+        ))
+        .all();
+
+        // Group by noteId and then by color to count frequency
+        const noteColorMap = new Map<string, Map<string, number>>();
+        
+        for (const nt of allNoteThreads) {
+          if (nt.color) {
+            if (!noteColorMap.has(nt.noteId)) {
+              noteColorMap.set(nt.noteId, new Map());
+            }
+            const colorMap = noteColorMap.get(nt.noteId)!;
+            const currentCount = colorMap.get(nt.color) || 0;
+            colorMap.set(nt.color, currentCount + 1);
+          }
+        }
+
+        // Convert to the expected format
+        for (const [noteId, colorMap] of noteColorMap.entries()) {
+          threadColorsMap[noteId] = Array.from(colorMap.entries()).map(([color, frequency]) => ({
+            color,
+            frequency,
+          }));
+        }
+      } catch (error) {
+        console.error('Error batch fetching thread colors for scripture notes:', error);
+        // Continue without thread colors if this fails
+      }
+    }
+
+    // Format notes to match OrganizedContentItem interface
+    const noteItems = limitedNotes.map(note => {
+      const cleanContent = stripHtml(note.content);
+      return {
+        id: `note-${note.id}`,
+        type: "note" as const,
+        title: note.title || "Untitled Note",
+        content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        noteId: note.id,
+        threadId: note.threadId,
+        spaceId: note.spaceId,
+        noteType: note.noteType || 'scripture',
+        lastUpdated: note.updatedAt || note.createdAt,
+        updatedAt: note.updatedAt || note.createdAt,
+        lastVisited: note.lastVisited,
+        createdAt: note.createdAt,
+        threadColors: threadColorsMap[note.id] || undefined,
+      };
+    });
+
+    const hasMore = sortedNotes.length > limit;
+
+    console.log('[getScriptureNotesForDashboard] Fetched scripture notes', {
+      count: noteItems.length,
+      fetched: sortedNotes.length,
+      limit,
+      offset,
+      hasMore
+    });
+
+    return { items: noteItems, hasMore };
+  } catch (error) {
+    console.error("Error fetching scripture notes:", error);
+    return { items: [], hasMore: false };
+  }
+}

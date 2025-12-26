@@ -39,6 +39,7 @@ export default function OrganizedContentList({
   const deletedItemIdsRef = useRef<Set<string>>(new Set());
   // Initialize currentItems directly from initialItems
   const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(initialItems || []);
+  const [isLoadingScripture, setIsLoadingScripture] = useState(false);
   const isRefreshingRef = useRef(false);
   const isMountedRef = useRef(true);
   const lastRefreshTimeRef = useRef<number>(0);
@@ -164,7 +165,17 @@ export default function OrganizedContentList({
     if (filter === 'scripture') {
       // Only fetch if filter just changed to scripture (not on every render)
       if (prevFilterRef.current !== filter) {
-        setCurrentItems([]);
+        // Filter currentItems to only show scripture notes while loading
+        // This prevents showing items from previous filter (e.g., threads or regular notes)
+        setCurrentItems(prev => {
+          const scriptureOnly = prev.filter(item => 
+            item.type === 'note' && item.noteType === 'scripture'
+          );
+          // If we have scripture notes from initialItems, show those; otherwise show empty array
+          return scriptureOnly.length > 0 ? scriptureOnly : [];
+        });
+        
+        setIsLoadingScripture(true);
         
         const fetchScriptureNotes = async () => {
           try {
@@ -187,14 +198,27 @@ export default function OrganizedContentList({
               return !deletedItemIdsRef.current.has(item.id);
             });
             
-            setCurrentItems(filteredItems);
+            // Only update if still mounted and still on scripture filter
+            if (isMountedRef.current && filter === 'scripture') {
+              setCurrentItems(filteredItems);
+              setIsLoadingScripture(false);
+            }
           } catch (error) {
             console.error('[OrganizedContentList] Error loading scripture notes:', error);
+            if (isMountedRef.current) {
+              setIsLoadingScripture(false);
+            }
           }
         };
         
         fetchScriptureNotes();
+      } else {
+        // If filter is already 'scripture' and hasn't changed, ensure loading state is false
+        setIsLoadingScripture(false);
       }
+    } else {
+      // Not scripture filter, ensure loading state is false
+      setIsLoadingScripture(false);
     }
     prevFilterRef.current = filter;
   }, [filter]);
@@ -587,14 +611,21 @@ export default function OrganizedContentList({
   };
 
   return (
-    <InfiniteScrollList
-      initialItems={filteredInitialItems}
-      loadMore={loadMore}
-      renderItem={renderItem}
-      itemKey={(item) => item.id}
-      limit={20}
-      className="flex flex-col"
-    />
+    <div className="flex flex-col">
+      <InfiniteScrollList
+        initialItems={filteredInitialItems}
+        loadMore={loadMore}
+        renderItem={renderItem}
+        itemKey={(item) => item.id}
+        limit={20}
+        className="flex flex-col"
+      />
+      {isLoadingScripture && (
+        <div className="text-[12px] text-[var(--color-stone-grey)] font-sans text-center py-4">
+          Loading scripture notes...
+        </div>
+      )}
+    </div>
   );
 }
 
