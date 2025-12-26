@@ -55,6 +55,9 @@ function stripHtml(html: string): string {
     // Use innerText which preserves block element spacing better than textContent
     let text = (tempDiv as HTMLElement).innerText || tempDiv.textContent || '';
     
+    // Convert all line breaks to spaces (explicitly handle \n, \r, and \r\n)
+    text = text.replace(/\r\n/g, ' ').replace(/\n/g, ' ').replace(/\r/g, ' ');
+    
     // Clean up multiple spaces and trim
     text = text.replace(/\s+/g, ' ').trim();
     
@@ -68,6 +71,7 @@ function stripHtml(html: string): string {
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
     // Convert line breaks and newlines to spaces FIRST (before removing tags)
     .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/\r\n/g, ' ')
     .replace(/\n/g, ' ')
     .replace(/\r/g, ' ')
     // Insert space between closing and opening block tags (ensure space is always present)
@@ -214,7 +218,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                 <div 
                   className="card-note__scripture-refs"
                 style={{
-                  backgroundColor: 'var(--color-snow-white)',
+                  backgroundColor: 'var(--color-fog-white)',
                   borderRadius: '8px',
                   padding: '4px 8px',
                   display: 'flex',
@@ -492,7 +496,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                 <div 
                   className="card-note__scripture-refs"
                 style={{
-                  backgroundColor: 'var(--color-snow-white)',
+                  backgroundColor: 'var(--color-fog-white)',
                   borderRadius: '8px',
                   padding: '4px 8px',
                   display: 'flex',
