@@ -88,11 +88,9 @@ export default function InfiniteScrollList<T>({
   const handleLoadMore = useCallback(async () => {
     if (loadingRef.current || isLoading) return;
     
-    // Check if we should load more - either hasMore is true OR we're below expected count
-    const expectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
-    const needsMoreItems = items.length < expectedCount;
-    
-    if (!hasMore && !needsMoreItems) return;
+    // Only load more if hasMore is true (API indicates there are more items)
+    // Don't load based on item count alone - respect API's hasMore value
+    if (!hasMore) return;
 
     loadingRef.current = true;
     setIsLoading(true);
@@ -110,11 +108,10 @@ export default function InfiniteScrollList<T>({
         setInternalItems(newItems);
       }
       
-      // Determine hasMore: use result.hasMore, but override if we still need more items
-      const newExpectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
-      const stillNeedsMore = newItems.length < newExpectedCount;
-      // Keep hasMore true if we still need more items OR the API says there are more
-      setHasMore(result.hasMore || stillNeedsMore);
+      // Use result.hasMore from API - don't override based on item count
+      // If API says no more items, respect that even if we have fewer than expected
+      // This prevents infinite loading loops when API correctly indicates no more items
+      setHasMore(result.hasMore);
     } catch (err: any) {
       console.error('Error loading more items:', err);
       setError(err.message || 'Failed to load more items');
@@ -134,24 +131,17 @@ export default function InfiniteScrollList<T>({
     const isVisible = isElementVisible(containerRef.current);
     
     // Trigger if:
-    // 1. Items are below expected count AND component is visible
-    // We should always try to load more if we're below the expected count, regardless of hasMore state
-    // because hasMore might be false due to filtering, but we still need more items
-    const needsMoreItems = items.length < expectedCount;
-    const shouldTriggerLoad = needsMoreItems && !isLoading && !loadingRef.current && isVisible;
+    // 1. hasMore is true (API says there are more items) AND component is visible
+    // 2. Only auto-load if hasMore is true - respect API's hasMore value
+    // Don't force loading based on item count alone, as this can cause infinite loops
+    const shouldTriggerLoad = hasMore && !isLoading && !loadingRef.current && isVisible;
     
     if (shouldTriggerLoad) {
-      // If we're below expected count, force hasMore to true to ensure we keep loading
-      if (needsMoreItems && !hasMore) {
-        setHasMore(true);
-      }
-      
       // Small delay to avoid race conditions with other effects
       const timer = setTimeout(() => {
         // Re-check visibility and conditions before loading
         const stillVisible = isElementVisible(containerRef.current);
-        const stillNeedsMore = items.length < expectedCount;
-        if (stillNeedsMore && !isLoading && !loadingRef.current && stillVisible) {
+        if (hasMore && !isLoading && !loadingRef.current && stillVisible) {
           handleLoadMore();
         }
       }, 100);
