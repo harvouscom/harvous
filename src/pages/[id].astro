@@ -731,80 +731,76 @@ if (!content) {
                       const notesCount = noteTypeCounts?.default ?? threadNotes.filter((n: any) => !n.noteType || n.noteType === 'default').length;
                       const scriptureCount = noteTypeCounts?.scripture ?? threadNotes.filter((n: any) => n.noteType === 'scripture').length;
                       
-                      {(() => {
-                        // Determine initial active tab from localStorage (client-side only)
-                        // This will be handled by the inline script below
-                        const defaultActiveTab = "all";
-                        return (
-                          <>
-                            {/* Inline script to restore active tab immediately on page load */}
-                            <script is:inline define:vars={{ threadId: id }}>
-                              (function() {
-                                function restoreTab() {
-                                  try {
-                                    const storageKey = 'harvous_thread_tab_' + threadId;
-                                    const savedTabId = localStorage.getItem(storageKey);
+                      return (
+                        <>
+                          {/* Inline script to restore active tab immediately on page load */}
+                          <script is:inline define:vars={{ threadId: id }}>
+                            (function() {
+                              function restoreTab() {
+                                try {
+                                  const storageKey = 'harvous_thread_tab_' + threadId;
+                                  const savedTabId = localStorage.getItem(storageKey);
+                                  
+                                  if (savedTabId && (savedTabId === 'all' || savedTabId === 'notes' || savedTabId === 'scripture')) {
+                                    // Update tab buttons
+                                    const tabButtons = document.querySelectorAll('.content-tabs [data-tab-button]');
+                                    if (tabButtons.length === 0) return; // Elements not ready yet
                                     
-                                    if (savedTabId && (savedTabId === 'all' || savedTabId === 'notes' || savedTabId === 'scripture')) {
-                                      // Update tab buttons
-                                      const tabButtons = document.querySelectorAll('.content-tabs [data-tab-button]');
-                                      if (tabButtons.length === 0) return; // Elements not ready yet
-                                      
-                                      tabButtons.forEach(function(button) {
-                                        const tabId = button.getAttribute('data-tab-id');
-                                        if (tabId === savedTabId) {
-                                          button.setAttribute('data-active', 'true');
-                                          button.classList.remove('opacity-50');
-                                          button.classList.add('opacity-100');
-                                        } else {
-                                          button.setAttribute('data-active', 'false');
-                                          button.classList.remove('opacity-100');
-                                          button.classList.add('opacity-50');
-                                        }
-                                      });
-                                      
-                                      // Update content sections
-                                      const contentSections = document.querySelectorAll('[data-tab-content]');
-                                      contentSections.forEach(function(section) {
-                                        const sectionTabId = section.getAttribute('data-tab-content');
-                                        if (sectionTabId === savedTabId) {
-                                          section.classList.remove('hidden');
-                                          section.style.display = '';
-                                        } else {
-                                          section.classList.add('hidden');
-                                          section.style.display = 'none';
-                                        }
-                                      });
-                                    }
-                                  } catch (error) {
-                                    // Silently fail if localStorage is not available
+                                    tabButtons.forEach(function(button) {
+                                      const tabId = button.getAttribute('data-tab-id');
+                                      if (tabId === savedTabId) {
+                                        button.setAttribute('data-active', 'true');
+                                        button.classList.remove('opacity-50');
+                                        button.classList.add('opacity-100');
+                                      } else {
+                                        button.setAttribute('data-active', 'false');
+                                        button.classList.remove('opacity-100');
+                                        button.classList.add('opacity-50');
+                                      }
+                                    });
+                                    
+                                    // Update content sections
+                                    const contentSections = document.querySelectorAll('[data-tab-content]');
+                                    contentSections.forEach(function(section) {
+                                      const sectionTabId = section.getAttribute('data-tab-content');
+                                      if (sectionTabId === savedTabId) {
+                                        section.classList.remove('hidden');
+                                        section.style.display = '';
+                                      } else {
+                                        section.classList.add('hidden');
+                                        section.style.display = 'none';
+                                      }
+                                    });
                                   }
+                                } catch (error) {
+                                  // Silently fail if localStorage is not available
                                 }
-                                
-                                // Try immediately
-                                restoreTab();
-                                
-                                // Also try when DOM is ready
-                                if (document.readyState === 'loading') {
-                                  document.addEventListener('DOMContentLoaded', restoreTab);
-                                } else {
-                                  setTimeout(restoreTab, 0);
-                                }
-                              })();
-                            </script>
-                            
-                            {/* Tab Navigation */}
-                            <TabNav 
-                              tabs={[
-                                { id: "all", label: "All", isActive: true, count: allCount },
-                                { id: "notes", label: "Notes", isActive: false, count: notesCount },
-                                { id: "scripture", label: "Scripture", isActive: false, count: scriptureCount }
-                              ]}
-                              class="content-tabs"
-                            />
-                            
-                            {/* All Notes Content */}
-                            <div class="flex flex-col" data-tab-content="all">
+                              }
+                              
+                              // Try immediately
+                              restoreTab();
+                              
+                              // Also try when DOM is ready
+                              if (document.readyState === 'loading') {
+                                document.addEventListener('DOMContentLoaded', restoreTab);
+                              } else {
+                                setTimeout(restoreTab, 0);
+                              }
+                            })();
+                          </script>
+                          
+                          {/* Tab Navigation */}
+                          <TabNav 
+                            tabs={[
+                              { id: "all", label: "All", isActive: true, count: allCount },
+                              { id: "notes", label: "Notes", isActive: false, count: notesCount },
+                              { id: "scripture", label: "Scripture", isActive: false, count: scriptureCount }
+                            ]}
+                            class="content-tabs"
+                          />
+                          
+                          {/* All Notes Content */}
+                          <div class="flex flex-col" data-tab-content="all">
                             {threadNotes.length > 0 ? (
                               <ThreadNotesList 
                                 initialNotes={threadNotes}
@@ -853,9 +849,8 @@ if (!content) {
                               </div>
                             )}
                           </div>
-                          </>
-                        );
-                      })()}
+                        </>
+                      );
                   </div>
                 ) : isSpace && content ? (
                   <div class="flex flex-col gap-3">
