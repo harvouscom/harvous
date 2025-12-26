@@ -90,6 +90,7 @@ export default function ThreadNotesList({
   // Track total count for filter and accumulated filtered items count
   const totalCountForFilterRef = useRef<number>(0);
   const accumulatedFilteredCountRef = useRef<number>(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Update notes when initialNotes change (e.g., page navigation)
   useEffect(() => {
@@ -101,6 +102,8 @@ export default function ThreadNotesList({
       new Map(typeFiltered.map(note => [note.id, note])).values()
     );
     setNotes(uniqueNotes);
+    // Initialize accumulatedFilteredCountRef immediately with the filtered count
+    accumulatedFilteredCountRef.current = uniqueNotes.length;
   }, [initialNotes, deletedNoteIds, noteTypeFilter]);
 
   // Listen for note deletion events
@@ -331,8 +334,11 @@ export default function ThreadNotesList({
   const initialHasMore = filteredNotes.length < totalCountForFilter;
 
   // Update refs when total count or filtered notes change
+  // This ensures refs are always in sync with the actual filtered count
   useEffect(() => {
     totalCountForFilterRef.current = totalCountForFilter;
+    // Always update accumulatedFilteredCountRef to match the actual filtered notes length
+    // This is critical for accurate hasMore calculation in loadMore
     accumulatedFilteredCountRef.current = filteredNotes.length;
   }, [totalCountForFilter, filteredNotes.length]);
 
@@ -355,14 +361,20 @@ export default function ThreadNotesList({
     // Apply note type filter
     const filteredByType = filterNotesByType(filteredDeleted, noteTypeFilter);
     
+    // Get the current actual filtered count from the current items state
+    // This is more reliable than using the ref which might be stale
+    const currentActualFilteredCount = accumulatedFilteredCountRef.current;
+    const newFilteredCount = currentActualFilteredCount + filteredByType.length;
+    
+    // Update the ref with the new count immediately
+    accumulatedFilteredCountRef.current = newFilteredCount;
+    
     // Determine hasMore accounting for filtering and expected count
-    // Check if we've reached the expected count based on current accumulated count
     // hasMore is true if:
     // 1. We haven't reached the expected count yet AND (the API says there are more OR we got a full batch), OR
     // 2. The API says there are more items (data.hasMore is true), OR
     // 3. We got the full limit from the API but filtering reduced it (meaning there might be more filtered items)
-    const currentFilteredCount = accumulatedFilteredCountRef.current + filteredByType.length;
-    const hasReachedExpectedCount = currentFilteredCount >= totalCountForFilterRef.current;
+    const hasReachedExpectedCount = newFilteredCount >= totalCountForFilterRef.current;
     const hasMore = (!hasReachedExpectedCount && (data.hasMore || data.notes.length === limit))
       || data.hasMore
       || (data.notes.length === limit && filteredByType.length < limit && noteTypeFilter !== 'all');
@@ -507,7 +519,7 @@ export default function ThreadNotesList({
 
   return (
     <>
-      <div style={{ paddingBottom: '12px' }}>
+      <div ref={containerRef} style={{ paddingBottom: '12px' }}>
         <InfiniteScrollList
           initialItems={filteredNotes}
           items={filteredNotes}

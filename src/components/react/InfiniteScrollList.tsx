@@ -40,6 +40,31 @@ export default function InfiniteScrollList<T>({
   const [error, setError] = useState<string | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Helper function to check if element is visible
+  const isElementVisible = useCallback((element: HTMLElement | null): boolean => {
+    if (!element) return false;
+    
+    // Check if element has display: none or visibility: hidden
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') {
+      return false;
+    }
+    
+    // Check if element or any parent has the 'hidden' class
+    let current: HTMLElement | null = element;
+    while (current) {
+      if (current.classList.contains('hidden')) {
+        return false;
+      }
+      current = current.parentElement;
+    }
+    
+    // Check if element is in viewport (at least partially visible)
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }, []);
 
   // Reset items when initialItems change (e.g., on page navigation)
   // Use a ref to track the previous initialItems to avoid unnecessary updates
@@ -94,26 +119,36 @@ export default function InfiniteScrollList<T>({
     // Determine the threshold: use minimumExpectedCount if provided, otherwise use limit
     const expectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
     
-    // Only trigger if we have hasMore, not currently loading, and items are below expected count
-    // This ensures we load more items immediately when switching to filtered views
-    const shouldTriggerLoad = hasMore && !isLoading && !loadingRef.current && items.length < expectedCount;
+    // Check if component is visible before triggering auto-load
+    const isVisible = isElementVisible(containerRef.current);
+    
+    // Only trigger if we have hasMore, not currently loading, items are below expected count, and component is visible
+    // This ensures we load more items immediately when switching to filtered views, but only if the component is visible
+    const shouldTriggerLoad = hasMore && !isLoading && !loadingRef.current && items.length < expectedCount && isVisible;
     
     if (shouldTriggerLoad) {
       // Small delay to avoid race conditions with other effects
       const timer = setTimeout(() => {
-        if (hasMore && !isLoading && !loadingRef.current) {
+        // Re-check visibility and conditions before loading
+        if (hasMore && !isLoading && !loadingRef.current && isElementVisible(containerRef.current)) {
           handleLoadMore();
         }
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [hasMore, isLoading, items.length, limit, minimumExpectedCount, handleLoadMore]);
+  }, [hasMore, isLoading, items.length, limit, minimumExpectedCount, handleLoadMore, isElementVisible]);
 
   // Intersection Observer for auto-loading
   useEffect(() => {
+    // Only set up observer if component is visible
+    if (!isElementVisible(containerRef.current)) {
+      return;
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoading && !loadingRef.current) {
+        // Double-check visibility before loading
+        if (entries[0].isIntersecting && hasMore && !isLoading && !loadingRef.current && isElementVisible(containerRef.current)) {
           handleLoadMore();
         }
       },
@@ -130,10 +165,70 @@ export default function InfiniteScrollList<T>({
         observer.unobserve(currentTarget);
       }
     };
-  }, [hasMore, isLoading, handleLoadMore, threshold]);
+  }, [hasMore, isLoading, handleLoadMore, threshold, isElementVisible]);
+
+  // Listen for tab visibility changes to trigger auto-load when tab becomes visible
+  useEffect(() => {
+    const checkVisibilityAndLoad = () => {
+      if (!hasMore || isLoading || loadingRef.current) return;
+      
+      const expectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
+      const isVisible = isElementVisible(containerRef.current);
+      
+      if (isVisible && items.length < expectedCount) {
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          if (hasMore && !isLoading && !loadingRef.current && isElementVisible(containerRef.current)) {
+            handleLoadMore();
+          }
+        }, 150);
+      }
+    };
+
+    // Check immediately on mount
+    checkVisibilityAndLoad();
+
+    // Listen for tab change events (from tab-manager.js) - event bubbles to document
+    const handleTabChange = (event: Event) => {
+      // Check if this tab change affects our component
+      checkVisibilityAndLoad();
+    };
+
+    // Listen for custom tab change events on document (since they bubble)
+    document.addEventListener('tabChange', handleTabChange);
+    
+    // Also use MutationObserver to detect when hidden class is removed from parent elements
+    let mutationObserver: MutationObserver | null = null;
+    if (containerRef.current) {
+      mutationObserver = new MutationObserver(() => {
+        checkVisibilityAndLoad();
+      });
+      
+      // Find the closest parent with data-tab-content attribute (the tab content container)
+      let parent: HTMLElement | null = containerRef.current.parentElement;
+      while (parent && !parent.hasAttribute('data-tab-content')) {
+        parent = parent.parentElement;
+      }
+      
+      // If we found the tab content container, observe it and its parent for class changes
+      if (parent) {
+        mutationObserver.observe(parent, { attributes: true, attributeFilter: ['class'] });
+        if (parent.parentElement) {
+          mutationObserver.observe(parent.parentElement, { attributes: true, attributeFilter: ['class'] });
+        }
+      }
+    }
+
+    return () => {
+      document.removeEventListener('tabChange', handleTabChange);
+      if (mutationObserver) {
+        mutationObserver.disconnect();
+      }
+    };
+  }, [hasMore, isLoading, items.length, limit, minimumExpectedCount, handleLoadMore, isElementVisible]);
 
   return (
-    <div className={className}>
+    <div ref={containerRef} className={className}>
       {items.map((item, index) => (
         <div key={itemKey(item, index)}>
           {renderItem(item, index)}
