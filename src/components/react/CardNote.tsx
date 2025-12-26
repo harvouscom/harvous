@@ -356,7 +356,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                                   textOverflow: 'ellipsis',
                                   whiteSpace: 'nowrap'
                                 }}>
-                                  {ref.reference}
+                                  {ref.reference || 'Untitled Scripture'}
                                 </div>
                               </div>
                             </div>
@@ -595,7 +595,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                                   textOverflow: 'ellipsis',
                                   whiteSpace: 'nowrap'
                                 }}>
-                                  {ref.reference}
+                                  {ref.reference || 'Untitled Scripture'}
                                 </div>
                               </div>
                             </div>

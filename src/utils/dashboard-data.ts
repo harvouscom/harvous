@@ -788,6 +788,16 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
     let assignedNotes = assignedNotesRaw;
     let unorganizedNotes = unorganizedNotesRaw;
 
+    console.log('[getContentItems] Initial fetch', {
+      filterExcludeReferencedScripture,
+      assignedNotesCount: assignedNotes.length,
+      assignedScriptureCount: assignedNotes.filter(n => n.noteType === 'scripture').length,
+      unorganizedNotesCount: unorganizedNotes.length,
+      unorganizedScriptureCount: unorganizedNotes.filter(n => n.noteType === 'scripture').length,
+      limit,
+      offset
+    });
+
     const threadItems = threads.map(thread => ({
       id: `thread-${thread.id}`,
       type: "thread" as const,
@@ -843,7 +853,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
 
     // Fetch scripture references for all default notes (via junction table)
     // Only fetch if we need to exclude referenced scripture notes OR if we need to show references in collapsible
-    let scriptureReferencesMap: Record<string, Array<{ reference: string; noteId: string }>> = {};
+    let scriptureReferencesMap: Record<string, Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>> = {};
     const defaultNoteIds = [...assignedNotes, ...unorganizedNotes]
       .filter(note => note.noteType === 'default' || !note.noteType)
       .map(note => note.id);
@@ -858,6 +868,11 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         .from(NoteScriptureReferences)
         .where(inArray(NoteScriptureReferences.noteId, defaultNoteIds))
         .all();
+        
+        console.log('[getContentItems] Scripture references fetch', {
+          defaultNoteIdsCount: defaultNoteIds.length,
+          junctionEntriesCount: junctionEntries.length
+        });
         
         // Get unique scripture note IDs
         const scriptureNoteIds = [...new Set(junctionEntries.map(e => e.scriptureNoteId))];
@@ -909,6 +924,11 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
             });
           }
         }
+        
+        console.log('[getContentItems] Scripture references map built', {
+          notesWithReferences: Object.keys(scriptureReferencesMap).length,
+          totalReferences: Object.values(scriptureReferencesMap).reduce((sum, refs) => sum + refs.length, 0)
+        });
         
         // Only filter out referenced scripture notes if filterExcludeReferencedScripture is true
         // This should only happen in the 'all' tab, not in the 'scripture' tab
@@ -1022,6 +1042,13 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       })
       .slice(offset, offset + limit);
 
+    const scriptureItemsCount = allItems.filter(item => item.type === 'note' && item.noteType === 'scripture').length;
+    console.log('[getContentItems] Final result', {
+      totalItems: allItems.length,
+      scriptureItemsCount,
+      filterExcludeReferencedScripture
+    });
+
     return allItems;
   } catch (error) {
     console.error("Error fetching content items:", error);
@@ -1107,6 +1134,9 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
       })
     );
 
+    const scriptureCount = notesWithThreadColors.filter(n => n.noteType === 'scripture').length;
+    console.log('[getUnorganizedNotesForDashboard] Total notes:', notesWithThreadColors.length, 'Scripture notes:', scriptureCount);
+
     return notesWithThreadColors;
   } catch (error) {
     console.error("Error fetching unorganized notes:", error);
@@ -1152,6 +1182,9 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
         })
       );
 
+      const scriptureCount = notesWithThreadColors.filter(n => n.noteType === 'scripture').length;
+      console.log('[getAssignedNotesForDashboard] No unorganized thread - Total notes:', notesWithThreadColors.length, 'Scripture notes:', scriptureCount);
+
       return notesWithThreadColors;
     }
 
@@ -1189,6 +1222,9 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
         };
       })
     );
+
+    const scriptureCount = notesWithThreadColors.filter(n => n.noteType === 'scripture').length;
+    console.log('[getAssignedNotesForDashboard] With unorganized thread - Total notes:', notesWithThreadColors.length, 'Scripture notes:', scriptureCount);
 
     return notesWithThreadColors;
   } catch (error) {

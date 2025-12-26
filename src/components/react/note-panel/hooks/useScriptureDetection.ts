@@ -55,7 +55,7 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
     const titleToCheck = title.trim();
     if (titleToCheck.length < 5) return;
 
-    // Debounce detection (1.2 seconds after typing stops)
+    // Debounce detection (700ms after typing stops)
     const timeoutId = setTimeout(async () => {
       // Double-check we're not loading from localStorage
       if (isLoadingFromLocalStorage.current) return;
@@ -121,7 +121,7 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
       } catch {
         // Silently fail - don't interrupt UX
       }
-    }, 1200);
+    }, 700);
 
     return () => clearTimeout(timeoutId);
   }, [title, noteType, content, isLoadingFromLocalStorage, setNoteType, setTitle, setContent, setScriptureReference, setScriptureVersion]);
