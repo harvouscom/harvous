@@ -47,6 +47,8 @@ export default function OrganizedContentList({
   const isNavigatingRef = useRef(false);
   const prevInitialItemsKeyRef = useRef<string>('');
   const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
+  const refreshContentRef = useRef<(() => Promise<void>) | null>(null);
+  const filterRef = useRef<string>(filter);
   const DEBOUNCE_WINDOW_MS = 2000; // 2 seconds minimum between refreshes
 
   // Refresh content by fetching fresh data from API
@@ -148,6 +150,15 @@ export default function OrganizedContentList({
     };
 
     attemptRefresh();
+  }, [filter]);
+
+  // Keep refreshContent and filter refs in sync
+  useEffect(() => {
+    refreshContentRef.current = refreshContent;
+  }, [refreshContent]);
+
+  useEffect(() => {
+    filterRef.current = filter;
   }, [filter]);
 
   // Keep ref in sync with state
@@ -278,7 +289,7 @@ export default function OrganizedContentList({
     });
     
     setCurrentItems(filtered);
-  }, [initialItems, deletedItemIds, filter, refreshContent]);
+  }, [initialItems, deletedItemIds, filter]);
 
   // Listen for deletion events to track deleted items
   useEffect(() => {
@@ -325,7 +336,7 @@ export default function OrganizedContentList({
     const checkAndRefresh = () => {
       // Check if still on dashboard page
       if (window.location.pathname === '/' && !isNavigatingRef.current && isMountedRef.current) {
-        refreshContent();
+        refreshContentRef.current?.();
       }
     };
     
@@ -344,7 +355,8 @@ export default function OrganizedContentList({
     const handleThreadCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
       const thread = customEvent.detail?.thread;
-      debug('[OrganizedContentList] threadCreated event received', { threadId: thread?.id, filter });
+      const currentFilter = filterRef.current;
+      debug('[OrganizedContentList] threadCreated event received', { threadId: thread?.id, filter: currentFilter });
       
       if (!thread || !thread.id) {
         console.warn('[OrganizedContentList] threadCreated event missing thread data');
@@ -353,7 +365,7 @@ export default function OrganizedContentList({
       
       // Immediately add the thread to the list if it matches the current filter
       // This provides instant feedback while the API refresh happens
-      if (filter === 'all' || filter === 'threads') {
+      if (currentFilter === 'all' || currentFilter === 'threads') {
         const threadItem: OrganizedContentItem = {
           id: `thread-${thread.id}`,
           type: 'thread',
@@ -388,7 +400,7 @@ export default function OrganizedContentList({
       }
       pendingRefreshTimeoutRef.current = setTimeout(() => {
         pendingRefreshTimeoutRef.current = null;
-        debug('[OrganizedContentList] Refreshing content after threadCreated', { filter });
+        debug('[OrganizedContentList] Refreshing content after threadCreated', { filter: currentFilter });
         // Force refresh by resetting lastRefreshTime to allow immediate refresh
         lastRefreshTimeRef.current = 0;
         checkAndRefresh();
@@ -423,7 +435,7 @@ export default function OrganizedContentList({
         pendingRefreshTimeoutRef.current = null;
       }
     };
-  }, [refreshContent]);
+  }, []); // Empty deps - we use ref to access latest refreshContent
 
   // Listen for navigation events to skip refresh during navigation
   useEffect(() => {
@@ -476,7 +488,7 @@ export default function OrganizedContentList({
             if (navigatedToDashboard) {
               lastRefreshTimeRef.current = 0;
             }
-            refreshContent();
+            refreshContentRef.current?.();
           }
         }, 300); // Slightly longer delay to ensure initialItems are processed first
       }
@@ -499,7 +511,7 @@ export default function OrganizedContentList({
         pendingRefreshTimeoutRef.current = null;
       }
     };
-  }, [refreshContent]);
+  }, []); // Empty deps - we use ref to access latest refreshContent
 
   // Cleanup on unmount
   useEffect(() => {
