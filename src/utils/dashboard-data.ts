@@ -1,4 +1,4 @@
-import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, ResourceMetadata, eq, and, desc, count, or, ne, isNull, isNotNull, inArray } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, ResourceMetadata, NoteScriptureReferences, ScriptureMetadata, eq, and, desc, count, or, ne, isNull, isNotNull, inArray } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 import { getInboxItems, getInboxCount as getInboxCountUtil } from "./inbox-data";
 import { getRelativeTime } from "./date-formatting";
@@ -773,15 +773,20 @@ export async function getFeaturedContent(userId: string) {
 }
 
 // Get content items for the main list (organized content + unorganized notes)
-export async function getContentItems(userId: string, limit = 20, offset = 0) {
+// filterExcludeReferencedScripture: if true, exclude scripture notes that are referenced by other notes (only for 'all' tab)
+export async function getContentItems(userId: string, limit = 20, offset = 0, filterExcludeReferencedScripture = false) {
   try {
     // Fetch enough items to cover offset + limit
     const fetchLimit = limit + offset;
-    const [threads, assignedNotes, unorganizedNotes] = await Promise.all([
+    const [threads, assignedNotesRaw, unorganizedNotesRaw] = await Promise.all([
       getAllThreadsWithCounts(userId),
       getAssignedNotesForDashboard(userId, fetchLimit),
       getUnorganizedNotesForDashboard(userId, fetchLimit)
     ]);
+    
+    // Use let so we can filter out referenced scripture notes later
+    let assignedNotes = assignedNotesRaw;
+    let unorganizedNotes = unorganizedNotesRaw;
 
     const threadItems = threads.map(thread => ({
       id: `thread-${thread.id}`,
@@ -836,6 +841,101 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
       }
     }
 
+    // Fetch scripture references for all default notes (via junction table)
+    // Only fetch if we need to exclude referenced scripture notes OR if we need to show references in collapsible
+    let scriptureReferencesMap: Record<string, Array<{ reference: string; noteId: string }>> = {};
+    const defaultNoteIds = [...assignedNotes, ...unorganizedNotes]
+      .filter(note => note.noteType === 'default' || !note.noteType)
+      .map(note => note.id);
+    
+    if (defaultNoteIds.length > 0) {
+      try {
+        // Get scripture note IDs for each note via junction table
+        const junctionEntries = await db.select({
+          noteId: NoteScriptureReferences.noteId,
+          scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
+        })
+        .from(NoteScriptureReferences)
+        .where(inArray(NoteScriptureReferences.noteId, defaultNoteIds))
+        .all();
+        
+        // Get unique scripture note IDs
+        const scriptureNoteIds = [...new Set(junctionEntries.map(e => e.scriptureNoteId))];
+        
+        // Fetch scripture metadata to get reference text
+        let scriptureMetadataMap: Record<string, string> = {};
+        if (scriptureNoteIds.length > 0) {
+          const scriptureMetadata = await db.select({
+            noteId: ScriptureMetadata.noteId,
+            reference: ScriptureMetadata.reference,
+          })
+          .from(ScriptureMetadata)
+          .where(inArray(ScriptureMetadata.noteId, scriptureNoteIds))
+          .all();
+          
+          scriptureMetadataMap = scriptureMetadata.reduce((acc, meta) => {
+            acc[meta.noteId] = meta.reference;
+            return acc;
+          }, {} as Record<string, string>);
+        }
+        
+        // Fetch thread colors for all scripture notes
+        const scriptureNoteIdsArray = Array.from(scriptureNoteIds);
+        const scriptureThreadColorsMap: Record<string, Array<{ color: string; frequency: number }>> = {};
+        
+        if (scriptureNoteIdsArray.length > 0) {
+          await Promise.all(
+            scriptureNoteIdsArray.map(async (scriptureNoteId) => {
+              const threadColors = await getThreadColorsForNote(scriptureNoteId, userId);
+              if (threadColors.length > 0) {
+                scriptureThreadColorsMap[scriptureNoteId] = threadColors;
+              }
+            })
+          );
+        }
+        
+        // Build map of noteId -> array of scripture references with note IDs and thread colors (needed for collapsible UI)
+        for (const entry of junctionEntries) {
+          const reference = scriptureMetadataMap[entry.scriptureNoteId];
+          if (reference) {
+            if (!scriptureReferencesMap[entry.noteId]) {
+              scriptureReferencesMap[entry.noteId] = [];
+            }
+            // Store as object with reference, noteId, and threadColors for mesh gradient
+            scriptureReferencesMap[entry.noteId].push({
+              reference,
+              noteId: entry.scriptureNoteId,
+              threadColors: scriptureThreadColorsMap[entry.scriptureNoteId] || undefined
+            });
+          }
+        }
+        
+        // Only filter out referenced scripture notes if filterExcludeReferencedScripture is true
+        // This should only happen in the 'all' tab, not in the 'scripture' tab
+        if (filterExcludeReferencedScripture) {
+          // Get set of scripture note IDs that are referenced by other notes (should be excluded from list)
+          const referencedScriptureNoteIds = new Set(junctionEntries.map(e => e.scriptureNoteId));
+          
+          console.log('[getContentItems] Filtering out referenced scripture notes', {
+            referencedScriptureNoteIdsCount: referencedScriptureNoteIds.size,
+            assignedNotesBefore: assignedNotes.filter(n => n.noteType === 'scripture').length,
+            unorganizedNotesBefore: unorganizedNotes.filter(n => n.noteType === 'scripture').length
+          });
+          
+          // Filter out scripture notes that are referenced by other notes
+          assignedNotes = assignedNotes.filter(note => 
+            note.noteType !== 'scripture' || !referencedScriptureNoteIds.has(note.id)
+          );
+          unorganizedNotes = unorganizedNotes.filter(note => 
+            note.noteType !== 'scripture' || !referencedScriptureNoteIds.has(note.id)
+          );
+        }
+      } catch (error) {
+        // Scripture references fetch failed - continue without it
+        console.error('Error fetching scripture references:', error);
+      }
+    }
+
     const assignedNoteItems = assignedNotes.map(note => {
       const cleanContent = stripHtml(note.content);
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
@@ -856,6 +956,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: (note as any).threadColors,
+        scriptureReferences: scriptureReferencesMap[note.id] || undefined,
       };
     });
 
@@ -879,6 +980,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0) {
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: (note as any).threadColors,
+        scriptureReferences: scriptureReferencesMap[note.id] || undefined,
       };
     });
 

@@ -66,7 +66,7 @@ try {
     // Fetch all data in parallel for better performance
     const [featuredContentData, contentItemsData, threadsData, spacesData, inboxCountData] = await Promise.all([
       getFeaturedContent(userId),
-      getContentItems(userId, 100, 0), // Increase limit to ensure all threads are included
+      getContentItems(userId, 100, 0, true), // Increase limit to ensure all threads are included. Filter referenced scripture notes for 'all' tab
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
       getInboxCount(userId)

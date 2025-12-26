@@ -18,7 +18,14 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     // Fetch more items than needed to check if there are more
     const fetchLimit = filter === 'all' ? limit : limit * 3; 
-    const items = await getContentItems(userId, fetchLimit, offset);
+    // Only exclude referenced scripture notes in the 'all' tab
+    const filterExcludeReferencedScripture = filter === 'all';
+    console.log('[load-more API] Filter params', { filter, filterExcludeReferencedScripture, fetchLimit, offset, limit });
+    const items = await getContentItems(userId, fetchLimit, offset, filterExcludeReferencedScripture);
+    console.log('[load-more API] Items returned', { 
+      totalItems: items.length, 
+      scriptureNotes: items.filter(item => item.type === 'note' && item.noteType === 'scripture').length 
+    });
 
     // Filter by type if needed
     let filteredItems = items;

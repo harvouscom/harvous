@@ -23,6 +23,7 @@ interface OrganizedContentItem {
   resourceDescription?: string | null;
   resourceImage?: string | null;
   threadColors?: Array<{ color: string; frequency: number }>;
+  scriptureReferences?: Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>; // Scripture references for this note (from junction table)
 }
 
 interface OrganizedContentListProps {
@@ -153,6 +154,57 @@ export default function OrganizedContentList({
     deletedItemIdsRef.current = deletedItemIds;
   }, [deletedItemIds]);
 
+  // Track previous filter to detect tab switches
+  const prevFilterRef = useRef(filter);
+  // Track if we've already fetched for scripture tab (to avoid refetching on every render)
+  const scriptureFetchedRef = useRef(false);
+  
+  // Watch for filter changes and reload data for scripture tab
+  useEffect(() => {
+    // If filter is 'scripture', fetch unfiltered data (either on mount or when switching to it)
+    // Only fetch if we haven't fetched for this filter yet, or if filter just changed to scripture
+    const shouldFetchScripture = filter === 'scripture' && 
+      (!scriptureFetchedRef.current || prevFilterRef.current !== filter);
+    
+    if (shouldFetchScripture) {
+      scriptureFetchedRef.current = true;
+      setCurrentItems([]);
+      
+      const fetchScriptureNotes = async () => {
+        try {
+          const url = new URL('/api/content/load-more', window.location.origin);
+          url.searchParams.set('offset', '0');
+          url.searchParams.set('limit', '200');
+          url.searchParams.set('filter', 'scripture');
+
+          const response = await fetch(url.toString(), {
+            credentials: 'include'
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to load scripture notes: ${response.status}`);
+          }
+
+          const data = await response.json();
+          
+          const filteredItems = data.items.filter((item: OrganizedContentItem) => {
+            return !deletedItemIdsRef.current.has(item.id);
+          });
+          
+          setCurrentItems(filteredItems);
+        } catch (error) {
+          console.error('[OrganizedContentList] Error loading scripture notes:', error);
+        }
+      };
+      
+      fetchScriptureNotes();
+    } else if (filter !== 'scripture') {
+      // Reset the flag when switching away from scripture tab
+      scriptureFetchedRef.current = false;
+    }
+    prevFilterRef.current = filter;
+  }, [filter]);
+  
   // Update currentItems when initialItems change (e.g., after navigation)
   useEffect(() => {
     if (!initialItems || !Array.isArray(initialItems)) {
@@ -168,6 +220,7 @@ export default function OrganizedContentList({
       .join(',') + `|${initialItems.length}`;
     
     // Only update if items actually changed (not just reference)
+    // Note: Filter changes are handled by the separate useEffect above
     if (itemsKey === prevInitialItemsKeyRef.current) {
       debug('[OrganizedContentList] initialItems unchanged, skipping update', {
         itemCount: initialItems.length,
@@ -193,7 +246,7 @@ export default function OrganizedContentList({
     } else if (filter === 'resources') {
       filtered = filtered.filter(item => item.type === 'note' && item.noteType === 'resource');
     }
-    // For 'all' filter, no additional filtering needed
+    // For 'all' filter, no additional filtering needed - server handles filtering referenced scripture notes
     
     debug('[OrganizedContentList] Updating currentItems from initialItems', {
       initialItemsCount: initialItems.length,
@@ -203,7 +256,7 @@ export default function OrganizedContentList({
     });
     
     setCurrentItems(filtered);
-  }, [initialItems, deletedItemIds, filter]);
+  }, [initialItems, deletedItemIds, filter, refreshContent]);
 
   // Listen for deletion events to track deleted items
   useEffect(() => {
@@ -509,6 +562,8 @@ export default function OrganizedContentList({
               resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
               threadColors={item.threadColors}
               noteId={item.noteId}
+              showScriptureRefsCollapsible={filter === 'all'}
+              scriptureReferences={item.scriptureReferences}
             />
           </a>
         ) : (

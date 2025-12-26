@@ -3,6 +3,30 @@
  * Using native CSS nesting for cleaner, more maintainable code
  */
 
+/* Scripture references list scrollbar styling */
+.card-note__scripture-refs-list {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 118, 111, 0.3) transparent;
+}
+
+.card-note__scripture-refs-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.card-note__scripture-refs-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.card-note__scripture-refs-list::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 118, 111, 0.3);
+  border-radius: 3px;
+}
+
+.card-note__scripture-refs-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(120, 118, 111, 0.5);
+}
+
 /* ==========================================================================
    Base Card
    ========================================================================== */
@@ -41,13 +65,13 @@
   position: relative;
   border-radius: 12px;
   background-color: white;
-  height: 88px;
+  min-height: 88px;
   transition: all 0.2s;
 }
 
 .card-note {
   background-color: white;
-  height: 88px;
+  min-height: 88px;
 }
 
 .card-note__inner {
