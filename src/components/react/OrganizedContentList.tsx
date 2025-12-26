@@ -144,7 +144,7 @@ export default function OrganizedContentList({
         });
         
         // Create a key from the refreshed items to track what we just loaded
-        const refreshedItemsKey = filteredItems.map(item => item.id).join(',') + `|${filteredItems.length}`;
+        const refreshedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
         
         // Double-check we're still on dashboard and mounted before updating
         // Also verify we're not on scripture filter (extra safety check)
@@ -217,8 +217,8 @@ export default function OrganizedContentList({
       if (prevFilterRef.current !== filter) {
         // Filter currentItems to only show scripture notes while loading
         // This prevents showing items from previous filter (e.g., threads or regular notes)
-        setCurrentItems(prev => {
-          const scriptureOnly = prev.filter(item => 
+        setCurrentItems((prev: OrganizedContentItem[]) => {
+          const scriptureOnly = prev.filter((item: OrganizedContentItem) => 
             item.type === 'note' && item.noteType === 'scripture'
           );
           // If we have scripture notes from initialItems, show those; otherwise show empty array
@@ -255,7 +255,7 @@ export default function OrganizedContentList({
             const apiHasMore = data.hasMore ?? false;
             
             // Create a key from the fetched items to track what we just loaded
-            const fetchedItemsKey = filteredItems.map(item => item.id).join(',') + `|${filteredItems.length}`;
+            const fetchedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
             lastRefreshItemsKeyRef.current = fetchedItemsKey;
             
             // Only update if still mounted and still on scripture filter
@@ -336,7 +336,7 @@ export default function OrganizedContentList({
     lastRefreshItemsKeyRef.current = '';
     
     // Filter out deleted items first
-    let filtered = initialItems.filter(item => item && item.id && !deletedItemIds.has(item.id));
+    let filtered = initialItems.filter((item: OrganizedContentItem) => item && item.id && !deletedItemIds.has(item.id));
     
     // Apply additional filtering based on filter type
     if (filter === 'threads') {
@@ -368,7 +368,7 @@ export default function OrganizedContentList({
     const handleNoteDeleted = (event: CustomEvent) => {
       const { noteId } = event.detail;
       if (noteId) {
-        setDeletedItemIds(prev => {
+        setDeletedItemIds((prev: Set<string>) => {
           // Add both raw ID and prefixed ID to match item.id format (note-${id})
           const newSet = new Set([...prev, noteId, `note-${noteId}`]);
           deletedItemIdsRef.current = newSet;
@@ -380,7 +380,7 @@ export default function OrganizedContentList({
     const handleThreadDeleted = (event: CustomEvent) => {
       const { threadId } = event.detail;
       if (threadId) {
-        setDeletedItemIds(prev => {
+        setDeletedItemIds((prev: Set<string>) => {
           // Add both raw ID and prefixed ID to match item.id format (thread-${id})
           const newSet = new Set([...prev, threadId, `thread-${threadId}`]);
           deletedItemIdsRef.current = newSet;
@@ -442,17 +442,15 @@ export default function OrganizedContentList({
           title: thread.title || 'Untitled Thread',
           subtitle: '0 notes',
           threadId: thread.id,
-          spaceId: thread.spaceId || null,
           count: 0,
           lastUpdated: thread.updatedAt || thread.createdAt || new Date().toISOString(),
-          updatedAt: thread.updatedAt || thread.createdAt || new Date().toISOString(),
           accentColor: thread.color ? getThreadColorCSS(thread.color) : undefined,
           isPrivate: !thread.isPublic,
         };
         
-        setCurrentItems(prev => {
+        setCurrentItems((prev: OrganizedContentItem[]) => {
           // Check if thread already exists to avoid duplicates
-          const exists = prev.some(item => item.threadId === thread.id);
+          const exists = prev.some((item: OrganizedContentItem) => item.threadId === thread.id);
           if (exists) {
             debug('[OrganizedContentList] Thread already in list, skipping add');
             return prev;
@@ -614,7 +612,7 @@ export default function OrganizedContentList({
   }, []);
 
   // Filter out deleted items from currentItems for display
-  const filteredInitialItems = (currentItems || []).filter(item => {
+  const filteredInitialItems = (currentItems || []).filter((item: OrganizedContentItem) => {
     // Use item.id as the primary identifier (it's always present)
     return item && item.id && !deletedItemIds.has(item.id);
   });
