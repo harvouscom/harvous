@@ -733,68 +733,6 @@ if (!content) {
                       
                       return (
                         <>
-                          {/* Inline script to restore active tab immediately on page load */}
-                          <div data-thread-id={id} style="display: none;"></div>
-                          <script is:inline>
-                            (function() {
-                              function restoreTab() {
-                                try {
-                                  const threadIdElement = document.querySelector('[data-thread-id]');
-                                  if (!threadIdElement) return;
-                                  const threadId = threadIdElement.getAttribute('data-thread-id');
-                                  if (!threadId) return;
-                                  
-                                  const storageKey = 'harvous_thread_tab_' + threadId;
-                                  const savedTabId = localStorage.getItem(storageKey);
-                                  
-                                  if (savedTabId && (savedTabId === 'all' || savedTabId === 'notes' || savedTabId === 'scripture')) {
-                                    // Update tab buttons
-                                    const tabButtons = document.querySelectorAll('.content-tabs [data-tab-button]');
-                                    if (tabButtons.length === 0) return; // Elements not ready yet
-                                    
-                                    tabButtons.forEach(function(button) {
-                                      const tabId = button.getAttribute('data-tab-id');
-                                      if (tabId === savedTabId) {
-                                        button.setAttribute('data-active', 'true');
-                                        button.classList.remove('opacity-50');
-                                        button.classList.add('opacity-100');
-                                      } else {
-                                        button.setAttribute('data-active', 'false');
-                                        button.classList.remove('opacity-100');
-                                        button.classList.add('opacity-50');
-                                      }
-                                    });
-                                    
-                                    // Update content sections
-                                    const contentSections = document.querySelectorAll('[data-tab-content]');
-                                    contentSections.forEach(function(section) {
-                                      const sectionTabId = section.getAttribute('data-tab-content');
-                                      if (sectionTabId === savedTabId) {
-                                        section.classList.remove('hidden');
-                                        section.style.display = '';
-                                      } else {
-                                        section.classList.add('hidden');
-                                        section.style.display = 'none';
-                                      }
-                                    });
-                                  }
-                                } catch (error) {
-                                  // Silently fail if localStorage is not available
-                                }
-                              }
-                              
-                              // Try immediately
-                              restoreTab();
-                              
-                              // Also try when DOM is ready
-                              if (document.readyState === 'loading') {
-                                document.addEventListener('DOMContentLoaded', restoreTab);
-                              } else {
-                                setTimeout(restoreTab, 0);
-                              }
-                            })();
-                          </script>
-                          
                           {/* Tab Navigation */}
                           <TabNav 
                             tabs={[
