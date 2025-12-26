@@ -343,6 +343,8 @@
   width: 100%;
   min-width: 0;
   height: 64px;
+  background-color: var(--color-light-paper, #F3F2EC);
+  -webkit-background-color: var(--color-light-paper, #F3F2EC);
 }
 
 .mobile-nav__col {

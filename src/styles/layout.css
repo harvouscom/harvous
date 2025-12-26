@@ -68,6 +68,8 @@
   width: 100%;
   flex-shrink: 0;
   height: 64px;
+  background-color: var(--color-light-paper, #F3F2EC);
+  -webkit-background-color: var(--color-light-paper, #F3F2EC);
 }
 
 .mobile-main {
