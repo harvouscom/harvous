@@ -91,7 +91,14 @@ export default function ThreadNotesList({
   const totalCountForFilterRef = useRef<number>(0);
   const accumulatedFilteredCountRef = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Track the actual database offset (total notes fetched from API, not filtered)
+  // This is critical because the API doesn't filter by type, so we need to track
+  // how many notes we've actually fetched from the database
+  const databaseOffsetRef = useRef<number>(0);
 
+  // Track previous noteTypeFilter to detect filter changes
+  const prevNoteTypeFilterRef = useRef<string>(noteTypeFilter);
+  
   // Update notes when initialNotes change (e.g., page navigation)
   useEffect(() => {
     const filtered = initialNotes
@@ -104,6 +111,18 @@ export default function ThreadNotesList({
     setNotes(uniqueNotes);
     // Initialize accumulatedFilteredCountRef immediately with the filtered count
     accumulatedFilteredCountRef.current = uniqueNotes.length;
+    
+    // Reset database offset when filter changes or when initialNotes change
+    // This ensures we start from the beginning when switching tabs
+    const filterChanged = prevNoteTypeFilterRef.current !== noteTypeFilter;
+    if (filterChanged) {
+      // Filter changed - reset to initial notes count
+      databaseOffsetRef.current = initialNotes.length;
+      prevNoteTypeFilterRef.current = noteTypeFilter;
+    } else {
+      // Same filter, just update the offset to reflect initial notes
+      databaseOffsetRef.current = initialNotes.length;
+    }
   }, [initialNotes, deletedNoteIds, noteTypeFilter]);
 
   // Listen for note deletion events
@@ -343,8 +362,13 @@ export default function ThreadNotesList({
   }, [totalCountForFilter, filteredNotes.length]);
 
   const loadMore = useCallback(async (offset: number, limit: number) => {
+    // Use the database offset ref instead of the filtered offset
+    // The API doesn't filter by type, so we need to track how many notes we've
+    // actually fetched from the database, not how many match our filter
+    const dbOffset = databaseOffsetRef.current;
+    
     const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
-    url.searchParams.set('offset', offset.toString());
+    url.searchParams.set('offset', dbOffset.toString());
     url.searchParams.set('limit', limit.toString());
 
     const response = await fetch(url.toString(), {
@@ -356,6 +380,10 @@ export default function ThreadNotesList({
     }
 
     const data = await response.json();
+    
+    // Update database offset to reflect how many notes we've now fetched total
+    databaseOffsetRef.current = dbOffset + data.notes.length;
+    
     // Filter out deleted notes from loaded notes using ref to get latest state
     const filteredDeleted = data.notes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
     // Apply note type filter
@@ -370,14 +398,27 @@ export default function ThreadNotesList({
     accumulatedFilteredCountRef.current = newFilteredCount;
     
     // Determine hasMore accounting for filtering and expected count
-    // hasMore is true if:
-    // 1. We haven't reached the expected count yet AND (the API says there are more OR we got a full batch), OR
-    // 2. The API says there are more items (data.hasMore is true), OR
-    // 3. We got the full limit from the API but filtering reduced it (meaning there might be more filtered items)
     const hasReachedExpectedCount = newFilteredCount >= totalCountForFilterRef.current;
-    const hasMore = (!hasReachedExpectedCount && (data.hasMore || data.notes.length === limit))
-      || data.hasMore
-      || (data.notes.length === limit && filteredByType.length < limit && noteTypeFilter !== 'all');
+    
+    // If we've reached the expected count, we're done
+    if (hasReachedExpectedCount) {
+      return {
+        items: filteredByType,
+        hasMore: false
+      };
+    }
+    
+    // We haven't reached the expected count yet
+    // Keep loading if:
+    // 1. The API says there are more items, OR
+    // 2. We got a full batch (limit items) - there might be more items ahead, OR
+    // 3. We got a full batch but filtering reduced it (meaning there might be more filtered items ahead)
+    const apiHasMore = data.hasMore;
+    const gotFullBatch = data.notes.length === limit;
+    const mightHaveMoreFiltered = gotFullBatch && filteredByType.length < limit && noteTypeFilter !== 'all';
+    
+    // Stop only if API says no more AND we got fewer than limit (we've reached the end)
+    const hasMore = apiHasMore || gotFullBatch || mightHaveMoreFiltered;
     
     return {
       items: filteredByType,
@@ -397,6 +438,7 @@ export default function ThreadNotesList({
     const filtered = uniqueNotes.filter(note => !deletedNoteIdsRef.current.has(note.id));
     const typeFiltered = filterNotesByType(filtered, noteTypeFilter);
     accumulatedFilteredCountRef.current = typeFiltered.length;
+    // Note: databaseOffsetRef is updated in loadMore, not here
   }, [noteTypeFilter]);
 
   const renderItem = (note: Note, index: number) => {
