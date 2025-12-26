@@ -77,22 +77,42 @@ function hashString(str: string): number {
   return Math.abs(hash);
 }
 
+// Generate multiple hash values from a seed for independent randomization
+function generateHashVariants(seed: string): { hash1: number; hash2: number; hash3: number } {
+  const baseHash = hashString(seed);
+  // Create variations by hashing different parts of the seed
+  const hash1 = baseHash;
+  const hash2 = hashString(seed + '-x');
+  const hash3 = hashString(seed + '-y');
+  return { hash1, hash2, hash3 };
+}
+
 // Generate deterministic but varied offset from base position based on seed
+// Enhanced with rotation/angle component and larger variation range
 function getVariedPosition(
   basePosition: { x: number; y: number },
   seed: string,
-  maxOffset: number = 20 // Maximum offset in percentage
+  maxOffset: number = 37 // Maximum offset in percentage (increased from 20)
 ): { x: number; y: number } {
-  const hash = hashString(seed);
+  const { hash1, hash2, hash3 } = generateHashVariants(seed);
   
-  // Use hash to generate consistent but varied offsets
-  // Use different parts of hash for x and y to ensure variation
-  const xOffset = ((hash % (maxOffset * 2)) - maxOffset) * 0.8; // -16% to +16%
-  const yOffset = (((hash >> 8) % (maxOffset * 2)) - maxOffset) * 0.8; // -16% to +16%
+  // Generate angle for rotation-based positioning (0-360 degrees)
+  const angle = (hash1 % 360) * (Math.PI / 180); // Convert to radians
+  
+  // Generate distance from base position (0 to maxOffset)
+  const distance = ((hash2 % 100) / 100) * maxOffset;
+  
+  // Calculate x and y offsets using polar coordinates (rotation)
+  const xOffset = Math.cos(angle) * distance;
+  const yOffset = Math.sin(angle) * distance;
+  
+  // Add additional independent variation using hash3 for more randomness
+  const independentX = ((hash3 % (maxOffset * 2)) - maxOffset) * 0.3;
+  const independentY = (((hash3 >> 8) % (maxOffset * 2)) - maxOffset) * 0.3;
   
   return {
-    x: Math.max(5, Math.min(95, basePosition.x + xOffset)),
-    y: Math.max(5, Math.min(95, basePosition.y + yOffset)),
+    x: Math.max(5, Math.min(95, basePosition.x + xOffset + independentX)),
+    y: Math.max(5, Math.min(95, basePosition.y + yOffset + independentY)),
   };
 }
 
@@ -144,8 +164,8 @@ function optimizeColorPositions(
         color,
         frequency,
         position: seed 
-          ? getVariedPosition(basePosition, positionSeed, 25) // Larger variation when seed provided
-          : basePosition, // No variation if no seed
+          ? getVariedPosition(basePosition, positionSeed, 38) // Increased variation (35-40% range)
+          : getVariedPosition(basePosition, positionSeed, 15), // Apply some variation even without seed
       };
     });
   }
@@ -173,9 +193,9 @@ function optimizeColorPositions(
         break;
       }
       
-      // If analogous, place nearby but not overlapping
+      // If analogous, place nearby but not overlapping (increased spread)
       if (harmony > 0.6 && harmony < 0.9) {
-        const offset = 15; // Offset by 15% to avoid overlap
+        const offset = 28; // Increased offset by 25-30% for more spread
         bestPosition = {
           x: Math.max(5, Math.min(95, existing.position.x + offset)),
           y: Math.max(5, Math.min(95, existing.position.y + offset)),
@@ -183,11 +203,14 @@ function optimizeColorPositions(
       }
     }
 
-    // Apply deterministic variation based on seed
-    if (seed) {
-      const positionSeed = `${seed}-${color}-${i}`;
-      bestPosition = getVariedPosition(bestPosition, positionSeed, 20);
-    }
+    // Apply deterministic variation based on seed (with larger range)
+    // Always apply variation when seed is provided, with larger range for more randomization
+    const positionSeed = seed 
+      ? `${seed}-${color}-${i}` 
+      : `${color}-${frequency}-${i}`;
+    bestPosition = seed 
+      ? getVariedPosition(bestPosition, positionSeed, 37) // Increased variation (35-40% range)
+      : getVariedPosition(bestPosition, positionSeed, 12); // Apply some variation even without seed
 
     // Ensure position isn't too close to existing ones
     const positionKey = `${Math.round(bestPosition.x / 10)}-${Math.round(bestPosition.y / 10)}`;
