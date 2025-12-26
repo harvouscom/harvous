@@ -273,6 +273,20 @@ const UserInboxItems = defineTable({
   }
 })
 
+// Monthly analytics for anonymous tracking of popular books and tags
+const MonthlyAnalytics = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    month: column.text(), // Format: "YYYY-MM" (e.g., "2025-01")
+    bookName: column.text({ optional: true }), // Bible book name (null for tag entries)
+    tagName: column.text({ optional: true }), // Tag name (null for book entries)
+    category: column.text(), // 'book' | 'tag'
+    count: column.number({ default: 0 }), // Number of times this book/tag was used
+    createdAt: column.date(),
+    updatedAt: column.date({ optional: true }),
+  }
+})
+
 // https://astro.build/db/config
 export default defineDb({
   tables: {
@@ -294,6 +308,7 @@ export default defineDb({
     ResourceMetadata,
     InboxItems,
     InboxItemNotes,
-    UserInboxItems
+    UserInboxItems,
+    MonthlyAnalytics
   }
 });

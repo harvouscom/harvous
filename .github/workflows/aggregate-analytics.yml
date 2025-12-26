@@ -1,0 +1,27 @@
+name: Aggregate Monthly Analytics
+
+on:
+  schedule:
+    # Run on the 1st of each month at 2 AM UTC (to aggregate previous month)
+    - cron: '0 2 1 * *'
+  workflow_dispatch: # Allow manual triggering from GitHub Actions UI
+
+jobs:
+  aggregate-analytics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate Monthly Analytics
+        env:
+          SITE_URL: ${{ secrets.AUTO_ARCHIVE_SITE_URL || 'https://app.harvous.com' }}
+          SECRET_TOKEN: ${{ secrets.AUTO_ARCHIVE_SECRET_TOKEN }}
+        run: |
+          echo "Aggregating analytics for previous month"
+          if [ -z "$SECRET_TOKEN" ]; then
+            response=$(curl -s -w "\n%{http_code}" -X POST "$SITE_URL/api/admin/aggregate-analytics?previous=true")
+            echo "$response"
+          else
+            response=$(curl -s -w "\n%{http_code}" -X POST "$SITE_URL/api/admin/aggregate-analytics?previous=true" \
+              -H "Authorization: Bearer $SECRET_TOKEN")
+            echo "$response"
+          fi
+
