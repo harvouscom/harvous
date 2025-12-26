@@ -190,7 +190,7 @@
 .card-note__excerpt {
   display: flex;
   flex-direction: column;
-  font-weight: 600;
+  font-weight: normal;
   justify-content: flex-start;
   overflow: hidden;
   position: relative;

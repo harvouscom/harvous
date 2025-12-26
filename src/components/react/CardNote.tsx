@@ -243,7 +243,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                     style={{
                       fontSize: '12px',
                       color: 'var(--color-stone-grey)',
-                      fontWeight: 600
+                      fontWeight: 'normal'
                     }}
                   >
                     {scriptureReferences.length} {scriptureReferences.length === 1 ? 'scripture note included' : 'scripture notes included'}
@@ -521,7 +521,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                     style={{
                       fontSize: '12px',
                       color: 'var(--color-stone-grey)',
-                      fontWeight: 600
+                      fontWeight: 'normal'
                     }}
                   >
                     {scriptureReferences.length} {scriptureReferences.length === 1 ? 'scripture note included' : 'scripture notes included'}
