@@ -350,7 +350,13 @@ export default function ThreadNotesList({
 
   const totalCountForFilter = getTotalCountForFilter();
   // hasMore is true if we have fewer filtered items than the total count for this filter type
+  // Always set to true if we're below expected count, to ensure we load more
   const initialHasMore = filteredNotes.length < totalCountForFilter;
+  
+  // Also check if we have fewer initial notes than the total (for "all" filter)
+  // This ensures we load more even if filtering hasn't reduced the count yet
+  const hasFewerInitialNotes = noteTypeFilter === 'all' && initialNotes.length < (noteTypeCounts?.all || 0);
+  const shouldHaveMore = initialHasMore || hasFewerInitialNotes;
 
   // Update refs when total count or filtered notes change
   // This ensures refs are always in sync with the actual filtered count
@@ -360,6 +366,7 @@ export default function ThreadNotesList({
     // This is critical for accurate hasMore calculation in loadMore
     accumulatedFilteredCountRef.current = filteredNotes.length;
   }, [totalCountForFilter, filteredNotes.length]);
+
 
   const loadMore = useCallback(async (offset: number, limit: number) => {
     // Use the database offset ref instead of the filtered offset
@@ -412,13 +419,16 @@ export default function ThreadNotesList({
     // Keep loading if:
     // 1. The API says there are more items, OR
     // 2. We got a full batch (limit items) - there might be more items ahead, OR
-    // 3. We got a full batch but filtering reduced it (meaning there might be more filtered items ahead)
+    // 3. We got a full batch but filtering reduced it (meaning there might be more filtered items ahead), OR
+    // 4. We haven't reached the expected count yet (keep trying until we do)
     const apiHasMore = data.hasMore;
     const gotFullBatch = data.notes.length === limit;
     const mightHaveMoreFiltered = gotFullBatch && filteredByType.length < limit && noteTypeFilter !== 'all';
     
-    // Stop only if API says no more AND we got fewer than limit (we've reached the end)
-    const hasMore = apiHasMore || gotFullBatch || mightHaveMoreFiltered;
+    // Always keep loading if we haven't reached expected count
+    // Only stop if API says no more AND we got fewer than limit (we've reached the end)
+    // AND we've tried to load enough (databaseOffsetRef is reasonable)
+    const hasMore = !hasReachedExpectedCount && (apiHasMore || gotFullBatch || mightHaveMoreFiltered || data.notes.length > 0);
     
     return {
       items: filteredByType,
@@ -571,7 +581,7 @@ export default function ThreadNotesList({
           itemKey={(note) => note.id}
           limit={20}
           className="flex flex-col gap-3"
-          initialHasMore={initialHasMore}
+          initialHasMore={shouldHaveMore}
           minimumExpectedCount={totalCountForFilter}
         />
       </div>
