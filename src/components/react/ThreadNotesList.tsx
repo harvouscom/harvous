@@ -419,16 +419,18 @@ export default function ThreadNotesList({
     // Keep loading if:
     // 1. The API says there are more items, OR
     // 2. We got a full batch (limit items) - there might be more items ahead, OR
-    // 3. We got a full batch but filtering reduced it (meaning there might be more filtered items ahead), OR
-    // 4. We haven't reached the expected count yet (keep trying until we do)
+    // 3. We got a full batch but filtering reduced it (meaning there might be more filtered items ahead)
+    // 
+    // IMPORTANT: Do NOT return hasMore: true just because we got some notes back (data.notes.length > 0)
+    // This causes infinite loops when API says hasMore: false but we got the last batch
+    // Only return hasMore: true if there's a reasonable chance of more items
     const apiHasMore = data.hasMore;
     const gotFullBatch = data.notes.length === limit;
     const mightHaveMoreFiltered = gotFullBatch && filteredByType.length < limit && noteTypeFilter !== 'all';
     
-    // Always keep loading if we haven't reached expected count
-    // Only stop if API says no more AND we got fewer than limit (we've reached the end)
-    // AND we've tried to load enough (databaseOffsetRef is reasonable)
-    const hasMore = !hasReachedExpectedCount && (apiHasMore || gotFullBatch || mightHaveMoreFiltered || data.notes.length > 0);
+    // Only keep loading if we haven't reached expected count AND there's a reasonable chance of more items
+    // Stop if API says no more AND we got fewer than limit (we've reached the end)
+    const hasMore = !hasReachedExpectedCount && (apiHasMore || gotFullBatch || mightHaveMoreFiltered);
     
     return {
       items: filteredByType,
