@@ -371,7 +371,74 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       .limit(fetchLimit)
       .all();
       
-      allNotes = unorganizedNotes;
+      // Also fetch scripture notes referenced by unorganized notes
+      const unorganizedNoteIds = unorganizedNotes.map(n => n.id).filter(id => id);
+      let referencedScriptureNotes: typeof unorganizedNotes = [];
+      
+      if (unorganizedNoteIds.length > 0) {
+        // Find scripture notes referenced by unorganized notes
+        const referencedScriptureNoteIds = await db
+          .select({ 
+            scriptureNoteId: NoteScriptureReferences.scriptureNoteId
+          })
+          .from(NoteScriptureReferences)
+          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+          .where(and(
+            inArray(NoteScriptureReferences.noteId, unorganizedNoteIds),
+            eq(Notes.userId, userId),
+            eq(Notes.noteType, 'scripture')
+          ))
+          .all();
+
+        // Get unique scripture note IDs (deduplicate)
+        const uniqueReferencedScriptureIds = Array.from(
+          new Set(referencedScriptureNoteIds.map(r => r.scriptureNoteId))
+        );
+
+        // Check which referenced scripture notes are NOT already in unorganized
+        const alreadyInUnorganizedIds = new Set(
+          unorganizedNotes.filter(n => n.noteType === 'scripture').map(n => n.id)
+        );
+
+        const additionalScriptureNoteIds = uniqueReferencedScriptureIds.filter(
+          id => !alreadyInUnorganizedIds.has(id)
+        );
+
+        // Fetch the full note data for referenced scripture notes
+        if (additionalScriptureNoteIds.length > 0) {
+          referencedScriptureNotes = await db.select({
+            id: Notes.id,
+            title: Notes.title,
+            content: Notes.content,
+            threadId: Notes.threadId,
+            spaceId: Notes.spaceId,
+            simpleNoteId: Notes.simpleNoteId,
+            noteType: Notes.noteType,
+            isPublic: Notes.isPublic,
+            isFeatured: Notes.isFeatured,
+            createdAt: Notes.createdAt,
+            updatedAt: Notes.updatedAt,
+            lastVisited: Notes.lastVisited,
+          })
+          .from(Notes)
+          .where(and(
+            inArray(Notes.id, additionalScriptureNoteIds),
+            eq(Notes.userId, userId),
+            eq(Notes.noteType, 'scripture')
+          ))
+          .all();
+        }
+      }
+      
+      // Combine unorganized notes with referenced scripture notes
+      // Deduplicate by note ID (in case a scripture note is both directly in unorganized and referenced)
+      const notesMap = new Map<string, typeof unorganizedNotes[0]>();
+      [...unorganizedNotes, ...referencedScriptureNotes].forEach(note => {
+        if (note.id && !notesMap.has(note.id)) {
+          notesMap.set(note.id, note);
+        }
+      });
+      allNotes = Array.from(notesMap.values());
     } else {
       // For regular threads, use junction table only
       const junctionNotes = await db.select({
@@ -395,7 +462,74 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       .limit(fetchLimit)
       .all();
       
-      allNotes = junctionNotes;
+      // Also fetch scripture notes referenced by notes in this thread
+      const threadNoteIds = junctionNotes.map(n => n.id).filter(id => id);
+      let referencedScriptureNotes: typeof junctionNotes = [];
+      
+      if (threadNoteIds.length > 0) {
+        // Find scripture notes referenced by notes in this thread
+        const referencedScriptureNoteIds = await db
+          .select({ 
+            scriptureNoteId: NoteScriptureReferences.scriptureNoteId
+          })
+          .from(NoteScriptureReferences)
+          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+          .where(and(
+            inArray(NoteScriptureReferences.noteId, threadNoteIds),
+            eq(Notes.userId, userId),
+            eq(Notes.noteType, 'scripture')
+          ))
+          .all();
+
+        // Get unique scripture note IDs (deduplicate)
+        const uniqueReferencedScriptureIds = Array.from(
+          new Set(referencedScriptureNoteIds.map(r => r.scriptureNoteId))
+        );
+
+        // Check which referenced scripture notes are NOT already directly in the thread
+        const alreadyInThreadIds = new Set(
+          junctionNotes.filter(n => n.noteType === 'scripture').map(n => n.id)
+        );
+
+        const additionalScriptureNoteIds = uniqueReferencedScriptureIds.filter(
+          id => !alreadyInThreadIds.has(id)
+        );
+
+        // Fetch the full note data for referenced scripture notes
+        if (additionalScriptureNoteIds.length > 0) {
+          referencedScriptureNotes = await db.select({
+            id: Notes.id,
+            title: Notes.title,
+            content: Notes.content,
+            threadId: Notes.threadId,
+            spaceId: Notes.spaceId,
+            simpleNoteId: Notes.simpleNoteId,
+            noteType: Notes.noteType,
+            isPublic: Notes.isPublic,
+            isFeatured: Notes.isFeatured,
+            createdAt: Notes.createdAt,
+            updatedAt: Notes.updatedAt,
+            lastVisited: Notes.lastVisited,
+          })
+          .from(Notes)
+          .where(and(
+            inArray(Notes.id, additionalScriptureNoteIds),
+            eq(Notes.userId, userId),
+            eq(Notes.noteType, 'scripture')
+          ))
+          .all();
+        }
+      }
+      
+      // Combine junction notes with referenced scripture notes
+      // Deduplicate by note ID (in case a scripture note is both directly in thread and referenced)
+      const notesMap = new Map<string, typeof junctionNotes[0]>();
+      [...junctionNotes, ...referencedScriptureNotes].forEach(note => {
+        if (note.id && !notesMap.has(note.id)) {
+          notesMap.set(note.id, note);
+        }
+      });
+      allNotes = Array.from(notesMap.values());
     }
 
     // Sort by lastVisited/createdAt, apply offset and limit
@@ -486,6 +620,7 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
     if (threadId === 'thread_unorganized') {
       // For unorganized thread, count notes with NO junction table entries
       const allNotes = await db.select({
+        id: Notes.id,
         noteType: Notes.noteType,
       })
       .from(Notes)
@@ -500,9 +635,47 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
       defaultCount = allNotes.filter(n => !n.noteType || n.noteType === 'default').length;
       scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;
       resourceCount = allNotes.filter(n => n.noteType === 'resource').length;
+
+      // Also count scripture notes referenced by unorganized notes
+      // Get unorganized note IDs
+      const unorganizedNoteIds = allNotes.map(n => n.id).filter(id => id);
+      
+      if (unorganizedNoteIds.length > 0) {
+        // Find scripture notes referenced by unorganized notes
+        const referencedScriptureNoteIds = await db
+          .select({ 
+            scriptureNoteId: NoteScriptureReferences.scriptureNoteId
+          })
+          .from(NoteScriptureReferences)
+          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+          .where(and(
+            inArray(NoteScriptureReferences.noteId, unorganizedNoteIds),
+            eq(Notes.userId, userId),
+            eq(Notes.noteType, 'scripture')
+          ))
+          .all();
+
+        // Get unique scripture note IDs (deduplicate)
+        const uniqueReferencedScriptureIds = Array.from(
+          new Set(referencedScriptureNoteIds.map(r => r.scriptureNoteId))
+        );
+
+        // Check which referenced scripture notes are NOT already in unorganized
+        const alreadyCountedScriptureIds = new Set(
+          allNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(id => id)
+        );
+
+        const additionalScriptureCount = uniqueReferencedScriptureIds.filter(
+          id => !alreadyCountedScriptureIds.has(id)
+        ).length;
+
+        scriptureCount += additionalScriptureCount;
+        allCount += additionalScriptureCount;
+      }
     } else {
       // For regular threads, use junction table
       const allNotes = await db.select({
+        id: Notes.id,
         noteType: Notes.noteType,
       })
       .from(Notes)
@@ -517,6 +690,43 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
       defaultCount = allNotes.filter(n => !n.noteType || n.noteType === 'default').length;
       scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;
       resourceCount = allNotes.filter(n => n.noteType === 'resource').length;
+
+      // Also count scripture notes referenced by notes in this thread
+      const threadNoteIds = allNotes.map(n => n.id || '').filter(id => id);
+      
+      if (threadNoteIds.length > 0) {
+        // Find scripture notes referenced by notes in this thread
+        const referencedScriptureNoteIds = await db
+          .select({ 
+            scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
+            scriptureNoteType: Notes.noteType
+          })
+          .from(NoteScriptureReferences)
+          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+          .where(and(
+            inArray(NoteScriptureReferences.noteId, threadNoteIds),
+            eq(Notes.userId, userId),
+            eq(Notes.noteType, 'scripture')
+          ))
+          .all();
+
+        // Get unique scripture note IDs (deduplicate)
+        const uniqueReferencedScriptureIds = new Set(
+          referencedScriptureNoteIds.map(r => r.scriptureNoteId)
+        );
+
+        // Check which referenced scripture notes are NOT already directly in the thread
+        const alreadyCountedScriptureIds = new Set(
+          allNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(id => id)
+        );
+
+        const additionalScriptureCount = uniqueReferencedScriptureIds.filter(
+          id => !alreadyCountedScriptureIds.has(id)
+        ).length;
+
+        scriptureCount += additionalScriptureCount;
+        allCount += additionalScriptureCount;
+      }
     }
 
     return {

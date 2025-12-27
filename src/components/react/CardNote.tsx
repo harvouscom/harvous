@@ -205,61 +205,75 @@ const CardNote: React.FC<CardNoteProps> = ({
                     </div>
                     {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
                     {(noteType !== 'resource' || !resourceUrl || !showSource) && (
-                      <div className="card-note__excerpt">
-                        <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
+                      <div 
+                        className={`card-note__excerpt ${hasScriptureRefs ? 'card-note__excerpt--with-scripture-refs' : ''}`}
+                        style={hasScriptureRefs ? {
+                          display: 'flex',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: '8px',
+                          width: '100%'
+                        } : {}}
+                      >
+                        <p style={hasScriptureRefs ? { flex: 1, minWidth: 0 } : {}}>
+                          {effectiveContent ? stripHtml(effectiveContent) : ""}
+                        </p>
+                        {/* Scripture refs trigger inline with excerpt */}
+                        {hasScriptureRefs && (
+                          <div
+                            onClick={(e) => {
+                              e.preventDefault(); // Prevent link navigation
+                              e.stopPropagation(); // Prevent card click
+                              setIsScriptureRefsExpanded(!isScriptureRefsExpanded);
+                            }}
+                            style={{
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              backgroundColor: 'var(--color-fog-white)',
+                              borderRadius: '8px',
+                              padding: '4px 8px',
+                              flexShrink: 0
+                            }}
+                          >
+                            <span 
+                              style={{
+                                fontSize: '12px',
+                                color: 'var(--color-stone-grey)',
+                                fontWeight: 'normal',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {scriptureReferences.length} {scriptureReferences.length === 1 ? 'scripture note included' : 'scripture notes included'}
+                            </span>
+                            <Icon 
+                              name="chevron-down" 
+                              size={12} 
+                              style={{ 
+                                transform: isScriptureRefsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                color: 'var(--color-stone-grey)',
+                                flexShrink: 0
+                              }} 
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
               </div>
               
-              {/* Scripture references collapsible section (only in dashboard list view) */}
-              {showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0 && (
+              {/* Scripture references dropdown list (only in dashboard list view) */}
+              {showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0 && isScriptureRefsExpanded && (
                 <div 
                   className="card-note__scripture-refs"
-                style={{
-                  backgroundColor: 'var(--color-fog-white)',
-                  borderRadius: '8px',
-                  padding: '4px 8px',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                <div
-                  onClick={(e) => {
-                    e.preventDefault(); // Prevent link navigation
-                    e.stopPropagation(); // Prevent card click
-                    setIsScriptureRefsExpanded(!isScriptureRefsExpanded);
-                  }}
                   style={{
-                    cursor: 'pointer',
-                    userSelect: 'none',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
+                    flexDirection: 'column'
                   }}
                 >
-                  <span 
-                    style={{
-                      fontSize: '12px',
-                      color: 'var(--color-stone-grey)',
-                      fontWeight: 'normal'
-                    }}
-                  >
-                    {scriptureReferences.length} {scriptureReferences.length === 1 ? 'scripture note included' : 'scripture notes included'}
-                  </span>
-                  <Icon 
-                    name="chevron-down" 
-                    size={12} 
-                    style={{ 
-                      transform: isScriptureRefsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                      color: 'var(--color-stone-grey)',
-                      flexShrink: 0
-                    }} 
-                  />
-                </div>
-                
-                {isScriptureRefsExpanded && (
                   <div 
                     onClick={(e) => {
                       // Only prevent navigation if clicking on the div itself, not on links
@@ -269,7 +283,6 @@ const CardNote: React.FC<CardNoteProps> = ({
                       }
                     }}
                     style={{
-                      marginTop: '8px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '4px',
@@ -328,7 +341,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                               width: '100%',
                               textAlign: 'left',
                               backgroundColor: 'white',
-                              boxShadow: 'none',
+                              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
                               transition: 'transform 0.2s',
                               cursor: 'pointer'
                             }}
@@ -373,9 +386,8 @@ const CardNote: React.FC<CardNoteProps> = ({
                       );
                     })}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
           </div>
           {/* Source bar for resource notes - outside content area to match normal preview */}
           {noteType === 'resource' && resourceUrl && showSource && (
@@ -483,61 +495,75 @@ const CardNote: React.FC<CardNoteProps> = ({
                     </div>
                     {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
                     {(noteType !== 'resource' || !resourceUrl || !showSource) && (
-                      <div className="card-note__excerpt">
-                        <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
+                      <div 
+                        className={`card-note__excerpt ${hasScriptureRefs ? 'card-note__excerpt--with-scripture-refs' : ''}`}
+                        style={hasScriptureRefs ? {
+                          display: 'flex',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: '8px',
+                          width: '100%'
+                        } : {}}
+                      >
+                        <p style={hasScriptureRefs ? { flex: 1, minWidth: 0 } : {}}>
+                          {effectiveContent ? stripHtml(effectiveContent) : ""}
+                        </p>
+                        {/* Scripture refs trigger inline with excerpt */}
+                        {hasScriptureRefs && (
+                          <div
+                            onClick={(e) => {
+                              e.preventDefault(); // Prevent link navigation
+                              e.stopPropagation(); // Prevent card click
+                              setIsScriptureRefsExpanded(!isScriptureRefsExpanded);
+                            }}
+                            style={{
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              backgroundColor: 'var(--color-fog-white)',
+                              borderRadius: '8px',
+                              padding: '4px 8px',
+                              flexShrink: 0
+                            }}
+                          >
+                            <span 
+                              style={{
+                                fontSize: '12px',
+                                color: 'var(--color-stone-grey)',
+                                fontWeight: 'normal',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {scriptureReferences.length} {scriptureReferences.length === 1 ? 'scripture note included' : 'scripture notes included'}
+                            </span>
+                            <Icon 
+                              name="chevron-down" 
+                              size={12} 
+                              style={{ 
+                                transform: isScriptureRefsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                color: 'var(--color-stone-grey)',
+                                flexShrink: 0
+                              }} 
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
               </div>
               
-              {/* Scripture references collapsible section (only in dashboard list view) */}
-              {showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0 && (
+              {/* Scripture references dropdown list (only in dashboard list view) */}
+              {showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0 && isScriptureRefsExpanded && (
                 <div 
                   className="card-note__scripture-refs"
-                style={{
-                  backgroundColor: 'var(--color-fog-white)',
-                  borderRadius: '8px',
-                  padding: '4px 8px',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                <div
-                  onClick={(e) => {
-                    e.preventDefault(); // Prevent link navigation
-                    e.stopPropagation(); // Prevent card click
-                    setIsScriptureRefsExpanded(!isScriptureRefsExpanded);
-                  }}
                   style={{
-                    cursor: 'pointer',
-                    userSelect: 'none',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
+                    flexDirection: 'column'
                   }}
                 >
-                  <span 
-                    style={{
-                      fontSize: '12px',
-                      color: 'var(--color-stone-grey)',
-                      fontWeight: 'normal'
-                    }}
-                  >
-                    {scriptureReferences.length} {scriptureReferences.length === 1 ? 'scripture note included' : 'scripture notes included'}
-                  </span>
-                  <Icon 
-                    name="chevron-down" 
-                    size={12} 
-                    style={{ 
-                      transform: isScriptureRefsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                      color: 'var(--color-stone-grey)',
-                      flexShrink: 0
-                    }} 
-                  />
-                </div>
-                
-                {isScriptureRefsExpanded && (
                   <div 
                     onClick={(e) => {
                       // Only prevent navigation if clicking on the div itself, not on links
@@ -547,7 +573,6 @@ const CardNote: React.FC<CardNoteProps> = ({
                       }
                     }}
                     style={{
-                      marginTop: '8px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '4px',
@@ -606,7 +631,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                               width: '100%',
                               textAlign: 'left',
                               backgroundColor: 'white',
-                              boxShadow: 'none',
+                              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
                               transition: 'transform 0.2s',
                               cursor: 'pointer'
                             }}
@@ -651,9 +676,8 @@ const CardNote: React.FC<CardNoteProps> = ({
                       );
                     })}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
           </div>
           {/* Source bar for resource notes - outside content area to match normal preview */}
           {noteType === 'resource' && resourceUrl && showSource && (
