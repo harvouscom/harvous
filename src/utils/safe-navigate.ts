@@ -10,8 +10,12 @@ let captureException: ((error: Error, properties?: Record<string, any>) => void)
 if (typeof window !== 'undefined') {
   import('@/utils/posthog').then((module) => {
     captureException = module.captureException;
-  }).catch(() => {
+  }).catch((error) => {
     // PostHog not available, continue without it
+    // Only log in development to avoid console noise in production
+    if (import.meta.env.DEV) {
+      console.warn('[safe-navigate] PostHog not available:', error);
+    }
   });
 }
 
@@ -25,8 +29,22 @@ let navigatePromise: Promise<typeof import('astro:transitions/client')> | null =
 // Preload View Transitions module when browser is idle to avoid blocking initial load
 if (typeof window !== 'undefined') {
   const preloadViewTransitions = () => {
-    navigatePromise = import('astro:transitions/client').catch(() => {
-      // Silently fail - will fall back to window.location
+    navigatePromise = import('astro:transitions/client').catch((error) => {
+      // Log error for debugging but don't break the app
+      if (import.meta.env.DEV) {
+        console.warn('[safe-navigate] Failed to preload astro:transitions/client:', error);
+      }
+      // Track error in PostHog if available (but don't wait for it)
+      if (captureException) {
+        try {
+          captureException(error instanceof Error ? error : new Error(String(error)), {
+            context: 'safe-navigate',
+            action: 'preload-module'
+          });
+        } catch {
+          // Ignore PostHog errors
+        }
+      }
       return null;
     });
     
@@ -34,8 +52,11 @@ if (typeof window !== 'undefined') {
       if (module) {
         navigateFunction = module.navigate;
       }
-    }).catch(() => {
-      // Silently fail - will fall back to window.location
+    }).catch((error) => {
+      // Log error for debugging but don't break the app
+      if (import.meta.env.DEV) {
+        console.warn('[safe-navigate] Failed to initialize navigate function:', error);
+      }
     });
   };
   

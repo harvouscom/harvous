@@ -42,19 +42,9 @@ export default function CollapsibleInboxSection({
 
   const [isCollapsed, setIsCollapsed] = useState(getInitialState);
   
-  // Initialize activeTab from URL query parameter if present, otherwise default to 'inbox'
-  const getInitialTab = (): 'inbox' | 'archive' => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const tabParam = urlParams.get('tab');
-      if (tabParam === 'inbox' || tabParam === 'archive') {
-        return tabParam;
-      }
-    }
-    return 'inbox';
-  };
-  
-  const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>(getInitialTab);
+  // Initialize activeTab - always start with 'inbox' to ensure server/client match
+  // We'll update it after mount if URL has a different tab parameter
+  const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
   const previousCountRef = useRef<number>(inboxItemCount);
   const [isMounted, setIsMounted] = useState(false);
   
@@ -64,6 +54,13 @@ export default function CollapsibleInboxSection({
     
     // Only check localStorage after component is mounted (client-side only)
     if (typeof window !== 'undefined') {
+      // Check URL for tab parameter first (before localStorage)
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      if (tabParam === 'inbox' || tabParam === 'archive') {
+        setActiveTab(tabParam);
+      }
+      
       // Auto-expand if items exist (override localStorage)
       if (inboxItemCount > 0) {
         setIsCollapsed(false);
@@ -77,7 +74,6 @@ export default function CollapsibleInboxSection({
       }
       
       // Clean up the tab query parameter after reading it (to avoid URL clutter)
-      const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.has('tab')) {
         urlParams.delete('tab');
         const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
@@ -385,7 +381,6 @@ export default function CollapsibleInboxSection({
               onClick={(e) => handleTabClick('inbox', e)}
               onTouchStart={(e) => handleTabClick('inbox', e)}
               style={{ touchAction: 'manipulation' }}
-              suppressHydrationWarning
             >
               <span className="tab-nav__label">Inbox</span>
               {localInboxContent.length > 0 && (
@@ -401,7 +396,6 @@ export default function CollapsibleInboxSection({
               onClick={(e) => handleTabClick('archive', e)}
               onTouchStart={(e) => handleTabClick('archive', e)}
               style={{ touchAction: 'manipulation' }}
-              suppressHydrationWarning
             >
               <span className="tab-nav__label">Archive</span>
             </button>
@@ -409,10 +403,7 @@ export default function CollapsibleInboxSection({
         </div>
         <div className="flex flex-col font-sans font-normal justify-center relative shrink-0 text-[12px] text-[#78766f]">
           {isCollapsed ? (
-            <p 
-              className="leading-[1.3] whitespace-nowrap"
-              suppressHydrationWarning
-            >
+            <p className="leading-[1.3] whitespace-nowrap">
               Inbox is currently hidden
             </p>
           ) : (
@@ -420,14 +411,12 @@ export default function CollapsibleInboxSection({
               <p 
                 className="leading-[1.3] whitespace-nowrap inbox-auto-text"
                 style={{ display: activeTab === 'inbox' && !isCollapsed && isMounted ? 'block' : 'none' }}
-                suppressHydrationWarning
               >
                 14 day auto archive
               </p>
               <p 
                 className="leading-[1.3] whitespace-nowrap archive-auto-text"
                 style={{ display: activeTab === 'archive' && !isCollapsed && isMounted ? 'block' : 'none' }}
-                suppressHydrationWarning
               >
                 30 day auto delete
               </p>

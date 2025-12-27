@@ -17,8 +17,13 @@ export function safeRenderHtml(content: unknown): string {
     return '';
   }
 
-  // If it's already a string, return it
+  // If it's already a string, normalize it for consistent rendering
   if (typeof content === 'string') {
+    // Ensure empty strings are consistently handled
+    if (content.trim() === '') {
+      return '';
+    }
+    // Return as-is to preserve HTML structure
     return content;
   }
 

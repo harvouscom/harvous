@@ -1,13 +1,40 @@
 import React, { useReducer, useEffect, useCallback, useState, lazy, Suspense } from 'react';
 import PanelErrorBoundary from './PanelErrorBoundary';
 
-// Lazy load panel components for code splitting
-const NewNotePanel = lazy(() => import('./NewNotePanel'));
-const NewThreadPanel = lazy(() => import('./NewThreadPanel'));
-const NoteDetailsPanel = lazy(() => import('./NoteDetailsPanel'));
-const EditThreadPanel = lazy(() => import('./EditThreadPanel'));
-const EditSpacePanel = lazy(() => import('./EditSpacePanel'));
-const InboxItemPreviewPanel = lazy(() => import('./InboxItemPreviewPanel'));
+// Helper function to create lazy-loaded components with error handling
+const createLazyComponent = (importFn: () => Promise<any>, componentName: string) => {
+  return lazy(() => 
+    importFn().catch((error) => {
+      console.error(`Failed to load ${componentName}:`, error);
+      // Return a fallback component that shows an error message
+      return {
+        default: () => (
+          <div className="h-full flex items-center justify-center p-6">
+            <div className="text-center">
+              <p className="text-sm text-[var(--color-pebble-grey)] mb-2">
+                Failed to load {componentName}
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-[var(--color-bold-blue)] text-white rounded-lg hover:opacity-90 transition-opacity text-sm"
+              >
+                Reload Page
+              </button>
+            </div>
+          </div>
+        )
+      };
+    })
+  );
+};
+
+// Lazy load panel components for code splitting with error handling
+const NewNotePanel = createLazyComponent(() => import('./NewNotePanel'), 'NewNotePanel');
+const NewThreadPanel = createLazyComponent(() => import('./NewThreadPanel'), 'NewThreadPanel');
+const NoteDetailsPanel = createLazyComponent(() => import('./NoteDetailsPanel'), 'NoteDetailsPanel');
+const EditThreadPanel = createLazyComponent(() => import('./EditThreadPanel'), 'EditThreadPanel');
+const EditSpacePanel = createLazyComponent(() => import('./EditSpacePanel'), 'EditSpacePanel');
+const InboxItemPreviewPanel = createLazyComponent(() => import('./InboxItemPreviewPanel'), 'InboxItemPreviewPanel');
 
 interface DesktopPanelManagerProps {
   currentThread?: any;

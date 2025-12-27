@@ -914,7 +914,7 @@ export default function CardFullEditable({
                 style={{ lineHeight: '1.6', minHeight: 0, width: '100%' }}
                 onClick={handleContentClick}
               >
-                {effectiveContent ? (
+                {effectiveContent && effectiveContent.trim() ? (
                   <div 
                     className="card-image-link__content-text"
                     dangerouslySetInnerHTML={{ __html: safeRenderHtml(effectiveContent) }}
@@ -1112,15 +1112,26 @@ export default function CardFullEditable({
         <div className="flex-1 flex flex-col font-sans font-medium min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
           {/* Display mode */}
           {!isContentEditing ? (
-            <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
+              <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
-                <div 
-                  ref={contentDisplayRef}
-                  className="flex-1 overflow-auto cursor-pointer rounded"
-                  style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
-                  onClick={handleContentClick}
-                  dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
-                />
+                {displayContent && displayContent.trim() ? (
+                  <div 
+                    ref={contentDisplayRef}
+                    className="flex-1 overflow-auto cursor-pointer rounded"
+                    style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
+                    onClick={handleContentClick}
+                    dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
+                  />
+                ) : (
+                  <div 
+                    ref={contentDisplayRef}
+                    className="flex-1 overflow-auto cursor-pointer rounded"
+                    style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
+                    onClick={handleContentClick}
+                  >
+                    <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
