@@ -1031,19 +1031,31 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
     // Apply offset and limit after sorting
     const allItems = Array.from(allItemsMap.values())
       .sort((a, b) => {
-        // For threads, prefer lastVisited, then updatedAt, then createdAt
-        // For notes, prefer lastVisited, then createdAt (notes don't have updatedAt in the same way)
-        const aTime = a.lastVisited 
-          ? new Date(a.lastVisited).getTime() 
-          : (a.type === 'thread' && a.updatedAt 
-            ? new Date(a.updatedAt).getTime() 
-            : (a.createdAt ? new Date(a.createdAt).getTime() : 0));
-        const bTime = b.lastVisited 
-          ? new Date(b.lastVisited).getTime() 
-          : (b.type === 'thread' && b.updatedAt 
-            ? new Date(b.updatedAt).getTime() 
-            : (b.createdAt ? new Date(b.createdAt).getTime() : 0));
-        return bTime - aTime; // Newest first
+        // Helper function to get the timestamp for sorting
+        // For threads: prefer lastVisited, then updatedAt, then createdAt
+        // For notes: prefer lastVisited, then createdAt
+        const getSortTime = (item: any): Date | null => {
+          if (item.lastVisited) {
+            return item.lastVisited instanceof Date ? item.lastVisited : new Date(item.lastVisited);
+          }
+          if (item.type === 'thread' && item.updatedAt) {
+            return item.updatedAt instanceof Date ? item.updatedAt : new Date(item.updatedAt);
+          }
+          if (item.createdAt) {
+            return item.createdAt instanceof Date ? item.createdAt : new Date(item.createdAt);
+          }
+          return null;
+        };
+
+        const aTime = getSortTime(a);
+        const bTime = getSortTime(b);
+
+        // Handle null cases explicitly
+        if (!aTime && !bTime) return 0;
+        if (!aTime) return 1; // null goes after
+        if (!bTime) return -1; // null goes after
+
+        return bTime.getTime() - aTime.getTime(); // Newest first
       })
       .slice(offset, offset + limit);
 
