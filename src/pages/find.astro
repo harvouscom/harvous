@@ -5,6 +5,7 @@ import SearchInput from "@/components/SearchInput.astro";
 import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
+import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import SquareButton from "@/components/SquareButton.astro";
 import Avatar from "@/components/Avatar.astro";
@@ -12,7 +13,7 @@ import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 import RecentSearches from "@/components/react/RecentSearches";
 import FindSearchInput from "@/components/react/FindSearchInput";
-import { db, Notes, Threads, Tags, NoteTags, NoteThreads, ResourceMetadata, eq, and, or, like, desc, count, inArray } from "astro:db";
+import { db, Notes, Threads, Tags, NoteTags, NoteThreads, ResourceMetadata, eq, and, or, like, desc, count, inArray, ne } from "astro:db";
 import { getThreadColorCSS } from "@/utils/colors";
 import { getInboxCount } from "@/utils/dashboard-data";
 
@@ -64,12 +65,66 @@ function formatRelativeTime(date: Date): string {
   }
 }
 
+// Helper function to fetch thread colors with frequency for notes (batch version)
+async function getThreadColorsForNotes(noteIds: string[], userId: string): Promise<Record<string, Array<{ color: string; frequency: number }>>> {
+  if (noteIds.length === 0) return {};
+  
+  try {
+    // Fetch all thread associations for all notes at once
+    const allNoteThreads = await db.select({
+      noteId: NoteThreads.noteId,
+      threadId: NoteThreads.threadId,
+      color: Threads.color,
+    })
+    .from(NoteThreads)
+    .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+    .where(and(
+      inArray(NoteThreads.noteId, noteIds),
+      eq(Threads.userId, userId),
+      ne(Threads.id, "thread_unorganized") // Exclude unorganized thread
+    ))
+    .all();
+
+    // Group by noteId and then by color to count frequency
+    const noteColorMap = new Map<string, Map<string, number>>();
+    
+    for (const nt of allNoteThreads) {
+      if (nt.color) {
+        if (!noteColorMap.has(nt.noteId)) {
+          noteColorMap.set(nt.noteId, new Map());
+        }
+        const colorMap = noteColorMap.get(nt.noteId)!;
+        const currentCount = colorMap.get(nt.color) || 0;
+        colorMap.set(nt.color, currentCount + 1);
+      }
+    }
+
+    // Convert to the expected format
+    const result: Record<string, Array<{ color: string; frequency: number }>> = {};
+    for (const [noteId, colorMap] of noteColorMap.entries()) {
+      result[noteId] = Array.from(colorMap.entries()).map(([color, frequency]) => ({
+        color,
+        frequency,
+      }));
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error batch fetching thread colors for notes:', error);
+    return {};
+  }
+}
+
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
 const { userId } = auth;
 
 // Auth redirect is now handled by middleware - no need to check here
 // Pages can still use userId for conditional rendering
+// Type assertion: middleware ensures userId is present
+if (!userId) {
+  return Astro.redirect('/sign-in');
+}
 
 // Try to fetch user data from Clerk API using secret key
 let userData: any = null;
@@ -395,6 +450,10 @@ if (query.trim()) {
       }
     }
 
+    // Fetch thread colors for all notes (batch fetch)
+    const noteIds = notesWithTags.map(note => note.id);
+    const threadColorsMap = await getThreadColorsForNotes(noteIds, userId);
+
     // Format notes results with relevance scoring
     notesResults = notesWithTags.map(note => {
       const cleanContent = stripHtml(note.content);
@@ -413,7 +472,8 @@ if (query.trim()) {
         tags: note.tags,
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
-        resourceImage: resourceMeta?.sourceImage || null
+        resourceImage: resourceMeta?.sourceImage || null,
+        threadColors: threadColorsMap[note.id] && threadColorsMap[note.id].length > 0 ? threadColorsMap[note.id] : undefined
       };
       
       // Calculate relevance score
@@ -539,29 +599,42 @@ if (query.trim()) {
                 {searchResults.length > 0 ? (
                   searchResults.map(item => (
                     <div class={`content-item ${item.type}-item mb-3`}>
-                      <a 
-                        href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
-                        class="block transition-transform duration-200 hover:scale-[1.002]"
-                      >
-                        {item.type === 'note' ? (
-                          <CardNote 
-                            title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
-                            content={item.noteType === 'resource' && item.resourceDescription ? item.resourceDescription : item.content}
-                            noteType={item.noteType || 'default'}
-                            resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
-                            resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
-                            resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
-                          />
-                        ) : (
-                          <CardThread 
-                            title={item.title}
-                            subtitle={item.subtitle}
-                            count={item.count}
-                            accentColor={item.accentColor}
-                            lastUpdated={item.lastUpdated}
-                          />
-                        )}
-                      </a>
+                      {item.type === 'note' && item.noteType === 'scripture' ? (
+                        <CondensedNoteItem 
+                          title={item.title || "Untitled Note"}
+                          noteType={item.noteType || 'default'}
+                          href={`/${item.noteId}`}
+                          threadColors={item.threadColors}
+                          noteId={item.noteId}
+                          client:visible
+                        />
+                      ) : (
+                        <a 
+                          href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
+                          class="block transition-transform duration-200 hover:scale-[1.002]"
+                        >
+                          {item.type === 'note' ? (
+                            <CardNote 
+                              title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
+                              content={item.noteType === 'resource' && item.resourceDescription ? item.resourceDescription : item.content}
+                              noteType={item.noteType || 'default'}
+                              resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
+                              resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
+                              resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
+                              threadColors={item.threadColors}
+                              noteId={item.noteId}
+                            />
+                          ) : (
+                            <CardThread 
+                              title={item.title}
+                              subtitle={item.subtitle}
+                              count={item.count}
+                              accentColor={item.accentColor}
+                              lastUpdated={item.lastUpdated}
+                            />
+                          )}
+                        </a>
+                      )}
                     </div>
                   ))
                 ) : (
@@ -583,19 +656,32 @@ if (query.trim()) {
                 {notesResults.length > 0 ? (
                   notesResults.map(item => (
                     <div class={`content-item ${item.type}-item mb-3`}>
-                      <a 
-                        href={`/${item.noteId}`}
-                        class="block transition-transform duration-200 hover:scale-[1.002]"
-                      >
-                        <CardNote 
-                          title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
-                          content={item.noteType === 'resource' && item.resourceDescription ? item.resourceDescription : item.content}
+                      {item.noteType === 'scripture' ? (
+                        <CondensedNoteItem 
+                          title={item.title || "Untitled Note"}
                           noteType={item.noteType || 'default'}
-                          resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
-                          resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
-                          resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
+                          href={`/${item.noteId}`}
+                          threadColors={item.threadColors}
+                          noteId={item.noteId}
+                          client:visible
                         />
-                      </a>
+                      ) : (
+                        <a 
+                          href={`/${item.noteId}`}
+                          class="block transition-transform duration-200 hover:scale-[1.002]"
+                        >
+                          <CardNote 
+                            title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
+                            content={item.noteType === 'resource' && item.resourceDescription ? item.resourceDescription : item.content}
+                            noteType={item.noteType || 'default'}
+                            resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
+                            resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
+                            resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
+                            threadColors={item.threadColors}
+                            noteId={item.noteId}
+                          />
+                        </a>
+                      )}
                     </div>
                   ))
                 ) : (
@@ -791,7 +877,7 @@ if (query.trim()) {
   });
   
   // Also run after View Transitions (debounced)
-  let searchCountTimeout = null;
+  let searchCountTimeout: ReturnType<typeof setTimeout> | null = null;
   document.addEventListener('astro:page-load', () => {
     if (searchCountTimeout) clearTimeout(searchCountTimeout);
     searchCountTimeout = setTimeout(updateCurrentSearchCount, 100);
