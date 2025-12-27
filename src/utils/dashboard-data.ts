@@ -943,12 +943,20 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
           });
           
           // Filter out scripture notes that are referenced by other notes
-          assignedNotes = assignedNotes.filter(note => 
-            note.noteType !== 'scripture' || !referencedScriptureNoteIds.has(note.id)
-          );
-          unorganizedNotes = unorganizedNotes.filter(note => 
-            note.noteType !== 'scripture' || !referencedScriptureNoteIds.has(note.id)
-          );
+          // BUT: Keep scripture notes that have been recently visited (lastVisited is set)
+          // This ensures visited scripture notes appear at the top even if they're referenced
+          assignedNotes = assignedNotes.filter(note => {
+            if (note.noteType !== 'scripture') return true; // Keep non-scripture notes
+            if (!referencedScriptureNoteIds.has(note.id)) return true; // Keep non-referenced scripture notes
+            // Keep referenced scripture notes that have been visited
+            return note.lastVisited != null;
+          });
+          unorganizedNotes = unorganizedNotes.filter(note => {
+            if (note.noteType !== 'scripture') return true; // Keep non-scripture notes
+            if (!referencedScriptureNoteIds.has(note.id)) return true; // Keep non-referenced scripture notes
+            // Keep referenced scripture notes that have been visited
+            return note.lastVisited != null;
+          });
         }
       } catch (error) {
         // Scripture references fetch failed - continue without it
