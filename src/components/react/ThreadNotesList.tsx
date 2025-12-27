@@ -98,9 +98,79 @@ export default function ThreadNotesList({
 
   // Track previous noteTypeFilter to detect filter changes
   const prevNoteTypeFilterRef = useRef<string>(noteTypeFilter);
+  const isMountedRef = useRef<boolean>(true);
+  const isFetchingAllNotesRef = useRef<boolean>(false);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  
+  // Watch for filter changes and fetch all notes for the selected filter type
+  // Similar to how OrganizedContentList handles scripture tab
+  useEffect(() => {
+    // Only fetch if filter just changed (not on every render)
+    if (prevNoteTypeFilterRef.current !== noteTypeFilter) {
+      // Store the current filter value to check against in async callback
+      const currentFilter = noteTypeFilter;
+      prevNoteTypeFilterRef.current = noteTypeFilter;
+      isFetchingAllNotesRef.current = true;
+      
+      const fetchAllNotesForFilter = async () => {
+        try {
+          const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
+          url.searchParams.set('offset', '0');
+          url.searchParams.set('limit', '200'); // Large limit to get all notes at once
+
+          const response = await fetch(url.toString(), {
+            credentials: 'include'
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to load notes: ${response.status}`);
+          }
+
+          const data = await response.json();
+          
+          // Filter out deleted notes
+          const filteredDeleted = data.notes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+          // Apply note type filter
+          const filteredByType = filterNotesByType(filteredDeleted, currentFilter);
+          
+          // Deduplicate by note ID
+          const uniqueNotes = Array.from(
+            new Map(filteredByType.map((note: Note) => [note.id, note])).values()
+          );
+          
+          // Only update if still mounted and filter hasn't changed again
+          if (isMountedRef.current && prevNoteTypeFilterRef.current === currentFilter) {
+            setNotes(uniqueNotes);
+            // Update refs to reflect all loaded notes
+            accumulatedFilteredCountRef.current = uniqueNotes.length;
+            databaseOffsetRef.current = data.notes.length; // Track total fetched from API
+          }
+        } catch (error) {
+          console.error('[ThreadNotesList] Error loading notes for filter:', error);
+        } finally {
+          isFetchingAllNotesRef.current = false;
+        }
+      };
+      
+      fetchAllNotesForFilter();
+    }
+  }, [noteTypeFilter, threadId]);
   
   // Update notes when initialNotes change (e.g., page navigation)
+  // Skip if filter just changed or we're fetching all notes (the filter useEffect handles fetching all notes)
   useEffect(() => {
+    // Skip updating from initialNotes if filter just changed or we're fetching all notes
+    // The filter useEffect handles fetching all notes when filter changes
+    if (prevNoteTypeFilterRef.current !== noteTypeFilter || isFetchingAllNotesRef.current) {
+      return;
+    }
+    
     const filtered = initialNotes
       .filter(note => !deletedNoteIds.has(note.id));
     const typeFiltered = filterNotesByType(filtered, noteTypeFilter);
@@ -112,17 +182,8 @@ export default function ThreadNotesList({
     // Initialize accumulatedFilteredCountRef immediately with the filtered count
     accumulatedFilteredCountRef.current = uniqueNotes.length;
     
-    // Reset database offset when filter changes or when initialNotes change
-    // This ensures we start from the beginning when switching tabs
-    const filterChanged = prevNoteTypeFilterRef.current !== noteTypeFilter;
-    if (filterChanged) {
-      // Filter changed - reset to initial notes count
-      databaseOffsetRef.current = initialNotes.length;
-      prevNoteTypeFilterRef.current = noteTypeFilter;
-    } else {
-      // Same filter, just update the offset to reflect initial notes
-      databaseOffsetRef.current = initialNotes.length;
-    }
+    // Update database offset to reflect initial notes
+    databaseOffsetRef.current = initialNotes.length;
   }, [initialNotes, deletedNoteIds, noteTypeFilter]);
 
   // Listen for note deletion events
@@ -369,6 +430,15 @@ export default function ThreadNotesList({
 
 
   const loadMore = useCallback(async (offset: number, limit: number) => {
+    // Early return if we've already reached the expected count for this filter
+    // This handles the case where all notes were fetched upfront when filter changed
+    if (accumulatedFilteredCountRef.current >= totalCountForFilterRef.current && totalCountForFilterRef.current > 0) {
+      return {
+        items: [],
+        hasMore: false
+      };
+    }
+    
     // Use the database offset ref instead of the filtered offset
     // The API doesn't filter by type, so we need to track how many notes we've
     // actually fetched from the database, not how many match our filter
