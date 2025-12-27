@@ -184,6 +184,16 @@ try {
           
           pageTitle = threadData.title;
           pageContent = `${threadData.noteCount} notes`;
+          
+          // Update lastVisited timestamp when thread is opened
+          try {
+            await db.update(Threads)
+              .set({ lastVisited: new Date() })
+              .where(and(eq(Threads.id, threadData.id), eq(Threads.userId, authenticatedUserId)));
+          } catch (error) {
+            // Log error but don't fail page load
+            console.error(`[id].astro] Error updating lastVisited for thread ${threadData.id}:`, error);
+          }
         } else {
           // Fallback: Query thread directly by ID if not found in getAllThreadsWithCounts
           // This can happen for newly created threads that haven't been indexed yet
