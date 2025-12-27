@@ -458,7 +458,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         const threadColors = await getThreadColorsForNote(note.id, userId);
         return {
           ...note,
-          lastUpdated: note.updatedAt || note.createdAt,
+          lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
           lastVisited: note.lastVisited,
           resourceTitle: resourceMeta?.sourceTitle || null,
           resourceDescription: resourceMeta?.sourceDescription || null,
@@ -625,7 +625,7 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
         const threadColors = await getThreadColorsForNote(note.id, userId);
         return {
           ...note,
-          lastUpdated: note.updatedAt || note.createdAt,
+          lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
           lastVisited: note.lastVisited,
           resourceTitle: resourceMeta?.sourceTitle || null,
           resourceDescription: resourceMeta?.sourceDescription || null,
@@ -666,7 +666,7 @@ export async function getNotesForDashboard(userId: string, limit = 10) {
 
     return notes.map(note => ({
       ...note,
-      lastUpdated: note.updatedAt || note.createdAt,
+      lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
     }));
   } catch (error) {
     console.error("Error fetching notes:", error);
@@ -1139,17 +1139,17 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
     .limit(limit)
     .all();
 
-    // Fetch thread colors for all notes
-    const notesWithThreadColors = await Promise.all(
-      notes.map(async (note) => {
-        const threadColors = await getThreadColorsForNote(note.id, userId);
-        return {
-          ...note,
-          lastUpdated: note.updatedAt || note.createdAt,
-          threadColors: threadColors.length > 0 ? threadColors : undefined,
-        };
-      })
-    );
+      // Fetch thread colors for all notes
+      const notesWithThreadColors = await Promise.all(
+        notes.map(async (note) => {
+          const threadColors = await getThreadColorsForNote(note.id, userId);
+          return {
+            ...note,
+            lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+            threadColors: threadColors.length > 0 ? threadColors : undefined,
+          };
+        })
+      );
 
     const scriptureCount = notesWithThreadColors.filter(n => n.noteType === 'scripture').length;
     console.log('[getUnorganizedNotesForDashboard] Total notes:', notesWithThreadColors.length, 'Scripture notes:', scriptureCount);
@@ -1193,7 +1193,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
           const threadColors = await getThreadColorsForNote(note.id, userId);
           return {
             ...note,
-            lastUpdated: note.updatedAt || note.createdAt,
+            lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
             threadColors: threadColors.length > 0 ? threadColors : undefined,
           };
         })
@@ -1234,7 +1234,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
         const threadColors = await getThreadColorsForNote(note.id, userId);
         return {
           ...note,
-          lastUpdated: note.updatedAt || note.createdAt,
+          lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
           threadColors: threadColors.length > 0 ? threadColors : undefined,
         };
       })
@@ -1356,7 +1356,7 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
         threadId: note.threadId,
         spaceId: note.spaceId,
         noteType: note.noteType || 'scripture',
-        lastUpdated: note.updatedAt || note.createdAt,
+        lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         updatedAt: note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         createdAt: note.createdAt,

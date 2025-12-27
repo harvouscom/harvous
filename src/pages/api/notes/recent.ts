@@ -32,10 +32,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
         isFeatured: Notes.isFeatured,
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
+        lastVisited: Notes.lastVisited,
       })
       .from(Notes)
       .where(eq(Notes.userId, userId))
-      .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt))
+      .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt))
       .limit(maxLimit);
 
     // Format the response
@@ -50,7 +51,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       isFeatured: note.isFeatured,
       createdAt: note.createdAt,
       updatedAt: note.updatedAt,
-      lastUpdated: note.updatedAt || note.createdAt,
+      lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
     }));
 
     return new Response(JSON.stringify(formattedNotes), {
