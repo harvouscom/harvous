@@ -84,6 +84,14 @@ export default function InfiniteScrollList<T>({
       prevInitialItemsRef.current = itemsKey;
     }
   }, [initialItems, limit, isControlled, initialHasMore]);
+  
+  // Update hasMore when initialHasMore changes (even in controlled mode)
+  // This ensures hasMore is updated when filter changes or items are filtered
+  useEffect(() => {
+    if (initialHasMore !== undefined) {
+      setHasMore(initialHasMore);
+    }
+  }, [initialHasMore]);
 
   const handleLoadMore = useCallback(async () => {
     if (loadingRef.current || isLoading) return;

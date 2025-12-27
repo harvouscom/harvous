@@ -356,6 +356,14 @@ export default function ThreadNotesList({
   // hasMore is true if we have fewer filtered items than the total count for this filter type
   // This ensures we continue loading until all matching notes are loaded
   const initialHasMore = filteredNotes.length < totalCountForFilter;
+  
+  console.log('[ThreadNotesList] Render', {
+    filteredNotesCount: filteredNotes.length,
+    totalCountForFilter,
+    initialHasMore,
+    databaseOffset: databaseOffsetRef.current,
+    filter: noteTypeFilter
+  });
 
   // Update refs when total count or filtered notes change
   // This ensures refs are always in sync with the actual filtered count
@@ -370,6 +378,10 @@ export default function ThreadNotesList({
   const loadMore = useCallback(async (offset: number, limit: number) => {
     // Early return if we've already reached the expected count for this filter
     if (accumulatedFilteredCountRef.current >= totalCountForFilterRef.current && totalCountForFilterRef.current > 0) {
+      console.log('[ThreadNotesList] loadMore: Already reached expected count', {
+        accumulated: accumulatedFilteredCountRef.current,
+        expected: totalCountForFilterRef.current
+      });
       return {
         items: [],
         hasMore: false
@@ -379,6 +391,14 @@ export default function ThreadNotesList({
     // Use the database offset ref for API calls (since API doesn't filter by type)
     // The API needs to know how many total notes we've fetched, not how many filtered items we've displayed
     const dbOffset = databaseOffsetRef.current;
+    
+    console.log('[ThreadNotesList] loadMore called', {
+      filteredOffset: offset,
+      dbOffset,
+      filteredCount: accumulatedFilteredCountRef.current,
+      expectedCount: totalCountForFilterRef.current,
+      filter: noteTypeFilter
+    });
     
     const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
     url.searchParams.set('offset', dbOffset.toString());
@@ -394,6 +414,12 @@ export default function ThreadNotesList({
 
     const data = await response.json();
     
+    console.log('[ThreadNotesList] loadMore response', {
+      notesReturned: data.notes.length,
+      apiHasMore: data.hasMore,
+      dbOffset
+    });
+    
     // Update database offset to reflect how many notes we've now fetched total
     databaseOffsetRef.current = dbOffset + data.notes.length;
     
@@ -401,6 +427,12 @@ export default function ThreadNotesList({
     const filteredDeleted = data.notes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
     // Apply note type filter
     const filteredByType = filterNotesByType(filteredDeleted, noteTypeFilter);
+    
+    console.log('[ThreadNotesList] loadMore filtered', {
+      beforeFilter: filteredDeleted.length,
+      afterFilter: filteredByType.length,
+      filter: noteTypeFilter
+    });
     
     // Get the current actual filtered count from the ref
     const currentActualFilteredCount = accumulatedFilteredCountRef.current;
@@ -415,6 +447,10 @@ export default function ThreadNotesList({
     
     // If we've reached the expected count, we're done
     if (hasReachedExpectedCount && totalCountForFilterRef.current > 0) {
+      console.log('[ThreadNotesList] loadMore: Reached expected count', {
+        newFilteredCount,
+        expected: totalCountForFilterRef.current
+      });
       return {
         items: filteredByType,
         hasMore: false
@@ -433,6 +469,15 @@ export default function ThreadNotesList({
     
     // Continue loading if we haven't reached expected count AND we haven't exhausted all items
     const hasMore = !hasReachedExpectedCount && !gotNoItems;
+    
+    console.log('[ThreadNotesList] loadMore result', {
+      filteredItems: filteredByType.length,
+      newFilteredCount,
+      expectedCount: totalCountForFilterRef.current,
+      hasMore,
+      apiHasMore,
+      gotNoItems
+    });
     
     return {
       items: filteredByType,
