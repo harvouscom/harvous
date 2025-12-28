@@ -4,6 +4,7 @@
  */
 
 import { debug } from './logger';
+import { safeNavigate } from './safe-navigate';
 
 /**
  * Check if the current page is in a specific thread/space context
@@ -91,8 +92,8 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
   
   // If we're on a note page and navigating to a thread/space, always navigate directly
   // This ensures fresh data is loaded and prevents "Content not found" errors from stale cached pages
-  // Use window.location.href to force a full page reload, ensuring the database query runs fresh
-  // This is especially important for newly created threads that might not be in cache yet
+  // Use View Transitions (safeNavigate) to trigger astro:page-load events so refresh logic works
+  // Fallback to full page reload only if View Transitions fails
   if (isOnNotePage && isNavigatingToThreadOrSpace) {
     const targetUrl = `/${targetItemId}`;
     debug('[handleBreadcrumbNavigation] Navigating from note to thread/space', { targetItemId, targetUrl });
@@ -107,10 +108,14 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
       return;
     }
     
-    // Always use window.location.href (not astroNavigate) to force full page reload
-    // This ensures the database query runs fresh and finds the thread, even if it was just created
-    debug('[handleBreadcrumbNavigation] Executing navigation', { targetUrl });
-    window.location.href = targetUrl;
+    // Use View Transitions to ensure astro:page-load events fire and refresh logic works
+    // This allows ThreadNotesList to refresh and show newly created notes
+    debug('[handleBreadcrumbNavigation] Executing navigation with View Transitions', { targetUrl });
+    safeNavigate(targetUrl).catch((error) => {
+      // If View Transitions fails, fallback to full page reload
+      console.warn('[handleBreadcrumbNavigation] View Transitions failed, using full page reload:', error);
+      window.location.href = targetUrl;
+    });
     return;
   }
   

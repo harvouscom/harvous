@@ -104,7 +104,7 @@
   border-radius: 8px;
   flex-shrink: 0;
   width: 80px;
-  align-self: stretch;
+  height: 57px;
 }
 
 .card-note__sidebar--with-image {
@@ -205,13 +205,6 @@
     -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     overflow: hidden;
-  }
-
-  /* On small screens (< 440px), hide excerpt text when scripture refs are present */
-  @media (max-width: 439px) {
-    &.card-note__excerpt--with-scripture-refs p {
-      display: none;
-    }
   }
 }
 

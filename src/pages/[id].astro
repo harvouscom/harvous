@@ -10,6 +10,7 @@ import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import ThreadNotesList from "@/components/react/ThreadNotesList";
+import ThreadNotesListWithTabs from "@/components/react/ThreadNotesListWithTabs";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
@@ -753,56 +754,24 @@ if (!content) {
                             class="content-tabs"
                           />
                           
-                          {/* All Notes Content */}
-                          <div class="flex flex-col" data-tab-content="all">
-                            {threadNotes.length > 0 ? (
-                              <ThreadNotesList 
-                                initialNotes={threadNotes}
-                                threadId={id!}
-                                noteTypeFilter="all"
-                                noteTypeCounts={noteTypeCounts}
-                                client:visible
-                              />
-                            ) : (
-                              <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                                <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
-                              </div>
-                            )}
-                          </div>
+                          {/* Single component that switches filters based on active tab - always visible */}
+                          {threadNotes.length > 0 ? (
+                            <ThreadNotesListWithTabs 
+                              initialNotes={threadNotes}
+                              threadId={id!}
+                              noteTypeCounts={noteTypeCounts}
+                              client:load
+                            />
+                          ) : (
+                            <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                              <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
+                            </div>
+                          )}
                           
-                          {/* Notes Only Content */}
-                          <div class="flex flex-col hidden" data-tab-content="notes">
-                            {notesCount > 0 ? (
-                              <ThreadNotesList 
-                                initialNotes={threadNotes}
-                                threadId={id!}
-                                noteTypeFilter="default"
-                                noteTypeCounts={noteTypeCounts}
-                                client:visible
-                              />
-                            ) : (
-                              <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                                <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Scripture Only Content */}
-                          <div class="flex flex-col hidden" data-tab-content="scripture">
-                            {scriptureCount > 0 ? (
-                              <ThreadNotesList 
-                                initialNotes={threadNotes}
-                                threadId={id!}
-                                noteTypeFilter="scripture"
-                                noteTypeCounts={noteTypeCounts}
-                                client:visible
-                              />
-                            ) : (
-                              <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                                <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No scripture notes found in this thread.</p>
-                              </div>
-                            )}
-                          </div>
+                          {/* Empty divs for tab manager compatibility - component handles all filtering */}
+                          <div class="flex flex-col hidden" data-tab-content="all"></div>
+                          <div class="flex flex-col hidden" data-tab-content="notes"></div>
+                          <div class="flex flex-col hidden" data-tab-content="scripture"></div>
                         </>
                       );
                     })()}
@@ -1316,6 +1285,138 @@ if (!content) {
     }
   });
   
+  // Refresh space content on View Transitions navigation
+  (function() {
+    if (typeof window === 'undefined') return;
+    
+    let refreshTimeout = null;
+    let isRefreshing = false;
+    const DEBOUNCE_MS = 300;
+    let previousPathname = window.location.pathname;
+    let hasRefreshedOnMount = false;
+    
+    const refreshSpaceContent = async () => {
+      if (isRefreshing) return;
+      
+      const currentPath = window.location.pathname;
+      const currentId = currentPath.substring(1);
+      
+      // Only refresh if we're on a space page
+      if (!currentId.startsWith('space_')) {
+        previousPathname = currentPath;
+        return;
+      }
+      
+      // Don't refresh if we're already on this space (initial load) unless coming from note page
+      if (currentPath === previousPathname && !hasRefreshedOnMount) {
+        // Check if we came from a note page (full page reload scenario)
+        const referrer = document.referrer;
+        const cameFromNotePage = referrer && (
+          referrer.includes('/note_') || 
+          new URL(referrer).pathname.startsWith('/note_')
+        );
+        
+        if (cameFromNotePage) {
+          hasRefreshedOnMount = true;
+          // Refresh with a delay to ensure database is updated
+          setTimeout(() => {
+            refreshSpaceContent();
+          }, 200);
+          return;
+        }
+        return;
+      }
+      
+      isRefreshing = true;
+      
+      try {
+        // Add a small delay to ensure database is updated (especially after note creation)
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // Fetch fresh space data
+        const response = await fetch(`/api/spaces/${currentId}/items`, {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        
+        if (!response.ok) {
+          console.error('[Space Refresh] Failed to fetch space items:', response.status);
+          // Fallback: refresh the page using View Transitions
+          await safeNavigate(currentPath + window.location.search, { history: 'replace' });
+          return;
+        }
+        
+        const data = await response.json();
+        const { threads, notes } = data;
+        
+        // Update the space content by refreshing the page with View Transitions
+        // This ensures we get fresh server-rendered content with all the proper formatting
+        await safeNavigate(currentPath + window.location.search, { history: 'replace' });
+        
+      } catch (error) {
+        console.error('[Space Refresh] Error refreshing space content:', error);
+        // Fallback: refresh the page
+        await safeNavigate(window.location.pathname + window.location.search, { history: 'replace' });
+      } finally {
+        isRefreshing = false;
+        previousPathname = currentPath;
+      }
+    };
+    
+    const handlePageLoad = () => {
+      // Clear any pending refresh
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
+      
+      // Debounce to prevent multiple rapid refreshes
+      refreshTimeout = setTimeout(() => {
+        refreshTimeout = null;
+        refreshSpaceContent();
+      }, DEBOUNCE_MS);
+    };
+    
+    // Check on mount if we're coming from a note page (for full page reloads)
+    const checkAndRefreshOnMount = () => {
+      if (hasRefreshedOnMount) return;
+      
+      const currentPath = window.location.pathname;
+      const currentId = currentPath.substring(1);
+      
+      // Only check if we're on a space page
+      if (!currentId.startsWith('space_')) {
+        return;
+      }
+      
+      // Check if we came from a note page
+      const referrer = document.referrer;
+      const cameFromNotePage = referrer && (
+        referrer.includes('/note_') || 
+        new URL(referrer).pathname.startsWith('/note_')
+      );
+      
+      if (cameFromNotePage) {
+        hasRefreshedOnMount = true;
+        // Refresh with a delay to ensure database is updated
+        setTimeout(() => {
+          refreshSpaceContent();
+        }, 200);
+      }
+    };
+    
+    // Check on mount
+    checkAndRefreshOnMount();
+    
+    // Listen for View Transitions page load
+    document.addEventListener('astro:page-load', handlePageLoad);
+    
+    // Also listen for before-preparation to track navigation
+    const handleBeforePreparation = () => {
+      previousPathname = window.location.pathname;
+    };
+    document.addEventListener('astro:before-preparation', handleBeforePreparation);
+  })();
+  
   // Detect page type (client-side)
   const currentPath = window.location.pathname;
   
@@ -1407,6 +1508,21 @@ if (!content) {
     }
   }
   
+  // Force hydration of ThreadNotesList components in hidden tabs when they become visible
+  document.addEventListener('tabChange', (event) => {
+    const { tabId } = event.detail;
+    const tabContent = document.querySelector(`[data-tab-content="${tabId}"]`);
+    if (tabContent) {
+      // Find any astro-island components inside and trigger hydration
+      const islands = tabContent.querySelectorAll('astro-island');
+      islands.forEach((island) => {
+        // Astro should handle hydration automatically, but we can ensure it happens
+        if (island && !island.hasAttribute('ssr')) {
+          // Component should already be hydrated with client:load
+        }
+      });
+    }
+  });
 </script>
 
 

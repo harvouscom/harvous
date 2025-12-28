@@ -465,6 +465,9 @@ export default function OrganizedContentList({
     };
   }, []); // Empty deps - we use ref to access latest refreshContent
 
+  // Track if we've refreshed on mount to prevent duplicate refreshes
+  const hasRefreshedOnMountRef = useRef<boolean>(false);
+
   // Listen for navigation events to skip refresh during navigation
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -542,6 +545,37 @@ export default function OrganizedContentList({
       // Update previous pathname for next navigation
       previousPathnameRef.current = window.location.pathname;
     };
+
+    // Check on mount if we're coming from a note page (full page reload scenario)
+    const checkAndRefreshOnMount = () => {
+      if (hasRefreshedOnMountRef.current) return;
+      
+      const isDashboard = window.location.pathname === '/';
+      if (!isDashboard) return;
+      
+      // Check if we came from a note page
+      const referrer = document.referrer;
+      const cameFromNotePage = referrer && (
+        referrer.includes('/note_') || 
+        new URL(referrer).pathname.startsWith('/note_')
+      );
+      
+      // Also check if previous pathname was a note (for View Transitions scenarios)
+      const previousWasNote = previousPathnameRef.current.startsWith('/note_');
+      
+      if (cameFromNotePage || previousWasNote) {
+        hasRefreshedOnMountRef.current = true;
+        // Refresh with a delay to ensure database is updated
+        setTimeout(() => {
+          if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && !isRefreshingRef.current) {
+            refreshContentRef.current?.();
+          }
+        }, 200);
+      }
+    };
+
+    // Check on mount (for full page reloads)
+    checkAndRefreshOnMount();
 
     // Listen for navigation start to skip refreshes during navigation
     document.addEventListener('astro:before-preparation', handleBeforeNavigation);

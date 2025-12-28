@@ -57,24 +57,21 @@ interface ThreadNotesListProps {
 }
 
 // Helper function to filter notes by type
+// Matches OrganizedContentList.tsx line 307: item.noteType === 'default' || !item.noteType
 function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scripture' | 'resource'): Note[] {
   if (!filter || filter === 'all') {
     return notes;
   }
-  return notes.filter(note => {
-    // Match the explicit filtering logic from OrganizedContentList
-    if (filter === 'default') {
-      // Include notes with noteType === 'default' OR falsy noteType (null/undefined)
-      return note.noteType === 'default' || !note.noteType;
-    } else if (filter === 'scripture') {
-      // Only include notes with explicit scripture type
-      return note.noteType === 'scripture';
-    } else if (filter === 'resource') {
-      // Only include notes with explicit resource type
-      return note.noteType === 'resource';
-    }
-    return false;
-  });
+  if (filter === 'default') {
+    return notes.filter(note => note.noteType === 'default' || !note.noteType);
+  }
+  if (filter === 'scripture') {
+    return notes.filter(note => note.noteType === 'scripture');
+  }
+  if (filter === 'resource') {
+    return notes.filter(note => note.noteType === 'resource');
+  }
+  return notes;
 }
 
 export default function ThreadNotesList({ 
@@ -109,6 +106,7 @@ export default function ThreadNotesList({
   // Track previous noteTypeFilter to detect filter changes
   const prevNoteTypeFilterRef = useRef<string>(noteTypeFilter);
   const isMountedRef = useRef<boolean>(true);
+  const hasRefreshedOnMountRef = useRef<boolean>(false);
   
   // Cleanup on unmount
   useEffect(() => {
@@ -120,10 +118,23 @@ export default function ThreadNotesList({
   // Update notes when initialNotes change (e.g., page navigation)
   // Filter by note type and initialize state
   useEffect(() => {
-    
     const filtered = initialNotes
       .filter(note => !deletedNoteIds.has(note.id));
-    const typeFiltered = filterNotesByType(filtered, noteTypeFilter);
+    
+    // If noteTypeFilter is 'all', skip type filtering (notes are already pre-filtered on server)
+    // Otherwise, apply the type filter
+    const typeFiltered = noteTypeFilter === 'all' 
+      ? filtered 
+      : filterNotesByType(filtered, noteTypeFilter);
+    
+    console.log('[ThreadNotesList] Filtering', {
+      filter: noteTypeFilter,
+      initialCount: initialNotes.length,
+      afterDeleted: filtered.length,
+      afterTypeFilter: typeFiltered.length,
+      sampleTypes: initialNotes.slice(0, 5).map(n => ({ id: n.id, noteType: n.noteType }))
+    });
+    
     // Deduplicate by note ID to prevent duplicates
     const uniqueNotes = Array.from(
       new Map(typeFiltered.map(note => [note.id, note])).values()
@@ -210,17 +221,11 @@ export default function ThreadNotesList({
                 return prev;
               }
               
-              // Check if note matches the current filter (using same logic as filterNotesByType)
-              let matchesFilter = false;
-              if (noteTypeFilter === 'all') {
-                matchesFilter = true;
-              } else if (noteTypeFilter === 'default') {
-                matchesFilter = newNote.noteType === 'default' || !newNote.noteType;
-              } else if (noteTypeFilter === 'scripture') {
-                matchesFilter = newNote.noteType === 'scripture';
-              } else if (noteTypeFilter === 'resource') {
-                matchesFilter = newNote.noteType === 'resource';
-              }
+              // Check if note matches the current filter
+              const matchesFilter = noteTypeFilter === 'all' 
+                || (noteTypeFilter === 'default' && (newNote.noteType === 'default' || !newNote.noteType))
+                || (noteTypeFilter === 'scripture' && newNote.noteType === 'scripture')
+                || (noteTypeFilter === 'resource' && newNote.noteType === 'resource');
               
               if (!matchesFilter) {
                 return prev; // Don't add if it doesn't match filter
@@ -265,6 +270,257 @@ export default function ThreadNotesList({
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
     };
   }, [threadId]);
+
+  // Track previous pathname to detect navigation TO thread
+  const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
+
+  // Listen for note created events - refresh when note is created in current thread
+  useEffect(() => {
+    const handleNoteCreated = async (event: CustomEvent) => {
+      const { note, actualThreadId } = event.detail;
+      
+      // Check if note was created in the current thread
+      // Use actualThreadId if provided (from junction table), otherwise fall back to note.threadId
+      const noteThreadId = actualThreadId || note?.threadId;
+      
+      if (noteThreadId === threadId && note?.id) {
+        // Check if note is already in the list
+        const noteExists = notesRef.current.some(n => n.id === note.id);
+        if (noteExists) {
+          return; // Already in list, skip
+        }
+
+        // Refresh the notes list to get the newly created note
+        // Add a small delay to ensure database is fully updated
+        setTimeout(async () => {
+          if (!isMountedRef.current) return;
+
+          try {
+            const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
+            url.searchParams.set('offset', '0');
+            url.searchParams.set('limit', '100');
+
+            const response = await fetch(url.toString(), {
+              credentials: 'include',
+              cache: 'no-store'
+            });
+
+            if (!response.ok) {
+              console.error('[ThreadNotesList] Failed to refresh after note creation:', response.status);
+              return;
+            }
+
+            const data = await response.json();
+            const freshNotes = data.notes || [];
+
+            if (!isMountedRef.current) return;
+
+            // Filter out deleted notes
+            const filtered = freshNotes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+            
+            // Apply note type filter
+            const typeFiltered = noteTypeFilter === 'all' 
+              ? filtered 
+              : filterNotesByType(filtered, noteTypeFilter);
+
+            // Deduplicate by note ID
+            const uniqueNotes = Array.from(
+              new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
+            );
+
+            setNotes(uniqueNotes);
+            accumulatedFilteredCountRef.current = uniqueNotes.length;
+            databaseOffsetRef.current = freshNotes.length;
+
+            console.log('[ThreadNotesList] Refreshed notes after note creation', {
+              threadId,
+              noteId: note.id,
+              freshCount: freshNotes.length,
+              filteredCount: uniqueNotes.length
+            });
+          } catch (error) {
+            console.error('[ThreadNotesList] Error refreshing notes after creation:', error);
+          }
+        }, 200); // Small delay to ensure database is updated
+      }
+    };
+
+    window.addEventListener('noteCreated', handleNoteCreated as unknown as EventListener);
+
+    return () => {
+      window.removeEventListener('noteCreated', handleNoteCreated as unknown as EventListener);
+    };
+  }, [threadId, noteTypeFilter]);
+
+  // Refresh notes on View Transitions navigation
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isRefreshing = false;
+    const DEBOUNCE_MS = 300;
+    const IMMEDIATE_REFRESH_MS = 100; // Shorter delay when navigating TO thread
+
+    const fetchFreshNotes = async (force = false) => {
+      if (isRefreshing || !isMountedRef.current) return;
+      
+      const currentPath = window.location.pathname;
+      const currentThreadId = currentPath.substring(1); // Remove leading '/'
+      
+      // Only refresh if we're on the correct thread page
+      if (currentThreadId !== threadId) {
+        return;
+      }
+
+      isRefreshing = true;
+      
+      try {
+        // Add a small delay to ensure database is updated (especially after note creation)
+        // Use shorter delay if force refresh (navigating TO thread)
+        const dbDelay = force ? 150 : 50;
+        await new Promise(resolve => setTimeout(resolve, dbDelay));
+
+        if (!isMountedRef.current) {
+          isRefreshing = false;
+          return;
+        }
+
+        const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
+        url.searchParams.set('offset', '0');
+        url.searchParams.set('limit', '100'); // Fetch enough to cover initial load
+
+        const response = await fetch(url.toString(), {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+
+        if (!response.ok) {
+          console.error('[ThreadNotesList] Failed to refresh notes:', response.status);
+          return;
+        }
+
+        const data = await response.json();
+        const freshNotes = data.notes || [];
+
+        if (!isMountedRef.current) return;
+
+        // Filter out deleted notes
+        const filtered = freshNotes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+        
+        // Apply note type filter
+        const typeFiltered = noteTypeFilter === 'all' 
+          ? filtered 
+          : filterNotesByType(filtered, noteTypeFilter);
+
+        // Deduplicate by note ID
+        const uniqueNotes = Array.from(
+          new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
+        );
+
+        setNotes(uniqueNotes);
+        accumulatedFilteredCountRef.current = uniqueNotes.length;
+        databaseOffsetRef.current = freshNotes.length;
+
+        console.log('[ThreadNotesList] Refreshed notes after navigation', {
+          threadId,
+          freshCount: freshNotes.length,
+          filteredCount: uniqueNotes.length,
+          filter: noteTypeFilter,
+          force
+        });
+      } catch (error) {
+        console.error('[ThreadNotesList] Error refreshing notes:', error);
+      } finally {
+        isRefreshing = false;
+      }
+    };
+
+    const handlePageLoad = () => {
+      // Clear any pending refresh
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
+
+      const currentPath = window.location.pathname;
+      const currentThreadId = currentPath.substring(1);
+      const previousPath = previousPathnameRef.current;
+      const previousThreadId = previousPath.substring(1);
+
+      // Detect if we've navigated TO this thread (not just refreshed on it)
+      const navigatedToThread = currentThreadId === threadId && previousThreadId !== threadId;
+      // Detect if we navigated from a note page (likely after creating a note)
+      const navigatedFromNote = previousPath.startsWith('/note_');
+
+      // Use shorter delay if we navigated TO the thread (especially from a note page)
+      const delay = (navigatedToThread && navigatedFromNote) ? IMMEDIATE_REFRESH_MS : DEBOUNCE_MS;
+      const forceRefresh = navigatedToThread;
+
+      // Debounce to prevent multiple rapid refreshes, but use shorter delay for navigation TO thread
+      refreshTimeout = setTimeout(() => {
+        refreshTimeout = null;
+        fetchFreshNotes(forceRefresh);
+      }, delay);
+
+      // Update previous pathname for next navigation
+      previousPathnameRef.current = currentPath;
+    };
+
+    // Initialize previous pathname on mount
+    if (previousPathnameRef.current === '') {
+      previousPathnameRef.current = window.location.pathname;
+    }
+
+    // Check if we're coming from a note page (full page reload scenario)
+    // This handles the case where navigation used window.location.href (full reload)
+    // or when View Transitions didn't fire astro:page-load
+    const checkAndRefreshOnMount = () => {
+      if (hasRefreshedOnMountRef.current) return;
+      
+      const referrer = document.referrer;
+      const currentPath = window.location.pathname;
+      const currentThreadId = currentPath.substring(1);
+      
+      // Only refresh if we're on the correct thread page
+      if (currentThreadId !== threadId) {
+        return;
+      }
+      
+      // Check if we came from a note page
+      const cameFromNotePage = referrer && (
+        referrer.includes('/note_') || 
+        new URL(referrer).pathname.startsWith('/note_')
+      );
+      
+      // Also check if previous pathname was a note (for View Transitions scenarios)
+      const previousWasNote = previousPathnameRef.current.startsWith('/note_');
+      
+      if (cameFromNotePage || previousWasNote) {
+        hasRefreshedOnMountRef.current = true;
+        // Refresh with a delay to ensure database is updated
+        setTimeout(() => {
+          fetchFreshNotes(true);
+        }, 200);
+      }
+    };
+
+    // Check on mount (for full page reloads)
+    checkAndRefreshOnMount();
+
+    document.addEventListener('astro:page-load', handlePageLoad);
+    // Also listen for before-preparation to track navigation start
+    const handleBeforePreparation = () => {
+      previousPathnameRef.current = window.location.pathname;
+    };
+    document.addEventListener('astro:before-preparation', handleBeforePreparation);
+
+    return () => {
+      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('astro:before-preparation', handleBeforePreparation);
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
+    };
+  }, [threadId, noteTypeFilter]);
 
   // Check if this is the unorganized thread
   const isUnorganizedThread = threadId === 'thread_unorganized';
@@ -351,6 +607,12 @@ export default function ThreadNotesList({
 
   // Calculate initial hasMore based on filtered items vs total count for the filter type
   const getTotalCountForFilter = (): number => {
+    // If noteTypeFilter is 'all' and we have pre-filtered notes, use the length of initialNotes
+    // This handles the case where notes are pre-filtered on the server
+    if (noteTypeFilter === 'all' && initialNotes.length > 0) {
+      return initialNotes.length;
+    }
+    
     if (!noteTypeCounts) {
       // Fallback: if no counts provided, assume there might be more if we have a full page
       return filteredNotes.length;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
 import Avatar from './Avatar';
@@ -107,9 +107,34 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, []);
 
+  // Track when counts were last updated via events to prevent server data from overwriting
+  const lastEventUpdateTimeRef = useRef<number>(0);
+  const eventUpdatedCountRef = useRef<number | null>(null);
+
   // Sync updatedActiveThread when activeThread prop changes
+  // But don't overwrite if we recently updated via events (within 2 seconds)
   useEffect(() => {
-    setUpdatedActiveThread(activeThread);
+    const now = Date.now();
+    const timeSinceEventUpdate = now - lastEventUpdateTimeRef.current;
+    
+    // If we recently updated via events (within 2 seconds), preserve the event-updated count
+    if (timeSinceEventUpdate < 2000 && eventUpdatedCountRef.current !== null && activeThread) {
+      // Only update if the server data is actually different and we haven't just updated via events
+      setUpdatedActiveThread(prev => {
+        if (prev && prev.noteCount === eventUpdatedCountRef.current) {
+          // Keep the event-updated count, but update other properties from server
+          return {
+            ...activeThread,
+            noteCount: eventUpdatedCountRef.current!
+          };
+        }
+        return activeThread;
+      });
+    } else {
+      // No recent event updates, safe to use server data
+      setUpdatedActiveThread(activeThread);
+      eventUpdatedCountRef.current = null;
+    }
   }, [activeThread]);
   
   // currentItemId is already initialized from pathname in useState
@@ -203,7 +228,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       try {
         // Fetch current thread data from API
         const response = await fetch('/api/threads/list', {
-          credentials: 'include'
+          credentials: 'include',
+          cache: 'no-store' // Ensure we get fresh data
         });
 
         // Handle 401 errors gracefully - auth may not be fully established yet
@@ -217,11 +243,33 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           const threadData = threads.find((t: any) => t.id === activeThread.id);
           
           if (threadData) {
+            // Track that we updated via API (not events)
+            const now = Date.now();
+            const timeSinceEventUpdate = now - lastEventUpdateTimeRef.current;
+            
             setUpdatedActiveThread((prev) => {
               // Only update if count actually changed
               if (prev && prev.noteCount === threadData.noteCount) {
                 return prev;
               }
+              
+              // If we recently updated via events, use the higher count (event might be more recent)
+              if (timeSinceEventUpdate < 2000 && eventUpdatedCountRef.current !== null) {
+                const eventCount = eventUpdatedCountRef.current;
+                const serverCount = threadData.noteCount;
+                // Use the higher count (event updates are immediate, server might lag)
+                const finalCount = Math.max(eventCount, serverCount);
+                eventUpdatedCountRef.current = finalCount;
+                lastEventUpdateTimeRef.current = now;
+                
+                return {
+                  ...activeThread,
+                  noteCount: finalCount
+                };
+              }
+              
+              // No recent event updates, use server data
+              eventUpdatedCountRef.current = threadData.noteCount;
               return {
                 ...activeThread,
                 noteCount: threadData.noteCount
@@ -255,7 +303,22 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       
       // Only refresh if the note was created in the active thread
       if (actualThreadId === activeThread.id) {
-        // Refresh immediately with minimal delay, bypassing debounce
+        // Immediately update count optimistically (event-based update)
+        setUpdatedActiveThread((prev) => {
+          if (prev) {
+            const newCount = (prev.noteCount || 0) + 1;
+            // Track event update
+            lastEventUpdateTimeRef.current = Date.now();
+            eventUpdatedCountRef.current = newCount;
+            return {
+              ...prev,
+              noteCount: newCount
+            };
+          }
+          return prev;
+        });
+        
+        // Then refresh from API to get accurate count (with minimal delay)
         // Note is already in database when event fires, so minimal delay is sufficient
         scheduleRefresh(true);
       }
