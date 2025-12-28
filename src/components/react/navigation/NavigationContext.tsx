@@ -1438,8 +1438,6 @@ export const useNavigation = () => {
   // This allows components to work even if not wrapped in NavigationProvider
   // (graceful degradation)
   if (context === undefined) {
-    // Use debug instead of warn since this is expected behavior for components used outside NavigationProvider
-    console.debug('useNavigation: NavigationProvider not available, using default (no-op) values');
     return defaultContextValue;
   }
   

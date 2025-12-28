@@ -127,14 +127,6 @@ export default function ThreadNotesList({
       ? filtered 
       : filterNotesByType(filtered, noteTypeFilter);
     
-    console.log('[ThreadNotesList] Filtering', {
-      filter: noteTypeFilter,
-      initialCount: initialNotes.length,
-      afterDeleted: filtered.length,
-      afterTypeFilter: typeFiltered.length,
-      sampleTypes: initialNotes.slice(0, 5).map(n => ({ id: n.id, noteType: n.noteType }))
-    });
-    
     // Deduplicate by note ID to prevent duplicates
     const uniqueNotes = Array.from(
       new Map(typeFiltered.map(note => [note.id, note])).values()
@@ -281,9 +273,19 @@ export default function ThreadNotesList({
       
       // Check if note was created in the current thread
       // Use actualThreadId if provided (from junction table), otherwise fall back to note.threadId
-      const noteThreadId = actualThreadId || note?.threadId;
+      // For unorganized thread: if actualThreadId is null/undefined and note has no threadId or threadId is unorganized, treat as unorganized
+      let noteThreadId = actualThreadId;
+      if (!noteThreadId) {
+        // If actualThreadId is not provided, check note.threadId
+        // If note.threadId is null/undefined, it means the note has no thread associations = unorganized
+        noteThreadId = note?.threadId || (threadId === 'thread_unorganized' ? 'thread_unorganized' : null);
+      }
       
-      if (noteThreadId === threadId && note?.id) {
+      // For unorganized thread: also refresh if note has no thread associations (actualThreadId is null and note.threadId is null/undefined)
+      const isUnorganizedNote = !actualThreadId && (!note?.threadId || note?.threadId === 'thread_unorganized');
+      const matchesCurrentThread = noteThreadId === threadId || (isUnorganizedNote && threadId === 'thread_unorganized');
+      
+      if (matchesCurrentThread && note?.id) {
         // Check if note is already in the list
         const noteExists = notesRef.current.some(n => n.id === note.id);
         if (noteExists) {
@@ -331,13 +333,6 @@ export default function ThreadNotesList({
             setNotes(uniqueNotes);
             accumulatedFilteredCountRef.current = uniqueNotes.length;
             databaseOffsetRef.current = freshNotes.length;
-
-            console.log('[ThreadNotesList] Refreshed notes after note creation', {
-              threadId,
-              noteId: note.id,
-              freshCount: freshNotes.length,
-              filteredCount: uniqueNotes.length
-            });
           } catch (error) {
             console.error('[ThreadNotesList] Error refreshing notes after creation:', error);
           }
@@ -420,14 +415,6 @@ export default function ThreadNotesList({
         setNotes(uniqueNotes);
         accumulatedFilteredCountRef.current = uniqueNotes.length;
         databaseOffsetRef.current = freshNotes.length;
-
-        console.log('[ThreadNotesList] Refreshed notes after navigation', {
-          threadId,
-          freshCount: freshNotes.length,
-          filteredCount: uniqueNotes.length,
-          filter: noteTypeFilter,
-          force
-        });
       } catch (error) {
         console.error('[ThreadNotesList] Error refreshing notes:', error);
       } finally {
@@ -473,6 +460,7 @@ export default function ThreadNotesList({
     // Check if we're coming from a note page (full page reload scenario)
     // This handles the case where navigation used window.location.href (full reload)
     // or when View Transitions didn't fire astro:page-load
+    // Works for both regular threads and unorganized thread
     const checkAndRefreshOnMount = () => {
       if (hasRefreshedOnMountRef.current) return;
       
@@ -480,7 +468,7 @@ export default function ThreadNotesList({
       const currentPath = window.location.pathname;
       const currentThreadId = currentPath.substring(1);
       
-      // Only refresh if we're on the correct thread page
+      // Only refresh if we're on the correct thread page (including unorganized)
       if (currentThreadId !== threadId) {
         return;
       }
@@ -497,6 +485,7 @@ export default function ThreadNotesList({
       if (cameFromNotePage || previousWasNote) {
         hasRefreshedOnMountRef.current = true;
         // Refresh with a delay to ensure database is updated
+        // This works for both regular threads and unorganized thread
         setTimeout(() => {
           fetchFreshNotes(true);
         }, 200);
@@ -636,14 +625,6 @@ export default function ThreadNotesList({
   // hasMore is true if we have fewer filtered items than the total count for this filter type
   // This ensures we continue loading until all matching notes are loaded
   const initialHasMore = filteredNotes.length < totalCountForFilter;
-  
-  console.log('[ThreadNotesList] Render', {
-    filteredNotesCount: filteredNotes.length,
-    totalCountForFilter,
-    initialHasMore,
-    databaseOffset: databaseOffsetRef.current,
-    filter: noteTypeFilter
-  });
 
   // Update refs when total count or filtered notes change
   // This ensures refs are always in sync with the actual filtered count
@@ -658,10 +639,6 @@ export default function ThreadNotesList({
   const loadMore = useCallback(async (offset: number, limit: number) => {
     // Early return if we've already reached the expected count for this filter
     if (accumulatedFilteredCountRef.current >= totalCountForFilterRef.current && totalCountForFilterRef.current > 0) {
-      console.log('[ThreadNotesList] loadMore: Already reached expected count', {
-        accumulated: accumulatedFilteredCountRef.current,
-        expected: totalCountForFilterRef.current
-      });
       return {
         items: [],
         hasMore: false
@@ -671,14 +648,6 @@ export default function ThreadNotesList({
     // Use the database offset ref for API calls (since API doesn't filter by type)
     // The API needs to know how many total notes we've fetched, not how many filtered items we've displayed
     const dbOffset = databaseOffsetRef.current;
-    
-    console.log('[ThreadNotesList] loadMore called', {
-      filteredOffset: offset,
-      dbOffset,
-      filteredCount: accumulatedFilteredCountRef.current,
-      expectedCount: totalCountForFilterRef.current,
-      filter: noteTypeFilter
-    });
     
     const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
     url.searchParams.set('offset', dbOffset.toString());
@@ -694,12 +663,6 @@ export default function ThreadNotesList({
 
     const data = await response.json();
     
-    console.log('[ThreadNotesList] loadMore response', {
-      notesReturned: data.notes.length,
-      apiHasMore: data.hasMore,
-      dbOffset
-    });
-    
     // Update database offset to reflect how many notes we've now fetched total
     databaseOffsetRef.current = dbOffset + data.notes.length;
     
@@ -707,12 +670,6 @@ export default function ThreadNotesList({
     const filteredDeleted = data.notes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
     // Apply note type filter
     const filteredByType = filterNotesByType(filteredDeleted, noteTypeFilter);
-    
-    console.log('[ThreadNotesList] loadMore filtered', {
-      beforeFilter: filteredDeleted.length,
-      afterFilter: filteredByType.length,
-      filter: noteTypeFilter
-    });
     
     // Get the current actual filtered count from the ref
     const currentActualFilteredCount = accumulatedFilteredCountRef.current;
@@ -727,10 +684,6 @@ export default function ThreadNotesList({
     
     // If we've reached the expected count, we're done
     if (hasReachedExpectedCount && totalCountForFilterRef.current > 0) {
-      console.log('[ThreadNotesList] loadMore: Reached expected count', {
-        newFilteredCount,
-        expected: totalCountForFilterRef.current
-      });
       return {
         items: filteredByType,
         hasMore: false
@@ -749,15 +702,6 @@ export default function ThreadNotesList({
     
     // Continue loading if we haven't reached expected count AND we haven't exhausted all items
     const hasMore = !hasReachedExpectedCount && !gotNoItems;
-    
-    console.log('[ThreadNotesList] loadMore result', {
-      filteredItems: filteredByType.length,
-      newFilteredCount,
-      expectedCount: totalCountForFilterRef.current,
-      hasMore,
-      apiHasMore,
-      gotNoItems
-    });
     
     return {
       items: filteredByType,

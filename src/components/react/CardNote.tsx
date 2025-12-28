@@ -176,7 +176,7 @@ const CardNote: React.FC<CardNoteProps> = ({
       {effectiveVariant === "default" && (
         hasScriptureRefs ? (
           <div className="card-note__inner">
-            <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: isScriptureRefsExpanded ? '8px' : '0px', paddingTop: '8px', paddingBottom: isScriptureRefsExpanded ? '0px' : '8px', paddingLeft: '8px', paddingRight: '8px' }}>
               {/* When scripture refs exist, wrap sidebar and body in a container */}
               <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
                 {/* Left sidebar with note type icon */}
@@ -288,7 +288,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                       gap: '4px',
                       maxHeight: '280px',
                       overflowY: 'auto',
-                      paddingBottom: '4px',
+                      paddingBottom: '8px',
                       animation: 'cardFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both'
                     }}
                     className="card-note__scripture-refs-list"
@@ -460,7 +460,7 @@ const CardNote: React.FC<CardNoteProps> = ({
       {effectiveVariant === "withImage" && (
         hasScriptureRefs ? (
           <div className="card-note__inner">
-            <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="card-note__content" style={{ display: 'flex', flexDirection: 'column', gap: isScriptureRefsExpanded ? '8px' : '0px', paddingTop: '8px', paddingBottom: isScriptureRefsExpanded ? '0px' : '8px', paddingLeft: '8px', paddingRight: '8px' }}>
               {/* When scripture refs exist, wrap sidebar and body in a container */}
               <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
                 {/* Left sidebar with image background and note type icon */}
@@ -578,7 +578,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                       gap: '4px',
                       maxHeight: '280px',
                       overflowY: 'auto',
-                      paddingBottom: '4px',
+                      paddingBottom: '8px',
                       animation: 'cardFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both'
                     }}
                     className="card-note__scripture-refs-list"

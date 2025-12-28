@@ -114,9 +114,6 @@ export async function safeFetch(
 
   // Check if auth is ready before making API call
   if (checkAuth && !isAuthReady()) {
-    if (import.meta.env.DEV) {
-      console.debug('[safeFetch] Auth not ready yet for', url);
-    }
     return null;
   }
 
@@ -130,9 +127,6 @@ export async function safeFetch(
 
   // Check for in-flight request (deduplication)
   if (deduplicate && inFlightRequests.has(cacheKey)) {
-    if (import.meta.env.DEV) {
-      console.debug('[safeFetch] Deduplicating request for', url);
-    }
     // Clone the response so each consumer can read the body independently
     const cachedPromise = inFlightRequests.get(cacheKey)!;
     const response = await cachedPromise;
@@ -149,9 +143,6 @@ export async function safeFetch(
         
         // Handle 401 Unauthorized - don't retry, auth issue
         if (response.status === 401) {
-          if (import.meta.env.DEV) {
-            console.debug('[safeFetch] 401 Unauthorized for', url, '- auth may not be fully established');
-          }
           return null;
         }
         

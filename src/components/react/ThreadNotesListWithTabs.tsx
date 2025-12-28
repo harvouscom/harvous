@@ -26,7 +26,6 @@ export default function ThreadNotesListWithTabs({
       const { tabId } = customEvent.detail || {};
       if (tabId === 'all' || tabId === 'notes' || tabId === 'scripture') {
         const filter = tabId === 'notes' ? 'default' : tabId === 'scripture' ? 'scripture' : 'all';
-        console.log('[ThreadNotesListWithTabs] Tab changed to:', tabId, 'filter:', filter);
         setActiveFilter(filter);
       }
     };
@@ -40,12 +39,10 @@ export default function ThreadNotesListWithTabs({
           const tabId = activeTab.getAttribute('data-tab-id');
           if (tabId === 'all' || tabId === 'notes' || tabId === 'scripture') {
             const filter = tabId === 'notes' ? 'default' : tabId === 'scripture' ? 'scripture' : 'all';
-            console.log('[ThreadNotesListWithTabs] Initial tab:', tabId, 'filter:', filter);
             setActiveFilter(filter);
           }
         } else {
           // Default to 'all' if no active tab found
-          console.log('[ThreadNotesListWithTabs] No active tab found, defaulting to "all"');
           setActiveFilter('all');
         }
       }

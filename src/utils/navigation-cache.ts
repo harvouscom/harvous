@@ -145,11 +145,8 @@ export async function getNavigationDataWithCache(): Promise<Omit<NavigationCache
       // Refresh in background without blocking
       fetchNavigationData()
         .then(freshData => setCachedNavigationData(freshData))
-        .catch((error) => {
-          // Log error but don't throw - cache is still valid
-          if (import.meta.env.DEV) {
-            console.debug('Background navigation data refresh failed:', error);
-          }
+        .catch(() => {
+          // Error silently - cache is still valid
         });
     }
     

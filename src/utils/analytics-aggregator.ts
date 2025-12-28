@@ -115,8 +115,6 @@ export async function aggregateMonthlyAnalytics(month: string): Promise<void> {
         });
       }
     }
-
-    console.log(`✅ Aggregated analytics for ${month}: ${bookStats.length} books, ${tagStats.length} tags`);
   } catch (error) {
     console.error(`❌ Error aggregating analytics for ${month}:`, error);
     throw error;
