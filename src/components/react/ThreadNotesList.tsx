@@ -62,8 +62,18 @@ function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scriptur
     return notes;
   }
   return notes.filter(note => {
-    const noteType = note.noteType || 'default';
-    return noteType === filter;
+    // Match the explicit filtering logic from OrganizedContentList
+    if (filter === 'default') {
+      // Include notes with noteType === 'default' OR falsy noteType (null/undefined)
+      return note.noteType === 'default' || !note.noteType;
+    } else if (filter === 'scripture') {
+      // Only include notes with explicit scripture type
+      return note.noteType === 'scripture';
+    } else if (filter === 'resource') {
+      // Only include notes with explicit resource type
+      return note.noteType === 'resource';
+    }
+    return false;
   });
 }
 
@@ -200,9 +210,17 @@ export default function ThreadNotesList({
                 return prev;
               }
               
-              // Check if note matches the current filter
-              const noteType = newNote.noteType || 'default';
-              const matchesFilter = noteTypeFilter === 'all' || noteType === noteTypeFilter;
+              // Check if note matches the current filter (using same logic as filterNotesByType)
+              let matchesFilter = false;
+              if (noteTypeFilter === 'all') {
+                matchesFilter = true;
+              } else if (noteTypeFilter === 'default') {
+                matchesFilter = newNote.noteType === 'default' || !newNote.noteType;
+              } else if (noteTypeFilter === 'scripture') {
+                matchesFilter = newNote.noteType === 'scripture';
+              } else if (noteTypeFilter === 'resource') {
+                matchesFilter = newNote.noteType === 'resource';
+              }
               
               if (!matchesFilter) {
                 return prev; // Don't add if it doesn't match filter
