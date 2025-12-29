@@ -78,12 +78,6 @@ try {
     inboxCount = inboxCountData.status === 'fulfilled' ? inboxCountData.value : 0;
     userData = cachedUserData.status === 'fulfilled' ? cachedUserData.value : userData;
     
-    featuredContent = featuredContentData;
-    contentItems = contentItemsData;
-    threads = threadsData;
-    spaces = spacesData;
-    inboxCount = inboxCountData;
-    
     // Ensure threads have backgroundGradient property for consistency
     threads = threads.map(thread => ({
       ...thread,
