@@ -235,44 +235,62 @@ const isRootRoute = (url) => {
   return path === '/';
 };
 
-// Helper to create a network error page with authentication detection
-// Checks for Clerk cookies and redirects to sign-in if unauthenticated
+// Helper to create a network error page
+// Shows a user-friendly error message - authentication redirects are handled by middleware
 const createNetworkErrorPage = (currentUrl) => {
-  // Encode the current URL for the redirect parameter
-  const redirectUrl = encodeURIComponent(currentUrl);
-  
   return `<!DOCTYPE html>
 <html>
 <head>
   <title>Network Error</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .error-container {
+      text-align: center;
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      max-width: 500px;
+    }
+    h1 {
+      color: #333;
+      margin: 0 0 16px 0;
+    }
+    p {
+      color: #666;
+      margin: 0 0 24px 0;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+  </style>
 </head>
 <body>
-  <h1>Network Error</h1>
-  <p>Please check your connection and try again.</p>
-  <script>
-    (function() {
-      // Check for Clerk authentication cookies
-      // Clerk typically sets cookies like __clerk_db_jwt, __session, __clerk_*, etc.
-      const cookies = document.cookie.split(';');
-      const hasClerkCookie = cookies.some(function(cookie) {
-        const trimmed = cookie.trim();
-        return trimmed.startsWith('__clerk') || trimmed.startsWith('__session');
-      });
-      
-      // If no auth cookies are found, redirect to sign-in page
-      // This allows the middleware to handle authentication properly
-      if (!hasClerkCookie) {
-        const signInUrl = '/sign-in?redirect_url=' + '${redirectUrl}';
-        window.location.replace(signInUrl);
-        return;
-      }
-      
-      // If cookies exist, show the error page (user might be authenticated but server is unreachable)
-      // The error message is already displayed in the HTML above
-    })();
-  </script>
+  <div class="error-container">
+    <h1>Network Error</h1>
+    <p>Unable to connect to the server. Please check your internet connection and try again.</p>
+    <button onclick="window.location.reload()">Retry</button>
+  </div>
 </body>
 </html>`;
 };
@@ -421,8 +439,8 @@ self.addEventListener('fetch', (event) => {
               }
             }
           }
-          // Fallback: return a proper HTML error page with auth detection
-          // This will redirect to sign-in if user appears unauthenticated
+          // Fallback: return a user-friendly HTML error page
+          // Middleware handles authentication redirects if needed
           return new Response(createNetworkErrorPage(event.request.url), {
             status: 503,
             statusText: 'Service Unavailable',
@@ -736,8 +754,8 @@ self.addEventListener('fetch', (event) => {
                       return cachedDashboard;
                     }
                   }
-                  // Fallback: return a proper HTML error page with auth detection
-                  // This will redirect to sign-in if user appears unauthenticated
+                  // Fallback: return a user-friendly HTML error page
+                  // Middleware handles authentication redirects if needed
                   return new Response(createNetworkErrorPage(event.request.url), {
                     status: 503,
                     statusText: 'Service Unavailable',
