@@ -92,6 +92,229 @@ function findTextWithFlexibleMatching(fullText: string, searchText: string): Arr
   return matches;
 }
 
+// Helper function to check if there's a hard break node at a given position
+// Hard breaks should be preserved even if there's no text content after a mark
+function hasHardBreakAfter(doc: any, pos: number): boolean {
+  try {
+    const nodeAtPos = doc.nodeAt(pos);
+    if (nodeAtPos && nodeAtPos.type.name === 'hardBreak') {
+      return true;
+    }
+    // Also check the next position
+    if (pos < doc.content.size) {
+      const nextNode = doc.nodeAt(pos + 1);
+      if (nextNode && nextNode.type.name === 'hardBreak') {
+        return true;
+      }
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Helper function to check if there's a newline/line break (whitespace that should be preserved) after a position
+// This includes hard breaks, newline characters, or whitespace that represents line breaks
+function hasLineBreakAfter(doc: any, pos: number, paragraphEnd: number): boolean {
+  try {
+    // First check for hard break nodes
+    if (hasHardBreakAfter(doc, pos)) {
+      return true;
+    }
+    
+    // Check if there's whitespace that includes newlines after the position
+    const textAfter = doc.textBetween(pos, Math.min(pos + 20, paragraphEnd - 1));
+    if (textAfter && /\n|\r/.test(textAfter)) {
+      return true;
+    }
+    
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Helper function to check if a position range is within a single paragraph
+// Returns true if both from and to positions are in the same paragraph node
+// Also ensures the 'to' position doesn't extend beyond the paragraph boundary
+function isWithinSingleParagraph(doc: any, from: number, to: number): boolean {
+  try {
+    const $from = doc.resolve(from);
+    const $to = doc.resolve(to);
+    
+    // Find the paragraph node for the 'from' position
+    let fromParagraph: any = null;
+    let fromParagraphStart = 0;
+    let fromParagraphEnd = 0;
+    for (let i = $from.depth; i > 0; i--) {
+      const node = $from.node(i);
+      if (node.type.name === 'paragraph') {
+        fromParagraph = node;
+        // Calculate the start and end positions of this paragraph
+        const paragraphPos = $from.start(i);
+        fromParagraphStart = paragraphPos + 1; // +1 to skip the paragraph node itself
+        fromParagraphEnd = paragraphPos + node.nodeSize - 1; // -1 because end is exclusive
+        break;
+      }
+    }
+    
+    // Find the paragraph node for the 'to' position
+    let toParagraph: any = null;
+    let toParagraphStart = 0;
+    let toParagraphEnd = 0;
+    for (let i = $to.depth; i > 0; i--) {
+      const node = $to.node(i);
+      if (node.type.name === 'paragraph') {
+        toParagraph = node;
+        // Calculate the start and end positions of this paragraph
+        const paragraphPos = $to.start(i);
+        toParagraphStart = paragraphPos + 1; // +1 to skip the paragraph node itself
+        toParagraphEnd = paragraphPos + node.nodeSize - 1; // -1 because end is exclusive
+        break;
+      }
+    }
+    
+    // If we couldn't find paragraphs, assume it's valid (might be in a different block type)
+    if (!fromParagraph || !toParagraph) {
+      return true;
+    }
+    
+    // Check if they're the same paragraph node
+    if (fromParagraph !== toParagraph) {
+      return false;
+    }
+    
+    // Additional check: ensure 'to' position doesn't extend beyond the paragraph boundary
+    // The 'to' position should be within the paragraph's text content, not at the boundary
+    // This prevents marks from affecting paragraph breaks
+    if (to >= toParagraphEnd) {
+      return false; // 'to' extends to or beyond paragraph boundary
+    }
+    
+    // CRITICAL: Also check if 'to' is at the very end of the paragraph's text content
+    // Marks ending at the last character of a paragraph can still affect paragraph breaks
+    // Find the actual end of text content in this paragraph
+    const paragraphStartPos = $to.start($to.depth);
+    let paragraphTextEnd = paragraphStartPos + 1; // Start after paragraph node
+    let pos = paragraphStartPos + 1;
+    
+    toParagraph.content.forEach((child: any) => {
+      if (child.isText) {
+        paragraphTextEnd = pos + child.text.length;
+      }
+      pos += child.nodeSize;
+    });
+    
+    // If 'to' is at or very close to the end of paragraph text, reject it
+    // This prevents marks from ending at paragraph boundaries
+    if (to >= paragraphTextEnd) {
+      return false; // 'to' is at the end of paragraph text
+    }
+    
+    return true;
+  } catch (e) {
+    // If we can't resolve positions, assume it's valid to avoid breaking functionality
+    return true;
+  }
+}
+
+// Helper function to adjust a position to ensure it doesn't extend beyond paragraph boundaries
+// Returns an adjusted position with 'to' moved back if it's at a paragraph boundary
+// CRITICAL: Marks must NEVER end exactly at paragraph boundaries to prevent affecting paragraph breaks
+function adjustPositionForParagraphBoundary(doc: any, from: number, to: number): { from: number; to: number } {
+  try {
+    if (to <= from) {
+      return { from, to };
+    }
+    
+    const $from = doc.resolve(from);
+    const $to = doc.resolve(to);
+    
+    // Find the paragraph node for 'from'
+    let fromParagraph: any = null;
+    let fromParagraphStart = 0;
+    for (let i = $from.depth; i > 0; i--) {
+      const node = $from.node(i);
+      if (node.type.name === 'paragraph') {
+        fromParagraph = node;
+        fromParagraphStart = $from.start(i);
+        break;
+      }
+    }
+    
+    // Find the paragraph node for 'to'
+    let toParagraph: any = null;
+    let toParagraphStart = 0;
+    for (let i = $to.depth; i > 0; i--) {
+      const node = $to.node(i);
+      if (node.type.name === 'paragraph') {
+        toParagraph = node;
+        toParagraphStart = $to.start(i);
+        break;
+      }
+    }
+    
+    // If we're in different paragraphs, adjust to end in the fromParagraph
+    if (fromParagraph && toParagraph && fromParagraph !== toParagraph) {
+      // Find the end of text content in fromParagraph
+      let paragraphTextEnd = fromParagraphStart + 1;
+      let currentOffset = 0;
+      
+      fromParagraph.content.forEach((child: any) => {
+        if (child.isText) {
+          const childStart = fromParagraphStart + 1 + currentOffset;
+          paragraphTextEnd = childStart + child.text.length;
+        }
+        currentOffset += child.nodeSize;
+      });
+      
+      // Ensure we end BEFORE the paragraph boundary (not at it)
+      const adjustedTo = Math.max(from, paragraphTextEnd);
+      return { from, to: adjustedTo };
+    }
+    
+    // If we're in the same paragraph, ensure 'to' doesn't extend to the paragraph boundary
+    if (fromParagraph && toParagraph && fromParagraph === toParagraph) {
+      // Walk through the paragraph content to find the actual end of text
+      let paragraphTextEnd = fromParagraphStart + 1;
+      let pos = fromParagraphStart + 1;
+      
+      fromParagraph.content.forEach((child: any) => {
+        if (child.isText) {
+          paragraphTextEnd = pos + child.text.length;
+        }
+        pos += child.nodeSize;
+      });
+      
+      // CRITICAL: Ensure 'to' ends BEFORE the paragraph boundary
+      // If 'to' equals or exceeds paragraphTextEnd, it's at or beyond the boundary
+      // We must end it strictly before the boundary to prevent affecting paragraph breaks
+      if (to >= paragraphTextEnd) {
+        // Move back to end of the last text character (paragraphTextEnd is already the end position)
+        // But we want to ensure we're not at the boundary, so if to == paragraphTextEnd, move back by 1
+        const adjustedTo = to > paragraphTextEnd ? paragraphTextEnd : Math.max(from, paragraphTextEnd);
+        // Double-check: if adjustedTo is still at boundary, move back one more
+        if (adjustedTo >= paragraphTextEnd && adjustedTo > from) {
+          return { from, to: adjustedTo - 1 };
+        }
+        return { from, to: adjustedTo };
+      }
+    }
+    
+    // Check if 'to' is at the start of a new block (next paragraph)
+    if ($to.depth === 1 && $to.parentOffset === 0) {
+      // We're at the start of a new block - move 'to' back
+      const adjustedTo = Math.max(from, to - 1);
+      return { from, to: adjustedTo };
+    }
+    
+    return { from, to };
+  } catch (e) {
+    // If we can't resolve positions, return original
+    return { from, to };
+  }
+}
+
 // Helper function to find ALL text positions in ProseMirror document
 // Returns all occurrences that don't already have a scripture pill mark
 function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean = true): Array<{ from: number; to: number }> {
@@ -142,8 +365,62 @@ function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean 
     for (const map of textToDocMap) {
       if (searchIndex >= map.textStart && searchIndex < map.textEnd) {
         const offset = searchIndex - map.textStart;
-        const candidateFrom = map.docStart + offset;
-        const candidateTo = candidateFrom + matchLength;
+        let candidateFrom = map.docStart + offset;
+        let candidateTo = candidateFrom + matchLength;
+        
+        // Verify the end position is correct by checking what's actually at that position
+        // and ensuring we don't cross paragraph boundaries
+        try {
+          const $from = doc.resolve(candidateFrom);
+          const $to = doc.resolve(candidateTo);
+          
+          // Check if we're crossing paragraph boundaries
+          let fromParagraph: any = null;
+          let toParagraph: any = null;
+          
+          for (let i = $from.depth; i > 0; i--) {
+            const node = $from.node(i);
+            if (node.type.name === 'paragraph') {
+              fromParagraph = node;
+              break;
+            }
+          }
+          
+          for (let i = $to.depth; i > 0; i--) {
+            const node = $to.node(i);
+            if (node.type.name === 'paragraph') {
+              toParagraph = node;
+              break;
+            }
+          }
+          
+          // If we're crossing paragraph boundaries, adjust candidateTo to end at paragraph boundary
+          if (fromParagraph && toParagraph && fromParagraph !== toParagraph) {
+            // Find the end of the fromParagraph's text content
+            const paragraphStart = $from.start($from.depth);
+            let paragraphTextEnd = paragraphStart + 1;
+            let currentOffset = 0;
+            
+            fromParagraph.content.forEach((child: any) => {
+              if (child.isText) {
+                const childStart = paragraphStart + 1 + currentOffset;
+                paragraphTextEnd = childStart + child.text.length;
+              }
+              currentOffset += child.nodeSize;
+            });
+            
+            // Adjust candidateTo to be at the end of the paragraph's text, not beyond
+            candidateTo = Math.min(candidateTo, paragraphTextEnd);
+            
+            // If the adjusted position is before candidateFrom, skip this match
+            if (candidateTo <= candidateFrom) {
+              break;
+            }
+          }
+        } catch (e) {
+          // If we can't resolve, skip this position to be safe
+          break;
+        }
         
         // Check if this position already has a scripture pill mark
         if (skipMarked) {
@@ -159,6 +436,18 @@ function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean 
             // If we can't resolve, skip it
             continue;
           }
+        }
+        
+        // Validate that this position doesn't span across paragraph boundaries
+        // This prevents marks from affecting paragraph breaks
+        try {
+          if (!isWithinSingleParagraph(doc, candidateFrom, candidateTo)) {
+            // Skip positions that span paragraphs
+            break;
+          }
+        } catch (e) {
+          // If we can't validate, skip this position to be safe
+          break;
         }
         
         // Check if this position overlaps with any already found position
@@ -333,12 +622,106 @@ export async function convertScriptureReferencesToPills(
             continue; // Already a pill
           }
           
-          // Convert to scripture-pill
-          editor.chain()
-            .setTextSelection(pos)
-            .unsetMark('noteLink')
-            .setMark('scripturePill', { reference: normalizedRef, noteId })
-            .run();
+          // Validate that the position doesn't span across paragraph boundaries
+          // This prevents line breaks from being lost when scripture pills are created
+          if (!isWithinSingleParagraph(doc, pos.from, pos.to)) {
+            // Skip this position if it spans across paragraphs
+            // This ensures paragraph breaks are preserved
+            continue;
+          }
+          
+          // Adjust position to ensure it doesn't extend beyond paragraph boundaries
+          // This prevents marks from affecting paragraph breaks
+          const adjustedPos = adjustPositionForParagraphBoundary(doc, pos.from, pos.to);
+          
+          // Validate again after adjustment
+          if (!isWithinSingleParagraph(doc, adjustedPos.from, adjustedPos.to)) {
+            continue;
+          }
+          
+          // CRITICAL: Verify the text at this position actually matches the reference
+          // This ensures we're not applying marks to text that spans paragraphs
+          // Also ensure we don't include trailing whitespace/newlines in the mark
+          try {
+            let textAtPosition = doc.textBetween(adjustedPos.from, adjustedPos.to);
+            // Remove trailing whitespace/newlines from the text before matching
+            // This ensures marks don't consume line breaks
+            const trimmedText = textAtPosition.trimEnd();
+            const normalizedPositionText = normalizeScriptureReference(trimmedText);
+            const normalizedSearchRef = normalizeScriptureReference(reference);
+            
+            // If the text doesn't match (might include paragraph breaks), skip it
+            if (normalizedPositionText !== normalizedSearchRef) {
+              continue;
+            }
+            
+            // If there's trailing whitespace/newline, adjust the 'to' position to exclude it
+            // This prevents the mark from consuming the line break
+            if (textAtPosition !== trimmedText) {
+              const trailingWhitespaceLength = textAtPosition.length - trimmedText.length;
+              adjustedPos.to = adjustedPos.to - trailingWhitespaceLength;
+              // Validate the adjusted position is still valid
+              if (adjustedPos.to <= adjustedPos.from) {
+                continue;
+              }
+            }
+          } catch (e) {
+            // If we can't verify, skip to be safe
+            continue;
+          }
+          
+          // CRITICAL: Check if there's content after the mark in the same paragraph
+          // If the mark ends at the end of the paragraph, skip it to prevent affecting paragraph breaks
+          // But allow marks that end before hard breaks (<br>) - these should be preserved
+          try {
+            const $to = doc.resolve(adjustedPos.to);
+            const paragraphStart = $to.start($to.depth);
+            const paragraphEnd = paragraphStart + $to.node($to.depth).nodeSize;
+            
+            // Check if there's any content after the mark in this paragraph
+            if (adjustedPos.to >= paragraphEnd - 1) {
+              // Mark ends at or very close to paragraph end - skip it
+              continue;
+            }
+            
+            // Check if there's a line break (hard break or newline) right after the mark (these should be preserved)
+            if (hasLineBreakAfter(doc, adjustedPos.to, paragraphEnd)) {
+              // There's a line break after the mark - this is fine, allow it
+              // The line break will be preserved
+            } else {
+              // Check if there's actual text content after the mark
+              const textAfterMark = doc.textBetween(adjustedPos.to, Math.min(adjustedPos.to + 10, paragraphEnd - 1));
+              // If there's no text after the mark (or only whitespace), and we're near the paragraph end, skip
+              if (!textAfterMark.trim() && adjustedPos.to >= paragraphEnd - 5) {
+                continue;
+              }
+            }
+          } catch (e) {
+            // If we can't check, skip to be safe
+            continue;
+          }
+          
+          // Apply scripture pill mark using transaction API directly to avoid selection issues
+          try {
+            const tr = editor.state.tr;
+            const markType = editor.state.schema.marks.scripturePill;
+            if (markType) {
+              tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
+              // Remove noteLink mark if present
+              const noteLinkMark = editor.state.schema.marks.noteLink;
+              if (noteLinkMark) {
+                tr.removeMark(adjustedPos.from, adjustedPos.to, noteLinkMark);
+              }
+              editor.view.dispatch(tr);
+            }
+          } catch (e) {
+            // If transaction fails, fall back to chain API
+            editor.chain()
+              .setTextSelection(adjustedPos)
+              .unsetMark('noteLink')
+              .setMark('scripturePill', { reference: normalizedRef, noteId })
+              .run();
+          }
         } catch (e) {
           console.error('Error converting position to pill:', e);
           // Skip if we can't resolve the position
@@ -394,12 +777,106 @@ export async function convertNoteLinksToScripturePills(editor: any) {
             continue; // Already a pill mark
           }
           
-          // Convert to scripture-pill mark
-          editor.chain()
-            .setTextSelection(pos)
-            .unsetMark('noteLink')
-            .setMark('scripturePill', { reference: normalizedRef, noteId })
-            .run();
+          // Validate that the position doesn't span across paragraph boundaries
+          // This prevents line breaks from being lost when scripture pills are created
+          if (!isWithinSingleParagraph(doc, pos.from, pos.to)) {
+            // Skip this position if it spans across paragraphs
+            // This ensures paragraph breaks are preserved
+            continue;
+          }
+          
+          // Adjust position to ensure it doesn't extend beyond paragraph boundaries
+          // This prevents marks from affecting paragraph breaks
+          const adjustedPos = adjustPositionForParagraphBoundary(doc, pos.from, pos.to);
+          
+          // Validate again after adjustment
+          if (!isWithinSingleParagraph(doc, adjustedPos.from, adjustedPos.to)) {
+            continue;
+          }
+          
+          // CRITICAL: Verify the text at this position actually matches the reference
+          // This ensures we're not applying marks to text that spans paragraphs
+          // Also ensure we don't include trailing whitespace/newlines in the mark
+          try {
+            let textAtPosition = doc.textBetween(adjustedPos.from, adjustedPos.to);
+            // Remove trailing whitespace/newlines from the text before matching
+            // This ensures marks don't consume line breaks
+            const trimmedText = textAtPosition.trimEnd();
+            const normalizedPositionText = normalizeScriptureReference(trimmedText);
+            const normalizedSearchRef = normalizeScriptureReference(reference);
+            
+            // If the text doesn't match (might include paragraph breaks), skip it
+            if (normalizedPositionText !== normalizedSearchRef) {
+              continue;
+            }
+            
+            // If there's trailing whitespace/newline, adjust the 'to' position to exclude it
+            // This prevents the mark from consuming the line break
+            if (textAtPosition !== trimmedText) {
+              const trailingWhitespaceLength = textAtPosition.length - trimmedText.length;
+              adjustedPos.to = adjustedPos.to - trailingWhitespaceLength;
+              // Validate the adjusted position is still valid
+              if (adjustedPos.to <= adjustedPos.from) {
+                continue;
+              }
+            }
+          } catch (e) {
+            // If we can't verify, skip to be safe
+            continue;
+          }
+          
+          // CRITICAL: Check if there's content after the mark in the same paragraph
+          // If the mark ends at the end of the paragraph, skip it to prevent affecting paragraph breaks
+          // But allow marks that end before hard breaks (<br>) - these should be preserved
+          try {
+            const $to = doc.resolve(adjustedPos.to);
+            const paragraphStart = $to.start($to.depth);
+            const paragraphEnd = paragraphStart + $to.node($to.depth).nodeSize;
+            
+            // Check if there's any content after the mark in this paragraph
+            if (adjustedPos.to >= paragraphEnd - 1) {
+              // Mark ends at or very close to paragraph end - skip it
+              continue;
+            }
+            
+            // Check if there's a line break (hard break or newline) right after the mark (these should be preserved)
+            if (hasLineBreakAfter(doc, adjustedPos.to, paragraphEnd)) {
+              // There's a line break after the mark - this is fine, allow it
+              // The line break will be preserved
+            } else {
+              // Check if there's actual text content after the mark
+              const textAfterMark = doc.textBetween(adjustedPos.to, Math.min(adjustedPos.to + 10, paragraphEnd - 1));
+              // If there's no text after the mark (or only whitespace), and we're near the paragraph end, skip
+              if (!textAfterMark.trim() && adjustedPos.to >= paragraphEnd - 5) {
+                continue;
+              }
+            }
+          } catch (e) {
+            // If we can't check, skip to be safe
+            continue;
+          }
+          
+          // Apply scripture pill mark using transaction API directly to avoid selection issues
+          try {
+            const tr = editor.state.tr;
+            const markType = editor.state.schema.marks.scripturePill;
+            if (markType) {
+              tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
+              // Remove noteLink mark if present
+              const noteLinkMark = editor.state.schema.marks.noteLink;
+              if (noteLinkMark) {
+                tr.removeMark(adjustedPos.from, adjustedPos.to, noteLinkMark);
+              }
+              editor.view.dispatch(tr);
+            }
+          } catch (e) {
+            // If transaction fails, fall back to chain API
+            editor.chain()
+              .setTextSelection(adjustedPos)
+              .unsetMark('noteLink')
+              .setMark('scripturePill', { reference: normalizedRef, noteId })
+              .run();
+          }
         } catch (e) {
           // Skip if we can't resolve the position
           continue;
@@ -487,13 +964,84 @@ export async function convertNoteLinksToScripturePills(editor: any) {
                     continue; // Already a pill
                   }
                   
-                  // Convert to scripture-pill (whether it has noteLink mark or not)
-                  // This handles both cases: HTML spans that became marks, and plain text
-                  editor.chain()
-                    .setTextSelection(pos)
-                    .unsetMark('noteLink')
-                    .setMark('scripturePill', { reference: normalizedRef, noteId })
-                    .run();
+                  // Validate that the position doesn't span across paragraph boundaries
+                  // This prevents line breaks from being lost when scripture pills are created
+                  if (!isWithinSingleParagraph(doc, pos.from, pos.to)) {
+                    // Skip this position if it spans across paragraphs
+                    // This ensures paragraph breaks are preserved
+                    continue;
+                  }
+                  
+                  // Adjust position to ensure it doesn't extend beyond paragraph boundaries
+                  // This prevents marks from affecting paragraph breaks
+                  const adjustedPos = adjustPositionForParagraphBoundary(doc, pos.from, pos.to);
+                  
+                  // Validate again after adjustment
+                  if (!isWithinSingleParagraph(doc, adjustedPos.from, adjustedPos.to)) {
+                    continue;
+                  }
+                  
+                  // CRITICAL: Verify the text at this position actually matches the linkText
+                  // This ensures we're not applying marks to text that spans paragraphs
+                  try {
+                    const textAtPosition = doc.textBetween(adjustedPos.from, adjustedPos.to);
+                    const normalizedPositionText = normalizeScriptureReference(textAtPosition.trim());
+                    const normalizedLinkText = normalizeScriptureReference(linkText.trim());
+                    
+                    // If the text doesn't match (might include paragraph breaks), skip it
+                    if (normalizedPositionText !== normalizedLinkText) {
+                      continue;
+                    }
+                  } catch (e) {
+                    // If we can't verify, skip to be safe
+                    continue;
+                  }
+                  
+                  // CRITICAL: Check if there's text after the mark in the same paragraph
+                  // If the mark ends at the end of the paragraph, skip it to prevent affecting paragraph breaks
+                  try {
+                    const $to = doc.resolve(adjustedPos.to);
+                    const paragraphStart = $to.start($to.depth);
+                    const paragraphEnd = paragraphStart + $to.node($to.depth).nodeSize;
+                    
+                    // Check if there's any text content after the mark in this paragraph
+                    if (adjustedPos.to >= paragraphEnd - 1) {
+                      // Mark ends at or very close to paragraph end - skip it
+                      continue;
+                    }
+                    
+                    // Check if there's actual text content after the mark
+                    const textAfterMark = doc.textBetween(adjustedPos.to, Math.min(adjustedPos.to + 10, paragraphEnd - 1));
+                    // If there's no text after the mark (or only whitespace), and we're near the paragraph end, skip
+                    if (!textAfterMark.trim() && adjustedPos.to >= paragraphEnd - 5) {
+                      continue;
+                    }
+                  } catch (e) {
+                    // If we can't check, skip to be safe
+                    continue;
+                  }
+                  
+                  // Apply scripture pill mark using transaction API directly to avoid selection issues
+                  try {
+                    const tr = editor.state.tr;
+                    const markType = editor.state.schema.marks.scripturePill;
+                    if (markType) {
+                      tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
+                      // Remove noteLink mark if present
+                      const noteLinkMark = editor.state.schema.marks.noteLink;
+                      if (noteLinkMark) {
+                        tr.removeMark(adjustedPos.from, adjustedPos.to, noteLinkMark);
+                      }
+                      editor.view.dispatch(tr);
+                    }
+                  } catch (e) {
+                    // If transaction fails, fall back to chain API
+                    editor.chain()
+                      .setTextSelection(adjustedPos)
+                      .unsetMark('noteLink')
+                      .setMark('scripturePill', { reference: normalizedRef, noteId })
+                      .run();
+                  }
                 } catch (e) {
                   // Skip if we can't resolve the position
                   continue;
@@ -647,12 +1195,91 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           continue;
         }
         
-        // Apply scripture pill mark - Tiptap will handle mark boundaries naturally
-        editor.chain()
-          .setTextSelection(positions)
-          .unsetMark('noteLink')
-          .setMark('scripturePill', { reference: normalizedRef, noteId })
-          .run();
+        // Validate that the position doesn't span across paragraph boundaries
+        // This prevents line breaks from being lost when scripture pills are created
+        if (!isWithinSingleParagraph(currentDoc, positions.from, positions.to)) {
+          // Skip this position if it spans across paragraphs
+          // This ensures paragraph breaks are preserved
+          continue;
+        }
+        
+        // Adjust position to ensure it doesn't extend beyond paragraph boundaries
+        // This prevents marks from affecting paragraph breaks
+        const adjustedPos = adjustPositionForParagraphBoundary(currentDoc, positions.from, positions.to);
+        
+        // Validate again after adjustment
+        if (!isWithinSingleParagraph(currentDoc, adjustedPos.from, adjustedPos.to)) {
+          continue;
+        }
+        
+        // CRITICAL: Verify the text at this position actually matches the reference
+        // This ensures we're not applying marks to text that spans paragraphs
+        try {
+          const textAtPosition = currentDoc.textBetween(adjustedPos.from, adjustedPos.to);
+          const normalizedPositionText = normalizeScriptureReference(textAtPosition.trim());
+          const normalizedSearchRef = normalizeScriptureReference(reference);
+          
+          // If the text doesn't match (might include paragraph breaks), skip it
+          if (normalizedPositionText !== normalizedSearchRef) {
+            continue;
+          }
+        } catch (e) {
+          // If we can't verify, skip to be safe
+          continue;
+        }
+        
+        // CRITICAL: Check if there's content after the mark in the same paragraph
+        // If the mark ends at the end of the paragraph, skip it to prevent affecting paragraph breaks
+        // But allow marks that end before hard breaks (<br>) - these should be preserved
+        try {
+          const $to = currentDoc.resolve(adjustedPos.to);
+          const paragraphStart = $to.start($to.depth);
+          const paragraphEnd = paragraphStart + $to.node($to.depth).nodeSize;
+          
+          // Check if there's any content after the mark in this paragraph
+          if (adjustedPos.to >= paragraphEnd - 1) {
+            // Mark ends at or very close to paragraph end - skip it
+            continue;
+          }
+          
+          // Check if there's a hard break right after the mark (these should be preserved)
+          if (hasHardBreakAfter(currentDoc, adjustedPos.to)) {
+            // There's a hard break after the mark - this is fine, allow it
+            // The hard break will be preserved
+          } else {
+            // Check if there's actual text content after the mark
+            const textAfterMark = currentDoc.textBetween(adjustedPos.to, Math.min(adjustedPos.to + 10, paragraphEnd - 1));
+            // If there's no text after the mark (or only whitespace), and we're near the paragraph end, skip
+            if (!textAfterMark.trim() && adjustedPos.to >= paragraphEnd - 5) {
+              continue;
+            }
+          }
+        } catch (e) {
+          // If we can't check, skip to be safe
+          continue;
+        }
+        
+        // Apply scripture pill mark using transaction API directly to avoid selection issues
+        try {
+          const tr = editor.state.tr;
+          const markType = editor.state.schema.marks.scripturePill;
+          if (markType) {
+            tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
+            // Remove noteLink mark if present
+            const noteLinkMark = editor.state.schema.marks.noteLink;
+            if (noteLinkMark) {
+              tr.removeMark(adjustedPos.from, adjustedPos.to, noteLinkMark);
+            }
+            editor.view.dispatch(tr);
+          }
+        } catch (e) {
+          // If transaction fails, fall back to chain API
+          editor.chain()
+            .setTextSelection(adjustedPos)
+            .unsetMark('noteLink')
+            .setMark('scripturePill', { reference: normalizedRef, noteId })
+            .run();
+        }
       }
       
       // Restore cursor position to where it was before processing

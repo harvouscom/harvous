@@ -956,6 +956,7 @@ button[disabled] {
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+  white-space: normal; /* Ensure line breaks after pills are preserved */
 }
 
 .scripture-pill::before {

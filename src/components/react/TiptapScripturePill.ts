@@ -144,7 +144,8 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
     // Use single-line style for consistency with highlightScriptureReferences output
     // This ensures regex patterns in process-scripture-references can reliably match both formats
     // font-style: normal prevents inheritance of italic formatting from parent elements
-    const baseStyle = 'background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none;';
+    // white-space: normal ensures line breaks after pills are preserved
+    const baseStyle = 'background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal;';
     const cursorStyle = ' cursor: pointer;';
 
     return [
@@ -282,6 +283,52 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         }
         
         return false;
+      },
+      'Enter': ({ editor }) => {
+        const { state } = editor;
+        const { selection } = state;
+        const { $from, from, to } = selection;
+        
+        // Check if cursor is inside a scripture pill
+        const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
+        
+        if (scripturePillMark && from === to) {
+          // Find the end of the mark
+          const boundaries = findPillBoundaries(state.doc, from);
+          if (boundaries) {
+            // Move cursor to end of pill, clear marks, then create new paragraph
+            // This ensures the line break is created AFTER the pill, not consumed by it
+            editor.chain()
+              .setTextSelection(boundaries.end)
+              .unsetAllMarks()
+              .createParagraphNear()
+              .run();
+            return true;
+          }
+        }
+        
+        // Also check if cursor is right after a pill (at the end boundary)
+        // This ensures Enter creates a proper line break even when cursor is at pill boundary
+        if (from === to && from > 0) {
+          try {
+            const $prev = state.doc.resolve(from - 1);
+            const prevMarks = $prev.marks();
+            const hasPill = prevMarks.some((m: any) => m.type.name === 'scripturePill');
+            
+            if (hasPill) {
+              // Cursor is right after a pill - ensure marks are cleared before creating new paragraph
+              editor.chain()
+                .unsetAllMarks()
+                .createParagraphNear()
+                .run();
+              return true;
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+        
+        return false; // Let default Enter behavior handle it
       },
       // Handle typing any character after a pill - clear marks
       'Mod-KeyA': () => false, // Don't interfere with select all

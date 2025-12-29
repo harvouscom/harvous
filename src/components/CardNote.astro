@@ -60,19 +60,45 @@ const sidebarStyle = meshGradient
 function stripHtml(html: string): string {
   if (!html) return '';
   
+  // Fallback to regex-based approach for SSR
+  // First, ensure spaces between adjacent block elements and around inline elements
   let text = html
     // Remove script and style tags completely (including their content)
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    // Convert line breaks and newlines to spaces FIRST (before removing tags)
-    .replace(/<br\s*\/?>/gi, ' ')
+    // CRITICAL: Convert line breaks to spaces FIRST - before any other processing
+    // This ensures line breaks inside paragraphs and other elements become spaces
+    .replace(/\r\n/g, ' ')
     .replace(/\n/g, ' ')
     .replace(/\r/g, ' ')
-    // Insert space between closing and opening block tags (ensure space is always present)
-    .replace(/<\/p><p/gi, '</p> <p')
-    .replace(/<\/p><div/gi, '</p> <div')
-    .replace(/<\/div><p/gi, '</div> <p')
-    .replace(/<\/div><div/gi, '</div> <div')
+    // Convert br tags to spaces
+    .replace(/<br\s*\/?>/gi, ' ')
+    // CRITICAL: Ensure spaces around spans BEFORE extracting them
+    // Add space before opening span if preceded by non-whitespace
+    .replace(/([^\s>])(<span[^>]*>)/gi, '$1 $2')
+    // Add space after closing span if followed by non-whitespace
+    .replace(/(<\/span>)([^\s<])/gi, '$1 $2')
+    // Now extract text from inline spans, ensuring spaces are preserved
+    .replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, (match, content) => {
+      // Always add spaces around span content to prevent text running together
+      const trimmedContent = content.trim();
+      if (trimmedContent) {
+        // Add spaces on both sides to ensure separation
+        return ` ${trimmedContent} `;
+      }
+      return ' ';
+    })
+    // CRITICAL: Insert space between adjacent closing and opening block tags
+    // This must happen BEFORE we convert closing tags to placeholders
+    .replace(/(<\/p>)(<p[^>]*>)/gi, '$1 $2')
+    .replace(/(<\/p>)(<div[^>]*>)/gi, '$1 $2')
+    .replace(/(<\/div>)(<p[^>]*>)/gi, '$1 $2')
+    .replace(/(<\/div>)(<div[^>]*>)/gi, '$1 $2')
+    .replace(/(<\/h[1-6]>)(<p[^>]*>)/gi, '$1 $2')
+    .replace(/(<\/h[1-6]>)(<div[^>]*>)/gi, '$1 $2')
+    .replace(/(<\/p>)(<h[1-6][^>]*>)/gi, '$1 $2')
+    .replace(/(<\/div>)(<h[1-6][^>]*>)/gi, '$1 $2')
+    .replace(/(<\/li>)(<li[^>]*>)/gi, '$1 $2')
     // Convert block-level closing tags to placeholder (preserves word boundaries)
     .replace(/<\/p>/gi, ' __SPACE__ ')
     .replace(/<\/div>/gi, ' __SPACE__ ')
@@ -89,7 +115,7 @@ function stripHtml(html: string): string {
     .replace(/<p[^>]*>/gi, '')
     .replace(/<div[^>]*>/gi, '')
     .replace(/<h[1-6][^>]*>/gi, '')
-    // Remove other HTML tags
+    // Remove remaining HTML tags
     .replace(/<[^>]*>/g, '')
     // Decode HTML entities
     .replace(/&nbsp;/g, ' ')
