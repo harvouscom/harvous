@@ -330,9 +330,9 @@ const CardNote: React.FC<CardNoteProps> = ({
                           >
                             <span 
                               style={{
-                                fontSize: '12px',
+                                fontSize: '10px',
                                 color: 'var(--color-stone-grey)',
-                                fontWeight: 'normal',
+                                fontWeight: 600,
                                 whiteSpace: 'nowrap'
                               }}
                             >
@@ -340,7 +340,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                             </span>
                             <Icon 
                               name="chevron-down" 
-                              size={12} 
+                              size={10} 
                               style={{ 
                                 transform: isScriptureRefsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                                 color: 'var(--color-stone-grey)',
@@ -620,9 +620,9 @@ const CardNote: React.FC<CardNoteProps> = ({
                           >
                             <span 
                               style={{
-                                fontSize: '12px',
+                                fontSize: '10px',
                                 color: 'var(--color-stone-grey)',
-                                fontWeight: 'normal',
+                                fontWeight: 600,
                                 whiteSpace: 'nowrap'
                               }}
                             >
@@ -630,7 +630,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                             </span>
                             <Icon 
                               name="chevron-down" 
-                              size={12} 
+                              size={10} 
                               style={{ 
                                 transform: isScriptureRefsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                                 color: 'var(--color-stone-grey)',
