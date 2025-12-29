@@ -74,6 +74,39 @@ function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scriptur
   return notes;
 }
 
+// Helper function to sort notes by time (newest first)
+// Uses lastVisited, updatedAt, or createdAt in that order
+function sortNotesByTime(notes: Note[]): Note[] {
+  return [...notes].sort((a, b) => {
+    // Get sort time for each note, preferring lastVisited, then updatedAt, then createdAt
+    const getSortTime = (note: Note): Date | null => {
+      // Check if note has lastVisited (may not be in interface but exists in API response)
+      const lastVisited = (note as any).lastVisited;
+      if (lastVisited) {
+        return lastVisited instanceof Date ? lastVisited : new Date(lastVisited);
+      }
+      if (note.updatedAt) {
+        return note.updatedAt instanceof Date ? note.updatedAt : new Date(note.updatedAt);
+      }
+      if (note.createdAt) {
+        return note.createdAt instanceof Date ? note.createdAt : new Date(note.createdAt);
+      }
+      return null;
+    };
+
+    const aTime = getSortTime(a);
+    const bTime = getSortTime(b);
+
+    // Handle null cases - null times go after non-null times
+    if (!aTime && !bTime) return 0;
+    if (!aTime) return 1;
+    if (!bTime) return -1;
+
+    // Sort newest first (descending)
+    return bTime.getTime() - aTime.getTime();
+  });
+}
+
 export default function ThreadNotesList({ 
   initialNotes, 
   threadId,
@@ -131,9 +164,14 @@ export default function ThreadNotesList({
     const uniqueNotes = Array.from(
       new Map(typeFiltered.map(note => [note.id, note])).values()
     );
-    setNotes(uniqueNotes);
+    
+    // Sort by time (newest first) to ensure proper animation order
+    // This maintains chronological order regardless of note type
+    const sortedNotes = sortNotesByTime(uniqueNotes);
+    
+    setNotes(sortedNotes);
     // Initialize accumulatedFilteredCountRef immediately with the filtered count
-    accumulatedFilteredCountRef.current = uniqueNotes.length;
+    accumulatedFilteredCountRef.current = sortedNotes.length;
     
     // Update database offset to reflect initial notes (total fetched from server, not filtered)
     databaseOffsetRef.current = initialNotes.length;
@@ -223,12 +261,15 @@ export default function ThreadNotesList({
                 return prev; // Don't add if it doesn't match filter
               }
               
-              // Insert at the beginning for immediate visibility
-              // Deduplicate just to be safe
+              // Add new note and deduplicate
               const newNotes = [newNote, ...prev];
-              return Array.from(
+              const uniqueNotes = Array.from(
                 new Map(newNotes.map(note => [note.id, note])).values()
               );
+              
+              // Sort by time (newest first) to ensure proper animation order
+              // This maintains chronological order regardless of note type
+              return sortNotesByTime(uniqueNotes);
             });
           }
         } catch (error) {
@@ -330,8 +371,12 @@ export default function ThreadNotesList({
               new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
             );
 
-            setNotes(uniqueNotes);
-            accumulatedFilteredCountRef.current = uniqueNotes.length;
+            // Sort by time (newest first) to ensure proper animation order
+            // This maintains chronological order regardless of note type
+            const sortedNotes = sortNotesByTime(uniqueNotes);
+
+            setNotes(sortedNotes);
+            accumulatedFilteredCountRef.current = sortedNotes.length;
             databaseOffsetRef.current = freshNotes.length;
           } catch (error) {
             console.error('[ThreadNotesList] Error refreshing notes after creation:', error);
@@ -412,8 +457,12 @@ export default function ThreadNotesList({
           new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
         );
 
-        setNotes(uniqueNotes);
-        accumulatedFilteredCountRef.current = uniqueNotes.length;
+        // Sort by time (newest first) to ensure proper animation order
+        // This maintains chronological order regardless of note type
+        const sortedNotes = sortNotesByTime(uniqueNotes);
+
+        setNotes(sortedNotes);
+        accumulatedFilteredCountRef.current = sortedNotes.length;
         databaseOffsetRef.current = freshNotes.length;
       } catch (error) {
         console.error('[ThreadNotesList] Error refreshing notes:', error);
@@ -715,10 +764,17 @@ export default function ThreadNotesList({
     const uniqueNotes = Array.from(
       new Map(newItems.map(note => [note.id, note])).values()
     );
-    setNotes(uniqueNotes);
+    
+    // Sort by time (newest first) to ensure proper animation order
+    // This maintains chronological order regardless of note type, so animation delays
+    // continue correctly (e.g., if items are [scripture, scripture, default, scripture],
+    // they animate with delays [0ms, 50ms, 100ms, 150ms] in that order)
+    const sortedNotes = sortNotesByTime(uniqueNotes);
+    
+    setNotes(sortedNotes);
     
     // Update accumulated filtered count based on actual filtered items
-    const filtered = uniqueNotes.filter(note => !deletedNoteIdsRef.current.has(note.id));
+    const filtered = sortedNotes.filter(note => !deletedNoteIdsRef.current.has(note.id));
     const typeFiltered = filterNotesByType(filtered, noteTypeFilter);
     accumulatedFilteredCountRef.current = typeFiltered.length;
     // Note: databaseOffsetRef is updated in loadMore, not here
