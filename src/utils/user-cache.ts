@@ -46,12 +46,12 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       .where(eq(UserMetadata.userId, userId))
       .get();
 
-    // Check if cache is fresh (5 minutes)
+    // Check if cache is fresh (15 minutes - user data changes infrequently)
     const now = new Date();
     const cacheAge = userMetadata?.clerkDataUpdatedAt ? 
       now.getTime() - userMetadata.clerkDataUpdatedAt.getTime() : 
       Infinity;
-    const isCacheFresh = cacheAge < 5 * 60 * 1000; // 5 minutes in milliseconds
+    const isCacheFresh = cacheAge < 15 * 60 * 1000; // 15 minutes in milliseconds
     
     // Check if cache is explicitly stale (set to old date for invalidation)
     const isExplicitlyStale = userMetadata?.clerkDataUpdatedAt && 
