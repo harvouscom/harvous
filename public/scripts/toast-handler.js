@@ -72,11 +72,8 @@ function checkAndShowToast() {
   
   // If we've already processed this URL base with toast params, skip
   if (processedUrlBase === urlBase) {
-    console.log('[Toast Handler] Already processed URL base, skipping:', urlBase);
     return;
   }
-  
-  console.log('[Toast Handler] Found toast parameters:', { toastType, message, urlBase });
   
   // Mark this URL base as processed BEFORE cleaning URL (prevents re-processing)
   processedUrlBase = urlBase;
@@ -93,38 +90,13 @@ function checkAndShowToast() {
   function waitForToastAndShow(maxAttempts = 50, attempt = 0) {
     const status = isToastSystemReady();
     
-    if (attempt === 0 || attempt % 5 === 0) {
-      // Log every 5th attempt to avoid console spam
-      console.log(`[Toast Handler] Attempt ${attempt + 1}/${maxAttempts}:`, {
-        hasToastUtil: status.hasToastUtil,
-        hasSonnerToast: status.hasSonnerToast,
-        hasWindowToast: status.hasWindowToast,
-        ready: status.ready
-      });
-    }
-    
     if (status.ready) {
       // Toast system is ready, show toast
       const success = showToast(decodedMessage, toastType);
-      if (success) {
-        console.log(`[Toast Handler] ✅ Toast displayed successfully [${toastType}]:`, decodedMessage);
-      } else {
+      if (!success) {
         console.error('[Toast Handler] ❌ Failed to show toast despite system being ready');
       }
       return;
-    }
-    
-    // Not ready yet
-    if (attempt === 0) {
-      // Log what's missing on first attempt
-      if (!status.hasSonnerToast && !status.hasWindowToast) {
-        console.log('[Toast Handler] ⏳ Waiting for toast function (Sonner or window.toast)...');
-        console.log('[Toast Handler] Debug info:', {
-          'typeof toast': typeof toast,
-          'window.toast': window.toast,
-          'ToastProvider mounted?': document.querySelector('[data-sonner-toaster]') !== null
-        });
-      }
     }
     
     // Continue polling if we haven't exceeded max attempts
@@ -135,12 +107,9 @@ function checkAndShowToast() {
     } else {
       // Timeout reached - try showing toast anyway (might work even if detection failed)
       console.warn('[Toast Handler] ⚠️ Timeout waiting for toast system. Attempting to show toast anyway...');
-      console.warn('[Toast Handler] Final status:', status);
       
       const success = showToast(decodedMessage, toastType);
-      if (success) {
-        console.log(`[Toast Handler] ✅ Toast displayed (despite timeout) [${toastType}]:`, decodedMessage);
-      } else {
+      if (!success) {
         console.error('[Toast Handler] ❌ Failed to show toast after timeout');
       }
     }
@@ -153,23 +122,19 @@ function checkAndShowToast() {
 // Run on initial page load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('[Toast Handler] DOMContentLoaded event fired');
     checkAndShowToast();
   });
 } else {
   // DOM already loaded, check immediately
-  console.log('[Toast Handler] DOM already loaded, checking immediately');
   checkAndShowToast();
 }
 
 // Re-run after View Transitions (client-side navigation)
 // Reset processedUrlBase when navigating to allow new toasts
 document.addEventListener('astro:before-preparation', () => {
-  console.log('[Toast Handler] View Transition starting, resetting processedUrlBase');
   processedUrlBase = null;
 });
 
 document.addEventListener('astro:page-load', () => {
-  console.log('[Toast Handler] astro:page-load event fired');
   checkAndShowToast();
 });
