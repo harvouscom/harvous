@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, UserInboxItems, eq, and, lt } from 'astro:db';
+import { db, UserInboxItems, eq, and, lt, or, isNull } from 'astro:db';
 
 /**
  * Auto-delete endpoint that permanently deletes archived items older than 30 days
@@ -29,24 +29,72 @@ export const POST: APIRoute = async ({ request, locals }) => {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     thirtyDaysAgo.setHours(0, 0, 0, 0); // Set to start of day
 
-    // Build query conditions
-    const conditions = [
+    // Calculate date 44 days ago for items with null archivedAt
+    // (14 days in inbox + 30 days archived = 44 days total)
+    const fortyFourDaysAgo = new Date();
+    fortyFourDaysAgo.setDate(fortyFourDaysAgo.getDate() - 44);
+    fortyFourDaysAgo.setHours(0, 0, 0, 0); // Set to start of day
+
+    // Backfill missing archivedAt timestamps for archived items
+    // Set archivedAt = createdAt for items that are archived but missing the timestamp
+    const backfillConditions = [
       eq(UserInboxItems.status, 'archived'),
-      lt(UserInboxItems.archivedAt, thirtyDaysAgo)
+      isNull(UserInboxItems.archivedAt)
+    ];
+
+    // If authenticated user (not using secret token), only backfill their items
+    if (isAuthenticated && !hasValidToken) {
+      backfillConditions.push(eq(UserInboxItems.userId, auth.userId));
+    }
+
+    const itemsToBackfill = await db
+      .select()
+      .from(UserInboxItems)
+      .where(and(...backfillConditions))
+      .all();
+
+    let backfilledCount = 0;
+    for (const item of itemsToBackfill) {
+      try {
+        await db
+          .update(UserInboxItems)
+          .set({
+            archivedAt: item.createdAt // Use createdAt as reasonable default
+          })
+          .where(eq(UserInboxItems.id, item.id));
+        backfilledCount++;
+      } catch (error: any) {
+        console.error(`Error backfilling archivedAt for item ${item.id}:`, error);
+      }
+    }
+
+    // Build query conditions for deletion
+    // Handle both cases:
+    // 1. Items with archivedAt set: delete if archived more than 30 days ago
+    // 2. Items with archivedAt null: delete if createdAt is more than 44 days ago
+    const deleteConditions = [
+      eq(UserInboxItems.status, 'archived'),
+      or(
+        lt(UserInboxItems.archivedAt, thirtyDaysAgo),
+        and(
+          isNull(UserInboxItems.archivedAt),
+          lt(UserInboxItems.createdAt, fortyFourDaysAgo)
+        )
+      )
     ];
 
     // If authenticated user (not using secret token), only delete their items
     // Secret token calls delete all users' items (for scheduled jobs)
     if (isAuthenticated && !hasValidToken) {
-      conditions.push(eq(UserInboxItems.userId, auth.userId));
+      deleteConditions.push(eq(UserInboxItems.userId, auth.userId));
     }
 
-    // Find all archived items that were archived more than 30 days ago
+    // Find all archived items that should be deleted
     // (If authenticated user) Only items belonging to the authenticated user
     const itemsToDelete = await db
       .select()
       .from(UserInboxItems)
-      .where(and(...conditions))
+      .where(and(...deleteConditions))
       .all();
 
     let deletedCount = 0;
@@ -70,6 +118,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       success: true,
       message: `Auto-deleted ${deletedCount} archived item(s)`,
       deletedCount,
+      backfilledCount: backfilledCount > 0 ? backfilledCount : undefined,
       errors: errors.length > 0 ? errors : undefined,
     }), {
       status: 200,
