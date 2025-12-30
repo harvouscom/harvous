@@ -75,16 +75,13 @@ function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scriptur
 }
 
 // Helper function to sort notes by time (newest first)
-// Uses lastVisited, updatedAt, or createdAt in that order
+// Uses updatedAt or createdAt (NOT lastVisited) to avoid showing notes as recently visited
+// when only the thread was visited. lastVisited should only be used for display purposes
+// or sorting across all threads (like in a "recent notes" view).
 function sortNotesByTime(notes: Note[]): Note[] {
   return [...notes].sort((a, b) => {
-    // Get sort time for each note, preferring lastVisited, then updatedAt, then createdAt
+    // Get sort time for each note, using updatedAt or createdAt (not lastVisited)
     const getSortTime = (note: Note): Date | null => {
-      // Check if note has lastVisited (may not be in interface but exists in API response)
-      const lastVisited = (note as any).lastVisited;
-      if (lastVisited) {
-        return lastVisited instanceof Date ? lastVisited : new Date(lastVisited);
-      }
       if (note.updatedAt) {
         return note.updatedAt instanceof Date ? note.updatedAt : new Date(note.updatedAt);
       }
