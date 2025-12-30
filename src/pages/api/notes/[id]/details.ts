@@ -299,6 +299,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
         addedBy: note.addedBy || 'user',
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
+        lastVisited: note.lastVisited,
         version: version,
         resourceTitle: resourceTitle,
         resourceDescription: resourceDescription,

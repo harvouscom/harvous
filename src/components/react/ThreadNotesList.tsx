@@ -31,6 +31,7 @@ interface Note {
   noteType?: 'default' | 'scripture' | 'resource';
   updatedAt?: Date;
   createdAt?: Date;
+  lastVisited?: Date;
   // Resource metadata (for resource note type)
   resourceTitle?: string | null;
   resourceDescription?: string | null;
@@ -75,15 +76,14 @@ function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scriptur
 }
 
 // Helper function to sort notes by time (newest first)
-// Uses updatedAt or createdAt (NOT lastVisited) to avoid showing notes as recently visited
-// when only the thread was visited. lastVisited should only be used for display purposes
-// or sorting across all threads (like in a "recent notes" view).
+// Matches server-side sorting: uses lastVisited || createdAt
+// Server is the source of truth for sorting to ensure consistency and proper pagination
 function sortNotesByTime(notes: Note[]): Note[] {
   return [...notes].sort((a, b) => {
-    // Get sort time for each note, using updatedAt or createdAt (not lastVisited)
+    // Get sort time for each note, using lastVisited or createdAt (matching server)
     const getSortTime = (note: Note): Date | null => {
-      if (note.updatedAt) {
-        return note.updatedAt instanceof Date ? note.updatedAt : new Date(note.updatedAt);
+      if (note.lastVisited) {
+        return note.lastVisited instanceof Date ? note.lastVisited : new Date(note.lastVisited);
       }
       if (note.createdAt) {
         return note.createdAt instanceof Date ? note.createdAt : new Date(note.createdAt);
@@ -235,6 +235,7 @@ export default function ThreadNotesList({
               noteType: noteData.noteType,
               updatedAt: noteData.updatedAt ? new Date(noteData.updatedAt) : undefined,
               createdAt: noteData.createdAt ? new Date(noteData.createdAt) : undefined,
+              lastVisited: noteData.lastVisited ? new Date(noteData.lastVisited) : undefined,
               resourceTitle: noteData.resourceTitle || null,
               resourceDescription: noteData.resourceDescription || null,
               resourceImage: noteData.resourceImage || null,
