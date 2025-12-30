@@ -167,16 +167,38 @@ try {
     // Get note count for threads from the batch-fetched map
     const noteCount = item.contentType === 'thread' ? (noteCountsMap.get(item.id) || 0) : 0;
     
-    // Format timestamp showing when item was made available to user
-    // Use createdAt from UserInboxItems (when item appeared in user's inbox)
+    // Calculate days until deletion (30 days after archiving)
+    // Use archivedAt if available, otherwise fall back to createdAt with 44-day threshold
     let displayTimestamp: string | undefined = undefined;
-    if (item.createdAt) {
-      try {
-        displayTimestamp = getRelativeTime(new Date(item.createdAt));
-      } catch (error) {
-        console.error('Error formatting archived item timestamp:', error, 'item.createdAt:', item.createdAt);
-        displayTimestamp = undefined;
+    try {
+      const now = new Date();
+      let daysUntilDeletion: number | undefined = undefined;
+      
+      if (item.archivedAt) {
+        // Item has archivedAt timestamp: calculate 30 days from archivedAt
+        const archivedDate = new Date(item.archivedAt);
+        const daysSinceArchived = Math.floor((now.getTime() - archivedDate.getTime()) / (1000 * 60 * 60 * 24));
+        daysUntilDeletion = 30 - daysSinceArchived;
+      } else if (item.createdAt) {
+        // Item missing archivedAt: use createdAt with 44-day threshold (14 days inbox + 30 days archived)
+        const createdDate = new Date(item.createdAt);
+        const daysSinceCreated = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+        daysUntilDeletion = 44 - daysSinceCreated;
       }
+      
+      if (daysUntilDeletion !== undefined) {
+        if (daysUntilDeletion <= 0) {
+          // Item should have been deleted already
+          displayTimestamp = "0 days till deleted";
+        } else if (daysUntilDeletion === 1) {
+          displayTimestamp = "1 day till deleted";
+        } else {
+          displayTimestamp = `${daysUntilDeletion} days till deleted`;
+        }
+      }
+    } catch (error) {
+      console.error('Error calculating days until deletion:', error, 'item:', item);
+      displayTimestamp = undefined;
     }
     
     return {
