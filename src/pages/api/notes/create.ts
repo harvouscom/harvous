@@ -10,6 +10,7 @@ import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { getNextUntitledNoteName } from '@/utils/untitled-naming';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { debug } from '@/utils/logger';
+import { canCreateNote } from '@/utils/subscription';
 
 // Title character limits
 const TITLE_HARD_LIMIT = 50;  // Maximum allowed
@@ -28,6 +29,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Authentication required' }), {
         status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+        // Check note limit before allowing creation
+        const auth = locals.auth();
+        const noteLimitCheck = await canCreateNote(userId, auth);
+    if (!noteLimitCheck.allowed) {
+      return new Response(JSON.stringify({
+        error: noteLimitCheck.reason || 'Note limit reached',
+        code: 'NOTE_LIMIT_EXCEEDED',
+        currentCount: noteLimitCheck.currentCount,
+        limit: noteLimitCheck.limit,
+        upgradeUrl: noteLimitCheck.upgradeUrl
+      }), {
+        status: 403,
         headers: { 'Content-Type': 'application/json' }
       });
     }

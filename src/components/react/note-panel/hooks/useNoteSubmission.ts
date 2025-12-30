@@ -795,7 +795,25 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
       } else {
         const error = await response.json();
-        showToast(error.error || 'Error creating note', 'error');
+        
+        // Handle note limit exceeded error
+        if (error.code === 'NOTE_LIMIT_EXCEEDED') {
+          const currentCount = error.currentCount || 1000;
+          const limit = error.limit || 1000;
+          
+          // Show error toast
+          showToast(
+            `You've reached your ${limit.toLocaleString()} note limit.`,
+            'error'
+          );
+          
+          // Redirect to upgrade page
+          const upgradeUrl = error.upgradeUrl || '/upgrade';
+          window.location.href = upgradeUrl;
+        } else {
+          showToast(error.error || 'Error creating note', 'error');
+        }
+        
         setIsSubmitting(false);
       }
     } catch (error: any) {
@@ -941,7 +959,24 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
       } else {
         const error = await response.json();
-        showToast(error.error || 'Error creating note', 'error');
+        
+        // Handle note limit exceeded error
+        if (error.code === 'NOTE_LIMIT_EXCEEDED') {
+          const currentCount = error.currentCount || 1000;
+          const limit = error.limit || 1000;
+          
+          // Show error toast
+          showToast(
+            `You've reached your ${limit.toLocaleString()} note limit.`,
+            'error'
+          );
+          
+          // Redirect to upgrade page
+          const upgradeUrl = error.upgradeUrl || '/upgrade';
+          window.location.href = upgradeUrl;
+        } else {
+          showToast(error.error || 'Error creating note', 'error');
+        }
       }
     } catch (error: any) {
       // Error saving note - show error toast
