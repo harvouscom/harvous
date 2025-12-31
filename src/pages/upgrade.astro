@@ -46,7 +46,8 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
       <div class="auth-page__form-section">
         <div class="auth-page__form-wrapper">
           <!-- Server-rendered PricingTable for Clerk to hook into -->
-          <div id="hidden-pricing-table" style="display: none;">
+          <!-- Using visibility: hidden instead of display: none so Clerk can initialize in production -->
+          <div id="hidden-pricing-table" style="visibility: hidden; position: absolute; top: -9999px; left: -9999px; width: 400px; height: 600px; overflow: hidden; pointer-events: none;">
             <PricingTable
               appearance={{
                 elements: {
