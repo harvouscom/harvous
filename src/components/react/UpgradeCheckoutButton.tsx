@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckoutButton } from '@clerk/clerk-react/experimental';
 import { ClerkProvider, SignedIn, useAuth } from '@clerk/clerk-react';
+import { waitForClerk, isClerkLoaded } from '@/utils/clerk-init';
 
 interface UpgradeCheckoutButtonProps {
   className?: string;
@@ -21,14 +22,42 @@ function UpgradeCheckoutButtonInner({
   const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
   const { isLoaded, isSignedIn } = useAuth();
   const [isClient, setIsClient] = useState(false);
+  const [clerkInitError, setClerkInitError] = useState<Error | null>(null);
+  const [isClerkReady, setIsClerkReady] = useState(false);
 
   // Ensure we're on the client before rendering Clerk components
   useEffect(() => {
     setIsClient(true);
   }, []);
 
+  // Wait for Clerk to be fully initialized
+  useEffect(() => {
+    if (!isClient) return;
+
+    const initClerk = async () => {
+      try {
+        // If Clerk is already loaded, set ready immediately
+        if (isClerkLoaded()) {
+          setIsClerkReady(true);
+          return;
+        }
+
+        // Otherwise wait for Clerk to load
+        await waitForClerk(15000);
+        setIsClerkReady(true);
+      } catch (error) {
+        console.error('[UpgradeCheckoutButton] Clerk initialization error:', error);
+        setClerkInitError(error as Error);
+        // Still allow component to render, but show error state
+        setIsClerkReady(false);
+      }
+    };
+
+    initClerk();
+  }, [isClient]);
+
   // Show loading state while Clerk initializes
-  if (!isClient || !isLoaded) {
+  if (!isClient || !isLoaded || !isClerkReady) {
     return (
       <div className={className}>
         {/* Button group skeleton - matches the actual layout */}
@@ -106,6 +135,28 @@ function UpgradeCheckoutButtonInner({
           }}
         >
           <span className="btn-cta__content">Loading...</span>
+          <div className="btn-cta__shadow" />
+        </button>
+      </div>
+    );
+  }
+
+  // Show error state if Clerk failed to initialize
+  if (clerkInitError) {
+    return (
+      <div className={className}>
+        <button
+          type="button"
+          disabled
+          className="btn-cta flex-1 group"
+          style={{ 
+            width: '100%', 
+            marginTop: '1.5rem',
+            opacity: 0.5,
+            cursor: 'not-allowed'
+          }}
+        >
+          <span className="btn-cta__content">Billing temporarily unavailable</span>
           <div className="btn-cta__shadow" />
         </button>
       </div>
@@ -401,8 +452,34 @@ export default function UpgradeCheckoutButton({
     );
   }
 
+  // Get domain and URLs for ClerkProvider configuration
+  const getClerkConfig = () => {
+    if (typeof window === 'undefined') {
+      return {
+        publishableKey,
+        domain: undefined,
+        afterSignInUrl: undefined,
+        afterSignUpUrl: undefined
+      };
+    }
+
+    return {
+      publishableKey,
+      domain: window.location.hostname,
+      afterSignInUrl: window.location.origin,
+      afterSignUpUrl: window.location.origin
+    };
+  };
+
+  const clerkConfig = getClerkConfig();
+
   return (
-    <ClerkProvider publishableKey={publishableKey}>
+    <ClerkProvider 
+      publishableKey={clerkConfig.publishableKey!}
+      domain={clerkConfig.domain}
+      afterSignInUrl={clerkConfig.afterSignInUrl}
+      afterSignUpUrl={clerkConfig.afterSignUpUrl}
+    >
       <SignedIn>
         <UpgradeCheckoutButtonInner className={className} unlimitedPlanId={unlimitedPlanId} />
       </SignedIn>
