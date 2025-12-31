@@ -60,7 +60,6 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
 </EmptyLayout>
 
 <!-- Show upgrade content once page loads -->
-<!-- Note: PricingTable stays visible (but off-screen) permanently so Clerk can initialize buttons -->
 <script is:inline>
   (function() {
     if (typeof window === 'undefined') return;
@@ -70,102 +69,6 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
     if (content) {
       content.classList.remove('auth-page__hidden');
     }
-    
-    // Ensure PricingTable mounts by waiting for Clerk to load
-    function ensurePricingTableMounts() {
-      var hiddenTable = document.getElementById('hidden-pricing-table');
-      if (!hiddenTable) {
-        setTimeout(ensurePricingTableMounts, 100);
-        return;
-      }
-      
-      // Better detection: Check multiple indicators that Clerk is ready
-      var isClerkReady = false;
-      
-      // Check 1: Clerk's component props map exists
-      if (window._astro_clerk_component_props) {
-        isClerkReady = true;
-      }
-      
-      // Check 2: Clerk's frontend API is loaded
-      if (window.__clerk_frontend_api) {
-        isClerkReady = true;
-      }
-      
-      // Check 3: Clerk global object exists
-      if (window.Clerk) {
-        isClerkReady = true;
-      }
-      
-      // Check 4: Clerk scripts are in the DOM
-      var clerkScripts = document.querySelectorAll('script[src*="clerk"], script[src*="clerkjs"]');
-      if (clerkScripts.length > 0) {
-        isClerkReady = true;
-      }
-      
-      if (isClerkReady) {
-        // Clerk appears to be ready, try to mount components
-        if (typeof window.mountAllClerkAstroJSComponents === 'function') {
-          window.mountAllClerkAstroJSComponents();
-          
-          // Check if PricingTable has mounted (has buttons) after a delay
-          setTimeout(function() {
-            var hasButtons = hiddenTable.querySelector('button') !== null;
-            if (!hasButtons && import.meta.env.PROD) {
-              console.warn('[Clerk] PricingTable: mountAllClerkAstroJSComponents called but buttons not found');
-              console.warn('[Clerk] Hidden table HTML length:', hiddenTable.innerHTML.length);
-              console.warn('[Clerk] Clerk scripts in DOM:', document.querySelectorAll('script[src*="clerk"]').length);
-            }
-          }, 1000);
-        } else if (import.meta.env.PROD) {
-          console.warn('[Clerk] PricingTable: Clerk ready but mountAllClerkAstroJSComponents function not found');
-        }
-      } else {
-        // Clerk not loaded yet, wait and retry (max 15 seconds)
-        var attempts = 0;
-        var maxAttempts = 150; // 15 seconds
-        var checkInterval = setInterval(function() {
-          attempts++;
-          
-          // Re-check all indicators
-          var ready = window._astro_clerk_component_props || 
-                     window.__clerk_frontend_api || 
-                     window.Clerk ||
-                     document.querySelectorAll('script[src*="clerk"]').length > 0;
-          
-          if (ready) {
-            clearInterval(checkInterval);
-            ensurePricingTableMounts();
-          } else if (attempts >= maxAttempts) {
-            clearInterval(checkInterval);
-            console.warn('[Clerk] PricingTable: Clerk did not load within 15 seconds');
-            console.warn('[Clerk] Checking for Clerk scripts...');
-            var scripts = document.querySelectorAll('script[src*="clerk"], script[src*="clerkjs"]');
-            console.warn('[Clerk] Clerk scripts found:', scripts.length);
-            if (scripts.length === 0) {
-              console.error('[Clerk] No Clerk scripts in DOM - @clerk/astro may not be injecting scripts in production');
-            }
-          }
-        }, 100);
-      }
-    }
-    
-    // Start checking after DOM is ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', ensurePricingTableMounts);
-    } else {
-      setTimeout(ensurePricingTableMounts, 100);
-    }
-    
-    // Also listen for Clerk's load event
-    window.addEventListener('clerk:loaded', function() {
-      if (typeof window.mountAllClerkAstroJSComponents === 'function') {
-        window.mountAllClerkAstroJSComponents();
-        if (import.meta.env.PROD) {
-          console.log('[Clerk] PricingTable: clerk:loaded event fired, mounted components');
-        }
-      }
-    });
   })();
 </script>
 

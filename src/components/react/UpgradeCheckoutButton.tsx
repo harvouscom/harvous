@@ -14,7 +14,8 @@ interface UpgradeCheckoutButtonProps {
  */
 export default function UpgradeCheckoutButton({ className = '' }: UpgradeCheckoutButtonProps) {
   const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
-  const publishableKey = typeof window !== 'undefined' ? import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY : null;
+  // In Astro, import.meta.env is available during SSR and client-side
+  const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
   // If no publishable key, render disabled button
   if (!publishableKey) {
