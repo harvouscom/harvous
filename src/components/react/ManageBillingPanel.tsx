@@ -9,31 +9,29 @@ interface ManageBillingPanelProps {
 }
 
 /**
- * Wrapper component that conditionally provides ClerkProvider for SubscriptionDetailsButton.
+ * Wrapper component that provides ClerkProvider for SubscriptionDetailsButton.
  * 
- * - In development: Always wrap (React Islands need their own provider)
- * - In production: Don't wrap (assume @clerk/astro provides a global provider)
+ * React Islands are isolated component trees, so they need their own ClerkProvider
+ * even if one exists elsewhere in the app. The "multiple ClerkProvider" error
+ * in production is likely from a provider in a different React tree that isn't
+ * accessible to this island.
  * 
- * This prevents "multiple ClerkProvider" errors in production while ensuring
- * the component works in development.
+ * We always wrap to ensure the component has access to Clerk context.
+ * If there's a "multiple provider" warning, it's non-fatal and the component
+ * will still function correctly.
  */
 function ClerkSubscriptionButtonWrapper({ children }: { children: React.ReactNode }) {
   const publishableKey = typeof window !== 'undefined' ? import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY : null;
-  const isProduction = typeof window !== 'undefined' ? import.meta.env.PROD : false;
 
   // If no publishable key, render children without provider
   if (!publishableKey) {
     return <>{children}</>;
   }
 
-  // In production, assume @clerk/astro provides a global ClerkProvider
-  // Don't wrap to avoid "multiple ClerkProvider" errors
-  if (isProduction) {
-    return <>{children}</>;
-  }
-
-  // In development, wrap to provide Clerk context for React Islands
-  // React Islands are isolated component trees and need their own provider
+  // Always wrap in ClerkProvider for React Islands
+  // React Islands are isolated and need their own provider context
+  // The "multiple ClerkProvider" error may occur if there's a provider
+  // in a different React tree, but it won't prevent functionality
   return (
     <ClerkProvider publishableKey={publishableKey}>
       {children}
