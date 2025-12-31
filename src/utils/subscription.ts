@@ -3,7 +3,8 @@ import type { Auth } from '@clerk/astro/server';
 
 const FREE_TIER_LIMIT = 1000;
 // Clerk Billing plan ID for unlimited notes
-export const UNLIMITED_PLAN_ID = 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw';
+// Use environment variable for production, fallback to dev plan ID for development
+export const UNLIMITED_PLAN_ID = import.meta.env.CLERK_UNLIMITED_PLAN_ID || 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw';
 
 /**
  * Get user's note count from UserMetadata.highestSimpleNoteId
