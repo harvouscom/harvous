@@ -4,15 +4,77 @@ interface UpgradeButtonGroupProps {
   className?: string;
 }
 
-export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGroupProps) {
-  const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
+/**
+ * Check if Clerk is initialized and ready
+ * Uses the same detection method as SafeSubscriptionDetailsButton
+ */
+const isClerkReady = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  
+  // Check for Clerk's frontend API in window (set when ClerkProvider initializes)
+  if ((window as any).__clerk_frontend_api) {
+    return true;
+  }
+  
+  return false;
+};
 
-  const handleSubscribe = () => {
-    const hiddenTable = document.getElementById('hidden-pricing-table');
-    if (!hiddenTable) {
-      console.error('Hidden pricing table not found');
+/**
+ * Wait for Clerk to be ready before proceeding
+ * Returns a promise that resolves when Clerk is ready or times out
+ */
+const waitForClerk = (maxWaitMs: number = 3000): Promise<boolean> => {
+  return new Promise((resolve) => {
+    // Check immediately
+    if (isClerkReady()) {
+      resolve(true);
       return;
     }
+    
+    // Poll for Clerk to become available
+    let attempts = 0;
+    const maxAttempts = Math.floor(maxWaitMs / 100); // Check every 100ms
+    
+    const checkInterval = setInterval(() => {
+      attempts++;
+      if (isClerkReady()) {
+        clearInterval(checkInterval);
+        resolve(true);
+      } else if (attempts >= maxAttempts) {
+        // Timeout - resolve anyway to prevent infinite waiting
+        clearInterval(checkInterval);
+        resolve(false);
+      }
+    }, 100);
+  });
+};
+
+export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGroupProps) {
+  const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleSubscribe = async () => {
+    // Prevent multiple clicks while processing
+    if (isProcessing) {
+      return;
+    }
+    
+    setIsProcessing(true);
+    
+    try {
+      // Wait for Clerk to be ready before proceeding
+      const clerkReady = await waitForClerk(3000);
+      
+      if (!clerkReady) {
+        console.warn('Clerk not ready after waiting, proceeding anyway - PricingTable may not be initialized');
+      }
+      
+      const hiddenTable = document.getElementById('hidden-pricing-table');
+      if (!hiddenTable) {
+        console.error('Hidden pricing table not found');
+        setIsProcessing(false);
+        return;
+      }
 
     const shouldBeAnnual = selectedInterval === 'year';
 
@@ -127,17 +189,19 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
     };
 
     const clickSubscribeButton = (retryCount = 0) => {
-      // Increase retry limit for production (Clerk may take longer to initialize)
-      const maxRetries = import.meta.env.PROD ? 50 : 20;
+      // Reduce retry limit since we now wait for Clerk first
+      // If Clerk is ready, the button should be available soon
+      const maxRetries = 30;
       
       if (retryCount > maxRetries) {
-        console.error(`Could not find subscribe button after ${maxRetries} retries`);
-        // Log debug info in production
-        if (import.meta.env.PROD) {
+        // Only log error in development, reduce noise in production
+        if (import.meta.env.DEV) {
+          console.error(`Could not find subscribe button after ${maxRetries} retries`);
           console.error('Hidden table element:', hiddenTable);
           console.error('Hidden table HTML:', hiddenTable?.innerHTML?.substring(0, 500));
           console.error('All buttons in hidden table:', hiddenTable?.querySelectorAll('button'));
         }
+        setIsProcessing(false);
         return;
       }
 
@@ -173,15 +237,19 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
 
       if (subscribeButton) {
         subscribeButton.click();
+        setIsProcessing(false);
       } else {
-        // Retry if button not found yet - use longer delay in production
-        const retryDelay = import.meta.env.PROD ? 200 : 100;
-        setTimeout(() => clickSubscribeButton(retryCount + 1), retryDelay);
+        // Retry if button not found yet
+        setTimeout(() => clickSubscribeButton(retryCount + 1), 100);
       }
     };
 
     // Start the process
     findAndSetInterval();
+    } catch (error) {
+      console.error('Error in handleSubscribe:', error);
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -287,13 +355,19 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
       <button
         type="button"
         onClick={handleSubscribe}
+        disabled={isProcessing}
         data-outer-shadow
         className="btn-cta flex-1 group"
-        style={{ width: '100%', marginTop: '1.5rem' }}
+        style={{ 
+          width: '100%', 
+          marginTop: '1.5rem',
+          opacity: isProcessing ? 0.7 : 1,
+          cursor: isProcessing ? 'wait' : 'pointer'
+        }}
         tabIndex={3}
       >
         <span className="btn-cta__content">
-          Continue & Pay
+          {isProcessing ? 'Loading...' : 'Continue & Pay'}
         </span>
         <div className="btn-cta__shadow" />
       </button>
