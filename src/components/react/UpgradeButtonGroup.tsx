@@ -393,6 +393,24 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
         </span>
         <div className="btn-cta__shadow" />
       </button>
+
+      {/* Go back to My Harvous button - secondary variant */}
+      <a
+        href="/"
+        className="btn-cta btn--secondary flex-1 group"
+        style={{ 
+          width: '100%', 
+          marginTop: '1rem',
+          display: 'block',
+          textDecoration: 'none'
+        }}
+        tabIndex={4}
+      >
+        <span className="btn-cta__content">
+          Go back to My Harvous
+        </span>
+        <div className="btn-cta__shadow" />
+      </a>
     </div>
   );
 }
