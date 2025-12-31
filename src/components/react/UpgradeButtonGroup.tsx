@@ -5,39 +5,58 @@ interface UpgradeButtonGroupProps {
 }
 
 /**
- * Check if Clerk is initialized and ready
- * Uses the same detection method as SafeSubscriptionDetailsButton
+ * Check if PricingTable has initialized by looking for buttons in the hidden table
+ * This is more reliable than checking for Clerk's global API since PricingTable
+ * is an Astro component that may initialize independently
  */
-const isClerkReady = (): boolean => {
-  if (typeof window === 'undefined') return false;
+const isPricingTableReady = (hiddenTable: HTMLElement | null): boolean => {
+  if (!hiddenTable) return false;
   
-  // Check for Clerk's frontend API in window (set when ClerkProvider initializes)
-  if ((window as any).__clerk_frontend_api) {
-    return true;
+  // Check if any buttons exist in the pricing table
+  // Try multiple selectors to catch different button types
+  const buttonSelectors = [
+    '.cl-pricingTableCardFooterButton',
+    'button[data-localization-key="billing.subscribe"]',
+    'button[data-localization-key*="subscribe"]',
+    'button.cl-button[data-variant="solid"]',
+    'button[class*="pricingTable"][class*="Button"]',
+    '.cl-pricingTable button',
+    '#hidden-pricing-table button',
+    'button[data-variant="solid"]'
+  ];
+  
+  for (const selector of buttonSelectors) {
+    const button = hiddenTable.querySelector(selector);
+    if (button) {
+      return true;
+    }
   }
   
   return false;
 };
 
 /**
- * Wait for Clerk to be ready before proceeding
- * Returns a promise that resolves when Clerk is ready or times out
+ * Wait for PricingTable to initialize by checking for buttons in the DOM
+ * This is more reliable than waiting for Clerk's global API
  */
-const waitForClerk = (maxWaitMs: number = 3000): Promise<boolean> => {
+const waitForPricingTable = (maxWaitMs: number = 5000): Promise<boolean> => {
   return new Promise((resolve) => {
+    const hiddenTable = document.getElementById('hidden-pricing-table');
+    
     // Check immediately
-    if (isClerkReady()) {
+    if (isPricingTableReady(hiddenTable)) {
       resolve(true);
       return;
     }
     
-    // Poll for Clerk to become available
+    // Poll for buttons to appear
     let attempts = 0;
     const maxAttempts = Math.floor(maxWaitMs / 100); // Check every 100ms
     
     const checkInterval = setInterval(() => {
       attempts++;
-      if (isClerkReady()) {
+      const table = document.getElementById('hidden-pricing-table');
+      if (isPricingTableReady(table)) {
         clearInterval(checkInterval);
         resolve(true);
       } else if (attempts >= maxAttempts) {
@@ -62,16 +81,13 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
     setIsProcessing(true);
     
     try {
-      // Wait for Clerk to be ready before proceeding
-      const clerkReady = await waitForClerk(3000);
+      // Wait for PricingTable to initialize by checking for buttons in the DOM
+      // This is more reliable than waiting for Clerk's global API
+      const pricingTableReady = await waitForPricingTable(5000);
       
-      if (!clerkReady) {
-        console.warn('Clerk not ready after waiting, proceeding anyway - PricingTable may not be initialized');
+      if (!pricingTableReady) {
+        console.warn('PricingTable buttons not found after waiting, proceeding anyway');
       }
-      
-      // Give PricingTable a moment to initialize its buttons after Clerk is ready
-      // Even though Clerk is ready, the PricingTable component needs time to render
-      await new Promise(resolve => setTimeout(resolve, 200));
       
       const hiddenTable = document.getElementById('hidden-pricing-table');
       if (!hiddenTable) {
