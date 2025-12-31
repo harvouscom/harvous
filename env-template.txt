@@ -1,7 +1,4 @@
 PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_bXV0dWFsLXNwaWRlci0xOC5jbGVyay5hY2NvdW50cy5kZXYk
-CLERK_SECRET_KEY=sk_test_ETTyur7PugI1Lji1xyAia9JrFTTIcwlcEE6Hl7mKc1
-# Clerk Billing plan ID for unlimited notes (dev: cplan_37aJweoipC2wY2Pa94o7zMdoIyw, prod: cplan_37aHkwe15Sqd6V9DLZXyHtVJPCQ)
-CLERK_UNLIMITED_PLAN_ID=
 # ASTRO_DB_REMOTE_URL=""
 # ASTRO_DB_APP_TOKEN=""
 # Webflow CMS API token for syncing inbox items
