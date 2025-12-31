@@ -38,8 +38,9 @@ const isPricingTableReady = (hiddenTable: HTMLElement | null): boolean => {
 /**
  * Wait for PricingTable to initialize by checking for buttons in the DOM
  * This is more reliable than waiting for Clerk's global API
+ * Increased wait time to 10 seconds to give Clerk more time in production
  */
-const waitForPricingTable = (maxWaitMs: number = 5000): Promise<boolean> => {
+const waitForPricingTable = (maxWaitMs: number = 10000): Promise<boolean> => {
   return new Promise((resolve) => {
     const hiddenTable = document.getElementById('hidden-pricing-table');
     
@@ -60,7 +61,10 @@ const waitForPricingTable = (maxWaitMs: number = 5000): Promise<boolean> => {
         clearInterval(checkInterval);
         resolve(true);
       } else if (attempts >= maxAttempts) {
-        // Timeout - resolve anyway to prevent infinite waiting
+        // Timeout - log warning and resolve anyway to prevent infinite waiting
+        if (import.meta.env.PROD) {
+          console.warn('PricingTable buttons not found after waiting', maxWaitMs, 'ms, proceeding anyway');
+        }
         clearInterval(checkInterval);
         resolve(false);
       }
@@ -83,10 +87,17 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
     try {
       // Wait for PricingTable to initialize by checking for buttons in the DOM
       // This is more reliable than waiting for Clerk's global API
-      const pricingTableReady = await waitForPricingTable(5000);
+      // Increased to 10 seconds to give Clerk more time in production
+      const pricingTableReady = await waitForPricingTable(10000);
       
       if (!pricingTableReady) {
-        console.warn('PricingTable buttons not found after waiting, proceeding anyway');
+        // Log warning in both dev and prod for debugging
+        console.warn('PricingTable buttons not found after waiting 10 seconds, proceeding anyway');
+        if (import.meta.env.PROD) {
+          const hiddenTable = document.getElementById('hidden-pricing-table');
+          console.warn('Hidden table exists:', !!hiddenTable);
+          console.warn('Hidden table HTML length:', hiddenTable?.innerHTML?.length || 0);
+        }
       }
       
       const hiddenTable = document.getElementById('hidden-pricing-table');
@@ -214,12 +225,13 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
       const maxRetries = 30;
       
       if (retryCount > maxRetries) {
-        // Only log error in development, reduce noise in production
-        if (import.meta.env.DEV) {
-          console.error(`Could not find subscribe button after ${maxRetries} retries`);
+        // Log error in both dev and prod for debugging
+        console.error(`Could not find subscribe button after ${maxRetries} retries`);
+        if (import.meta.env.PROD) {
           console.error('Hidden table element:', hiddenTable);
-          console.error('Hidden table HTML:', hiddenTable?.innerHTML?.substring(0, 500));
+          console.error('Hidden table HTML (first 1000 chars):', hiddenTable?.innerHTML?.substring(0, 1000));
           console.error('All buttons in hidden table:', hiddenTable?.querySelectorAll('button'));
+          console.error('All elements in hidden table:', hiddenTable?.querySelectorAll('*').length);
         }
         setIsProcessing(false);
         return;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { SubscriptionDetailsButton } from '@clerk/clerk-react/experimental';
-import { ClerkProvider } from '@clerk/clerk-react';
+import { ClerkProvider, SignedIn } from '@clerk/clerk-react';
 
 interface SafeSubscriptionDetailsButtonProps {
   children: React.ReactNode;
@@ -10,6 +10,7 @@ interface SafeSubscriptionDetailsButtonProps {
  * Wrapper component that safely renders SubscriptionDetailsButton
  * with ClerkProvider context. React Islands are isolated, so each
  * needs its own ClerkProvider to access Clerk context.
+ * Wrapped in SignedIn to ensure user is authenticated before drawer opens.
  */
 export default function SafeSubscriptionDetailsButton({ 
   children 
@@ -30,10 +31,13 @@ export default function SafeSubscriptionDetailsButton({
     );
   }
 
-  // Wrap SubscriptionDetailsButton in ClerkProvider for React Island isolation
+  // Wrap SubscriptionDetailsButton in ClerkProvider and SignedIn for React Island isolation
+  // SignedIn ensures user is authenticated before drawer opens, preventing empty drawer
   return (
     <ClerkProvider publishableKey={publishableKey}>
-      <SubscriptionDetailsButton>{children}</SubscriptionDetailsButton>
+      <SignedIn>
+        <SubscriptionDetailsButton>{children}</SubscriptionDetailsButton>
+      </SignedIn>
     </ClerkProvider>
   );
 }

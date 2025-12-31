@@ -46,7 +46,8 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
       <div class="auth-page__form-section">
         <div class="auth-page__form-wrapper">
           <!-- Server-rendered PricingTable for Clerk to hook into -->
-          <!-- Initially visible (but off-screen) to allow Clerk to initialize, then hidden after initialization -->
+          <!-- Keep visible (but off-screen) permanently - Clerk needs it visible to initialize buttons -->
+          <!-- Using position: absolute with off-screen positioning, NOT visibility: hidden -->
           <div id="hidden-pricing-table" style="position: absolute; top: -9999px; left: -9999px; width: 400px; height: 600px; overflow: hidden; pointer-events: none; z-index: -1;">
             <PricingTable
               appearance={{
@@ -87,7 +88,8 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
   </div>
 </EmptyLayout>
 
-<!-- Show upgrade content once page loads and hide PricingTable after initialization -->
+<!-- Show upgrade content once page loads -->
+<!-- Note: PricingTable stays visible (but off-screen) permanently so Clerk can initialize buttons -->
 <script is:inline>
   (function() {
     if (typeof window === 'undefined') return;
@@ -98,15 +100,8 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
       content.classList.remove('auth-page__hidden');
     }
     
-    // Hide the PricingTable after it has time to initialize
-    // Clerk needs the table to be visible initially to render buttons
-    // We wait a bit, then hide it with visibility: hidden
-    setTimeout(function() {
-      var hiddenTable = document.getElementById('hidden-pricing-table');
-      if (hiddenTable) {
-        hiddenTable.style.visibility = 'hidden';
-      }
-    }, 2000); // Give Clerk 2 seconds to initialize the PricingTable
+    // PricingTable remains visible (just off-screen) so Clerk can initialize buttons
+    // We don't hide it with visibility: hidden as that prevents Clerk from initializing
   })();
 </script>
 
