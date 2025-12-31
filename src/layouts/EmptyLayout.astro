@@ -44,9 +44,20 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
     
     <!-- Clerk Client-Side Initialization Script -->
     <!-- Ensure Clerk's JavaScript loads and mounts Astro components in production -->
+    <!-- Also verify @clerk/astro's scripts are being injected -->
     <script is:inline>
       (function() {
         if (typeof window === 'undefined') return;
+        
+        // Debug: Check if @clerk/astro scripts are in the DOM
+        function checkClerkScripts() {
+          var clerkScripts = document.querySelectorAll('script[src*="clerk"], script[src*="clerkjs"]');
+          if (clerkScripts.length === 0 && import.meta.env.PROD) {
+            console.warn('[Clerk] No Clerk scripts found in DOM - @clerk/astro may not be injecting scripts');
+          } else if (import.meta.env.PROD) {
+            console.log('[Clerk] Found', clerkScripts.length, 'Clerk script(s) in DOM');
+          }
+        }
         
         // Wait for Clerk to load and ensure Astro components mount
         function ensureClerkComponentsMount() {
@@ -55,16 +66,36 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
             // Clerk's component props map exists, try to trigger mounting
             if (typeof window.mountAllClerkAstroJSComponents === 'function') {
               window.mountAllClerkAstroJSComponents();
+              if (import.meta.env.PROD) {
+                console.log('[Clerk] Successfully mounted Astro components');
+              }
             } else if (window.__clerk_frontend_api) {
               // Clerk is loaded but mount function might not be available yet
               // Wait a bit and try again
               setTimeout(ensureClerkComponentsMount, 100);
             }
           } else {
-            // Clerk not loaded yet, wait and retry
-            setTimeout(ensureClerkComponentsMount, 100);
+            // Clerk not loaded yet, wait and retry (max 15 seconds)
+            var attempts = 0;
+            var maxAttempts = 150;
+            var checkInterval = setInterval(function() {
+              attempts++;
+              if (window._astro_clerk_component_props || window.__clerk_frontend_api) {
+                clearInterval(checkInterval);
+                ensureClerkComponentsMount();
+              } else if (attempts >= maxAttempts) {
+                clearInterval(checkInterval);
+                if (import.meta.env.PROD) {
+                  console.error('[Clerk] Clerk did not load within 15 seconds - @clerk/astro scripts may not be loading');
+                  checkClerkScripts();
+                }
+              }
+            }, 100);
           }
         }
+        
+        // Check for Clerk scripts after a short delay
+        setTimeout(checkClerkScripts, 500);
         
         // Start checking after DOM is ready
         if (document.readyState === 'loading') {
@@ -78,6 +109,9 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
         window.addEventListener('clerk:loaded', function() {
           if (typeof window.mountAllClerkAstroJSComponents === 'function') {
             window.mountAllClerkAstroJSComponents();
+            if (import.meta.env.PROD) {
+              console.log('[Clerk] Clerk loaded event fired, mounted components');
+            }
           }
         });
       })();
