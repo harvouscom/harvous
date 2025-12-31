@@ -401,8 +401,10 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
         style={{ 
           width: '100%', 
           marginTop: '1rem',
-          display: 'block',
-          textDecoration: 'none'
+          display: 'flex',
+          textDecoration: 'none',
+          alignItems: 'center',
+          justifyContent: 'center'
         }}
         tabIndex={4}
       >

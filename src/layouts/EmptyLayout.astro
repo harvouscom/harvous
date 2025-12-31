@@ -7,7 +7,6 @@ import "@fontsource/reddit-mono/500.css";
 import "@fontsource/reddit-mono/600.css";
 import "sonner/dist/styles.css";
 import ToastProvider from "@/components/react/ToastProvider.tsx";
-import ClerkProviderWrapper from "@/components/react/ClerkProviderWrapper.tsx";
 import { ClientRouter } from "astro:transitions";
 
 interface Props {
@@ -46,10 +45,8 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
   <body
     class={`font-sans bg-[var(--color-light-paper)] min-h-screen ${classNames}`}
   >
-    <ClerkProviderWrapper client:load>
-      <ToastProvider client:load />
-      <slot />
-    </ClerkProviderWrapper>
+    <ToastProvider client:load />
+    <slot />
   </body>
 </html>
 
