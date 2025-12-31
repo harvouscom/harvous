@@ -1,6 +1,6 @@
 // @ts-ignore - React hooks are available, this is a linter cache issue
 import React, { useState, useEffect } from 'react';
-import UpgradeButtonGroup from './UpgradeButtonGroup';
+import UpgradeCheckoutButton from './UpgradeCheckoutButton';
 
 interface UpgradePageContentProps {
   initialHasUnlimited: boolean;
@@ -78,9 +78,8 @@ export default function UpgradePageContent({
             </p>
           </div>
 
-          {/* Custom button group that triggers the hidden PricingTable's subscribe button */}
-          {/* Note: PricingTable is rendered in upgrade.astro with id="hidden-pricing-table" */}
-          <UpgradeButtonGroup />
+          {/* Checkout button using Clerk's React CheckoutButton component */}
+          <UpgradeCheckoutButton />
         </div>
       )}
     </>

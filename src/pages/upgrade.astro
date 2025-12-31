@@ -1,8 +1,7 @@
 ---
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { getSubscriptionInfo } from "@/utils/subscription";
-import { PricingTable } from "@clerk/astro/components";
-import UpgradeButtonGroup from "@/components/react/UpgradeButtonGroup";
+import UpgradeCheckoutButton from "@/components/react/UpgradeCheckoutButton";
 import UpgradeSuccessHandler from "@/components/react/UpgradeSuccessHandler";
 import UpgradePageContent from "@/components/react/UpgradePageContent";
 
@@ -45,34 +44,6 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
       <!-- Bottom Row (Mobile) / Right Column (Desktop): Upgrade Form -->
       <div class="auth-page__form-section">
         <div class="auth-page__form-wrapper">
-          <!-- Server-rendered PricingTable for Clerk to hook into -->
-          <!-- Keep visible (but off-screen) permanently - Clerk needs it visible to initialize buttons -->
-          <!-- Using position: absolute with off-screen positioning, NOT visibility: hidden -->
-          <div id="hidden-pricing-table" style="position: absolute; top: -9999px; left: -9999px; width: 400px; height: 600px; overflow: hidden; pointer-events: none; z-index: -1;">
-            <PricingTable
-              appearance={{
-                elements: {
-                  rootBox: "clerk-form-root",
-                  card: {
-                    className: "clerk-form-card",
-                    style: {
-                      border: "none",
-                      borderWidth: "0",
-                      overflowX: "hidden"
-                    }
-                  },
-                  headerTitle: "clerk-form-header-title",
-                  headerSubtitle: "clerk-form-header-subtitle",
-                  buttonPrimary: "clerk-form-button-primary primary-button",
-                  button: "primary-button"
-                },
-                variables: {
-                  colorPrimary: "var(--color-bold-blue)"
-                }
-              }}
-            />
-          </div>
-
           <!-- Client-side component that updates dynamically -->
           <div class="clerk-form-card">
             <UpgradePageContent 
