@@ -51,6 +51,13 @@ export default function ManageBillingPanel({
         }
       }
 
+      // Ensure Clerk drawer has high z-index to appear above bottom sheet
+      // Only set z-index, don't change positioning to avoid breaking drawer
+      const drawerElements = document.querySelectorAll('[class*="cl-drawer"], [class*="cl-drawerContent"], [class*="cl-drawerBody"]');
+      drawerElements.forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.zIndex = '200';
+      });
     };
 
     // Watch for drawer opening using MutationObserver
@@ -308,6 +315,16 @@ export default function ManageBillingPanel({
 
         .cl-drawerFooter .cl-drawerConfirmationAction > h2 {
           margin-bottom: 12px !important;
+        }
+
+        /* Ensure Clerk drawer appears above bottom sheet */
+        [class*="cl-drawer"],
+        [class*="cl-drawerContent"],
+        [class*="cl-drawerBody"],
+        [class*="cl-internal"][class*="cl-drawer"],
+        [class*="cl-internal"][class*="cl-drawerContent"],
+        [class*="cl-internal"][class*="cl-drawerBody"] {
+          z-index: 200 !important;
         }
 
       `}</style>
