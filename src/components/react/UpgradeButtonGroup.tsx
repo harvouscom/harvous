@@ -127,23 +127,56 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
     };
 
     const clickSubscribeButton = (retryCount = 0) => {
-      if (retryCount > 20) {
-        console.error('Could not find subscribe button after 20 retries');
+      // Increase retry limit for production (Clerk may take longer to initialize)
+      const maxRetries = import.meta.env.PROD ? 50 : 20;
+      
+      if (retryCount > maxRetries) {
+        console.error(`Could not find subscribe button after ${maxRetries} retries`);
+        // Log debug info in production
+        if (import.meta.env.PROD) {
+          console.error('Hidden table element:', hiddenTable);
+          console.error('Hidden table HTML:', hiddenTable?.innerHTML?.substring(0, 500));
+          console.error('All buttons in hidden table:', hiddenTable?.querySelectorAll('button'));
+        }
         return;
       }
 
-      const subscribeButton = hiddenTable.querySelector(
-        '.cl-pricingTableCardFooterButton, ' +
-        'button[data-localization-key="billing.subscribe"], ' +
-        'button[data-localization-key*="subscribe"], ' +
-        'button.cl-button[data-variant="solid"]'
-      ) as HTMLButtonElement;
+      // Try multiple selectors - Clerk may use different class names in production
+      const selectors = [
+        '.cl-pricingTableCardFooterButton',
+        'button[data-localization-key="billing.subscribe"]',
+        'button[data-localization-key*="subscribe"]',
+        'button.cl-button[data-variant="solid"]',
+        'button[class*="pricingTable"][class*="Button"]',
+        'button[class*="pricing"][class*="subscribe"]',
+        'button[class*="cl-button"][data-variant="solid"]',
+        // Fallback: any button in the pricing table footer/card
+        '.cl-pricingTable button',
+        '#hidden-pricing-table button',
+        // Last resort: any solid button variant
+        'button[data-variant="solid"]'
+      ];
+
+      let subscribeButton: HTMLButtonElement | null = null;
+      
+      for (const selector of selectors) {
+        const button = hiddenTable.querySelector(selector) as HTMLButtonElement;
+        if (button && button.offsetParent !== null) {
+          // Check if button is actually visible (not display:none)
+          const style = window.getComputedStyle(button);
+          if (style.display !== 'none' && style.visibility !== 'hidden') {
+            subscribeButton = button;
+            break;
+          }
+        }
+      }
 
       if (subscribeButton) {
         subscribeButton.click();
       } else {
-        // Retry if button not found yet
-        setTimeout(() => clickSubscribeButton(retryCount + 1), 100);
+        // Retry if button not found yet - use longer delay in production
+        const retryDelay = import.meta.env.PROD ? 200 : 100;
+        setTimeout(() => clickSubscribeButton(retryCount + 1), retryDelay);
       }
     };
 
