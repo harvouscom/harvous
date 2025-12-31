@@ -69,6 +69,10 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
         console.warn('Clerk not ready after waiting, proceeding anyway - PricingTable may not be initialized');
       }
       
+      // Give PricingTable a moment to initialize its buttons after Clerk is ready
+      // Even though Clerk is ready, the PricingTable component needs time to render
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       const hiddenTable = document.getElementById('hidden-pricing-table');
       if (!hiddenTable) {
         console.error('Hidden pricing table not found');
@@ -225,10 +229,12 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
       
       for (const selector of selectors) {
         const button = hiddenTable.querySelector(selector) as HTMLButtonElement;
-        if (button && button.offsetParent !== null) {
-          // Check if button is actually visible (not display:none)
+        if (button) {
+          // Don't check visibility - the hidden table has visibility: hidden,
+          // but the buttons inside are still functional and clickable
+          // Only check that the button exists and is not display:none
           const style = window.getComputedStyle(button);
-          if (style.display !== 'none' && style.visibility !== 'hidden') {
+          if (style.display !== 'none') {
             subscribeButton = button;
             break;
           }
