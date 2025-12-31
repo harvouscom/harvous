@@ -1,42 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { SubscriptionDetailsButton } from '@clerk/clerk-react/experimental';
-import { ClerkProvider } from '@clerk/clerk-react';
 import SquareButton from './SquareButton';
 
 interface ManageBillingPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
-}
-
-/**
- * Wrapper component that provides ClerkProvider for SubscriptionDetailsButton.
- * 
- * React Islands are isolated component trees, so they need their own ClerkProvider
- * even if one exists elsewhere in the app. The "multiple ClerkProvider" error
- * in production is likely from a provider in a different React tree that isn't
- * accessible to this island.
- * 
- * We always wrap to ensure the component has access to Clerk context.
- * If there's a "multiple provider" warning, it's non-fatal and the component
- * will still function correctly.
- */
-function ClerkSubscriptionButtonWrapper({ children }: { children: React.ReactNode }) {
-  const publishableKey = typeof window !== 'undefined' ? import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY : null;
-
-  // If no publishable key, render children without provider
-  if (!publishableKey) {
-    return <>{children}</>;
-  }
-
-  // Always wrap in ClerkProvider for React Islands
-  // React Islands are isolated and need their own provider context
-  // The "multiple ClerkProvider" error may occur if there's a provider
-  // in a different React tree, but it won't prevent functionality
-  return (
-    <ClerkProvider publishableKey={publishableKey}>
-      {children}
-    </ClerkProvider>
-  );
 }
 
 export default function ManageBillingPanel({ 
@@ -429,33 +397,31 @@ export default function ManageBillingPanel({
                 )}
 
                 {/* Manage Payment Method & Billing Button */}
-                {/* Wrap in ClerkProvider to ensure SubscriptionDetailsButton has access to Clerk context */}
-                <ClerkSubscriptionButtonWrapper>
-                  <SubscriptionDetailsButton>
-                    <button
-                      type="button"
-                      className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
-                      style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', margin: 0 }}
-                    >
-                      <div className="panel__list-item">
-                        <div className="panel__list-item-text">
-                          <span className="panel__list-item-label">
-                            Manage Billing
-                          </span>
-                        </div>
-                        <div className="panel__list-item-icon">
-                          <div className="panel__list-item-icon-wrapper">
-                            <div className="panel__external-icon">
-                              <svg viewBox="0 0 320 512">
-                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                              </svg>
-                            </div>
+                {/* Note: SubscriptionDetailsButton requires ClerkProvider context, which should be provided by @clerk/astro integration */}
+                <SubscriptionDetailsButton>
+                  <button
+                    type="button"
+                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
+                    style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', margin: 0 }}
+                  >
+                    <div className="panel__list-item">
+                      <div className="panel__list-item-text">
+                        <span className="panel__list-item-label">
+                          Manage Billing
+                        </span>
+                      </div>
+                      <div className="panel__list-item-icon">
+                        <div className="panel__list-item-icon-wrapper">
+                          <div className="panel__external-icon">
+                            <svg viewBox="0 0 320 512">
+                              <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                            </svg>
                           </div>
                         </div>
                       </div>
-                    </button>
-                  </SubscriptionDetailsButton>
-                </ClerkSubscriptionButtonWrapper>
+                    </div>
+                  </button>
+                </SubscriptionDetailsButton>
 
               </div>
             </div>
