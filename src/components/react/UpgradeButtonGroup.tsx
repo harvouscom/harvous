@@ -256,7 +256,7 @@ export default function UpgradeButtonGroup({ className = '' }: UpgradeButtonGrou
         onClick={handleSubscribe}
         data-outer-shadow
         className="btn-cta flex-1 group"
-        style={{ width: '100%', marginTop: '1rem' }}
+        style={{ width: '100%', marginTop: '1.5rem' }}
         tabIndex={3}
       >
         <span className="btn-cta__content">

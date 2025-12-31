@@ -71,16 +71,76 @@ export default function ToastProvider() {
     : baseStyle;
 
   return (
-    <Toaster
-      position={isMobile ? "bottom-center" : "bottom-right"}
-      toastOptions={{
-        duration: 1600,
-        style: toastStyle,
-        classNames: {
-          toast: 'rounded-xl toast-center-text',
-          title: 'font-semibold text-[16px] text-center',
-        },
-      }}
-    />
+    <>
+      <Toaster
+        position={isMobile ? "bottom-center" : "bottom-right"}
+        toastOptions={{
+          duration: 1600,
+          style: toastStyle,
+          classNames: {
+            toast: 'rounded-xl toast-center-text',
+            title: 'font-semibold text-[16px] text-center',
+          },
+        }}
+      />
+      <style>{`
+        /* Style Sonner action buttons to match btn btn--sm btn--primary design */
+        [data-sonner-toaster] button[data-button],
+        [data-sonner-toaster] [data-button],
+        [data-sonner-toast] button[data-button],
+        [data-sonner-toast] button[data-action] {
+          position: relative !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background-color: var(--color-bold-blue) !important;
+          color: white !important;
+          border-radius: 1rem !important;
+          padding: 0.75rem 1rem 1rem !important;
+          font-family: var(--font-sans) !important;
+          font-weight: 600 !important;
+          font-size: 14px !important;
+          line-height: 0 !important;
+          min-height: 39px !important;
+          border: none !important;
+          cursor: pointer !important;
+          white-space: nowrap !important;
+          transition: transform 0.3s, box-shadow 0.3s !important;
+          will-change: transform, box-shadow !important;
+          box-shadow:
+            0px -4px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+            0px 2px 2px 0px hsla(0, 0%, 0%, 0.25) !important;
+          margin-top: 8px !important;
+        }
+        
+        [data-sonner-toaster] button[data-button] *,
+        [data-sonner-toaster] [data-button] *,
+        [data-sonner-toast] button[data-button] *,
+        [data-sonner-toast] button[data-action] * {
+          color: white !important;
+          font-family: var(--font-sans) !important;
+          font-weight: 600 !important;
+        }
+        
+        [data-sonner-toaster] button[data-button]:hover,
+        [data-sonner-toaster] [data-button]:hover,
+        [data-sonner-toast] button[data-button]:hover,
+        [data-sonner-toast] button[data-action]:hover {
+          background-color: var(--color-bold-blue) !important;
+        }
+        
+        [data-sonner-toaster] button[data-button]:active,
+        [data-sonner-toaster] [data-button]:active,
+        [data-sonner-toast] button[data-button]:active,
+        [data-sonner-toast] button[data-action]:active {
+          transform: scale(0.98) !important;
+          background-color: var(--color-navy) !important;
+          box-shadow:
+            0px -2px 0px 0px #0000001a inset,
+            0px 0px 2px 0px #00000040,
+            0px 2px 0px 0px #00000040 inset !important;
+        }
+      `}</style>
+    </>
   );
 }

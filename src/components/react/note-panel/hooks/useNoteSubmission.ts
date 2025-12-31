@@ -198,6 +198,30 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     
     if (isSubmitting) return;
     
+    // Re-check subscription status right before submission as a final fallback
+    // This catches cases where subscription became active but UI didn't update
+    console.log('[useNoteSubmission] Re-checking subscription status before submission...');
+    try {
+      const statusResponse = await fetch('/api/subscription/status', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        console.log('[useNoteSubmission] Pre-submission subscription check:', statusData);
+        if (statusData.hasUnlimited) {
+          // Dispatch event to update UI
+          window.dispatchEvent(new CustomEvent('subscriptionUpgraded', {
+            detail: { hasUnlimited: true, currentCount: statusData.currentCount, limit: statusData.limit }
+          }));
+          console.log('[useNoteSubmission] Subscription is active, proceeding with note creation...');
+        }
+      }
+    } catch (error) {
+      console.error('[useNoteSubmission] Error checking subscription before submission:', error);
+      // Continue with submission anyway
+    }
+    
     // Get content - prioritize React state
     let editorContent = content;
 
@@ -798,10 +822,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         
         // Handle note limit exceeded error
         if (error.code === 'NOTE_LIMIT_EXCEEDED') {
-          const currentCount = error.currentCount || 1000;
-          const limit = error.limit || 1000;
-          
-          // Save pending note data to localStorage before redirecting
+          // Save pending note data to sessionStorage
           // This allows us to auto-create the note after successful upgrade
           try {
             const pendingNoteData = {
@@ -817,22 +838,14 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
               timestamp: Date.now()
             };
             
-            localStorage.setItem('pendingNoteAfterUpgrade', JSON.stringify(pendingNoteData));
-            debug('[useNoteSubmission] Saved pending note data before upgrade redirect', pendingNoteData);
+            sessionStorage.setItem('pendingNote', JSON.stringify(pendingNoteData));
+            debug('[useNoteSubmission] Saved pending note data to sessionStorage', pendingNoteData);
           } catch (saveError) {
             console.error('[useNoteSubmission] Failed to save pending note data:', saveError);
-            // Continue with redirect even if save fails
           }
           
-          // Show error toast
-          showToast(
-            `You've reached your ${limit.toLocaleString()} note limit.`,
-            'error'
-          );
-          
-          // Redirect to upgrade page
-          const upgradeUrl = error.upgradeUrl || '/upgrade';
-          window.location.href = upgradeUrl;
+          // Limit reached UI is shown in footer, so just stop submission
+          // No toast notification needed - the footer already shows the limit reached state
         } else {
           showToast(error.error || 'Error creating note', 'error');
         }
@@ -985,10 +998,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         
         // Handle note limit exceeded error
         if (error.code === 'NOTE_LIMIT_EXCEEDED') {
-          const currentCount = error.currentCount || 1000;
-          const limit = error.limit || 1000;
-          
-          // Save pending note data to localStorage before redirecting
+          // Save pending note data to sessionStorage
           // This allows us to auto-create the note after successful upgrade
           try {
             const validatedUrl = resourceUrl ? validateResourceUrl(resourceUrl).normalizedUrl || resourceUrl : resourceUrl;
@@ -1005,22 +1015,14 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
               timestamp: Date.now()
             };
             
-            localStorage.setItem('pendingNoteAfterUpgrade', JSON.stringify(pendingNoteData));
-            debug('[useNoteSubmission] Saved pending note data before upgrade redirect (save and close)', pendingNoteData);
+            sessionStorage.setItem('pendingNote', JSON.stringify(pendingNoteData));
+            debug('[useNoteSubmission] Saved pending note data to sessionStorage (save and close)', pendingNoteData);
           } catch (saveError) {
             console.error('[useNoteSubmission] Failed to save pending note data:', saveError);
-            // Continue with redirect even if save fails
           }
           
-          // Show error toast
-          showToast(
-            `You've reached your ${limit.toLocaleString()} note limit.`,
-            'error'
-          );
-          
-          // Redirect to upgrade page
-          const upgradeUrl = error.upgradeUrl || '/upgrade';
-          window.location.href = upgradeUrl;
+          // Limit reached UI is shown in footer, so just stop submission
+          // No toast notification needed - the footer already shows the limit reached state
         } else {
           showToast(error.error || 'Error creating note', 'error');
         }

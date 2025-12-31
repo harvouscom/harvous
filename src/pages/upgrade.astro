@@ -4,6 +4,7 @@ import { getSubscriptionInfo } from "@/utils/subscription";
 import { PricingTable } from "@clerk/astro/components";
 import UpgradeButtonGroup from "@/components/react/UpgradeButtonGroup";
 import UpgradeSuccessHandler from "@/components/react/UpgradeSuccessHandler";
+import UpgradePageContent from "@/components/react/UpgradePageContent";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -44,64 +45,41 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
       <!-- Bottom Row (Mobile) / Right Column (Desktop): Upgrade Form -->
       <div class="auth-page__form-section">
         <div class="auth-page__form-wrapper">
-          {subscriptionInfo.hasUnlimited ? (
-            <!-- Already has unlimited -->
-            <div class="clerk-form-card">
-              <div class="upgrade-content">
-                <div class="upgrade-content__header">
-                  <div class="upgrade-content__success-icon">✓</div>
-                  <h1 class="clerk-form-header-title">You have unlimited notes!</h1>
-                  <p class="clerk-form-header-subtitle">
-                    You're all set. Create as many notes as you need.
-                  </p>
-                </div>
-                <a href="/" class="primary-button" style="width: 100%; display: block; text-align: center; text-decoration: none; margin-top: 1.5rem;">
-                  Go to Dashboard
-                </a>
-              </div>
-            </div>
-          ) : (
-            <!-- Upgrade form -->
-            <div class="clerk-form-card">
-              <div class="upgrade-content">
-                <div class="upgrade-content__header">
-                  <h1 class="clerk-form-header-title">Upgrade to Unlimited</h1>
-                  <p class="clerk-form-header-subtitle">
-                    You've used {subscriptionInfo.currentCount.toLocaleString()} of {subscriptionInfo.limit?.toLocaleString()} notes. To continue using Harvous upgrade to get unlimited notes. Choose to pay monthly or yearly (only $3.25/month).
-                  </p>
-                </div>
+          <!-- Server-rendered PricingTable for Clerk to hook into -->
+          <div id="hidden-pricing-table" style="display: none;">
+            <PricingTable
+              appearance={{
+                elements: {
+                  rootBox: "clerk-form-root",
+                  card: {
+                    className: "clerk-form-card",
+                    style: {
+                      border: "none",
+                      borderWidth: "0",
+                      overflowX: "hidden"
+                    }
+                  },
+                  headerTitle: "clerk-form-header-title",
+                  headerSubtitle: "clerk-form-header-subtitle",
+                  buttonPrimary: "clerk-form-button-primary primary-button",
+                  button: "primary-button"
+                },
+                variables: {
+                  colorPrimary: "var(--color-bold-blue)"
+                }
+              }}
+            />
+          </div>
 
-                <!-- Hidden PricingTable - we'll trigger its subscribe button from React -->
-                <div id="hidden-pricing-table" style="display: none;">
-                  <PricingTable
-                    appearance={{
-                      elements: {
-                        rootBox: "clerk-form-root",
-                        card: {
-                          className: "clerk-form-card",
-                          style: {
-                            border: "none",
-                            borderWidth: "0",
-                            overflowX: "hidden"
-                          }
-                        },
-                        headerTitle: "clerk-form-header-title",
-                        headerSubtitle: "clerk-form-header-subtitle",
-                        buttonPrimary: "clerk-form-button-primary primary-button",
-                        button: "primary-button"
-                      },
-                      variables: {
-                        colorPrimary: "var(--color-bold-blue)"
-                      }
-                    }}
-                  />
-                </div>
-
-                <!-- Custom button group that triggers the hidden PricingTable's subscribe button -->
-                <UpgradeButtonGroup client:load />
-              </div>
-            </div>
-          )}
+          <!-- Client-side component that updates dynamically -->
+          <div class="clerk-form-card">
+            <UpgradePageContent 
+              client:load
+              initialHasUnlimited={subscriptionInfo.hasUnlimited}
+              initialCurrentCount={subscriptionInfo.currentCount}
+              initialLimit={subscriptionInfo.limit}
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -431,12 +409,19 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
   }
 
   .upgrade-content__header {
-    text-align: center;
+    text-align: center !important;
     margin-bottom: 2rem;
   }
 
-  .upgrade-content__header h1.clerk-form-header-title {
+  .upgrade-content__header h1.clerk-form-header-title,
+  .upgrade-content__header .clerk-form-header-title {
     margin-bottom: 8px;
+    text-align: center !important;
+  }
+  
+  .upgrade-content__header .clerk-form-header-subtitle,
+  .upgrade-content__header p.clerk-form-header-subtitle {
+    text-align: center !important;
   }
 
   .upgrade-content__success-icon {
@@ -599,27 +584,6 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
     max-width: 100% !important;
   }
 
-  /* Button group styling for upgrade page - remove background */
-  .upgrade-content :global(.button-group) {
-    background-color: transparent !important;
-    background: transparent !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-  }
-
-  /* Ensure button text is centered in upgrade button group */
-  .upgrade-content :global(.button-group__button.space-button) {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    text-align: center !important;
-  }
-
-  .upgrade-content :global(.button-group__button.space-button span) {
-    width: 100% !important;
-    text-align: center !important;
-    display: block !important;
-  }
 
   /* Remove left and right padding on mobile */
   @media (max-width: 1159px) {

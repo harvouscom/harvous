@@ -68,6 +68,19 @@ export const toast = {
         safeToast(() => sonnerToast.warning(cleanedMessage, { icon: null }), 'warning', cleanedMessage);
         break;
     }
+  },
+  
+  // Error toast with action button (for note limit errors)
+  errorWithAction: (message: string, action: { label: string; onClick: () => void }) => {
+    const cleanedMessage = stripPunctuation(message);
+    safeToast(() => sonnerToast.error(cleanedMessage, {
+      icon: null,
+      duration: Infinity, // Don't auto-dismiss
+      action: {
+        label: action.label,
+        onClick: action.onClick,
+      },
+    }), 'error', cleanedMessage);
   }
 };
 

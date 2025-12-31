@@ -413,6 +413,7 @@
 .whitespace-pre-line { white-space: pre-line; }
 .whitespace-pre-wrap { white-space: pre-wrap; }
 .text-nowrap { text-wrap: nowrap; }
+.text-wrap-pretty { text-wrap: pretty; }
 
 .leading-none { line-height: 1; }
 .leading-tight { line-height: 1.25; }

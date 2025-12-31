@@ -25,61 +25,11 @@ export async function getUserNoteCount(userId: string): Promise<number> {
 }
 
 /**
- * Check if user has active "unlimited" plan subscription
- * Uses Clerk's recommended has() method from auth object
- * Falls back to API call if auth object is not available
+ * Check if user has active "unlimited_notes" feature via Clerk Billing Features
+ * Uses Clerk's recommended has() method - auth object already contains user context
  */
-export async function hasUnlimitedNotes(userId: string, auth?: Auth): Promise<boolean> {
-  try {
-    // Use Clerk's recommended has() method if auth object is provided
-    if (auth) {
-      try {
-        return auth.has({ plan: UNLIMITED_PLAN_ID });
-      } catch (error) {
-        console.error('Error using auth.has() for plan check:', error);
-        // Fall through to API fallback
-      }
-    }
-
-    // Fallback: Use Clerk Billing API endpoint
-    const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
-    
-    if (!clerkSecretKey) {
-      console.error('CLERK_SECRET_KEY not found');
-      return false;
-    }
-
-    // Use Clerk Billing API endpoint
-    // Note: This is a fallback - prefer using auth.has() method
-    const response = await fetch(`https://api.clerk.com/v1/users/${userId}/billing/subscriptions`, {
-      headers: {
-        'Authorization': `Bearer ${clerkSecretKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      // If API returns 404 or error, user doesn't have subscription
-      if (response.status === 404) {
-        return false;
-      }
-      console.error('Clerk Billing API error:', response.status, response.statusText);
-      return false;
-    }
-
-    const subscriptions = await response.json();
-    
-    // Check if user has active unlimited plan
-    // Clerk Billing may return array or object - adjust based on actual API response
-    const activeSubscription = Array.isArray(subscriptions) 
-      ? subscriptions.find((sub: any) => sub.plan_id === UNLIMITED_PLAN_ID && sub.status === 'active')
-      : subscriptions?.plan_id === UNLIMITED_PLAN_ID && subscriptions?.status === 'active';
-
-    return !!activeSubscription;
-  } catch (error) {
-    console.error('Error checking subscription:', error);
-    return false; // Fail closed - assume free tier if check fails
-  }
+export function hasUnlimitedNotes(auth: Auth): boolean {
+  return auth.has({ feature: 'unlimited_notes' });
 }
 
 /**
@@ -88,7 +38,7 @@ export async function hasUnlimitedNotes(userId: string, auth?: Auth): Promise<bo
  */
 export async function canCreateNote(
   userId: string,
-  auth?: Auth
+  auth: Auth
 ): Promise<{ 
   allowed: boolean; 
   reason?: string; 
@@ -98,7 +48,7 @@ export async function canCreateNote(
 }> {
   try {
     // Check if user has unlimited plan
-    const hasUnlimited = await hasUnlimitedNotes(userId, auth);
+    const hasUnlimited = hasUnlimitedNotes(auth);
     
     if (hasUnlimited) {
       return { allowed: true };
@@ -132,68 +82,18 @@ export async function canCreateNote(
 /**
  * Get subscription status and note limit info for display
  */
-export async function getSubscriptionInfo(userId: string, auth?: Auth): Promise<{
+export async function getSubscriptionInfo(userId: string, auth: Auth): Promise<{
   hasUnlimited: boolean;
   currentCount: number;
   limit: number | null; // null means unlimited
-  planId?: string;
-  status?: string;
 }> {
-  try {
-    const hasUnlimited = await hasUnlimitedNotes(userId, auth);
-    const currentCount = await getUserNoteCount(userId);
-    
-    if (hasUnlimited) {
-      // Get subscription details for display
-      const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
-      let planId: string | undefined;
-      let status: string | undefined;
-
-      if (clerkSecretKey) {
-        try {
-          const response = await fetch(`https://api.clerk.com/v1/users/${userId}/billing/subscriptions`, {
-            headers: {
-              'Authorization': `Bearer ${clerkSecretKey}`,
-              'Content-Type': 'application/json'
-            }
-          });
-
-          if (response.ok) {
-            const subscriptions = await response.json();
-            const activeSub = Array.isArray(subscriptions)
-              ? subscriptions.find((sub: any) => sub.plan_id === UNLIMITED_PLAN_ID && sub.status === 'active')
-              : subscriptions;
-            
-            planId = activeSub?.plan_id || activeSub?.planId;
-            status = activeSub?.status;
-          }
-        } catch (error) {
-          console.error('Error fetching subscription details:', error);
-        }
-      }
-
-      return {
-        hasUnlimited: true,
-        currentCount,
-        limit: null, // unlimited
-        planId,
-        status
-      };
-    }
-
-    return {
-      hasUnlimited: false,
-      currentCount,
-      limit: FREE_TIER_LIMIT
-    };
-  } catch (error) {
-    console.error('Error getting subscription info:', error);
-    // Return safe defaults
-    return {
-      hasUnlimited: false,
-      currentCount: 0,
-      limit: FREE_TIER_LIMIT
-    };
-  }
+  const hasUnlimited = hasUnlimitedNotes(auth);
+  const currentCount = await getUserNoteCount(userId);
+  
+  return {
+    hasUnlimited,
+    currentCount,
+    limit: hasUnlimited ? null : FREE_TIER_LIMIT
+  };
 }
 
