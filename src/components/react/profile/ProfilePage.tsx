@@ -10,6 +10,7 @@ import MyChurchPanel from '@/components/react/MyChurchPanel';
 import MySpacesPanel from '@/components/react/MySpacesPanel';
 import MyAchievementsPanel from '@/components/react/MyAchievementsPanel';
 import GetSupportPanel from '@/components/react/GetSupportPanel';
+import ManageBillingPanel from '@/components/react/ManageBillingPanel';
 
 // Type definitions for props
 export interface ProfilePageProps {
@@ -39,7 +40,7 @@ export interface ProfilePageProps {
 }
 
 // Type definition for a panel name
-type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | null;
+type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | null;
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
   displayName,
@@ -335,6 +336,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         return <MyAchievementsPanel />;
       case 'getSupport':
         return <GetSupportPanel version={version} />;
+      case 'manageBilling':
+        return <ManageBillingPanel />;
       default:
         return (
             <div id="default-panel" className="flex flex-col items-left h-full justify-end">

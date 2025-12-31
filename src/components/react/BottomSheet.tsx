@@ -18,6 +18,7 @@ import MySpacesPanel from './MySpacesPanel';
 import MyDataPanel from './MyDataPanel';
 import MyAchievementsPanel from './MyAchievementsPanel';
 import GetSupportPanel from './GetSupportPanel';
+import ManageBillingPanel from './ManageBillingPanel';
 import InboxItemPreviewPanel from './InboxItemPreviewPanel';
 
 // Extend the Window interface to include custom functions
@@ -39,7 +40,7 @@ export interface BottomSheetProps {
   version?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'inboxPreview';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'inboxPreview';
 
 interface InboxItem {
   id: string;
@@ -200,6 +201,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       else if (panelName === 'myData') openBottomSheet('myData');
       else if (panelName === 'myAchievements') openBottomSheet('myAchievements');
       else if (panelName === 'getSupport') openBottomSheet('getSupport');
+      else if (panelName === 'manageBilling') openBottomSheet('manageBilling');
     };
     
     window.addEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
@@ -536,6 +538,18 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {drawerType === 'myAchievements' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
               <MyAchievementsPanel 
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+                inBottomSheet={true}
+              />
+            </div>
+          )}
+          
+          {/* Manage Billing Panel */}
+          {drawerType === 'manageBilling' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <ManageBillingPanel 
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}
