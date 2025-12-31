@@ -1,10 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { SubscriptionDetailsButton } from '@clerk/clerk-react/experimental';
+import { ClerkProvider } from '@clerk/clerk-react';
 import SquareButton from './SquareButton';
 
 interface ManageBillingPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
+}
+
+/**
+ * Wrapper component that provides ClerkProvider for SubscriptionDetailsButton.
+ * This ensures the component has access to Clerk context even if @clerk/astro
+ * doesn't provide a global ClerkProvider for React components.
+ */
+function ClerkSubscriptionButtonWrapper({ children }: { children: React.ReactNode }) {
+  const publishableKey = typeof window !== 'undefined' ? import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY : null;
+
+  // If no publishable key, render children without provider (will show error but won't break panel)
+  if (!publishableKey) {
+    return <>{children}</>;
+  }
+
+  // Wrap in ClerkProvider to provide context for SubscriptionDetailsButton
+  // Note: If there's already a ClerkProvider in the tree, Clerk will warn but still work
+  return (
+    <ClerkProvider publishableKey={publishableKey}>
+      {children}
+    </ClerkProvider>
+  );
 }
 
 export default function ManageBillingPanel({ 
@@ -397,31 +420,33 @@ export default function ManageBillingPanel({
                 )}
 
                 {/* Manage Payment Method & Billing Button */}
-                {/* Note: ClerkProvider is provided globally by @clerk/astro integration, no need to wrap here */}
-                <SubscriptionDetailsButton>
-                  <button
-                    type="button"
-                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
-                    style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', margin: 0 }}
-                  >
-                    <div className="panel__list-item">
-                      <div className="panel__list-item-text">
-                        <span className="panel__list-item-label">
-                          Manage Billing
-                        </span>
-                      </div>
-                      <div className="panel__list-item-icon">
-                        <div className="panel__list-item-icon-wrapper">
-                          <div className="panel__external-icon">
-                            <svg viewBox="0 0 320 512">
-                              <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                            </svg>
+                {/* Wrap in ClerkProvider to ensure SubscriptionDetailsButton has access to Clerk context */}
+                <ClerkSubscriptionButtonWrapper>
+                  <SubscriptionDetailsButton>
+                    <button
+                      type="button"
+                      className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
+                      style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', margin: 0 }}
+                    >
+                      <div className="panel__list-item">
+                        <div className="panel__list-item-text">
+                          <span className="panel__list-item-label">
+                            Manage Billing
+                          </span>
+                        </div>
+                        <div className="panel__list-item-icon">
+                          <div className="panel__list-item-icon-wrapper">
+                            <div className="panel__external-icon">
+                              <svg viewBox="0 0 320 512">
+                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                              </svg>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </button>
-                </SubscriptionDetailsButton>
+                    </button>
+                  </SubscriptionDetailsButton>
+                </ClerkSubscriptionButtonWrapper>
 
               </div>
             </div>
