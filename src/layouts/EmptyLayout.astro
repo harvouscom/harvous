@@ -5,9 +5,6 @@ import "@fontsource/reddit-sans/500.css";
 import "@fontsource/reddit-sans/600.css";
 import "@fontsource/reddit-mono/500.css";
 import "@fontsource/reddit-mono/600.css";
-import "sonner/dist/styles.css";
-import ToastProvider from "@/components/react/ToastProvider.tsx";
-import { ClientRouter } from "astro:transitions";
 
 interface Props {
   classNames?: string;
@@ -33,94 +30,15 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     
-    <!-- Enable View Transitions for client-side navigation -->
-    <ClientRouter />
-    
     <!-- PWA startup optimization script - inlined for faster execution -->
     <script is:inline src="/scripts/pwa-startup.js"></script>
     
     <!-- Special tab interaction handler for first-touch optimization -->
     <script is:inline src="/scripts/tab-interaction-handler.js"></script>
-    
-    <!-- Clerk Client-Side Initialization Script -->
-    <!-- Ensure Clerk's JavaScript loads and mounts Astro components in production -->
-    <!-- Also verify @clerk/astro's scripts are being injected -->
-    <script is:inline>
-      (function() {
-        if (typeof window === 'undefined') return;
-        
-        // Debug: Check if @clerk/astro scripts are in the DOM
-        function checkClerkScripts() {
-          var clerkScripts = document.querySelectorAll('script[src*="clerk"], script[src*="clerkjs"]');
-          if (clerkScripts.length === 0 && import.meta.env.PROD) {
-            console.warn('[Clerk] No Clerk scripts found in DOM - @clerk/astro may not be injecting scripts');
-          } else if (import.meta.env.PROD) {
-            console.log('[Clerk] Found', clerkScripts.length, 'Clerk script(s) in DOM');
-          }
-        }
-        
-        // Wait for Clerk to load and ensure Astro components mount
-        function ensureClerkComponentsMount() {
-          // Check if Clerk is loaded
-          if (typeof window !== 'undefined' && window._astro_clerk_component_props) {
-            // Clerk's component props map exists, try to trigger mounting
-            if (typeof window.mountAllClerkAstroJSComponents === 'function') {
-              window.mountAllClerkAstroJSComponents();
-              if (import.meta.env.PROD) {
-                console.log('[Clerk] Successfully mounted Astro components');
-              }
-            } else if (window.__clerk_frontend_api) {
-              // Clerk is loaded but mount function might not be available yet
-              // Wait a bit and try again
-              setTimeout(ensureClerkComponentsMount, 100);
-            }
-          } else {
-            // Clerk not loaded yet, wait and retry (max 15 seconds)
-            var attempts = 0;
-            var maxAttempts = 150;
-            var checkInterval = setInterval(function() {
-              attempts++;
-              if (window._astro_clerk_component_props || window.__clerk_frontend_api) {
-                clearInterval(checkInterval);
-                ensureClerkComponentsMount();
-              } else if (attempts >= maxAttempts) {
-                clearInterval(checkInterval);
-                if (import.meta.env.PROD) {
-                  console.error('[Clerk] Clerk did not load within 15 seconds - @clerk/astro scripts may not be loading');
-                  checkClerkScripts();
-                }
-              }
-            }, 100);
-          }
-        }
-        
-        // Check for Clerk scripts after a short delay
-        setTimeout(checkClerkScripts, 500);
-        
-        // Start checking after DOM is ready
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', ensureClerkComponentsMount);
-        } else {
-          // DOM already ready, start checking
-          setTimeout(ensureClerkComponentsMount, 100);
-        }
-        
-        // Also listen for Clerk's load event if available
-        window.addEventListener('clerk:loaded', function() {
-          if (typeof window.mountAllClerkAstroJSComponents === 'function') {
-            window.mountAllClerkAstroJSComponents();
-            if (import.meta.env.PROD) {
-              console.log('[Clerk] Clerk loaded event fired, mounted components');
-            }
-          }
-        });
-      })();
-    </script>
   </head>
   <body
     class={`font-sans bg-[var(--color-light-paper)] min-h-screen ${classNames}`}
   >
-    <ToastProvider client:load />
     <slot />
   </body>
 </html>

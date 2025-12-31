@@ -56,6 +56,9 @@ const {
 // Determine if More button should be shown (pass contentId to hide for unorganized thread)
 const showMoreButton = shouldShowMoreButton(contentType, contentId);
 
+// Extract publishable key in frontmatter (where import.meta works)
+const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
+
 ---
 
 <!doctype html>
@@ -412,6 +415,7 @@ const showMoreButton = shouldShowMoreButton(contentType, contentId);
         currentSpace={currentSpace}
         currentNote={currentNote}
         contentType={contentType}
+        publishableKey={publishableKey}
       />
     </div>
   </body>

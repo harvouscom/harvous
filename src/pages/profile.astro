@@ -108,6 +108,9 @@ try {
 
 const contentType = "profile";
 const contentId = "profile";
+
+// Extract publishable key in frontmatter (where import.meta works)
+const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 ---
 
 <Layout 
@@ -184,6 +187,7 @@ const contentId = "profile";
     lastName={lastName}
     spaces={spaces}
     churchData={churchData}
+    publishableKey={publishableKey}
   />
 
   <!-- Mobile Navigation -->

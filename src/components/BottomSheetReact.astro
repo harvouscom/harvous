@@ -10,6 +10,7 @@ export interface Props {
   currentSpace?: any;
   currentNote?: any;
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
+  publishableKey?: string | null;
 }
 
 const { 
@@ -19,7 +20,8 @@ const {
   currentThread,
   currentSpace,
   currentNote,
-  contentType = "dashboard"
+  contentType = "dashboard",
+  publishableKey = null
 } = Astro.props;
 ---
 
@@ -33,6 +35,7 @@ const {
     currentNote={currentNote}
     contentType={contentType}
     version={packageJson.version}
+    publishableKey={publishableKey}
     client:load
   />
 </div>

@@ -105,6 +105,30 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       let stored = safeGetItem('harvous-navigation-history-v2');
       let parsed = stored ? JSON.parse(stored) : [];
+      let needsMigration = false;
+      
+      // Defensive: ensure parsed is an array
+      // Handle both array format and object with items property (backward compatibility)
+      if (!Array.isArray(parsed)) {
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) {
+          // Old format: {items: [...]} - extract the array and migrate
+          console.warn('[NavigationContext] Navigation history is in old format, migrating to new format');
+          parsed = parsed.items;
+          needsMigration = true;
+        } else {
+          console.warn('[NavigationContext] Navigation history is not an array, defaulting to empty array:', parsed);
+          parsed = [];
+          needsMigration = true;
+        }
+      }
+      
+      // Migrate to new format if needed (save back as direct array)
+      if (needsMigration) {
+        safeSetItem('harvous-navigation-history-v2', JSON.stringify(parsed), {
+          cleanupOldest: true,
+          fallbackToSession: true,
+        });
+      }
       
       // Check for pending thread in sessionStorage (set by NewNotePanel before navigation)
       // This ensures the thread appears immediately on page load even if localStorage wasn't updated in time
@@ -153,9 +177,33 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const stored = safeGetItem('harvous-navigation-history-v2');
       
       let parsed = stored ? JSON.parse(stored) : [];
+      let needsMigration = false;
+      
+      // Defensive: ensure parsed is an array
+      // Handle both array format and object with items property (backward compatibility)
+      if (!Array.isArray(parsed)) {
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) {
+          // Old format: {items: [...]} - extract the array and migrate
+          console.warn('[NavigationContext] Navigation history is in old format, migrating to new format');
+          parsed = parsed.items;
+          needsMigration = true;
+        } else {
+          console.warn('[NavigationContext] Navigation history is not an array, defaulting to empty array:', parsed);
+          parsed = [];
+          needsMigration = true;
+        }
+      }
+      
+      // Migrate to new format if needed (save back as direct array)
+      if (needsMigration) {
+        safeSetItem('harvous-navigation-history-v2', JSON.stringify(parsed), {
+          cleanupOldest: true,
+          fallbackToSession: true,
+        });
+      }
       
       // If localStorage is empty but we have a backup, use it
-      if (parsed.length === 0 && (window as any).navigationHistoryBackup && (window as any).navigationHistoryBackup.length > 0) {
+      if (parsed.length === 0 && (window as any).navigationHistoryBackup && Array.isArray((window as any).navigationHistoryBackup) && (window as any).navigationHistoryBackup.length > 0) {
         parsed = (window as any).navigationHistoryBackup;
       }
       
@@ -170,9 +218,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       console.error('Error getting navigation history:', error);
       const backup = (window as any).navigationHistoryBackup || [];
       
+      // Defensive: ensure backup is an array
+      const safeBackup = Array.isArray(backup) ? backup : [];
+      
       // Filter out specific test items from backup too (exact title matches only)
       const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
-      const filteredBackup = backup.filter((item: NavigationItem) => 
+      const filteredBackup = safeBackup.filter((item: NavigationItem) => 
         !testItemTitles.includes(item.title)
       );
       

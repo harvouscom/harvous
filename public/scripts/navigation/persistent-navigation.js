@@ -5,13 +5,45 @@ function loadPersistentNavigation(retryCount) {
   const maxRetries = 10;
   const retryDelay = 100;
   
+  // Skip on auth pages and upgrade page - these pages don't have navigation
+  const currentPath = window.location.pathname;
+  const skipPages = ['/upgrade', '/sign-in', '/sign-up', '/logout'];
+  if (skipPages.some(page => currentPath === page || currentPath.startsWith(page + '/'))) {
+    return;
+  }
+  
   try {
     const navHistory = localStorage.getItem('harvous-navigation-history-v2');
     if (!navHistory) {
       return;
     }
     
-    const history = JSON.parse(navHistory);
+    let history = JSON.parse(navHistory);
+    let needsMigration = false;
+    
+    // Defensive: ensure history is an array
+    // Handle both array format and object with items property (backward compatibility)
+    if (!Array.isArray(history)) {
+      if (history && typeof history === 'object' && Array.isArray(history.items)) {
+        // Old format: {items: [...]} - extract the array and migrate
+        console.warn('[persistent-navigation.js] Navigation history is in old format, migrating to new format');
+        history = history.items;
+        needsMigration = true;
+      } else {
+        console.warn('[persistent-navigation.js] Navigation history is not an array, defaulting to empty array:', history);
+        history = [];
+        needsMigration = true;
+      }
+    }
+    
+    // Migrate to new format if needed (save back as direct array)
+    if (needsMigration) {
+      try {
+        localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
+      } catch (error) {
+        console.error('[persistent-navigation.js] Error migrating navigation history:', error);
+      }
+    }
     
     // Sort by firstAccessed (chronological order - maintain original order)
     // Defensive: handle missing firstAccessed by treating as oldest (very large number)

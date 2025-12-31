@@ -4,6 +4,7 @@ import { ClerkProvider, SignedIn } from '@clerk/clerk-react';
 
 interface SafeSubscriptionDetailsButtonProps {
   children: React.ReactNode;
+  publishableKey?: string | null;
 }
 
 /**
@@ -12,10 +13,10 @@ interface SafeSubscriptionDetailsButtonProps {
  * This is expected behavior - each React Island has its own React root.
  */
 export default function SafeSubscriptionDetailsButton({ 
-  children 
+  children,
+  publishableKey = null
 }: SafeSubscriptionDetailsButtonProps) {
-  // In Astro, import.meta.env is available during SSR and client-side
-  const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
+  // Get publishable key from props (passed from Astro frontmatter where import.meta.env works)
 
   // If no publishable key, render a disabled placeholder
   if (!publishableKey) {

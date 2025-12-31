@@ -15,7 +15,8 @@ interface PendingNoteData {
 }
 
 export default function UpgradeSuccessHandler() {
-  useEffect(() => {
+  // Function to handle upgrade success check
+  const handleUpgradeSuccess = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const upgradeSuccess = urlParams.get('upgrade') === 'success' || urlParams.get('success') === 'true';
     const pendingNoteStr = sessionStorage.getItem('pendingNote');
@@ -77,6 +78,18 @@ export default function UpgradeSuccessHandler() {
 
     // Dispatch event - components will check status via API
     window.dispatchEvent(new CustomEvent('subscriptionUpgraded'));
+  };
+
+  useEffect(() => {
+    // Run on initial mount
+    handleUpgradeSuccess();
+    
+    // Also listen for View Transitions to handle subsequent visits
+    document.addEventListener('astro:page-load', handleUpgradeSuccess);
+    
+    return () => {
+      document.removeEventListener('astro:page-load', handleUpgradeSuccess);
+    };
   }, []);
 
   // Component is completely silent - no UI

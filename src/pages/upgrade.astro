@@ -4,6 +4,9 @@ import { getSubscriptionInfo } from "@/utils/subscription";
 import UpgradeCheckoutButton from "@/components/react/UpgradeCheckoutButton";
 import UpgradeSuccessHandler from "@/components/react/UpgradeSuccessHandler";
 import UpgradePageContent from "@/components/react/UpgradePageContent";
+import ToastProvider from "@/components/react/ToastProvider.tsx";
+import { ClientRouter } from "astro:transitions";
+import "sonner/dist/styles.css";
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -15,9 +18,15 @@ if (!userId) {
 
 // Get subscription info (pass auth object to use has() method)
 const subscriptionInfo = await getSubscriptionInfo(userId, auth);
+
+// Extract publishable key and plan ID in frontmatter (where import.meta works)
+// Convert to strings to ensure proper serialization
+const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY ? String(import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY) : null;
+const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.meta.env.CLERK_UNLIMITED_PLAN_ID) : 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw';
 ---
 
 <EmptyLayout title="Upgrade - Harvous">
+  <ToastProvider client:load />
   <UpgradeSuccessHandler client:load />
   <div id="upgrade-content" class="auth-page auth-page__hidden">
     <div class="auth-page__container">
@@ -51,6 +60,8 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
               initialHasUnlimited={subscriptionInfo.hasUnlimited}
               initialCurrentCount={subscriptionInfo.currentCount}
               initialLimit={subscriptionInfo.limit}
+              publishableKey={publishableKey}
+              unlimitedPlanId={unlimitedPlanId}
             />
           </div>
         </div>
@@ -59,16 +70,108 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
   </div>
 </EmptyLayout>
 
+<!-- Enable View Transitions for client-side navigation -->
+<ClientRouter />
+
+<!-- Clerk Client-Side Initialization Script -->
+<script is:inline>
+  (function() {
+    if (typeof window === 'undefined') return;
+    
+    // Check if we're in production (avoid using import.meta in inline scripts)
+    var isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
+    
+    // Debug: Check if @clerk/astro scripts are in the DOM
+    function checkClerkScripts() {
+      var clerkScripts = document.querySelectorAll('script[src*="clerk"], script[src*="clerkjs"]');
+      if (clerkScripts.length === 0 && isProduction) {
+        console.warn('[Clerk] No Clerk scripts found in DOM - @clerk/astro may not be injecting scripts');
+      } else if (isProduction) {
+        console.log('[Clerk] Found', clerkScripts.length, 'Clerk script(s) in DOM');
+      }
+    }
+    
+    // Wait for Clerk to load and ensure Astro components mount
+    function ensureClerkComponentsMount() {
+      // Check if Clerk is loaded
+      if (typeof window !== 'undefined' && window._astro_clerk_component_props) {
+        // Clerk's component props map exists, try to trigger mounting
+        if (typeof window.mountAllClerkAstroJSComponents === 'function') {
+          window.mountAllClerkAstroJSComponents();
+          if (isProduction) {
+            console.log('[Clerk] Successfully mounted Astro components');
+          }
+        } else if (window.__clerk_frontend_api) {
+          // Clerk is loaded but mount function might not be available yet
+          // Wait a bit and try again
+          setTimeout(ensureClerkComponentsMount, 100);
+        }
+      } else {
+        // Clerk not loaded yet, wait and retry (max 15 seconds)
+        var attempts = 0;
+        var maxAttempts = 150;
+        var checkInterval = setInterval(function() {
+          attempts++;
+          if (window._astro_clerk_component_props || window.__clerk_frontend_api) {
+            clearInterval(checkInterval);
+            ensureClerkComponentsMount();
+          } else if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            if (isProduction) {
+              console.error('[Clerk] Clerk did not load within 15 seconds - @clerk/astro scripts may not be loading');
+              checkClerkScripts();
+            }
+          }
+        }, 100);
+      }
+    }
+    
+    // Check for Clerk scripts after a short delay
+    setTimeout(checkClerkScripts, 500);
+    
+    // Start checking after DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', ensureClerkComponentsMount);
+    } else {
+      // DOM already ready, start checking
+      setTimeout(ensureClerkComponentsMount, 100);
+    }
+    
+    // Also listen for Clerk's load event if available
+    window.addEventListener('clerk:loaded', function() {
+      if (typeof window.mountAllClerkAstroJSComponents === 'function') {
+        window.mountAllClerkAstroJSComponents();
+        if (isProduction) {
+          console.log('[Clerk] Clerk loaded event fired, mounted components');
+        }
+      }
+    });
+  })();
+</script>
+
 <!-- Show upgrade content once page loads -->
 <script is:inline>
   (function() {
     if (typeof window === 'undefined') return;
     
-    // Show the upgrade content
-    var content = document.getElementById('upgrade-content');
-    if (content) {
-      content.classList.remove('auth-page__hidden');
+    // Function to show upgrade content
+    function showUpgradeContent() {
+      var content = document.getElementById('upgrade-content');
+      if (content) {
+        content.classList.remove('auth-page__hidden');
+      }
     }
+    
+    // Show on initial load
+    showUpgradeContent();
+    
+    // Also show on View Transitions page loads
+    document.addEventListener('astro:page-load', function() {
+      // Check if we're on the upgrade page
+      if (window.location.pathname === '/upgrade') {
+        showUpgradeContent();
+      }
+    });
   })();
 </script>
 

@@ -84,13 +84,8 @@ export default defineConfig({
       exclude: [],
       include: ['react', 'react-dom', '@clerk/astro/client']
     },
-    // Fix MIME type issues in development
-    define: {
-      _DEFINES_: JSON.stringify({}),
-      // Fix environment variable issues
-      'import.meta.env.DEV': JSON.stringify(import.meta.env.DEV),
-      'import.meta.env.PROD': JSON.stringify(import.meta.env.PROD)
-    },
+    // Note: Don't add define section - Astro handles environment variables automatically
+    // Adding define can conflict with Astro's internal mechanisms (causes __DEFINES__ errors)
     // Improve CSS handling
     css: {
       devSourcemap: false
@@ -107,8 +102,12 @@ export default defineConfig({
 
   // Use different output modes for development vs production
   output: "server",
-  adapter: import.meta.env.DEV ? undefined : netlify({
-    // Only use Netlify adapter in production
-    edgeMiddleware: false
+  // Only use adapter in production - in dev mode, Astro runs without adapter
+  // This prevents database lock issues from Netlify edge functions process
+  // Clerk works fine in dev mode without the adapter
+  ...(import.meta.env.PROD && {
+    adapter: netlify({
+      edgeMiddleware: false
+    })
   }),
 });

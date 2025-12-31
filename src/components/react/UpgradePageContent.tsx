@@ -6,6 +6,8 @@ interface UpgradePageContentProps {
   initialHasUnlimited: boolean;
   initialCurrentCount: number;
   initialLimit: number | null;
+  publishableKey?: string | null;
+  unlimitedPlanId?: string;
 }
 
 /**
@@ -16,6 +18,8 @@ export default function UpgradePageContent({
   initialHasUnlimited,
   initialCurrentCount,
   initialLimit,
+  publishableKey,
+  unlimitedPlanId,
 }: UpgradePageContentProps) {
   const [hasUnlimited, setHasUnlimited] = useState(initialHasUnlimited);
   const [currentCount, setCurrentCount] = useState(initialCurrentCount);
@@ -42,11 +46,25 @@ export default function UpgradePageContent({
 
   // Check on mount and listen for upgrade events
   useEffect(() => {
+    // Check status on initial mount
     checkStatus();
     
     const handleUpgrade = () => checkStatus();
     window.addEventListener('subscriptionUpgraded', handleUpgrade);
-    return () => window.removeEventListener('subscriptionUpgraded', handleUpgrade);
+    
+    // Also check status on View Transitions (for subsequent visits)
+    const handlePageLoad = () => {
+      // Only check if we're on the upgrade page
+      if (window.location.pathname === '/upgrade') {
+        checkStatus();
+      }
+    };
+    document.addEventListener('astro:page-load', handlePageLoad);
+    
+    return () => {
+      window.removeEventListener('subscriptionUpgraded', handleUpgrade);
+      document.removeEventListener('astro:page-load', handlePageLoad);
+    };
   }, []);
 
 
@@ -79,7 +97,7 @@ export default function UpgradePageContent({
           </div>
 
           {/* Checkout button using Clerk's React CheckoutButton component */}
-          <UpgradeCheckoutButton />
+          <UpgradeCheckoutButton publishableKey={publishableKey} unlimitedPlanId={unlimitedPlanId} />
         </div>
       )}
     </>

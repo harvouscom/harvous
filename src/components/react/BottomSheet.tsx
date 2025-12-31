@@ -38,6 +38,7 @@ export interface BottomSheetProps {
   currentNote?: any;
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
   version?: string;
+  publishableKey?: string | null;
 }
 
 type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'inboxPreview';
@@ -66,7 +67,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   currentSpace,
   currentNote,
   contentType = "dashboard",
-  version = '0.10.0'
+  version = '0.10.0',
+  publishableKey = null
 }) => {
   const [drawerType, setDrawerType] = useState<DrawerType>('note');
   const [isVisible, setIsVisible] = useState(false);
@@ -554,6 +556,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}
                 inBottomSheet={true}
+                publishableKey={publishableKey}
               />
             </div>
           )}

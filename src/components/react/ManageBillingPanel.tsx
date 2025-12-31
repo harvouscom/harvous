@@ -5,11 +5,13 @@ import SquareButton from './SquareButton';
 interface ManageBillingPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
+  publishableKey?: string | null;
 }
 
 export default function ManageBillingPanel({ 
   onClose,
-  inBottomSheet = false
+  inBottomSheet = false,
+  publishableKey = null
 }: ManageBillingPanelProps) {
   const [subscriptionInfo, setSubscriptionInfo] = useState<{
     hasUnlimited: boolean;
@@ -18,9 +20,27 @@ export default function ManageBillingPanel({
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load subscription info when component mounts
+  // Load subscription info when component mounts and on View Transitions
   useEffect(() => {
+    // Load on initial mount
     loadSubscriptionInfo();
+    
+    // Listen for subscription upgrade events to refresh
+    const handleSubscriptionUpgraded = () => {
+      loadSubscriptionInfo();
+    };
+    window.addEventListener('subscriptionUpgraded', handleSubscriptionUpgraded);
+    
+    // Also refresh on View Transitions (for subsequent visits)
+    const handlePageLoad = () => {
+      loadSubscriptionInfo();
+    };
+    document.addEventListener('astro:page-load', handlePageLoad);
+    
+    return () => {
+      window.removeEventListener('subscriptionUpgraded', handleSubscriptionUpgraded);
+      document.removeEventListener('astro:page-load', handlePageLoad);
+    };
   }, []);
 
   // Update Clerk drawer title and description text when it opens
@@ -398,7 +418,7 @@ export default function ManageBillingPanel({
 
                 {/* Manage Payment Method & Billing Button */}
                 {/* SafeSubscriptionDetailsButton handles Clerk context availability check */}
-                <SafeSubscriptionDetailsButton>
+                <SafeSubscriptionDetailsButton publishableKey={publishableKey}>
                   <button
                     type="button"
                     className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"

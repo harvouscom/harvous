@@ -24,6 +24,7 @@ export interface ProfilePageProps {
   lifetimeXP?: number;
   seasonName?: string;
   version?: string;
+  publishableKey?: string | null;
   spaces?: Array<{
     id: string;
     title: string;
@@ -52,6 +53,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   version = '0.10.0',
   spaces = [],
   churchData,
+  publishableKey = null,
 }) => {
   const [activePanel, setActivePanel] = useState<PanelName>(null);
   const [panelOpenTime, setPanelOpenTime] = useState<number>(0);
@@ -337,7 +339,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       case 'getSupport':
         return <GetSupportPanel version={version} />;
       case 'manageBilling':
-        return <ManageBillingPanel />;
+        return <ManageBillingPanel publishableKey={publishableKey} />;
       default:
         return (
             <div id="default-panel" className="flex flex-col items-left h-full justify-end">

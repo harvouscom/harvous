@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { CheckoutButton } from '@clerk/clerk-react/experimental';
 import { ClerkProvider, SignedIn } from '@clerk/clerk-react';
-import { UNLIMITED_PLAN_ID } from '@/utils/subscription';
 
 interface UpgradeCheckoutButtonProps {
   className?: string;
+  publishableKey?: string | null;
+  unlimitedPlanId?: string;
 }
 
 /**
@@ -12,10 +13,12 @@ interface UpgradeCheckoutButtonProps {
  * Uses CheckoutButton from @clerk/clerk-react/experimental.
  * React Islands are isolated, so this component provides its own ClerkProvider.
  */
-export default function UpgradeCheckoutButton({ className = '' }: UpgradeCheckoutButtonProps) {
+export default function UpgradeCheckoutButton({ 
+  className = '', 
+  publishableKey = null,
+  unlimitedPlanId = 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw' // Default fallback
+}: UpgradeCheckoutButtonProps) {
   const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
-  // In Astro, import.meta.env is available during SSR and client-side
-  const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
   // If no publishable key, render disabled button
   if (!publishableKey) {
@@ -142,7 +145,7 @@ export default function UpgradeCheckoutButton({ className = '' }: UpgradeCheckou
 
           {/* CheckoutButton - Opens Clerk checkout drawer */}
           <CheckoutButton
-            planId={UNLIMITED_PLAN_ID}
+            planId={unlimitedPlanId}
             planPeriod={selectedInterval === 'year' ? 'year' : 'month'}
           >
             <button
