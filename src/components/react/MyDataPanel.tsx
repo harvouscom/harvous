@@ -242,7 +242,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                 <div className="panel__section">
                   {/* Export as CSV */}
                   <button
-                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 w-full flex items-center justify-center"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
                       opacity: isExporting === 'csv-threads' ? 0.6 : 1,
@@ -251,30 +251,16 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     onClick={() => handleExport('csv-threads', 'CSV')}
                     disabled={isExporting === 'csv-threads'}
                   >
-                    <div className="panel__list-item">
-                      <div className="panel__list-item-text">
-                        <span className="panel__list-item-label">
-                          Export as CSV
-                        </span>
-                      </div>
-                      <div className="panel__list-item-icon">
-                        <div className="panel__list-item-icon-wrapper">
-                          <div className="panel__chevron">
-                            <ChevronIcon />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <span className="font-sans text-[18px] font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
+                      Export as CSV
+                    </span>
                   </button>
                 </div>
-
-                {/* Horizontal Divider */}
-                <div className="panel__divider"></div>
 
                 {/* Clear Data Button - For Testing */}
                 <div className="panel__section">
                   <button
-                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
+                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 w-full overflow-hidden flex items-center justify-center"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
                       opacity: isClearingData ? 0.6 : 1,
@@ -283,20 +269,9 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     onClick={handleClearData}
                     disabled={isClearingData}
                   >
-                    <div className="panel__list-item">
-                      <div className="panel__list-item-text">
-                        <span className="panel__list-item-label">
-                          {isClearingData ? 'Clearing...' : 'Clear All Data'}
-                        </span>
-                      </div>
-                      <div className="panel__list-item-icon">
-                        <div className="panel__list-item-icon-wrapper">
-                          <div className="panel__chevron">
-                            <ChevronIcon />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <span className="font-sans text-[18px] font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
+                      {isClearingData ? 'Clearing...' : 'Clear All Data'}
+                    </span>
                     {/* Progress bar */}
                     {isClearingData && (
                       <div className="panel__progress-bar">
@@ -307,76 +282,77 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                 </div>
 
                 {/* Horizontal Divider */}
-                <div className="panel__divider"></div>
+                {/* <div className="panel__divider"></div> */}
 
-                {/* Import Buttons */}
-                <div className="panel__section">
-                  {/* Import from CSV */}
-                  <button
-                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
-                    style={{ 
-                      backgroundImage: 'var(--color-gradient-gray)',
-                      opacity: isImporting === 'csv-threads' ? 0.6 : 1,
-                      pointerEvents: isImporting === 'csv-threads' ? 'none' : 'auto'
-                    }}
-                    onClick={() => handleImport('csv-threads', 'CSV')}
-                    disabled={isImporting === 'csv-threads'}
-                  >
-                    <div className="panel__list-item">
-                      <div className="panel__list-item-text">
-                        <span className="panel__list-item-label">
-                          {isImporting === 'csv-threads' ? 'Importing...' : 'Import from CSV'}
-                        </span>
-                      </div>
-                      <div className="panel__list-item-icon">
-                        <div className="panel__list-item-icon-wrapper">
-                          <div className="panel__chevron">
-                            <ChevronIcon />
+                {/* Import Buttons - Commented out */}
+                {false && (
+                  <>
+                    <div className="panel__divider"></div>
+                    <div className="panel__section">
+                      <button
+                        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
+                        style={{ 
+                          backgroundImage: 'var(--color-gradient-gray)',
+                          opacity: isImporting === 'csv-threads' ? 0.6 : 1,
+                          pointerEvents: isImporting === 'csv-threads' ? 'none' : 'auto'
+                        }}
+                        onClick={() => handleImport('csv-threads', 'CSV')}
+                        disabled={isImporting === 'csv-threads'}
+                      >
+                        <div className="panel__list-item">
+                          <div className="panel__list-item-text">
+                            <span className="panel__list-item-label">
+                              {isImporting === 'csv-threads' ? 'Importing...' : 'Import from CSV'}
+                            </span>
+                          </div>
+                          <div className="panel__list-item-icon">
+                            <div className="panel__list-item-icon-wrapper">
+                              <div className="panel__chevron">
+                                <ChevronIcon />
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                    {/* Progress bar */}
-                    {isImporting === 'csv-threads' && (
-                      <div className="panel__progress-bar">
-                        <div className="panel__progress-fill"></div>
-                      </div>
-                    )}
-                  </button>
+                        {isImporting === 'csv-threads' && (
+                          <div className="panel__progress-bar">
+                            <div className="panel__progress-fill"></div>
+                          </div>
+                        )}
+                      </button>
 
-                  {/* Import from Markdown */}
-                  <button
-                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
-                    style={{ 
-                      backgroundImage: 'var(--color-gradient-gray)',
-                      opacity: isImporting === 'markdown' ? 0.6 : 1,
-                      pointerEvents: isImporting === 'markdown' ? 'none' : 'auto'
-                    }}
-                    onClick={() => handleImport('markdown', 'Markdown')}
-                    disabled={isImporting === 'markdown'}
-                  >
-                    <div className="panel__list-item">
-                      <div className="panel__list-item-text">
-                        <span className="panel__list-item-label">
-                          {isImporting === 'markdown' ? 'Importing...' : 'Import from Markdown'}
-                        </span>
-                      </div>
-                      <div className="panel__list-item-icon">
-                        <div className="panel__list-item-icon-wrapper">
-                          <div className="panel__chevron">
-                            <ChevronIcon />
+                      <button
+                        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full overflow-hidden"
+                        style={{ 
+                          backgroundImage: 'var(--color-gradient-gray)',
+                          opacity: isImporting === 'markdown' ? 0.6 : 1,
+                          pointerEvents: isImporting === 'markdown' ? 'none' : 'auto'
+                        }}
+                        onClick={() => handleImport('markdown', 'Markdown')}
+                        disabled={isImporting === 'markdown'}
+                      >
+                        <div className="panel__list-item">
+                          <div className="panel__list-item-text">
+                            <span className="panel__list-item-label">
+                              {isImporting === 'markdown' ? 'Importing...' : 'Import from Markdown'}
+                            </span>
+                          </div>
+                          <div className="panel__list-item-icon">
+                            <div className="panel__list-item-icon-wrapper">
+                              <div className="panel__chevron">
+                                <ChevronIcon />
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                        {isImporting === 'markdown' && (
+                          <div className="panel__progress-bar">
+                            <div className="panel__progress-fill"></div>
+                          </div>
+                        )}
+                      </button>
                     </div>
-                    {/* Progress bar */}
-                    {isImporting === 'markdown' && (
-                      <div className="panel__progress-bar">
-                        <div className="panel__progress-fill"></div>
-                      </div>
-                    )}
-                  </button>
-                </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

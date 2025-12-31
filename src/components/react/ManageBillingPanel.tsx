@@ -336,7 +336,7 @@ export default function ManageBillingPanel({
             {/* Header section */}
             <div className="panel__header">
               <div className="panel__title">
-                <p>My Pricing</p>
+                <p>My Subscription</p>
               </div>
             </div>
             
@@ -362,7 +362,9 @@ export default function ManageBillingPanel({
                           {subscriptionInfo.hasUnlimited ? 'Unlimited' : 'Free'}
                         </div>
                         <div className="text-sm text-[var(--color-pebble-grey)]">
-                          Active{!subscriptionInfo.hasUnlimited && ' (1,000 note limit)'}
+                          {subscriptionInfo.hasUnlimited 
+                            ? 'Active' 
+                            : `You've used ${subscriptionInfo.currentCount.toLocaleString()} out of the 1,000 note limit`}
                         </div>
                       </div>
                     </div>
