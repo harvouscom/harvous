@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SubscriptionDetailsButton } from '@clerk/clerk-react/experimental';
+import SafeSubscriptionDetailsButton from './SafeSubscriptionDetailsButton';
 import SquareButton from './SquareButton';
 
 interface ManageBillingPanelProps {
@@ -397,8 +397,8 @@ export default function ManageBillingPanel({
                 )}
 
                 {/* Manage Payment Method & Billing Button */}
-                {/* Note: SubscriptionDetailsButton requires ClerkProvider context, which should be provided by @clerk/astro integration */}
-                <SubscriptionDetailsButton>
+                {/* SafeSubscriptionDetailsButton handles Clerk context availability check */}
+                <SafeSubscriptionDetailsButton>
                   <button
                     type="button"
                     className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
@@ -421,7 +421,7 @@ export default function ManageBillingPanel({
                       </div>
                     </div>
                   </button>
-                </SubscriptionDetailsButton>
+                </SafeSubscriptionDetailsButton>
 
               </div>
             </div>
