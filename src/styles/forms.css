@@ -552,8 +552,19 @@
   line-height: 0;
   white-space: nowrap;
   color: white !important;  /* Actual white text */
-  min-height: 60px;
+  height: 64px;  /* Match btn-cta fixed height */
   width: 100%;
+}
+
+/* Ensure cl-formButtonPrimary has matching height and padding like btn-cta */
+.cl-formButtonPrimary,
+button.cl-formButtonPrimary,
+.cl-formButtonPrimary.cl-button {
+  height: 64px !important;  /* Match btn-cta fixed height */
+  padding-top: 1.5rem !important;  /* 24px */
+  padding-bottom: 1.75rem !important;  /* 28px - matches btn-cta */
+  padding-left: 1.5rem !important;  /* 24px */
+  padding-right: 1.5rem !important;  /* 24px */
 }
 
 /* Ensure Clerk's internal button classes also have white text - target all possible combinations */
@@ -571,6 +582,40 @@ button.cl-formButtonPrimary.clerk-form-button-primary {
 .cl-button[data-variant="solid"][data-color="primary"],
 button.cl-button[data-variant="solid"][data-color="primary"] {
   color: white !important;
+  background-color: var(--color-bold-blue) !important;
+  height: 64px !important;  /* Match btn-cta fixed height */
+  padding-top: 1.5rem !important;  /* 24px */
+  padding-bottom: 1.75rem !important;  /* 28px - matches btn-cta */
+  padding-left: 1.5rem !important;  /* 24px */
+  padding-right: 1.5rem !important;  /* 24px */
+  border-radius: 1.5rem !important;
+  font-weight: 600 !important;
+  font-size: 18px !important;
+  box-shadow:
+    0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+    0px 4px 4px 0px hsla(0, 0%, 0%, 0.25) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background-color 0.125s ease-in-out, box-shadow 0.125s ease-in-out !important;
+  will-change: transform, box-shadow !important;
+}
+
+/* Active state for Clerk primary buttons */
+.cl-button[data-variant="solid"][data-color="primary"]:active,
+button.cl-button[data-variant="solid"][data-color="primary"]:active {
+  transform: scale(0.98) !important;
+  background-color: var(--color-navy) !important;
+  box-shadow:
+    0px -4px 0px 0px #0000001a inset,
+    0px 0px 4px 0px #00000040,
+    0px 4px 0px 0px #00000040 inset !important;
+}
+
+.cl-button[data-variant="solid"][data-color="primary"]:active > *,
+button.cl-button[data-variant="solid"][data-color="primary"]:active > * {
+  translate: 0 0 !important;
+  transform: scale(0.98) !important;
 }
 
 /* Target text content inside button */

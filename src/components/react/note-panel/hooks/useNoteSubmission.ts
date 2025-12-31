@@ -801,6 +801,29 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           const currentCount = error.currentCount || 1000;
           const limit = error.limit || 1000;
           
+          // Save pending note data to localStorage before redirecting
+          // This allows us to auto-create the note after successful upgrade
+          try {
+            const pendingNoteData = {
+              title: title.trim(),
+              content: editorContent.trim(),
+              threadId: overrideThreadId || getSelectedThread().id,
+              noteType: currentNoteType,
+              scriptureReference: currentScriptureReference.trim(),
+              scriptureVersion: currentScriptureVersion,
+              resourceUrl: normalizedResourceUrl || resourceUrl.trim(),
+              resourceMetadata: resourceMetadata ? JSON.stringify(resourceMetadata) : null,
+              spaceId: (addToSpace && currentSpace?.id) ? currentSpace.id : null,
+              timestamp: Date.now()
+            };
+            
+            localStorage.setItem('pendingNoteAfterUpgrade', JSON.stringify(pendingNoteData));
+            debug('[useNoteSubmission] Saved pending note data before upgrade redirect', pendingNoteData);
+          } catch (saveError) {
+            console.error('[useNoteSubmission] Failed to save pending note data:', saveError);
+            // Continue with redirect even if save fails
+          }
+          
           // Show error toast
           showToast(
             `You've reached your ${limit.toLocaleString()} note limit.`,
@@ -965,6 +988,30 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           const currentCount = error.currentCount || 1000;
           const limit = error.limit || 1000;
           
+          // Save pending note data to localStorage before redirecting
+          // This allows us to auto-create the note after successful upgrade
+          try {
+            const validatedUrl = resourceUrl ? validateResourceUrl(resourceUrl).normalizedUrl || resourceUrl : resourceUrl;
+            const pendingNoteData = {
+              title: title.trim(),
+              content: content.trim(),
+              threadId: getSelectedThread().id,
+              noteType: noteType,
+              scriptureReference: scriptureReference.trim(),
+              scriptureVersion: scriptureVersion,
+              resourceUrl: validatedUrl || resourceUrl.trim(),
+              resourceMetadata: resourceMetadata ? JSON.stringify(resourceMetadata) : null,
+              spaceId: (addToSpace && currentSpace?.id) ? currentSpace.id : null,
+              timestamp: Date.now()
+            };
+            
+            localStorage.setItem('pendingNoteAfterUpgrade', JSON.stringify(pendingNoteData));
+            debug('[useNoteSubmission] Saved pending note data before upgrade redirect (save and close)', pendingNoteData);
+          } catch (saveError) {
+            console.error('[useNoteSubmission] Failed to save pending note data:', saveError);
+            // Continue with redirect even if save fails
+          }
+          
           // Show error toast
           showToast(
             `You've reached your ${limit.toLocaleString()} note limit.`,
@@ -984,7 +1031,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, noteType, title, scriptureReference, resourceUrl, content, getSelectedThread, scriptureVersion, resourceMetadata, showToast]);
+  }, [isSubmitting, noteType, title, scriptureReference, resourceUrl, content, getSelectedThread, scriptureVersion, resourceMetadata, showToast, addToSpace, currentSpace]);
 
   return {
     isSubmitting,

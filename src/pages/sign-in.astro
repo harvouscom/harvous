@@ -114,7 +114,7 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
       0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
       0px 4px 4px 0px hsla(0, 0%, 0%, 0.25) !important;
     border-radius: 1.5rem !important;
-    min-height: 60px !important;
+    height: 64px !important;
     font-weight: 600 !important;
     font-size: 18px !important;
     color: white !important;
@@ -396,6 +396,14 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
     word-wrap: break-word !important;
     white-space: normal !important;
     overflow-x: hidden !important;
+  }
+
+  /* Remove left and right padding on mobile */
+  @media (max-width: 1159px) {
+    .auth-page__form-section {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
   }
 
 </style>
