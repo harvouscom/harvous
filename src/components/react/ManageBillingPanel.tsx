@@ -10,19 +10,23 @@ interface ManageBillingPanelProps {
 
 /**
  * Wrapper component that provides ClerkProvider for SubscriptionDetailsButton.
- * This ensures the component has access to Clerk context even if @clerk/astro
- * doesn't provide a global ClerkProvider for React components.
+ * React Islands are isolated, so even if a ClerkProvider exists elsewhere,
+ * this component tree needs its own provider to access Clerk context.
+ * 
+ * Note: This may cause a "multiple ClerkProvider" warning in production if
+ * @clerk/astro provides a global provider, but the component will still function.
  */
 function ClerkSubscriptionButtonWrapper({ children }: { children: React.ReactNode }) {
   const publishableKey = typeof window !== 'undefined' ? import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY : null;
 
-  // If no publishable key, render children without provider (will show error but won't break panel)
+  // If no publishable key, render children without provider
   if (!publishableKey) {
     return <>{children}</>;
   }
 
-  // Wrap in ClerkProvider to provide context for SubscriptionDetailsButton
-  // Note: If there's already a ClerkProvider in the tree, Clerk will warn but still work
+  // Always wrap in ClerkProvider for React Islands
+  // React Islands are isolated component trees, so they need their own provider
+  // even if one exists elsewhere in the app
   return (
     <ClerkProvider publishableKey={publishableKey}>
       {children}
