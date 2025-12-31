@@ -100,8 +100,63 @@ const subscriptionInfo = await getSubscriptionInfo(userId, auth);
       content.classList.remove('auth-page__hidden');
     }
     
-    // PricingTable remains visible (just off-screen) so Clerk can initialize buttons
-    // We don't hide it with visibility: hidden as that prevents Clerk from initializing
+    // Ensure PricingTable mounts by waiting for Clerk to load
+    function ensurePricingTableMounts() {
+      var hiddenTable = document.getElementById('hidden-pricing-table');
+      if (!hiddenTable) {
+        setTimeout(ensurePricingTableMounts, 100);
+        return;
+      }
+      
+      // Check if Clerk is loaded and components are mounted
+      if (typeof window !== 'undefined' && window._astro_clerk_component_props) {
+        // Clerk's component props map exists, try to trigger mounting
+        if (typeof window.mountAllClerkAstroJSComponents === 'function') {
+          window.mountAllClerkAstroJSComponents();
+        }
+        
+        // Check if PricingTable has mounted (has buttons)
+        var hasButtons = hiddenTable.querySelector('button') !== null;
+        if (!hasButtons) {
+          // Wait a bit more for Clerk to finish mounting
+          setTimeout(function() {
+            if (typeof window.mountAllClerkAstroJSComponents === 'function') {
+              window.mountAllClerkAstroJSComponents();
+            }
+          }, 500);
+        }
+      } else {
+        // Clerk not loaded yet, wait and retry (max 10 seconds)
+        var attempts = 0;
+        var maxAttempts = 100; // 10 seconds
+        var checkInterval = setInterval(function() {
+          attempts++;
+          if (typeof window !== 'undefined' && window._astro_clerk_component_props) {
+            clearInterval(checkInterval);
+            if (typeof window.mountAllClerkAstroJSComponents === 'function') {
+              window.mountAllClerkAstroJSComponents();
+            }
+          } else if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            console.warn('[Clerk] PricingTable: Clerk did not load within 10 seconds');
+          }
+        }, 100);
+      }
+    }
+    
+    // Start checking after DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', ensurePricingTableMounts);
+    } else {
+      setTimeout(ensurePricingTableMounts, 100);
+    }
+    
+    // Also listen for Clerk's load event
+    window.addEventListener('clerk:loaded', function() {
+      if (typeof window.mountAllClerkAstroJSComponents === 'function') {
+        window.mountAllClerkAstroJSComponents();
+      }
+    });
   })();
 </script>
 
