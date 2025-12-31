@@ -109,7 +109,7 @@ interface ImportMetaEnv {
   readonly CLERK_SECRET_KEY: string;
   readonly PUBLIC_CLERK_SIGN_IN_URL?: string;
   readonly PUBLIC_CLERK_SIGN_UP_URL?: string;
-  // Clerk Billing plan ID for unlimited notes (production: cplan_37aHkwe15Sqd6V9DLZXyHtVJPCQ)
+  // Clerk Billing plan ID for unlimited notes
   readonly CLERK_UNLIMITED_PLAN_ID?: string;
   
   // Webflow CMS API token for syncing inbox items
