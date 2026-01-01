@@ -3,6 +3,7 @@ import CardThread from './CardThread';
 import CardNote from './CardNote';
 import CondensedNoteItem from './CondensedNoteItem';
 import { debug } from '@/utils/logger';
+import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
 
 interface SpaceItem {
   id: string;
@@ -34,17 +35,6 @@ function isPWA(): boolean {
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(display-mode: standalone)').matches ||
          (window.navigator as any).standalone === true;
-}
-
-// Helper function to normalize dates from API responses
-function normalizeDate(date: Date | string | null | undefined): Date | null {
-  if (!date) return null;
-  if (date instanceof Date) return date;
-  if (typeof date === 'string') {
-    const parsed = new Date(date);
-    return isNaN(parsed.getTime()) ? null : parsed;
-  }
-  return null;
 }
 
 // Helper function to detect stale data (all items have same lastVisited or all null)
@@ -88,29 +78,19 @@ function stripHtml(html: string): string {
   return text;
 }
 
-// Helper function to sort items by lastVisited (newest first), fallback to createdAt
+// Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
+// Note: SpaceItem uses lastUpdated instead of updatedAt, so we need to map it
 function sortItemsByLastVisited(items: SpaceItem[]): SpaceItem[] {
-  return [...items].sort((a, b) => {
-    // Sort by lastVisited (newest first), fallback to createdAt if lastVisited is null
-    const aTime = a.lastVisited || a.createdAt;
-    const bTime = b.lastVisited || b.createdAt;
-    
-    // Handle Date objects, strings, and null/undefined
-    const getDateValue = (time: Date | string | undefined | null): number => {
-      if (!time) return 0;
-      if (time instanceof Date) return time.getTime();
-      if (typeof time === 'string') {
-        const parsed = new Date(time);
-        return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
-      }
-      return 0;
-    };
-    
-    const aDateValue = getDateValue(aTime);
-    const bDateValue = getDateValue(bTime);
-    
-    return bDateValue - aDateValue; // Descending order (newest first)
-  });
+  // Map lastUpdated to updatedAt for the shared sorting function
+  const itemsWithUpdatedAt = items.map(item => ({
+    ...item,
+    updatedAt: item.lastUpdated
+  }));
+  
+  const sorted = sortByLastVisited(itemsWithUpdatedAt);
+  
+  // Map back to remove updatedAt (keep lastUpdated)
+  return sorted.map(({ updatedAt, ...item }) => item);
 }
 
 export default function SpaceContentList({

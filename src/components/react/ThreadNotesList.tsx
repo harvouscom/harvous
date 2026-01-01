@@ -6,23 +6,13 @@ import ActionButton from './ActionButton';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import Icon from './Icon';
 import { stripHtml } from '@/utils/html-stripper';
+import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
 
 // Helper function to detect if running in PWA context
 function isPWA(): boolean {
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(display-mode: standalone)').matches ||
          (window.navigator as any).standalone === true;
-}
-
-// Helper function to normalize dates from API responses
-function normalizeDate(date: Date | string | null | undefined): Date | null {
-  if (!date) return null;
-  if (date instanceof Date) return date;
-  if (typeof date === 'string') {
-    const parsed = new Date(date);
-    return isNaN(parsed.getTime()) ? null : parsed;
-  }
-  return null;
 }
 
 // Helper function to detect stale data (all notes have same lastVisited or all null)
@@ -100,33 +90,10 @@ function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scriptur
   return notes;
 }
 
-// Helper function to sort notes by time (newest first)
-// Matches server-side sorting: uses lastVisited || createdAt
-// Server is the source of truth for sorting to ensure consistency and proper pagination
+// Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
+// Note: Note interface uses updatedAt, so it matches the shared function directly
 function sortNotesByTime(notes: Note[]): Note[] {
-  return [...notes].sort((a, b) => {
-    // Get sort time for each note, using lastVisited or createdAt (matching server)
-    const getSortTime = (note: Note): Date | null => {
-      if (note.lastVisited) {
-        return note.lastVisited instanceof Date ? note.lastVisited : new Date(note.lastVisited);
-      }
-      if (note.createdAt) {
-        return note.createdAt instanceof Date ? note.createdAt : new Date(note.createdAt);
-      }
-      return null;
-    };
-
-    const aTime = getSortTime(a);
-    const bTime = getSortTime(b);
-
-    // Handle null cases - null times go after non-null times
-    if (!aTime && !bTime) return 0;
-    if (!aTime) return 1;
-    if (!bTime) return -1;
-
-    // Sort newest first (descending)
-    return bTime.getTime() - aTime.getTime();
-  });
+  return sortByLastVisited(notes);
 }
 
 export default function ThreadNotesList({ 

@@ -5,6 +5,7 @@ import CardThread from './CardThread';
 import CondensedNoteItem from './CondensedNoteItem';
 import { getThreadColorCSS } from '@/utils/colors';
 import { debug } from '@/utils/logger';
+import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
 
 interface OrganizedContentItem {
   id: string;
@@ -38,17 +39,6 @@ function isPWA(): boolean {
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(display-mode: standalone)').matches ||
          (window.navigator as any).standalone === true;
-}
-
-// Helper function to normalize dates from API responses
-function normalizeDate(date: Date | string | null | undefined): Date | null {
-  if (!date) return null;
-  if (date instanceof Date) return date;
-  if (typeof date === 'string') {
-    const parsed = new Date(date);
-    return isNaN(parsed.getTime()) ? null : parsed;
-  }
-  return null;
 }
 
 // Helper function to detect stale data (all items have same lastUpdated/lastVisited or all null)
@@ -103,34 +93,19 @@ export default function OrganizedContentList({
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
 
-  // Shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
+  // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
+  // Note: OrganizedContentItem uses lastUpdated instead of updatedAt, so we need to map it
   const sortItemsByLastVisited = useCallback((items: OrganizedContentItem[]): OrganizedContentItem[] => {
-    return [...items].sort((a, b) => {
-      const getSortTime = (item: OrganizedContentItem): number => {
-        // Primary: lastVisited
-        if (item.lastVisited) {
-          const date = normalizeDate(item.lastVisited);
-          if (date) return date.getTime();
-        }
-        // Secondary: lastUpdated
-        if (item.lastUpdated) {
-          const date = normalizeDate(item.lastUpdated);
-          if (date) return date.getTime();
-        }
-        // Tertiary: createdAt
-        if (item.createdAt) {
-          const date = normalizeDate(item.createdAt);
-          if (date) return date.getTime();
-        }
-        return 0;
-      };
-      
-      const diff = getSortTime(b) - getSortTime(a);
-      if (diff !== 0) return diff;
-      
-      // Quaternary: ID for deterministic sorting
-      return (a.id || '').localeCompare(b.id || '');
-    });
+    // Map lastUpdated to updatedAt for the shared sorting function
+    const itemsWithUpdatedAt = items.map(item => ({
+      ...item,
+      updatedAt: item.lastUpdated
+    }));
+    
+    const sorted = sortByLastVisited(itemsWithUpdatedAt);
+    
+    // Map back to remove updatedAt (keep lastUpdated)
+    return sorted.map(({ updatedAt, ...item }) => item);
   }, []);
 
   // Optimistic update: immediately update lastVisited and re-sort items
