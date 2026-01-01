@@ -49,7 +49,12 @@ async function migrateXPToSeasonal() {
             if (month >= 3 && month <= 5) season = `spring-${year}`;
             else if (month >= 6 && month <= 8) season = `summer-${year}`;
             else if (month >= 9 && month <= 11) season = `fall-${year}`;
-            else season = `winter-${year}`;
+            else {
+              // Winter: Dec (prev year), Jan, Feb (current year)
+              // Assign to the year that contains Jan/Feb
+              if (month === 12) season = `winter-${year + 1}`; // December belongs to next year's winter
+              else season = `winter-${year}`; // Jan, Feb
+            }
 
             // Update the record with season (if the column exists)
             // Note: This assumes the migration has already added the season column

@@ -7,6 +7,7 @@
 
 /**
  * Get current season identifier (e.g., "spring-2025")
+ * Winter spans Dec (prev year) - Feb (current year), assigned to the year containing Jan/Feb
  */
 export function getCurrentSeason(): string {
   const now = new Date();
@@ -16,7 +17,10 @@ export function getCurrentSeason(): string {
   if (month >= 3 && month <= 5) return `spring-${year}`;
   if (month >= 6 && month <= 8) return `summer-${year}`;
   if (month >= 9 && month <= 11) return `fall-${year}`;
-  return `winter-${year}`; // Dec, Jan, Feb
+  // Winter: Dec (prev year), Jan, Feb (current year)
+  // Assign to the year that contains Jan/Feb (the majority of the season)
+  if (month === 12) return `winter-${year + 1}`; // December belongs to next year's winter
+  return `winter-${year}`; // Jan, Feb
 }
 
 /**
@@ -42,7 +46,12 @@ export function getSeasonStart(season?: string): Date {
   if (seasonName === 'spring') month = 2; // March
   else if (seasonName === 'summer') month = 5; // June
   else if (seasonName === 'fall') month = 8; // September
-  else month = 11; // December (winter)
+  else {
+    // Winter: season identifier is for the year containing Jan/Feb
+    // but winter starts in December of the previous year
+    month = 11; // December
+    return new Date(yearNum - 1, month, 1); // December of previous year
+  }
   
   return new Date(yearNum, month, 1);
 }
