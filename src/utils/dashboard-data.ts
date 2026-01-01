@@ -1221,33 +1221,59 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
 
     // Convert map to array and sort by lastVisited (newest first)
     // Apply offset and limit after sorting
+    // Use deterministic three-tier sort: lastVisited → updatedAt → createdAt
+    // This ensures consistent ordering even when items have the same lastVisited timestamp
     const allItems = Array.from(allItemsMap.values())
       .sort((a, b) => {
-        // Helper function to get the timestamp for sorting
-        // For threads: prefer lastVisited, then updatedAt, then createdAt
-        // For notes: prefer lastVisited, then createdAt
-        const getSortTime = (item: any): Date | null => {
-          if (item.lastVisited) {
-            return item.lastVisited instanceof Date ? item.lastVisited : new Date(item.lastVisited);
-          }
-          if (item.type === 'thread' && item.updatedAt) {
-            return item.updatedAt instanceof Date ? item.updatedAt : new Date(item.updatedAt);
-          }
-          if (item.createdAt) {
-            return item.createdAt instanceof Date ? item.createdAt : new Date(item.createdAt);
-          }
-          return null;
+        // Helper function to get a timestamp as Date or null
+        const getTime = (item: any, field: 'lastVisited' | 'updatedAt' | 'createdAt'): Date | null => {
+          const value = item[field];
+          if (!value) return null;
+          return value instanceof Date ? value : new Date(value);
         };
 
-        const aTime = getSortTime(a);
-        const bTime = getSortTime(b);
+        // Primary sort: lastVisited (newest first)
+        const aLastVisited = getTime(a, 'lastVisited');
+        const bLastVisited = getTime(b, 'lastVisited');
+        
+        if (aLastVisited && bLastVisited) {
+          const diff = bLastVisited.getTime() - aLastVisited.getTime();
+          if (diff !== 0) return diff; // Different lastVisited, use that
+        } else if (aLastVisited && !bLastVisited) {
+          return -1; // a has lastVisited, b doesn't - a comes first
+        } else if (!aLastVisited && bLastVisited) {
+          return 1; // b has lastVisited, a doesn't - b comes first
+        }
+        // Both have null lastVisited, continue to secondary sort
 
-        // Handle null cases explicitly
-        if (!aTime && !bTime) return 0;
-        if (!aTime) return 1; // null goes after
-        if (!bTime) return -1; // null goes after
+        // Secondary sort: updatedAt (newest first)
+        const aUpdatedAt = getTime(a, 'updatedAt');
+        const bUpdatedAt = getTime(b, 'updatedAt');
+        
+        if (aUpdatedAt && bUpdatedAt) {
+          const diff = bUpdatedAt.getTime() - aUpdatedAt.getTime();
+          if (diff !== 0) return diff; // Different updatedAt, use that
+        } else if (aUpdatedAt && !bUpdatedAt) {
+          return -1; // a has updatedAt, b doesn't - a comes first
+        } else if (!aUpdatedAt && bUpdatedAt) {
+          return 1; // b has updatedAt, a doesn't - b comes first
+        }
+        // Both have null updatedAt, continue to tertiary sort
 
-        return bTime.getTime() - aTime.getTime(); // Newest first
+        // Tertiary sort: createdAt (newest first)
+        const aCreatedAt = getTime(a, 'createdAt');
+        const bCreatedAt = getTime(b, 'createdAt');
+        
+        if (aCreatedAt && bCreatedAt) {
+          return bCreatedAt.getTime() - aCreatedAt.getTime();
+        } else if (aCreatedAt && !bCreatedAt) {
+          return -1; // a has createdAt, b doesn't - a comes first
+        } else if (!aCreatedAt && bCreatedAt) {
+          return 1; // b has createdAt, a doesn't - b comes first
+        }
+        
+        // All timestamps are null - maintain original order (stable sort)
+        return 0;
       })
       .slice(offset, offset + limit);
 
