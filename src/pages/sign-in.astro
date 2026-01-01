@@ -94,6 +94,9 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
     // Check if we're in production (avoid using import.meta in inline scripts)
     var isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
     
+    // Track if clerk:loaded listener has been set up (only set up once)
+    var clerkLoadedListenerSetup = false;
+    
     // Debug: Check if @clerk/astro scripts are in the DOM
     function checkClerkScripts() {
       var clerkScripts = document.querySelectorAll('script[src*="clerk"], script[src*="clerkjs"]');
@@ -139,39 +142,51 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
       }
     }
     
-    // Check for Clerk scripts after a short delay
+    // Show the sign-in content
+    function showSignInContent() {
+      var content = document.getElementById('sign-in-content');
+      if (content) {
+        content.classList.remove('auth-page__hidden');
+      }
+    }
+    
+    // Initialize Clerk and show content
+    function initializeSignIn() {
+      ensureClerkComponentsMount();
+      showSignInContent();
+    }
+    
+    // Set up clerk:loaded listener only once
+    if (!clerkLoadedListenerSetup) {
+      window.addEventListener('clerk:loaded', function() {
+        if (typeof window.mountAllClerkAstroJSComponents === 'function') {
+          window.mountAllClerkAstroJSComponents();
+          if (isProduction) {
+            console.log('[Clerk] Clerk loaded event fired, mounted components');
+          }
+        }
+      });
+      clerkLoadedListenerSetup = true;
+    }
+    
+    // Check for Clerk scripts after a short delay (only on initial load)
     setTimeout(checkClerkScripts, 500);
     
-    // Start checking after DOM is ready
+    // Initial load
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', ensureClerkComponentsMount);
+      document.addEventListener('DOMContentLoaded', initializeSignIn);
     } else {
-      // DOM already ready, start checking
-      setTimeout(ensureClerkComponentsMount, 100);
+      // DOM already ready, initialize immediately
+      setTimeout(initializeSignIn, 100);
     }
     
-    // Also listen for Clerk's load event if available
-    window.addEventListener('clerk:loaded', function() {
-      if (typeof window.mountAllClerkAstroJSComponents === 'function') {
-        window.mountAllClerkAstroJSComponents();
-        if (isProduction) {
-          console.log('[Clerk] Clerk loaded event fired, mounted components');
-        }
+    // View Transitions: Re-initialize on page navigation
+    document.addEventListener('astro:page-load', function() {
+      // Only re-initialize if we're on the sign-in page
+      if (window.location.pathname === '/sign-in') {
+        initializeSignIn();
       }
     });
-  })();
-</script>
-
-<!-- Show sign-in content once page loads (Clerk handles auth redirects) -->
-<script is:inline>
-  (function() {
-    if (typeof window === 'undefined') return;
-    
-    // Show the sign-in content - Clerk middleware handles auth redirects server-side
-    var content = document.getElementById('sign-in-content');
-    if (content) {
-      content.classList.remove('auth-page__hidden');
-    }
   })();
 </script>
 
