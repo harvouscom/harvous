@@ -45,6 +45,35 @@ function UpgradeCheckoutButtonInner({
     };
   }, []);
 
+  // Update Clerk checkout drawer title when it opens
+  useEffect(() => {
+    const updateCheckoutDrawerTitle = () => {
+      // Update checkout drawer title
+      const checkoutTitle = document.querySelector('.cl-drawerTitle[data-localization-key="billing.checkout.title"]');
+      if (checkoutTitle && checkoutTitle.textContent !== 'Upgrade') {
+        checkoutTitle.textContent = 'Upgrade';
+      }
+    };
+
+    // Watch for drawer opening using MutationObserver
+    const observer = new MutationObserver(() => {
+      updateCheckoutDrawerTitle();
+    });
+
+    // Observe the document body for changes
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    // Also try immediately in case drawer is already open
+    updateCheckoutDrawerTitle();
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   // Show loading state while Clerk initializes
   if (!isClient || !isLoaded) {
     return (
@@ -361,7 +390,7 @@ function UpgradeCheckoutButtonInner({
               tabIndex={3}
               onClick={(e) => {
                 // Debug: Log when button is clicked
-                console.log('[UpgradeCheckoutButton] Continue & Pay clicked', {
+                console.log('[UpgradeCheckoutButton] Upgrade to Unlimited clicked', {
                   planId: unlimitedPlanId,
                   planPeriod: selectedInterval === 'year' ? 'annual' : 'month',
                   pathname,
@@ -370,7 +399,7 @@ function UpgradeCheckoutButtonInner({
                 });
               }}
             >
-              <span className="btn-cta__content">Continue & Pay</span>
+              <span className="btn-cta__content">Upgrade to Unlimited</span>
               <div className="btn-cta__shadow" />
             </button>
           </CheckoutButton>
