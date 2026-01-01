@@ -416,32 +416,34 @@ export default function ManageBillingPanel({
                   </a>
                 )}
 
-                {/* Manage Payment Method & Billing Button */}
+                {/* Manage Payment Method & Billing Button - Only show for unlimited plan users */}
                 {/* SafeSubscriptionDetailsButton handles Clerk context availability check */}
-                <SafeSubscriptionDetailsButton publishableKey={publishableKey}>
-                  <button
-                    type="button"
-                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
-                    style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', margin: 0 }}
-                  >
-                    <div className="panel__list-item">
-                      <div className="panel__list-item-text">
-                        <span className="panel__list-item-label">
-                          Manage Billing
-                        </span>
-                      </div>
-                      <div className="panel__list-item-icon">
-                        <div className="panel__list-item-icon-wrapper">
-                          <div className="panel__external-icon">
-                            <svg viewBox="0 0 320 512">
-                              <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                            </svg>
+                {!isLoading && subscriptionInfo && subscriptionInfo.hasUnlimited && (
+                  <SafeSubscriptionDetailsButton publishableKey={publishableKey}>
+                    <button
+                      type="button"
+                      className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
+                      style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', margin: 0 }}
+                    >
+                      <div className="panel__list-item">
+                        <div className="panel__list-item-text">
+                          <span className="panel__list-item-label">
+                            Manage Billing
+                          </span>
+                        </div>
+                        <div className="panel__list-item-icon">
+                          <div className="panel__list-item-icon-wrapper">
+                            <div className="panel__external-icon">
+                              <svg viewBox="0 0 320 512">
+                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                              </svg>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </button>
-                </SafeSubscriptionDetailsButton>
+                    </button>
+                  </SafeSubscriptionDetailsButton>
+                )}
 
               </div>
             </div>
