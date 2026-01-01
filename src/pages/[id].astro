@@ -11,6 +11,7 @@ import CardNote from "@/components/CardNote.astro";
 import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import ThreadNotesList from "@/components/react/ThreadNotesList";
 import ThreadNotesListWithTabs from "@/components/react/ThreadNotesListWithTabs";
+import SpaceContentList from "@/components/react/SpaceContentList";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
@@ -738,23 +739,9 @@ if (!content) {
                   <div class="flex flex-col gap-3">
                     {/* Use total note counts from database, fallback to visible notes if counts not available */}
                     {(() => {
-                      const allCount = noteTypeCounts?.all ?? threadNotes.length;
-                      const notesCount = noteTypeCounts?.default ?? threadNotes.filter((n: any) => !n.noteType || n.noteType === 'default').length;
-                      const scriptureCount = noteTypeCounts?.scripture ?? threadNotes.filter((n: any) => n.noteType === 'scripture').length;
-                      
                       return (
                         <>
-                          {/* Tab Navigation */}
-                          <TabNav 
-                            tabs={[
-                              { id: "all", label: "All", isActive: true, count: allCount },
-                              { id: "notes", label: "Notes", isActive: false, count: notesCount },
-                              { id: "scripture", label: "Scripture", isActive: false, count: scriptureCount }
-                            ]}
-                            class="content-tabs"
-                          />
-                          
-                          {/* Single component that switches filters based on active tab - always visible */}
+                          {/* ThreadNotesListWithTabs now includes TabNav internally */}
                           {threadNotes.length > 0 ? (
                             <ThreadNotesListWithTabs 
                               initialNotes={threadNotes}
@@ -790,143 +777,32 @@ if (!content) {
                     
                     {/* All Content */}
                     <div class="organized-content flex flex-col" data-tab-content="all">
-                      {content.sortedAllItems && content.sortedAllItems.length > 0 ? (
-                        content.sortedAllItems.map((item: any, index: number) => (
-                          item.itemType === 'thread' ? (
-                            <div class="content-item thread-item mb-3 card-enter" style={`animation-delay: ${index * 50}ms;`}>
-                              <a 
-                                href={`/${item.id}`}
-                                class="block transition-transform duration-200 hover:scale-[1.002]"
-                              >
-                                <CardThread 
-                                  title={item.title}
-                                  subtitle={item.subtitle || `${item.noteCount} notes`}
-                                  count={item.noteCount}
-                                  accentColor={item.accentColor}
-                                  lastUpdated={item.lastUpdated}
-                                  isPrivate={!item.isPublic}
-                                />
-                              </a>
-                            </div>
-                          ) : (
-                            <div class="content-item note-item mb-3 card-enter" style={`animation-delay: ${index * 50}ms;`}>
-                              {item.noteType === 'scripture' ? (
-                                <CondensedNoteItem 
-                                  title={item.title || "Untitled Note"}
-                                  noteType={item.noteType || 'default'}
-                                  href={`/${item.id}`}
-                                  threadColors={item.threadColors}
-                                  noteId={item.itemType === 'note' ? item.id : undefined}
-                                  client:visible
-                                />
-                              ) : (
-                                <a 
-                                  href={`/${item.id}`}
-                                  class="block transition-transform duration-200 hover:scale-[1.002]"
-                                >
-                                  <CardNote 
-                                    title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : (item.title || "Untitled Note")}
-                                    content={(() => {
-                                      // For resource notes, use resourceDescription if available
-                                      if (item.noteType === 'resource' && item.resourceDescription) {
-                                        return item.resourceDescription;
-                                      }
-                                      const cleanContent = stripHtml(item.content);
-                                      return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
-                                    })()}
-                                    noteType={item.noteType || 'default'}
-                                    imageUrl={item.noteType === 'resource' && item.resourceImage ? item.resourceImage : undefined}
-                                    resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
-                                    resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
-                                    resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
-                                    threadColors={item.threadColors}
-                                    noteId={item.itemType === 'note' ? item.id : undefined}
-                                  />
-                                </a>
-                              )}
-                            </div>
-                          )
-                        ))
-                      ) : (
-                        <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                          <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No content found in this space.</p>
-                        </div>
-                      )}
+                      <SpaceContentList 
+                        initialItems={content.sortedAllItems || []}
+                        spaceId={id!}
+                        filter="all"
+                        client:load
+                      />
                     </div>
                     
                     {/* Threads Only Content */}
                     <div class="organized-content flex flex-col hidden" data-tab-content="threads">
-                      {content.threads && content.threads.length > 0 ? (
-                        content.threads.map((thread: any, index: number) => (
-                          <div class="content-item thread-item mb-3 card-enter" style={`animation-delay: ${index * 50}ms;`}>
-                            <a 
-                              href={`/${thread.id}`}
-                              class="block transition-transform duration-200 hover:scale-[1.002]"
-                            >
-                              <CardThread 
-                                title={thread.title}
-                                subtitle={thread.subtitle || `${thread.noteCount} notes`}
-                                count={thread.noteCount}
-                                accentColor={thread.accentColor}
-                                lastUpdated={thread.lastUpdated}
-                                isPrivate={!thread.isPublic}
-                              />
-                            </a>
-                          </div>
-                        ))
-                      ) : (
-                        <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                          <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No threads found in this space.</p>
-                        </div>
-                      )}
+                      <SpaceContentList 
+                        initialItems={content.threads?.map((t: any) => ({ ...t, itemType: 'thread' as const })) || []}
+                        spaceId={id!}
+                        filter="threads"
+                        client:load
+                      />
                     </div>
                     
                     {/* Notes Only Content */}
                     <div class="organized-content flex flex-col hidden" data-tab-content="notes">
-                      {content.notes && content.notes.length > 0 ? (
-                        content.notes.map((note: any, index: number) => (
-                          <div class="content-item note-item mb-3 card-enter" style={`animation-delay: ${index * 50}ms;`}>
-                            {note.noteType === 'scripture' ? (
-                              <CondensedNoteItem 
-                                title={note.title || "Untitled Note"}
-                                noteType={note.noteType || 'default'}
-                                href={`/${note.id}`}
-                                threadColors={note.threadColors}
-                                noteId={note.id}
-                                client:visible
-                              />
-                            ) : (
-                              <a 
-                                href={`/${note.id}`}
-                                class="block transition-transform duration-200 hover:scale-[1.002]"
-                              >
-                                <CardNote 
-                                  title={note.noteType === 'resource' && note.resourceTitle ? note.resourceTitle : (note.title || "Untitled Note")}
-                                  content={(() => {
-                                    // For resource notes, use resourceDescription if available
-                                    if (note.noteType === 'resource' && note.resourceDescription) {
-                                      return note.resourceDescription;
-                                    }
-                                    const cleanContent = stripHtml(note.content);
-                                    return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
-                                  })()}
-                                  noteType={note.noteType || 'default'}
-                                  imageUrl={note.noteType === 'resource' && note.resourceImage ? note.resourceImage : undefined}
-                                  resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
-                                  resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
-                                  resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
-                                  threadColors={note.threadColors}
-                                  noteId={note.id}
-                                />
-                              </a>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <div class="empty-state" style="padding-top: 64px; padding-bottom: 64px;">
-                          <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this space.</p>
-                        </div>
-                      )}
+                      <SpaceContentList 
+                        initialItems={content.notes?.map((n: any) => ({ ...n, itemType: 'note' as const })) || []}
+                        spaceId={id!}
+                        filter="notes"
+                        client:load
+                      />
                     </div>
                   </div>
                 ) : isThread ? (
@@ -1295,132 +1171,7 @@ if (!content) {
     }
   });
   
-  // Refresh space content on View Transitions navigation
-  (function() {
-    if (typeof window === 'undefined') return;
-    
-    let refreshTimeout = null;
-    let isRefreshing = false;
-    const DEBOUNCE_MS = 300;
-    let previousPathname = window.location.pathname;
-    let hasRefreshedOnMount = false;
-    
-    const refreshSpaceContent = async () => {
-      if (isRefreshing) return;
-      
-      const currentPath = window.location.pathname;
-      const currentId = currentPath.substring(1);
-      
-      // Only refresh if we're on a space page
-      if (!currentId.startsWith('space_')) {
-        previousPathname = currentPath;
-        return;
-      }
-      
-      // Don't refresh if we're already on this space (initial load) unless coming from note page
-      if (currentPath === previousPathname && !hasRefreshedOnMount) {
-        // Check if we came from a note page (full page reload scenario)
-        const referrer = document.referrer;
-        const cameFromNotePage = referrer && (
-          referrer.includes('/note_') || 
-          new URL(referrer).pathname.startsWith('/note_')
-        );
-        
-        if (cameFromNotePage) {
-          hasRefreshedOnMount = true;
-          // Refresh immediately (database verification happens before navigation)
-          refreshSpaceContent();
-          return;
-        }
-        return;
-      }
-      
-      isRefreshing = true;
-      
-      try {
-        // Fetch fresh space data (no delay needed - database verification happens before navigation)
-        const response = await fetch(`/api/spaces/${currentId}/items`, {
-          credentials: 'include',
-          cache: 'no-store'
-        });
-        
-        if (!response.ok) {
-          console.error('[Space Refresh] Failed to fetch space items:', response.status);
-          // Fallback: refresh the page using View Transitions
-          await safeNavigate(currentPath + window.location.search, { history: 'replace' });
-          return;
-        }
-        
-        const data = await response.json();
-        const { threads, notes } = data;
-        
-        // Update the space content by refreshing the page with View Transitions
-        // This ensures we get fresh server-rendered content with all the proper formatting
-        await safeNavigate(currentPath + window.location.search, { history: 'replace' });
-        
-      } catch (error) {
-        console.error('[Space Refresh] Error refreshing space content:', error);
-        // Fallback: refresh the page
-        await safeNavigate(window.location.pathname + window.location.search, { history: 'replace' });
-      } finally {
-        isRefreshing = false;
-        previousPathname = currentPath;
-      }
-    };
-    
-    const handlePageLoad = () => {
-      // Clear any pending refresh
-      if (refreshTimeout) {
-        clearTimeout(refreshTimeout);
-      }
-      
-      // Debounce to prevent multiple rapid refreshes
-      refreshTimeout = setTimeout(() => {
-        refreshTimeout = null;
-        refreshSpaceContent();
-      }, DEBOUNCE_MS);
-    };
-    
-    // Check on mount if we're coming from a note page (for full page reloads)
-    const checkAndRefreshOnMount = () => {
-      if (hasRefreshedOnMount) return;
-      
-      const currentPath = window.location.pathname;
-      const currentId = currentPath.substring(1);
-      
-      // Only check if we're on a space page
-      if (!currentId.startsWith('space_')) {
-        return;
-      }
-      
-      // Check if we came from a note page
-      const referrer = document.referrer;
-      const cameFromNotePage = referrer && (
-        referrer.includes('/note_') || 
-        new URL(referrer).pathname.startsWith('/note_')
-      );
-      
-      if (cameFromNotePage) {
-        hasRefreshedOnMount = true;
-        // Refresh with a delay to ensure database is updated
-        setTimeout(() => {
-          refreshSpaceContent();
-        }, 200);
-      }
-    };
-    
-    // Check on mount
-    checkAndRefreshOnMount();
-    
-    // Listen for View Transitions page load
-    document.addEventListener('astro:page-load', handlePageLoad);
-    
-    // Also listen for before-preparation to track navigation
-    const handleBeforePreparation = () => {
-      previousPathname = window.location.pathname;
-    };
-    document.addEventListener('astro:before-preparation', handleBeforePreparation);
-  })();
+  // Space content refresh is now handled by SpaceContentList React component
   
   // Detect page type (client-side)
   const currentPath = window.location.pathname;
@@ -1528,139 +1279,6 @@ if (!content) {
       });
     }
   });
-  
-  // Update TabNav badge counts when notes are created/deleted
-  (function() {
-    if (typeof window === 'undefined') return;
-    
-    // Helper to update TabNav badge counts
-    const updateTabNavBadges = async (noteType?: string, increment: number = 1) => {
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
-      
-      // Only update if we're on a thread page
-      if (!currentThreadId || (!currentThreadId.startsWith('thread_') && currentThreadId !== 'thread_unorganized')) {
-        return;
-      }
-      
-      // Find TabNav container
-      const tabNavContainer = document.querySelector('.content-tabs');
-      if (!tabNavContainer) return;
-      
-      // Get all tab buttons
-      const tabButtons = tabNavContainer.querySelectorAll('[data-tab-button]');
-      if (tabButtons.length === 0) return;
-      
-      // Fetch fresh note type counts from API
-      try {
-        const response = await fetch(`/api/threads/${currentThreadId}/notes?offset=0&limit=100`, {
-          credentials: 'include',
-          cache: 'no-store'
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const notes = data.notes || [];
-          
-          // Calculate counts
-          const allCount = notes.length;
-          const notesCount = notes.filter((n: any) => !n.noteType || n.noteType === 'default').length;
-          const scriptureCount = notes.filter((n: any) => n.noteType === 'scripture').length;
-          
-          // Update badge counts in TabNav
-          tabButtons.forEach((button) => {
-            const tabId = button.getAttribute('data-tab-id');
-            const badgeElement = button.querySelector('.badge-number');
-            
-            if (!badgeElement) return;
-            
-            let newCount = 0;
-            if (tabId === 'all') {
-              newCount = allCount;
-            } else if (tabId === 'notes') {
-              newCount = notesCount;
-            } else if (tabId === 'scripture') {
-              newCount = scriptureCount;
-            }
-            
-            // Update badge count
-            if (newCount > 0) {
-              badgeElement.textContent = newCount > 99 ? '99+' : String(newCount);
-              // Ensure badge is visible
-              const badgeCount = button.querySelector('.badge-count');
-              if (badgeCount) {
-                badgeCount.style.display = 'flex';
-              }
-            } else {
-              // Hide badge if count is 0
-              const badgeCount = button.querySelector('.badge-count');
-              if (badgeCount) {
-                badgeCount.style.display = 'none';
-              }
-            }
-          });
-        }
-      } catch (error) {
-        console.error('[TabNav] Error updating badge counts:', error);
-      }
-    };
-    
-    // Listen for note created events
-    window.addEventListener('noteCreated', async (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { threadId, note } = customEvent.detail;
-      
-      // Check if note was created in current thread
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
-      const noteThreadId = threadId || customEvent.detail?.actualThreadId || note?.threadId;
-      
-      if (noteThreadId === currentThreadId) {
-        // Update badges immediately with verification
-        await updateTabNavBadges(note?.noteType, 1);
-      }
-    });
-    
-    // Listen for note deleted events
-    window.addEventListener('noteDeleted', async (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { threadId } = customEvent.detail;
-      
-      // Check if note was deleted from current thread
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
-      
-      if (threadId === currentThreadId) {
-        // Update badges immediately with verification
-        await updateTabNavBadges(undefined, -1);
-      }
-    });
-    
-    // Listen for note added/removed from thread events
-    window.addEventListener('noteAddedToThread', async (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { threadId } = customEvent.detail;
-      
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
-      
-      if (threadId === currentThreadId) {
-        await updateTabNavBadges(undefined, 1);
-      }
-    });
-    
-    window.addEventListener('noteRemovedFromThread', async (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { threadId } = customEvent.detail;
-      
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
-      
-      if (threadId === currentThreadId) {
-        await updateTabNavBadges(undefined, -1);
-      }
-    });
-  })();
 </script>
 
 

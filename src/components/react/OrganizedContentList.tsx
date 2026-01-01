@@ -53,6 +53,108 @@ export default function OrganizedContentList({
   const DEBOUNCE_WINDOW_MS = 2000; // 2 seconds minimum between refreshes
   const shouldBypassDebounceRef = useRef(false); // Flag to bypass debounce for navigation-triggered refreshes
   const pendingUpdateRef = useRef(false); // Track if an update event occurred while not on dashboard
+  const currentItemsRef = useRef<OrganizedContentItem[]>(initialItems || []); // Track current items for verification
+
+  // Verification-based refresh function
+  const refreshContentWithVerification = useCallback(async (expectedItemId?: string, expectedItemType?: 'thread' | 'note'): Promise<boolean> => {
+    if (!isMountedRef.current) return false;
+
+    const verifyAndRefresh = async (maxAttempts = 3): Promise<boolean> => {
+      const delays = [100, 200, 400]; // Exponential backoff in ms
+      
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          const currentFilter = filterRef.current;
+          
+          // Skip if scripture filter (has its own refresh logic)
+          if (currentFilter === 'scripture') {
+            return false;
+          }
+          
+          const url = new URL('/api/content/load-more', window.location.origin);
+          url.searchParams.set('offset', '0');
+          url.searchParams.set('limit', '100');
+          url.searchParams.set('filter', currentFilter);
+
+          const response = await fetch(url.toString(), {
+            credentials: 'include',
+            cache: 'no-store'
+          });
+
+          if (!response.ok) {
+            console.error('[OrganizedContentList] Failed to refresh content:', response.status);
+            if (attempt < maxAttempts - 1) {
+              await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+            }
+            continue;
+          }
+
+          const data = await response.json();
+          const freshItems = data.items || [];
+
+          if (!isMountedRef.current) return false;
+
+          // If we're looking for a specific item, check if it exists
+          if (expectedItemId) {
+            const itemExists = freshItems.some((item: OrganizedContentItem) => {
+              const itemId = expectedItemType === 'thread' ? `thread-${expectedItemId}` : 
+                           expectedItemType === 'note' ? `note-${expectedItemId}` : expectedItemId;
+              return item.id === itemId || item.threadId === expectedItemId || item.noteId === expectedItemId;
+            });
+            if (!itemExists && attempt < maxAttempts - 1) {
+              // Item not found yet, wait and retry
+              await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+              continue;
+            }
+          }
+
+          // Filter out deleted items
+          const filtered = freshItems.filter((item: OrganizedContentItem) => {
+            return !deletedItemIdsRef.current.has(item.id);
+          });
+          
+          // Create a key from the refreshed items to track what we just loaded
+          const refreshedItemsKey = filtered.map((item: OrganizedContentItem) => item.id).join(',') + `|${filtered.length}`;
+          
+          // Double-check we're still on dashboard and mounted before updating
+          if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && filterRef.current !== 'scripture') {
+            // Only update if items actually changed (avoid unnecessary updates that trigger loops)
+            if (refreshedItemsKey !== lastRefreshItemsKeyRef.current) {
+              // Mark that we're refreshing to prevent InfiniteScrollList from auto-loading
+              isRefreshingItemsRef.current = true;
+              lastRefreshItemsKeyRef.current = refreshedItemsKey;
+              
+              setCurrentItems(filtered);
+              currentItemsRef.current = filtered;
+              debug('[OrganizedContentList] Updated currentItems with verification', { itemCount: filtered.length });
+              
+              // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
+              setTimeout(() => {
+                isRefreshingItemsRef.current = false;
+              }, 100);
+            }
+          }
+          
+          return true; // Success
+        } catch (error) {
+          console.error('[OrganizedContentList] Error refreshing content:', error);
+          if (attempt < maxAttempts - 1) {
+            await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+          }
+        }
+      }
+      
+      return false; // Failed after all attempts
+    };
+
+    // If no expected item ID, just refresh once
+    if (!expectedItemId) {
+      return await verifyAndRefresh(1);
+    } else {
+      // Verify item exists with retries
+      return await verifyAndRefresh(3);
+    }
+  }, [filter]);
 
   // Refresh content by fetching fresh data from API
   const refreshContent = useCallback(async () => {
@@ -161,6 +263,7 @@ export default function OrganizedContentList({
             lastRefreshItemsKeyRef.current = refreshedItemsKey;
             
             setCurrentItems(filteredItems);
+            currentItemsRef.current = filteredItems;
             debug('[OrganizedContentList] Updated currentItems', { itemCount: filteredItems.length });
             
             // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
@@ -271,6 +374,7 @@ export default function OrganizedContentList({
           lastRefreshItemsKeyRef.current = refreshedItemsKey;
           
           setCurrentItems(filteredItems);
+          currentItemsRef.current = filteredItems;
           debug('[OrganizedContentList] Updated scripture notes', { itemCount: filteredItems.length, forceUpdate });
           
           // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
@@ -306,6 +410,11 @@ export default function OrganizedContentList({
     deletedItemIdsRef.current = deletedItemIds;
   }, [deletedItemIds]);
 
+  // Keep currentItemsRef in sync with state
+  useEffect(() => {
+    currentItemsRef.current = currentItems;
+  }, [currentItems]);
+
   // Track previous filter to detect tab switches
   const prevFilterRef = useRef<string | null>(null);
   
@@ -320,6 +429,7 @@ export default function OrganizedContentList({
       // Only fetch if filter just changed to scripture (not on every render)
       if (prevFilterRef.current !== filter) {
         setCurrentItems([]);
+        currentItemsRef.current = [];
         refreshScriptureNotes();
       }
     }
@@ -335,6 +445,7 @@ export default function OrganizedContentList({
     
     if (!initialItems || !Array.isArray(initialItems)) {
       setCurrentItems([]);
+      currentItemsRef.current = [];
       prevInitialItemsKeyRef.current = '';
       lastRefreshItemsKeyRef.current = ''; // Clear refresh tracking when items are cleared
       return;
@@ -387,6 +498,7 @@ export default function OrganizedContentList({
     });
     
     setCurrentItems(filtered);
+    currentItemsRef.current = filtered;
   }, [initialItems, deletedItemIds, filter]);
 
   // Listen for deletion events to track deleted items
@@ -426,6 +538,68 @@ export default function OrganizedContentList({
     };
   }, []);
 
+  // Check sessionStorage on mount for recently created items
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.pathname !== '/') return; // Only check on dashboard
+
+    try {
+      // Check for recently created notes
+      const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+      if (recentNotesStr) {
+        const recentNotes = JSON.parse(recentNotesStr);
+        const fiveSecondsAgo = Date.now() - 5000;
+
+        // Check if any note was created within last 5 seconds
+        const relevantNote = recentNotes.find((n: any) => n.timestamp > fiveSecondsAgo);
+
+        if (relevantNote && relevantNote.noteId) {
+          // Force immediate refresh with verification
+          refreshContentWithVerification(relevantNote.noteId, 'note').then((success) => {
+            if (success) {
+              const noteExists = currentItemsRef.current.some(item => 
+                item.noteId === relevantNote.noteId
+              );
+              if (noteExists) {
+                // Note confirmed in list, safe to remove from sessionStorage
+                const filtered = recentNotes.filter((n: any) => n.noteId !== relevantNote.noteId);
+                sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+              }
+            }
+          });
+        }
+      }
+
+      // Check for recently created threads
+      const recentThreadsStr = sessionStorage.getItem('recentlyCreatedThreads');
+      if (recentThreadsStr) {
+        const recentThreads = JSON.parse(recentThreadsStr);
+        const fiveSecondsAgo = Date.now() - 5000;
+
+        // Check if any thread was created within last 5 seconds
+        const relevantThread = recentThreads.find((t: any) => t.timestamp > fiveSecondsAgo);
+
+        if (relevantThread && relevantThread.threadId) {
+          // Force immediate refresh with verification
+          refreshContentWithVerification(relevantThread.threadId, 'thread').then((success) => {
+            if (success) {
+              const threadExists = currentItemsRef.current.some(item => 
+                item.threadId === relevantThread.threadId
+              );
+              if (threadExists) {
+                // Thread confirmed in list, safe to remove from sessionStorage
+                const filtered = recentThreads.filter((t: any) => t.threadId !== relevantThread.threadId);
+                sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(filtered));
+              }
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[OrganizedContentList] Error checking sessionStorage:', error);
+    }
+  }, [refreshContentWithVerification]);
+
   // Listen for content creation events to refresh the list
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -441,60 +615,109 @@ export default function OrganizedContentList({
       }
     };
     
-    const handleNoteCreated = (event?: Event) => {
+    const handleNoteCreated = async (event?: Event) => {
       const customEvent = event as CustomEvent;
       const note = customEvent?.detail?.note;
+      const noteId = customEvent?.detail?.noteId || note?.id;
       const currentFilter = filterRef.current;
       
       debug('[OrganizedContentList] noteCreated event received', { 
-        noteId: note?.id, 
+        noteId, 
         noteType: note?.noteType,
         currentFilter,
         currentPath: window.location.pathname 
       });
       
-      // Always refresh scripture tab when on it, regardless of note type
-      // This ensures scripture notes created via processScriptureReferences appear
-      // Use 2000ms delay to ensure database commits are complete
-      const delay = currentFilter === 'scripture' ? 2000 : 300;
+      // Clear any pending timeout first
+      if (pendingRefreshTimeoutRef.current) {
+        clearTimeout(pendingRefreshTimeoutRef.current);
+        pendingRefreshTimeoutRef.current = null;
+      }
+      
+      // If we're on dashboard, refresh immediately
+      if (window.location.pathname === '/') {
+        // Always refresh scripture tab when on it
+        if (currentFilter === 'scripture') {
+          debug('[OrganizedContentList] Refreshing scripture notes after note creation', {
+            noteId,
+            noteType: note?.noteType
+          });
+          // Force update to ensure we refresh even if items appear unchanged (handles DB commit timing)
+          refreshScriptureNotes(true);
+        } else {
+          // Use verification-based refresh for other filters
+          const expectedItemId = noteId;
+          const expectedItemType = note?.noteType === 'scripture' ? undefined : 'note'; // Don't verify scripture notes in non-scripture filters
+          
+          // Optimistic update if note matches current filter
+          if (note && (currentFilter === 'all' || currentFilter === 'notes')) {
+            const noteItem: OrganizedContentItem = {
+              id: `note-${note.id}`,
+              type: 'note',
+              title: note.title || 'Untitled Note',
+              noteType: note.noteType || 'default',
+              content: note.content,
+              noteId: note.id,
+              threadColors: note.threadColors,
+              resourceTitle: note.resourceTitle,
+              resourceDescription: note.resourceDescription,
+              resourceImage: note.resourceImage
+            };
+            
+            setCurrentItems((prev: OrganizedContentItem[]) => {
+              // Check if note already exists to avoid duplicates
+              const exists = prev.some((item: OrganizedContentItem) => item.noteId === note.id);
+              if (exists) {
+                return prev;
+              }
+              // Add to beginning of list (newest first)
+              const updated = [noteItem, ...prev];
+              currentItemsRef.current = updated;
+              return updated;
+            });
+          }
+          
+          // Verify with API after short delay
+          setTimeout(() => {
+            refreshContentWithVerification(expectedItemId, expectedItemType).then((success) => {
+              if (success) {
+                // Remove from sessionStorage after successful verification
+                try {
+                  const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+                  if (recentNotesStr && noteId) {
+                    const recentNotes = JSON.parse(recentNotesStr);
+                    const filtered = recentNotes.filter((n: any) => n.noteId !== noteId);
+                    sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+                  }
+                } catch (error) {
+                  console.error('[OrganizedContentList] Error cleaning up sessionStorage after noteCreated:', error);
+                }
+              }
+            });
+          }, 200);
+        }
+      } else {
+        // If not on dashboard, mark that we have a pending update
+        pendingUpdateRef.current = true;
+      }
+    };
+
+    const handleThreadCreated = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const thread = customEvent.detail?.thread;
+      const threadId = customEvent.detail?.threadId || thread?.id;
+      const currentFilter = filterRef.current;
+      debug('[OrganizedContentList] threadCreated event received', { threadId, filter: currentFilter });
+      
+      if (!thread || !threadId) {
+        console.warn('[OrganizedContentList] threadCreated event missing thread data');
+        return;
+      }
       
       // Clear any pending timeout first
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
-      }
-      pendingRefreshTimeoutRef.current = setTimeout(() => {
         pendingRefreshTimeoutRef.current = null;
-        // If we're on dashboard, refresh immediately
-        if (window.location.pathname === '/') {
-          // Always refresh scripture tab when on it
-          if (currentFilter === 'scripture') {
-            debug('[OrganizedContentList] Refreshing scripture notes after note creation', {
-              noteId: note?.id,
-              noteType: note?.noteType,
-              delay
-            });
-            // Force update to ensure we refresh even if items appear unchanged (handles DB commit timing)
-            refreshScriptureNotes(true);
-          } else {
-            // Otherwise, use the standard refresh logic
-            checkAndRefresh();
-          }
-        } else {
-          // If not on dashboard, mark that we have a pending update
-          pendingUpdateRef.current = true;
-        }
-      }, delay);
-    };
-
-    const handleThreadCreated = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const thread = customEvent.detail?.thread;
-      const currentFilter = filterRef.current;
-      debug('[OrganizedContentList] threadCreated event received', { threadId: thread?.id, filter: currentFilter });
-      
-      if (!thread || !thread.id) {
-        console.warn('[OrganizedContentList] threadCreated event missing thread data');
-        return;
       }
       
       // Immediately add the thread to the list if it matches the current filter
@@ -521,36 +744,44 @@ export default function OrganizedContentList({
           }
           debug('[OrganizedContentList] Adding thread to list immediately', { title: threadItem.title });
           // Add to beginning of list (newest first)
-          return [threadItem, ...prev];
+          const updated = [threadItem, ...prev];
+          currentItemsRef.current = updated;
+          return updated;
         });
       }
       
-      // Longer delay to ensure database is updated and committed (increased to 1500ms for new threads)
-      // Clear any pending timeout first
-      if (pendingRefreshTimeoutRef.current) {
-        clearTimeout(pendingRefreshTimeoutRef.current);
-      }
-      pendingRefreshTimeoutRef.current = setTimeout(() => {
-        pendingRefreshTimeoutRef.current = null;
-        debug('[OrganizedContentList] Refreshing content after threadCreated', { filter: currentFilter });
-        // Force refresh by resetting lastRefreshTime to allow immediate refresh
-        lastRefreshTimeRef.current = 0;
-        checkAndRefresh();
-      }, 1500);
+      // Use verification-based refresh instead of arbitrary delay
+      setTimeout(() => {
+        refreshContentWithVerification(threadId, 'thread').then((success) => {
+          if (success) {
+            // Remove from sessionStorage after successful verification
+            try {
+              const recentThreadsStr = sessionStorage.getItem('recentlyCreatedThreads');
+              if (recentThreadsStr && threadId) {
+                const recentThreads = JSON.parse(recentThreadsStr);
+                const filtered = recentThreads.filter((t: any) => t.threadId !== threadId);
+                sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(filtered));
+              }
+            } catch (error) {
+              console.error('[OrganizedContentList] Error cleaning up sessionStorage after threadCreated:', error);
+            }
+          }
+        });
+      }, 200);
     };
 
     const handleSpaceDeleted = () => {
       // When a space is deleted, threads and notes are preserved (spaceId set to null)
       // Refresh content to show the updated threads/notes
-      // Small delay to ensure database is updated
       // Clear any pending timeout first
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
-      }
-      pendingRefreshTimeoutRef.current = setTimeout(() => {
         pendingRefreshTimeoutRef.current = null;
-        checkAndRefresh();
-      }, 300);
+      }
+      // Use verification-based refresh
+      setTimeout(() => {
+        refreshContentWithVerification();
+      }, 200);
     };
 
     const handleNoteUpdated = (event?: Event) => {
@@ -565,32 +796,33 @@ export default function OrganizedContentList({
       
       // Note was updated - refresh to show latest changes
       // This also handles cases where scripture notes are created via processScriptureReferences
-      // Small delay to ensure database is updated
+      // Clear any pending timeout first
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
-      }
-      pendingRefreshTimeoutRef.current = setTimeout(() => {
         pendingRefreshTimeoutRef.current = null;
+      }
+      setTimeout(() => {
         // If we're on the scripture tab, refresh scripture notes
         // This ensures newly created scripture notes (from processScriptureReferences) appear
         if (window.location.pathname === '/' && currentFilter === 'scripture') {
           refreshScriptureNotes();
         } else {
-          checkAndRefresh();
+          refreshContentWithVerification();
         }
-      }, 300);
+      }, 200);
     };
 
     const handleThreadUpdated = () => {
       // Thread was updated - refresh to show latest changes
-      // Small delay to ensure database is updated
+      // Clear any pending timeout first
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
-      }
-      pendingRefreshTimeoutRef.current = setTimeout(() => {
         pendingRefreshTimeoutRef.current = null;
-        checkAndRefresh();
-      }, 300);
+      }
+      // Use verification-based refresh
+      setTimeout(() => {
+        refreshContentWithVerification();
+      }, 200);
     };
 
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);
@@ -611,7 +843,7 @@ export default function OrganizedContentList({
         pendingRefreshTimeoutRef.current = null;
       }
     };
-  }, [refreshScriptureNotes]); // Include refreshScriptureNotes in deps
+  }, [refreshScriptureNotes, refreshContentWithVerification]); // Include refreshContentWithVerification in deps
 
   // Track if we've refreshed on mount to prevent duplicate refreshes
   const hasRefreshedOnMountRef = useRef<boolean>(false);
@@ -643,14 +875,29 @@ export default function OrganizedContentList({
       const isDashboard = window.location.pathname === '/';
       const navigatedToDashboard = isDashboard && previousPathnameRef.current !== '/';
       
+      // Check if we came from a thread or note page (for sorting updates)
+      const referrer = document.referrer;
+      const cameFromThreadOrNote = referrer && (
+        referrer.includes('/thread_') || 
+        referrer.includes('/note_') ||
+        new URL(referrer).pathname.startsWith('/thread_') ||
+        new URL(referrer).pathname.startsWith('/note_')
+      );
+
+      // Also check if previous pathname was a thread/note (for View Transitions scenarios)
+      const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread_') || 
+                                      previousPathnameRef.current.startsWith('/note_');
+      
       // Only refresh if we're on the dashboard page
       if (isDashboard && isMountedRef.current) {
         // If we navigated TO the dashboard, always refresh (bypass debounce)
         // Also refresh if there was a pending update while we were away
-        if (navigatedToDashboard || pendingUpdateRef.current) {
+        // OR if we came from a thread/note page (to update lastVisited sorting)
+        if (navigatedToDashboard || pendingUpdateRef.current || (cameFromThreadOrNote || previousWasThreadOrNote)) {
           debug('[OrganizedContentList] Navigated to dashboard, will refresh', {
             previousPath: previousPathnameRef.current,
-            hadPendingUpdate: pendingUpdateRef.current
+            hadPendingUpdate: pendingUpdateRef.current,
+            cameFromThreadOrNote: cameFromThreadOrNote || previousWasThreadOrNote
           });
           // Clear pending update flag
           pendingUpdateRef.current = false;
@@ -666,9 +913,12 @@ export default function OrganizedContentList({
           pendingRefreshTimeoutRef.current = setTimeout(() => {
             pendingRefreshTimeoutRef.current = null;
             if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && !isRefreshingRef.current) {
-              refreshContentRef.current?.();
+              // Use refreshContentWithVerification to get fresh data with updated lastVisited
+              refreshContentWithVerification().then(() => {
+                // Sorting is handled by the API response, but verify it's correct
+              });
             }
-          }, 500); // Slightly longer delay to ensure database commits
+          }, 300); // Reduced delay since we're using verification-based refresh
           previousPathnameRef.current = window.location.pathname;
           return;
         }

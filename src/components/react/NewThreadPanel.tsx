@@ -314,8 +314,32 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             console.error('Error updating navigation history:', error);
           }
 
+          // Store thread creation info in sessionStorage for client-side refresh
+          const threadSpaceId = result.thread?.spaceId || (currentSpace?.id || null);
+          if (result.thread && result.thread.id) {
+            try {
+              const threadCreationInfo = {
+                threadId: result.thread.id,
+                spaceId: threadSpaceId,
+                timestamp: Date.now()
+              };
+              const recentThreads = JSON.parse(sessionStorage.getItem('recentlyCreatedThreads') || '[]');
+              recentThreads.push(threadCreationInfo);
+              // Keep only threads from last 10 seconds
+              const tenSecondsAgo = Date.now() - 10000;
+              const filtered = recentThreads.filter((t: any) => t.timestamp > tenSecondsAgo);
+              sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(filtered));
+            } catch (error) {
+              console.error('[NewThreadPanel] Failed to store thread creation info:', error);
+            }
+          }
+
           window.dispatchEvent(new CustomEvent('threadCreated', {
-            detail: { thread: result.thread }
+            detail: { 
+              thread: result.thread,
+              threadId: result.thread?.id,
+              spaceId: threadSpaceId // Include spaceId if thread was created in a space
+            }
           }));
 
           // If noteIdToAdd is provided, add the note to the newly created thread

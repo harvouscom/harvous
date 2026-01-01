@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ThreadNotesList from './ThreadNotesList';
+import TabNav from './TabNav';
 
 interface ThreadNotesListWithTabsProps {
   initialNotes: any[];
@@ -19,53 +20,54 @@ export default function ThreadNotesListWithTabs({
 }: ThreadNotesListWithTabsProps) {
   const [activeFilter, setActiveFilter] = useState<'all' | 'default' | 'scripture'>('all');
 
-  useEffect(() => {
-    // Listen for tab changes (event bubbles from tabNavContainer)
-    const handleTabChange = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { tabId } = customEvent.detail || {};
-      if (tabId === 'all' || tabId === 'notes' || tabId === 'scripture') {
-        const filter = tabId === 'notes' ? 'default' : tabId === 'scripture' ? 'scripture' : 'all';
-        setActiveFilter(filter);
-      }
-    };
+  // Handle tab change from TabNav component
+  const handleTabChange = (tabId: string) => {
+    if (tabId === 'all' || tabId === 'notes' || tabId === 'scripture') {
+      const filter = tabId === 'notes' ? 'default' : tabId === 'scripture' ? 'scripture' : 'all';
+      setActiveFilter(filter);
+    }
+  };
 
-    // Also check initial tab state
-    const checkInitialTab = () => {
-      const tabNavContainer = document.querySelector('.content-tabs');
-      if (tabNavContainer) {
-        const activeTab = tabNavContainer.querySelector('[data-tab-button][data-active="true"]');
-        if (activeTab) {
-          const tabId = activeTab.getAttribute('data-tab-id');
-          if (tabId === 'all' || tabId === 'notes' || tabId === 'scripture') {
-            const filter = tabId === 'notes' ? 'default' : tabId === 'scripture' ? 'scripture' : 'all';
-            setActiveFilter(filter);
-          }
-        } else {
-          // Default to 'all' if no active tab found
-          setActiveFilter('all');
-        }
-      }
-    };
-
-    // Check initial state after a short delay to ensure DOM is ready
-    setTimeout(checkInitialTab, 100);
-
-    // Listen for tab changes (event bubbles, so we can listen on document)
-    document.addEventListener('tabChange', handleTabChange);
-
-    return () => {
-      document.removeEventListener('tabChange', handleTabChange);
-    };
-  }, []);
+  // Prepare tabs for TabNav
+  const tabs = [
+    {
+      id: 'all',
+      label: 'All',
+      isActive: activeFilter === 'all',
+      count: noteTypeCounts?.all
+    },
+    {
+      id: 'notes',
+      label: 'Notes',
+      isActive: activeFilter === 'default',
+      count: noteTypeCounts?.default
+    },
+    {
+      id: 'scripture',
+      label: 'Scripture',
+      isActive: activeFilter === 'scripture',
+      count: noteTypeCounts?.scripture
+    }
+  ];
 
   return (
-    <ThreadNotesList
-      initialNotes={initialNotes}
-      threadId={threadId}
-      noteTypeFilter={activeFilter}
-      noteTypeCounts={noteTypeCounts}
-    />
+    <>
+      {/* Tab Navigation */}
+      <TabNav
+        tabs={tabs}
+        onTabChange={handleTabChange}
+        className="content-tabs"
+        threadId={threadId}
+      />
+      
+      {/* Notes List */}
+      <ThreadNotesList
+        initialNotes={initialNotes}
+        threadId={threadId}
+        noteTypeFilter={activeFilter}
+        noteTypeCounts={noteTypeCounts}
+      />
+    </>
   );
 }
 

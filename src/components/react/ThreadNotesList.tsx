@@ -310,8 +310,8 @@ export default function ThreadNotesList({
     if (!isMountedRef.current) return false;
 
     // Verification-based refresh: poll until note appears or timeout
-    const verifyAndRefresh = async (maxAttempts = 3): Promise<boolean> => {
-      const delays = [100, 200, 400]; // Exponential backoff in ms
+    const verifyAndRefresh = async (maxAttempts = 5): Promise<boolean> => {
+      const delays = [100, 200, 400, 600, 800]; // Exponential backoff in ms (increased max attempts)
       
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
@@ -383,8 +383,8 @@ export default function ThreadNotesList({
     if (!expectedNoteId) {
       return await verifyAndRefresh(1);
     } else {
-      // Verify note exists with retries
-      const success = await verifyAndRefresh(3);
+      // Verify note exists with retries (increased to 5 attempts for better reliability)
+      const success = await verifyAndRefresh(5);
       // PHASE 4: Return success status so caller can clean up sessionStorage
       return success;
     }
@@ -425,6 +425,13 @@ export default function ThreadNotesList({
           }
           // If refresh failed, keep in sessionStorage for retry
         });
+      }
+      
+      // Clean up old entries (older than 10 seconds) to prevent sessionStorage from growing
+      const tenSecondsAgo = Date.now() - 10000;
+      const cleanedNotes = recentNotes.filter((n: any) => n.timestamp > tenSecondsAgo);
+      if (cleanedNotes.length !== recentNotes.length) {
+        sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(cleanedNotes));
       }
     } catch (error) {
       console.error('[ThreadNotesList] Error checking sessionStorage:', error);

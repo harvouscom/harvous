@@ -668,9 +668,11 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         // This ensures sessionStorage is available when components receive the event
         if (result.note && result.note.id && actualThreadId) {
           try {
+            const noteSpaceId = result.note?.spaceId || (addToSpace && currentSpace?.id ? currentSpace.id : null);
             const noteCreationInfo = {
               noteId: result.note.id,
               threadId: actualThreadId,
+              spaceId: noteSpaceId,
               timestamp: Date.now()
             };
             const recentNotes = JSON.parse(sessionStorage.getItem('recentlyCreatedNotes') || '[]');
@@ -696,7 +698,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             note: result.note,
             actualThreadId: threadIdForEvent, // Use the correct thread ID (overrideThreadId if provided)
             noteId: result.note?.id, // Include noteId for easy access
-            threadId: threadIdForEvent // Include threadId for easy access
+            threadId: threadIdForEvent, // Include threadId for easy access
+            spaceId: result.note?.spaceId || (addToSpace && currentSpace?.id ? currentSpace.id : null) // Include spaceId if note was created in a space
           }
         }));
 
