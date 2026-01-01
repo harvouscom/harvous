@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import ButtonSmall from './ButtonSmall';
 import CardNote from './CardNote';
 import { getThreadTextColorCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
+import { stripHtml } from '@/utils/html-stripper';
 
 interface InboxItemNote {
   id: string;
@@ -62,25 +63,6 @@ function extractColorName(bgColor: string): ThreadColor | null {
   return null;
 }
 
-// Helper to strip HTML and get plain text preview (matches thread page logic)
-function stripHtml(html: string): string {
-  if (!html) return '';
-  
-  let text = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-    
-  return text;
-}
 
 export default function InboxItemPreview({
   item,

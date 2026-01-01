@@ -1,5 +1,6 @@
 import React from 'react';
 import OverlappingNotes from './OverlappingNotes';
+import { stripHtml } from '@/utils/html-stripper';
 
 export interface CardFeatProps {
   variant?: "Thread" | "Note" | "NoteImage";
@@ -41,44 +42,6 @@ function getColorCSSVariable(colorName: string | undefined | null): string {
   return `var(--color-${mappedColor})`;
 }
 
-// Helper function to convert HTML to readable text
-function stripHtml(html: string): string {
-  if (!html) return '';
-  
-  let text = html
-    // Remove script and style tags completely (including their content)
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    // Convert ordered lists to numbered format
-    .replace(/<ol[^>]*>/gi, '')
-    .replace(/<\/ol>/gi, '')
-    .replace(/<li[^>]*>/gi, '• ')
-    // Convert unordered lists to bullet format
-    .replace(/<ul[^>]*>/gi, '')
-    .replace(/<\/ul>/gi, '')
-    // Handle line breaks and paragraphs
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<\/p>/gi, ' ')
-    .replace(/<p[^>]*>/gi, '')
-    // Remove other HTML tags
-    .replace(/<[^>]*>/g, '')
-    // Decode HTML entities
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/')
-    .replace(/&#x60;/g, '`')
-    .replace(/&#x3D;/g, '=')
-    // Clean up whitespace
-    .replace(/\s+/g, ' ')
-    .trim();
-    
-  return text;
-}
 
 export default function CardFeat({
   variant = "Note",

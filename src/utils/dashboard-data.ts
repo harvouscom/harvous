@@ -2,35 +2,7 @@ import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, ResourceMetada
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 import { getInboxItems, getInboxCount as getInboxCountUtil } from "./inbox-data";
 import { getRelativeTime } from "./date-formatting";
-
-// Helper function to strip HTML tags and decode entities
-function stripHtml(html: string): string {
-  if (!html) return '';
-  
-  // More aggressive HTML stripping
-  let text = html
-    // Remove script and style tags completely (including their content)
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    // Remove all HTML tags (including those with complex attributes)
-    .replace(/<[^>]*>/g, '')
-    // Decode HTML entities
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/')
-    .replace(/&#x60;/g, '`')
-    .replace(/&#x3D;/g, '=')
-    // Clean up whitespace
-    .replace(/\s+/g, ' ')
-    .trim();
-    
-  return text;
-}
+import { stripHtml } from "./html-stripper";
 
 // Helper function to find unorganized thread (create it if it doesn't exist)
 async function findUnorganizedThread(userId: string) {
@@ -1311,7 +1283,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
 
 // Fetch unorganized notes for dashboard (notes in unorganized thread)
 // Batch helper function to fetch thread colors with frequency for multiple notes (optimized)
-async function getThreadColorsForNotesBatch(
+export async function getThreadColorsForNotesBatch(
   noteIds: string[], 
   userId: string
 ): Promise<Map<string, Array<{ color: string; frequency: number }>>> {
@@ -1358,6 +1330,22 @@ async function getThreadColorsForNotesBatch(
     console.error(`Error batch fetching thread colors for notes:`, error);
     return new Map();
   }
+}
+
+/**
+ * Wrapper function that returns thread colors as a Record instead of Map
+ * Useful for compatibility with code that expects Record format
+ */
+export async function getThreadColorsForNotesAsRecord(
+  noteIds: string[],
+  userId: string
+): Promise<Record<string, Array<{ color: string; frequency: number }>>> {
+  const mapResult = await getThreadColorsForNotesBatch(noteIds, userId);
+  const record: Record<string, Array<{ color: string; frequency: number }>> = {};
+  for (const [noteId, colors] of mapResult.entries()) {
+    record[noteId] = colors;
+  }
+  return record;
 }
 
 // Helper function to fetch thread colors with frequency for a note (kept for backward compatibility)

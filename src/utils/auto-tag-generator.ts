@@ -73,8 +73,8 @@ export async function generateAutoTags(
       return { suggestions: [], totalFound: 0, highConfidence: 0 };
     }
 
-    // Strip HTML tags from content for better keyword detection
-    const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    // Use centralized stripHtml utility
+    const { stripHtml } = await import('@/utils/html-stripper');
     
     // Separate title and content for enhanced analysis
     const cleanTitle = (noteTitle || '').trim();

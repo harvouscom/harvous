@@ -9,6 +9,7 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import { safeFetch } from '@/utils/safe-fetch';
 import Icon from './Icon';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
+import { stripHtmlForPreview } from '@/utils/html-stripper';
 
 interface Note {
   id: string;
@@ -490,20 +491,8 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     }
   };
 
-  // Helper function to strip HTML from content
-  const stripHtml = (html: string): string => {
-    if (!html) return '';
-    return html
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .trim()
-      .substring(0, 150);
-  };
+  // Use centralized stripHtml utility
+  const stripHtml = (html: string): string => stripHtmlForPreview(html, 150);
 
   return (
     <div className="panel-wrapper panel-wrapper--bottom-sheet w-full">

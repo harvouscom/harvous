@@ -3,6 +3,7 @@ import { db, Notes, Threads, NoteThreads, ResourceMetadata, eq, and } from 'astr
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { successResponse, unauthorizedResponse, errorResponse, rateLimitedResponse, notFoundResponse, serverErrorResponse } from '@/utils/api-responses';
 
 export const PUT: APIRoute = async ({ request, locals }) => {
   try {
@@ -10,27 +11,17 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     const { userId } = locals.auth();
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Rate limiting for write operations
     const ip = getClientIP(request);
     const rateLimit = rateLimitMiddleware(userId, '/api/notes/update', 'write', ip);
     if (!rateLimit.allowed) {
-      return new Response(JSON.stringify({ 
-        error: rateLimit.error,
-        code: 'RATE_LIMIT_EXCEEDED'
-      }), {
-        status: 429,
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
-          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
-        }
-      });
+      return rateLimitedResponse(
+        rateLimit.resetTime || Date.now(),
+        rateLimit.error || 'Rate limit exceeded'
+      );
     }
 
     // Parse request body
@@ -38,22 +29,13 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     const { noteId, title, content, resourceImage } = body;
 
     if (!noteId) {
-      return new Response(JSON.stringify({ error: 'Note ID is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse('Note ID is required');
     }
 
     // Validate content
     const contentValidation = validateContent(content, true);
     if (!contentValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: contentValidation.error,
-        code: contentValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse(contentValidation.error || 'Invalid content', contentValidation.code);
     }
 
     // Verify the note belongs to the user before updating
@@ -63,10 +45,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       .get();
 
     if (!existingNote) {
-      return new Response(JSON.stringify({ error: 'Note not found or access denied' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return notFoundResponse('Note');
     }
 
     // Capitalize content and title
@@ -85,10 +64,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       .get();
 
     if (!updatedNote) {
-      return new Response(JSON.stringify({ error: 'Failed to update note' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return serverErrorResponse(new Error('Failed to update note'));
     }
 
     // Update all threads this note belongs to via junction table
@@ -178,27 +154,17 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       console.error('Error processing scripture references (non-critical):', error);
     }
 
-    return new Response(JSON.stringify({ 
+    return successResponse({ 
       success: "Note updated!",
       note: updatedNote,
       scriptureResults,
       processedContent
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    const standardError = handleAPIError(error, {
+    return serverErrorResponse(error, {
       endpoint: '/api/notes/update',
       action: 'update_note'
-    });
-    return new Response(JSON.stringify({ 
-      error: standardError.message,
-      code: standardError.code
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
     });
   }
 };

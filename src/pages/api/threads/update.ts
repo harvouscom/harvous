@@ -4,6 +4,7 @@ import { db, Notes, Threads, NoteThreads, eq, and } from 'astro:db';
 import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { moveScriptureNotesToThread } from '@/utils/move-scripture-notes-to-thread';
+import { successResponse, unauthorizedResponse, errorResponse, rateLimitedResponse, serverErrorResponse } from '@/utils/api-responses';
 
 export const POST: APIRoute = async ({ request, locals, callAction }) => {
   try {
@@ -11,27 +12,17 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
     const { userId } = locals.auth();
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Rate limiting for write operations
     const ip = getClientIP(request);
     const rateLimit = rateLimitMiddleware(userId, '/api/threads/update', 'write', ip);
     if (!rateLimit.allowed) {
-      return new Response(JSON.stringify({ 
-        error: rateLimit.error,
-        code: 'RATE_LIMIT_EXCEEDED'
-      }), {
-        status: 429,
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
-          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
-        }
-      });
+      return rateLimitedResponse(
+        rateLimit.resetTime || Date.now(),
+        rateLimit.error || 'Rate limit exceeded'
+      );
     }
 
     // Parse form data
@@ -74,34 +65,19 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
     }
 
     if (!threadId) {
-      return new Response(JSON.stringify({ error: 'Thread ID is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse('Thread ID is required');
     }
 
     // Validate title
     const titleValidation = validateTitle(title, true);
     if (!titleValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: titleValidation.error,
-        code: titleValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse(titleValidation.error || 'Invalid title', titleValidation.code);
     }
 
     // Validate color
     const colorValidation = validateColor(color);
     if (!colorValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: colorValidation.error,
-        code: colorValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse(colorValidation.error || 'Invalid color', colorValidation.code);
     }
 
     // Use Astro.callAction to call the threads.update action with FormData
@@ -177,22 +153,15 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
       }
     }
 
-    return new Response(JSON.stringify({
+    return successResponse({
       success: 'Thread updated!',
       thread: result.thread
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    console.error('Error updating thread:', error);
-    
-    return new Response(JSON.stringify({
-      error: error.message || 'Error updating thread'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
+    return serverErrorResponse(error, {
+      endpoint: '/api/threads/update',
+      action: 'update_thread'
     });
   }
 };

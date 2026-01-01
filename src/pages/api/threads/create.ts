@@ -6,6 +6,7 @@ import { awardCreationBonusXP } from '@/utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor, validateSpaceId } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { successResponse, unauthorizedResponse, errorResponse, rateLimitedResponse, serverErrorResponse } from '@/utils/api-responses';
 import { getNextUntitledThreadName } from '@/utils/untitled-naming';
 import { moveScriptureNotesToThread } from '@/utils/move-scripture-notes-to-thread';
 
@@ -15,27 +16,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const { userId } = locals.auth();
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Rate limiting for write operations
     const ip = getClientIP(request);
     const rateLimit = rateLimitMiddleware(userId, '/api/threads/create', 'write', ip);
     if (!rateLimit.allowed) {
-      return new Response(JSON.stringify({ 
-        error: rateLimit.error,
-        code: 'RATE_LIMIT_EXCEEDED'
-      }), {
-        status: 429,
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
-          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
-        }
-      });
+      return rateLimitedResponse(
+        rateLimit.resetTime || Date.now(),
+        rateLimit.error || 'Rate limit exceeded'
+      );
     }
 
     // Parse form data
@@ -80,13 +71,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Validate title (not required, defaults to "Untitled Thread N")
     const titleValidation = validateTitle(title, false);
     if (!titleValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: titleValidation.error,
-        code: titleValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse(titleValidation.error || 'Invalid title', titleValidation.code);
     }
 
     // Default to "Untitled Thread N" if title is empty or whitespace
@@ -100,13 +85,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Validate color if provided
     const colorValidation = validateColor(color);
     if (!colorValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: colorValidation.error,
-        code: colorValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse(colorValidation.error || 'Invalid color', colorValidation.code);
     }
 
     let threadColor = color;
@@ -119,13 +98,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Validate spaceId
     const spaceIdValidation = validateSpaceId(spaceId);
     if (!spaceIdValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: spaceIdValidation.error,
-        code: spaceIdValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse(spaceIdValidation.error || 'Invalid space ID', spaceIdValidation.code);
     }
 
     // Make spaceId optional - if not provided or is 'default_space', set to null
@@ -222,25 +195,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Award creation bonus XP
     await awardCreationBonusXP(userId, 'thread');
 
-    return new Response(JSON.stringify({
+    return successResponse({
       success: 'Thread created!',
       thread: newThread
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    const standardError = handleAPIError(error, {
+    return serverErrorResponse(error, {
       endpoint: '/api/threads/create',
       action: 'create_thread'
-    });
-    return new Response(JSON.stringify({
-      error: standardError.message,
-      code: standardError.code
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
     });
   }
 };

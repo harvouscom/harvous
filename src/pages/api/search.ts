@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, eq, and, or, like, desc } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
+import { successResponse, unauthorizedResponse, serverErrorResponse } from '@/utils/api-responses';
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
@@ -8,10 +9,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const { userId } = locals.auth();
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse('Unauthorized');
     }
 
     // Get search parameters
@@ -21,10 +19,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const limit = parseInt(url.searchParams.get('limit') || '50');
 
     if (!query || query.trim().length === 0) {
-      return new Response(JSON.stringify({ results: [] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return successResponse({ results: [] });
     }
 
     const searchTerm = `%${query.trim()}%`;
@@ -99,28 +94,17 @@ export const GET: APIRoute = async ({ request, locals }) => {
     // Limit total results
     results = results.slice(0, limit);
 
-    return new Response(JSON.stringify({ 
+    return successResponse({ 
       results,
       query,
       type,
       total: results.length
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    const standardError = handleAPIError(error, {
+    return serverErrorResponse(error, {
       endpoint: '/api/search',
       action: 'search'
-    });
-    return new Response(JSON.stringify({ 
-      error: standardError.message,
-      code: standardError.code,
-      results: []
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
     });
   }
 };

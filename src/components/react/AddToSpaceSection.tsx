@@ -3,6 +3,7 @@ import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
 import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
+import { stripHtmlForPreview } from '@/utils/html-stripper';
 
 // Note Item Component with hover state
 const NoteItem: React.FC<{
@@ -578,20 +579,8 @@ export default function AddToSpaceSection({
     setSearchQuery(""); // Clear search after selection
   };
 
-  // Helper function to strip HTML from content
-  const stripHtml = (html: string): string => {
-    if (!html) return '';
-    return html
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .trim()
-      .substring(0, 100);
-  };
+  // Use centralized stripHtml utility
+  const stripHtml = (html: string): string => stripHtmlForPreview(html, 100);
 
   // Render functions now use the new components
   const renderNoteItem = (item: SpaceItem, onClick: () => void) => {

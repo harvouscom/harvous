@@ -5,6 +5,7 @@ import CardNote from './CardNote';
 import ActionButton from './ActionButton';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import Icon from './Icon';
+import { stripHtml } from '@/utils/html-stripper';
 
 // Helper function to detect if running in PWA context
 function isPWA(): boolean {
@@ -47,23 +48,6 @@ function isStaleData(notes: Note[]): boolean {
   return false;
 }
 
-// Helper function to strip HTML tags
-function stripHtml(html: string): string {
-  if (!html) return '';
-  const text = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-  return text;
-}
 
 interface Note {
   id: string;

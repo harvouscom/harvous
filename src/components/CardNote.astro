@@ -56,86 +56,7 @@ const sidebarStyle = meshGradient
   ? `background-color: var(--color-light-paper); background-image: ${meshGradient};`
   : undefined;
 
-// Helper function to convert HTML to readable text
-function stripHtml(html: string): string {
-  if (!html) return '';
-  
-  // Fallback to regex-based approach for SSR
-  // First, ensure spaces between adjacent block elements and around inline elements
-  let text = html
-    // Remove script and style tags completely (including their content)
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    // CRITICAL: Convert line breaks to spaces FIRST - before any other processing
-    // This ensures line breaks inside paragraphs and other elements become spaces
-    .replace(/\r\n/g, ' ')
-    .replace(/\n/g, ' ')
-    .replace(/\r/g, ' ')
-    // Convert br tags to spaces
-    .replace(/<br\s*\/?>/gi, ' ')
-    // CRITICAL: Ensure spaces around spans BEFORE extracting them
-    // Add space before opening span if preceded by non-whitespace
-    .replace(/([^\s>])(<span[^>]*>)/gi, '$1 $2')
-    // Add space after closing span if followed by non-whitespace
-    .replace(/(<\/span>)([^\s<])/gi, '$1 $2')
-    // Now extract text from inline spans, ensuring spaces are preserved
-    .replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, (match, content) => {
-      // Always add spaces around span content to prevent text running together
-      const trimmedContent = content.trim();
-      if (trimmedContent) {
-        // Add spaces on both sides to ensure separation
-        return ` ${trimmedContent} `;
-      }
-      return ' ';
-    })
-    // CRITICAL: Insert space between adjacent closing and opening block tags
-    // This must happen BEFORE we convert closing tags to placeholders
-    .replace(/(<\/p>)(<p[^>]*>)/gi, '$1 $2')
-    .replace(/(<\/p>)(<div[^>]*>)/gi, '$1 $2')
-    .replace(/(<\/div>)(<p[^>]*>)/gi, '$1 $2')
-    .replace(/(<\/div>)(<div[^>]*>)/gi, '$1 $2')
-    .replace(/(<\/h[1-6]>)(<p[^>]*>)/gi, '$1 $2')
-    .replace(/(<\/h[1-6]>)(<div[^>]*>)/gi, '$1 $2')
-    .replace(/(<\/p>)(<h[1-6][^>]*>)/gi, '$1 $2')
-    .replace(/(<\/div>)(<h[1-6][^>]*>)/gi, '$1 $2')
-    .replace(/(<\/li>)(<li[^>]*>)/gi, '$1 $2')
-    // Convert block-level closing tags to placeholder (preserves word boundaries)
-    .replace(/<\/p>/gi, ' __SPACE__ ')
-    .replace(/<\/div>/gi, ' __SPACE__ ')
-    .replace(/<\/li>/gi, ' __SPACE__ ')
-    .replace(/<\/h[1-6]>/gi, ' __SPACE__ ')
-    // Convert ordered lists to numbered format
-    .replace(/<ol[^>]*>/gi, '')
-    .replace(/<\/ol>/gi, ' __SPACE__ ')
-    .replace(/<li[^>]*>/gi, '• ')
-    // Convert unordered lists to bullet format
-    .replace(/<ul[^>]*>/gi, '')
-    .replace(/<\/ul>/gi, ' __SPACE__ ')
-    // Remove opening tags (after we've handled line breaks)
-    .replace(/<p[^>]*>/gi, '')
-    .replace(/<div[^>]*>/gi, '')
-    .replace(/<h[1-6][^>]*>/gi, '')
-    // Remove remaining HTML tags
-    .replace(/<[^>]*>/g, '')
-    // Decode HTML entities
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/')
-    .replace(/&#x60;/g, '`')
-    .replace(/&#x3D;/g, '=')
-    // Replace placeholder with actual space (ensure it's always a space)
-    .replace(/__SPACE__/g, ' ')
-    // Clean up multiple spaces to single space
-    .replace(/\s+/g, ' ')
-    .trim();
-    
-  return text;
-}
+import { stripHtmlForCard } from '@/utils/html-stripper';
 ---
 
 <div class={`card card-note ${className}`}>
@@ -169,7 +90,7 @@ function stripHtml(html: string): string {
           <!-- Content -->
           <div class="card-note__excerpt">
             <p>
-              {effectiveContent ? stripHtml(effectiveContent) : ""}
+              {effectiveContent ? stripHtmlForCard(effectiveContent) : ""}
             </p>
           </div>
         </div>
@@ -211,7 +132,7 @@ function stripHtml(html: string): string {
           <!-- Content -->
           <div class="card-note__excerpt">
             <p>
-              {effectiveContent ? stripHtml(effectiveContent) : ""}
+              {effectiveContent ? stripHtmlForCard(effectiveContent) : ""}
             </p>
           </div>
         </div>

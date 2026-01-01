@@ -7,6 +7,7 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import SimpleTooltip from './SimpleTooltip';
 import { safeFetch } from '@/utils/safe-fetch';
 import { captureException } from '@/utils/posthog';
+import { stripHtmlForPreview } from '@/utils/html-stripper';
 import Icon from './Icon';
 
 interface Note {
@@ -317,20 +318,8 @@ export default function EditThreadPanel({
     }
   };
 
-  // Helper function to strip HTML from content
-  const stripHtml = (html: string): string => {
-    if (!html) return '';
-    return html
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .trim()
-      .substring(0, 150);
-  };
+  // Use centralized stripHtml utility
+  const stripHtml = (html: string): string => stripHtmlForPreview(html, 150);
 
   // Helper function to get note type icon
   const getNoteTypeIcon = (noteType: string = 'default') => {

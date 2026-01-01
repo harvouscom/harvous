@@ -20,35 +20,7 @@ import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import { debug } from "@/utils/logger";
-
-// Helper function to strip HTML tags and decode entities
-function stripHtml(html: string): string {
-  if (!html) return '';
-  
-  // More aggressive HTML stripping
-  let text = html
-    // Remove script and style tags completely (including their content)
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    // Remove all HTML tags (including those with complex attributes)
-    .replace(/<[^>]*>/g, '')
-    // Decode HTML entities
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/')
-    .replace(/&#x60;/g, '`')
-    .replace(/&#x3D;/g, '=')
-    // Clean up whitespace
-    .replace(/\s+/g, ' ')
-    .trim();
-    
-  return text;
-}
+import { stripHtml } from "@/utils/html-stripper";
 
 // Helper function to determine if lastVisited should be updated
 // Returns true if this is a new visit (not a refresh of the same page)

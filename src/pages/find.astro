@@ -15,36 +15,8 @@ import RecentSearches from "@/components/react/RecentSearches";
 import FindSearchInput from "@/components/react/FindSearchInput";
 import { db, Notes, Threads, Tags, NoteTags, NoteThreads, ResourceMetadata, eq, and, or, like, desc, count, inArray, ne } from "astro:db";
 import { getThreadColorCSS } from "@/utils/colors";
-import { getInboxCount } from "@/utils/dashboard-data";
-
-// Helper function to strip HTML tags and decode entities
-function stripHtml(html: string): string {
-  if (!html) return '';
-  
-  // More aggressive HTML stripping
-  let text = html
-    // Remove script and style tags completely (including their content)
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    // Remove all HTML tags (including those with complex attributes)
-    .replace(/<[^>]*>/g, '')
-    // Decode HTML entities
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/')
-    .replace(/&#x60;/g, '`')
-    .replace(/&#x3D;/g, '=')
-    // Clean up whitespace
-    .replace(/\s+/g, ' ')
-    .trim();
-    
-  return text;
-}
+import { getInboxCount, getThreadColorsForNotesAsRecord } from "@/utils/dashboard-data";
+import { stripHtml } from "@/utils/html-stripper";
 
 // Helper function to format relative time (same as dashboard)
 function formatRelativeTime(date: Date): string {
@@ -65,55 +37,8 @@ function formatRelativeTime(date: Date): string {
   }
 }
 
-// Helper function to fetch thread colors with frequency for notes (batch version)
-async function getThreadColorsForNotes(noteIds: string[], userId: string): Promise<Record<string, Array<{ color: string; frequency: number }>>> {
-  if (noteIds.length === 0) return {};
-  
-  try {
-    // Fetch all thread associations for all notes at once
-    const allNoteThreads = await db.select({
-      noteId: NoteThreads.noteId,
-      threadId: NoteThreads.threadId,
-      color: Threads.color,
-    })
-    .from(NoteThreads)
-    .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
-    .where(and(
-      inArray(NoteThreads.noteId, noteIds),
-      eq(Threads.userId, userId),
-      ne(Threads.id, "thread_unorganized") // Exclude unorganized thread
-    ))
-    .all();
-
-    // Group by noteId and then by color to count frequency
-    const noteColorMap = new Map<string, Map<string, number>>();
-    
-    for (const nt of allNoteThreads) {
-      if (nt.color) {
-        if (!noteColorMap.has(nt.noteId)) {
-          noteColorMap.set(nt.noteId, new Map());
-        }
-        const colorMap = noteColorMap.get(nt.noteId)!;
-        const currentCount = colorMap.get(nt.color) || 0;
-        colorMap.set(nt.color, currentCount + 1);
-      }
-    }
-
-    // Convert to the expected format
-    const result: Record<string, Array<{ color: string; frequency: number }>> = {};
-    for (const [noteId, colorMap] of noteColorMap.entries()) {
-      result[noteId] = Array.from(colorMap.entries()).map(([color, frequency]) => ({
-        color,
-        frequency,
-      }));
-    }
-    
-    return result;
-  } catch (error) {
-    console.error('Error batch fetching thread colors for notes:', error);
-    return {};
-  }
-}
+// Use consolidated function from dashboard-data.ts
+const getThreadColorsForNotes = getThreadColorsForNotesAsRecord;
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();

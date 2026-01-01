@@ -1,0 +1,273 @@
+/**
+ * HTML Stripping Utility
+ * 
+ * Unified implementation for stripping HTML tags and extracting plain text.
+ * Supports multiple modes for different use cases.
+ */
+
+export interface StripHtmlOptions {
+  /**
+   * Preserve spacing between block elements (p, div, h1-h6, li, etc.)
+   * Used for CardNote components where spacing is critical
+   */
+  preserveSpacing?: boolean;
+  
+  /**
+   * Use DOM API for parsing (client-side only)
+   * More accurate but requires browser environment
+   */
+  useDOM?: boolean;
+  
+  /**
+   * Maximum length for preview text (truncates with ellipsis)
+   */
+  maxLength?: number;
+}
+
+/**
+ * Main HTML stripping function
+ * 
+ * @param html - HTML string to strip
+ * @param options - Stripping options
+ * @returns Plain text with HTML removed
+ */
+export function stripHtml(html: string, options: StripHtmlOptions = {}): string {
+  if (!html) return '';
+  
+  const { preserveSpacing = false, useDOM = false, maxLength } = options;
+  
+  // Client-side DOM parsing (most accurate, preserves spacing)
+  if (useDOM && typeof document !== 'undefined') {
+    try {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      
+      // Block-level elements that should have spaces between them
+      const blockElements = ['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'UL', 'OL', 'BLOCKQUOTE', 'PRE'];
+      
+      // Walk the DOM tree and collect text with proper spacing
+      function extractTextWithSpacing(node: Node): string {
+        let result = '';
+        
+        for (let i = 0; i < node.childNodes.length; i++) {
+          const child = node.childNodes[i];
+          const prevSibling = i > 0 ? node.childNodes[i - 1] : null;
+          const nextSibling = i < node.childNodes.length - 1 ? node.childNodes[i + 1] : null;
+          
+          if (child.nodeType === Node.TEXT_NODE) {
+            // Add text content, converting line breaks to spaces
+            const text = (child.textContent || '').replace(/\r\n/g, ' ').replace(/\n/g, ' ').replace(/\r/g, ' ');
+            result += text;
+          } else if (child.nodeType === Node.ELEMENT_NODE) {
+            const element = child as Element;
+            const tagName = element.tagName;
+            const isBlockElement = blockElements.includes(tagName);
+            
+            // Add space before block elements if previous sibling was also a block element
+            if (isBlockElement && prevSibling && prevSibling.nodeType === Node.ELEMENT_NODE) {
+              const prevTagName = (prevSibling as Element).tagName;
+              if (blockElements.includes(prevTagName)) {
+                result += ' ';
+              }
+            }
+            
+            // Handle specific elements
+            if (tagName === 'BR') {
+              result += ' ';
+            } else if (tagName === 'LI') {
+              result += '• ';
+              result += extractTextWithSpacing(child);
+            } else {
+              // For inline elements (like SPAN), extract text and ALWAYS add spaces around it
+              const childText = extractTextWithSpacing(child);
+              
+              if (!isBlockElement && childText.trim().length > 0) {
+                // ALWAYS add space before inline elements to prevent text running together
+                if (prevSibling) {
+                  if (prevSibling.nodeType === Node.TEXT_NODE) {
+                    const prevText = (prevSibling.textContent || '').trim();
+                    if (prevText.length > 0) {
+                      result += ' ';
+                    }
+                  } else if (prevSibling.nodeType === Node.ELEMENT_NODE) {
+                    result += ' ';
+                  }
+                }
+                
+                result += childText.trim();
+                
+                // ALWAYS add space after inline elements to prevent text running together
+                if (nextSibling) {
+                  if (nextSibling.nodeType === Node.TEXT_NODE) {
+                    const nextText = (nextSibling.textContent || '').trim();
+                    if (nextText.length > 0) {
+                      result += ' ';
+                    }
+                  } else if (nextSibling.nodeType === Node.ELEMENT_NODE) {
+                    result += ' ';
+                  }
+                }
+              } else {
+                // For block elements, just recursively process
+                result += childText;
+                
+                // Add space after block elements to ensure separation
+                if (isBlockElement) {
+                  result += ' ';
+                }
+              }
+            }
+          }
+        }
+        
+        return result;
+      }
+      
+      let text = extractTextWithSpacing(tempDiv);
+      
+      // Convert all remaining line breaks to spaces (in case any were missed)
+      text = text.replace(/\r\n/g, ' ').replace(/\n/g, ' ').replace(/\r/g, ' ');
+      
+      // Clean up multiple spaces and trim
+      text = text.replace(/\s+/g, ' ').trim();
+      
+      // Apply max length if specified
+      if (maxLength && text.length > maxLength) {
+        return text.substring(0, maxLength) + '...';
+      }
+      
+      return text;
+    } catch (error) {
+      // Fall through to regex-based approach if DOM parsing fails
+      console.warn('DOM-based HTML stripping failed, falling back to regex:', error);
+    }
+  }
+  
+  // Regex-based approach (works in both server and client)
+  let text = html;
+  
+  // Remove script and style tags completely (including their content)
+  text = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  
+  if (preserveSpacing) {
+    // Complex spacing-preserving logic (for CardNote.astro variant)
+    // CRITICAL: Convert line breaks to spaces FIRST - before any other processing
+    text = text.replace(/\r\n/g, ' ');
+    text = text.replace(/\n/g, ' ');
+    text = text.replace(/\r/g, ' ');
+    
+    // Convert br tags to spaces
+    text = text.replace(/<br\s*\/?>/gi, ' ');
+    
+    // CRITICAL: Ensure spaces around spans BEFORE extracting them
+    // Add space before opening span if preceded by non-whitespace
+    text = text.replace(/([^\s>])(<span[^>]*>)/gi, '$1 $2');
+    // Add space after closing span if followed by non-whitespace
+    text = text.replace(/(<\/span>)([^\s<])/gi, '$1 $2');
+    
+    // Now extract text from inline spans, ensuring spaces are preserved
+    text = text.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, (match, content) => {
+      const trimmedContent = content.trim();
+      if (trimmedContent) {
+        return ` ${trimmedContent} `;
+      }
+      return ' ';
+    });
+    
+    // CRITICAL: Insert space between adjacent closing and opening block tags
+    text = text.replace(/(<\/p>)(<p[^>]*>)/gi, '$1 $2');
+    text = text.replace(/(<\/p>)(<div[^>]*>)/gi, '$1 $2');
+    text = text.replace(/(<\/div>)(<p[^>]*>)/gi, '$1 $2');
+    text = text.replace(/(<\/div>)(<div[^>]*>)/gi, '$1 $2');
+    text = text.replace(/(<\/h[1-6]>)(<p[^>]*>)/gi, '$1 $2');
+    text = text.replace(/(<\/h[1-6]>)(<div[^>]*>)/gi, '$1 $2');
+    text = text.replace(/(<\/p>)(<h[1-6][^>]*>)/gi, '$1 $2');
+    text = text.replace(/(<\/div>)(<h[1-6][^>]*>)/gi, '$1 $2');
+    text = text.replace(/(<\/li>)(<li[^>]*>)/gi, '$1 $2');
+    
+    // Convert block-level closing tags to placeholder (preserves word boundaries)
+    text = text.replace(/<\/p>/gi, ' __SPACE__ ');
+    text = text.replace(/<\/div>/gi, ' __SPACE__ ');
+    text = text.replace(/<\/li>/gi, ' __SPACE__ ');
+    text = text.replace(/<\/h[1-6]>/gi, ' __SPACE__ ');
+    
+    // Convert ordered lists to numbered format
+    text = text.replace(/<ol[^>]*>/gi, '');
+    text = text.replace(/<\/ol>/gi, ' __SPACE__ ');
+    text = text.replace(/<li[^>]*>/gi, '• ');
+    
+    // Convert unordered lists to bullet format
+    text = text.replace(/<ul[^>]*>/gi, '');
+    text = text.replace(/<\/ul>/gi, ' __SPACE__ ');
+    
+    // Remove opening tags (after we've handled line breaks)
+    text = text.replace(/<p[^>]*>/gi, '');
+    text = text.replace(/<div[^>]*>/gi, '');
+    text = text.replace(/<h[1-6][^>]*>/gi, '');
+    
+    // Remove remaining HTML tags
+    text = text.replace(/<[^>]*>/g, '');
+    
+    // Decode HTML entities
+    text = text.replace(/&nbsp;/g, ' ');
+    text = text.replace(/&amp;/g, '&');
+    text = text.replace(/&lt;/g, '<');
+    text = text.replace(/&gt;/g, '>');
+    text = text.replace(/&quot;/g, '"');
+    text = text.replace(/&#39;/g, "'");
+    text = text.replace(/&#x27;/g, "'");
+    text = text.replace(/&#x2F;/g, '/');
+    text = text.replace(/&#x60;/g, '`');
+    text = text.replace(/&#x3D;/g, '=');
+    
+    // Replace placeholder with actual space (ensure it's always a space)
+    text = text.replace(/__SPACE__/g, ' ');
+    
+    // Clean up multiple spaces to single space
+    text = text.replace(/\s+/g, ' ');
+    text = text.trim();
+  } else {
+    // Simple regex-based stripping (for most use cases)
+    // Remove all HTML tags
+    text = text.replace(/<[^>]*>/g, '');
+    
+    // Decode HTML entities
+    text = text.replace(/&nbsp;/g, ' ');
+    text = text.replace(/&amp;/g, '&');
+    text = text.replace(/&lt;/g, '<');
+    text = text.replace(/&gt;/g, '>');
+    text = text.replace(/&quot;/g, '"');
+    text = text.replace(/&#39;/g, "'");
+    text = text.replace(/&#x27;/g, "'");
+    text = text.replace(/&#x2F;/g, '/');
+    text = text.replace(/&#x60;/g, '`');
+    text = text.replace(/&#x3D;/g, '=');
+    
+    // Clean up whitespace
+    text = text.replace(/\s+/g, ' ');
+    text = text.trim();
+  }
+  
+  // Apply max length if specified
+  if (maxLength && text.length > maxLength) {
+    return text.substring(0, maxLength) + '...';
+  }
+  
+  return text;
+}
+
+/**
+ * Convenience function for preview text (simple stripping with max length)
+ */
+export function stripHtmlForPreview(html: string, maxLength: number = 150): string {
+  return stripHtml(html, { maxLength });
+}
+
+/**
+ * Convenience function for CardNote components (preserves spacing)
+ */
+export function stripHtmlForCard(html: string, useDOM: boolean = false): string {
+  return stripHtml(html, { preserveSpacing: true, useDOM });
+}
+

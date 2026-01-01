@@ -7,6 +7,7 @@ import { parseScriptureReference, normalizeScriptureReference } from '@/utils/sc
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain, validateResourceUrl } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { successResponse, unauthorizedResponse, errorResponse, rateLimitedResponse, jsonResponse, serverErrorResponse } from '@/utils/api-responses';
 import { getNextUntitledNoteName } from '@/utils/untitled-naming';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { debug } from '@/utils/logger';
@@ -27,43 +28,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const { userId } = locals.auth();
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
         // Check note limit before allowing creation
         const auth = locals.auth();
         const noteLimitCheck = await canCreateNote(userId, auth);
     if (!noteLimitCheck.allowed) {
-      return new Response(JSON.stringify({
+      return jsonResponse({
         error: noteLimitCheck.reason || 'Note limit reached',
         code: 'NOTE_LIMIT_EXCEEDED',
         currentCount: noteLimitCheck.currentCount,
         limit: noteLimitCheck.limit,
         upgradeUrl: noteLimitCheck.upgradeUrl
-      }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 403);
     }
 
     // Rate limiting for write operations
     const ip = getClientIP(request);
     const rateLimit = rateLimitMiddleware(userId, '/api/notes/create', 'write', ip);
     if (!rateLimit.allowed) {
-      return new Response(JSON.stringify({ 
-        error: rateLimit.error,
-        code: 'RATE_LIMIT_EXCEEDED'
-      }), {
-        status: 429,
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
-          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
-        }
-      });
+      return rateLimitedResponse(
+        rateLimit.resetTime || Date.now(),
+        rateLimit.error || 'Rate limit exceeded'
+      );
     }
 
     // Parse form data
@@ -94,13 +82,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Validate noteType first (needed to determine if content is required)
     const noteTypeValidation = validateNoteType(noteType);
     if (!noteTypeValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: noteTypeValidation.error,
-        code: noteTypeValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse(noteTypeValidation.error || 'Invalid note type', noteTypeValidation.code);
     }
     const finalNoteType = noteType && noteTypeValidation.isValid ? noteType : 'default';
 
@@ -108,37 +90,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const contentRequired = finalNoteType !== 'resource';
     const contentValidation = validateContent(content, contentRequired);
     if (!contentValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: contentValidation.error,
-        code: contentValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse(contentValidation.error || 'Invalid content', contentValidation.code);
     }
 
     // Validate threadId
     const threadIdValidation = validateThreadId(threadId);
     if (!threadIdValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: threadIdValidation.error,
-        code: threadIdValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse(threadIdValidation.error || 'Invalid thread ID', threadIdValidation.code);
     }
 
     // Validate spaceId
     const spaceIdValidation = validateSpaceId(spaceId);
     if (!spaceIdValidation.isValid) {
-      return new Response(JSON.stringify({ 
-        error: spaceIdValidation.error,
-        code: spaceIdValidation.code
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse(spaceIdValidation.error || 'Invalid space ID', spaceIdValidation.code);
     }
 
     // Validate resourceUrl if this is a resource note
@@ -146,24 +110,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     let isPDF = false;
     if (finalNoteType === 'resource') {
       if (!resourceUrl || !resourceUrl.trim()) {
-        return new Response(JSON.stringify({ 
-          error: 'Resource URL is required',
-          code: 'URL_REQUIRED'
-        }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return errorResponse('Resource URL is required', 'URL_REQUIRED');
       }
       
       const urlValidation = validateResourceUrl(resourceUrl);
       if (!urlValidation.isValid) {
-        return new Response(JSON.stringify({ 
-          error: urlValidation.error || 'Invalid URL',
-          code: urlValidation.code || 'INVALID_URL'
-        }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return errorResponse(urlValidation.error || 'Invalid URL', urlValidation.code || 'INVALID_URL');
       }
       
       // Use validated normalized URL and store PDF flag
@@ -619,13 +571,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
       
       // Return response immediately with empty scriptureResults
-      return new Response(JSON.stringify({ 
+      return successResponse({ 
         success: "Note created!",
         note: newNote,
         scriptureResults: []
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
       });
     } else {
       // For non-resource notes: process synchronously before response (current behavior)
@@ -658,27 +607,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
         console.error('Error processing scripture references (non-critical):', error);
       }
 
-      return new Response(JSON.stringify({ 
+      return successResponse({ 
         success: "Note created!",
         note: newNote,
         scriptureResults
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
       });
     }
 
   } catch (error: any) {
-    const standardError = handleAPIError(error, {
+    return serverErrorResponse(error, {
       endpoint: '/api/notes/create',
       action: 'create_note'
-    });
-    return new Response(JSON.stringify({ 
-      error: standardError.message,
-      code: standardError.code
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
     });
   }
 };

@@ -6,6 +6,7 @@ import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
+import { stripHtmlForPreview } from '@/utils/html-stripper';
 
 interface Note {
   id: string;
@@ -346,20 +347,8 @@ export default function EditSpacePanel({
     }
   };
 
-  // Helper function to strip HTML from content
-  const stripHtml = (html: string): string => {
-    if (!html) return '';
-    return html
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .trim()
-      .substring(0, 150);
-  };
+  // Use centralized stripHtml utility
+  const stripHtml = (html: string): string => stripHtmlForPreview(html, 150);
 
   // Render compact thread item (similar to ThreadItem in AddToSpaceSection)
   const renderCompactThreadItem = (thread: Thread) => {
