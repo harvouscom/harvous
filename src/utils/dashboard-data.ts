@@ -1286,15 +1286,19 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         const bCreatedAt = getTime(b, 'createdAt');
         
         if (aCreatedAt && bCreatedAt) {
-          return bCreatedAt.getTime() - aCreatedAt.getTime();
+          const diff = bCreatedAt.getTime() - aCreatedAt.getTime();
+          if (diff !== 0) return diff; // Different createdAt, use that
         } else if (aCreatedAt && !bCreatedAt) {
           return -1; // a has createdAt, b doesn't - a comes first
         } else if (!aCreatedAt && bCreatedAt) {
           return 1; // b has createdAt, a doesn't - b comes first
         }
         
-        // All timestamps are null - maintain original order (stable sort)
-        return 0;
+        // Quaternary sort: id (for deterministic ordering when all timestamps are equal)
+        // Use string comparison for consistent ordering
+        const aId = a.id || '';
+        const bId = b.id || '';
+        return aId.localeCompare(bId);
       })
       .slice(offset, offset + limit);
 

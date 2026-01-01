@@ -151,7 +151,22 @@ try {
           pageTitle = 'Unorganized';
           pageContent = `${unorganizedThreadData.noteCount} notes`;
       } else {
-        // Fetch thread and its notes from database
+        // Update lastVisited timestamp FIRST, before fetching data
+        // This ensures fetched data includes the updated lastVisited timestamp
+        // Only update if this is a new visit (not a refresh)
+        const shouldUpdate = shouldUpdateLastVisitedTimestamp(Astro.request, Astro.url.pathname);
+        if (shouldUpdate) {
+          try {
+            await db.update(Threads)
+              .set({ lastVisited: new Date() })
+              .where(and(eq(Threads.id, id!), eq(Threads.userId, authenticatedUserId)));
+          } catch (error) {
+            // Log error but don't fail page load
+            console.error(`[id].astro] Error updating lastVisited for thread ${id}:`, error);
+          }
+        }
+        
+        // NOW fetch thread and its notes from database (with updated lastVisited)
         const [threadData, notesResult, noteTypeCountsData] = await Promise.all([
           getAllThreadsWithCounts(authenticatedUserId).then(threads => threads.find(t => t.id === id)),
           getNotesForThread(id!, authenticatedUserId),
@@ -186,16 +201,6 @@ try {
           
           pageTitle = threadData.title;
           pageContent = `${threadData.noteCount} notes`;
-          
-          // Update lastVisited timestamp when thread is opened
-          try {
-            await db.update(Threads)
-              .set({ lastVisited: new Date() })
-              .where(and(eq(Threads.id, threadData.id), eq(Threads.userId, authenticatedUserId)));
-          } catch (error) {
-            // Log error but don't fail page load
-            console.error(`[id].astro] Error updating lastVisited for thread ${threadData.id}:`, error);
-          }
         } else {
           // Fallback: Query thread directly by ID if not found in getAllThreadsWithCounts
           // This can happen for newly created threads that haven't been indexed yet
@@ -274,15 +279,7 @@ try {
             pageContent = `${noteCount} notes`;
             debug(`[id].astro] Successfully set up thread content`, { title: thread.title });
             
-            // Update lastVisited timestamp when thread is opened
-            try {
-              await db.update(Threads)
-                .set({ lastVisited: new Date() })
-                .where(and(eq(Threads.id, thread.id), eq(Threads.userId, authenticatedUserId)));
-            } catch (error) {
-              // Log error but don't fail page load
-              console.error(`[id].astro] Error updating lastVisited for thread ${thread.id}:`, error);
-            }
+            // Note: lastVisited was already updated before data fetch (see above)
           } else {
             // Thread not found even in direct query - log for debugging
             console.error(`[id].astro] Thread not found in direct query: ${id} for user: ${authenticatedUserId}`);
@@ -296,7 +293,22 @@ try {
         }
       }
     } else if (isNote) {
-      // Fetch note from database
+      // Update lastVisited timestamp FIRST, before fetching data
+      // This ensures fetched data includes the updated lastVisited timestamp
+      // Only update if this is a new visit (not a refresh)
+      const shouldUpdate = shouldUpdateLastVisitedTimestamp(Astro.request, Astro.url.pathname);
+      if (shouldUpdate) {
+        try {
+          await db.update(Notes)
+            .set({ lastVisited: new Date() })
+            .where(and(eq(Notes.id, id!), eq(Notes.userId, authenticatedUserId)));
+        } catch (error) {
+          // Log error but don't fail page load
+          console.error(`[id].astro] Error updating lastVisited for note ${id}:`, error);
+        }
+      }
+      
+      // NOW fetch note from database (with updated lastVisited)
       const note = await db.select().from(Notes).where(eq(Notes.id, id!)).get();
       
       if (note) {
@@ -356,15 +368,7 @@ try {
         // Set page title for note
         pageTitle = note.title || "Untitled Note";
 
-        // Update lastVisited timestamp when note is opened
-        try {
-          await db.update(Notes)
-            .set({ lastVisited: new Date() })
-            .where(and(eq(Notes.id, note.id), eq(Notes.userId, authenticatedUserId)));
-        } catch (error) {
-          // Log error but don't fail page load
-          console.error(`[id].astro] Error updating lastVisited for note ${note.id}:`, error);
-        }
+        // Note: lastVisited was already updated before data fetch (see above)
 
         // Smart Default Logic for Multi-Thread Navigation
         // Priority order:
