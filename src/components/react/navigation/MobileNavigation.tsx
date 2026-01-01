@@ -131,34 +131,60 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         return;
       }
 
+      // Get expected count from current state
+      const expectedCount = updatedCurrentThread?.noteCount || currentThread?.noteCount || 0;
+      
+      // Use verification-based refresh if we have recent changes
+      const badgeRefreshModule = await import('@/utils/badge-count-refresh');
+      const forceRefresh = badgeRefreshModule.shouldForceRefresh(currentThread.id);
+      
       try {
-        // Fetch current thread data from API
-        const response = await fetch('/api/threads/list', {
-          credentials: 'include'
-        });
-
-        // Handle 401 errors gracefully - auth may not be fully established yet
-        if (response.status === 401) {
-          // Silently fail - auth will establish soon
-          return;
-        }
-
-        if (response.ok) {
-          const threads = await response.json();
-          const threadData = threads.find((t: any) => t.id === currentThread.id);
-          
-          if (threadData) {
-            setUpdatedCurrentThread((prev) => {
-              // Only update if count actually changed
-              if (prev && prev.noteCount === threadData.noteCount) {
-                return prev;
-              }
-              return {
-                ...currentThread,
-                noteCount: threadData.noteCount
-              };
+        let threadData: any = null;
+        
+        if (forceRefresh) {
+          // For recent changes, verify with polling
+          const verifiedCount = await badgeRefreshModule.refreshBadgeCountsWithVerification(currentThread.id, expectedCount);
+          if (verifiedCount !== null) {
+            // Fetch full thread data
+            const response = await fetch('/api/threads/list', {
+              credentials: 'include',
+              cache: 'no-store'
             });
+            if (response.ok) {
+              const threads = await response.json();
+              threadData = threads.find((t: any) => t.id === currentThread.id);
+            }
           }
+        } else {
+          // Regular fetch
+          const response = await fetch('/api/threads/list', {
+            credentials: 'include',
+            cache: 'no-store'
+          });
+
+          // Handle 401 errors gracefully - auth may not be fully established yet
+          if (response.status === 401) {
+            // Silently fail - auth will establish soon
+            return;
+          }
+
+          if (response.ok) {
+            const threads = await response.json();
+            threadData = threads.find((t: any) => t.id === currentThread.id);
+          }
+        }
+        
+        if (threadData) {
+          setUpdatedCurrentThread((prev) => {
+            // Only update if count actually changed
+            if (prev && prev.noteCount === threadData.noteCount) {
+              return prev;
+            }
+            return {
+              ...currentThread,
+              noteCount: threadData.noteCount
+            };
+          });
         }
       } catch (error) {
         // Silently fail - network errors are expected during auth establishment
@@ -166,28 +192,30 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       }
     };
 
-    const handleNoteCreated = (event: Event) => {
+    const handleNoteCreated = async (event: Event) => {
       const customEvent = event as CustomEvent;
-      // Extract actualThreadId from event detail (from junction table), fallback to legacy threadId
-      const actualThreadId = customEvent.detail?.actualThreadId || customEvent.detail?.note?.threadId;
+      // PHASE 2: Use event detail as primary source (includes threadId)
+      // Use threadId from event detail first, then actualThreadId, then note.threadId
+      const actualThreadId = customEvent.detail?.threadId || customEvent.detail?.actualThreadId || customEvent.detail?.note?.threadId;
       
       // Only refresh if the note was created in the current thread
       if (actualThreadId === currentThread.id) {
-        // Refresh immediately with minimal delay (100ms) for database consistency
-        // Note is already in database when event fires, so minimal delay is sufficient
-        setTimeout(() => refreshCurrentThreadCount(), 100);
+        // Refresh immediately with verification (no delay)
+        await refreshCurrentThreadCount();
       }
       // If note was created in a different thread, skip refresh
     };
 
-    const handleNoteDeleted = () => {
-      setTimeout(() => refreshCurrentThreadCount(), 300);
+    const handleNoteDeleted = async () => {
+      // Refresh immediately with verification (no delay)
+      await refreshCurrentThreadCount();
     };
 
-    const handleNoteRemovedFromThread = (event: CustomEvent) => {
+    const handleNoteRemovedFromThread = async (event: CustomEvent) => {
       const { threadId } = event.detail;
       if (threadId === currentThread.id) {
-        setTimeout(() => refreshCurrentThreadCount(), 300);
+        // Refresh immediately with verification (no delay)
+        await refreshCurrentThreadCount();
       }
     };
 

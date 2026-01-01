@@ -1528,6 +1528,139 @@ if (!content) {
       });
     }
   });
+  
+  // Update TabNav badge counts when notes are created/deleted
+  (function() {
+    if (typeof window === 'undefined') return;
+    
+    // Helper to update TabNav badge counts
+    const updateTabNavBadges = async (noteType?: string, increment: number = 1) => {
+      const currentPath = window.location.pathname;
+      const currentThreadId = currentPath.substring(1);
+      
+      // Only update if we're on a thread page
+      if (!currentThreadId || (!currentThreadId.startsWith('thread_') && currentThreadId !== 'thread_unorganized')) {
+        return;
+      }
+      
+      // Find TabNav container
+      const tabNavContainer = document.querySelector('.content-tabs');
+      if (!tabNavContainer) return;
+      
+      // Get all tab buttons
+      const tabButtons = tabNavContainer.querySelectorAll('[data-tab-button]');
+      if (tabButtons.length === 0) return;
+      
+      // Fetch fresh note type counts from API
+      try {
+        const response = await fetch(`/api/threads/${currentThreadId}/notes?offset=0&limit=100`, {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const notes = data.notes || [];
+          
+          // Calculate counts
+          const allCount = notes.length;
+          const notesCount = notes.filter((n: any) => !n.noteType || n.noteType === 'default').length;
+          const scriptureCount = notes.filter((n: any) => n.noteType === 'scripture').length;
+          
+          // Update badge counts in TabNav
+          tabButtons.forEach((button) => {
+            const tabId = button.getAttribute('data-tab-id');
+            const badgeElement = button.querySelector('.badge-number');
+            
+            if (!badgeElement) return;
+            
+            let newCount = 0;
+            if (tabId === 'all') {
+              newCount = allCount;
+            } else if (tabId === 'notes') {
+              newCount = notesCount;
+            } else if (tabId === 'scripture') {
+              newCount = scriptureCount;
+            }
+            
+            // Update badge count
+            if (newCount > 0) {
+              badgeElement.textContent = newCount > 99 ? '99+' : String(newCount);
+              // Ensure badge is visible
+              const badgeCount = button.querySelector('.badge-count');
+              if (badgeCount) {
+                badgeCount.style.display = 'flex';
+              }
+            } else {
+              // Hide badge if count is 0
+              const badgeCount = button.querySelector('.badge-count');
+              if (badgeCount) {
+                badgeCount.style.display = 'none';
+              }
+            }
+          });
+        }
+      } catch (error) {
+        console.error('[TabNav] Error updating badge counts:', error);
+      }
+    };
+    
+    // Listen for note created events
+    window.addEventListener('noteCreated', async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { threadId, note } = customEvent.detail;
+      
+      // Check if note was created in current thread
+      const currentPath = window.location.pathname;
+      const currentThreadId = currentPath.substring(1);
+      const noteThreadId = threadId || customEvent.detail?.actualThreadId || note?.threadId;
+      
+      if (noteThreadId === currentThreadId) {
+        // Update badges immediately with verification
+        await updateTabNavBadges(note?.noteType, 1);
+      }
+    });
+    
+    // Listen for note deleted events
+    window.addEventListener('noteDeleted', async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { threadId } = customEvent.detail;
+      
+      // Check if note was deleted from current thread
+      const currentPath = window.location.pathname;
+      const currentThreadId = currentPath.substring(1);
+      
+      if (threadId === currentThreadId) {
+        // Update badges immediately with verification
+        await updateTabNavBadges(undefined, -1);
+      }
+    });
+    
+    // Listen for note added/removed from thread events
+    window.addEventListener('noteAddedToThread', async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { threadId } = customEvent.detail;
+      
+      const currentPath = window.location.pathname;
+      const currentThreadId = currentPath.substring(1);
+      
+      if (threadId === currentThreadId) {
+        await updateTabNavBadges(undefined, 1);
+      }
+    });
+    
+    window.addEventListener('noteRemovedFromThread', async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { threadId } = customEvent.detail;
+      
+      const currentPath = window.location.pathname;
+      const currentThreadId = currentPath.substring(1);
+      
+      if (threadId === currentThreadId) {
+        await updateTabNavBadges(undefined, -1);
+      }
+    });
+  })();
 </script>
 
 

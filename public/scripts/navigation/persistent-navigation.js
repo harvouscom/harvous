@@ -739,33 +739,82 @@ document.addEventListener('spaceDeleted', (event) => {
   }, 100);
 });
 
+// Helper function to check if we should force refresh based on sessionStorage
+function shouldForceRefresh() {
+  try {
+    // Check for recently created notes
+    const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+    if (recentNotesStr) {
+      const recentNotes = JSON.parse(recentNotesStr);
+      const fiveSecondsAgo = Date.now() - 5000;
+      const hasRecentNote = recentNotes.some((n) => n.timestamp > fiveSecondsAgo);
+      if (hasRecentNote) {
+        return true;
+      }
+    }
+    
+    // Check for recently deleted notes
+    const recentDeletionsStr = sessionStorage.getItem('recentlyDeletedNotes');
+    if (recentDeletionsStr) {
+      const recentDeletions = JSON.parse(recentDeletionsStr);
+      const fiveSecondsAgo = Date.now() - 5000;
+      const hasRecentDeletion = recentDeletions.some((d) => d.timestamp > fiveSecondsAgo);
+      if (hasRecentDeletion) {
+        return true;
+      }
+    }
+  } catch (error) {
+    console.error('[persistent-navigation] Error checking sessionStorage:', error);
+  }
+  return false;
+}
+
 // Listen for note events to refresh navigation display (for count updates)
 document.addEventListener('noteCreated', (event) => {
-  // Small delay to ensure React system has updated localStorage
-  setTimeout(() => {
+  // Check sessionStorage for recent changes - if found, refresh immediately
+  // Otherwise, refresh immediately (no delay needed - React system updates synchronously)
+  if (shouldForceRefresh()) {
     loadPersistentNavigation();
-  }, 100);
+  } else {
+    // Still refresh, but check if we need to wait for React updates
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      loadPersistentNavigation();
+    });
+  }
 });
 
 document.addEventListener('noteDeleted', (event) => {
-  // Small delay to ensure React system has updated localStorage
-  setTimeout(() => {
+  // Check sessionStorage for recent changes
+  if (shouldForceRefresh()) {
     loadPersistentNavigation();
-  }, 100);
+  } else {
+    requestAnimationFrame(() => {
+      loadPersistentNavigation();
+    });
+  }
 });
 
 document.addEventListener('noteRemovedFromThread', (event) => {
-  // Small delay to ensure React system has updated localStorage
-  setTimeout(() => {
+  // Check sessionStorage for recent changes
+  if (shouldForceRefresh()) {
     loadPersistentNavigation();
-  }, 100);
+  } else {
+    requestAnimationFrame(() => {
+      loadPersistentNavigation();
+    });
+  }
 });
 
 document.addEventListener('noteAddedToThread', (event) => {
-  // Small delay to ensure React system has updated localStorage
-  setTimeout(() => {
+  // Check sessionStorage for recent changes
+  if (shouldForceRefresh()) {
     loadPersistentNavigation();
-  }, 100);
+  } else {
+    requestAnimationFrame(() => {
+      loadPersistentNavigation();
+    });
+  }
 });
 
 // Global navigation listener (debug logging removed for production)

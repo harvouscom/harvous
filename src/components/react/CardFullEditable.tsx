@@ -412,11 +412,21 @@ export default function CardFullEditable({
         
         try {
           editor.commands.focus();
-          // Move cursor to end of content to avoid getting stuck on scripture pills
+          // Determine cursor position based on content
           try {
             const doc = editor.state.doc;
-            const endPos = doc.content.size;
-            editor.commands.setTextSelection(endPos);
+            const textContent = doc.textContent.trim();
+            const isEmpty = textContent.length === 0;
+            
+            if (isEmpty) {
+              // For empty content, place cursor at start (position 1)
+              // Position 1 is after the document start, at the beginning of the first paragraph
+              editor.commands.setTextSelection(1);
+            } else {
+              // For content with text, place cursor at end to avoid getting stuck on scripture pills
+              const endPos = doc.content.size;
+              editor.commands.setTextSelection(endPos);
+            }
           } catch (e) {
             // If setting selection fails, just focus
           }

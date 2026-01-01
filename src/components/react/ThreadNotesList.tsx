@@ -306,8 +306,8 @@ export default function ThreadNotesList({
   const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
 
   // PHASE 2: Unified refresh function with verification-based approach
-  const refreshNotesList = useCallback(async (expectedNoteId?: string) => {
-    if (!isMountedRef.current) return;
+  const refreshNotesList = useCallback(async (expectedNoteId?: string): Promise<boolean> => {
+    if (!isMountedRef.current) return false;
 
     // Verification-based refresh: poll until note appears or timeout
     const verifyAndRefresh = async (maxAttempts = 3): Promise<boolean> => {
@@ -381,14 +381,17 @@ export default function ThreadNotesList({
 
     // If no expected note ID, just refresh once
     if (!expectedNoteId) {
-      await verifyAndRefresh(1);
+      return await verifyAndRefresh(1);
     } else {
       // Verify note exists with retries
-      await verifyAndRefresh(3);
+      const success = await verifyAndRefresh(3);
+      // PHASE 4: Return success status so caller can clean up sessionStorage
+      return success;
     }
   }, [threadId, noteTypeFilter]);
 
-  // PHASE 2: Check sessionStorage on mount for recently created notes
+  // PHASE 4: Check sessionStorage on mount for recently created notes
+  // Only remove from sessionStorage after successful verification
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
@@ -405,14 +408,23 @@ export default function ThreadNotesList({
       );
       
       if (relevantNote) {
-        // Force immediate refresh
-        refreshNotesList(relevantNote.noteId);
-        
-        // Remove this note from sessionStorage after refresh
-        const filtered = recentNotes.filter((n: any) => 
-          !(n.threadId === threadId && n.noteId === relevantNote.noteId)
-        );
-        sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+        // Force immediate refresh with verification
+        refreshNotesList(relevantNote.noteId).then((success) => {
+          // PHASE 4: Only remove from sessionStorage after successful verification
+          // Check if note is now in the list before removing
+          if (success) {
+            const noteExists = notesRef.current.some(n => n.id === relevantNote.noteId);
+            if (noteExists) {
+              // Note confirmed in list, safe to remove from sessionStorage
+              const filtered = recentNotes.filter((n: any) => 
+                !(n.threadId === threadId && n.noteId === relevantNote.noteId)
+              );
+              sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+            }
+            // If note not found, keep in sessionStorage for retry on next mount
+          }
+          // If refresh failed, keep in sessionStorage for retry
+        });
       }
     } catch (error) {
       console.error('[ThreadNotesList] Error checking sessionStorage:', error);
@@ -422,31 +434,46 @@ export default function ThreadNotesList({
   // Listen for note created events - refresh when note is created in current thread
   useEffect(() => {
     const handleNoteCreated = async (event: CustomEvent) => {
-      const { note, actualThreadId } = event.detail;
+      // PHASE 2: Use event detail as primary source (includes threadId and noteId)
+      const { note, actualThreadId, threadId: eventThreadId, noteId: eventNoteId } = event.detail;
+      
+      // Use threadId from event detail first, fallback to actualThreadId, then note.threadId
+      const noteThreadId = eventThreadId || actualThreadId || note?.threadId;
+      const noteId = eventNoteId || note?.id;
       
       // Check if note was created in the current thread
-      // Use actualThreadId if provided (from junction table), otherwise fall back to note.threadId
-      // For unorganized thread: if actualThreadId is null/undefined and note has no threadId or threadId is unorganized, treat as unorganized
-      let noteThreadId = actualThreadId;
-      if (!noteThreadId) {
-        // If actualThreadId is not provided, check note.threadId
-        // If note.threadId is null/undefined, it means the note has no thread associations = unorganized
-        noteThreadId = note?.threadId || (threadId === 'thread_unorganized' ? 'thread_unorganized' : null);
-      }
-      
-      // For unorganized thread: also refresh if note has no thread associations (actualThreadId is null and note.threadId is null/undefined)
-      const isUnorganizedNote = !actualThreadId && (!note?.threadId || note?.threadId === 'thread_unorganized');
+      // For unorganized thread: if threadId is null/undefined, treat as unorganized
+      const isUnorganizedNote = !noteThreadId || noteThreadId === 'thread_unorganized';
       const matchesCurrentThread = noteThreadId === threadId || (isUnorganizedNote && threadId === 'thread_unorganized');
       
-      if (matchesCurrentThread && note?.id) {
+      if (matchesCurrentThread && noteId) {
         // Check if note is already in the list
-        const noteExists = notesRef.current.some(n => n.id === note.id);
+        const noteExists = notesRef.current.some(n => n.id === noteId);
         if (noteExists) {
           return; // Already in list, skip
         }
 
-        // Use verification-based refresh instead of arbitrary delay
-        await refreshNotesList(note.id);
+        // Use verification-based refresh with noteId from event
+        // PHASE 4: Only remove from sessionStorage after successful verification
+        const success = await refreshNotesList(noteId);
+        if (success) {
+          // Note confirmed in list, remove from sessionStorage after a short delay
+          // This ensures the note is fully rendered before cleanup
+          setTimeout(() => {
+            try {
+              const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+              if (recentNotesStr) {
+                const recentNotes = JSON.parse(recentNotesStr);
+                const filtered = recentNotes.filter((n: any) => 
+                  !(n.threadId === threadId && n.noteId === noteId)
+                );
+                sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+              }
+            } catch (error) {
+              console.error('[ThreadNotesList] Error cleaning up sessionStorage:', error);
+            }
+          }, 500); // Small delay to ensure note is fully rendered
+        }
       }
     };
 

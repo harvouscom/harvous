@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { safeSetItem, safeGetItem, safeRemoveItem, getStorage } from '@/utils/safe-storage';
 import { safeFetch, isAuthReady } from '@/utils/safe-fetch';
+import { shouldForceRefresh, trackNoteDeletion, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
 
 // Navigation item interface
 export interface NavigationItem {
@@ -626,7 +627,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             
             // Refresh counts from API after adding new item to ensure accuracy
             // Use debounced version to prevent multiple rapid refreshes
-            debouncedRefreshNavigationCounts();
+            refreshNavigationCountsImmediate();
           } else {
             // Item is closed and user didn't explicitly navigate to it - don't add it back
             // This prevents closed items from reappearing when navigating to other items
@@ -678,11 +679,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setNavigationHistory(history);
   };
 
-  // Debounce ref for refreshNavigationCounts to prevent multiple rapid refreshes
-  const refreshCountsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const REFRESH_DEBOUNCE_DELAY = 500; // 500ms debounce to prevent overwriting with stale data
-
   // Refresh navigation counts (threads and spaces) from API to ensure accuracy
+  // Uses verification-based approach instead of debouncing
   const refreshNavigationCounts = async () => {
     // Handle SSR - do nothing if not in browser
     if (typeof window === 'undefined') {
@@ -819,18 +817,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  // Debounced version of refreshNavigationCounts to prevent multiple rapid refreshes
-  const debouncedRefreshNavigationCounts = () => {
-    // Clear any pending refresh
-    if (refreshCountsTimeoutRef.current) {
-      clearTimeout(refreshCountsTimeoutRef.current);
-    }
-    
-    // Schedule a new refresh after debounce delay
-    refreshCountsTimeoutRef.current = setTimeout(() => {
-      refreshCountsTimeoutRef.current = null;
-      refreshNavigationCounts();
-    }, REFRESH_DEBOUNCE_DELAY);
+  // Immediate refresh with verification (no debounce delay)
+  // Uses sessionStorage to detect if immediate refresh is needed
+  const refreshNavigationCountsImmediate = async () => {
+    await refreshNavigationCounts();
   };
 
   // Validation cache to prevent redundant API calls
@@ -1052,11 +1042,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Listen for note creation events to update thread counts
     const handleNoteCreated = async (event: CustomEvent) => {
+      // PHASE 2: Use event detail as primary source (includes threadId and noteId)
       const note = event.detail?.note;
-      // Use actualThreadId from junction table, not the legacy threadId field
-      // If actualThreadId is provided, use it (it's the correct thread from junction table)
-      // Only fall back to note.threadId if actualThreadId is not provided
-      const actualThreadId = event.detail?.actualThreadId || note?.threadId;
+      // Use threadId from event detail first, then actualThreadId, then note.threadId
+      const actualThreadId = event.detail?.threadId || event.detail?.actualThreadId || note?.threadId;
       if (note && actualThreadId) {
         // Track this note as recently created to avoid double-counting in noteAddedToThread
         // Remove it after 2 seconds (enough time for noteAddedToThread to fire)
@@ -1356,9 +1345,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Remove from recently created set after processing
         recentlyCreatedNotes.current.delete(noteId);
         
-        // Refresh navigation counts from API after a short delay to ensure accuracy
-        // Use debounced version to prevent multiple rapid refreshes from overwriting each other
-        debouncedRefreshNavigationCounts();
+        // Refresh navigation counts immediately with verification (no debounce delay)
+        refreshNavigationCountsImmediate();
       }
     };
 
@@ -1377,6 +1365,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const actualThreadId = threadId || event.detail?.note?.threadId;
       
       if (noteId && actualThreadId) {
+        // Track deletion in sessionStorage for refresh detection
+        trackNoteDeletion(noteId, actualThreadId);
+        
         let shouldCloseUnorganized = false;
 
         setNavigationHistory(currentHistory => {
@@ -1407,9 +1398,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           removeFromNavigationHistory('thread_unorganized');
         }
         
-        // Refresh counts from API after a delay to ensure database is fully consistent
-        // Use debounced version to prevent multiple rapid refreshes from overwriting each other
-        debouncedRefreshNavigationCounts();
+        // Refresh counts immediately with verification (no debounce delay)
+        refreshNavigationCountsImmediate();
       }
     };
     

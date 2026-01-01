@@ -225,57 +225,82 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         return;
       }
 
+      // Get expected count from current state
+      const expectedCount = updatedActiveThread?.noteCount || activeThread?.noteCount || 0;
+      
+      // Use verification-based refresh if we have recent changes
+      const { shouldForceRefresh, refreshBadgeCountsWithVerification } = await import('@/utils/badge-count-refresh');
+      const forceRefresh = shouldForceRefresh(activeThread.id);
+      
       try {
-        // Fetch current thread data from API
-        const response = await fetch('/api/threads/list', {
-          credentials: 'include',
-          cache: 'no-store' // Ensure we get fresh data
-        });
+        let threadData: any = null;
+        
+        if (forceRefresh && skipDebounce) {
+          // For recent changes, verify with polling
+          const verifiedCount = await refreshBadgeCountsWithVerification(activeThread.id, expectedCount);
+          if (verifiedCount !== null) {
+            // Fetch full thread data
+            const response = await fetch('/api/threads/list', {
+              credentials: 'include',
+              cache: 'no-store'
+            });
+            if (response.ok) {
+              const threads = await response.json();
+              threadData = threads.find((t: any) => t.id === activeThread.id);
+            }
+          }
+        } else {
+          // Regular fetch
+          const response = await fetch('/api/threads/list', {
+            credentials: 'include',
+            cache: 'no-store'
+          });
 
-        // Handle 401 errors gracefully - auth may not be fully established yet
-        if (response.status === 401) {
-          // Silently fail - auth will establish soon
-          return;
+          // Handle 401 errors gracefully - auth may not be fully established yet
+          if (response.status === 401) {
+            // Silently fail - auth will establish soon
+            return;
+          }
+
+          if (response.ok) {
+            const threads = await response.json();
+            threadData = threads.find((t: any) => t.id === activeThread.id);
+          }
         }
-
-        if (response.ok) {
-          const threads = await response.json();
-          const threadData = threads.find((t: any) => t.id === activeThread.id);
+        
+        if (threadData) {
+          // Track that we updated via API (not events)
+          const now = Date.now();
+          const timeSinceEventUpdate = now - lastEventUpdateTimeRef.current;
           
-          if (threadData) {
-            // Track that we updated via API (not events)
-            const now = Date.now();
-            const timeSinceEventUpdate = now - lastEventUpdateTimeRef.current;
+          setUpdatedActiveThread((prev) => {
+            // Only update if count actually changed
+            if (prev && prev.noteCount === threadData.noteCount) {
+              return prev;
+            }
             
-            setUpdatedActiveThread((prev) => {
-              // Only update if count actually changed
-              if (prev && prev.noteCount === threadData.noteCount) {
-                return prev;
-              }
+            // If we recently updated via events, use the higher count (event might be more recent)
+            if (timeSinceEventUpdate < 2000 && eventUpdatedCountRef.current !== null) {
+              const eventCount = eventUpdatedCountRef.current;
+              const serverCount = threadData.noteCount;
+              // Use the higher count (event updates are immediate, server might lag)
+              const finalCount = Math.max(eventCount, serverCount);
+              eventUpdatedCountRef.current = finalCount;
+              lastEventUpdateTimeRef.current = now;
               
-              // If we recently updated via events, use the higher count (event might be more recent)
-              if (timeSinceEventUpdate < 2000 && eventUpdatedCountRef.current !== null) {
-                const eventCount = eventUpdatedCountRef.current;
-                const serverCount = threadData.noteCount;
-                // Use the higher count (event updates are immediate, server might lag)
-                const finalCount = Math.max(eventCount, serverCount);
-                eventUpdatedCountRef.current = finalCount;
-                lastEventUpdateTimeRef.current = now;
-                
-                return {
-                  ...activeThread,
-                  noteCount: finalCount
-                };
-              }
-              
-              // No recent event updates, use server data
-              eventUpdatedCountRef.current = threadData.noteCount;
               return {
                 ...activeThread,
-                noteCount: threadData.noteCount
+                noteCount: finalCount
               };
-            });
-          }
+            }
+            
+            // No recent event updates, use server data
+            eventUpdatedCountRef.current = threadData.noteCount;
+            return {
+              ...activeThread,
+              noteCount: threadData.noteCount
+            };
+          });
         }
       } catch (error) {
         // Silently fail - network errors are expected during auth establishment
@@ -283,23 +308,34 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       }
     };
 
-    const scheduleRefresh = (skipDebounce: boolean = false) => {
+    // Use verification-based refresh instead of arbitrary delays
+    const scheduleRefresh = async (skipDebounce: boolean = false) => {
       // Clear any pending timeout first
       if (pendingTimeoutRef.current) {
         clearTimeout(pendingTimeoutRef.current);
       }
-      // Schedule refresh with minimal delay (100ms for note creation, 300ms for others)
-      const delay = skipDebounce ? 100 : 300;
-      pendingTimeoutRef.current = setTimeout(() => {
-        pendingTimeoutRef.current = null;
-        refreshActiveThreadCount(skipDebounce);
-      }, delay);
+      
+      // For note creation, refresh immediately with verification
+      // For other events, use debounce window but still verify
+      if (skipDebounce) {
+        // Immediate refresh with verification
+        await refreshActiveThreadCount(true);
+      } else {
+        // Use debounce window but still verify
+        const now = Date.now();
+        const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
+        if (timeSinceLastRefresh < DEBOUNCE_WINDOW_MS) {
+          return; // Too soon, skip
+        }
+        await refreshActiveThreadCount(false);
+      }
     };
 
     const handleNoteCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
-      // Extract actualThreadId from event detail (from junction table), fallback to legacy threadId
-      const actualThreadId = customEvent.detail?.actualThreadId || customEvent.detail?.note?.threadId;
+      // PHASE 2: Use event detail as primary source (includes threadId)
+      // Use threadId from event detail first, then actualThreadId, then note.threadId
+      const actualThreadId = customEvent.detail?.threadId || customEvent.detail?.actualThreadId || customEvent.detail?.note?.threadId;
       
       // Only refresh if the note was created in the active thread
       if (actualThreadId === activeThread.id) {
@@ -318,8 +354,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           return prev;
         });
         
-        // Then refresh from API to get accurate count (with minimal delay)
-        // Note is already in database when event fires, so minimal delay is sufficient
+        // Then refresh from API to get accurate count (verification-based, no delay)
         scheduleRefresh(true);
       }
       // If note was created in a different thread, skip refresh

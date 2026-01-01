@@ -466,25 +466,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             return false;
           };
           
-          // Store note creation info in sessionStorage for client-side refresh
-          try {
-            const noteCreationInfo = {
-              noteId: result.note.id,
-              threadId: actualThreadId,
-              timestamp: Date.now()
-            };
-            const recentNotes = JSON.parse(sessionStorage.getItem('recentlyCreatedNotes') || '[]');
-            recentNotes.push(noteCreationInfo);
-            // Keep only notes from last 10 seconds
-            const tenSecondsAgo = Date.now() - 10000;
-            const filtered = recentNotes.filter((n: any) => n.timestamp > tenSecondsAgo);
-            sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
-            debug('[useNoteSubmission] Stored note creation info in sessionStorage', noteCreationInfo);
-          } catch (error) {
-            console.error('[useNoteSubmission] Failed to store note creation info:', error);
-          }
-          
           // Verify note exists in thread (with timeout to prevent hanging)
+          // Note: sessionStorage is now written before event dispatch to avoid race conditions
           const verificationPromise = verifyNoteInThread(result.note.id, actualThreadId);
           const timeoutPromise = new Promise<boolean>((resolve) => 
             setTimeout(() => resolve(false), 2000) // 2 second max wait
@@ -681,15 +664,39 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
         }
         
+        // PHASE 1: Write sessionStorage BEFORE dispatching event to avoid race conditions
+        // This ensures sessionStorage is available when components receive the event
+        if (result.note && result.note.id && actualThreadId) {
+          try {
+            const noteCreationInfo = {
+              noteId: result.note.id,
+              threadId: actualThreadId,
+              timestamp: Date.now()
+            };
+            const recentNotes = JSON.parse(sessionStorage.getItem('recentlyCreatedNotes') || '[]');
+            recentNotes.push(noteCreationInfo);
+            // Keep only notes from last 10 seconds
+            const tenSecondsAgo = Date.now() - 10000;
+            const filtered = recentNotes.filter((n: any) => n.timestamp > tenSecondsAgo);
+            sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+            debug('[useNoteSubmission] Stored note creation info in sessionStorage (before event)', noteCreationInfo);
+          } catch (error) {
+            console.error('[useNoteSubmission] Failed to store note creation info:', error);
+          }
+        }
+        
         // Dispatch note created event with the correct thread ID
         // Use finalThreadId (overrideThreadId if provided) as the source of truth
         const threadIdForEvent = finalThreadId;
         debug('[useNoteSubmission] Dispatching noteCreated event', { threadId: threadIdForEvent });
         
+        // PHASE 1: Include note info in event detail so components don't need to check sessionStorage
         window.dispatchEvent(new CustomEvent('noteCreated', {
           detail: { 
             note: result.note,
-            actualThreadId: threadIdForEvent // Use the correct thread ID (overrideThreadId if provided)
+            actualThreadId: threadIdForEvent, // Use the correct thread ID (overrideThreadId if provided)
+            noteId: result.note?.id, // Include noteId for easy access
+            threadId: threadIdForEvent // Include threadId for easy access
           }
         }));
 
