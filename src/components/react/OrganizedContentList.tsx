@@ -109,36 +109,70 @@ export default function OrganizedContentList({
   }, []);
 
   // Optimistic update: immediately update lastVisited and re-sort items
-  const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
+  const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note', retryCount = 0) => {
     setCurrentItems(prev => {
-      // Find the item by ID - could be thread-{id}, note-{id}, or just {id}
+      // If list is empty, wait
+      if (prev.length === 0 && retryCount === 0) {
+        debug('[OrganizedContentList] Items list empty, will retry optimistic update', { itemId, itemType });
+        setTimeout(() => optimisticUpdateLastVisited(itemId, itemType, retryCount + 1), 50);
+        return prev;
+      }
+      
+      // Find the item by ID - try multiple formats
       const itemIndex = prev.findIndex(item => {
         if (itemType === 'thread') {
-          return item.threadId === itemId || item.id === `thread-${itemId}` || item.id === itemId;
+          // Try multiple formats
+          return item.threadId === itemId || 
+                 item.id === `thread-${itemId}` || 
+                 item.id === itemId ||
+                 (itemId.startsWith('thread_') && item.threadId === itemId.substring(7)) ||
+                 (itemId.startsWith('thread_') && item.id === itemId);
         } else {
-          return item.noteId === itemId || item.id === `note-${itemId}` || item.id === itemId;
+          return item.noteId === itemId || 
+                 item.id === `note-${itemId}` || 
+                 item.id === itemId ||
+                 (itemId.startsWith('note_') && item.noteId === itemId.substring(5)) ||
+                 (itemId.startsWith('note_') && item.id === itemId);
         }
       });
 
       if (itemIndex === -1) {
-        // Item not found in current list (might be filtered out)
+        debug('[OrganizedContentList] Item not found for optimistic update', { 
+          itemId, 
+          itemType, 
+          retryCount,
+          listLength: prev.length,
+          available: prev.slice(0, 5).map(i => ({ id: i.id, threadId: i.threadId, noteId: i.noteId, type: i.type }))
+        });
+        if (prev.length > 0 && retryCount < 2) {
+          setTimeout(() => optimisticUpdateLastVisited(itemId, itemType, retryCount + 1), 100);
+        }
         return prev;
       }
 
-      // Update the item's lastVisited to now
+      debug('[OrganizedContentList] Found item for optimistic update', { itemId, itemType, itemIndex, currentItem: prev[itemIndex] });
+      
+      // Update the item's lastVisited and lastUpdated to now
       const updatedItems = [...prev];
-      const currentItem = updatedItems[itemIndex];
       const now = new Date();
       
       // Update both lastVisited and lastUpdated to match API behavior
       updatedItems[itemIndex] = {
-        ...currentItem,
+        ...updatedItems[itemIndex],
         lastVisited: now,
         lastUpdated: now.toISOString()
       };
 
       // Re-sort by lastVisited (matching API logic)
-      return sortItemsByLastVisited(updatedItems);
+      const sorted = sortItemsByLastVisited(updatedItems);
+      const newPosition = sorted.findIndex(i => i.id === updatedItems[itemIndex].id);
+      debug('[OrganizedContentList] Items re-sorted', { 
+        itemId,
+        oldPosition: itemIndex,
+        newPosition,
+        isFirst: newPosition === 0
+      });
+      return sorted;
     });
   }, [sortItemsByLastVisited]);
 
@@ -1211,7 +1245,7 @@ export default function OrganizedContentList({
                 // Sorting is handled by the API response, but verify it's correct
               });
             }
-          }, 100); // Reduced delay since optimistic update provides instant feedback
+          }, 50); // Reduced from 100ms (optimistic update provides instant feedback)
           previousPathnameRef.current = window.location.pathname;
           return;
         }

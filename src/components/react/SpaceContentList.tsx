@@ -126,23 +126,73 @@ export default function SpaceContentList({
   }, []);
 
   // Optimistic update: immediately update lastVisited and re-sort items
-  const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
+  const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note', retryCount = 0) => {
     setItems(prev => {
-      const itemIndex = prev.findIndex(item => item.id === itemId && item.itemType === itemType);
+      // If list is empty and this is first attempt, wait for items
+      if (prev.length === 0 && retryCount === 0) {
+        debug('[SpaceContentList] Items list empty, will retry optimistic update', { itemId, itemType });
+        setTimeout(() => optimisticUpdateLastVisited(itemId, itemType, retryCount + 1), 50);
+        return prev;
+      }
+      
+      // Try multiple ID matching strategies
+      const itemIndex = prev.findIndex(item => {
+        // Strategy 1: Exact match
+        if (item.id === itemId && item.itemType === itemType) return true;
+        
+        // Strategy 2: Match without prefix
+        if (itemType === 'thread' && itemId.startsWith('thread_')) {
+          const idWithoutPrefix = itemId.substring(7);
+          if (item.id === idWithoutPrefix && item.itemType === itemType) return true;
+          if (item.id === itemId && item.itemType === itemType) return true;
+        }
+        if (itemType === 'note' && itemId.startsWith('note_')) {
+          const idWithoutPrefix = itemId.substring(5);
+          if (item.id === idWithoutPrefix && item.itemType === itemType) return true;
+          if (item.id === itemId && item.itemType === itemType) return true;
+        }
+        
+        return false;
+      });
+      
       if (itemIndex === -1) {
-        // Item not found in current list (might be filtered out)
+        debug('[SpaceContentList] Item not found for optimistic update', { 
+          itemId, 
+          itemType, 
+          retryCount,
+          listLength: prev.length,
+          availableIds: prev.slice(0, 5).map(i => ({ id: i.id, type: i.itemType }))
+        });
+        
+        // Retry if list has items but item not found (might be timing/format issue)
+        if (prev.length > 0 && retryCount < 2) {
+          setTimeout(() => optimisticUpdateLastVisited(itemId, itemType, retryCount + 1), 100);
+        }
         return prev;
       }
 
-      // Update the item's lastVisited to now
+      debug('[SpaceContentList] Found item for optimistic update', { itemId, itemType, itemIndex, itemIdInList: prev[itemIndex].id });
+
+      // Update both lastVisited and lastUpdated
       const updatedItems = [...prev];
+      const now = new Date();
       updatedItems[itemIndex] = {
         ...updatedItems[itemIndex],
-        lastVisited: new Date()
+        lastVisited: now,
+        lastUpdated: now.toISOString() // Add this to match OrganizedContentList
       };
 
-      // Re-sort by lastVisited
-      return sortItemsByLastVisited(updatedItems);
+      // Re-sort immediately
+      const sorted = sortItemsByLastVisited(updatedItems);
+      const newPosition = sorted.findIndex(i => i.id === updatedItems[itemIndex].id);
+      debug('[SpaceContentList] Items re-sorted', { 
+        itemId, 
+        oldPosition: itemIndex, 
+        newPosition,
+        isFirst: newPosition === 0
+      });
+      
+      return sorted;
     });
   }, []);
 
@@ -660,7 +710,7 @@ export default function SpaceContentList({
                 isNavigating: isNavigatingRef.current
               });
             }
-          }, 100); // Reduced delay since optimistic update provides instant feedback
+          }, 50); // Reduced from 100ms // Reduced delay since optimistic update provides instant feedback
         } else {
           debug('[SpaceContentList] Skipping refresh - no navigation detected', {
             navigatedToSpace,
@@ -765,7 +815,7 @@ export default function SpaceContentList({
                 debug('[SpaceContentList] Mount refresh completed', { success });
               });
             }
-          }, 100); // Reduced delay since optimistic update provides instant feedback
+          }, 50); // Reduced from 100ms // Reduced delay since optimistic update provides instant feedback
         }
       }
     };
