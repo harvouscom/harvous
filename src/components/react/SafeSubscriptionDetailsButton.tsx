@@ -18,12 +18,17 @@ export default function SafeSubscriptionDetailsButton({
   publishableKey = null
 }: SafeSubscriptionDetailsButtonProps) {
   const [effectiveKey, setEffectiveKey] = useState<string | null>(publishableKey);
+  const [pathname, setPathname] = useState<string>('');
 
   // Get publishableKey from props or window global (for View Transitions compatibility)
   useEffect(() => {
     // Use prop if available, otherwise try window global
     const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
     setEffectiveKey(key);
+    
+    if (typeof window !== 'undefined') {
+      setPathname(window.location.pathname);
+    }
   }, [publishableKey]);
 
   // Re-check after View Transitions navigation
@@ -31,6 +36,10 @@ export default function SafeSubscriptionDetailsButton({
     const handlePageLoad = () => {
       const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
       setEffectiveKey(key);
+      
+      if (typeof window !== 'undefined') {
+        setPathname(window.location.pathname);
+      }
     };
 
     document.addEventListener('astro:page-load', handlePageLoad);
@@ -78,13 +87,16 @@ export default function SafeSubscriptionDetailsButton({
   // This is expected and correct behavior
   return (
     <ClerkProvider 
+      key={`clerk-provider-subscription-${pathname}`}
       publishableKey={clerkConfig.publishableKey!}
       domain={clerkConfig.domain}
       afterSignInUrl={clerkConfig.afterSignInUrl}
       afterSignUpUrl={clerkConfig.afterSignUpUrl}
     >
       <SignedIn>
-        <SubscriptionDetailsButton>{children}</SubscriptionDetailsButton>
+        <SubscriptionDetailsButton key={`subscription-details-${pathname}`}>
+          {children}
+        </SubscriptionDetailsButton>
       </SignedIn>
     </ClerkProvider>
   );

@@ -21,10 +21,28 @@ function UpgradeCheckoutButtonInner({
   const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
   const { isLoaded, isSignedIn } = useAuth();
   const [isClient, setIsClient] = useState(false);
+  const [pathname, setPathname] = useState<string>('');
 
   // Ensure we're on the client before rendering Clerk components
   useEffect(() => {
     setIsClient(true);
+    if (typeof window !== 'undefined') {
+      setPathname(window.location.pathname);
+    }
+  }, []);
+
+  // Update pathname on View Transitions to force remount
+  useEffect(() => {
+    const handlePageLoad = () => {
+      if (typeof window !== 'undefined') {
+        setPathname(window.location.pathname);
+      }
+    };
+
+    document.addEventListener('astro:page-load', handlePageLoad);
+    return () => {
+      document.removeEventListener('astro:page-load', handlePageLoad);
+    };
   }, []);
 
   // Show loading state while Clerk initializes
@@ -327,6 +345,7 @@ function UpgradeCheckoutButtonInner({
 
           {/* CheckoutButton with planPeriod prop - Clerk docs confirm this is supported */}
           <CheckoutButton 
+            key={`checkout-${pathname}-${selectedInterval}`}
             planId={unlimitedPlanId}
             planPeriod={selectedInterval === 'year' ? 'annual' : 'month'}
           >
@@ -340,6 +359,16 @@ function UpgradeCheckoutButtonInner({
                 cursor: 'pointer'
               }}
               tabIndex={3}
+              onClick={(e) => {
+                // Debug: Log when button is clicked
+                console.log('[UpgradeCheckoutButton] Continue & Pay clicked', {
+                  planId: unlimitedPlanId,
+                  planPeriod: selectedInterval === 'year' ? 'annual' : 'month',
+                  pathname,
+                  isLoaded,
+                  isSignedIn
+                });
+              }}
             >
               <span className="btn-cta__content">Continue & Pay</span>
               <div className="btn-cta__shadow" />
@@ -443,9 +472,43 @@ export default function UpgradeCheckoutButton({
   };
 
   const clerkConfig = getClerkConfig();
+  const [pathname, setPathname] = useState<string>('');
+
+  // Track pathname for key prop to force remount on navigation
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setPathname(window.location.pathname);
+    }
+
+    const handlePageLoad = () => {
+      if (typeof window !== 'undefined') {
+        setPathname(window.location.pathname);
+      }
+    };
+
+    document.addEventListener('astro:page-load', handlePageLoad);
+    return () => {
+      document.removeEventListener('astro:page-load', handlePageLoad);
+    };
+  }, []);
+
+  // Debug: Log ClerkProvider configuration
+  useEffect(() => {
+    if (effectiveKey) {
+      console.log('[UpgradeCheckoutButton] ClerkProvider config:', {
+        hasPublishableKey: !!clerkConfig.publishableKey,
+        domain: clerkConfig.domain,
+        afterSignInUrl: clerkConfig.afterSignInUrl,
+        afterSignUpUrl: clerkConfig.afterSignUpUrl,
+        pathname,
+        planId: unlimitedPlanId
+      });
+    }
+  }, [effectiveKey, clerkConfig, pathname, unlimitedPlanId]);
 
   return (
     <ClerkProvider 
+      key={`clerk-provider-${pathname}`}
       publishableKey={clerkConfig.publishableKey!}
       domain={clerkConfig.domain}
       afterSignInUrl={clerkConfig.afterSignInUrl}
