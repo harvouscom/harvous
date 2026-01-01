@@ -167,6 +167,11 @@ export default function EditThreadPanel({
           }
         }
         
+        // Dispatch threadUpdated event to refresh dashboard
+        window.dispatchEvent(new CustomEvent('threadUpdated', {
+          detail: { threadId: threadId }
+        }));
+        
         // Close panel after a short delay
         setTimeout(() => {
           if (onClose) {

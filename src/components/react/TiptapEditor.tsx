@@ -561,6 +561,17 @@ async function getOrCreateScriptureNote(reference: string, parentThreadId?: stri
   if (createResponse.ok) {
     const result = await createResponse.json();
     if (result.note && result.note.id) {
+      // Dispatch noteCreated event so OrganizedContentList can refresh
+      // This ensures the scripture note appears in the scripture tab immediately
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('noteCreated', {
+          detail: { 
+            note: result.note,
+            actualThreadId: targetThreadId
+          }
+        }));
+      }
+      
       // Show success toast
       if (window.toast) {
         window.toast.success(`Scripture note created: ${reference}`);

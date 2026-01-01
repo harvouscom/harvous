@@ -51,6 +51,8 @@ export default function OrganizedContentList({
   const isRefreshingItemsRef = useRef(false); // Track when we're refreshing to prevent auto-load
   const lastRefreshItemsKeyRef = useRef<string>(''); // Track what items we last refreshed
   const DEBOUNCE_WINDOW_MS = 2000; // 2 seconds minimum between refreshes
+  const shouldBypassDebounceRef = useRef(false); // Flag to bypass debounce for navigation-triggered refreshes
+  const pendingUpdateRef = useRef(false); // Track if an update event occurred while not on dashboard
 
   // Refresh content by fetching fresh data from API
   const refreshContent = useCallback(async () => {
@@ -81,12 +83,17 @@ export default function OrganizedContentList({
     }
     
     // Debounce: Check if enough time has passed since last refresh
-    // Allow immediate refresh if lastRefreshTime is 0 (forced refresh)
+    // Allow immediate refresh if lastRefreshTime is 0 (forced refresh) or bypass flag is set
     const now = Date.now();
     const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
-    if (lastRefreshTimeRef.current > 0 && timeSinceLastRefresh < DEBOUNCE_WINDOW_MS) {
-      // Too soon since last refresh, skip this one (unless forced)
+    if (lastRefreshTimeRef.current > 0 && timeSinceLastRefresh < DEBOUNCE_WINDOW_MS && !shouldBypassDebounceRef.current) {
+      // Too soon since last refresh, skip this one (unless forced or bypassed)
       return;
+    }
+    
+    // Reset bypass flag after checking
+    if (shouldBypassDebounceRef.current) {
+      shouldBypassDebounceRef.current = false;
     }
     
     // Check if already refreshing
@@ -196,6 +203,94 @@ export default function OrganizedContentList({
     attemptRefresh();
   }, [filter]);
 
+  // Refresh scripture notes by fetching fresh data from API
+  const refreshScriptureNotes = useCallback(async () => {
+    // Guard against SSR and ensure browser APIs are available
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    
+    // Check if we're on the dashboard/for you page
+    const isDashboard = window.location.pathname === '/';
+    if (!isDashboard) {
+      return; // Don't refresh if not on dashboard
+    }
+    
+    // Only refresh if filter is 'scripture'
+    if (filterRef.current !== 'scripture') {
+      return;
+    }
+    
+    // Check if navigation is in progress
+    if (isNavigatingRef.current) {
+      return; // Skip refresh during navigation
+    }
+    
+    // Check if component is still mounted
+    if (!isMountedRef.current) {
+      return;
+    }
+    
+    // Check if already refreshing
+    if (isRefreshingRef.current) {
+      return;
+    }
+    
+    isRefreshingRef.current = true;
+    
+    try {
+      const url = new URL('/api/content/load-more', window.location.origin);
+      url.searchParams.set('offset', '0');
+      url.searchParams.set('limit', '200');
+      url.searchParams.set('filter', 'scripture');
+
+      const response = await fetch(url.toString(), {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load scripture notes: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Filter out deleted items from refreshed items
+      const filteredItems = data.items.filter((item: OrganizedContentItem) => {
+        return !deletedItemIdsRef.current.has(item.id);
+      });
+      
+      // Create a key from the refreshed items to track what we just loaded
+      const refreshedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
+      
+      // Double-check we're still on dashboard and mounted before updating
+      // Also verify we're still on scripture filter
+      if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && filterRef.current === 'scripture') {
+        // Only update if items actually changed (avoid unnecessary updates that trigger loops)
+        if (refreshedItemsKey !== lastRefreshItemsKeyRef.current) {
+          // Mark that we're refreshing to prevent InfiniteScrollList from auto-loading
+          isRefreshingItemsRef.current = true;
+          lastRefreshItemsKeyRef.current = refreshedItemsKey;
+          
+          setCurrentItems(filteredItems);
+          debug('[OrganizedContentList] Updated scripture notes', { itemCount: filteredItems.length });
+          
+          // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
+          setTimeout(() => {
+            isRefreshingItemsRef.current = false;
+          }, 100);
+        } else {
+          debug('[OrganizedContentList] Scripture refresh returned same items, skipping update', { itemCount: filteredItems.length });
+          isRefreshingRef.current = false;
+        }
+      } else {
+        // Not updating, so clear refreshing flag
+        isRefreshingRef.current = false;
+      }
+    } catch (error) {
+      console.error('[OrganizedContentList] Error refreshing scripture notes:', error);
+      isRefreshingRef.current = false;
+      isRefreshingItemsRef.current = false;
+    }
+  }, []);
+
   // Keep refreshContent and filter refs in sync
   useEffect(() => {
     refreshContentRef.current = refreshContent;
@@ -224,39 +319,11 @@ export default function OrganizedContentList({
       // Only fetch if filter just changed to scripture (not on every render)
       if (prevFilterRef.current !== filter) {
         setCurrentItems([]);
-        
-        const fetchScriptureNotes = async () => {
-          try {
-            const url = new URL('/api/content/load-more', window.location.origin);
-            url.searchParams.set('offset', '0');
-            url.searchParams.set('limit', '200');
-            url.searchParams.set('filter', 'scripture');
-
-            const response = await fetch(url.toString(), {
-              credentials: 'include'
-            });
-
-            if (!response.ok) {
-              throw new Error(`Failed to load scripture notes: ${response.status}`);
-            }
-
-            const data = await response.json();
-            
-            const filteredItems = data.items.filter((item: OrganizedContentItem) => {
-              return !deletedItemIdsRef.current.has(item.id);
-            });
-            
-            setCurrentItems(filteredItems);
-          } catch (error) {
-            console.error('[OrganizedContentList] Error loading scripture notes:', error);
-          }
-        };
-        
-        fetchScriptureNotes();
+        refreshScriptureNotes();
       }
     }
     prevFilterRef.current = filter;
-  }, [filter]);
+  }, [filter, refreshScriptureNotes]);
   
   // Update currentItems when initialItems change (e.g., after navigation)
   useEffect(() => {
@@ -367,19 +434,50 @@ export default function OrganizedContentList({
       // Check if still on dashboard page
       if (window.location.pathname === '/' && !isNavigatingRef.current && isMountedRef.current) {
         refreshContentRef.current?.();
+      } else {
+        // If not on dashboard, mark that we have a pending update
+        pendingUpdateRef.current = true;
       }
     };
     
-    const handleNoteCreated = () => {
-      // Small delay to ensure database is updated
+    const handleNoteCreated = (event?: Event) => {
+      const customEvent = event as CustomEvent;
+      const note = customEvent?.detail?.note;
+      const isScriptureNote = note?.noteType === 'scripture';
+      const currentFilter = filterRef.current;
+      
+      debug('[OrganizedContentList] noteCreated event received', { 
+        noteId: note?.id, 
+        isScriptureNote, 
+        currentFilter,
+        currentPath: window.location.pathname 
+      });
+      
+      // Delay to ensure database is updated
+      // Use longer delay for scripture notes created via API (getOrCreateScriptureNote)
+      // to ensure database commit is complete
+      const delay = isScriptureNote ? 500 : 300;
       // Clear any pending timeout first
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
       }
       pendingRefreshTimeoutRef.current = setTimeout(() => {
         pendingRefreshTimeoutRef.current = null;
-        checkAndRefresh();
-      }, 300);
+        // If we're on dashboard, refresh immediately
+        if (window.location.pathname === '/') {
+          // If this is a scripture note and we're on the scripture tab, refresh scripture notes
+          if (isScriptureNote && currentFilter === 'scripture') {
+            debug('[OrganizedContentList] Refreshing scripture notes after scripture note created');
+            refreshScriptureNotes();
+          } else {
+            // Otherwise, use the standard refresh logic
+            checkAndRefresh();
+          }
+        } else {
+          // If not on dashboard, mark that we have a pending update
+          pendingUpdateRef.current = true;
+        }
+      }, delay);
     };
 
     const handleThreadCreated = (event: Event) => {
@@ -449,21 +547,65 @@ export default function OrganizedContentList({
       }, 300);
     };
 
+    const handleNoteUpdated = (event?: Event) => {
+      const customEvent = event as CustomEvent;
+      const noteId = customEvent?.detail?.noteId;
+      const currentFilter = filterRef.current;
+      debug('[OrganizedContentList] noteUpdated event received', { 
+        noteId, 
+        currentFilter,
+        currentPath: window.location.pathname 
+      });
+      
+      // Note was updated - refresh to show latest changes
+      // This also handles cases where scripture notes are created via processScriptureReferences
+      // Small delay to ensure database is updated
+      if (pendingRefreshTimeoutRef.current) {
+        clearTimeout(pendingRefreshTimeoutRef.current);
+      }
+      pendingRefreshTimeoutRef.current = setTimeout(() => {
+        pendingRefreshTimeoutRef.current = null;
+        // If we're on the scripture tab, refresh scripture notes
+        // This ensures newly created scripture notes (from processScriptureReferences) appear
+        if (window.location.pathname === '/' && currentFilter === 'scripture') {
+          refreshScriptureNotes();
+        } else {
+          checkAndRefresh();
+        }
+      }, 300);
+    };
+
+    const handleThreadUpdated = () => {
+      // Thread was updated - refresh to show latest changes
+      // Small delay to ensure database is updated
+      if (pendingRefreshTimeoutRef.current) {
+        clearTimeout(pendingRefreshTimeoutRef.current);
+      }
+      pendingRefreshTimeoutRef.current = setTimeout(() => {
+        pendingRefreshTimeoutRef.current = null;
+        checkAndRefresh();
+      }, 300);
+    };
+
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);
     window.addEventListener('threadCreated', handleThreadCreated as EventListener);
     window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
+    window.addEventListener('noteUpdated', handleNoteUpdated as EventListener);
+    window.addEventListener('threadUpdated', handleThreadUpdated as EventListener);
 
     return () => {
       window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
       window.removeEventListener('threadCreated', handleThreadCreated as EventListener);
       window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
+      window.removeEventListener('noteUpdated', handleNoteUpdated as EventListener);
+      window.removeEventListener('threadUpdated', handleThreadUpdated as EventListener);
       // Clear pending timeout on cleanup
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
         pendingRefreshTimeoutRef.current = null;
       }
     };
-  }, []); // Empty deps - we use ref to access latest refreshContent
+  }, [refreshScriptureNotes]); // Include refreshScriptureNotes in deps
 
   // Track if we've refreshed on mount to prevent duplicate refreshes
   const hasRefreshedOnMountRef = useRef<boolean>(false);
@@ -497,7 +639,35 @@ export default function OrganizedContentList({
       
       // Only refresh if we're on the dashboard page
       if (isDashboard && isMountedRef.current) {
-        // Don't refresh if we're already refreshing or if refresh was called recently
+        // If we navigated TO the dashboard, always refresh (bypass debounce)
+        // Also refresh if there was a pending update while we were away
+        if (navigatedToDashboard || pendingUpdateRef.current) {
+          debug('[OrganizedContentList] Navigated to dashboard, will refresh', {
+            previousPath: previousPathnameRef.current,
+            hadPendingUpdate: pendingUpdateRef.current
+          });
+          // Clear pending update flag
+          pendingUpdateRef.current = false;
+          // Bypass debounce and reset refresh time for immediate refresh
+          shouldBypassDebounceRef.current = true;
+          lastRefreshTimeRef.current = 0;
+          
+          // Small delay to ensure database has committed any changes made on previous page
+          // Clear any pending timeout first
+          if (pendingRefreshTimeoutRef.current) {
+            clearTimeout(pendingRefreshTimeoutRef.current);
+          }
+          pendingRefreshTimeoutRef.current = setTimeout(() => {
+            pendingRefreshTimeoutRef.current = null;
+            if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && !isRefreshingRef.current) {
+              refreshContentRef.current?.();
+            }
+          }, 500); // Slightly longer delay to ensure database commits
+          previousPathnameRef.current = window.location.pathname;
+          return;
+        }
+        
+        // For other cases (page refresh on dashboard), check debounce but still refresh if needed
         const now = Date.now();
         const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
         const shouldSkipRefresh = isRefreshingRef.current || 
@@ -512,16 +682,6 @@ export default function OrganizedContentList({
           return;
         }
         
-        // If we navigated TO the dashboard (not just refreshed on it), prioritize server-rendered data
-        // but also refresh to ensure we have the latest data
-        if (navigatedToDashboard) {
-          debug('[OrganizedContentList] Navigated to dashboard, will refresh after initialItems update', {
-            previousPath: previousPathnameRef.current
-          });
-          // Reset refresh time to allow immediate refresh after initialItems are processed
-          lastRefreshTimeRef.current = 0;
-        }
-        
         // Small delay to ensure page is fully loaded, initialItems are processed, and database is ready
         // Clear any pending timeout first
         if (pendingRefreshTimeoutRef.current) {
@@ -532,10 +692,6 @@ export default function OrganizedContentList({
           if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current) {
             // Double-check we're not already refreshing before calling
             if (!isRefreshingRef.current) {
-              // Force refresh by resetting lastRefreshTime if we navigated to dashboard
-              if (navigatedToDashboard) {
-                lastRefreshTimeRef.current = 0;
-              }
               refreshContentRef.current?.();
             }
           }

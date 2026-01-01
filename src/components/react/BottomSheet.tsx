@@ -59,6 +59,28 @@ interface InboxItem {
   }>;
 }
 
+// Helper function to get title for each drawer type
+const getDrawerTitle = (drawerType: DrawerType): string => {
+  const titleMap: Record<DrawerType, string> = {
+    'note': 'New Note',
+    'thread': 'New Thread',
+    'resource': 'New Resource',
+    'noteDetails': 'Note Details',
+    'editNameColor': 'Edit Profile',
+    'editThread': 'Edit Thread',
+    'editSpace': 'Edit Space',
+    'getSupport': 'Get Support',
+    'emailPassword': 'Email & Password',
+    'myChurch': 'My Church',
+    'mySpaces': 'My Spaces',
+    'myData': 'My Data',
+    'myAchievements': 'My Achievements',
+    'manageBilling': 'Manage Billing',
+    'inboxPreview': 'Inbox Preview',
+  };
+  return titleMap[drawerType] || 'Panel';
+};
+
 const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen = false,
   onClose,
@@ -364,6 +386,16 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         onCloseAutoFocus={(e) => e.preventDefault()}
         tabIndex={-1}
       >
+        {/* Accessibility: Required SheetTitle and SheetDescription for screen readers */}
+        <SheetHeader>
+          <SheetTitle className="sr-only">
+            {getDrawerTitle(drawerType)}
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            {`${getDrawerTitle(drawerType)} panel`}
+          </SheetDescription>
+        </SheetHeader>
+        
         {/* Content */}
         <div className="h-full flex flex-col min-h-0">
           {/* New Note Panel */}

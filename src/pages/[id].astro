@@ -1120,6 +1120,16 @@ if (!content) {
       }
       
       const result = await response.json();
+      
+      // Dispatch noteUpdated event to refresh dashboard
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('noteUpdated', {
+          detail: { noteId: noteId }
+        });
+        window.dispatchEvent(event);
+        console.log('[noteSaveCallback] Dispatched noteUpdated event', { noteId });
+      }
+      
       return result;
     } catch (error) {
       throw error;
