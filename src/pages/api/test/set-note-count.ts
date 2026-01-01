@@ -71,8 +71,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       previousCount,
       newCount: count,
       message: `Note count updated from ${previousCount} to ${count}`,
-      canCreateNote: count < 1000,
-      remaining: Math.max(0, 1000 - count)
+      canCreateNote: count < 300,
+      remaining: Math.max(0, 300 - count)
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

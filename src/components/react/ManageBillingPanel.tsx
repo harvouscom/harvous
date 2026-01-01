@@ -57,15 +57,15 @@ export default function ManageBillingPanel({
       if (description) {
         const originalText = description.textContent || '';
         // Check if we've already updated it (avoid infinite loop)
-        if (!originalText.includes('1,000 notes')) {
+        if (!originalText.includes('300 notes')) {
           // Extract the date part from the original text
           const dateMatch = originalText.match(/until ([^,]+),/);
           if (dateMatch) {
             const date = dateMatch[1];
-            description.textContent = `You can keep using 'Unlimited' features until ${date}, after which you will no longer have access. After canceling, you'll be moved to the free plan, which is limited to 1,000 notes.`;
+            description.textContent = `You can keep using 'Unlimited' features until ${date}, after which you will no longer have access. After canceling, you'll be moved to the free plan, which is limited to 300 notes.`;
           } else {
             // Fallback if date format is different
-            description.textContent = originalText + " After canceling, you'll be moved to the free plan, which is limited to 1,000 notes.";
+            description.textContent = originalText + " After canceling, you'll be moved to the free plan, which is limited to 300 notes.";
           }
         }
       }
@@ -383,7 +383,7 @@ export default function ManageBillingPanel({
                         <div className="text-sm text-[var(--color-pebble-grey)]">
                           {subscriptionInfo.hasUnlimited 
                             ? 'Active' 
-                            : `You've used ${subscriptionInfo.currentCount.toLocaleString()} out of the 1,000 note limit`}
+                            : `You've used ${subscriptionInfo.currentCount.toLocaleString()} out of the 300 note limit`}
                         </div>
                       </div>
                     </div>

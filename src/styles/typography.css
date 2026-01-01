@@ -3,9 +3,19 @@
  * Font families, sizes, and text utilities
  */
 
+/* Roundo Variable Font */
+@font-face {
+  font-family: 'Roundo';
+  src: url('/fonts/Roundo-Variable.ttf') format('truetype');
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-roundo: "Roundo", var(--font-sans), system-ui, -apple-system, sans-serif;
 }
 
 /* Heading Styles */

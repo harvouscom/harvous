@@ -99,15 +99,15 @@ async function setNoteCount() {
     }
 
     console.log('\n📋 Test Scenarios:');
-    if (targetCount < 1000) {
-      const remaining = 1000 - targetCount;
+    if (targetCount < 300) {
+      const remaining = 300 - targetCount;
       console.log(`   ✅ You can create ${remaining} more note(s) before hitting the limit`);
       console.log(`   🧪 Try creating a note - it should work!`);
-    } else if (targetCount === 1000) {
-      console.log(`   ⚠️  You're at the limit (1000 notes)`);
+    } else if (targetCount === 300) {
+      console.log(`   ⚠️  You're at the limit (300 notes)`);
       console.log(`   🧪 Try creating a note - it should be BLOCKED with upgrade prompt`);
     } else {
-      console.log(`   🚫 You're over the limit (${targetCount} > 1000)`);
+      console.log(`   🚫 You're over the limit (${targetCount} > 300)`);
       console.log(`   🧪 Try creating a note - it should be BLOCKED`);
     }
 

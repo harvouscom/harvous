@@ -538,8 +538,9 @@
 }
 
 .clerk-form-header-title {
+  font-family: var(--font-roundo) !important;
+  font-weight: 600 !important; /* Semi-bold */
   font-size: 1.5rem;  /* 24px / text-2xl */
-  font-weight: 700;  /* font-bold */
   color: var(--color-deep-grey);
 }
 
@@ -555,6 +556,8 @@
 
 .upgrade-content__header .clerk-form-header-title,
 .upgrade-content__header h1.clerk-form-header-title {
+  font-family: var(--font-roundo) !important;
+  font-weight: 600 !important; /* Semi-bold */
   text-align: center !important;
   margin-bottom: 8px !important;
 }
