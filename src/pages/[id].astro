@@ -65,8 +65,26 @@ function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string)
     const referrerUrl = new URL(referrer);
     const referrerPath = referrerUrl.pathname;
     
-    // If referrer is the same page, it's a refresh - don't update
-    if (referrerPath === currentPath) {
+    // Get current URL to compare origins
+    const currentUrl = new URL(request.url);
+    
+    // If referrer is from a different origin, it's a new visit - update
+    if (referrerUrl.origin !== currentUrl.origin) {
+      return true;
+    }
+    
+    // Strip query parameters and hash from both paths for comparison
+    // This handles cases like /thread_123?tab=all vs /thread_123
+    const normalizePath = (path: string): string => {
+      // Remove query string and hash
+      return path.split('?')[0].split('#')[0];
+    };
+    
+    const normalizedReferrerPath = normalizePath(referrerPath);
+    const normalizedCurrentPath = normalizePath(currentPath);
+    
+    // If referrer is the same page (normalized), it's a refresh - don't update
+    if (normalizedReferrerPath === normalizedCurrentPath) {
       return false;
     }
     

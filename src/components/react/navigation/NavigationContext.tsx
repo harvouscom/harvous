@@ -815,7 +815,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch (error) {
       console.error('NavigationContext: Error refreshing navigation counts:', error);
     }
-  }, [getNavigationHistory, saveNavigationHistory, setNavigationHistory]);
+  }, [setNavigationHistory]); // Only include setNavigationHistory (from useState, already stable)
 
   // Immediate refresh with verification (no debounce delay)
   // Uses sessionStorage to detect if immediate refresh is needed
