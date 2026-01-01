@@ -681,7 +681,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Refresh navigation counts (threads and spaces) from API to ensure accuracy
   // Uses verification-based approach instead of debouncing
-  const refreshNavigationCounts = async () => {
+  const refreshNavigationCounts = useCallback(async () => {
     // Handle SSR - do nothing if not in browser
     if (typeof window === 'undefined') {
       return;
@@ -815,13 +815,30 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch (error) {
       console.error('NavigationContext: Error refreshing navigation counts:', error);
     }
-  };
+  }, [getNavigationHistory, saveNavigationHistory, setNavigationHistory]);
 
   // Immediate refresh with verification (no debounce delay)
   // Uses sessionStorage to detect if immediate refresh is needed
   const refreshNavigationCountsImmediate = async () => {
     await refreshNavigationCounts();
   };
+
+  // Ref to track timeout for debounced refresh
+  const refreshNavigationCountsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced version of refreshNavigationCounts
+  const debouncedRefreshNavigationCounts = useCallback(() => {
+    // Clear any existing timeout
+    if (refreshNavigationCountsTimeoutRef.current) {
+      clearTimeout(refreshNavigationCountsTimeoutRef.current);
+    }
+    
+    // Set new timeout
+    refreshNavigationCountsTimeoutRef.current = setTimeout(() => {
+      refreshNavigationCounts();
+      refreshNavigationCountsTimeoutRef.current = null;
+    }, 500); // 500ms debounce
+  }, [refreshNavigationCounts]);
 
   // Validation cache to prevent redundant API calls
   const validationCache = useRef<{ timestamp: number; threadIds: Set<string> } | null>(null);

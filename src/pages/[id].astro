@@ -49,6 +49,35 @@ function stripHtml(html: string): string {
     
   return text;
 }
+
+// Helper function to determine if lastVisited should be updated
+// Returns true if this is a new visit (not a refresh of the same page)
+function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string): boolean {
+  try {
+    const referrer = request.headers.get('referer');
+    
+    // If no referrer, it's likely a direct navigation or new visit - update
+    if (!referrer) {
+      return true;
+    }
+    
+    // Parse referrer URL
+    const referrerUrl = new URL(referrer);
+    const referrerPath = referrerUrl.pathname;
+    
+    // If referrer is the same page, it's a refresh - don't update
+    if (referrerPath === currentPath) {
+      return false;
+    }
+    
+    // Different page - this is a new visit - update
+    return true;
+  } catch (error) {
+    // If we can't determine, err on the side of updating (safer for sorting)
+    return true;
+  }
+}
+
 import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
