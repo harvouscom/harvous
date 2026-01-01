@@ -345,7 +345,7 @@ function UpgradeCheckoutButtonInner({
 
           {/* CheckoutButton with planPeriod prop - Clerk docs confirm this is supported */}
           <CheckoutButton 
-            key={`checkout-${pathname}-${selectedInterval}`}
+            key={`checkout-${selectedInterval}-${Date.now()}`}
             planId={unlimitedPlanId}
             planPeriod={selectedInterval === 'year' ? 'annual' : 'month'}
           >
@@ -473,16 +473,21 @@ export default function UpgradeCheckoutButton({
 
   const clerkConfig = getClerkConfig();
   const [pathname, setPathname] = useState<string>('');
+  const [remountKey, setRemountKey] = useState<number>(Date.now());
 
-  // Track pathname for key prop to force remount on navigation
+  // Track pathname and update remount key on each navigation to force ClerkProvider remount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setPathname(window.location.pathname);
+      // Update remount key on initial load
+      setRemountKey(Date.now());
     }
 
     const handlePageLoad = () => {
       if (typeof window !== 'undefined') {
         setPathname(window.location.pathname);
+        // Force remount by updating key with new timestamp on each page load
+        setRemountKey(Date.now());
       }
     };
 
@@ -508,14 +513,18 @@ export default function UpgradeCheckoutButton({
 
   return (
     <ClerkProvider 
-      key={`clerk-provider-${pathname}`}
+      key={`clerk-provider-${pathname}-${remountKey}`}
       publishableKey={clerkConfig.publishableKey!}
       domain={clerkConfig.domain}
       afterSignInUrl={clerkConfig.afterSignInUrl}
       afterSignUpUrl={clerkConfig.afterSignUpUrl}
     >
       <SignedIn>
-        <UpgradeCheckoutButtonInner className={className} unlimitedPlanId={unlimitedPlanId} />
+        <UpgradeCheckoutButtonInner 
+          key={`checkout-inner-${remountKey}`}
+          className={className} 
+          unlimitedPlanId={unlimitedPlanId} 
+        />
       </SignedIn>
     </ClerkProvider>
   );

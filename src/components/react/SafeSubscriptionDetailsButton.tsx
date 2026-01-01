@@ -19,6 +19,7 @@ export default function SafeSubscriptionDetailsButton({
 }: SafeSubscriptionDetailsButtonProps) {
   const [effectiveKey, setEffectiveKey] = useState<string | null>(publishableKey);
   const [pathname, setPathname] = useState<string>('');
+  const [remountKey, setRemountKey] = useState<number>(Date.now());
 
   // Get publishableKey from props or window global (for View Transitions compatibility)
   useEffect(() => {
@@ -28,10 +29,12 @@ export default function SafeSubscriptionDetailsButton({
     
     if (typeof window !== 'undefined') {
       setPathname(window.location.pathname);
+      // Update remount key on initial load
+      setRemountKey(Date.now());
     }
   }, [publishableKey]);
 
-  // Re-check after View Transitions navigation
+  // Re-check after View Transitions navigation and force remount
   useEffect(() => {
     const handlePageLoad = () => {
       const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
@@ -39,6 +42,8 @@ export default function SafeSubscriptionDetailsButton({
       
       if (typeof window !== 'undefined') {
         setPathname(window.location.pathname);
+        // Force remount by updating key with new timestamp on each page load
+        setRemountKey(Date.now());
       }
     };
 
@@ -87,14 +92,14 @@ export default function SafeSubscriptionDetailsButton({
   // This is expected and correct behavior
   return (
     <ClerkProvider 
-      key={`clerk-provider-subscription-${pathname}`}
+      key={`clerk-provider-subscription-${pathname}-${remountKey}`}
       publishableKey={clerkConfig.publishableKey!}
       domain={clerkConfig.domain}
       afterSignInUrl={clerkConfig.afterSignInUrl}
       afterSignUpUrl={clerkConfig.afterSignUpUrl}
     >
       <SignedIn>
-        <SubscriptionDetailsButton key={`subscription-details-${pathname}`}>
+        <SubscriptionDetailsButton key={`subscription-details-${remountKey}`}>
           {children}
         </SubscriptionDetailsButton>
       </SignedIn>
