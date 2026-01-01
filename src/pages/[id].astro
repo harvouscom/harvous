@@ -1328,10 +1328,8 @@ if (!content) {
         
         if (cameFromNotePage) {
           hasRefreshedOnMount = true;
-          // Refresh with a delay to ensure database is updated
-          setTimeout(() => {
-            refreshSpaceContent();
-          }, 200);
+          // Refresh immediately (database verification happens before navigation)
+          refreshSpaceContent();
           return;
         }
         return;
@@ -1340,10 +1338,7 @@ if (!content) {
       isRefreshing = true;
       
       try {
-        // Add a small delay to ensure database is updated (especially after note creation)
-        await new Promise(resolve => setTimeout(resolve, 150));
-        
-        // Fetch fresh space data
+        // Fetch fresh space data (no delay needed - database verification happens before navigation)
         const response = await fetch(`/api/spaces/${currentId}/items`, {
           credentials: 'include',
           cache: 'no-store'

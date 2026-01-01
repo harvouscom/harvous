@@ -305,6 +305,120 @@ export default function ThreadNotesList({
   // Track previous pathname to detect navigation TO thread
   const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
 
+  // PHASE 2: Unified refresh function with verification-based approach
+  const refreshNotesList = useCallback(async (expectedNoteId?: string) => {
+    if (!isMountedRef.current) return;
+
+    // Verification-based refresh: poll until note appears or timeout
+    const verifyAndRefresh = async (maxAttempts = 3): Promise<boolean> => {
+      const delays = [100, 200, 400]; // Exponential backoff in ms
+      
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
+          url.searchParams.set('offset', '0');
+          url.searchParams.set('limit', '100');
+
+          const response = await fetch(url.toString(), {
+            credentials: 'include',
+            cache: 'no-store'
+          });
+
+          if (!response.ok) {
+            console.error('[ThreadNotesList] Failed to refresh notes:', response.status);
+            if (attempt < maxAttempts - 1) {
+              await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+            }
+            continue;
+          }
+
+          const data = await response.json();
+          const freshNotes = data.notes || [];
+
+          if (!isMountedRef.current) return false;
+
+          // If we're looking for a specific note, check if it exists
+          if (expectedNoteId) {
+            const noteExists = freshNotes.some((n: Note) => n.id === expectedNoteId);
+            if (!noteExists && attempt < maxAttempts - 1) {
+              // Note not found yet, wait and retry
+              await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+              continue;
+            }
+          }
+
+          // Filter out deleted notes
+          const filtered = freshNotes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+          
+          // Apply note type filter
+          const typeFiltered = noteTypeFilter === 'all' 
+            ? filtered 
+            : filterNotesByType(filtered, noteTypeFilter);
+
+          // Deduplicate by note ID
+          const uniqueNotes = Array.from(
+            new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
+          );
+
+          // Sort by time (newest first) to ensure proper animation order
+          const sortedNotes = sortNotesByTime(uniqueNotes);
+
+          setNotes(sortedNotes);
+          accumulatedFilteredCountRef.current = sortedNotes.length;
+          databaseOffsetRef.current = freshNotes.length;
+          
+          return true; // Success
+        } catch (error) {
+          console.error('[ThreadNotesList] Error refreshing notes:', error);
+          if (attempt < maxAttempts - 1) {
+            await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+          }
+        }
+      }
+      
+      return false; // Failed after all attempts
+    };
+
+    // If no expected note ID, just refresh once
+    if (!expectedNoteId) {
+      await verifyAndRefresh(1);
+    } else {
+      // Verify note exists with retries
+      await verifyAndRefresh(3);
+    }
+  }, [threadId, noteTypeFilter]);
+
+  // PHASE 2: Check sessionStorage on mount for recently created notes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+      if (!recentNotesStr) return;
+      
+      const recentNotes = JSON.parse(recentNotesStr);
+      const fiveSecondsAgo = Date.now() - 5000;
+      
+      // Check if any note was created in this thread within last 5 seconds
+      const relevantNote = recentNotes.find((n: any) => 
+        n.threadId === threadId && n.timestamp > fiveSecondsAgo
+      );
+      
+      if (relevantNote) {
+        // Force immediate refresh
+        refreshNotesList(relevantNote.noteId);
+        
+        // Remove this note from sessionStorage after refresh
+        const filtered = recentNotes.filter((n: any) => 
+          !(n.threadId === threadId && n.noteId === relevantNote.noteId)
+        );
+        sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+      }
+    } catch (error) {
+      console.error('[ThreadNotesList] Error checking sessionStorage:', error);
+    }
+  }, [threadId, refreshNotesList]);
+
   // Listen for note created events - refresh when note is created in current thread
   useEffect(() => {
     const handleNoteCreated = async (event: CustomEvent) => {
@@ -331,55 +445,8 @@ export default function ThreadNotesList({
           return; // Already in list, skip
         }
 
-        // Refresh the notes list to get the newly created note
-        // Add a small delay to ensure database is fully updated
-        setTimeout(async () => {
-          if (!isMountedRef.current) return;
-
-          try {
-            const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
-            url.searchParams.set('offset', '0');
-            url.searchParams.set('limit', '100');
-
-            const response = await fetch(url.toString(), {
-              credentials: 'include',
-              cache: 'no-store'
-            });
-
-            if (!response.ok) {
-              console.error('[ThreadNotesList] Failed to refresh after note creation:', response.status);
-              return;
-            }
-
-            const data = await response.json();
-            const freshNotes = data.notes || [];
-
-            if (!isMountedRef.current) return;
-
-            // Filter out deleted notes
-            const filtered = freshNotes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
-            
-            // Apply note type filter
-            const typeFiltered = noteTypeFilter === 'all' 
-              ? filtered 
-              : filterNotesByType(filtered, noteTypeFilter);
-
-            // Deduplicate by note ID
-            const uniqueNotes = Array.from(
-              new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
-            );
-
-            // Sort by time (newest first) to ensure proper animation order
-            // This maintains chronological order regardless of note type
-            const sortedNotes = sortNotesByTime(uniqueNotes);
-
-            setNotes(sortedNotes);
-            accumulatedFilteredCountRef.current = sortedNotes.length;
-            databaseOffsetRef.current = freshNotes.length;
-          } catch (error) {
-            console.error('[ThreadNotesList] Error refreshing notes after creation:', error);
-          }
-        }, 200); // Small delay to ensure database is updated
+        // Use verification-based refresh instead of arbitrary delay
+        await refreshNotesList(note.id);
       }
     };
 
@@ -388,86 +455,14 @@ export default function ThreadNotesList({
     return () => {
       window.removeEventListener('noteCreated', handleNoteCreated as unknown as EventListener);
     };
-  }, [threadId, noteTypeFilter]);
+  }, [threadId, noteTypeFilter, refreshNotesList]);
 
   // Refresh notes on View Transitions navigation
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
     let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
-    let isRefreshing = false;
     const DEBOUNCE_MS = 300;
-    const IMMEDIATE_REFRESH_MS = 100; // Shorter delay when navigating TO thread
-
-    const fetchFreshNotes = async (force = false) => {
-      if (isRefreshing || !isMountedRef.current) return;
-      
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1); // Remove leading '/'
-      
-      // Only refresh if we're on the correct thread page
-      if (currentThreadId !== threadId) {
-        return;
-      }
-
-      isRefreshing = true;
-      
-      try {
-        // Add a small delay to ensure database is updated (especially after note creation)
-        // Use shorter delay if force refresh (navigating TO thread)
-        const dbDelay = force ? 150 : 50;
-        await new Promise(resolve => setTimeout(resolve, dbDelay));
-
-        if (!isMountedRef.current) {
-          isRefreshing = false;
-          return;
-        }
-
-        const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
-        url.searchParams.set('offset', '0');
-        url.searchParams.set('limit', '100'); // Fetch enough to cover initial load
-
-        const response = await fetch(url.toString(), {
-          credentials: 'include',
-          cache: 'no-store'
-        });
-
-        if (!response.ok) {
-          console.error('[ThreadNotesList] Failed to refresh notes:', response.status);
-          return;
-        }
-
-        const data = await response.json();
-        const freshNotes = data.notes || [];
-
-        if (!isMountedRef.current) return;
-
-        // Filter out deleted notes
-        const filtered = freshNotes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
-        
-        // Apply note type filter
-        const typeFiltered = noteTypeFilter === 'all' 
-          ? filtered 
-          : filterNotesByType(filtered, noteTypeFilter);
-
-        // Deduplicate by note ID
-        const uniqueNotes = Array.from(
-          new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
-        );
-
-        // Sort by time (newest first) to ensure proper animation order
-        // This maintains chronological order regardless of note type
-        const sortedNotes = sortNotesByTime(uniqueNotes);
-
-        setNotes(sortedNotes);
-        accumulatedFilteredCountRef.current = sortedNotes.length;
-        databaseOffsetRef.current = freshNotes.length;
-      } catch (error) {
-        console.error('[ThreadNotesList] Error refreshing notes:', error);
-      } finally {
-        isRefreshing = false;
-      }
-    };
 
     const handlePageLoad = () => {
       // Clear any pending refresh
@@ -485,15 +480,38 @@ export default function ThreadNotesList({
       // Detect if we navigated from a note page (likely after creating a note)
       const navigatedFromNote = previousPath.startsWith('/note_');
 
-      // Use shorter delay if we navigated TO the thread (especially from a note page)
-      const delay = (navigatedToThread && navigatedFromNote) ? IMMEDIATE_REFRESH_MS : DEBOUNCE_MS;
-      const forceRefresh = navigatedToThread;
+      // Check sessionStorage for recently created notes when navigating TO thread
+      let shouldForceRefresh = navigatedToThread;
+      if (navigatedToThread) {
+        try {
+          const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+          if (recentNotesStr) {
+            const recentNotes = JSON.parse(recentNotesStr);
+            const fiveSecondsAgo = Date.now() - 5000;
+            const hasRecentNote = recentNotes.some((n: any) => 
+              n.threadId === threadId && n.timestamp > fiveSecondsAgo
+            );
+            if (hasRecentNote) {
+              shouldForceRefresh = true;
+            }
+          }
+        } catch (error) {
+          console.error('[ThreadNotesList] Error checking sessionStorage in handlePageLoad:', error);
+        }
+      }
 
-      // Debounce to prevent multiple rapid refreshes, but use shorter delay for navigation TO thread
+      // Use unified refresh function instead of arbitrary delays
+      // Debounce to prevent multiple rapid refreshes
       refreshTimeout = setTimeout(() => {
         refreshTimeout = null;
-        fetchFreshNotes(forceRefresh);
-      }, delay);
+        if (shouldForceRefresh || navigatedFromNote) {
+          // Use verification-based refresh when navigating from note creation
+          refreshNotesList();
+        } else {
+          // Regular refresh for other navigation
+          refreshNotesList();
+        }
+      }, DEBOUNCE_MS);
 
       // Update previous pathname for next navigation
       previousPathnameRef.current = currentPath;
@@ -529,13 +547,25 @@ export default function ThreadNotesList({
       // Also check if previous pathname was a note (for View Transitions scenarios)
       const previousWasNote = previousPathnameRef.current.startsWith('/note_');
       
-      if (cameFromNotePage || previousWasNote) {
+      // Check sessionStorage for recently created notes
+      let hasRecentNote = false;
+      try {
+        const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+        if (recentNotesStr) {
+          const recentNotes = JSON.parse(recentNotesStr);
+          const fiveSecondsAgo = Date.now() - 5000;
+          hasRecentNote = recentNotes.some((n: any) => 
+            n.threadId === threadId && n.timestamp > fiveSecondsAgo
+          );
+        }
+      } catch (error) {
+        console.error('[ThreadNotesList] Error checking sessionStorage in checkAndRefreshOnMount:', error);
+      }
+      
+      if (cameFromNotePage || previousWasNote || hasRecentNote) {
         hasRefreshedOnMountRef.current = true;
-        // Refresh with a delay to ensure database is updated
-        // This works for both regular threads and unorganized thread
-        setTimeout(() => {
-          fetchFreshNotes(true);
-        }, 200);
+        // Use unified refresh function instead of arbitrary delay
+        refreshNotesList();
       }
     };
 
@@ -556,7 +586,7 @@ export default function ThreadNotesList({
         clearTimeout(refreshTimeout);
       }
     };
-  }, [threadId, noteTypeFilter]);
+  }, [threadId, noteTypeFilter, refreshNotesList]);
 
   // Check if this is the unorganized thread
   const isUnorganizedThread = threadId === 'thread_unorganized';

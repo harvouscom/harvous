@@ -419,6 +419,87 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         // getSelectedThread().id might return stale data (last selected thread, not the new one)
         const actualThreadId = overrideThreadId ?? getSelectedThread().id;
         
+        // PHASE 1: Database Commit Verification
+        // Verify the note exists in the target thread before proceeding with navigation
+        // This ensures database commits are visible before we navigate
+        if (result.note && result.note.id && actualThreadId) {
+          const verifyNoteInThread = async (noteId: string, threadId: string, maxAttempts = 3): Promise<boolean> => {
+            const delays = [100, 200, 400]; // Exponential backoff in ms
+            
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+              try {
+                const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
+                url.searchParams.set('offset', '0');
+                url.searchParams.set('limit', '100');
+                
+                const verifyResponse = await fetch(url.toString(), {
+                  credentials: 'include',
+                  cache: 'no-store'
+                });
+                
+                if (verifyResponse.ok) {
+                  const data = await verifyResponse.json();
+                  const notes = data.notes || [];
+                  const noteExists = notes.some((n: any) => n.id === noteId);
+                  
+                  if (noteExists) {
+                    debug('[useNoteSubmission] Note verified in thread', { noteId, threadId, attempt: attempt + 1 });
+                    return true;
+                  }
+                }
+                
+                // If not found and not last attempt, wait before retrying
+                if (attempt < maxAttempts - 1) {
+                  await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+                }
+              } catch (error) {
+                debug('[useNoteSubmission] Verification attempt failed', { noteId, threadId, attempt: attempt + 1, error });
+                // Continue to next attempt
+                if (attempt < maxAttempts - 1) {
+                  await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+                }
+              }
+            }
+            
+            // If we get here, verification failed after all attempts
+            debug('[useNoteSubmission] Note verification failed after all attempts', { noteId, threadId });
+            return false;
+          };
+          
+          // Store note creation info in sessionStorage for client-side refresh
+          try {
+            const noteCreationInfo = {
+              noteId: result.note.id,
+              threadId: actualThreadId,
+              timestamp: Date.now()
+            };
+            const recentNotes = JSON.parse(sessionStorage.getItem('recentlyCreatedNotes') || '[]');
+            recentNotes.push(noteCreationInfo);
+            // Keep only notes from last 10 seconds
+            const tenSecondsAgo = Date.now() - 10000;
+            const filtered = recentNotes.filter((n: any) => n.timestamp > tenSecondsAgo);
+            sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+            debug('[useNoteSubmission] Stored note creation info in sessionStorage', noteCreationInfo);
+          } catch (error) {
+            console.error('[useNoteSubmission] Failed to store note creation info:', error);
+          }
+          
+          // Verify note exists in thread (with timeout to prevent hanging)
+          const verificationPromise = verifyNoteInThread(result.note.id, actualThreadId);
+          const timeoutPromise = new Promise<boolean>((resolve) => 
+            setTimeout(() => resolve(false), 2000) // 2 second max wait
+          );
+          
+          const verified = await Promise.race([verificationPromise, timeoutPromise]);
+          if (!verified) {
+            debug('[useNoteSubmission] Note verification timed out or failed, proceeding anyway', {
+              noteId: result.note.id,
+              threadId: actualThreadId
+            });
+            // Continue anyway - the client-side refresh will handle it
+          }
+        }
+        
         // CRITICAL: Define finalThreadId to use consistently throughout this function
         // Since actualThreadId already prioritizes overrideThreadId, finalThreadId is the same
         // but we use this name for clarity in navigation history updates
@@ -703,9 +784,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           localStorage.removeItem('newNoteSourceSelectionTo');
           localStorage.removeItem('newNoteSourceSelectionPlainText');
         }
-
-        // Small delay to ensure any async operations complete
-        await new Promise(resolve => setTimeout(resolve, 200));
 
         // Always navigate to the note (not the thread) after creation
         // This matches the behavior when creating a note from the dashboard
