@@ -1,10 +1,10 @@
 /**
  * Migration Script: Fix Winter Season Assignment
  * 
- * This script fixes existing XP records where December was incorrectly assigned
- * to the current year instead of the next year's winter season.
+ * This script fixes existing XP records where January/February were incorrectly assigned
+ * to the current year instead of the previous year's winter season.
  * 
- * Example: December 2024 records should be "winter-2025" not "winter-2024"
+ * Example: January 2025 records should be "winter-2024" not "winter-2025"
  * 
  * Run with: npx tsx scripts/fix-winter-season-migration.ts
  */
@@ -14,7 +14,7 @@ import { db, UserXP, UserSeasonalXP, eq, and } from 'astro:db';
 async function fixWinterSeasonMigration() {
   try {
     console.log('Starting Winter Season Fix Migration...');
-    console.log('This will fix December records to belong to the next year\'s winter season.\n');
+    console.log('This will fix January/February records to belong to the previous year\'s winter season.\n');
 
     // Find all December records that need fixing
     const allXP = await db.select().from(UserXP);
@@ -29,10 +29,10 @@ async function fixWinterSeasonMigration() {
         const month = createdDate.getMonth() + 1; // 1-12
         const year = createdDate.getFullYear();
         
-        // Only process December records
-        if (month === 12) {
+        // Process January and February records (they should belong to previous year's winter)
+        if (month === 1 || month === 2) {
           const currentSeason = record.season;
-          const correctSeason = `winter-${year + 1}`;
+          const correctSeason = `winter-${year - 1}`;
           
           // Check if it needs fixing
           if (currentSeason && currentSeason !== correctSeason) {
@@ -60,7 +60,7 @@ async function fixWinterSeasonMigration() {
       }
     }
 
-    console.log(`\nFixed ${fixed} December XP records`);
+    console.log(`\nFixed ${fixed} January/February XP records`);
     console.log(`Errors: ${errors}`);
 
     // Now update seasonal aggregates

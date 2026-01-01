@@ -55,7 +55,7 @@ function calculateSessionXP(session: any): number {
 
 /**
  * Get season for a specific date
- * Winter spans Dec (prev year) - Feb (current year), assigned to the year containing Jan/Feb
+ * Winter spans Dec (current year) - Feb (next year), assigned to the year that December belongs to
  */
 function getSeasonForDate(date: Date): string {
   const month = date.getMonth() + 1; // 1-12
@@ -64,10 +64,10 @@ function getSeasonForDate(date: Date): string {
   if (month >= 3 && month <= 5) return `spring-${year}`;
   if (month >= 6 && month <= 8) return `summer-${year}`;
   if (month >= 9 && month <= 11) return `fall-${year}`;
-  // Winter: Dec (prev year), Jan, Feb (current year)
-  // Assign to the year that contains Jan/Feb (the majority of the season)
-  if (month === 12) return `winter-${year + 1}`; // December belongs to next year's winter
-  return `winter-${year}`; // Jan, Feb
+  // Winter: Dec (current year), Jan, Feb (next year)
+  // Assign to the year that December belongs to
+  if (month === 12) return `winter-${year}`; // December belongs to current year's winter
+  return `winter-${year - 1}`; // Jan, Feb belong to previous year's winter
 }
 
 /**
