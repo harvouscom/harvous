@@ -29,6 +29,47 @@ interface SpaceContentListProps {
   filter?: 'all' | 'threads' | 'notes';
 }
 
+// Helper function to detect if running in PWA context
+function isPWA(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(display-mode: standalone)').matches ||
+         (window.navigator as any).standalone === true;
+}
+
+// Helper function to normalize dates from API responses
+function normalizeDate(date: Date | string | null | undefined): Date | null {
+  if (!date) return null;
+  if (date instanceof Date) return date;
+  if (typeof date === 'string') {
+    const parsed = new Date(date);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
+// Helper function to detect stale data (all items have same lastVisited or all null)
+function isStaleData(items: SpaceItem[]): boolean {
+  if (!items || items.length === 0) return false;
+  
+  const lastVisitedValues = items
+    .map(item => item.lastVisited)
+    .filter(val => val != null)
+    .map(val => {
+      const normalized = normalizeDate(val);
+      return normalized ? normalized.getTime() : null;
+    })
+    .filter(val => val != null) as number[];
+  
+  // If all items have null lastVisited, consider it stale
+  if (lastVisitedValues.length === 0) return true;
+  
+  // If all non-null lastVisited values are the same, consider it stale
+  const uniqueValues = new Set(lastVisitedValues);
+  if (uniqueValues.size === 1) return true;
+  
+  return false;
+}
+
 // Helper function to strip HTML tags
 function stripHtml(html: string): string {
   if (!html) return '';
@@ -160,7 +201,7 @@ export default function SpaceContentList({
 
           if (!isMountedRef.current) return false;
 
-          // Combine threads and notes into sorted items
+          // Combine threads and notes into sorted items with normalized dates
           const allItems: SpaceItem[] = [
             ...threads.map((thread: any) => ({
               id: thread.id,
@@ -171,8 +212,8 @@ export default function SpaceContentList({
               accentColor: thread.accentColor,
               lastUpdated: thread.lastUpdated,
               isPublic: thread.isPublic,
-              createdAt: thread.createdAt,
-              lastVisited: thread.lastVisited
+              createdAt: normalizeDate(thread.createdAt) || thread.createdAt,
+              lastVisited: normalizeDate(thread.lastVisited) || thread.lastVisited
             })),
             ...notes.map((note: any) => ({
               id: note.id,
@@ -184,8 +225,8 @@ export default function SpaceContentList({
               resourceDescription: note.resourceDescription,
               resourceImage: note.resourceImage,
               threadColors: note.threadColors,
-              createdAt: note.createdAt,
-              lastVisited: note.lastVisited
+              createdAt: normalizeDate(note.createdAt) || note.createdAt,
+              lastVisited: normalizeDate(note.lastVisited) || note.lastVisited
             }))
           ];
           
@@ -652,11 +693,18 @@ export default function SpaceContentList({
     };
 
     // Check on mount if we're coming from a thread/note page (for full page reloads or when View Transitions don't fire)
+    // Also check for PWA context and stale data
     const checkAndRefreshOnMount = () => {
       const currentPath = window.location.pathname;
       const isSpacePage = currentPath === `/${spaceId}`;
       
       if (!isSpacePage) return;
+
+      // Check if running in PWA context - always refresh to get fresh data
+      const inPWA = isPWA();
+      
+      // Check if initial data is stale
+      const dataIsStale = isStaleData(initialItems);
 
       const referrer = document.referrer;
       const cameFromThreadOrNote = referrer && (
@@ -669,7 +717,8 @@ export default function SpaceContentList({
       const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread_') || 
                                       previousPathnameRef.current.startsWith('/note_');
 
-      if (cameFromThreadOrNote || previousWasThreadOrNote) {
+      // Refresh if: PWA context, stale data, or coming from thread/note
+      if (inPWA || dataIsStale || cameFromThreadOrNote || previousWasThreadOrNote) {
         // OPTIMISTIC UPDATE: Immediately update lastVisited and re-sort
         let visitedItemId: string | null = null;
         let visitedItemType: 'thread' | 'note' | null = null;
@@ -704,20 +753,36 @@ export default function SpaceContentList({
         }
 
         debug('[SpaceContentList] Mount check: will refresh', {
+          inPWA,
+          dataIsStale,
           cameFromThreadOrNote,
           previousWasThreadOrNote,
           referrer,
           previousPath: previousPathnameRef.current,
           optimisticUpdate: visitedItemId ? { id: visitedItemId, type: visitedItemType } : null
         });
-        // Background API refresh with minimal delay
-        setTimeout(() => {
-          if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
-            refreshSpaceContent().then((success) => {
-              debug('[SpaceContentList] Mount refresh completed', { success });
-            });
-          }
-        }, 100); // Reduced delay since optimistic update provides instant feedback
+        
+        // If PWA or stale data, refresh immediately (no optimistic update needed)
+        // Otherwise, use optimistic update for navigation scenarios
+        if (inPWA || dataIsStale) {
+          // Immediate refresh for PWA/stale data scenarios
+          setTimeout(() => {
+            if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+              refreshSpaceContent().then((success) => {
+                debug('[SpaceContentList] Mount refresh completed (PWA/stale)', { success });
+              });
+            }
+          }, 50); // Minimal delay for PWA/stale data
+        } else {
+          // Background API refresh with minimal delay for navigation scenarios
+          setTimeout(() => {
+            if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+              refreshSpaceContent().then((success) => {
+                debug('[SpaceContentList] Mount refresh completed', { success });
+              });
+            }
+          }, 100); // Reduced delay since optimistic update provides instant feedback
+        }
       }
     };
 

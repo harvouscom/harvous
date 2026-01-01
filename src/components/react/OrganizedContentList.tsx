@@ -24,11 +24,54 @@ interface OrganizedContentItem {
   resourceImage?: string | null;
   threadColors?: Array<{ color: string; frequency: number }>;
   scriptureReferences?: Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>; // Scripture references for this note (from junction table)
+  lastVisited?: Date | string | null;
+  createdAt?: Date | string | null;
 }
 
 interface OrganizedContentListProps {
   initialItems: OrganizedContentItem[];
   filter?: 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
+}
+
+// Helper function to detect if running in PWA context
+function isPWA(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(display-mode: standalone)').matches ||
+         (window.navigator as any).standalone === true;
+}
+
+// Helper function to normalize dates from API responses
+function normalizeDate(date: Date | string | null | undefined): Date | null {
+  if (!date) return null;
+  if (date instanceof Date) return date;
+  if (typeof date === 'string') {
+    const parsed = new Date(date);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
+// Helper function to detect stale data (all items have same lastUpdated/lastVisited or all null)
+function isStaleData(items: OrganizedContentItem[]): boolean {
+  if (!items || items.length === 0) return false;
+  
+  const lastUpdatedValues = items
+    .map(item => item.lastUpdated || (item as any).lastVisited)
+    .filter(val => val != null)
+    .map(val => {
+      const normalized = normalizeDate(val);
+      return normalized ? normalized.getTime() : null;
+    })
+    .filter(val => val != null) as number[];
+  
+  // If all items have null lastUpdated/lastVisited, consider it stale
+  if (lastUpdatedValues.length === 0) return true;
+  
+  // If all non-null values are the same, consider it stale
+  const uniqueValues = new Set(lastUpdatedValues);
+  if (uniqueValues.size === 1) return true;
+  
+  return false;
 }
 
 export default function OrganizedContentList({ 
@@ -140,9 +183,17 @@ export default function OrganizedContentList({
           }
 
           const data = await response.json();
-          const freshItems = data.items || [];
+          const freshItemsRaw = data.items || [];
 
           if (!isMountedRef.current) return false;
+
+          // Normalize dates in fresh items
+          const freshItems = freshItemsRaw.map((item: any) => ({
+            ...item,
+            lastUpdated: item.lastUpdated ? (normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+            lastVisited: item.lastVisited ? (normalizeDate(item.lastVisited) || item.lastVisited) : item.lastVisited,
+            createdAt: item.createdAt ? (normalizeDate(item.createdAt) || item.createdAt) : item.createdAt
+          }));
 
           // If we're looking for a specific item, check if it exists
           if (expectedItemId) {
@@ -1166,11 +1217,18 @@ export default function OrganizedContentList({
     };
 
     // Check on mount if we're coming from a note page (full page reload scenario)
+    // Also check for PWA context and stale data
     const checkAndRefreshOnMount = () => {
       if (hasRefreshedOnMountRef.current) return;
       
       const isDashboard = window.location.pathname === '/';
       if (!isDashboard) return;
+      
+      // Check if running in PWA context - always refresh to get fresh data
+      const inPWA = isPWA();
+      
+      // Check if initial data is stale
+      const dataIsStale = isStaleData(initialItems);
       
       // Check if we came from a note page
       const referrer = document.referrer;
@@ -1182,14 +1240,16 @@ export default function OrganizedContentList({
       // Also check if previous pathname was a note (for View Transitions scenarios)
       const previousWasNote = previousPathnameRef.current.startsWith('/note_');
       
-      if (cameFromNotePage || previousWasNote) {
+      // Refresh if: PWA context, stale data, or coming from note page
+      if (inPWA || dataIsStale || cameFromNotePage || previousWasNote) {
         hasRefreshedOnMountRef.current = true;
-        // Refresh with a delay to ensure database is updated
+        // Immediate refresh for PWA/stale data, slight delay for navigation scenarios
+        const delay = (inPWA || dataIsStale) ? 50 : 200;
         setTimeout(() => {
           if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && !isRefreshingRef.current) {
             refreshContentRef.current?.();
           }
-        }, 200);
+        }, delay);
       }
     };
 

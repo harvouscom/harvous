@@ -6,6 +6,47 @@ import ActionButton from './ActionButton';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import Icon from './Icon';
 
+// Helper function to detect if running in PWA context
+function isPWA(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(display-mode: standalone)').matches ||
+         (window.navigator as any).standalone === true;
+}
+
+// Helper function to normalize dates from API responses
+function normalizeDate(date: Date | string | null | undefined): Date | null {
+  if (!date) return null;
+  if (date instanceof Date) return date;
+  if (typeof date === 'string') {
+    const parsed = new Date(date);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
+// Helper function to detect stale data (all notes have same lastVisited or all null)
+function isStaleData(notes: Note[]): boolean {
+  if (!notes || notes.length === 0) return false;
+  
+  const lastVisitedValues = notes
+    .map(note => note.lastVisited)
+    .filter(val => val != null)
+    .map(val => {
+      const normalized = normalizeDate(val);
+      return normalized ? normalized.getTime() : null;
+    })
+    .filter(val => val != null) as number[];
+  
+  // If all notes have null lastVisited, consider it stale
+  if (lastVisitedValues.length === 0) return true;
+  
+  // If all non-null lastVisited values are the same, consider it stale
+  const uniqueValues = new Set(lastVisitedValues);
+  if (uniqueValues.size === 1) return true;
+  
+  return false;
+}
+
 // Helper function to strip HTML tags
 function stripHtml(html: string): string {
   if (!html) return '';
@@ -338,9 +379,17 @@ export default function ThreadNotesList({
           }
 
           const data = await response.json();
-          const freshNotes = data.notes || [];
+          const freshNotesRaw = data.notes || [];
 
           if (!isMountedRef.current) return false;
+
+          // Normalize dates in fresh notes
+          const freshNotes = freshNotesRaw.map((note: any) => ({
+            ...note,
+            lastVisited: note.lastVisited ? (normalizeDate(note.lastVisited) || note.lastVisited) : note.lastVisited,
+            createdAt: note.createdAt ? (normalizeDate(note.createdAt) || note.createdAt) : note.createdAt,
+            updatedAt: note.updatedAt ? (normalizeDate(note.updatedAt) || note.updatedAt) : note.updatedAt
+          }));
 
           // If we're looking for a specific note, check if it exists
           if (expectedNoteId) {
@@ -643,6 +692,7 @@ export default function ThreadNotesList({
     // This handles the case where navigation used window.location.href (full reload)
     // or when View Transitions didn't fire astro:page-load
     // Works for both regular threads and unorganized thread
+    // Also check for PWA context and stale data
     const checkAndRefreshOnMount = () => {
       if (hasRefreshedOnMountRef.current) return;
       
@@ -654,6 +704,12 @@ export default function ThreadNotesList({
       if (currentThreadId !== threadId) {
         return;
       }
+      
+      // Check if running in PWA context - always refresh to get fresh data
+      const inPWA = isPWA();
+      
+      // Check if initial data is stale
+      const dataIsStale = isStaleData(initialNotes);
       
       // Check if we came from a note page
       const cameFromNotePage = referrer && (
@@ -679,10 +735,20 @@ export default function ThreadNotesList({
         console.error('[ThreadNotesList] Error checking sessionStorage in checkAndRefreshOnMount:', error);
       }
       
-      if (cameFromNotePage || previousWasNote || hasRecentNote) {
+      // Refresh if: PWA context, stale data, coming from note page, or has recent note
+      if (inPWA || dataIsStale || cameFromNotePage || previousWasNote || hasRecentNote) {
         hasRefreshedOnMountRef.current = true;
-        // Use unified refresh function instead of arbitrary delay
-        refreshNotesList();
+        // Immediate refresh for PWA/stale data, otherwise use unified refresh function
+        const delay = (inPWA || dataIsStale) ? 50 : 0;
+        if (delay > 0) {
+          setTimeout(() => {
+            if (isMountedRef.current && window.location.pathname.substring(1) === threadId) {
+              refreshNotesList();
+            }
+          }, delay);
+        } else {
+          refreshNotesList();
+        }
       }
     };
 
