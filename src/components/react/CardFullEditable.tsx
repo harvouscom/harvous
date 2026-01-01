@@ -437,6 +437,42 @@ export default function CardFullEditable({
     setHasChanges(false);
   };
 
+  // Helper function to render save/cancel buttons
+  const renderSaveCancelButtons = (paddingClass: string = 'px-3') => (
+    <div className={`flex items-center gap-2 mt-4 mb-3 shrink-0 ${paddingClass}`}>
+      {/* Character counter - only show when editing title */}
+      {isTitleEditing && isTitleFocused && editTitle.length >= TITLE_SOFT_LIMIT && (
+        <div 
+          style={{
+            fontSize: '11px',
+            fontFamily: 'var(--font-sans)',
+            color: editTitle.length >= TITLE_WARNING_LIMIT 
+              ? 'var(--color-red)' 
+              : 'var(--color-deep-grey)',
+          }}
+        >
+          {editTitle.length}/{TITLE_HARD_LIMIT}
+        </div>
+      )}
+      <div className="flex gap-2 ml-auto">
+        <ButtonSmall
+          state="Secondary"
+          onClick={cancelEdit}
+          disabled={isSaving}
+        >
+          Cancel
+        </ButtonSmall>
+        <ButtonSmall
+          state="Default"
+          onClick={saveChanges}
+          disabled={!hasChanges || isSaving}
+        >
+          {isSaving ? 'Saving...' : 'Save'}
+        </ButtonSmall>
+      </div>
+    </div>
+  );
+
   const saveChanges = async () => {
     if (!hasChanges) {
       setIsTitleEditing(false);
@@ -905,6 +941,9 @@ export default function CardFullEditable({
             </div>
           </div>
           
+          {/* Save/Cancel buttons when only title is being edited */}
+          {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
+          
           {/* Editable content area with TiptapEditor */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%', marginTop: '12px' }}>
             {!isContentEditing ? (
@@ -945,38 +984,7 @@ export default function CardFullEditable({
                 </div>
                 
                 {/* Save/Cancel buttons */}
-                <div className="flex items-center gap-2 mt-4 mb-3 shrink-0 px-3">
-                  {/* Character counter - only show when title is focused */}
-                  {isTitleFocused && editTitle.length >= TITLE_SOFT_LIMIT && (
-                    <div 
-                      style={{
-                        fontSize: '11px',
-                        fontFamily: 'var(--font-sans)',
-                        color: editTitle.length >= TITLE_WARNING_LIMIT 
-                          ? 'var(--color-red)' 
-                          : 'var(--color-deep-grey)',
-                      }}
-                    >
-                      {editTitle.length}/{TITLE_HARD_LIMIT}
-                    </div>
-                  )}
-                  <div className="flex gap-2 ml-auto">
-                    <ButtonSmall
-                      state="Secondary"
-                      onClick={cancelEdit}
-                      disabled={isSaving}
-                    >
-                      Cancel
-                    </ButtonSmall>
-                    <ButtonSmall
-                      state="Default"
-                      onClick={saveChanges}
-                      disabled={!hasChanges || isSaving}
-                    >
-                      {isSaving ? 'Saving...' : 'Save'}
-                    </ButtonSmall>
-                  </div>
-                </div>
+                {isContentEditing && renderSaveCancelButtons('px-3')}
               </div>
             )}
           </div>
@@ -1107,6 +1115,9 @@ export default function CardFullEditable({
         )}
       </div>
       
+      {/* Save/Cancel buttons when only title is being edited */}
+      {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
+      
       {/* Content */}
       <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px', marginTop: '12px' }}>
         <div className="flex-1 flex flex-col font-sans font-medium min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
@@ -1156,38 +1167,7 @@ export default function CardFullEditable({
               </div>
               
               {/* Save/Cancel buttons */}
-              <div className="flex items-center gap-2 mt-4 mb-3 shrink-0" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
-                {/* Character counter - only show when title is focused */}
-                {isTitleFocused && editTitle.length >= TITLE_SOFT_LIMIT && (
-                  <div 
-                    style={{
-                      fontSize: '11px',
-                      fontFamily: 'var(--font-sans)',
-                      color: editTitle.length >= TITLE_WARNING_LIMIT 
-                        ? 'var(--color-red)' 
-                        : 'var(--color-deep-grey)',
-                    }}
-                  >
-                    {editTitle.length}/{TITLE_HARD_LIMIT}
-                  </div>
-                )}
-                <div className="flex gap-2 ml-auto">
-                  <ButtonSmall
-                    state="Secondary"
-                    onClick={cancelEdit}
-                    disabled={isSaving}
-                  >
-                    Cancel
-                  </ButtonSmall>
-                  <ButtonSmall
-                    state="Default"
-                    onClick={saveChanges}
-                    disabled={!hasChanges || isSaving}
-                  >
-                    {isSaving ? 'Saving...' : 'Save'}
-                  </ButtonSmall>
-                </div>
-              </div>
+              {isContentEditing && renderSaveCancelButtons('px-3')}
             </div>
           )}
         </div>

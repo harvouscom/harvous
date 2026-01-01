@@ -204,7 +204,7 @@ export default function OrganizedContentList({
   }, [filter]);
 
   // Refresh scripture notes by fetching fresh data from API
-  const refreshScriptureNotes = useCallback(async () => {
+  const refreshScriptureNotes = useCallback(async (forceUpdate = false) => {
     // Guard against SSR and ensure browser APIs are available
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
@@ -243,7 +243,8 @@ export default function OrganizedContentList({
       url.searchParams.set('filter', 'scripture');
 
       const response = await fetch(url.toString(), {
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-store' // Ensure we get fresh data, not cached
       });
 
       if (!response.ok) {
@@ -263,14 +264,14 @@ export default function OrganizedContentList({
       // Double-check we're still on dashboard and mounted before updating
       // Also verify we're still on scripture filter
       if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && filterRef.current === 'scripture') {
-        // Only update if items actually changed (avoid unnecessary updates that trigger loops)
-        if (refreshedItemsKey !== lastRefreshItemsKeyRef.current) {
+        // Update if items changed OR if forceUpdate is true (to handle cases where refresh happens before DB commits)
+        if (refreshedItemsKey !== lastRefreshItemsKeyRef.current || forceUpdate) {
           // Mark that we're refreshing to prevent InfiniteScrollList from auto-loading
           isRefreshingItemsRef.current = true;
           lastRefreshItemsKeyRef.current = refreshedItemsKey;
           
           setCurrentItems(filteredItems);
-          debug('[OrganizedContentList] Updated scripture notes', { itemCount: filteredItems.length });
+          debug('[OrganizedContentList] Updated scripture notes', { itemCount: filteredItems.length, forceUpdate });
           
           // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
           setTimeout(() => {
@@ -443,20 +444,20 @@ export default function OrganizedContentList({
     const handleNoteCreated = (event?: Event) => {
       const customEvent = event as CustomEvent;
       const note = customEvent?.detail?.note;
-      const isScriptureNote = note?.noteType === 'scripture';
       const currentFilter = filterRef.current;
       
       debug('[OrganizedContentList] noteCreated event received', { 
         noteId: note?.id, 
-        isScriptureNote, 
+        noteType: note?.noteType,
         currentFilter,
         currentPath: window.location.pathname 
       });
       
-      // Delay to ensure database is updated
-      // Use longer delay for scripture notes created via API (getOrCreateScriptureNote)
-      // to ensure database commit is complete
-      const delay = isScriptureNote ? 500 : 300;
+      // Always refresh scripture tab when on it, regardless of note type
+      // This ensures scripture notes created via processScriptureReferences appear
+      // Use 2000ms delay to ensure database commits are complete
+      const delay = currentFilter === 'scripture' ? 2000 : 300;
+      
       // Clear any pending timeout first
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
@@ -465,10 +466,15 @@ export default function OrganizedContentList({
         pendingRefreshTimeoutRef.current = null;
         // If we're on dashboard, refresh immediately
         if (window.location.pathname === '/') {
-          // If this is a scripture note and we're on the scripture tab, refresh scripture notes
-          if (isScriptureNote && currentFilter === 'scripture') {
-            debug('[OrganizedContentList] Refreshing scripture notes after scripture note created');
-            refreshScriptureNotes();
+          // Always refresh scripture tab when on it
+          if (currentFilter === 'scripture') {
+            debug('[OrganizedContentList] Refreshing scripture notes after note creation', {
+              noteId: note?.id,
+              noteType: note?.noteType,
+              delay
+            });
+            // Force update to ensure we refresh even if items appear unchanged (handles DB commit timing)
+            refreshScriptureNotes(true);
           } else {
             // Otherwise, use the standard refresh logic
             checkAndRefresh();
