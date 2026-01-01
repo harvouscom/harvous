@@ -78,21 +78,6 @@ function stripHtml(html: string): string {
   return text;
 }
 
-// Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
-// Note: SpaceItem uses lastUpdated instead of updatedAt, so we need to map it
-function sortItemsByLastVisited(items: SpaceItem[]): SpaceItem[] {
-  // Map lastUpdated to updatedAt for the shared sorting function
-  const itemsWithUpdatedAt = items.map(item => ({
-    ...item,
-    updatedAt: item.lastUpdated
-  }));
-  
-  const sorted = sortByLastVisited(itemsWithUpdatedAt);
-  
-  // Map back to remove updatedAt (keep lastUpdated)
-  return sorted.map(({ updatedAt, ...item }) => item);
-}
-
 export default function SpaceContentList({
   initialItems,
   spaceId,
@@ -112,8 +97,15 @@ export default function SpaceContentList({
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
   const isRefreshingRef = useRef(false);
-  // Track optimistic update retry timeouts for cleanup
-  const optimisticUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sort initial items on mount
+  useEffect(() => {
+    if (initialItems && initialItems.length > 0) {
+      const sorted = sortItemsByLastVisited(initialItems);
+      setItems(sorted);
+      itemsRef.current = sorted;
+    }
+  }, []); // Empty deps - only on mount
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -128,7 +120,8 @@ export default function SpaceContentList({
   }, []);
 
   // Optimistic update: immediately update lastVisited and re-sort items
-  const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note', retryCount = 0) => {
+  // Simplified to avoid closure issues - no retry logic, rely on API refresh
+  const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
     // Check if component is still mounted before proceeding
     if (!isMountedRef.current) {
       debug('[SpaceContentList] Component unmounted, skipping optimistic update', { itemId, itemType });
@@ -136,64 +129,30 @@ export default function SpaceContentList({
     }
 
     setItems(prev => {
-      // If list is empty and this is first attempt, wait for items
-      if (prev.length === 0 && retryCount === 0) {
-        debug('[SpaceContentList] Items list empty, will retry optimistic update', { itemId, itemType });
-        // Clear any existing timeout
-        if (optimisticUpdateTimeoutRef.current) {
-          clearTimeout(optimisticUpdateTimeoutRef.current);
-        }
-        optimisticUpdateTimeoutRef.current = setTimeout(() => {
-          if (isMountedRef.current) {
-            optimisticUpdateLastVisited(itemId, itemType, retryCount + 1);
-          }
-          optimisticUpdateTimeoutRef.current = null;
-        }, 50);
-        return prev;
-      }
-      
       // Try multiple ID matching strategies
-      const itemIndex = prev.findIndex(item => {
-        // Strategy 1: Exact match
-        if (item.id === itemId && item.itemType === itemType) return true;
-        
-        // Strategy 2: Match without prefix
-        if (itemType === 'thread' && itemId.startsWith('thread_')) {
-          const idWithoutPrefix = itemId.substring(7);
-          if (item.id === idWithoutPrefix && item.itemType === itemType) return true;
-          if (item.id === itemId && item.itemType === itemType) return true;
-        }
-        if (itemType === 'note' && itemId.startsWith('note_')) {
-          const idWithoutPrefix = itemId.substring(5);
-          if (item.id === idWithoutPrefix && item.itemType === itemType) return true;
-          if (item.id === itemId && item.itemType === itemType) return true;
-        }
-        
-        return false;
-      });
+      let itemIndex = -1;
+      
+      // Strategy 1: Exact match
+      itemIndex = prev.findIndex(item => item.id === itemId && item.itemType === itemType);
+      
+      // Strategy 2: Match without prefix if not found
+      if (itemIndex === -1 && itemType === 'thread' && itemId.startsWith('thread_')) {
+        const idWithoutPrefix = itemId.substring(7);
+        itemIndex = prev.findIndex(item => (item.id === idWithoutPrefix || item.id === itemId) && item.itemType === itemType);
+      }
+      if (itemIndex === -1 && itemType === 'note' && itemId.startsWith('note_')) {
+        const idWithoutPrefix = itemId.substring(5);
+        itemIndex = prev.findIndex(item => (item.id === idWithoutPrefix || item.id === itemId) && item.itemType === itemType);
+      }
       
       if (itemIndex === -1) {
         debug('[SpaceContentList] Item not found for optimistic update', { 
           itemId, 
-          itemType, 
-          retryCount,
+          itemType,
           listLength: prev.length,
           availableIds: prev.slice(0, 5).map(i => ({ id: i.id, type: i.itemType }))
         });
-        
-        // Retry if list has items but item not found (might be timing/format issue)
-        if (prev.length > 0 && retryCount < 2 && isMountedRef.current) {
-          // Clear any existing timeout
-          if (optimisticUpdateTimeoutRef.current) {
-            clearTimeout(optimisticUpdateTimeoutRef.current);
-          }
-          optimisticUpdateTimeoutRef.current = setTimeout(() => {
-            if (isMountedRef.current) {
-              optimisticUpdateLastVisited(itemId, itemType, retryCount + 1);
-            }
-            optimisticUpdateTimeoutRef.current = null;
-          }, 100);
-        }
+        // Item not found - API refresh will handle it
         return prev;
       }
 
@@ -221,6 +180,7 @@ export default function SpaceContentList({
       return sorted;
     });
   }, []);
+
 
   // Extract item ID from pathname (thread_xxx or note_xxx)
   const extractItemIdFromPath = useCallback((pathname: string): { id: string; type: 'thread' | 'note' } | null => {

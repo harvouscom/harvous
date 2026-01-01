@@ -92,8 +92,6 @@ export default function OrganizedContentList({
   // Track visibility changes for PWA foreground refresh
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
-  // Track optimistic update retry timeouts for cleanup
-  const optimisticUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
   // Note: OrganizedContentItem uses lastUpdated instead of updatedAt, so we need to map it
@@ -111,7 +109,8 @@ export default function OrganizedContentList({
   }, []);
 
   // Optimistic update: immediately update lastVisited and re-sort items
-  const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note', retryCount = 0) => {
+  // Simplified to avoid closure issues - no retry logic, rely on API refresh
+  const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
     // Check if component is still mounted before proceeding
     if (!isMountedRef.current) {
       debug('[OrganizedContentList] Component unmounted, skipping optimistic update', { itemId, itemType });
@@ -119,60 +118,35 @@ export default function OrganizedContentList({
     }
 
     setCurrentItems(prev => {
-      // If list is empty, wait
-      if (prev.length === 0 && retryCount === 0) {
-        debug('[OrganizedContentList] Items list empty, will retry optimistic update', { itemId, itemType });
-        // Clear any existing timeout
-        if (optimisticUpdateTimeoutRef.current) {
-          clearTimeout(optimisticUpdateTimeoutRef.current);
-        }
-        optimisticUpdateTimeoutRef.current = setTimeout(() => {
-          if (isMountedRef.current) {
-            optimisticUpdateLastVisited(itemId, itemType, retryCount + 1);
-          }
-          optimisticUpdateTimeoutRef.current = null;
-        }, 50);
-        return prev;
-      }
-      
       // Find the item by ID - try multiple formats
-      const itemIndex = prev.findIndex(item => {
-        if (itemType === 'thread') {
-          // Try multiple formats
-          return item.threadId === itemId || 
-                 item.id === `thread-${itemId}` || 
-                 item.id === itemId ||
-                 (itemId.startsWith('thread_') && item.threadId === itemId.substring(7)) ||
-                 (itemId.startsWith('thread_') && item.id === itemId);
-        } else {
-          return item.noteId === itemId || 
-                 item.id === `note-${itemId}` || 
-                 item.id === itemId ||
-                 (itemId.startsWith('note_') && item.noteId === itemId.substring(5)) ||
-                 (itemId.startsWith('note_') && item.id === itemId);
-        }
-      });
+      let itemIndex = -1;
+      
+      if (itemType === 'thread') {
+        itemIndex = prev.findIndex(item => 
+          item.threadId === itemId || 
+          item.id === `thread-${itemId}` || 
+          item.id === itemId ||
+          (itemId.startsWith('thread_') && item.threadId === itemId.substring(7)) ||
+          (itemId.startsWith('thread_') && item.id === itemId)
+        );
+      } else {
+        itemIndex = prev.findIndex(item => 
+          item.noteId === itemId || 
+          item.id === `note-${itemId}` || 
+          item.id === itemId ||
+          (itemId.startsWith('note_') && item.noteId === itemId.substring(5)) ||
+          (itemId.startsWith('note_') && item.id === itemId)
+        );
+      }
 
       if (itemIndex === -1) {
         debug('[OrganizedContentList] Item not found for optimistic update', { 
           itemId, 
-          itemType, 
-          retryCount,
+          itemType,
           listLength: prev.length,
           available: prev.slice(0, 5).map(i => ({ id: i.id, threadId: i.threadId, noteId: i.noteId, type: i.type }))
         });
-        if (prev.length > 0 && retryCount < 2 && isMountedRef.current) {
-          // Clear any existing timeout
-          if (optimisticUpdateTimeoutRef.current) {
-            clearTimeout(optimisticUpdateTimeoutRef.current);
-          }
-          optimisticUpdateTimeoutRef.current = setTimeout(() => {
-            if (isMountedRef.current) {
-              optimisticUpdateLastVisited(itemId, itemType, retryCount + 1);
-            }
-            optimisticUpdateTimeoutRef.current = null;
-          }, 100);
-        }
+        // Item not found - API refresh will handle it
         return prev;
       }
 
@@ -201,6 +175,7 @@ export default function OrganizedContentList({
       return sorted;
     });
   }, [sortItemsByLastVisited]);
+
 
   // Extract item ID from pathname (thread_xxx or note_xxx)
   const extractItemIdFromPath = useCallback((pathname: string): { id: string; type: 'thread' | 'note' } | null => {
@@ -1442,11 +1417,6 @@ export default function OrganizedContentList({
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
         pendingRefreshTimeoutRef.current = null;
-      }
-      // Clear optimistic update timeout
-      if (optimisticUpdateTimeoutRef.current) {
-        clearTimeout(optimisticUpdateTimeoutRef.current);
-        optimisticUpdateTimeoutRef.current = null;
       }
     };
   }, []);
