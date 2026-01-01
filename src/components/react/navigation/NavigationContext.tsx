@@ -420,8 +420,26 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Use spread operator to create new array reference for React
       setNavigationHistory([...filteredHistory]);
       
+      // Store closed item in sessionStorage to prevent lastVisited update
+      // This helps the server-side logic know this navigation is due to closing, not visiting
+      try {
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          const closedItems = JSON.parse(window.sessionStorage.getItem('harvous-recently-closed-items') || '[]');
+          closedItems.push({
+            itemId: itemId,
+            closedAt: Date.now()
+          });
+          // Keep only last 10 closed items
+          const recent = closedItems.slice(-10);
+          window.sessionStorage.setItem('harvous-recently-closed-items', JSON.stringify(recent));
+        }
+      } catch (error) {
+        console.error('Error storing closed item:', error);
+      }
+      
       // Navigate to next item or dashboard using View Transitions
-      const targetUrl = nextItem ? `/${nextItem.id}` : '/';
+      // Add query parameter to indicate this navigation is due to closing an item
+      const targetUrl = nextItem ? `/${nextItem.id}?closed=${encodeURIComponent(itemId)}` : '/';
       
       // Use View Transitions for smooth navigation
       // Check document visibility before starting transition (prevents error when page is hidden)

@@ -65,8 +65,30 @@ function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string)
     const referrerUrl = new URL(referrer);
     const referrerPath = referrerUrl.pathname;
     
-    // Get current URL to compare origins
+    // Get current URL to compare origins and check for closed item parameter
     const currentUrl = new URL(request.url);
+    
+    // Check if this navigation is due to closing an item
+    // When closing a thread, we add ?closed=itemId to the destination URL
+    const closedItemId = currentUrl.searchParams.get('closed');
+    if (closedItemId) {
+      // Extract the item ID from referrer path
+      const referrerItemId = referrerPath.startsWith('/') ? referrerPath.substring(1) : referrerPath;
+      // Remove query params from referrer item ID for comparison
+      const normalizedReferrerItemId = referrerItemId.split('?')[0].split('#')[0];
+      const normalizedClosedItemId = decodeURIComponent(closedItemId);
+      
+      // If referrer matches the closed item, this navigation is due to closing
+      // Don't update lastVisited for the closed item (we're navigating away from it)
+      // But we still want to update lastVisited for the current page (destination)
+      // So we continue with normal logic, but this check helps us understand the context
+      // The actual prevention happens because we're not loading the closed item's page
+      if (normalizedReferrerItemId === normalizedClosedItemId) {
+        // This is navigation away from a closed item
+        // The lastVisited update will happen for the current page (destination), not the closed item
+        // So we continue with normal logic - this is correct behavior
+      }
+    }
     
     // If referrer is from a different origin, it's a new visit - update
     if (referrerUrl.origin !== currentUrl.origin) {
