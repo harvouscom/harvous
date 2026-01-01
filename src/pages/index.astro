@@ -51,12 +51,17 @@ let userData: CachedUserData = {
   userColor: 'paper',
 };
 
+// Variables for archived items, active thread, and unorganized thread (used outside try block)
+let archived: any[] = [];
+let threadContext: any = null;
+let threadData: any = null;
+
 // Always use real database data
 try {
-    // Fetch all data in parallel for better performance (including user cache)
-    const [featuredContentData, contentItemsData, threadsData, spacesData, inboxCountData, cachedUserData] = await Promise.allSettled([
+    // Fetch all data in parallel for better performance (including user cache and non-critical data)
+    // Note: getContentItems is called separately after threads are fetched to avoid duplicate query
+    const [featuredContentData, threadsData, spacesData, inboxCountData, cachedUserData, archivedData, threadContextData, unorganizedThreadData] = await Promise.allSettled([
       getFeaturedContent(userId),
-      getContentItems(userId, 100, 0, true), // Increase limit to ensure all threads are included. Filter referenced scripture notes for 'all' tab
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
       getInboxCount(userId),
@@ -67,16 +72,30 @@ try {
         initials: 'U',
         displayName: 'User',
         userColor: 'paper',
-      }))
+      })),
+      getArchivedItems(userId).catch(() => []),
+      detectActiveThreadFromPath(Astro.url.pathname, userId).catch(() => null),
+      ensureUnorganizedThread(userId).catch(() => null)
     ]);
     
     // Extract results from Promise.allSettled
     featuredContent = featuredContentData.status === 'fulfilled' ? featuredContentData.value : [];
-    contentItems = contentItemsData.status === 'fulfilled' ? contentItemsData.value : [];
     threads = threadsData.status === 'fulfilled' ? threadsData.value : [];
     spaces = spacesData.status === 'fulfilled' ? spacesData.value : [];
     inboxCount = inboxCountData.status === 'fulfilled' ? inboxCountData.value : 0;
     userData = cachedUserData.status === 'fulfilled' ? cachedUserData.value : userData;
+    archived = archivedData.status === 'fulfilled' ? archivedData.value : [];
+    threadContext = threadContextData.status === 'fulfilled' ? threadContextData.value : null;
+    threadData = unorganizedThreadData.status === 'fulfilled' ? unorganizedThreadData.value : null;
+    
+    // Now fetch content items with threads passed in to avoid duplicate query
+    // Reduced limit from 100 to 30 for faster initial load (pagination handles more items)
+    try {
+      contentItems = await getContentItems(userId, 30, 0, true, threads); // Pass threads to avoid duplicate getAllThreadsWithCounts() call
+    } catch (error) {
+      console.error("Error fetching content items:", error);
+      contentItems = [];
+    }
     
     // Ensure threads have backgroundGradient property for consistency
     threads = threads.map(thread => ({
@@ -109,6 +128,9 @@ try {
   inboxCount = 0;
 }
 
+// Add HTTP caching headers for better performance (30 second cache for dashboard)
+Astro.response.headers.set('Cache-Control', 'private, max-age=30');
+
 const { firstName, lastName, initials, displayName, userColor } = userData;
 
 // Combine all content for the main content section
@@ -124,18 +146,17 @@ const inboxItemCount = inboxContent.length;
 const scriptureCount = organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'scripture').length;
 const resourceCount = organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'resource').length;
 
-// Get archived items, active thread, and unorganized thread in parallel
+// Process archived items, active thread, and unorganized thread (already fetched in main Promise.allSettled)
 let archivedItems: any[] = [];
-let activeThread = null;
+let activeThread = threadContext;
 let unorganizedThread = null;
 
+// Set unorganized thread if it has notes
+if (threadData && threadData.noteCount > 0) {
+  unorganizedThread = threadData;
+}
+
 try {
-  const [archived, threadContext, threadData] = await Promise.all([
-    getArchivedItems(userId).catch(() => []),
-    detectActiveThreadFromPath(Astro.url.pathname, userId).catch(() => null),
-    ensureUnorganizedThread(userId).catch(() => null)
-  ]);
-  
   // Batch fetch all note counts in a single query to avoid N+1 problem
   const threadInboxItemIds = archived
     .filter(item => item.contentType === 'thread')
@@ -217,16 +238,8 @@ try {
       threadType: item.threadType, // Thread type from CMS
     };
   });
-  
-  // Set active thread
-  activeThread = threadContext;
-  
-  // Set unorganized thread if it has notes
-  if (threadData && threadData.noteCount > 0) {
-    unorganizedThread = threadData;
-  }
 } catch (error) {
-  console.error("Error fetching additional dashboard data:", error);
+  console.error("Error processing archived items:", error);
   archivedItems = [];
 }
 ---

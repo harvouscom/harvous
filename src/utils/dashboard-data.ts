@@ -585,22 +585,23 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       }
     }
     
-    // Fetch thread colors for all notes (fetch all threads each note belongs to, not just current thread)
-    const notesWithThreadColors = await Promise.all(
-      sortedNotes.map(async (note) => {
-        const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
-        const threadColors = await getThreadColorsForNote(note.id, userId);
-        return {
-          ...note,
-          lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
-          lastVisited: note.lastVisited,
-          resourceTitle: resourceMeta?.sourceTitle || null,
-          resourceDescription: resourceMeta?.sourceDescription || null,
-          resourceImage: resourceMeta?.sourceImage || null,
-          threadColors: threadColors.length > 0 ? threadColors : undefined,
-        };
-      })
-    );
+    // Fetch thread colors for all notes in batch (optimized - single query instead of N queries)
+    const noteIds = sortedNotes.map(note => note.id).filter((id): id is string => !!id);
+    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
+    
+    const notesWithThreadColors = sortedNotes.map((note) => {
+      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
+      const threadColors = threadColorsMap.get(note.id);
+      return {
+        ...note,
+        lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+        lastVisited: note.lastVisited,
+        resourceTitle: resourceMeta?.sourceTitle || null,
+        resourceDescription: resourceMeta?.sourceDescription || null,
+        resourceImage: resourceMeta?.sourceImage || null,
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+      };
+    });
 
     return { notes: notesWithThreadColors, hasMore };
   } catch (error) {
@@ -717,11 +718,11 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
 
         // Check which referenced scripture notes are NOT already directly in the thread
         const alreadyCountedScriptureIds = new Set(
-          allNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(id => id)
+          allNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter((id: string | undefined): id is string => !!id)
         );
 
-        const additionalScriptureCount = uniqueReferencedScriptureIds.filter(
-          id => !alreadyCountedScriptureIds.has(id)
+        const additionalScriptureCount = Array.from(uniqueReferencedScriptureIds).filter(
+          (id: string) => !alreadyCountedScriptureIds.has(id)
         ).length;
 
         scriptureCount += additionalScriptureCount;
@@ -828,22 +829,23 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
       }
     }
 
-    // Fetch thread colors for all notes
-    const notesWithThreadColors = await Promise.all(
-      sortedNotes.map(async (note) => {
-        const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
-        const threadColors = await getThreadColorsForNote(note.id, userId);
-        return {
-          ...note,
-          lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
-          lastVisited: note.lastVisited,
-          resourceTitle: resourceMeta?.sourceTitle || null,
-          resourceDescription: resourceMeta?.sourceDescription || null,
-          resourceImage: resourceMeta?.sourceImage || null,
-          threadColors: threadColors.length > 0 ? threadColors : undefined,
-        };
-      })
-    );
+    // Fetch thread colors for all notes in batch (optimized - single query instead of N queries)
+    const noteIds = sortedNotes.map(note => note.id).filter((id): id is string => !!id);
+    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
+    
+    const notesWithThreadColors = sortedNotes.map((note) => {
+      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
+      const threadColors = threadColorsMap.get(note.id);
+      return {
+        ...note,
+        lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+        lastVisited: note.lastVisited,
+        resourceTitle: resourceMeta?.sourceTitle || null,
+        resourceDescription: resourceMeta?.sourceDescription || null,
+        resourceImage: resourceMeta?.sourceImage || null,
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+      };
+    });
 
     return { notes: notesWithThreadColors, hasMore };
   } catch (error) {
@@ -867,6 +869,7 @@ export async function getNotesForDashboard(userId: string, limit = 10) {
       isFeatured: Notes.isFeatured,
       createdAt: Notes.createdAt,
       updatedAt: Notes.updatedAt,
+      lastVisited: Notes.lastVisited,
     })
     .from(Notes)
     .where(eq(Notes.userId, userId))
@@ -929,20 +932,34 @@ export async function getFeaturedContent(userId: string) {
     // Filter to only show threads - notes should not appear in inbox
     const threadItems = inboxItems.filter(item => item.contentType === 'thread');
     
+    // Batch fetch note counts for all thread items in a single query (optimized - avoids N+1 problem)
+    const threadItemIds = threadItems.map(item => item.id);
+    let noteCountsMap = new Map<string, number>();
+    
+    if (threadItemIds.length > 0) {
+      try {
+        const noteCounts = await db
+          .select({
+            inboxItemId: InboxItemNotes.inboxItemId,
+            count: count(),
+          })
+          .from(InboxItemNotes)
+          .where(inArray(InboxItemNotes.inboxItemId, threadItemIds))
+          .groupBy(InboxItemNotes.inboxItemId)
+          .all();
+        
+        noteCountsMap = new Map(noteCounts.map(item => [item.inboxItemId, item.count]));
+      } catch (error) {
+        console.error('Error batch fetching note counts for featured content:', error);
+      }
+    }
+    
     // Map inbox items to CardFeat format with note counts for threads
-    return await Promise.all(threadItems.map(async (item) => {
+    return threadItems.map((item) => {
       const cleanContent = stripHtml(item.content || '');
       
-      // Get note count for threads
-      let noteCount = 0;
-      if (item.contentType === 'thread') {
-        const countResult = await db
-          .select({ count: count() })
-          .from(InboxItemNotes)
-          .where(eq(InboxItemNotes.inboxItemId, item.id))
-          .get();
-        noteCount = countResult?.count || 0;
-      }
+      // Get note count from batch-fetched map
+      const noteCount = noteCountsMap.get(item.id) || 0;
       
       // Format timestamp showing when item was made available to user
       // item.createdAt comes from UserInboxItems.createdAt (when item appeared in user's inbox)
@@ -975,7 +992,7 @@ export async function getFeaturedContent(userId: string) {
         count: noteCount, // Note count for threads
         threadType: item.threadType, // Thread type from CMS
       };
-    }));
+    });
   } catch (error) {
     console.error("Error fetching featured content:", error);
     return [];
@@ -984,21 +1001,26 @@ export async function getFeaturedContent(userId: string) {
 
 // Get content items for the main list (organized content + unorganized notes)
 // filterExcludeReferencedScripture: if true, exclude scripture notes that are referenced by other notes (only for 'all' tab)
-export async function getContentItems(userId: string, limit = 20, offset = 0, filterExcludeReferencedScripture = false) {
+// threads: optional pre-fetched threads data to avoid duplicate query
+export async function getContentItems(userId: string, limit = 20, offset = 0, filterExcludeReferencedScripture = false, threads?: any[]) {
   try {
     // Fetch enough items to cover offset + limit
     const fetchLimit = limit + offset;
-    const [threads, assignedNotesRaw, unorganizedNotesRaw] = await Promise.all([
-      getAllThreadsWithCounts(userId),
+    const [threadsData, assignedNotesRaw, unorganizedNotesRaw] = await Promise.all([
+      // Use provided threads if available, otherwise fetch
+      threads && Array.isArray(threads) ? Promise.resolve(threads) : getAllThreadsWithCounts(userId),
       getAssignedNotesForDashboard(userId, fetchLimit),
       getUnorganizedNotesForDashboard(userId, fetchLimit)
     ]);
+    
+    // Use threadsData (either provided or fetched) - ensure it's an array
+    const threadsToUse = Array.isArray(threadsData) ? threadsData : [];
     
     // Use let so we can filter out referenced scripture notes later
     let assignedNotes = assignedNotesRaw;
     let unorganizedNotes = unorganizedNotesRaw;
 
-    const threadItems = threads.map(thread => ({
+    const threadItems = threadsToUse.map(thread => ({
       id: `thread-${thread.id}`,
       type: "thread" as const,
       title: thread.title,
@@ -1089,19 +1111,18 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
           }, {} as Record<string, string>);
         }
         
-        // Fetch thread colors for all scripture notes
-        const scriptureNoteIdsArray = Array.from(scriptureNoteIds);
-        const scriptureThreadColorsMap: Record<string, Array<{ color: string; frequency: number }>> = {};
+        // Fetch thread colors for all scripture notes in batch (optimized - single query instead of N queries)
+        const scriptureNoteIdsArray = Array.from(scriptureNoteIds).filter((id): id is string => !!id);
+        const scriptureThreadColorsBatchMap = scriptureNoteIdsArray.length > 0
+          ? await getThreadColorsForNotesBatch(scriptureNoteIdsArray, userId)
+          : new Map<string, Array<{ color: string; frequency: number }>>();
         
-        if (scriptureNoteIdsArray.length > 0) {
-          await Promise.all(
-            scriptureNoteIdsArray.map(async (scriptureNoteId) => {
-              const threadColors = await getThreadColorsForNote(scriptureNoteId, userId);
-              if (threadColors.length > 0) {
-                scriptureThreadColorsMap[scriptureNoteId] = threadColors;
-              }
-            })
-          );
+        // Convert Map to Record for compatibility
+        const scriptureThreadColorsMap: Record<string, Array<{ color: string; frequency: number }>> = {};
+        for (const [noteId, threadColors] of scriptureThreadColorsBatchMap.entries()) {
+          if (threadColors.length > 0) {
+            scriptureThreadColorsMap[noteId] = threadColors;
+          }
         }
         
         // Build map of noteId -> array of scripture references with note IDs and thread colors (needed for collapsible UI)
@@ -1285,41 +1306,61 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
 }
 
 // Fetch unorganized notes for dashboard (notes in unorganized thread)
-// Helper function to fetch thread colors with frequency for a note
-async function getThreadColorsForNote(noteId: string, userId: string): Promise<Array<{ color: string; frequency: number }>> {
+// Batch helper function to fetch thread colors with frequency for multiple notes (optimized)
+async function getThreadColorsForNotesBatch(
+  noteIds: string[], 
+  userId: string
+): Promise<Map<string, Array<{ color: string; frequency: number }>>> {
+  if (noteIds.length === 0) return new Map();
+  
   try {
-    // Fetch all threads this note belongs to via junction table
-    const noteThreads = await db.select({
+    const allNoteThreads = await db.select({
+      noteId: NoteThreads.noteId,
       threadId: NoteThreads.threadId,
       color: Threads.color,
     })
     .from(NoteThreads)
     .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
     .where(and(
-      eq(NoteThreads.noteId, noteId),
+      inArray(NoteThreads.noteId, noteIds),
       eq(Threads.userId, userId),
       ne(Threads.id, "thread_unorganized") // Exclude unorganized thread
     ))
     .all();
 
-    // Group by color and count frequency
-    const colorFrequencyMap = new Map<string, number>();
-    for (const nt of noteThreads) {
+    // Group by noteId, then by color, count frequency
+    const noteColorMap = new Map<string, Map<string, number>>();
+    for (const nt of allNoteThreads) {
       if (nt.color) {
-        const currentCount = colorFrequencyMap.get(nt.color) || 0;
-        colorFrequencyMap.set(nt.color, currentCount + 1);
+        if (!noteColorMap.has(nt.noteId)) {
+          noteColorMap.set(nt.noteId, new Map());
+        }
+        const colorMap = noteColorMap.get(nt.noteId)!;
+        colorMap.set(nt.color, (colorMap.get(nt.color) || 0) + 1);
       }
     }
 
-    // Convert to array format
-    return Array.from(colorFrequencyMap.entries()).map(([color, frequency]) => ({
-      color,
-      frequency,
-    }));
+    // Convert to expected format: Map<noteId, Array<{color, frequency}>>
+    const result = new Map<string, Array<{ color: string; frequency: number }>>();
+    for (const [noteId, colorMap] of noteColorMap.entries()) {
+      result.set(noteId, Array.from(colorMap.entries()).map(([color, frequency]) => ({
+        color,
+        frequency,
+      })));
+    }
+    
+    return result;
   } catch (error) {
-    console.error(`Error fetching thread colors for note ${noteId}:`, error);
-    return [];
+    console.error(`Error batch fetching thread colors for notes:`, error);
+    return new Map();
   }
+}
+
+// Helper function to fetch thread colors with frequency for a note (kept for backward compatibility)
+// Prefer using getThreadColorsForNotesBatch() for multiple notes
+async function getThreadColorsForNote(noteId: string, userId: string): Promise<Array<{ color: string; frequency: number }>> {
+  const batchResult = await getThreadColorsForNotesBatch([noteId], userId);
+  return batchResult.get(noteId) || [];
 }
 
 export async function getUnorganizedNotesForDashboard(userId: string, limit = 10) {
@@ -1350,17 +1391,18 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
     .limit(limit)
     .all();
 
-      // Fetch thread colors for all notes
-      const notesWithThreadColors = await Promise.all(
-        notes.map(async (note) => {
-          const threadColors = await getThreadColorsForNote(note.id, userId);
-          return {
-            ...note,
-            lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
-            threadColors: threadColors.length > 0 ? threadColors : undefined,
-          };
-        })
-      );
+      // Fetch thread colors for all notes in batch (optimized - single query instead of N queries)
+      const noteIds = notes.map(note => note.id).filter((id): id is string => !!id);
+      const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
+      
+      const notesWithThreadColors = notes.map((note) => {
+        const threadColors = threadColorsMap.get(note.id);
+        return {
+          ...note,
+          lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+          threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+        };
+      });
 
     return notesWithThreadColors;
   } catch (error) {
@@ -1395,17 +1437,18 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       .limit(limit)
       .all();
 
-      // Fetch thread colors for all notes
-      const notesWithThreadColors = await Promise.all(
-        notes.map(async (note) => {
-          const threadColors = await getThreadColorsForNote(note.id, userId);
-          return {
-            ...note,
-            lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
-            threadColors: threadColors.length > 0 ? threadColors : undefined,
-          };
-        })
-      );
+      // Fetch thread colors for all notes in batch (optimized - single query instead of N queries)
+      const noteIds = notes.map(note => note.id).filter((id): id is string => !!id);
+      const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
+      
+      const notesWithThreadColors = notes.map((note) => {
+        const threadColors = threadColorsMap.get(note.id);
+        return {
+          ...note,
+          lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+          threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+        };
+      });
 
       return notesWithThreadColors;
     }
@@ -1433,17 +1476,18 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
     .limit(limit)
     .all();
 
-    // Fetch thread colors for all notes
-    const notesWithThreadColors = await Promise.all(
-      notes.map(async (note) => {
-        const threadColors = await getThreadColorsForNote(note.id, userId);
-        return {
-          ...note,
-          lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
-          threadColors: threadColors.length > 0 ? threadColors : undefined,
-        };
-      })
-    );
+    // Fetch thread colors for all notes in batch (optimized - single query instead of N queries)
+    const noteIds = notes.map(note => note.id).filter((id): id is string => !!id);
+    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
+    
+    const notesWithThreadColors = notes.map((note) => {
+      const threadColors = threadColorsMap.get(note.id);
+      return {
+        ...note,
+        lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+      };
+    });
 
     return notesWithThreadColors;
   } catch (error) {
