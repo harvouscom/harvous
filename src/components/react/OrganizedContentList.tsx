@@ -103,6 +103,36 @@ export default function OrganizedContentList({
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
 
+  // Shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
+  const sortItemsByLastVisited = useCallback((items: OrganizedContentItem[]): OrganizedContentItem[] => {
+    return [...items].sort((a, b) => {
+      const getSortTime = (item: OrganizedContentItem): number => {
+        // Primary: lastVisited
+        if (item.lastVisited) {
+          const date = normalizeDate(item.lastVisited);
+          if (date) return date.getTime();
+        }
+        // Secondary: lastUpdated
+        if (item.lastUpdated) {
+          const date = normalizeDate(item.lastUpdated);
+          if (date) return date.getTime();
+        }
+        // Tertiary: createdAt
+        if (item.createdAt) {
+          const date = normalizeDate(item.createdAt);
+          if (date) return date.getTime();
+        }
+        return 0;
+      };
+      
+      const diff = getSortTime(b) - getSortTime(a);
+      if (diff !== 0) return diff;
+      
+      // Quaternary: ID for deterministic sorting
+      return (a.id || '').localeCompare(b.id || '');
+    });
+  }, []);
+
   // Optimistic update: immediately update lastVisited and re-sort items
   const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
     setCurrentItems(prev => {
@@ -123,21 +153,19 @@ export default function OrganizedContentList({
       // Update the item's lastVisited to now
       const updatedItems = [...prev];
       const currentItem = updatedItems[itemIndex];
+      const now = new Date();
       
-      // Update lastUpdated which is used for sorting
+      // Update both lastVisited and lastUpdated to match API behavior
       updatedItems[itemIndex] = {
         ...currentItem,
-        lastUpdated: new Date().toISOString()
+        lastVisited: now,
+        lastUpdated: now.toISOString()
       };
 
-      // Re-sort by lastUpdated (newest first) - API uses lastVisited but we use lastUpdated here
-      return updatedItems.sort((a, b) => {
-        const aTime = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
-        const bTime = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
-        return bTime - aTime; // Descending order (newest first)
-      });
+      // Re-sort by lastVisited (matching API logic)
+      return sortItemsByLastVisited(updatedItems);
     });
-  }, []);
+  }, [sortItemsByLastVisited]);
 
   // Extract item ID from pathname (thread_xxx or note_xxx)
   const extractItemIdFromPath = useCallback((pathname: string): { id: string; type: 'thread' | 'note' } | null => {
@@ -191,12 +219,15 @@ export default function OrganizedContentList({
           if (!isMountedRef.current) return false;
 
           // Normalize dates in fresh items
-          const freshItems = freshItemsRaw.map((item: any) => ({
+          const freshItemsNormalized = freshItemsRaw.map((item: any) => ({
             ...item,
             lastUpdated: item.lastUpdated ? (normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
             lastVisited: item.lastVisited ? (normalizeDate(item.lastVisited) || item.lastVisited) : item.lastVisited,
             createdAt: item.createdAt ? (normalizeDate(item.createdAt) || item.createdAt) : item.createdAt
           }));
+
+          // Re-sort by lastVisited (matching API logic) to ensure consistency
+          const freshItems = sortItemsByLastVisited(freshItemsNormalized);
 
           // If we're looking for a specific item, check if it exists
           if (expectedItemId) {
@@ -273,8 +304,9 @@ export default function OrganizedContentList({
             }
           });
 
-          // Combine API items with optimistic items
-          const combinedItems = [...filtered, ...optimisticItemsToKeep];
+          // Combine API items with optimistic items, then re-sort
+          const combinedItemsRaw = [...filtered, ...optimisticItemsToKeep];
+          const combinedItems = sortItemsByLastVisited(combinedItemsRaw);
           
           // Create a key from the refreshed items to track what we just loaded
           const refreshedItemsKey = combinedItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${combinedItems.length}`;
@@ -428,10 +460,22 @@ export default function OrganizedContentList({
           filter: currentFilter,
           threadItemsCount: threadItems.length
         });
+        
+        // Normalize dates in refreshed items
+        const normalizedItems = (data.items || []).map((item: any) => ({
+          ...item,
+          lastUpdated: item.lastUpdated ? (normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+          lastVisited: item.lastVisited ? (normalizeDate(item.lastVisited) || item.lastVisited) : item.lastVisited,
+          createdAt: item.createdAt ? (normalizeDate(item.createdAt) || item.createdAt) : item.createdAt
+        }));
+        
         // Filter out deleted items from refreshed items
-        const filteredItems = data.items.filter((item: OrganizedContentItem) => {
+        const filteredItemsRaw = normalizedItems.filter((item: OrganizedContentItem) => {
           return !deletedItemIdsRef.current.has(item.id);
         });
+        
+        // Re-sort by lastVisited (matching API logic) to ensure consistency
+        const filteredItems = sortItemsByLastVisited(filteredItemsRaw);
         
         // Create a key from the refreshed items to track what we just loaded
         const refreshedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
@@ -487,7 +531,7 @@ export default function OrganizedContentList({
     };
 
     attemptRefresh();
-  }, [filter]);
+  }, [filter, sortItemsByLastVisited]);
 
   // Refresh scripture notes by fetching fresh data from API
   const refreshScriptureNotes = useCallback(async (forceUpdate = false) => {
@@ -539,10 +583,21 @@ export default function OrganizedContentList({
 
       const data = await response.json();
       
+      // Normalize dates in refreshed items
+      const normalizedItems = (data.items || []).map((item: any) => ({
+        ...item,
+        lastUpdated: item.lastUpdated ? (normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+        lastVisited: item.lastVisited ? (normalizeDate(item.lastVisited) || item.lastVisited) : item.lastVisited,
+        createdAt: item.createdAt ? (normalizeDate(item.createdAt) || item.createdAt) : item.createdAt
+      }));
+      
       // Filter out deleted items from refreshed items
-      const filteredItems = data.items.filter((item: OrganizedContentItem) => {
+      const filteredItemsRaw = normalizedItems.filter((item: OrganizedContentItem) => {
         return !deletedItemIdsRef.current.has(item.id);
       });
+      
+      // Re-sort by lastVisited (matching API logic) to ensure consistency
+      const filteredItems = sortItemsByLastVisited(filteredItemsRaw);
       
       // Create a key from the refreshed items to track what we just loaded
       const refreshedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
@@ -966,6 +1021,7 @@ export default function OrganizedContentList({
       }
       
       // Use verification-based refresh instead of arbitrary delay (with retries to preserve optimistic item)
+      // Increased delay from 200ms to 400ms to ensure DB commit completes
       setTimeout(() => {
         refreshContentWithVerification(threadId, 'thread').then((success) => {
           if (success) {
@@ -994,7 +1050,7 @@ export default function OrganizedContentList({
             }
           }
         });
-      }, 200);
+      }, 400); // Increased delay from 200ms to 400ms to ensure DB commit completes
     };
 
     const handleSpaceDeleted = () => {
@@ -1036,7 +1092,7 @@ export default function OrganizedContentList({
         } else {
           refreshContentWithVerification();
         }
-      }, 200);
+      }, 400); // Increased delay from 200ms to 400ms to ensure DB commit completes
     };
 
     const handleThreadUpdated = () => {
@@ -1047,9 +1103,10 @@ export default function OrganizedContentList({
         pendingRefreshTimeoutRef.current = null;
       }
       // Use verification-based refresh
+      // Increased delay from 200ms to 400ms to ensure DB commit completes
       setTimeout(() => {
         refreshContentWithVerification();
-      }, 200);
+      }, 400);
     };
 
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);
