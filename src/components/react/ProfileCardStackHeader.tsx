@@ -44,8 +44,8 @@ export default function ProfileCardStackHeader({
         color: 'var(--color-deep-grey)'
       }}
     >
-      <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
-        <p className="leading-[normal]">{displayName}</p>
+      <div className="page-heading page-heading--center">
+        <p>{displayName}</p>
       </div>
     </div>
   );

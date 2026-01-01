@@ -42,7 +42,7 @@ const textColor = getThreadTextColorCSS(colorName);
       <div class="card-stack__header" style={`background-color: ${headerBgColor}; color: ${textColor}`}>
         {subtitle ? (
           <>
-            <div class={`card-stack__title ${centerTitle ? 'card-stack__title--center' : ''}`}>
+            <div class={`page-heading ${centerTitle ? 'page-heading--center' : ''}`}>
               <p>{title}</p>
             </div>
             <div class="card-stack__subtitle">
@@ -50,7 +50,7 @@ const textColor = getThreadTextColorCSS(colorName);
             </div>
           </>
         ) : (
-          <div class="card-stack__title card-stack__title--center">
+          <div class="page-heading page-heading--center">
             <p>{title}</p>
           </div>
         )}

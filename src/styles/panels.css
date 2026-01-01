@@ -91,8 +91,8 @@
 /* Header title container */
 .panel__title {
   flex-basis: 0;
-  font-family: var(--font-sans);
-  font-weight: 700;
+  font-family: var(--font-roundo) !important;
+  font-weight: 600 !important; /* Semi-bold */
   flex-grow: 1;
   min-height: 1px;
   min-width: 1px;
@@ -102,6 +102,8 @@
   text-align: center;
 
   & p {
+    font-family: var(--font-roundo) !important;
+    font-weight: 600 !important; /* Semi-bold */
     line-height: normal;
   }
 }

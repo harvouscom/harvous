@@ -506,7 +506,9 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                   placeholder="Thread name"
                   className="w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center placeholder:text-[var(--color-pebble-grey)]"
                   style={{ 
-                    color: getThreadTextColorCSS(selectedColor)
+                    color: getThreadTextColorCSS(selectedColor),
+                    fontFamily: 'var(--font-roundo)',
+                    fontWeight: 600 /* Semi-bold */
                   }}
                 />
               </div>

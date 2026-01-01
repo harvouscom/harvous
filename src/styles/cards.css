@@ -685,10 +685,11 @@
   width: 100%;
 }
 
-.card-stack__title {
+/* Page heading - uses Roundo font for main page titles */
+.page-heading {
   flex-basis: 0;
-  font-family: var(--font-sans) !important;
-  font-weight: 700 !important;
+  font-family: var(--font-roundo) !important;
+  font-weight: 600 !important; /* Semi-bold */
   flex-grow: 1;
   min-height: 1px;
   min-width: 1px;
@@ -699,8 +700,35 @@
   -moz-osx-font-smoothing: grayscale;
 
   & p {
-    font-family: var(--font-sans) !important;
-    font-weight: 700 !important;
+    font-family: var(--font-roundo) !important;
+    font-weight: 600 !important; /* Semi-bold */
+    line-height: normal;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+.page-heading--center {
+  text-align: center;
+}
+
+/* Legacy class name - kept for backwards compatibility if needed */
+.card-stack__title {
+  flex-basis: 0;
+  font-family: var(--font-roundo) !important;
+  font-weight: 600 !important; /* Semi-bold */
+  flex-grow: 1;
+  min-height: 1px;
+  min-width: 1px;
+  position: relative;
+  flex-shrink: 0;
+  font-size: 24px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  & p {
+    font-family: var(--font-roundo) !important;
+    font-weight: 600 !important; /* Semi-bold */
     line-height: normal;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

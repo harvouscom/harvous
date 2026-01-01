@@ -435,8 +435,8 @@ export default function EditThreadPanel({
                 color: getThreadTextColorCSS(formData.selectedColor)
               }}
             >
-              <div className="basis-0 font-sans font-bold grow min-h-px min-w-px relative shrink-0 text-[24px] text-center">
-                <p className="leading-[normal]">Edit Thread</p>
+              <div className="panel__title">
+                <p>Edit Thread</p>
               </div>
             </div>
             
