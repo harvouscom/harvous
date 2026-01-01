@@ -137,6 +137,8 @@ export default function ThreadNotesList({
   const prevNoteTypeFilterRef = useRef<string>(noteTypeFilter);
   const isMountedRef = useRef<boolean>(true);
   const hasRefreshedOnMountRef = useRef<boolean>(false);
+  // Track optimistically added notes that haven't been confirmed by API yet
+  const optimisticNotesRef = useRef<Map<string, { timestamp: number; note: Note }>>(new Map());
   
   // Cleanup on unmount
   useEffect(() => {
@@ -183,6 +185,9 @@ export default function ThreadNotesList({
       const { noteId, threadId: deletedThreadId } = event.detail;
       // Only remove if the note belongs to this thread or if threadId matches
       if (noteId && (deletedThreadId === threadId || !deletedThreadId)) {
+        // Remove from optimistic tracking if it exists
+        optimisticNotesRef.current.delete(noteId);
+        
         setDeletedNoteIds(prev => {
           const newSet = new Set([...prev, noteId]);
           deletedNoteIdsRef.current = newSet;
@@ -350,10 +355,40 @@ export default function ThreadNotesList({
           // Filter out deleted notes
           const filtered = freshNotes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
           
+          // Merge with optimistic notes that haven't been confirmed yet
+          const confirmedNoteIds = new Set(filtered.map(note => note.id));
+          const optimisticNotesToKeep: Note[] = [];
+          const now = Date.now();
+          const fiveSecondsAgo = now - 5000;
+
+          // Keep optimistic notes that:
+          // 1. Haven't been confirmed by API yet
+          // 2. Were added recently (within last 5 seconds)
+          // 3. Match the current note type filter
+          optimisticNotesRef.current.forEach(({ timestamp, note }, noteId) => {
+            if (!confirmedNoteIds.has(noteId) && timestamp > fiveSecondsAgo) {
+              // Check if note matches current filter
+              const matchesFilter = noteTypeFilter === 'all' || 
+                                   (noteTypeFilter === 'scripture' && note.noteType === 'scripture') ||
+                                   (noteTypeFilter === 'resources' && note.noteType === 'resource') ||
+                                   (noteTypeFilter === 'default' && (note.noteType === 'default' || !note.noteType));
+              
+              if (matchesFilter && !deletedNoteIdsRef.current.has(noteId)) {
+                optimisticNotesToKeep.push(note);
+              }
+            } else if (confirmedNoteIds.has(noteId)) {
+              // Note confirmed by API, remove from optimistic tracking
+              optimisticNotesRef.current.delete(noteId);
+            }
+          });
+
+          // Combine API notes with optimistic notes
+          const combinedNotes = [...filtered, ...optimisticNotesToKeep];
+          
           // Apply note type filter
           const typeFiltered = noteTypeFilter === 'all' 
-            ? filtered 
-            : filterNotesByType(filtered, noteTypeFilter);
+            ? combinedNotes 
+            : filterNotesByType(combinedNotes, noteTypeFilter);
 
           // Deduplicate by note ID
           const uniqueNotes = Array.from(
@@ -366,6 +401,14 @@ export default function ThreadNotesList({
           setNotes(sortedNotes);
           accumulatedFilteredCountRef.current = sortedNotes.length;
           databaseOffsetRef.current = freshNotes.length;
+
+          // If we're looking for a specific note and it exists (in API or optimistic), remove from optimistic tracking
+          if (expectedNoteId) {
+            const noteExists = sortedNotes.some(note => note.id === expectedNoteId);
+            if (noteExists && confirmedNoteIds.has(expectedNoteId)) {
+              optimisticNotesRef.current.delete(expectedNoteId);
+            }
+          }
           
           return true; // Success
         } catch (error) {
@@ -460,7 +503,35 @@ export default function ThreadNotesList({
           return; // Already in list, skip
         }
 
-        // Use verification-based refresh with noteId from event
+        // OPTIMISTIC UPDATE: Add note immediately if we have note data
+        if (note) {
+          // Check if note matches current filter
+          const matchesFilter = noteTypeFilter === 'all' ||
+                               (noteTypeFilter === 'scripture' && note.noteType === 'scripture') ||
+                               (noteTypeFilter === 'resources' && note.noteType === 'resource') ||
+                               (noteTypeFilter === 'default' && (note.noteType === 'default' || !note.noteType));
+
+          if (matchesFilter) {
+            // Track as optimistic note
+            optimisticNotesRef.current.set(noteId, {
+              timestamp: Date.now(),
+              note: note
+            });
+
+            // Add note optimistically
+            setNotes(prev => {
+              // Check if already exists
+              if (prev.some(n => n.id === noteId)) {
+                return prev;
+              }
+              // Add new note and re-sort
+              const updated = [note, ...prev];
+              return sortNotesByTime(updated);
+            });
+          }
+        }
+
+        // Use verification-based refresh with noteId from event (with retries to preserve optimistic note)
         // PHASE 4: Only remove from sessionStorage after successful verification
         const success = await refreshNotesList(noteId);
         if (success) {
@@ -480,6 +551,18 @@ export default function ThreadNotesList({
               console.error('[ThreadNotesList] Error cleaning up sessionStorage:', error);
             }
           }, 500); // Small delay to ensure note is fully rendered
+        } else {
+          // Verification failed after all attempts - check if we should remove optimistic note
+          // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
+          const optimisticNote = optimisticNotesRef.current.get(noteId);
+          if (optimisticNote) {
+            const timeSinceCreation = Date.now() - optimisticNote.timestamp;
+            if (timeSinceCreation > 2000) {
+              // Remove optimistic note after 2 seconds if still not confirmed
+              optimisticNotesRef.current.delete(noteId);
+              setNotes(prev => prev.filter(n => n.id !== noteId));
+            }
+          }
         }
       }
     };

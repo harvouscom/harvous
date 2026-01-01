@@ -85,6 +85,8 @@ export default function SpaceContentList({
   const itemsRef = useRef<SpaceItem[]>(sortItemsByLastVisited(initialItems || []));
   const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
   const isNavigatingRef = useRef(false);
+  // Track optimistically added items that haven't been confirmed by API yet
+  const optimisticItemsRef = useRef<Map<string, { timestamp: number; item: SpaceItem }>>(new Map());
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -96,6 +98,39 @@ export default function SpaceContentList({
     return () => {
       isMountedRef.current = false;
     };
+  }, []);
+
+  // Optimistic update: immediately update lastVisited and re-sort items
+  const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
+    setItems(prev => {
+      const itemIndex = prev.findIndex(item => item.id === itemId && item.itemType === itemType);
+      if (itemIndex === -1) {
+        // Item not found in current list (might be filtered out)
+        return prev;
+      }
+
+      // Update the item's lastVisited to now
+      const updatedItems = [...prev];
+      updatedItems[itemIndex] = {
+        ...updatedItems[itemIndex],
+        lastVisited: new Date()
+      };
+
+      // Re-sort by lastVisited
+      return sortItemsByLastVisited(updatedItems);
+    });
+  }, []);
+
+  // Extract item ID from pathname (thread_xxx or note_xxx)
+  const extractItemIdFromPath = useCallback((pathname: string): { id: string; type: 'thread' | 'note' } | null => {
+    if (pathname.startsWith('/thread_')) {
+      const id = pathname.substring(1); // Remove leading '/'
+      return { id, type: 'thread' as const };
+    } else if (pathname.startsWith('/note_')) {
+      const id = pathname.substring(1); // Remove leading '/'
+      return { id, type: 'note' as const };
+    }
+    return null;
   }, []);
 
   // Verification-based refresh function
@@ -160,17 +195,46 @@ export default function SpaceContentList({
           // Filter out deleted items
           const filtered = sortedAllItems.filter(item => !deletedItemIdsRef.current.has(item.id));
 
+          // Merge with optimistic items that haven't been confirmed yet
+          const confirmedItemIds = new Set(filtered.map(item => item.id));
+          const optimisticItemsToKeep: SpaceItem[] = [];
+          const now = Date.now();
+          const fiveSecondsAgo = now - 5000;
+
+          // Keep optimistic items that:
+          // 1. Haven't been confirmed by API yet
+          // 2. Were added recently (within last 5 seconds)
+          // 3. Match the current filter
+          optimisticItemsRef.current.forEach(({ timestamp, item }, itemId) => {
+            if (!confirmedItemIds.has(itemId) && timestamp > fiveSecondsAgo) {
+              // Check if item matches current filter
+              const matchesFilter = filter === 'all' || 
+                                   (filter === 'threads' && item.itemType === 'thread') ||
+                                   (filter === 'notes' && item.itemType === 'note');
+              
+              if (matchesFilter && !deletedItemIdsRef.current.has(itemId)) {
+                optimisticItemsToKeep.push(item);
+              }
+            } else if (confirmedItemIds.has(itemId)) {
+              // Item confirmed by API, remove from optimistic tracking
+              optimisticItemsRef.current.delete(itemId);
+            }
+          });
+
+          // Combine API items with optimistic items
+          const combinedItems = [...filtered, ...optimisticItemsToKeep];
+
           // Apply filter
           let filteredItems = filter === 'all' 
-            ? filtered 
+            ? combinedItems 
             : filter === 'threads'
-            ? filtered.filter(item => item.itemType === 'thread')
-            : filtered.filter(item => item.itemType === 'note');
+            ? combinedItems.filter(item => item.itemType === 'thread')
+            : combinedItems.filter(item => item.itemType === 'note');
 
           // Ensure items are sorted by lastVisited after filtering
           filteredItems = sortItemsByLastVisited(filteredItems);
 
-          // If we're looking for a specific item, check if it exists
+          // If we're looking for a specific item, check if it exists (in API or optimistic)
           if (expectedItemId) {
             const itemExists = filteredItems.some(item => 
               item.id === expectedItemId && 
@@ -180,6 +244,11 @@ export default function SpaceContentList({
               // Item not found yet, wait and retry
               await new Promise(resolve => setTimeout(resolve, delays[attempt]));
               continue;
+            }
+            
+            // If item exists after all attempts (or found), remove from optimistic tracking
+            if (itemExists && confirmedItemIds.has(expectedItemId)) {
+              optimisticItemsRef.current.delete(expectedItemId);
             }
           }
 
@@ -296,6 +365,12 @@ export default function SpaceContentList({
             lastVisited: note.lastVisited
           };
 
+          // Track as optimistic item
+          optimisticItemsRef.current.set(noteId, {
+            timestamp: Date.now(),
+            item: newItem
+          });
+
           setItems(prev => {
             // Check if already exists
             if (prev.some(item => item.id === newItem.id)) {
@@ -306,7 +381,7 @@ export default function SpaceContentList({
           });
         }
 
-        // Verify with API after short delay
+        // Verify with API after short delay (with retries to preserve optimistic item)
         setTimeout(() => {
           refreshSpaceContent(noteId, 'note').then((success) => {
             if (success) {
@@ -322,6 +397,18 @@ export default function SpaceContentList({
                 }
               } catch (error) {
                 console.error('[SpaceContentList] Error cleaning up sessionStorage after noteCreated:', error);
+              }
+            } else {
+              // Verification failed after all attempts - check if we should remove optimistic item
+              // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
+              const optimisticItem = optimisticItemsRef.current.get(noteId);
+              if (optimisticItem) {
+                const timeSinceCreation = Date.now() - optimisticItem.timestamp;
+                if (timeSinceCreation > 2000) {
+                  // Remove optimistic item after 2 seconds if still not confirmed
+                  optimisticItemsRef.current.delete(noteId);
+                  setItems(prev => prev.filter(item => item.id !== noteId));
+                }
               }
             }
           });
@@ -351,6 +438,12 @@ export default function SpaceContentList({
             lastVisited: thread.lastVisited
           };
 
+          // Track as optimistic item
+          optimisticItemsRef.current.set(actualThreadId, {
+            timestamp: Date.now(),
+            item: newItem
+          });
+
           setItems(prev => {
             // Check if already exists
             if (prev.some(item => item.id === newItem.id)) {
@@ -361,7 +454,7 @@ export default function SpaceContentList({
           });
         }
 
-        // Verify with API after short delay
+        // Verify with API after short delay (with retries to preserve optimistic item)
         setTimeout(() => {
           refreshSpaceContent(actualThreadId, 'thread').then((success) => {
             if (success) {
@@ -377,6 +470,18 @@ export default function SpaceContentList({
                 }
               } catch (error) {
                 console.error('[SpaceContentList] Error cleaning up sessionStorage after threadCreated:', error);
+              }
+            } else {
+              // Verification failed after all attempts - check if we should remove optimistic item
+              // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
+              const optimisticItem = optimisticItemsRef.current.get(actualThreadId);
+              if (optimisticItem) {
+                const timeSinceCreation = Date.now() - optimisticItem.timestamp;
+                if (timeSinceCreation > 2000) {
+                  // Remove optimistic item after 2 seconds if still not confirmed
+                  optimisticItemsRef.current.delete(actualThreadId);
+                  setItems(prev => prev.filter(item => item.id !== actualThreadId));
+                }
               }
             }
           });
@@ -471,18 +576,53 @@ export default function SpaceContentList({
         // Also refresh when coming from thread/note (to update lastVisited sorting)
         // This matches the dashboard behavior
         if (navigatedToSpace || cameFromThreadOrNote || previousWasThreadOrNote) {
+          // OPTIMISTIC UPDATE: Immediately update lastVisited and re-sort for instant feedback
+          let visitedItemId: string | null = null;
+          let visitedItemType: 'thread' | 'note' | null = null;
+
+          // Try to extract item ID from previous pathname first (most reliable)
+          if (previousWasThreadOrNote) {
+            const extracted = extractItemIdFromPath(previousPathnameRef.current);
+            if (extracted) {
+              visitedItemId = extracted.id;
+              visitedItemType = extracted.type;
+            }
+          }
+
+          // Fallback to referrer if previous pathname didn't work
+          if (!visitedItemId && cameFromThreadOrNote && referrer) {
+            try {
+              const referrerUrl = new URL(referrer);
+              const extracted = extractItemIdFromPath(referrerUrl.pathname);
+              if (extracted) {
+                visitedItemId = extracted.id;
+                visitedItemType = extracted.type;
+              }
+            } catch (e) {
+              // Invalid referrer URL, skip
+            }
+          }
+
+          // Perform optimistic update immediately if we found the item
+          if (visitedItemId && visitedItemType) {
+            debug('[SpaceContentList] Performing optimistic update', { visitedItemId, visitedItemType });
+            optimisticUpdateLastVisited(visitedItemId, visitedItemType);
+          }
+
           debug('[SpaceContentList] Will refresh on page load', {
             navigatedToSpace,
             cameFromThreadOrNote,
             previousWasThreadOrNote,
             previousPath: previousPathnameRef.current,
             currentPath: currentPath,
-            spaceId
+            spaceId,
+            optimisticUpdate: visitedItemId ? { id: visitedItemId, type: visitedItemType } : null
           });
-          // Small delay to ensure database has committed lastVisited updates
+
+          // Background API refresh with minimal delay (optimistic update already handled visual feedback)
           setTimeout(() => {
             if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
-              debug('[SpaceContentList] Refreshing space content for sorting update');
+              debug('[SpaceContentList] Refreshing space content for verification');
               refreshSpaceContent().then((success) => {
                 debug('[SpaceContentList] Refresh completed', { success, itemCount: itemsRef.current.length });
                 // Sorting is already applied in refreshSpaceContent
@@ -495,7 +635,7 @@ export default function SpaceContentList({
                 isNavigating: isNavigatingRef.current
               });
             }
-          }, 300);
+          }, 100); // Reduced delay since optimistic update provides instant feedback
         } else {
           debug('[SpaceContentList] Skipping refresh - no navigation detected', {
             navigatedToSpace,
@@ -530,20 +670,54 @@ export default function SpaceContentList({
                                       previousPathnameRef.current.startsWith('/note_');
 
       if (cameFromThreadOrNote || previousWasThreadOrNote) {
+        // OPTIMISTIC UPDATE: Immediately update lastVisited and re-sort
+        let visitedItemId: string | null = null;
+        let visitedItemType: 'thread' | 'note' | null = null;
+
+        // Try to extract item ID from previous pathname first
+        if (previousWasThreadOrNote) {
+          const extracted = extractItemIdFromPath(previousPathnameRef.current);
+          if (extracted) {
+            visitedItemId = extracted.id;
+            visitedItemType = extracted.type;
+          }
+        }
+
+        // Fallback to referrer
+        if (!visitedItemId && cameFromThreadOrNote && referrer) {
+          try {
+            const referrerUrl = new URL(referrer);
+            const extracted = extractItemIdFromPath(referrerUrl.pathname);
+            if (extracted) {
+              visitedItemId = extracted.id;
+              visitedItemType = extracted.type;
+            }
+          } catch (e) {
+            // Invalid referrer URL, skip
+          }
+        }
+
+        // Perform optimistic update immediately if we found the item
+        if (visitedItemId && visitedItemType) {
+          debug('[SpaceContentList] Mount check: performing optimistic update', { visitedItemId, visitedItemType });
+          optimisticUpdateLastVisited(visitedItemId, visitedItemType);
+        }
+
         debug('[SpaceContentList] Mount check: will refresh', {
           cameFromThreadOrNote,
           previousWasThreadOrNote,
           referrer,
-          previousPath: previousPathnameRef.current
+          previousPath: previousPathnameRef.current,
+          optimisticUpdate: visitedItemId ? { id: visitedItemId, type: visitedItemType } : null
         });
-        // Small delay to ensure database has committed lastVisited updates
+        // Background API refresh with minimal delay
         setTimeout(() => {
           if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
             refreshSpaceContent().then((success) => {
               debug('[SpaceContentList] Mount refresh completed', { success });
             });
           }
-        }, 300);
+        }, 100); // Reduced delay since optimistic update provides instant feedback
       }
     };
 
@@ -559,7 +733,7 @@ export default function SpaceContentList({
       document.removeEventListener('astro:before-preparation', handleBeforeNavigation);
       document.removeEventListener('astro:page-load', handlePageLoad);
     };
-  }, [spaceId, refreshSpaceContent]);
+  }, [spaceId, refreshSpaceContent, optimisticUpdateLastVisited, extractItemIdFromPath]);
 
   // Filter items based on current filter
   const filteredItems = filter === 'all' 

@@ -54,6 +54,56 @@ export default function OrganizedContentList({
   const shouldBypassDebounceRef = useRef(false); // Flag to bypass debounce for navigation-triggered refreshes
   const pendingUpdateRef = useRef(false); // Track if an update event occurred while not on dashboard
   const currentItemsRef = useRef<OrganizedContentItem[]>(initialItems || []); // Track current items for verification
+  // Track optimistically added items that haven't been confirmed by API yet
+  const optimisticItemsRef = useRef<Map<string, { timestamp: number; item: OrganizedContentItem }>>(new Map());
+
+  // Optimistic update: immediately update lastVisited and re-sort items
+  const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
+    setCurrentItems(prev => {
+      // Find the item by ID - could be thread-{id}, note-{id}, or just {id}
+      const itemIndex = prev.findIndex(item => {
+        if (itemType === 'thread') {
+          return item.threadId === itemId || item.id === `thread-${itemId}` || item.id === itemId;
+        } else {
+          return item.noteId === itemId || item.id === `note-${itemId}` || item.id === itemId;
+        }
+      });
+
+      if (itemIndex === -1) {
+        // Item not found in current list (might be filtered out)
+        return prev;
+      }
+
+      // Update the item's lastVisited to now
+      const updatedItems = [...prev];
+      const currentItem = updatedItems[itemIndex];
+      
+      // Update lastUpdated which is used for sorting
+      updatedItems[itemIndex] = {
+        ...currentItem,
+        lastUpdated: new Date().toISOString()
+      };
+
+      // Re-sort by lastUpdated (newest first) - API uses lastVisited but we use lastUpdated here
+      return updatedItems.sort((a, b) => {
+        const aTime = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
+        const bTime = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
+        return bTime - aTime; // Descending order (newest first)
+      });
+    });
+  }, []);
+
+  // Extract item ID from pathname (thread_xxx or note_xxx)
+  const extractItemIdFromPath = useCallback((pathname: string): { id: string; type: 'thread' | 'note' } | null => {
+    if (pathname.startsWith('/thread_')) {
+      const id = pathname.substring(1); // Remove leading '/'
+      return { id, type: 'thread' as const };
+    } else if (pathname.startsWith('/note_')) {
+      const id = pathname.substring(1); // Remove leading '/'
+      return { id, type: 'note' as const };
+    }
+    return null;
+  }, []);
 
   // Verification-based refresh function
   const refreshContentWithVerification = useCallback(async (expectedItemId?: string, expectedItemType?: 'thread' | 'note'): Promise<boolean> => {
@@ -112,9 +162,68 @@ export default function OrganizedContentList({
           const filtered = freshItems.filter((item: OrganizedContentItem) => {
             return !deletedItemIdsRef.current.has(item.id);
           });
+
+          // Merge with optimistic items that haven't been confirmed yet
+          // Create a set of all confirmed item IDs (including both prefixed and raw IDs)
+          const confirmedItemIds = new Set<string>();
+          filtered.forEach(item => {
+            confirmedItemIds.add(item.id);
+            if (item.threadId) {
+              confirmedItemIds.add(item.threadId);
+              confirmedItemIds.add(`thread-${item.threadId}`);
+            }
+            if (item.noteId) {
+              confirmedItemIds.add(item.noteId);
+              confirmedItemIds.add(`note-${item.noteId}`);
+            }
+          });
+
+          const optimisticItemsToKeep: OrganizedContentItem[] = [];
+          const now = Date.now();
+          const fiveSecondsAgo = now - 5000;
+
+          // Keep optimistic items that:
+          // 1. Haven't been confirmed by API yet
+          // 2. Were added recently (within last 5 seconds)
+          // 3. Match the current filter
+          optimisticItemsRef.current.forEach(({ timestamp, item }, itemId) => {
+            // Check if item is confirmed (by ID, threadId, or noteId)
+            const isConfirmed = confirmedItemIds.has(itemId) ||
+                               (item.threadId && confirmedItemIds.has(item.threadId)) ||
+                               (item.noteId && confirmedItemIds.has(item.noteId)) ||
+                               confirmedItemIds.has(item.id);
+
+            if (!isConfirmed && timestamp > fiveSecondsAgo) {
+              // Check if item matches current filter
+              const currentFilter = filterRef.current;
+              const matchesFilter = currentFilter === 'all' ||
+                                   (currentFilter === 'threads' && item.type === 'thread') ||
+                                   (currentFilter === 'notes' && item.type === 'note' && (item.noteType === 'default' || !item.noteType)) ||
+                                   (currentFilter === 'resources' && item.type === 'note' && item.noteType === 'resource');
+              
+              if (matchesFilter && !deletedItemIdsRef.current.has(itemId) && !deletedItemIdsRef.current.has(item.id)) {
+                optimisticItemsToKeep.push(item);
+              }
+            } else if (isConfirmed) {
+              // Item confirmed by API, remove from optimistic tracking (check all possible keys)
+              optimisticItemsRef.current.delete(itemId);
+              if (item.threadId) {
+                optimisticItemsRef.current.delete(item.threadId);
+                optimisticItemsRef.current.delete(`thread-${item.threadId}`);
+              }
+              if (item.noteId) {
+                optimisticItemsRef.current.delete(item.noteId);
+                optimisticItemsRef.current.delete(`note-${item.noteId}`);
+              }
+              optimisticItemsRef.current.delete(item.id);
+            }
+          });
+
+          // Combine API items with optimistic items
+          const combinedItems = [...filtered, ...optimisticItemsToKeep];
           
           // Create a key from the refreshed items to track what we just loaded
-          const refreshedItemsKey = filtered.map((item: OrganizedContentItem) => item.id).join(',') + `|${filtered.length}`;
+          const refreshedItemsKey = combinedItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${combinedItems.length}`;
           
           // Double-check we're still on dashboard and mounted before updating
           if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && filterRef.current !== 'scripture') {
@@ -124,14 +233,34 @@ export default function OrganizedContentList({
               isRefreshingItemsRef.current = true;
               lastRefreshItemsKeyRef.current = refreshedItemsKey;
               
-              setCurrentItems(filtered);
-              currentItemsRef.current = filtered;
-              debug('[OrganizedContentList] Updated currentItems with verification', { itemCount: filtered.length });
+              setCurrentItems(combinedItems);
+              currentItemsRef.current = combinedItems;
+              debug('[OrganizedContentList] Updated currentItems with verification', { itemCount: combinedItems.length, optimisticCount: optimisticItemsToKeep.length });
               
               // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
               setTimeout(() => {
                 isRefreshingItemsRef.current = false;
               }, 100);
+            }
+          }
+
+          // If we're looking for a specific item and it exists (in API or optimistic), remove from optimistic tracking
+          if (expectedItemId) {
+            const itemExists = combinedItems.some(item => {
+              const itemId = expectedItemType === 'thread' ? `thread-${expectedItemId}` : 
+                           expectedItemType === 'note' ? `note-${expectedItemId}` : expectedItemId;
+              return item.id === itemId || item.threadId === expectedItemId || item.noteId === expectedItemId;
+            });
+            
+            if (itemExists && (confirmedItemIds.has(expectedItemId) || 
+                (expectedItemType === 'thread' && confirmedItemIds.has(`thread-${expectedItemId}`)) ||
+                (expectedItemType === 'note' && confirmedItemIds.has(`note-${expectedItemId}`)))) {
+              optimisticItemsRef.current.delete(expectedItemId);
+              if (expectedItemType === 'thread') {
+                optimisticItemsRef.current.delete(`thread-${expectedItemId}`);
+              } else if (expectedItemType === 'note') {
+                optimisticItemsRef.current.delete(`note-${expectedItemId}`);
+              }
             }
           }
           
@@ -508,6 +637,10 @@ export default function OrganizedContentList({
     const handleNoteDeleted = (event: CustomEvent) => {
       const { noteId } = event.detail;
       if (noteId) {
+        // Remove from optimistic tracking if it exists
+        optimisticItemsRef.current.delete(noteId);
+        optimisticItemsRef.current.delete(`note-${noteId}`);
+        
         setDeletedItemIds((prev: Set<string>) => {
           // Add both raw ID and prefixed ID to match item.id format (note-${id})
           const newSet = new Set([...prev, noteId, `note-${noteId}`]);
@@ -520,6 +653,10 @@ export default function OrganizedContentList({
     const handleThreadDeleted = (event: CustomEvent) => {
       const { threadId } = event.detail;
       if (threadId) {
+        // Remove from optimistic tracking if it exists
+        optimisticItemsRef.current.delete(threadId);
+        optimisticItemsRef.current.delete(`thread-${threadId}`);
+        
         setDeletedItemIds((prev: Set<string>) => {
           // Add both raw ID and prefixed ID to match item.id format (thread-${id})
           const newSet = new Set([...prev, threadId, `thread-${threadId}`]);
@@ -663,6 +800,12 @@ export default function OrganizedContentList({
               resourceDescription: note.resourceDescription,
               resourceImage: note.resourceImage
             };
+
+            // Track as optimistic item (use noteId as key)
+            optimisticItemsRef.current.set(noteId, {
+              timestamp: Date.now(),
+              item: noteItem
+            });
             
             setCurrentItems((prev: OrganizedContentItem[]) => {
               // Check if note already exists to avoid duplicates
@@ -677,7 +820,7 @@ export default function OrganizedContentList({
             });
           }
           
-          // Verify with API after short delay
+          // Verify with API after short delay (with retries to preserve optimistic item)
           setTimeout(() => {
             refreshContentWithVerification(expectedItemId, expectedItemType).then((success) => {
               if (success) {
@@ -691,6 +834,18 @@ export default function OrganizedContentList({
                   }
                 } catch (error) {
                   console.error('[OrganizedContentList] Error cleaning up sessionStorage after noteCreated:', error);
+                }
+              } else {
+                // Verification failed after all attempts - check if we should remove optimistic item
+                // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
+                const optimisticItem = optimisticItemsRef.current.get(noteId);
+                if (optimisticItem) {
+                  const timeSinceCreation = Date.now() - optimisticItem.timestamp;
+                  if (timeSinceCreation > 2000) {
+                    // Remove optimistic item after 2 seconds if still not confirmed
+                    optimisticItemsRef.current.delete(noteId);
+                    setCurrentItems(prev => prev.filter(item => item.noteId !== noteId));
+                  }
                 }
               }
             });
@@ -734,6 +889,12 @@ export default function OrganizedContentList({
           accentColor: thread.color ? getThreadColorCSS(thread.color) : undefined,
           isPrivate: !thread.isPublic,
         };
+
+        // Track as optimistic item (use threadId as key)
+        optimisticItemsRef.current.set(threadId, {
+          timestamp: Date.now(),
+          item: threadItem
+        });
         
         setCurrentItems((prev: OrganizedContentItem[]) => {
           // Check if thread already exists to avoid duplicates
@@ -750,7 +911,7 @@ export default function OrganizedContentList({
         });
       }
       
-      // Use verification-based refresh instead of arbitrary delay
+      // Use verification-based refresh instead of arbitrary delay (with retries to preserve optimistic item)
       setTimeout(() => {
         refreshContentWithVerification(threadId, 'thread').then((success) => {
           if (success) {
@@ -764,6 +925,18 @@ export default function OrganizedContentList({
               }
             } catch (error) {
               console.error('[OrganizedContentList] Error cleaning up sessionStorage after threadCreated:', error);
+            }
+          } else {
+            // Verification failed after all attempts - check if we should remove optimistic item
+            // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
+            const optimisticItem = optimisticItemsRef.current.get(threadId);
+            if (optimisticItem) {
+              const timeSinceCreation = Date.now() - optimisticItem.timestamp;
+              if (timeSinceCreation > 2000) {
+                // Remove optimistic item after 2 seconds if still not confirmed
+                optimisticItemsRef.current.delete(threadId);
+                setCurrentItems(prev => prev.filter(item => item.threadId !== threadId));
+              }
             }
           }
         });
@@ -894,10 +1067,44 @@ export default function OrganizedContentList({
         // Also refresh if there was a pending update while we were away
         // OR if we came from a thread/note page (to update lastVisited sorting)
         if (navigatedToDashboard || pendingUpdateRef.current || (cameFromThreadOrNote || previousWasThreadOrNote)) {
+          // OPTIMISTIC UPDATE: Immediately update lastVisited and re-sort for instant feedback
+          let visitedItemId: string | null = null;
+          let visitedItemType: 'thread' | 'note' | null = null;
+
+          // Try to extract item ID from previous pathname first (most reliable)
+          if (previousWasThreadOrNote) {
+            const extracted = extractItemIdFromPath(previousPathnameRef.current);
+            if (extracted) {
+              visitedItemId = extracted.id;
+              visitedItemType = extracted.type;
+            }
+          }
+
+          // Fallback to referrer if previous pathname didn't work
+          if (!visitedItemId && cameFromThreadOrNote && referrer) {
+            try {
+              const referrerUrl = new URL(referrer);
+              const extracted = extractItemIdFromPath(referrerUrl.pathname);
+              if (extracted) {
+                visitedItemId = extracted.id;
+                visitedItemType = extracted.type;
+              }
+            } catch (e) {
+              // Invalid referrer URL, skip
+            }
+          }
+
+          // Perform optimistic update immediately if we found the item
+          if (visitedItemId && visitedItemType) {
+            debug('[OrganizedContentList] Performing optimistic update', { visitedItemId, visitedItemType });
+            optimisticUpdateLastVisited(visitedItemId, visitedItemType);
+          }
+
           debug('[OrganizedContentList] Navigated to dashboard, will refresh', {
             previousPath: previousPathnameRef.current,
             hadPendingUpdate: pendingUpdateRef.current,
-            cameFromThreadOrNote: cameFromThreadOrNote || previousWasThreadOrNote
+            cameFromThreadOrNote: cameFromThreadOrNote || previousWasThreadOrNote,
+            optimisticUpdate: visitedItemId ? { id: visitedItemId, type: visitedItemType } : null
           });
           // Clear pending update flag
           pendingUpdateRef.current = false;
@@ -905,7 +1112,7 @@ export default function OrganizedContentList({
           shouldBypassDebounceRef.current = true;
           lastRefreshTimeRef.current = 0;
           
-          // Small delay to ensure database has committed any changes made on previous page
+          // Background API refresh with minimal delay (optimistic update already handled visual feedback)
           // Clear any pending timeout first
           if (pendingRefreshTimeoutRef.current) {
             clearTimeout(pendingRefreshTimeoutRef.current);
@@ -918,7 +1125,7 @@ export default function OrganizedContentList({
                 // Sorting is handled by the API response, but verify it's correct
               });
             }
-          }, 300); // Reduced delay since we're using verification-based refresh
+          }, 100); // Reduced delay since optimistic update provides instant feedback
           previousPathnameRef.current = window.location.pathname;
           return;
         }
@@ -1003,7 +1210,7 @@ export default function OrganizedContentList({
         pendingRefreshTimeoutRef.current = null;
       }
     };
-  }, []); // Empty deps - we use ref to access latest refreshContent
+  }, [optimisticUpdateLastVisited, extractItemIdFromPath, refreshContentWithVerification]); // Include dependencies for optimistic updates
 
   // Cleanup on unmount
   useEffect(() => {
