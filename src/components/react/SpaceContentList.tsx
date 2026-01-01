@@ -112,6 +112,8 @@ export default function SpaceContentList({
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
   const isRefreshingRef = useRef(false);
+  // Track optimistic update retry timeouts for cleanup
+  const optimisticUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -127,11 +129,26 @@ export default function SpaceContentList({
 
   // Optimistic update: immediately update lastVisited and re-sort items
   const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note', retryCount = 0) => {
+    // Check if component is still mounted before proceeding
+    if (!isMountedRef.current) {
+      debug('[SpaceContentList] Component unmounted, skipping optimistic update', { itemId, itemType });
+      return;
+    }
+
     setItems(prev => {
       // If list is empty and this is first attempt, wait for items
       if (prev.length === 0 && retryCount === 0) {
         debug('[SpaceContentList] Items list empty, will retry optimistic update', { itemId, itemType });
-        setTimeout(() => optimisticUpdateLastVisited(itemId, itemType, retryCount + 1), 50);
+        // Clear any existing timeout
+        if (optimisticUpdateTimeoutRef.current) {
+          clearTimeout(optimisticUpdateTimeoutRef.current);
+        }
+        optimisticUpdateTimeoutRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            optimisticUpdateLastVisited(itemId, itemType, retryCount + 1);
+          }
+          optimisticUpdateTimeoutRef.current = null;
+        }, 50);
         return prev;
       }
       
@@ -165,8 +182,17 @@ export default function SpaceContentList({
         });
         
         // Retry if list has items but item not found (might be timing/format issue)
-        if (prev.length > 0 && retryCount < 2) {
-          setTimeout(() => optimisticUpdateLastVisited(itemId, itemType, retryCount + 1), 100);
+        if (prev.length > 0 && retryCount < 2 && isMountedRef.current) {
+          // Clear any existing timeout
+          if (optimisticUpdateTimeoutRef.current) {
+            clearTimeout(optimisticUpdateTimeoutRef.current);
+          }
+          optimisticUpdateTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              optimisticUpdateLastVisited(itemId, itemType, retryCount + 1);
+            }
+            optimisticUpdateTimeoutRef.current = null;
+          }, 100);
         }
         return prev;
       }

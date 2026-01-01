@@ -92,6 +92,8 @@ export default function OrganizedContentList({
   // Track visibility changes for PWA foreground refresh
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
+  // Track optimistic update retry timeouts for cleanup
+  const optimisticUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
   // Note: OrganizedContentItem uses lastUpdated instead of updatedAt, so we need to map it
@@ -110,11 +112,26 @@ export default function OrganizedContentList({
 
   // Optimistic update: immediately update lastVisited and re-sort items
   const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note', retryCount = 0) => {
+    // Check if component is still mounted before proceeding
+    if (!isMountedRef.current) {
+      debug('[OrganizedContentList] Component unmounted, skipping optimistic update', { itemId, itemType });
+      return;
+    }
+
     setCurrentItems(prev => {
       // If list is empty, wait
       if (prev.length === 0 && retryCount === 0) {
         debug('[OrganizedContentList] Items list empty, will retry optimistic update', { itemId, itemType });
-        setTimeout(() => optimisticUpdateLastVisited(itemId, itemType, retryCount + 1), 50);
+        // Clear any existing timeout
+        if (optimisticUpdateTimeoutRef.current) {
+          clearTimeout(optimisticUpdateTimeoutRef.current);
+        }
+        optimisticUpdateTimeoutRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            optimisticUpdateLastVisited(itemId, itemType, retryCount + 1);
+          }
+          optimisticUpdateTimeoutRef.current = null;
+        }, 50);
         return prev;
       }
       
@@ -144,8 +161,17 @@ export default function OrganizedContentList({
           listLength: prev.length,
           available: prev.slice(0, 5).map(i => ({ id: i.id, threadId: i.threadId, noteId: i.noteId, type: i.type }))
         });
-        if (prev.length > 0 && retryCount < 2) {
-          setTimeout(() => optimisticUpdateLastVisited(itemId, itemType, retryCount + 1), 100);
+        if (prev.length > 0 && retryCount < 2 && isMountedRef.current) {
+          // Clear any existing timeout
+          if (optimisticUpdateTimeoutRef.current) {
+            clearTimeout(optimisticUpdateTimeoutRef.current);
+          }
+          optimisticUpdateTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              optimisticUpdateLastVisited(itemId, itemType, retryCount + 1);
+            }
+            optimisticUpdateTimeoutRef.current = null;
+          }, 100);
         }
         return prev;
       }
@@ -1416,6 +1442,11 @@ export default function OrganizedContentList({
       if (pendingRefreshTimeoutRef.current) {
         clearTimeout(pendingRefreshTimeoutRef.current);
         pendingRefreshTimeoutRef.current = null;
+      }
+      // Clear optimistic update timeout
+      if (optimisticUpdateTimeoutRef.current) {
+        clearTimeout(optimisticUpdateTimeoutRef.current);
+        optimisticUpdateTimeoutRef.current = null;
       }
     };
   }, []);
