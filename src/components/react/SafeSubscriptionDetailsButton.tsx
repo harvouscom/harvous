@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SubscriptionDetailsButton } from '@clerk/clerk-react/experimental';
 import { ClerkProvider, SignedIn } from '@clerk/clerk-react';
 
@@ -20,6 +20,8 @@ export default function SafeSubscriptionDetailsButton({
   const [effectiveKey, setEffectiveKey] = useState<string | null>(publishableKey);
   const [pathname, setPathname] = useState<string>('');
   const [remountKey, setRemountKey] = useState<number>(Date.now());
+  const [isVisible, setIsVisible] = useState<boolean>(true);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Get publishableKey from props or window global (for View Transitions compatibility)
   useEffect(() => {
@@ -33,6 +35,37 @@ export default function SafeSubscriptionDetailsButton({
       setRemountKey(Date.now());
     }
   }, [publishableKey]);
+
+  // Visibility detection using IntersectionObserver to force remount when component becomes visible
+  useEffect(() => {
+    if (typeof window === 'undefined' || !containerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const wasVisible = isVisible;
+          const nowVisible = entry.isIntersecting;
+          
+          // If component becomes visible after being hidden, force remount
+          if (!wasVisible && nowVisible) {
+            setRemountKey(Date.now());
+          }
+          
+          setIsVisible(nowVisible);
+        });
+      },
+      {
+        threshold: 0.1, // Trigger when at least 10% visible
+        rootMargin: '0px'
+      }
+    );
+
+    observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isVisible]);
 
   // Re-check after View Transitions navigation and force remount
   useEffect(() => {
@@ -91,19 +124,21 @@ export default function SafeSubscriptionDetailsButton({
   // React Islands are isolated - each needs its own ClerkProvider
   // This is expected and correct behavior
   return (
-    <ClerkProvider 
-      key={`clerk-provider-subscription-${pathname}-${remountKey}`}
-      publishableKey={clerkConfig.publishableKey!}
-      domain={clerkConfig.domain}
-      afterSignInUrl={clerkConfig.afterSignInUrl}
-      afterSignUpUrl={clerkConfig.afterSignUpUrl}
-    >
-      <SignedIn>
-        <SubscriptionDetailsButton key={`subscription-details-${remountKey}`}>
-          {children}
-        </SubscriptionDetailsButton>
-      </SignedIn>
-    </ClerkProvider>
+    <div ref={containerRef}>
+      <ClerkProvider 
+        key={`clerk-provider-subscription-${pathname}-${remountKey}`}
+        publishableKey={clerkConfig.publishableKey!}
+        domain={clerkConfig.domain}
+        afterSignInUrl={clerkConfig.afterSignInUrl}
+        afterSignUpUrl={clerkConfig.afterSignUpUrl}
+      >
+        <SignedIn>
+          <SubscriptionDetailsButton key={`subscription-details-${remountKey}`}>
+            {children}
+          </SubscriptionDetailsButton>
+        </SignedIn>
+      </ClerkProvider>
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CheckoutButton } from '@clerk/clerk-react/experimental';
 import { ClerkProvider, SignedIn, useAuth } from '@clerk/clerk-react';
 
@@ -474,6 +474,8 @@ export default function UpgradeCheckoutButton({
   const clerkConfig = getClerkConfig();
   const [pathname, setPathname] = useState<string>('');
   const [remountKey, setRemountKey] = useState<number>(Date.now());
+  const [isVisible, setIsVisible] = useState<boolean>(true);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Track pathname and update remount key on each navigation to force ClerkProvider remount
   useEffect(() => {
@@ -497,6 +499,37 @@ export default function UpgradeCheckoutButton({
     };
   }, []);
 
+  // Visibility detection using IntersectionObserver to force remount when component becomes visible
+  useEffect(() => {
+    if (typeof window === 'undefined' || !containerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const wasVisible = isVisible;
+          const nowVisible = entry.isIntersecting;
+          
+          // If component becomes visible after being hidden, force remount
+          if (!wasVisible && nowVisible) {
+            setRemountKey(Date.now());
+          }
+          
+          setIsVisible(nowVisible);
+        });
+      },
+      {
+        threshold: 0.1, // Trigger when at least 10% visible
+        rootMargin: '0px'
+      }
+    );
+
+    observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isVisible]);
+
   // Debug: Log ClerkProvider configuration
   useEffect(() => {
     if (effectiveKey) {
@@ -512,21 +545,23 @@ export default function UpgradeCheckoutButton({
   }, [effectiveKey, clerkConfig, pathname, unlimitedPlanId]);
 
   return (
-    <ClerkProvider 
-      key={`clerk-provider-${pathname}-${remountKey}`}
-      publishableKey={clerkConfig.publishableKey!}
-      domain={clerkConfig.domain}
-      afterSignInUrl={clerkConfig.afterSignInUrl}
-      afterSignUpUrl={clerkConfig.afterSignUpUrl}
-    >
-      <SignedIn>
-        <UpgradeCheckoutButtonInner 
-          key={`checkout-inner-${remountKey}`}
-          className={className} 
-          unlimitedPlanId={unlimitedPlanId} 
-        />
-      </SignedIn>
-    </ClerkProvider>
+    <div ref={containerRef}>
+      <ClerkProvider 
+        key={`clerk-provider-${pathname}-${remountKey}`}
+        publishableKey={clerkConfig.publishableKey!}
+        domain={clerkConfig.domain}
+        afterSignInUrl={clerkConfig.afterSignInUrl}
+        afterSignUpUrl={clerkConfig.afterSignUpUrl}
+      >
+        <SignedIn>
+          <UpgradeCheckoutButtonInner 
+            key={`checkout-inner-${remountKey}`}
+            className={className} 
+            unlimitedPlanId={unlimitedPlanId} 
+          />
+        </SignedIn>
+      </ClerkProvider>
+    </div>
   );
 }
 
