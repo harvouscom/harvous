@@ -19,47 +19,16 @@ function UpgradeCheckoutButtonInner({
   unlimitedPlanId: string;
 }) {
   const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const [isClient, setIsClient] = useState(false);
-  const [isClerkReady, setIsClerkReady] = useState(false);
 
   // Ensure we're on the client before rendering Clerk components
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Wait for Clerk to be fully ready (beyond just isLoaded)
-  useEffect(() => {
-    if (isLoaded && isSignedIn && userId) {
-      // Check if Clerk billing is available
-      const checkClerkBilling = () => {
-        // Check if Clerk frontend API is available (indicates Clerk is fully loaded)
-        const hasClerkAPI = typeof window !== 'undefined' && !!(window as any).__clerk_frontend_api;
-        
-        if (hasClerkAPI) {
-          setIsClerkReady(true);
-        } else {
-          // Retry after a short delay
-          setTimeout(checkClerkBilling, 100);
-        }
-      };
-      
-      // Start checking immediately, but also set a timeout
-      checkClerkBilling();
-      const timeout = setTimeout(() => {
-        // Even if Clerk API isn't detected, set ready after timeout
-        // CheckoutButton might still work
-        setIsClerkReady(true);
-      }, 500);
-      
-      return () => clearTimeout(timeout);
-    } else {
-      setIsClerkReady(false);
-    }
-  }, [isLoaded, isSignedIn, userId]);
-
   // Show loading state while Clerk initializes
-  if (!isClient || !isLoaded || !isClerkReady) {
+  if (!isClient || !isLoaded) {
     return (
       <div className={className}>
         {/* Button group skeleton - matches the actual layout */}
@@ -357,26 +326,25 @@ function UpgradeCheckoutButtonInner({
           </div>
 
           {/* CheckoutButton with planPeriod prop - Clerk docs confirm this is supported */}
-          <div style={{ width: '100%', marginTop: '1.5rem' }}>
-            <CheckoutButton 
-              planId={unlimitedPlanId}
-              planPeriod={selectedInterval === 'year' ? 'annual' : 'month'}
+          <CheckoutButton 
+            planId={unlimitedPlanId}
+            planPeriod={selectedInterval === 'year' ? 'annual' : 'month'}
+          >
+            <button
+              type="button"
+              data-outer-shadow
+              className="btn-cta flex-1 group"
+              style={{ 
+                width: '100%', 
+                marginTop: '1.5rem',
+                cursor: 'pointer'
+              }}
+              tabIndex={3}
             >
-              <button
-                type="button"
-                data-outer-shadow
-                className="btn-cta flex-1 group"
-                style={{ 
-                  width: '100%', 
-                  cursor: 'pointer'
-                }}
-                tabIndex={3}
-              >
-                <span className="btn-cta__content">Continue & Pay</span>
-                <div className="btn-cta__shadow" />
-              </button>
-            </CheckoutButton>
-          </div>
+              <span className="btn-cta__content">Continue & Pay</span>
+              <div className="btn-cta__shadow" />
+            </button>
+          </CheckoutButton>
 
       {/* Go back to My Harvous button - secondary variant */}
       <a

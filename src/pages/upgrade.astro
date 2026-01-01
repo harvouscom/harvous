@@ -73,10 +73,23 @@ const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.
 <!-- Enable View Transitions for client-side navigation -->
 <ClientRouter />
 
-<!-- Show upgrade content once page loads -->
+<!-- Hide navigation and show upgrade content -->
 <script is:inline>
   (function() {
     if (typeof window === 'undefined') return;
+    
+    // Function to hide navigation
+    function hideNavigation() {
+      const nav = document.querySelector('[slot="navigation"]');
+      const persistentNav = document.getElementById('persistent-navigation');
+      const desktopNav = document.querySelector('.desktop-layout [slot="navigation"]');
+      const mobileNav = document.querySelector('.mobile-layout [slot="mobile-navigation"]');
+      
+      if (nav) nav.style.display = 'none';
+      if (persistentNav) persistentNav.style.display = 'none';
+      if (desktopNav) desktopNav.style.display = 'none';
+      if (mobileNav) mobileNav.style.display = 'none';
+    }
     
     // Function to show upgrade content
     function showUpgradeContent() {
@@ -86,13 +99,19 @@ const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.
       }
     }
     
-    // Show on initial load
+    // Hide navigation and show content immediately
+    hideNavigation();
     showUpgradeContent();
     
-    // Also show on View Transitions page loads
+    // Also handle View Transitions
+    document.addEventListener('astro:before-swap', function() {
+      hideNavigation();
+    });
+    
     document.addEventListener('astro:page-load', function() {
       // Check if we're on the upgrade page
       if (window.location.pathname === '/upgrade') {
+        hideNavigation();
         showUpgradeContent();
       }
     });
@@ -101,9 +120,26 @@ const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.
 
 
 <style>
+  /* Ensure auth-page covers viewport and is above navigation */
+  .auth-page {
+    position: relative;
+    z-index: 100;
+    min-height: 100svh;
+    background-color: var(--color-light-paper);
+  }
+
   /* Hide upgrade content by default to prevent flash */
   .auth-page__hidden {
     opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  /* Hide navigation when upgrade page is present */
+  body:has(#upgrade-content) [slot="navigation"],
+  body:has(#upgrade-content) #persistent-navigation,
+  body:has(#upgrade-content) .desktop-layout [slot="navigation"],
+  body:has(#upgrade-content) .mobile-layout [slot="mobile-navigation"] {
+    display: none !important;
     visibility: hidden !important;
   }
 
