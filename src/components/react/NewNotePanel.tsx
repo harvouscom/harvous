@@ -55,7 +55,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
   // State for subscription limit check
   const [isLimitReached, setIsLimitReached] = useState(false);
   const [currentCount, setCurrentCount] = useState(0);
-  const [limit, setLimit] = useState(300);
+  const [limit, setLimit] = useState(500);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -176,8 +176,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       if (response.ok) {
         const data = await response.json();
         setCurrentCount(data.currentCount || 0);
-        setLimit(data.limit || 300);
-        setIsLimitReached(!data.hasUnlimited && (data.currentCount || 0) >= (data.limit || 300));
+        setLimit(data.limit || 500);
+        setIsLimitReached(!data.hasUnlimited && (data.currentCount || 0) >= (data.limit || 500));
       } else {
         // Only log if it's not a 401 (unauthorized) - that's expected if user isn't logged in
         if (response.status !== 401) {

@@ -90,9 +90,9 @@ export default function UpgradePageContent({
       ) : (
         <div className="upgrade-content">
           <div className="upgrade-content__header">
-            <h1 className="clerk-form-header-title">You've used {currentCount.toLocaleString()} of {limit?.toLocaleString() || 300} notes</h1>
+            <h1 className="clerk-form-header-title">You've used {currentCount.toLocaleString()} of {limit?.toLocaleString() || 500} notes</h1>
             <p className="clerk-form-header-subtitle">
-              To keep using Harvous past the 300 note limit upgrade to get unlimited notes. Either choose to pay monthly or yearly ($3.25 per month).
+              To keep using Harvous past the 500 note limit upgrade to get unlimited notes. Either choose to pay monthly or yearly ($3.25 per month).
             </p>
           </div>
 
