@@ -379,8 +379,30 @@ export default function UpgradeCheckoutButton({
   publishableKey = null,
   unlimitedPlanId = 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw' // Default fallback
 }: UpgradeCheckoutButtonProps) {
+  const [effectiveKey, setEffectiveKey] = useState<string | null>(publishableKey);
+
+  // Get publishableKey from props or window global (for View Transitions compatibility)
+  useEffect(() => {
+    // Use prop if available, otherwise try window global
+    const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
+    setEffectiveKey(key);
+  }, [publishableKey]);
+
+  // Re-check after View Transitions navigation
+  useEffect(() => {
+    const handlePageLoad = () => {
+      const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
+      setEffectiveKey(key);
+    };
+
+    document.addEventListener('astro:page-load', handlePageLoad);
+    return () => {
+      document.removeEventListener('astro:page-load', handlePageLoad);
+    };
+  }, [publishableKey]);
+
   // If no publishable key, render disabled button
-  if (!publishableKey) {
+  if (!effectiveKey) {
     return (
       <div className={className}>
         <button
@@ -405,7 +427,7 @@ export default function UpgradeCheckoutButton({
   const getClerkConfig = () => {
     if (typeof window === 'undefined') {
       return {
-        publishableKey,
+        publishableKey: effectiveKey,
         domain: undefined,
         afterSignInUrl: undefined,
         afterSignUpUrl: undefined
@@ -413,7 +435,7 @@ export default function UpgradeCheckoutButton({
     }
 
     return {
-      publishableKey,
+      publishableKey: effectiveKey,
       domain: window.location.hostname,
       afterSignInUrl: window.location.origin,
       afterSignUpUrl: window.location.origin

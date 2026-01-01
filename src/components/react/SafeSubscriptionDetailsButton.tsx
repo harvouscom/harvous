@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { SubscriptionDetailsButton } from '@clerk/clerk-react/experimental';
 import { ClerkProvider, SignedIn } from '@clerk/clerk-react';
 
@@ -17,8 +17,30 @@ export default function SafeSubscriptionDetailsButton({
   children,
   publishableKey = null
 }: SafeSubscriptionDetailsButtonProps) {
+  const [effectiveKey, setEffectiveKey] = useState<string | null>(publishableKey);
+
+  // Get publishableKey from props or window global (for View Transitions compatibility)
+  useEffect(() => {
+    // Use prop if available, otherwise try window global
+    const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
+    setEffectiveKey(key);
+  }, [publishableKey]);
+
+  // Re-check after View Transitions navigation
+  useEffect(() => {
+    const handlePageLoad = () => {
+      const key = publishableKey || (typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null);
+      setEffectiveKey(key);
+    };
+
+    document.addEventListener('astro:page-load', handlePageLoad);
+    return () => {
+      document.removeEventListener('astro:page-load', handlePageLoad);
+    };
+  }, [publishableKey]);
+
   // If no publishable key, render a disabled placeholder
-  if (!publishableKey) {
+  if (!effectiveKey) {
     return (
       <button
         type="button"
@@ -35,7 +57,7 @@ export default function SafeSubscriptionDetailsButton({
   const getClerkConfig = () => {
     if (typeof window === 'undefined') {
       return {
-        publishableKey,
+        publishableKey: effectiveKey,
         domain: undefined,
         afterSignInUrl: undefined,
         afterSignUpUrl: undefined
@@ -43,7 +65,7 @@ export default function SafeSubscriptionDetailsButton({
     }
 
     return {
-      publishableKey,
+      publishableKey: effectiveKey,
       domain: window.location.hostname,
       afterSignInUrl: window.location.origin,
       afterSignUpUrl: window.location.origin

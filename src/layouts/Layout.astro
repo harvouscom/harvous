@@ -280,6 +280,16 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <!-- Profile Data Sync Script -->
     <script is:inline src="/scripts/profile-sync.js"></script>
     
+    <!-- Clerk Publishable Key Global (for React Islands after View Transitions) -->
+    <script is:inline define:vars={{ publishableKey }}>
+      (function() {
+        if (typeof window === 'undefined') return;
+        // Make publishableKey available globally for React Islands
+        // This ensures billing components work after View Transitions navigation
+        window.CLERK_PUBLISHABLE_KEY = publishableKey || null;
+      })();
+    </script>
+    
     <!-- Development environment fixes -->
     <script>
       // Only run in development
