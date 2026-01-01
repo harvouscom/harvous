@@ -128,6 +128,10 @@ export default function SpaceContentList({
   const isNavigatingRef = useRef(false);
   // Track optimistically added items that haven't been confirmed by API yet
   const optimisticItemsRef = useRef<Map<string, { timestamp: number; item: SpaceItem }>>(new Map());
+  // Track visibility changes for PWA foreground refresh
+  const lastBackgroundTimeRef = useRef<number>(0);
+  const lastVisibilityRefreshRef = useRef<number>(0);
+  const isRefreshingRef = useRef(false);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -799,6 +803,67 @@ export default function SpaceContentList({
       document.removeEventListener('astro:page-load', handlePageLoad);
     };
   }, [spaceId, refreshSpaceContent, optimisticUpdateLastVisited, extractItemIdFromPath]);
+
+  // Listen for visibility changes to refresh when PWA comes to foreground
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const MIN_BACKGROUND_TIME = 30000; // 30 seconds
+    const MIN_REFRESH_INTERVAL = 2000; // 2 seconds between refreshes
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // App went to background - record time
+        lastBackgroundTimeRef.current = Date.now();
+      } else {
+        // App came to foreground
+        const currentPath = window.location.pathname;
+        const isSpacePage = currentPath === `/${spaceId}`;
+        
+        if (!isSpacePage) return;
+
+        const timeInBackground = lastBackgroundTimeRef.current > 0 
+          ? Date.now() - lastBackgroundTimeRef.current 
+          : 0;
+        const timeSinceLastRefresh = Date.now() - lastVisibilityRefreshRef.current;
+        const inPWA = isPWA();
+
+        // Only refresh if:
+        // 1. Was in background for > 30 seconds, OR
+        // 2. This is PWA (always refresh for PWA on foreground), OR
+        // 3. First time coming to foreground (lastBackgroundTimeRef was 0)
+        const shouldRefresh = (timeInBackground > MIN_BACKGROUND_TIME || inPWA || lastBackgroundTimeRef.current === 0) &&
+                              timeSinceLastRefresh > MIN_REFRESH_INTERVAL &&
+                              !isNavigatingRef.current &&
+                              !isRefreshingRef.current &&
+                              isMountedRef.current;
+
+        if (shouldRefresh) {
+          lastVisibilityRefreshRef.current = Date.now();
+          isRefreshingRef.current = true;
+          
+          debug('[SpaceContentList] Visibility change: refreshing content', {
+            timeInBackground,
+            inPWA,
+            timeSinceLastRefresh
+          });
+
+          refreshSpaceContent().then((success) => {
+            isRefreshingRef.current = false;
+            debug('[SpaceContentList] Visibility refresh completed', { success });
+          }).catch((error) => {
+            isRefreshingRef.current = false;
+            console.error('[SpaceContentList] Visibility refresh failed:', error);
+          });
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [spaceId, refreshSpaceContent]);
 
   // Filter items based on current filter
   const filteredItems = filter === 'all' 

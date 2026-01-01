@@ -99,6 +99,9 @@ export default function OrganizedContentList({
   const currentItemsRef = useRef<OrganizedContentItem[]>(initialItems || []); // Track current items for verification
   // Track optimistically added items that haven't been confirmed by API yet
   const optimisticItemsRef = useRef<Map<string, { timestamp: number; item: OrganizedContentItem }>>(new Map());
+  // Track visibility changes for PWA foreground refresh
+  const lastBackgroundTimeRef = useRef<number>(0);
+  const lastVisibilityRefreshRef = useRef<number>(0);
 
   // Optimistic update: immediately update lastVisited and re-sort items
   const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
@@ -1271,6 +1274,73 @@ export default function OrganizedContentList({
       }
     };
   }, [optimisticUpdateLastVisited, extractItemIdFromPath, refreshContentWithVerification]); // Include dependencies for optimistic updates
+
+  // Listen for visibility changes to refresh when PWA comes to foreground
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const MIN_BACKGROUND_TIME = 30000; // 30 seconds
+    const MIN_REFRESH_INTERVAL = 2000; // 2 seconds between refreshes
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // App went to background - record time
+        lastBackgroundTimeRef.current = Date.now();
+      } else {
+        // App came to foreground
+        const isDashboard = window.location.pathname === '/';
+        
+        if (!isDashboard) return;
+
+        const timeInBackground = lastBackgroundTimeRef.current > 0 
+          ? Date.now() - lastBackgroundTimeRef.current 
+          : 0;
+        const timeSinceLastRefresh = Date.now() - lastVisibilityRefreshRef.current;
+        const inPWA = isPWA();
+
+        // Only refresh if:
+        // 1. Was in background for > 30 seconds, OR
+        // 2. This is PWA (always refresh for PWA on foreground), OR
+        // 3. First time coming to foreground (lastBackgroundTimeRef was 0)
+        const shouldRefresh = (timeInBackground > MIN_BACKGROUND_TIME || inPWA || lastBackgroundTimeRef.current === 0) &&
+                              timeSinceLastRefresh > MIN_REFRESH_INTERVAL &&
+                              !isNavigatingRef.current &&
+                              !isRefreshingRef.current &&
+                              isMountedRef.current;
+
+        if (shouldRefresh) {
+          lastVisibilityRefreshRef.current = Date.now();
+          isRefreshingRef.current = true;
+          
+          debug('[OrganizedContentList] Visibility change: refreshing content', {
+            timeInBackground,
+            inPWA,
+            timeSinceLastRefresh
+          });
+
+          // Clear any pending refresh timeout
+          if (pendingRefreshTimeoutRef.current) {
+            clearTimeout(pendingRefreshTimeoutRef.current);
+            pendingRefreshTimeoutRef.current = null;
+          }
+
+          // Use refreshContentWithVerification for visibility-based refresh
+          refreshContentWithVerification().then(() => {
+            isRefreshingRef.current = false;
+            debug('[OrganizedContentList] Visibility refresh completed');
+          }).catch((error) => {
+            isRefreshingRef.current = false;
+            console.error('[OrganizedContentList] Visibility refresh failed:', error);
+          });
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refreshContentWithVerification]);
 
   // Cleanup on unmount
   useEffect(() => {

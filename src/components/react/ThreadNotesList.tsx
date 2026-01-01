@@ -178,6 +178,10 @@ export default function ThreadNotesList({
   const prevNoteTypeFilterRef = useRef<string>(noteTypeFilter);
   const isMountedRef = useRef<boolean>(true);
   const hasRefreshedOnMountRef = useRef<boolean>(false);
+  // Track visibility changes for PWA foreground refresh
+  const lastBackgroundTimeRef = useRef<number>(0);
+  const lastVisibilityRefreshRef = useRef<number>(0);
+  const isRefreshingRef = useRef<boolean>(false);
   // Track optimistically added notes that haven't been confirmed by API yet
   const optimisticNotesRef = useRef<Map<string, { timestamp: number; note: Note }>>(new Map());
   
@@ -770,6 +774,68 @@ export default function ThreadNotesList({
       }
     };
   }, [threadId, noteTypeFilter, refreshNotesList]);
+
+  // Listen for visibility changes to refresh when PWA comes to foreground
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const MIN_BACKGROUND_TIME = 30000; // 30 seconds
+    const MIN_REFRESH_INTERVAL = 2000; // 2 seconds between refreshes
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // App went to background - record time
+        lastBackgroundTimeRef.current = Date.now();
+      } else {
+        // App came to foreground
+        const currentPath = window.location.pathname;
+        const currentThreadId = currentPath.substring(1);
+        
+        // Only refresh if we're on the correct thread page (including unorganized)
+        if (currentThreadId !== threadId) return;
+
+        const timeInBackground = lastBackgroundTimeRef.current > 0 
+          ? Date.now() - lastBackgroundTimeRef.current 
+          : 0;
+        const timeSinceLastRefresh = Date.now() - lastVisibilityRefreshRef.current;
+        const inPWA = isPWA();
+
+        // Only refresh if:
+        // 1. Was in background for > 30 seconds, OR
+        // 2. This is PWA (always refresh for PWA on foreground), OR
+        // 3. First time coming to foreground (lastBackgroundTimeRef was 0)
+        const shouldRefresh = (timeInBackground > MIN_BACKGROUND_TIME || inPWA || lastBackgroundTimeRef.current === 0) &&
+                              timeSinceLastRefresh > MIN_REFRESH_INTERVAL &&
+                              !isRefreshingRef.current &&
+                              isMountedRef.current;
+
+        if (shouldRefresh) {
+          lastVisibilityRefreshRef.current = Date.now();
+          isRefreshingRef.current = true;
+
+          console.log('[ThreadNotesList] Visibility change: refreshing notes', {
+            timeInBackground,
+            inPWA,
+            timeSinceLastRefresh,
+            threadId
+          });
+
+          refreshNotesList().then((success) => {
+            isRefreshingRef.current = false;
+            console.log('[ThreadNotesList] Visibility refresh completed', { success });
+          }).catch((error) => {
+            isRefreshingRef.current = false;
+            console.error('[ThreadNotesList] Visibility refresh failed:', error);
+          });
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [threadId, refreshNotesList]);
 
   // Check if this is the unorganized thread
   const isUnorganizedThread = threadId === 'thread_unorganized';
