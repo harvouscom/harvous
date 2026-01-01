@@ -1304,15 +1304,22 @@ button .menu-item__label {
 /* ==========================================================================
    Clerk Drawer Z-Index Override
    ========================================================================== */
-/* Ensure Clerk drawer appears above bottom sheet (z-index: 50) and all other UI */
+/* Ensure Clerk drawer appears above bottom sheet (z-index: 50), auth-page (z-index: 100), and all other UI */
 /* Only set z-index, don't change positioning to avoid breaking drawer layout */
 :global([class*="cl-drawer"]),
 :global([class*="cl-drawerContent"]),
 :global([class*="cl-drawerBody"]),
+:global([class*="cl-drawerOverlay"]),
+:global([class*="cl-drawerBackdrop"]),
 :global([class*="cl-internal"][class*="cl-drawer"]),
 :global([class*="cl-internal"][class*="cl-drawerContent"]),
-:global([class*="cl-internal"][class*="cl-drawerBody"]) {
-  z-index: 200 !important;
+:global([class*="cl-internal"][class*="cl-drawerBody"]),
+:global([class*="cl-internal"][class*="cl-drawerOverlay"]),
+:global([class*="cl-internal"][class*="cl-drawerBackdrop"]),
+:global([data-clerk-element*="drawer"]),
+:global([data-clerk-element*="drawerOverlay"]),
+:global([data-clerk-element*="drawerBackdrop"]) {
+  z-index: 300 !important;
 }
 
 /* ==========================================================================

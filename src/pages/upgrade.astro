@@ -78,17 +78,42 @@ const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.
   (function() {
     if (typeof window === 'undefined') return;
     
-    // Function to hide navigation
+    // Comprehensive function to hide all navigation elements
     function hideNavigation() {
-      const nav = document.querySelector('[slot="navigation"]');
-      const persistentNav = document.getElementById('persistent-navigation');
-      const desktopNav = document.querySelector('.desktop-layout [slot="navigation"]');
-      const mobileNav = document.querySelector('.mobile-layout [slot="mobile-navigation"]');
+      // Get all possible navigation selectors
+      const selectors = [
+        '[slot="navigation"]',
+        '#persistent-navigation',
+        '.desktop-layout [slot="navigation"]',
+        '.mobile-layout [slot="mobile-navigation"]',
+        '.desktop-layout .layout-column:first-child',
+        '.mobile-layout .mobile-nav-slot',
+        '.mobile-layout .mobile-bottom-sheet',
+        '.app-layout .desktop-layout .layout-column:first-child',
+        '.app-layout .mobile-layout .mobile-nav-slot',
+        '[data-navigation-active="true"]',
+        '[data-navigation-path]'
+      ];
       
-      if (nav) nav.style.display = 'none';
-      if (persistentNav) persistentNav.style.display = 'none';
-      if (desktopNav) desktopNav.style.display = 'none';
-      if (mobileNav) mobileNav.style.display = 'none';
+      // Hide all matching elements
+      selectors.forEach(selector => {
+        try {
+          const elements = document.querySelectorAll(selector);
+          elements.forEach(el => {
+            const htmlEl = el;
+            if (htmlEl && htmlEl.style) {
+              htmlEl.style.display = 'none';
+              htmlEl.style.visibility = 'hidden';
+              htmlEl.style.opacity = '0';
+              htmlEl.style.pointerEvents = 'none';
+              htmlEl.style.position = 'absolute';
+              htmlEl.style.left = '-9999px';
+            }
+          });
+        } catch (e) {
+          // Silently ignore selector errors
+        }
+      });
     }
     
     // Function to show upgrade content
@@ -99,15 +124,30 @@ const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.
       }
     }
     
-    // Hide navigation and show content immediately
+    // Hide navigation immediately on load
     hideNavigation();
     showUpgradeContent();
     
-    // Also handle View Transitions
-    document.addEventListener('astro:before-swap', function() {
-      hideNavigation();
+    // Hide navigation BEFORE View Transition swap occurs
+    document.addEventListener('astro:before-swap', function(event) {
+      // Check if navigating TO upgrade page
+      const targetUrl = (event && event.detail && event.detail.to && event.detail.to.url) 
+        ? event.detail.to.url 
+        : window.location.href;
+      if (targetUrl.includes('/upgrade') || window.location.pathname === '/upgrade') {
+        hideNavigation();
+      }
     });
     
+    // Also hide on any navigation away from upgrade page (to prevent flash when going back)
+    document.addEventListener('astro:before-swap', function() {
+      // If currently on upgrade page and navigating away, ensure nav is hidden during transition
+      if (window.location.pathname === '/upgrade') {
+        hideNavigation();
+      }
+    });
+    
+    // Ensure navigation stays hidden after page load
     document.addEventListener('astro:page-load', function() {
       // Check if we're on the upgrade page
       if (window.location.pathname === '/upgrade') {
@@ -115,6 +155,70 @@ const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.
         showUpgradeContent();
       }
     });
+    
+    // MutationObserver to catch dynamically added navigation elements
+    // This ensures navigation is hidden even if added after initial page load
+    if (typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(function(mutations) {
+        // Only watch if we're on the upgrade page
+        if (window.location.pathname === '/upgrade') {
+          let shouldHide = false;
+          
+            mutations.forEach(function(mutation) {
+              // Check if any added nodes are navigation elements
+              mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType === 1) { // Element node
+                  const el = node;
+                  // Check if the added element or its children are navigation
+                  if (
+                    (el.hasAttribute && el.hasAttribute('slot') && el.getAttribute('slot') === 'navigation') ||
+                    (el.id === 'persistent-navigation') ||
+                    (el.classList && el.classList.contains('layout-column')) ||
+                    (el.querySelector && el.querySelector('[slot="navigation"]')) ||
+                    (el.querySelector && el.querySelector('#persistent-navigation')) ||
+                    (el.hasAttribute && el.hasAttribute('data-navigation-active')) ||
+                    (el.hasAttribute && el.hasAttribute('data-navigation-path'))
+                  ) {
+                    shouldHide = true;
+                  }
+                }
+              });
+            });
+          
+          if (shouldHide) {
+            hideNavigation();
+          }
+        }
+      });
+      
+      // Start observing when DOM is ready
+      if (document.body) {
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+      } else {
+        // Wait for DOM to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+          if (document.body) {
+            observer.observe(document.body, {
+              childList: true,
+              subtree: true
+            });
+          }
+        });
+      }
+      
+      // Also observe after View Transitions
+      document.addEventListener('astro:page-load', function() {
+        if (window.location.pathname === '/upgrade' && document.body) {
+          observer.observe(document.body, {
+            childList: true,
+            subtree: true
+          });
+        }
+      });
+    }
   })();
 </script>
 
@@ -134,13 +238,45 @@ const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.
     visibility: hidden !important;
   }
 
-  /* Hide navigation when upgrade page is present */
+  /* Hide navigation when upgrade page is present - Immediate CSS (before JS runs) */
+  /* Target all possible navigation elements including layout columns */
   body:has(#upgrade-content) [slot="navigation"],
   body:has(#upgrade-content) #persistent-navigation,
   body:has(#upgrade-content) .desktop-layout [slot="navigation"],
-  body:has(#upgrade-content) .mobile-layout [slot="mobile-navigation"] {
+  body:has(#upgrade-content) .mobile-layout [slot="mobile-navigation"],
+  body:has(#upgrade-content) .desktop-layout .layout-column:first-child,
+  body:has(#upgrade-content) .desktop-layout .layout-column:first-child > *,
+  body:has(#upgrade-content) .mobile-layout .mobile-nav-slot,
+  body:has(#upgrade-content) .mobile-layout .mobile-bottom-sheet,
+  body:has(#upgrade-content) .app-layout .desktop-layout .layout-column:first-child,
+  body:has(#upgrade-content) .app-layout .mobile-layout .mobile-nav-slot,
+  body:has(#upgrade-content) [data-navigation-active="true"],
+  body:has(#upgrade-content) [data-navigation-path] {
     display: none !important;
     visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    left: -9999px !important;
+  }
+
+  /* Hide navigation during View Transitions - target transition states */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    /* Ensure navigation is hidden in both old and new transition states */
+  }
+
+  ::view-transition-old(root) [slot="navigation"],
+  ::view-transition-new(root) [slot="navigation"],
+  ::view-transition-old(root) #persistent-navigation,
+  ::view-transition-new(root) #persistent-navigation,
+  ::view-transition-old(root) .desktop-layout .layout-column:first-child,
+  ::view-transition-new(root) .desktop-layout .layout-column:first-child,
+  ::view-transition-old(root) .mobile-layout [slot="mobile-navigation"],
+  ::view-transition-new(root) .mobile-layout [slot="mobile-navigation"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
   }
 
   /* Custom primary button styling - matches sign-in/sign-up */
@@ -627,5 +763,31 @@ const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.
       padding-left: 0 !important;
       padding-right: 0 !important;
     }
+  }
+
+  /* ==========================================================================
+     Clerk Drawer Z-Index Override for Upgrade Page
+     ========================================================================== */
+  /* Ensure Clerk drawers appear above auth-page (z-index: 100) on upgrade page */
+  /* Higher specificity to override any conflicting styles */
+  .auth-page ~ :global([class*="cl-drawer"]),
+  .auth-page ~ :global([class*="cl-drawerContent"]),
+  .auth-page ~ :global([class*="cl-drawerBody"]),
+  .auth-page ~ :global([class*="cl-drawerOverlay"]),
+  .auth-page ~ :global([class*="cl-drawerBackdrop"]),
+  body:has(.auth-page) :global([class*="cl-drawer"]),
+  body:has(.auth-page) :global([class*="cl-drawerContent"]),
+  body:has(.auth-page) :global([class*="cl-drawerBody"]),
+  body:has(.auth-page) :global([class*="cl-drawerOverlay"]),
+  body:has(.auth-page) :global([class*="cl-drawerBackdrop"]),
+  body:has(.auth-page) :global([class*="cl-internal"][class*="cl-drawer"]),
+  body:has(.auth-page) :global([class*="cl-internal"][class*="cl-drawerContent"]),
+  body:has(.auth-page) :global([class*="cl-internal"][class*="cl-drawerBody"]),
+  body:has(.auth-page) :global([class*="cl-internal"][class*="cl-drawerOverlay"]),
+  body:has(.auth-page) :global([class*="cl-internal"][class*="cl-drawerBackdrop"]),
+  body:has(.auth-page) :global([data-clerk-element*="drawer"]),
+  body:has(.auth-page) :global([data-clerk-element*="drawerOverlay"]),
+  body:has(.auth-page) :global([data-clerk-element*="drawerBackdrop"]) {
+    z-index: 300 !important;
   }
 </style>
