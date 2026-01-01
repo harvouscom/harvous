@@ -332,7 +332,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
   >
     <ToastProvider client:load />
     <KeyboardShortcutsInit client:load />
-    <PostHogUserInit client:idle userId={userId} userData={userData} />
+    <PostHogUserInit client:load userId={userId} userData={userData} />
     <UpgradeSuccessHandler client:load />
 
     <div class="app-layout" transition:animate={fade({ duration: '0.1s' })}>
