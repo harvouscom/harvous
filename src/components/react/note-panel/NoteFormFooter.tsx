@@ -21,7 +21,7 @@ export default function NoteFormFooter({
   duplicateInfo,
   isLimitReached = false,
   currentCount = 0,
-  limit = 500,
+  limit = 1000,
 }: NoteFormFooterProps) {
   const isResource = noteType === 'resource';
   const isDuplicate = duplicateInfo?.exists === true;

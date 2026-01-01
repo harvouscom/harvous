@@ -86,18 +86,24 @@ export default function UpgradePageContent({
           >
             Go to Dashboard
           </a>
+          <div className="text-sm text-[var(--color-pebble-grey)] italic text-center" style={{ marginTop: '1.5rem' }}>
+            Thanks in advance for subscribing. -Derek, the founder
+          </div>
         </div>
       ) : (
         <div className="upgrade-content">
           <div className="upgrade-content__header">
-            <h1 className="clerk-form-header-title">You've used {currentCount.toLocaleString()} of {limit?.toLocaleString() || 500} notes</h1>
+            <h1 className="clerk-form-header-title">You've used {currentCount.toLocaleString()} of {limit?.toLocaleString() || 1000} notes</h1>
             <p className="clerk-form-header-subtitle">
-              To keep using Harvous past the 500 note limit upgrade to get unlimited notes. Either choose to pay monthly or yearly ($3.25 per month).
+              To keep using Harvous past the 1,000 note limit upgrade to get unlimited notes. Either choose to pay monthly or yearly (save 50% at $3 per month).
             </p>
           </div>
 
           {/* Checkout button using Clerk's React CheckoutButton component */}
           <UpgradeCheckoutButton publishableKey={publishableKey} unlimitedPlanId={unlimitedPlanId} />
+          <div className="text-sm text-[var(--color-pebble-grey)] italic text-center" style={{ marginTop: '1.5rem' }}>
+            Thanks in advance for subscribing. -Derek, the founder
+          </div>
         </div>
       )}
     </>
