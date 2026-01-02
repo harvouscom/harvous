@@ -59,3 +59,27 @@ db/config.ts          # Database schema & relationships
 ## Database
 
 [Astro DB (Turso)](https://docs.astro.build/en/guides/astro-db/) with remote in production. Schema defined in `db/config.ts`. Run `db:push` pre-deploy, `db:check` pre-commit.
+
+## Best Practices
+
+**Core Principle**: Follow best practices and avoid "robust" and "bandaid approaches"
+
+### Event Handling and Navigation
+
+- **Don't use arbitrary delays**: Avoid `setTimeout` delays to "wait" for events to process. This is unreliable and doesn't guarantee the event was actually processed.
+- **Dispatch and navigate immediately**: When navigating away after an action, dispatch the event and navigate immediately. Don't block navigation waiting for event listeners.
+- **Use fallback refresh**: Components should check `sessionStorage` on mount for recently created items. This handles cases where events weren't processed before navigation.
+- **Pattern**: `dispatch event → navigate immediately → fallback refresh on return`
+
+### Optimistic Updates vs Fallback Refresh
+
+- **Optimistic updates**: Use when staying on the same page - provides instant feedback
+- **Fallback refresh**: Use when navigating away - components check `sessionStorage` on mount to catch missed events
+- **When navigating away**: Don't block navigation for optimistic updates the user won't see anyway
+
+### Anti-Patterns to Avoid
+
+- ❌ Arbitrary delays: `await new Promise(resolve => setTimeout(resolve, 100))`
+- ❌ Blocking navigation waiting for events
+- ❌ Complex retry logic when simpler fallback mechanisms exist
+- ❌ "Robust" solutions that add complexity without solving the root problem
