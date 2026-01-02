@@ -92,6 +92,8 @@ export default function OrganizedContentList({
   // Track visibility changes for PWA foreground refresh
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
+  // Track pending optimistic updates (when list is empty)
+  const pendingOptimisticUpdateRef = useRef<{ itemId: string; itemType: 'thread' | 'note' } | null>(null);
 
   // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
   // Note: OrganizedContentItem uses lastUpdated instead of updatedAt, so we need to map it
@@ -108,8 +110,51 @@ export default function OrganizedContentList({
     return sorted.map(({ updatedAt, ...item }) => item);
   }, []);
 
+  // Process pending optimistic updates when items are ready
+  useEffect(() => {
+    if (pendingOptimisticUpdateRef.current && currentItems.length > 0) {
+      const { itemId, itemType } = pendingOptimisticUpdateRef.current;
+      pendingOptimisticUpdateRef.current = null;
+      
+      // Now try the optimistic update
+      setCurrentItems(prev => {
+        let itemIndex = -1;
+        
+        if (itemType === 'thread') {
+          itemIndex = prev.findIndex(item => 
+            item.threadId === itemId || 
+            item.id === `thread-${itemId}` || 
+            item.id === itemId ||
+            (itemId.startsWith('thread_') && item.threadId === itemId.substring(7)) ||
+            (itemId.startsWith('thread_') && item.id === itemId)
+          );
+        } else {
+          itemIndex = prev.findIndex(item => 
+            item.noteId === itemId || 
+            item.id === `note-${itemId}` || 
+            item.id === itemId ||
+            (itemId.startsWith('note_') && item.noteId === itemId.substring(5)) ||
+            (itemId.startsWith('note_') && item.id === itemId)
+          );
+        }
+        
+        if (itemIndex !== -1) {
+          const updatedItems = [...prev];
+          const now = new Date();
+          updatedItems[itemIndex] = {
+            ...updatedItems[itemIndex],
+            lastVisited: now,
+            lastUpdated: now.toISOString()
+          };
+          return sortItemsByLastVisited(updatedItems);
+        }
+        return prev;
+      });
+    }
+  }, [currentItems.length, sortItemsByLastVisited]);
+
   // Optimistic update: immediately update lastVisited and re-sort items
-  // Includes safe retry logic with inline setTimeout to avoid Vite transform errors
+  // Queues update in ref if list is empty, processed by useEffect when items load
   const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
     // Check if component is still mounted before proceeding
     if (!isMountedRef.current) {
@@ -147,65 +192,12 @@ export default function OrganizedContentList({
           available: prev.slice(0, 5).map(i => ({ id: i.id, threadId: i.threadId, noteId: i.noteId, type: i.type }))
         });
         
-        // Retry once if list has items (item might be loading)
-        if (prev.length > 0 && isMountedRef.current) {
-          // Use inline setTimeout with no function references to avoid Vite errors
-          setTimeout(() => {
-            if (!isMountedRef.current) return;
-            
-            // Inline retry logic - no external function calls
-            setCurrentItems(currentItems => {
-              let idx = -1;
-              
-              if (itemType === 'thread') {
-                idx = currentItems.findIndex(item => 
-                  item.threadId === itemId || 
-                  item.id === `thread-${itemId}` || 
-                  item.id === itemId ||
-                  (itemId.startsWith('thread_') && item.threadId === itemId.substring(7)) ||
-                  (itemId.startsWith('thread_') && item.id === itemId)
-                );
-              } else {
-                idx = currentItems.findIndex(item => 
-                  item.noteId === itemId || 
-                  item.id === `note-${itemId}` || 
-                  item.id === itemId ||
-                  (itemId.startsWith('note_') && item.noteId === itemId.substring(5)) ||
-                  (itemId.startsWith('note_') && item.id === itemId)
-                );
-              }
-              
-              if (idx !== -1) {
-                const updated = [...currentItems];
-                const now = new Date();
-                updated[idx] = { ...updated[idx], lastVisited: now, lastUpdated: now.toISOString() };
-                // Inline sort logic to avoid function reference issues
-                const sorted = updated.sort((a, b) => {
-                  const getTime = (item: OrganizedContentItem): number => {
-                    if (item.lastVisited) {
-                      const date = item.lastVisited instanceof Date ? item.lastVisited : new Date(item.lastVisited);
-                      return isNaN(date.getTime()) ? 0 : date.getTime();
-                    }
-                    if (item.lastUpdated) {
-                      const date = new Date(item.lastUpdated);
-                      return isNaN(date.getTime()) ? 0 : date.getTime();
-                    }
-                    if (item.createdAt) {
-                      const date = item.createdAt instanceof Date ? item.createdAt : new Date(item.createdAt);
-                      return isNaN(date.getTime()) ? 0 : date.getTime();
-                    }
-                    return 0;
-                  };
-                  const diff = getTime(b) - getTime(a);
-                  if (diff !== 0) return diff;
-                  return (a.id || '').localeCompare(b.id || '');
-                });
-                return sorted;
-              }
-              return currentItems;
-            });
-          }, 100); // Small delay to allow list to populate
+        // If list is empty, queue the update for when items load
+        if (prev.length === 0) {
+          pendingOptimisticUpdateRef.current = { itemId, itemType };
+          debug('[OrganizedContentList] List empty, queued optimistic update', { itemId, itemType });
         }
+        // If list has items but item not found, API refresh will handle it
         return prev;
       }
 

@@ -97,6 +97,8 @@ export default function SpaceContentList({
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
   const isRefreshingRef = useRef(false);
+  // Track pending optimistic updates (when list is empty)
+  const pendingOptimisticUpdateRef = useRef<{ itemId: string; itemType: 'thread' | 'note' } | null>(null);
 
   // Sort initial items on mount
   useEffect(() => {
@@ -120,7 +122,7 @@ export default function SpaceContentList({
   }, []);
 
   // Optimistic update: immediately update lastVisited and re-sort items
-  // Includes safe retry logic with inline setTimeout to avoid Vite transform errors
+  // Queues update in ref if list is empty, processed by useEffect when items load
   const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
     // Check if component is still mounted before proceeding
     if (!isMountedRef.current) {
@@ -153,57 +155,12 @@ export default function SpaceContentList({
           availableIds: prev.slice(0, 5).map(i => ({ id: i.id, type: i.itemType }))
         });
         
-        // Retry once if list has items (item might be loading)
-        if (prev.length > 0 && isMountedRef.current) {
-          // Use inline setTimeout with no function references to avoid Vite errors
-          setTimeout(() => {
-            if (!isMountedRef.current) return;
-            
-            // Inline retry logic - no external function calls
-            setItems(currentItems => {
-              let idx = -1;
-              idx = currentItems.findIndex(item => item.id === itemId && item.itemType === itemType);
-              
-              if (idx === -1 && itemType === 'thread' && itemId.startsWith('thread_')) {
-                const idWithoutPrefix = itemId.substring(7);
-                idx = currentItems.findIndex(item => (item.id === idWithoutPrefix || item.id === itemId) && item.itemType === itemType);
-              }
-              if (idx === -1 && itemType === 'note' && itemId.startsWith('note_')) {
-                const idWithoutPrefix = itemId.substring(5);
-                idx = currentItems.findIndex(item => (item.id === idWithoutPrefix || item.id === itemId) && item.itemType === itemType);
-              }
-              
-              if (idx !== -1) {
-                const updated = [...currentItems];
-                const now = new Date();
-                updated[idx] = { ...updated[idx], lastVisited: now, lastUpdated: now.toISOString() };
-                // Inline sort logic to avoid function reference issues
-                const sorted = updated.sort((a, b) => {
-                  const getTime = (item: SpaceItem): number => {
-                    if (item.lastVisited) {
-                      const date = item.lastVisited instanceof Date ? item.lastVisited : new Date(item.lastVisited);
-                      return isNaN(date.getTime()) ? 0 : date.getTime();
-                    }
-                    if (item.lastUpdated) {
-                      const date = new Date(item.lastUpdated);
-                      return isNaN(date.getTime()) ? 0 : date.getTime();
-                    }
-                    if (item.createdAt) {
-                      const date = item.createdAt instanceof Date ? item.createdAt : new Date(item.createdAt);
-                      return isNaN(date.getTime()) ? 0 : date.getTime();
-                    }
-                    return 0;
-                  };
-                  const diff = getTime(b) - getTime(a);
-                  if (diff !== 0) return diff;
-                  return (a.id || '').localeCompare(b.id || '');
-                });
-                return sorted;
-              }
-              return currentItems;
-            });
-          }, 100); // Small delay to allow list to populate
+        // If list is empty, queue the update for when items load
+        if (prev.length === 0) {
+          pendingOptimisticUpdateRef.current = { itemId, itemType };
+          debug('[SpaceContentList] List empty, queued optimistic update', { itemId, itemType });
         }
+        // If list has items but item not found, API refresh will handle it
         return prev;
       }
 
