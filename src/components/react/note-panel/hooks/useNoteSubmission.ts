@@ -885,6 +885,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           
           debug('[useNoteSubmission] Navigating', { absoluteUrl });
           
+          // Add small delay to allow event listeners to process the noteCreated event
+          // This ensures optimistic updates happen before navigation
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           // Use replace for immediate navigation (no back button)
           // isSubmitting will remain true until navigation completes (panel closes on navigation)
           window.location.replace(absoluteUrl);
