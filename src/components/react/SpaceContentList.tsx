@@ -132,25 +132,42 @@ export default function SpaceContentList({
     }
 
     setItems(prev => {
-      // Try to find item with multiple strategies
+      // Normalize itemId: remove thread_ or note_ prefix if present
+      const normalizedItemId = itemId.startsWith('thread_') 
+        ? itemId.substring(7) 
+        : itemId.startsWith('note_') 
+        ? itemId.substring(5) 
+        : itemId;
+      
+      // Find the item by ID - STRICT TYPE CHECKING: only match items of the correct type
       let itemIndex = -1;
       
-      // Strategy 1: Exact match
-      itemIndex = prev.findIndex(item => item.id === itemId && item.itemType === itemType);
-      
-      // Strategy 2: Match without prefix if not found
-      if (itemIndex === -1 && itemType === 'thread' && itemId.startsWith('thread_')) {
-        const idWithoutPrefix = itemId.substring(7);
-        itemIndex = prev.findIndex(item => (item.id === idWithoutPrefix || item.id === itemId) && item.itemType === itemType);
+      if (itemType === 'thread') {
+        // Only match threads - check type first, then ID
+        itemIndex = prev.findIndex(item => {
+          if (item.itemType !== 'thread') return false;
+          // Try exact ID match first (most reliable)
+          if (item.id === normalizedItemId) return true;
+          // Try with prefix match
+          if (item.id === itemId) return true;
+          return false;
+        });
+      } else {
+        // Only match notes - check type first, then ID
+        itemIndex = prev.findIndex(item => {
+          if (item.itemType !== 'note') return false;
+          // Try exact ID match first (most reliable)
+          if (item.id === normalizedItemId) return true;
+          // Try with prefix match
+          if (item.id === itemId) return true;
+          return false;
+        });
       }
-      if (itemIndex === -1 && itemType === 'note' && itemId.startsWith('note_')) {
-        const idWithoutPrefix = itemId.substring(5);
-        itemIndex = prev.findIndex(item => (item.id === idWithoutPrefix || item.id === itemId) && item.itemType === itemType);
-      }
-      
+
       if (itemIndex === -1) {
         debug('[SpaceContentList] Item not found for optimistic update', { 
           itemId, 
+          normalizedItemId,
           itemType,
           listLength: prev.length,
           availableIds: prev.slice(0, 5).map(i => ({ id: i.id, type: i.itemType }))
@@ -165,8 +182,28 @@ export default function SpaceContentList({
         return prev;
       }
 
-      // Item found - update immediately
-      debug('[SpaceContentList] Found item for optimistic update', { itemId, itemType, itemIndex, itemIdInList: prev[itemIndex].id });
+      // Validate that we found the correct item type
+      const foundItem = prev[itemIndex];
+      if (foundItem.itemType !== itemType) {
+        debug('[SpaceContentList] Type mismatch in optimistic update', {
+          itemId,
+          itemType,
+          foundType: foundItem.itemType,
+          foundItem: { id: foundItem.id, type: foundItem.itemType }
+        });
+        return prev; // Don't update if type doesn't match
+      }
+
+      debug('[SpaceContentList] Found item for optimistic update', { 
+        itemId, 
+        normalizedItemId,
+        itemType, 
+        itemIndex, 
+        currentItem: { 
+          id: foundItem.id, 
+          type: foundItem.itemType 
+        }
+      });
 
       // Update both lastVisited and lastUpdated
       const updatedItems = [...prev];
@@ -181,7 +218,8 @@ export default function SpaceContentList({
       const sorted = sortItemsByLastVisited(updatedItems);
       const newPosition = sorted.findIndex(i => i.id === updatedItems[itemIndex].id);
       debug('[SpaceContentList] Items re-sorted', { 
-        itemId, 
+        itemId,
+        normalizedItemId,
         oldPosition: itemIndex, 
         newPosition,
         isFirst: newPosition === 0
@@ -193,14 +231,33 @@ export default function SpaceContentList({
 
 
   // Extract item ID from pathname (thread_xxx or note_xxx)
+  // Extract item ID from pathname (thread_xxx or note_xxx)
+  // Handles edge cases like query params and hash
   const extractItemIdFromPath = useCallback((pathname: string): { id: string; type: 'thread' | 'note' } | null => {
-    if (pathname.startsWith('/thread_')) {
-      const id = pathname.substring(1); // Remove leading '/'
-      return { id, type: 'thread' as const };
-    } else if (pathname.startsWith('/note_')) {
-      const id = pathname.substring(1); // Remove leading '/'
-      return { id, type: 'note' as const };
+    // Remove query params and hash for clean pathname
+    const cleanPath = pathname.split('?')[0].split('#')[0];
+    
+    // Remove leading slash
+    const pathWithoutSlash = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+    
+    // Check for thread_ prefix first (more specific)
+    if (pathWithoutSlash.startsWith('thread_')) {
+      const id = pathWithoutSlash; // Keep the full ID including prefix
+      // Validate it's a valid thread ID format
+      if (id.length > 7) { // thread_ is 7 chars, so valid ID should be longer
+        return { id, type: 'thread' as const };
+      }
+    } 
+    // Check for note_ prefix
+    else if (pathWithoutSlash.startsWith('note_')) {
+      const id = pathWithoutSlash; // Keep the full ID including prefix
+      // Validate it's a valid note ID format
+      if (id.length > 5) { // note_ is 5 chars, so valid ID should be longer
+        return { id, type: 'note' as const };
+      }
     }
+    
+    // If no match, return null
     return null;
   }, []);
 
@@ -267,7 +324,13 @@ export default function SpaceContentList({
           const filtered = sortedAllItems.filter(item => !deletedItemIdsRef.current.has(item.id));
 
           // Merge with optimistic items that haven't been confirmed yet
+          // Create a set of all confirmed item IDs
           const confirmedItemIds = new Set(filtered.map(item => item.id));
+          const confirmedItemsMap = new Map<string, SpaceItem>(); // Track confirmed items for date comparison
+          filtered.forEach(item => {
+            confirmedItemsMap.set(item.id, item);
+          });
+
           const optimisticItemsToKeep: SpaceItem[] = [];
           const now = Date.now();
           const fiveSecondsAgo = now - 5000;
@@ -276,34 +339,91 @@ export default function SpaceContentList({
           // 1. Haven't been confirmed by API yet
           // 2. Were added recently (within last 5 seconds)
           // 3. Match the current filter
-          optimisticItemsRef.current.forEach(({ timestamp, item }, itemId) => {
-            if (!confirmedItemIds.has(itemId) && timestamp > fiveSecondsAgo) {
+          // Also preserve optimistic lastVisited updates if they're newer than API data
+          optimisticItemsRef.current.forEach(({ timestamp, item: optimisticItem }, itemId) => {
+            // Check if item is confirmed
+            const isConfirmed = confirmedItemIds.has(itemId) || confirmedItemIds.has(optimisticItem.id);
+
+            if (!isConfirmed && timestamp > fiveSecondsAgo) {
               // Check if item matches current filter
               const matchesFilter = filter === 'all' || 
-                                   (filter === 'threads' && item.itemType === 'thread') ||
-                                   (filter === 'notes' && item.itemType === 'note');
+                                   (filter === 'threads' && optimisticItem.itemType === 'thread') ||
+                                   (filter === 'notes' && optimisticItem.itemType === 'note');
               
-              if (matchesFilter && !deletedItemIdsRef.current.has(itemId)) {
-                optimisticItemsToKeep.push(item);
+              if (matchesFilter && !deletedItemIdsRef.current.has(itemId) && !deletedItemIdsRef.current.has(optimisticItem.id)) {
+                optimisticItemsToKeep.push(optimisticItem);
               }
-            } else if (confirmedItemIds.has(itemId)) {
+            } else if (isConfirmed) {
+              // Item confirmed by API - check if optimistic update has newer lastVisited
+              const confirmedItem = confirmedItemsMap.get(itemId) || confirmedItemsMap.get(optimisticItem.id);
+              
+              if (confirmedItem) {
+                // Compare lastVisited dates - preserve optimistic if newer
+                const optimisticLastVisited = optimisticItem.lastVisited instanceof Date 
+                  ? optimisticItem.lastVisited 
+                  : optimisticItem.lastVisited 
+                    ? normalizeDate(optimisticItem.lastVisited) 
+                    : null;
+                const apiLastVisited = confirmedItem.lastVisited instanceof Date 
+                  ? confirmedItem.lastVisited 
+                  : confirmedItem.lastVisited 
+                    ? normalizeDate(confirmedItem.lastVisited) 
+                    : null;
+                
+                // If optimistic update is newer, update the confirmed item with optimistic date
+                if (optimisticLastVisited && (!apiLastVisited || optimisticLastVisited > apiLastVisited)) {
+                  const itemIndex = filtered.findIndex(i => i.id === confirmedItem.id || i.id === optimisticItem.id);
+                  if (itemIndex !== -1) {
+                    filtered[itemIndex] = {
+                      ...filtered[itemIndex],
+                      lastVisited: optimisticLastVisited,
+                      lastUpdated: optimisticItem.lastUpdated || filtered[itemIndex].lastUpdated
+                    };
+                  }
+                }
+              }
+              
               // Item confirmed by API, remove from optimistic tracking
               optimisticItemsRef.current.delete(itemId);
+              optimisticItemsRef.current.delete(optimisticItem.id);
             }
           });
 
           // Combine API items with optimistic items
-          const combinedItems = [...filtered, ...optimisticItemsToKeep];
+          // Ensure all dates are normalized before combining
+          const combinedItemsRaw = [...filtered, ...optimisticItemsToKeep].map(item => ({
+            ...item,
+            lastVisited: item.lastVisited instanceof Date 
+              ? item.lastVisited 
+              : item.lastVisited 
+                ? (normalizeDate(item.lastVisited) || item.lastVisited)
+                : item.lastVisited,
+            lastUpdated: item.lastUpdated ? (typeof item.lastUpdated === 'string' ? item.lastUpdated : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+            createdAt: item.createdAt instanceof Date 
+              ? item.createdAt 
+              : item.createdAt 
+                ? (normalizeDate(item.createdAt) || item.createdAt)
+                : item.createdAt
+          }));
+          const combinedItems = combinedItemsRaw;
 
           // Apply filter
-          let filteredItems = filter === 'all' 
+          let filteredItemsRaw = filter === 'all' 
             ? combinedItems 
             : filter === 'threads'
             ? combinedItems.filter(item => item.itemType === 'thread')
             : combinedItems.filter(item => item.itemType === 'note');
 
           // Ensure items are sorted by lastVisited after filtering
-          filteredItems = sortItemsByLastVisited(filteredItems);
+          // Ensure all dates are normalized before sorting
+          const filteredItems = sortItemsByLastVisited(filteredItemsRaw.map(item => ({
+            ...item,
+            lastVisited: item.lastVisited instanceof Date 
+              ? item.lastVisited 
+              : item.lastVisited 
+                ? (normalizeDate(item.lastVisited) || item.lastVisited)
+                : item.lastVisited
+          })));
 
           // If we're looking for a specific item, check if it exists (in API or optimistic)
           if (expectedItemId) {
