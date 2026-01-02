@@ -164,7 +164,7 @@ try {
           getNotesForThread(id!, authenticatedUserId),
           getThreadNoteTypeCounts(id!, authenticatedUserId)
         ]);
-        const notesData = notesResult.notes;
+        const notesData = Array.isArray(notesResult) ? [] : notesResult.notes;
         
         content = {
           id: 'thread_unorganized',
@@ -212,7 +212,7 @@ try {
           getNotesForThread(id!, authenticatedUserId),
           getThreadNoteTypeCounts(id!, authenticatedUserId)
         ]);
-        const notesData = notesResult.notes;
+        const notesData = Array.isArray(notesResult) ? [] : notesResult.notes;
         
         debug(`[id].astro] Thread lookup`, { id, found: !!threadData, title: threadData?.title });
         
@@ -813,7 +813,7 @@ if (!content) {
                           initialNotes={threadNotes}
                           threadId={id!}
                           noteTypeFilter="all"
-                          noteTypeCounts={noteTypeCounts}
+                          noteTypeCounts={noteTypeCounts || undefined}
                           client:load
                         />
                       ) : (
@@ -830,8 +830,8 @@ if (!content) {
                           initialNotes={threadNotes}
                           threadId={id!}
                           noteTypeFilter="default"
-                          noteTypeCounts={noteTypeCounts}
-                          client:load
+                          noteTypeCounts={noteTypeCounts || undefined}
+                          client:visible
                         />
                       ) : (
                         <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
@@ -847,7 +847,7 @@ if (!content) {
                           initialNotes={threadNotes}
                           threadId={id!}
                           noteTypeFilter="scripture"
-                          noteTypeCounts={noteTypeCounts}
+                          noteTypeCounts={noteTypeCounts || undefined}
                           client:load
                         />
                       ) : (
@@ -857,7 +857,7 @@ if (!content) {
                             initialNotes={[]}
                             threadId={id!}
                             noteTypeFilter="scripture"
-                            noteTypeCounts={noteTypeCounts}
+                            noteTypeCounts={noteTypeCounts || undefined}
                             client:load
                           />
                           <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
