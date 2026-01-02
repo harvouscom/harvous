@@ -10,7 +10,6 @@ import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import ThreadNotesList from "@/components/react/ThreadNotesList";
-import ThreadNotesListWithTabs from "@/components/react/ThreadNotesListWithTabs";
 import SpaceContentList from "@/components/react/SpaceContentList";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
@@ -782,31 +781,91 @@ if (!content) {
                 
                 {isThread && threadNotes ? (
                   <div class="flex flex-col gap-3">
-                    {/* Use total note counts from database, fallback to visible notes if counts not available */}
-                    {(() => {
-                      return (
+                    {/* Tab Navigation */}
+                    <TabNav 
+                      tabs={[
+                        { 
+                          id: "all", 
+                          label: "All", 
+                          isActive: true,
+                          count: noteTypeCounts?.all
+                        },
+                        { 
+                          id: "notes", 
+                          label: "Notes", 
+                          isActive: false,
+                          count: noteTypeCounts?.default
+                        },
+                        { 
+                          id: "scripture", 
+                          label: "Scripture", 
+                          isActive: false,
+                          count: noteTypeCounts?.scripture
+                        }
+                      ]}
+                      class="content-tabs"
+                    />
+                    
+                    {/* All Notes Content */}
+                    <div class="organized-content flex flex-col" data-tab-content="all">
+                      {threadNotes.length > 0 ? (
+                        <ThreadNotesList 
+                          initialNotes={threadNotes}
+                          threadId={id!}
+                          noteTypeFilter="all"
+                          noteTypeCounts={noteTypeCounts}
+                          client:load
+                        />
+                      ) : (
+                        <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                          <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Notes Only Content */}
+                    <div class="organized-content flex flex-col hidden" data-tab-content="notes">
+                      {threadNotes.length > 0 ? (
+                        <ThreadNotesList 
+                          initialNotes={threadNotes}
+                          threadId={id!}
+                          noteTypeFilter="default"
+                          noteTypeCounts={noteTypeCounts}
+                          client:load
+                        />
+                      ) : (
+                        <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                          <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Scripture Only Content */}
+                    <div class="organized-content flex flex-col hidden" data-tab-content="scripture">
+                      {threadNotes.length > 0 ? (
+                        <ThreadNotesList 
+                          initialNotes={threadNotes}
+                          threadId={id!}
+                          noteTypeFilter="scripture"
+                          noteTypeCounts={noteTypeCounts}
+                          client:load
+                        />
+                      ) : (
                         <>
-                          {/* ThreadNotesListWithTabs now includes TabNav internally */}
-                          {threadNotes.length > 0 ? (
-                            <ThreadNotesListWithTabs 
-                              initialNotes={threadNotes}
-                              threadId={id!}
-                              noteTypeCounts={noteTypeCounts}
-                              client:load
-                            />
-                          ) : (
-                            <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                              <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
-                            </div>
-                          )}
-                          
-                          {/* Empty divs for tab manager compatibility - component handles all filtering */}
-                          <div class="flex flex-col hidden" data-tab-content="all"></div>
-                          <div class="flex flex-col hidden" data-tab-content="notes"></div>
-                          <div class="flex flex-col hidden" data-tab-content="scripture"></div>
+                          {/* Always render ThreadNotesList so event listeners are set up, even if no items initially */}
+                          <ThreadNotesList 
+                            initialNotes={[]}
+                            threadId={id!}
+                            noteTypeFilter="scripture"
+                            noteTypeCounts={noteTypeCounts}
+                            client:load
+                          />
+                          <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                            <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No scripture notes found in this thread.</p>
+                          </div>
                         </>
-                      );
-                    })()}
+                      )}
+                    </div>
                   </div>
                 ) : isSpace && content ? (
                   <div class="flex flex-col gap-3">
