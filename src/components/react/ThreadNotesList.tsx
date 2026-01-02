@@ -143,9 +143,8 @@ export default function ThreadNotesList({
     };
   }, []);
   
-  // Update notes when initialNotes change (e.g., page navigation)
-  // Filter by note type and initialize state
-  // Match the pattern from OrganizedContentList.tsx: normalize dates before filtering/sorting
+  // Initialize notes from initialNotes on mount or when initialNotes change
+  // This handles page navigation and initial load
   useEffect(() => {
     const filtered = initialNotes
       .filter(note => !deletedNoteIds.has(note.id));
@@ -183,7 +182,48 @@ export default function ThreadNotesList({
     
     // Update previous filter ref
     prevNoteTypeFilterRef.current = noteTypeFilter;
-  }, [initialNotes, deletedNoteIds, noteTypeFilter]);
+  }, [initialNotes, deletedNoteIds]);
+
+  // Handle noteTypeFilter changes - filter and sort from current notes state
+  // This preserves optimistic updates and client-side changes when switching tabs
+  useEffect(() => {
+    // Skip if filter hasn't actually changed
+    if (prevNoteTypeFilterRef.current === noteTypeFilter) {
+      return;
+    }
+
+    // Use notesRef to get current notes (includes optimistic updates) without causing dependency issues
+    // Filter current notes state (which includes optimistic updates) by type
+    const filtered = notesRef.current
+      .filter(note => !deletedNoteIds.has(note.id));
+    
+    // Normalize dates before filtering/sorting
+    const normalized = filtered.map(note => ({
+      ...note,
+      lastVisited: note.lastVisited ? normalizeDate(note.lastVisited) || note.lastVisited : note.lastVisited,
+      updatedAt: note.updatedAt ? normalizeDate(note.updatedAt) || note.updatedAt : note.updatedAt,
+      createdAt: note.createdAt ? normalizeDate(note.createdAt) || note.createdAt : note.createdAt
+    }));
+    
+    // Apply type filter
+    const typeFiltered = noteTypeFilter === 'all' 
+      ? normalized 
+      : filterNotesByType(normalized, noteTypeFilter);
+    
+    // Deduplicate by note ID
+    const uniqueNotes = Array.from(
+      new Map(typeFiltered.map(note => [note.id, note])).values()
+    );
+    
+    // Sort by time (newest first)
+    const sortedNotes = sortNotesByTime(uniqueNotes);
+    
+    setNotes(sortedNotes);
+    accumulatedFilteredCountRef.current = sortedNotes.length;
+    
+    // Update previous filter ref
+    prevNoteTypeFilterRef.current = noteTypeFilter;
+  }, [noteTypeFilter, deletedNoteIds]);
 
   // Listen for note deletion events
   useEffect(() => {
