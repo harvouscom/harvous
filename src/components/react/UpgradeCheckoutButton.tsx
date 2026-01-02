@@ -13,15 +13,18 @@ interface UpgradeCheckoutButtonProps {
  */
 function UpgradeCheckoutButtonInner({ 
   className, 
-  unlimitedPlanId 
+  unlimitedPlanId,
+  remountKey
 }: { 
   className: string; 
   unlimitedPlanId: string;
+  remountKey: number;
 }) {
   const [selectedInterval, setSelectedInterval] = useState<'month' | 'year'>('month');
   const { isLoaded, isSignedIn } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [pathname, setPathname] = useState<string>('');
+  const [checkoutKey, setCheckoutKey] = useState<number>(Date.now());
 
   // Ensure we're on the client before rendering Clerk components
   useEffect(() => {
@@ -31,17 +34,21 @@ function UpgradeCheckoutButtonInner({
     }
   }, []);
 
-  // Update pathname on View Transitions to force remount
+  // Update pathname and checkoutKey on View Transitions to force remount
   useEffect(() => {
-    const handlePageLoad = () => {
+    const handleViewTransition = () => {
       if (typeof window !== 'undefined') {
         setPathname(window.location.pathname);
+        // Force CheckoutButton remount by updating key
+        setCheckoutKey(Date.now());
       }
     };
 
-    document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('astro:page-load', handleViewTransition);
+    document.addEventListener('astro:after-swap', handleViewTransition);
     return () => {
-      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('astro:page-load', handleViewTransition);
+      document.removeEventListener('astro:after-swap', handleViewTransition);
     };
   }, []);
 
@@ -374,7 +381,7 @@ function UpgradeCheckoutButtonInner({
 
           {/* CheckoutButton with planPeriod prop - Clerk docs confirm this is supported */}
           <CheckoutButton 
-            key={`checkout-${selectedInterval}-${Date.now()}`}
+            key={`checkout-${selectedInterval}-${remountKey}-${checkoutKey}`}
             planId={unlimitedPlanId}
             planPeriod={selectedInterval === 'year' ? 'annual' : 'month'}
           >
@@ -586,7 +593,8 @@ export default function UpgradeCheckoutButton({
           <UpgradeCheckoutButtonInner 
             key={`checkout-inner-${remountKey}`}
             className={className} 
-            unlimitedPlanId={unlimitedPlanId} 
+            unlimitedPlanId={unlimitedPlanId}
+            remountKey={remountKey}
           />
         </SignedIn>
       </ClerkProvider>
