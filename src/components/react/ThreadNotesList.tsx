@@ -150,9 +150,38 @@ export default function ThreadNotesList({
     const initialNotesChanged = prevInitialNotesRef.current !== initialNotes;
     const filterChanged = prevNoteTypeFilterRef.current !== noteTypeFilter;
     
-    // Determine source: use initialNotes if they changed, otherwise use current notes state (from ref)
-    // This preserves optimistic updates when only the filter changes
-    const sourceNotes = initialNotesChanged ? initialNotes : notesRef.current;
+    // Determine source: 
+    // - If initialNotes changed → use initialNotes (new data from server)
+    // - If filter changed → use initialNotes (re-filter from original source)
+    // - Otherwise → use notesRef.current (preserve optimistic updates when neither changed)
+    // This ensures we always filter from the full, unfiltered list when the filter changes
+    let sourceNotes = (initialNotesChanged || filterChanged) ? initialNotes : notesRef.current;
+    
+    // Merge optimistic notes with sourceNotes to preserve optimistic updates
+    // Optimistic notes are notes that were added optimistically but haven't been confirmed by API yet
+    const now = Date.now();
+    const fiveSecondsAgo = now - 5000;
+    const optimisticNotesToMerge: Note[] = [];
+    
+    optimisticNotesRef.current.forEach(({ timestamp, note }, noteId) => {
+      // Only include optimistic notes that:
+      // 1. Are recent (within last 5 seconds)
+      // 2. Aren't already in sourceNotes
+      // 3. Belong to this thread
+      const alreadyInSource = sourceNotes.some(n => n.id === noteId);
+      const isRecent = timestamp > fiveSecondsAgo;
+      const belongsToThread = !note.threadId || note.threadId === threadId || 
+                              (threadId === 'thread_unorganized' && !note.threadId);
+      
+      if (!alreadyInSource && isRecent && belongsToThread) {
+        optimisticNotesToMerge.push(note);
+      }
+    });
+    
+    // Merge optimistic notes with sourceNotes
+    if (optimisticNotesToMerge.length > 0) {
+      sourceNotes = [...optimisticNotesToMerge, ...sourceNotes];
+    }
     
     const filtered = sourceNotes
       .filter(note => !deletedNoteIds.has(note.id));
