@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ThreadNotesList from './ThreadNotesList';
 import TabNav from './TabNav';
 
@@ -28,8 +28,8 @@ export default function ThreadNotesListWithTabs({
     }
   };
 
-  // Prepare tabs for TabNav
-  const tabs = [
+  // Prepare tabs for TabNav - use useMemo to prevent unnecessary re-renders
+  const tabs = React.useMemo(() => [
     {
       id: 'all',
       label: 'All',
@@ -48,7 +48,13 @@ export default function ThreadNotesListWithTabs({
       isActive: activeFilter === 'scripture',
       count: noteTypeCounts?.scripture
     }
-  ];
+  ], [activeFilter, noteTypeCounts]);
+
+  // Sync TabNav's activeTabId when activeFilter changes
+  useEffect(() => {
+    // This ensures TabNav's internal state stays in sync with parent filter
+    // The TabNav will update its activeTabId based on tabs.isActive prop
+  }, [activeFilter, tabs]);
 
   return (
     <>

@@ -18,7 +18,7 @@ export default function TabNav({
   className = '',
   threadId
 }: TabNavProps) {
-  // State for badge counts - initialize from props
+  // State for badge counts - initialize from props (consistent server/client)
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>(() => {
     const counts: Record<string, number> = {};
     tabs.forEach(tab => {
@@ -29,23 +29,23 @@ export default function TabNav({
     return counts;
   });
 
-  // Track active tab
-  const [activeTabId, setActiveTabId] = useState<string>(() => {
-    const activeTab = tabs.find(tab => tab.isActive);
-    return activeTab?.id || tabs[0]?.id || '';
-  });
+  // Track active tab - initialize from props to avoid hydration mismatch
+  // Use empty string initially, then set in useEffect to ensure consistency
+  const [activeTabId, setActiveTabId] = useState<string>('');
 
   // Ref to track if we're on a thread page
   const isThreadPageRef = useRef<boolean>(false);
 
+  // Initialize activeTabId from props after mount to avoid hydration mismatch
   useEffect(() => {
-    // Check if we're on a thread page
-    if (typeof window !== 'undefined') {
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
-      isThreadPageRef.current = currentThreadId.startsWith('thread_') || currentThreadId === 'thread_unorganized';
-    }
-  }, []);
+    const activeTab = tabs.find(tab => tab.isActive);
+    setActiveTabId(activeTab?.id || tabs[0]?.id || '');
+    
+    // Check if we're on a thread page (client-only)
+    const currentPath = window.location.pathname;
+    const currentThreadId = currentPath.substring(1);
+    isThreadPageRef.current = currentThreadId.startsWith('thread_') || currentThreadId === 'thread_unorganized';
+  }, [tabs]);
 
   // Function to fetch fresh note type counts from API
   const fetchNoteTypeCounts = useCallback(async (): Promise<{
@@ -268,17 +268,18 @@ export default function TabNav({
       {/* Tab Navigation */}
       <div className="tab-nav">
         {tabs.map((tab) => {
-          const isActive = activeTabId === tab.id;
+          const isActive = activeTabId === tab.id || (activeTabId === '' && tab.isActive);
           const count = getTabCount(tab.id);
           
           return (
             <button
               key={tab.id}
-              className="tab-nav__button"
+              className={`tab-nav__button ${isActive ? 'opacity-100' : 'opacity-50'}`}
               data-tab-id={tab.id}
               data-active={isActive ? "true" : "false"}
               data-tab-button
               onClick={() => handleTabClick(tab.id)}
+              suppressHydrationWarning
             >
               <span className="tab-nav__label">
                 {tab.label}

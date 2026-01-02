@@ -145,15 +145,24 @@ export default function ThreadNotesList({
   
   // Update notes when initialNotes change (e.g., page navigation)
   // Filter by note type and initialize state
+  // Match the pattern from OrganizedContentList.tsx: normalize dates before filtering/sorting
   useEffect(() => {
     const filtered = initialNotes
       .filter(note => !deletedNoteIds.has(note.id));
     
+    // Normalize dates BEFORE filtering/sorting (matching OrganizedContentList pattern)
+    const normalized = filtered.map(note => ({
+      ...note,
+      lastVisited: note.lastVisited ? normalizeDate(note.lastVisited) || note.lastVisited : note.lastVisited,
+      updatedAt: note.updatedAt ? normalizeDate(note.updatedAt) || note.updatedAt : note.updatedAt,
+      createdAt: note.createdAt ? normalizeDate(note.createdAt) || note.createdAt : note.createdAt
+    }));
+    
     // If noteTypeFilter is 'all', skip type filtering (notes are already pre-filtered on server)
     // Otherwise, apply the type filter
     const typeFiltered = noteTypeFilter === 'all' 
-      ? filtered 
-      : filterNotesByType(filtered, noteTypeFilter);
+      ? normalized 
+      : filterNotesByType(normalized, noteTypeFilter);
     
     // Deduplicate by note ID to prevent duplicates
     const uniqueNotes = Array.from(
@@ -162,6 +171,7 @@ export default function ThreadNotesList({
     
     // Sort by time (newest first) to ensure proper animation order
     // This maintains chronological order regardless of note type
+    // sortNotesByTime uses sortByLastVisited which normalizes internally, but we normalized above for consistency
     const sortedNotes = sortNotesByTime(uniqueNotes);
     
     setNotes(sortedNotes);
