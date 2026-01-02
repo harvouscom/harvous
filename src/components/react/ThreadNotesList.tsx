@@ -726,14 +726,16 @@ export default function ThreadNotesList({
       
       // Check sessionStorage for recently created notes
       let hasRecentNote = false;
+      let relevantNote: any = null;
       try {
         const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
         if (recentNotesStr) {
           const recentNotes = JSON.parse(recentNotesStr);
           const fiveSecondsAgo = Date.now() - 5000;
-          hasRecentNote = recentNotes.some((n: any) => 
+          relevantNote = recentNotes.find((n: any) => 
             n.threadId === threadId && n.timestamp > fiveSecondsAgo
           );
+          hasRecentNote = !!relevantNote;
         }
       } catch (error) {
         console.error('[ThreadNotesList] Error checking sessionStorage in checkAndRefreshOnMount:', error);
@@ -742,16 +744,22 @@ export default function ThreadNotesList({
       // Refresh if: PWA context, stale data, coming from note page, or has recent note
       if (inPWA || dataIsStale || cameFromNotePage || previousWasNote || hasRecentNote) {
         hasRefreshedOnMountRef.current = true;
+        // If we have a recent note, use verification-based refresh with noteId
+        // Otherwise, use regular refresh
+        const refreshFn = hasRecentNote && relevantNote?.noteId 
+          ? () => refreshNotesList(relevantNote.noteId)
+          : () => refreshNotesList();
+        
         // Immediate refresh for PWA/stale data, otherwise use unified refresh function
         const delay = (inPWA || dataIsStale) ? 50 : 0;
         if (delay > 0) {
           setTimeout(() => {
             if (isMountedRef.current && window.location.pathname.substring(1) === threadId) {
-              refreshNotesList();
+              refreshFn();
             }
           }, delay);
         } else {
-          refreshNotesList();
+          refreshFn();
         }
       }
     };
