@@ -91,6 +91,7 @@ export default function SpaceContentList({
   const itemsRef = useRef<SpaceItem[]>(sortItemsByLastVisited(initialItems || []));
   const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
   const isNavigatingRef = useRef(false);
+  const hasRefreshedOnMountRef = useRef(false); // Track if mount refresh happened
   // Track optimistically added items that haven't been confirmed by API yet
   const optimisticItemsRef = useRef<Map<string, { timestamp: number; item: SpaceItem }>>(new Map());
   // Track visibility changes for PWA foreground refresh
@@ -791,17 +792,17 @@ export default function SpaceContentList({
           optimisticUpdate: visitedItemId ? { id: visitedItemId, type: visitedItemType } : null
         });
         
-        // If PWA or stale data, refresh immediately (no optimistic update needed)
+        // If PWA or stale data, refresh with delay to allow database commits
         // Otherwise, use optimistic update for navigation scenarios
         if (inPWA || dataIsStale) {
-          // Immediate refresh for PWA/stale data scenarios
+          // Increased delay for PWA/stale data to allow database commits (300ms)
           setTimeout(() => {
             if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
               refreshSpaceContent().then((success) => {
                 debug('[SpaceContentList] Mount refresh completed (PWA/stale)', { success });
               });
             }
-          }, 50); // Minimal delay for PWA/stale data
+          }, 300); // Increased from 50ms to 300ms to allow DB commits
         } else {
           // Background API refresh with minimal delay for navigation scenarios
           setTimeout(() => {
@@ -810,7 +811,7 @@ export default function SpaceContentList({
                 debug('[SpaceContentList] Mount refresh completed', { success });
               });
             }
-          }, 150); // Increased to 150ms to allow optimistic update to be visible
+          }, 150); // Keep at 150ms for navigation scenarios
         }
       }
     };
@@ -856,11 +857,14 @@ export default function SpaceContentList({
         // Only refresh if:
         // 1. Was in background for > 30 seconds, OR
         // 2. This is PWA (always refresh for PWA on foreground), OR
-        // 3. First time coming to foreground (lastBackgroundTimeRef was 0)
+        // 3. First time coming to foreground (lastBackgroundTimeRef.current was 0)
+        // Also ensure we're not already refreshing and component is mounted
+        // Don't refresh if mount refresh just happened (avoid race conditions)
         const shouldRefresh = (timeInBackground > MIN_BACKGROUND_TIME || inPWA || lastBackgroundTimeRef.current === 0) &&
                               timeSinceLastRefresh > MIN_REFRESH_INTERVAL &&
                               !isNavigatingRef.current &&
                               !isRefreshingRef.current &&
+                              !hasRefreshedOnMountRef.current && // Don't refresh if mount refresh just happened
                               isMountedRef.current;
 
         if (shouldRefresh) {

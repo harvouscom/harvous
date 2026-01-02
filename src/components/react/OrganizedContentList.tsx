@@ -70,8 +70,16 @@ export default function OrganizedContentList({
 }: OrganizedContentListProps) {
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const deletedItemIdsRef = useRef<Set<string>>(new Set());
-  // Initialize currentItems directly from initialItems
-  const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(initialItems || []);
+  // Initialize currentItems with sorted initialItems (like SpaceContentList does)
+  const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(() => {
+    // Use shared sorting function that matches API logic
+    const itemsWithUpdatedAt = (initialItems || []).map(item => ({
+      ...item,
+      updatedAt: item.lastUpdated
+    }));
+    const sorted = sortByLastVisited(itemsWithUpdatedAt);
+    return sorted.map(({ updatedAt, ...item }) => item);
+  });
   const isRefreshingRef = useRef(false);
   const isMountedRef = useRef(true);
   const lastRefreshTimeRef = useRef<number>(0);
@@ -672,9 +680,11 @@ export default function OrganizedContentList({
           isRefreshingItemsRef.current = true;
           lastRefreshItemsKeyRef.current = refreshedItemsKey;
           
-          setCurrentItems(filteredItems);
-          currentItemsRef.current = filteredItems;
-          debug('[OrganizedContentList] Updated scripture notes', { itemCount: filteredItems.length, forceUpdate });
+          // Ensure items are sorted before setting
+          const sorted = sortItemsByLastVisited(filteredItems);
+          setCurrentItems(sorted);
+          currentItemsRef.current = sorted;
+          debug('[OrganizedContentList] Updated scripture notes', { itemCount: sorted.length, forceUpdate });
           
           // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
           setTimeout(() => {
@@ -796,8 +806,10 @@ export default function OrganizedContentList({
       itemsKey
     });
     
-    setCurrentItems(filtered);
-    currentItemsRef.current = filtered;
+    // Ensure items are sorted before setting
+    const sorted = sortItemsByLastVisited(filtered);
+    setCurrentItems(sorted);
+    currentItemsRef.current = sorted;
   }, [initialItems, deletedItemIds, filter]);
 
   // Listen for deletion events to track deleted items
@@ -983,10 +995,11 @@ export default function OrganizedContentList({
               if (exists) {
                 return prev;
               }
-              // Add to beginning of list (newest first)
+              // Add note and re-sort to maintain correct order
               const updated = [noteItem, ...prev];
-              currentItemsRef.current = updated;
-              return updated;
+              const sorted = sortItemsByLastVisited(updated);
+              currentItemsRef.current = sorted;
+              return sorted;
             });
           }
           
@@ -1014,7 +1027,10 @@ export default function OrganizedContentList({
                   if (timeSinceCreation > 2000) {
                     // Remove optimistic item after 2 seconds if still not confirmed
                     optimisticItemsRef.current.delete(noteId);
-                    setCurrentItems(prev => prev.filter(item => item.noteId !== noteId));
+                    setCurrentItems(prev => {
+                      const filtered = prev.filter(item => item.noteId !== noteId);
+                      return sortItemsByLastVisited(filtered);
+                    });
                   }
                 }
               }
@@ -1074,10 +1090,11 @@ export default function OrganizedContentList({
             return prev;
           }
           debug('[OrganizedContentList] Adding thread to list immediately', { title: threadItem.title });
-          // Add to beginning of list (newest first)
+          // Add thread and re-sort to maintain correct order
           const updated = [threadItem, ...prev];
-          currentItemsRef.current = updated;
-          return updated;
+          const sorted = sortItemsByLastVisited(updated);
+          currentItemsRef.current = sorted;
+          return sorted;
         });
       }
       
@@ -1106,7 +1123,10 @@ export default function OrganizedContentList({
               if (timeSinceCreation > 2000) {
                 // Remove optimistic item after 2 seconds if still not confirmed
                 optimisticItemsRef.current.delete(threadId);
-                setCurrentItems(prev => prev.filter(item => item.threadId !== threadId));
+                setCurrentItems(prev => {
+                  const filtered = prev.filter(item => item.threadId !== threadId);
+                  return sortItemsByLastVisited(filtered);
+                });
               }
             }
           }
@@ -1364,8 +1384,9 @@ export default function OrganizedContentList({
       // Refresh if: PWA context, stale data, or coming from note page
       if (inPWA || dataIsStale || cameFromNotePage || previousWasNote) {
         hasRefreshedOnMountRef.current = true;
-        // Immediate refresh for PWA/stale data, slight delay for navigation scenarios
-        const delay = (inPWA || dataIsStale) ? 50 : 200;
+        // Increased delay for PWA/stale data to allow database commits (300ms)
+        // Slight delay for navigation scenarios (200ms)
+        const delay = (inPWA || dataIsStale) ? 300 : 200;
         setTimeout(() => {
           if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && !isRefreshingRef.current) {
             refreshContentRef.current?.();
@@ -1420,10 +1441,13 @@ export default function OrganizedContentList({
         // 1. Was in background for > 30 seconds, OR
         // 2. This is PWA (always refresh for PWA on foreground), OR
         // 3. First time coming to foreground (lastBackgroundTimeRef was 0)
+        // Also ensure we're not already refreshing and component is mounted
+        // Don't refresh if mount refresh just happened (avoid race conditions)
         const shouldRefresh = (timeInBackground > MIN_BACKGROUND_TIME || inPWA || lastBackgroundTimeRef.current === 0) &&
                               timeSinceLastRefresh > MIN_REFRESH_INTERVAL &&
                               !isNavigatingRef.current &&
                               !isRefreshingRef.current &&
+                              !hasRefreshedOnMountRef.current && // Don't refresh if mount refresh just happened
                               isMountedRef.current;
 
         if (shouldRefresh) {
@@ -1442,14 +1466,22 @@ export default function OrganizedContentList({
             pendingRefreshTimeoutRef.current = null;
           }
 
-          // Use refreshContentWithVerification for visibility-based refresh
-          refreshContentWithVerification().then(() => {
-            isRefreshingRef.current = false;
-            debug('[OrganizedContentList] Visibility refresh completed');
-          }).catch((error) => {
-            isRefreshingRef.current = false;
-            console.error('[OrganizedContentList] Visibility refresh failed:', error);
-          });
+          // Add delay for PWA to allow database commits
+          const delay = inPWA ? 300 : 0;
+          setTimeout(() => {
+            if (isMountedRef.current && window.location.pathname === '/' && !isNavigatingRef.current && isRefreshingRef.current) {
+              // Use refreshContentWithVerification for visibility-based refresh
+              refreshContentWithVerification().then(() => {
+                isRefreshingRef.current = false;
+                debug('[OrganizedContentList] Visibility refresh completed');
+              }).catch((error) => {
+                isRefreshingRef.current = false;
+                console.error('[OrganizedContentList] Visibility refresh failed:', error);
+              });
+            } else {
+              isRefreshingRef.current = false;
+            }
+          }, delay);
         }
       }
     };
