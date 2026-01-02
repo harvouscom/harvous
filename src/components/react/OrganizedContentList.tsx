@@ -171,33 +171,54 @@ export default function OrganizedContentList({
     }
 
     setCurrentItems(prev => {
-      // Find the item by ID - try multiple formats
+      // Normalize itemId: remove thread_ or note_ prefix if present
+      const normalizedItemId = itemId.startsWith('thread_') 
+        ? itemId.substring(7) 
+        : itemId.startsWith('note_') 
+        ? itemId.substring(5) 
+        : itemId;
+      
+      // Find the item by ID - STRICT TYPE CHECKING: only match items of the correct type
       let itemIndex = -1;
       
       if (itemType === 'thread') {
-        itemIndex = prev.findIndex(item => 
-          item.threadId === itemId || 
-          item.id === `thread-${itemId}` || 
-          item.id === itemId ||
-          (itemId.startsWith('thread_') && item.threadId === itemId.substring(7)) ||
-          (itemId.startsWith('thread_') && item.id === itemId)
-        );
+        // Only match threads - check type first, then ID
+        itemIndex = prev.findIndex(item => {
+          if (item.type !== 'thread') return false;
+          // Try exact threadId match first (most reliable)
+          if (item.threadId === normalizedItemId) return true;
+          // Try prefixed ID match
+          if (item.id === `thread-${normalizedItemId}`) return true;
+          // Try exact ID match (for cases where ID is already prefixed)
+          if (item.id === itemId || item.id === normalizedItemId) return true;
+          return false;
+        });
       } else {
-        itemIndex = prev.findIndex(item => 
-          item.noteId === itemId || 
-          item.id === `note-${itemId}` || 
-          item.id === itemId ||
-          (itemId.startsWith('note_') && item.noteId === itemId.substring(5)) ||
-          (itemId.startsWith('note_') && item.id === itemId)
-        );
+        // Only match notes - check type first, then ID
+        itemIndex = prev.findIndex(item => {
+          if (item.type !== 'note') return false;
+          // Try exact noteId match first (most reliable)
+          if (item.noteId === normalizedItemId) return true;
+          // Try prefixed ID match
+          if (item.id === `note-${normalizedItemId}`) return true;
+          // Try exact ID match (for cases where ID is already prefixed)
+          if (item.id === itemId || item.id === normalizedItemId) return true;
+          return false;
+        });
       }
 
       if (itemIndex === -1) {
         debug('[OrganizedContentList] Item not found for optimistic update', { 
           itemId, 
+          normalizedItemId,
           itemType,
           listLength: prev.length,
-          available: prev.slice(0, 5).map(i => ({ id: i.id, threadId: i.threadId, noteId: i.noteId, type: i.type }))
+          available: prev.slice(0, 5).map(i => ({ 
+            id: i.id, 
+            threadId: i.threadId, 
+            noteId: i.noteId, 
+            type: i.type 
+          }))
         });
         
         // If list is empty, queue the update for when items load
@@ -209,7 +230,30 @@ export default function OrganizedContentList({
         return prev;
       }
 
-      debug('[OrganizedContentList] Found item for optimistic update', { itemId, itemType, itemIndex, currentItem: prev[itemIndex] });
+      // Validate that we found the correct item type
+      const foundItem = prev[itemIndex];
+      if (foundItem.type !== itemType) {
+        debug('[OrganizedContentList] Type mismatch in optimistic update', {
+          itemId,
+          itemType,
+          foundType: foundItem.type,
+          foundItem: { id: foundItem.id, threadId: foundItem.threadId, noteId: foundItem.noteId }
+        });
+        return prev; // Don't update if type doesn't match
+      }
+
+      debug('[OrganizedContentList] Found item for optimistic update', { 
+        itemId, 
+        normalizedItemId,
+        itemType, 
+        itemIndex, 
+        currentItem: { 
+          id: foundItem.id, 
+          threadId: foundItem.threadId, 
+          noteId: foundItem.noteId, 
+          type: foundItem.type 
+        }
+      });
       
       // Update the item's lastVisited and lastUpdated to now
       const updatedItems = [...prev];
@@ -237,14 +281,32 @@ export default function OrganizedContentList({
 
 
   // Extract item ID from pathname (thread_xxx or note_xxx)
+  // Handles edge cases like query params and hash
   const extractItemIdFromPath = useCallback((pathname: string): { id: string; type: 'thread' | 'note' } | null => {
-    if (pathname.startsWith('/thread_')) {
-      const id = pathname.substring(1); // Remove leading '/'
-      return { id, type: 'thread' as const };
-    } else if (pathname.startsWith('/note_')) {
-      const id = pathname.substring(1); // Remove leading '/'
-      return { id, type: 'note' as const };
+    // Remove query params and hash for clean pathname
+    const cleanPath = pathname.split('?')[0].split('#')[0];
+    
+    // Remove leading slash
+    const pathWithoutSlash = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+    
+    // Check for thread_ prefix first (more specific)
+    if (pathWithoutSlash.startsWith('thread_')) {
+      const id = pathWithoutSlash; // Keep the full ID including prefix
+      // Validate it's a valid thread ID format
+      if (id.length > 7) { // thread_ is 7 chars, so valid ID should be longer
+        return { id, type: 'thread' as const };
+      }
+    } 
+    // Check for note_ prefix
+    else if (pathWithoutSlash.startsWith('note_')) {
+      const id = pathWithoutSlash; // Keep the full ID including prefix
+      // Validate it's a valid note ID format
+      if (id.length > 5) { // note_ is 5 chars, so valid ID should be longer
+        return { id, type: 'note' as const };
+      }
     }
+    
+    // If no match, return null
     return null;
   }, []);
 
@@ -320,15 +382,21 @@ export default function OrganizedContentList({
           // Merge with optimistic items that haven't been confirmed yet
           // Create a set of all confirmed item IDs (including both prefixed and raw IDs)
           const confirmedItemIds = new Set<string>();
+          const confirmedItemsMap = new Map<string, OrganizedContentItem>(); // Track confirmed items for date comparison
           filtered.forEach(item => {
             confirmedItemIds.add(item.id);
+            confirmedItemsMap.set(item.id, item);
             if (item.threadId) {
               confirmedItemIds.add(item.threadId);
               confirmedItemIds.add(`thread-${item.threadId}`);
+              confirmedItemsMap.set(item.threadId, item);
+              confirmedItemsMap.set(`thread-${item.threadId}`, item);
             }
             if (item.noteId) {
               confirmedItemIds.add(item.noteId);
               confirmedItemIds.add(`note-${item.noteId}`);
+              confirmedItemsMap.set(item.noteId, item);
+              confirmedItemsMap.set(`note-${item.noteId}`, item);
             }
           });
 
@@ -340,41 +408,92 @@ export default function OrganizedContentList({
           // 1. Haven't been confirmed by API yet
           // 2. Were added recently (within last 5 seconds)
           // 3. Match the current filter
-          optimisticItemsRef.current.forEach(({ timestamp, item }, itemId) => {
+          // Also preserve optimistic lastVisited updates if they're newer than API data
+          optimisticItemsRef.current.forEach(({ timestamp, item: optimisticItem }, itemId) => {
             // Check if item is confirmed (by ID, threadId, or noteId)
             const isConfirmed = confirmedItemIds.has(itemId) ||
-                               (item.threadId && confirmedItemIds.has(item.threadId)) ||
-                               (item.noteId && confirmedItemIds.has(item.noteId)) ||
-                               confirmedItemIds.has(item.id);
+                               (optimisticItem.threadId && confirmedItemIds.has(optimisticItem.threadId)) ||
+                               (optimisticItem.noteId && confirmedItemIds.has(optimisticItem.noteId)) ||
+                               confirmedItemIds.has(optimisticItem.id);
 
             if (!isConfirmed && timestamp > fiveSecondsAgo) {
               // Check if item matches current filter
               const currentFilter = filterRef.current;
               const matchesFilter = currentFilter === 'all' ||
-                                   (currentFilter === 'threads' && item.type === 'thread') ||
-                                   (currentFilter === 'notes' && item.type === 'note' && (item.noteType === 'default' || !item.noteType)) ||
-                                   (currentFilter === 'resources' && item.type === 'note' && item.noteType === 'resource');
+                                   (currentFilter === 'threads' && optimisticItem.type === 'thread') ||
+                                   (currentFilter === 'notes' && optimisticItem.type === 'note' && (optimisticItem.noteType === 'default' || !optimisticItem.noteType)) ||
+                                   (currentFilter === 'resources' && optimisticItem.type === 'note' && optimisticItem.noteType === 'resource');
               
-              if (matchesFilter && !deletedItemIdsRef.current.has(itemId) && !deletedItemIdsRef.current.has(item.id)) {
-                optimisticItemsToKeep.push(item);
+              if (matchesFilter && !deletedItemIdsRef.current.has(itemId) && !deletedItemIdsRef.current.has(optimisticItem.id)) {
+                optimisticItemsToKeep.push(optimisticItem);
               }
             } else if (isConfirmed) {
+              // Item confirmed by API - check if optimistic update has newer lastVisited
+              const confirmedItem = confirmedItemsMap.get(itemId) || 
+                                   confirmedItemsMap.get(optimisticItem.id) ||
+                                   (optimisticItem.threadId && confirmedItemsMap.get(optimisticItem.threadId)) ||
+                                   (optimisticItem.noteId && confirmedItemsMap.get(optimisticItem.noteId));
+              
+              if (confirmedItem) {
+                // Compare lastVisited dates - preserve optimistic if newer
+                const optimisticLastVisited = optimisticItem.lastVisited instanceof Date 
+                  ? optimisticItem.lastVisited 
+                  : optimisticItem.lastVisited 
+                    ? normalizeDate(optimisticItem.lastVisited) 
+                    : null;
+                const apiLastVisited = confirmedItem.lastVisited instanceof Date 
+                  ? confirmedItem.lastVisited 
+                  : confirmedItem.lastVisited 
+                    ? normalizeDate(confirmedItem.lastVisited) 
+                    : null;
+                
+                // If optimistic update is newer, update the confirmed item with optimistic date
+                if (optimisticLastVisited && (!apiLastVisited || optimisticLastVisited > apiLastVisited)) {
+                  const itemIndex = filtered.findIndex(i => 
+                    i.id === confirmedItem.id || 
+                    (optimisticItem.threadId && i.threadId === optimisticItem.threadId) ||
+                    (optimisticItem.noteId && i.noteId === optimisticItem.noteId)
+                  );
+                  if (itemIndex !== -1) {
+                    filtered[itemIndex] = {
+                      ...filtered[itemIndex],
+                      lastVisited: optimisticLastVisited,
+                      lastUpdated: optimisticItem.lastUpdated || filtered[itemIndex].lastUpdated
+                    };
+                  }
+                }
+              }
+              
               // Item confirmed by API, remove from optimistic tracking (check all possible keys)
               optimisticItemsRef.current.delete(itemId);
-              if (item.threadId) {
-                optimisticItemsRef.current.delete(item.threadId);
-                optimisticItemsRef.current.delete(`thread-${item.threadId}`);
+              if (optimisticItem.threadId) {
+                optimisticItemsRef.current.delete(optimisticItem.threadId);
+                optimisticItemsRef.current.delete(`thread-${optimisticItem.threadId}`);
               }
-              if (item.noteId) {
-                optimisticItemsRef.current.delete(item.noteId);
-                optimisticItemsRef.current.delete(`note-${item.noteId}`);
+              if (optimisticItem.noteId) {
+                optimisticItemsRef.current.delete(optimisticItem.noteId);
+                optimisticItemsRef.current.delete(`note-${optimisticItem.noteId}`);
               }
-              optimisticItemsRef.current.delete(item.id);
+              optimisticItemsRef.current.delete(optimisticItem.id);
             }
           });
 
           // Combine API items with optimistic items, then re-sort
-          const combinedItemsRaw = [...filtered, ...optimisticItemsToKeep];
+          // Ensure all dates are normalized before sorting
+          const combinedItemsRaw = [...filtered, ...optimisticItemsToKeep].map(item => ({
+            ...item,
+            lastVisited: item.lastVisited instanceof Date 
+              ? item.lastVisited 
+              : item.lastVisited 
+                ? (normalizeDate(item.lastVisited) || item.lastVisited)
+                : item.lastVisited,
+            lastUpdated: item.lastUpdated ? (typeof item.lastUpdated === 'string' ? item.lastUpdated : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+            createdAt: item.createdAt instanceof Date 
+              ? item.createdAt 
+              : item.createdAt 
+                ? (normalizeDate(item.createdAt) || item.createdAt)
+                : item.createdAt
+          }));
           const combinedItems = sortItemsByLastVisited(combinedItemsRaw);
           
           // Create a key from the refreshed items to track what we just loaded
@@ -530,12 +649,20 @@ export default function OrganizedContentList({
           threadItemsCount: threadItems.length
         });
         
-        // Normalize dates in refreshed items
+        // Normalize dates in refreshed items - ensure consistent format
         const normalizedItems = (data.items || []).map((item: any) => ({
           ...item,
-          lastUpdated: item.lastUpdated ? (normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
-          lastVisited: item.lastVisited ? (normalizeDate(item.lastVisited) || item.lastVisited) : item.lastVisited,
-          createdAt: item.createdAt ? (normalizeDate(item.createdAt) || item.createdAt) : item.createdAt
+          lastUpdated: item.lastUpdated ? (typeof item.lastUpdated === 'string' ? item.lastUpdated : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+          lastVisited: item.lastVisited instanceof Date 
+            ? item.lastVisited 
+            : item.lastVisited 
+              ? (normalizeDate(item.lastVisited) || item.lastVisited)
+              : item.lastVisited,
+          createdAt: item.createdAt instanceof Date 
+            ? item.createdAt 
+            : item.createdAt 
+              ? (normalizeDate(item.createdAt) || item.createdAt)
+              : item.createdAt
         }));
         
         // Filter out deleted items from refreshed items
@@ -544,7 +671,15 @@ export default function OrganizedContentList({
         });
         
         // Re-sort by lastVisited (matching API logic) to ensure consistency
-        const filteredItems = sortItemsByLastVisited(filteredItemsRaw);
+        // Ensure all dates are normalized before sorting
+        const filteredItems = sortItemsByLastVisited(filteredItemsRaw.map(item => ({
+          ...item,
+          lastVisited: item.lastVisited instanceof Date 
+            ? item.lastVisited 
+            : item.lastVisited 
+              ? (normalizeDate(item.lastVisited) || item.lastVisited)
+              : item.lastVisited
+        })));
         
         // Create a key from the refreshed items to track what we just loaded
         const refreshedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
@@ -652,12 +787,20 @@ export default function OrganizedContentList({
 
       const data = await response.json();
       
-      // Normalize dates in refreshed items
+      // Normalize dates in refreshed items - ensure consistent format
       const normalizedItems = (data.items || []).map((item: any) => ({
         ...item,
-        lastUpdated: item.lastUpdated ? (normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
-        lastVisited: item.lastVisited ? (normalizeDate(item.lastVisited) || item.lastVisited) : item.lastVisited,
-        createdAt: item.createdAt ? (normalizeDate(item.createdAt) || item.createdAt) : item.createdAt
+        lastUpdated: item.lastUpdated ? (typeof item.lastUpdated === 'string' ? item.lastUpdated : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+        lastVisited: item.lastVisited instanceof Date 
+          ? item.lastVisited 
+          : item.lastVisited 
+            ? (normalizeDate(item.lastVisited) || item.lastVisited)
+            : item.lastVisited,
+        createdAt: item.createdAt instanceof Date 
+          ? item.createdAt 
+          : item.createdAt 
+            ? (normalizeDate(item.createdAt) || item.createdAt)
+            : item.createdAt
       }));
       
       // Filter out deleted items from refreshed items
@@ -666,7 +809,15 @@ export default function OrganizedContentList({
       });
       
       // Re-sort by lastVisited (matching API logic) to ensure consistency
-      const filteredItems = sortItemsByLastVisited(filteredItemsRaw);
+      // Ensure all dates are normalized before sorting
+      const filteredItems = sortItemsByLastVisited(filteredItemsRaw.map(item => ({
+        ...item,
+        lastVisited: item.lastVisited instanceof Date 
+          ? item.lastVisited 
+          : item.lastVisited 
+            ? (normalizeDate(item.lastVisited) || item.lastVisited)
+            : item.lastVisited
+      })));
       
       // Create a key from the refreshed items to track what we just loaded
       const refreshedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
@@ -681,7 +832,16 @@ export default function OrganizedContentList({
           lastRefreshItemsKeyRef.current = refreshedItemsKey;
           
           // Ensure items are sorted before setting
-          const sorted = sortItemsByLastVisited(filteredItems);
+          // Normalize dates before sorting to ensure consistency
+          const normalizedFiltered = filteredItems.map(item => ({
+            ...item,
+            lastVisited: item.lastVisited instanceof Date 
+              ? item.lastVisited 
+              : item.lastVisited 
+                ? (normalizeDate(item.lastVisited) || item.lastVisited)
+                : item.lastVisited
+          }));
+          const sorted = sortItemsByLastVisited(normalizedFiltered);
           setCurrentItems(sorted);
           currentItemsRef.current = sorted;
           debug('[OrganizedContentList] Updated scripture notes', { itemCount: sorted.length, forceUpdate });
@@ -807,7 +967,22 @@ export default function OrganizedContentList({
     });
     
     // Ensure items are sorted before setting
-    const sorted = sortItemsByLastVisited(filtered);
+    // Normalize dates before sorting to ensure consistency
+    const normalizedFiltered = filtered.map(item => ({
+      ...item,
+      lastVisited: item.lastVisited instanceof Date 
+        ? item.lastVisited 
+        : item.lastVisited 
+          ? (normalizeDate(item.lastVisited) || item.lastVisited)
+          : item.lastVisited,
+      lastUpdated: item.lastUpdated ? (typeof item.lastUpdated === 'string' ? item.lastUpdated : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+      createdAt: item.createdAt instanceof Date 
+        ? item.createdAt 
+        : item.createdAt 
+          ? (normalizeDate(item.createdAt) || item.createdAt)
+          : item.createdAt
+    }));
+    const sorted = sortItemsByLastVisited(normalizedFiltered);
     setCurrentItems(sorted);
     currentItemsRef.current = sorted;
   }, [initialItems, deletedItemIds, filter]);
