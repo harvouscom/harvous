@@ -125,8 +125,9 @@ export default function ThreadNotesList({
   // how many notes we've actually fetched from the database
   const databaseOffsetRef = useRef<number>(0);
 
-  // Track previous noteTypeFilter to detect filter changes
+  // Track previous values to detect what changed
   const prevNoteTypeFilterRef = useRef<string>(noteTypeFilter);
+  const prevInitialNotesRef = useRef<Note[]>(initialNotes);
   const isMountedRef = useRef<boolean>(true);
   const hasRefreshedOnMountRef = useRef<boolean>(false);
   // Track visibility changes for PWA foreground refresh
@@ -143,10 +144,17 @@ export default function ThreadNotesList({
     };
   }, []);
   
-  // Initialize notes from initialNotes on mount or when initialNotes change
-  // This handles page navigation and initial load
+  // Handle both initialNotes changes and noteTypeFilter changes in a single useEffect
+  // This ensures proper initialization and preserves optimistic updates when switching tabs
   useEffect(() => {
-    const filtered = initialNotes
+    const initialNotesChanged = prevInitialNotesRef.current !== initialNotes;
+    const filterChanged = prevNoteTypeFilterRef.current !== noteTypeFilter;
+    
+    // Determine source: use initialNotes if they changed, otherwise use current notes state (from ref)
+    // This preserves optimistic updates when only the filter changes
+    const sourceNotes = initialNotesChanged ? initialNotes : notesRef.current;
+    
+    const filtered = sourceNotes
       .filter(note => !deletedNoteIds.has(note.id));
     
     // Normalize dates BEFORE filtering/sorting (matching OrganizedContentList pattern)
@@ -177,53 +185,15 @@ export default function ThreadNotesList({
     // Initialize accumulatedFilteredCountRef immediately with the filtered count
     accumulatedFilteredCountRef.current = sortedNotes.length;
     
-    // Update database offset to reflect initial notes (total fetched from server, not filtered)
-    databaseOffsetRef.current = initialNotes.length;
-    
-    // Update previous filter ref
-    prevNoteTypeFilterRef.current = noteTypeFilter;
-  }, [initialNotes, deletedNoteIds]);
-
-  // Handle noteTypeFilter changes - filter and sort from current notes state
-  // This preserves optimistic updates and client-side changes when switching tabs
-  useEffect(() => {
-    // Skip if filter hasn't actually changed
-    if (prevNoteTypeFilterRef.current === noteTypeFilter) {
-      return;
+    // Update database offset only when initialNotes change
+    if (initialNotesChanged) {
+      databaseOffsetRef.current = initialNotes.length;
     }
-
-    // Use notesRef to get current notes (includes optimistic updates) without causing dependency issues
-    // Filter current notes state (which includes optimistic updates) by type
-    const filtered = notesRef.current
-      .filter(note => !deletedNoteIds.has(note.id));
     
-    // Normalize dates before filtering/sorting
-    const normalized = filtered.map(note => ({
-      ...note,
-      lastVisited: note.lastVisited ? normalizeDate(note.lastVisited) || note.lastVisited : note.lastVisited,
-      updatedAt: note.updatedAt ? normalizeDate(note.updatedAt) || note.updatedAt : note.updatedAt,
-      createdAt: note.createdAt ? normalizeDate(note.createdAt) || note.createdAt : note.createdAt
-    }));
-    
-    // Apply type filter
-    const typeFiltered = noteTypeFilter === 'all' 
-      ? normalized 
-      : filterNotesByType(normalized, noteTypeFilter);
-    
-    // Deduplicate by note ID
-    const uniqueNotes = Array.from(
-      new Map(typeFiltered.map(note => [note.id, note])).values()
-    );
-    
-    // Sort by time (newest first)
-    const sortedNotes = sortNotesByTime(uniqueNotes);
-    
-    setNotes(sortedNotes);
-    accumulatedFilteredCountRef.current = sortedNotes.length;
-    
-    // Update previous filter ref
+    // Update previous refs
     prevNoteTypeFilterRef.current = noteTypeFilter;
-  }, [noteTypeFilter, deletedNoteIds]);
+    prevInitialNotesRef.current = initialNotes;
+  }, [initialNotes, deletedNoteIds, noteTypeFilter]);
 
   // Listen for note deletion events
   useEffect(() => {
