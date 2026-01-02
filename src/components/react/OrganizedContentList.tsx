@@ -109,7 +109,7 @@ export default function OrganizedContentList({
   }, []);
 
   // Optimistic update: immediately update lastVisited and re-sort items
-  // Simplified to avoid closure issues - no retry logic, rely on API refresh
+  // Includes safe retry logic with inline setTimeout to avoid Vite transform errors
   const optimisticUpdateLastVisited = useCallback((itemId: string, itemType: 'thread' | 'note') => {
     // Check if component is still mounted before proceeding
     if (!isMountedRef.current) {
@@ -146,7 +146,66 @@ export default function OrganizedContentList({
           listLength: prev.length,
           available: prev.slice(0, 5).map(i => ({ id: i.id, threadId: i.threadId, noteId: i.noteId, type: i.type }))
         });
-        // Item not found - API refresh will handle it
+        
+        // Retry once if list has items (item might be loading)
+        if (prev.length > 0 && isMountedRef.current) {
+          // Use inline setTimeout with no function references to avoid Vite errors
+          setTimeout(() => {
+            if (!isMountedRef.current) return;
+            
+            // Inline retry logic - no external function calls
+            setCurrentItems(currentItems => {
+              let idx = -1;
+              
+              if (itemType === 'thread') {
+                idx = currentItems.findIndex(item => 
+                  item.threadId === itemId || 
+                  item.id === `thread-${itemId}` || 
+                  item.id === itemId ||
+                  (itemId.startsWith('thread_') && item.threadId === itemId.substring(7)) ||
+                  (itemId.startsWith('thread_') && item.id === itemId)
+                );
+              } else {
+                idx = currentItems.findIndex(item => 
+                  item.noteId === itemId || 
+                  item.id === `note-${itemId}` || 
+                  item.id === itemId ||
+                  (itemId.startsWith('note_') && item.noteId === itemId.substring(5)) ||
+                  (itemId.startsWith('note_') && item.id === itemId)
+                );
+              }
+              
+              if (idx !== -1) {
+                const updated = [...currentItems];
+                const now = new Date();
+                updated[idx] = { ...updated[idx], lastVisited: now, lastUpdated: now.toISOString() };
+                // Inline sort logic to avoid function reference issues
+                const sorted = updated.sort((a, b) => {
+                  const getTime = (item: OrganizedContentItem): number => {
+                    if (item.lastVisited) {
+                      const date = item.lastVisited instanceof Date ? item.lastVisited : new Date(item.lastVisited);
+                      return isNaN(date.getTime()) ? 0 : date.getTime();
+                    }
+                    if (item.lastUpdated) {
+                      const date = new Date(item.lastUpdated);
+                      return isNaN(date.getTime()) ? 0 : date.getTime();
+                    }
+                    if (item.createdAt) {
+                      const date = item.createdAt instanceof Date ? item.createdAt : new Date(item.createdAt);
+                      return isNaN(date.getTime()) ? 0 : date.getTime();
+                    }
+                    return 0;
+                  };
+                  const diff = getTime(b) - getTime(a);
+                  if (diff !== 0) return diff;
+                  return (a.id || '').localeCompare(b.id || '');
+                });
+                return sorted;
+              }
+              return currentItems;
+            });
+          }, 100); // Small delay to allow list to populate
+        }
         return prev;
       }
 
@@ -1246,7 +1305,7 @@ export default function OrganizedContentList({
                 // Sorting is handled by the API response, but verify it's correct
               });
             }
-          }, 50); // Reduced from 100ms (optimistic update provides instant feedback)
+          }, 150); // Increased to 150ms to allow optimistic update to be visible
           previousPathnameRef.current = window.location.pathname;
           return;
         }
