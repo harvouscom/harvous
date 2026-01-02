@@ -84,11 +84,29 @@ export default function SpaceContentList({
   filter = 'all'
 }: SpaceContentListProps) {
   // Sort initial items by lastVisited on mount
-  const [items, setItems] = useState<SpaceItem[]>(() => sortItemsByLastVisited(initialItems || []));
+  // Use inline sorting logic in initializers (can't use useCallback here)
+  const [items, setItems] = useState<SpaceItem[]>(() => {
+    // Use shared sorting function that matches API logic
+    const itemsWithUpdatedAt = (initialItems || []).map(item => ({
+      ...item,
+      updatedAt: item.lastUpdated
+    }));
+    const sorted = sortByLastVisited(itemsWithUpdatedAt);
+    return sorted.map(({ updatedAt, ...item }) => item);
+  });
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const deletedItemIdsRef = useRef<Set<string>>(new Set());
   const isMountedRef = useRef(true);
-  const itemsRef = useRef<SpaceItem[]>(sortItemsByLastVisited(initialItems || []));
+  // Compute initial sorted items for ref (useRef doesn't support lazy initializers)
+  const initialSortedItems = (() => {
+    const itemsWithUpdatedAt = (initialItems || []).map(item => ({
+      ...item,
+      updatedAt: item.lastUpdated
+    }));
+    const sorted = sortByLastVisited(itemsWithUpdatedAt);
+    return sorted.map(({ updatedAt, ...item }) => item);
+  })();
+  const itemsRef = useRef<SpaceItem[]>(initialSortedItems);
   const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
   const isNavigatingRef = useRef(false);
   const hasRefreshedOnMountRef = useRef(false); // Track if mount refresh happened
@@ -101,6 +119,21 @@ export default function SpaceContentList({
   // Track pending optimistic updates (when list is empty)
   const pendingOptimisticUpdateRef = useRef<{ itemId: string; itemType: 'thread' | 'note' } | null>(null);
 
+  // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
+  // Note: SpaceItem uses lastUpdated (string) instead of updatedAt, so we need to map it
+  const sortItemsByLastVisited = useCallback((items: SpaceItem[]): SpaceItem[] => {
+    // Map lastUpdated to updatedAt for the shared sorting function
+    const itemsWithUpdatedAt = items.map(item => ({
+      ...item,
+      updatedAt: item.lastUpdated
+    }));
+    
+    const sorted = sortByLastVisited(itemsWithUpdatedAt);
+    
+    // Map back to remove updatedAt (keep lastUpdated)
+    return sorted.map(({ updatedAt, ...item }) => item);
+  }, []);
+
   // Sort initial items on mount
   useEffect(() => {
     if (initialItems && initialItems.length > 0) {
@@ -108,7 +141,7 @@ export default function SpaceContentList({
       setItems(sorted);
       itemsRef.current = sorted;
     }
-  }, []); // Empty deps - only on mount
+  }, [sortItemsByLastVisited]); // Include sortItemsByLastVisited in deps
 
   // Keep refs in sync with state
   useEffect(() => {
