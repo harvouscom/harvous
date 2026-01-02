@@ -1178,39 +1178,37 @@ export default function OrganizedContentList({
             });
           }
           
-          // Verify with API after short delay (with retries to preserve optimistic item)
-          setTimeout(() => {
-            refreshContentWithVerification(expectedItemId, expectedItemType).then((success) => {
-              if (success) {
-                // Remove from sessionStorage after successful verification
-                try {
-                  const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
-                  if (recentNotesStr && noteId) {
-                    const recentNotes = JSON.parse(recentNotesStr);
-                    const filtered = recentNotes.filter((n: any) => n.noteId !== noteId);
-                    sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
-                  }
-                } catch (error) {
-                  console.error('[OrganizedContentList] Error cleaning up sessionStorage after noteCreated:', error);
+          // Verify with API (retry logic handles transient failures)
+          refreshContentWithVerification(expectedItemId, expectedItemType).then((success) => {
+            if (success) {
+              // Remove from sessionStorage after successful verification
+              try {
+                const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+                if (recentNotesStr && noteId) {
+                  const recentNotes = JSON.parse(recentNotesStr);
+                  const filtered = recentNotes.filter((n: any) => n.noteId !== noteId);
+                  sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
                 }
-              } else {
-                // Verification failed after all attempts - check if we should remove optimistic item
-                // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
-                const optimisticItem = optimisticItemsRef.current.get(noteId);
-                if (optimisticItem) {
-                  const timeSinceCreation = Date.now() - optimisticItem.timestamp;
-                  if (timeSinceCreation > 2000) {
-                    // Remove optimistic item after 2 seconds if still not confirmed
-                    optimisticItemsRef.current.delete(noteId);
-                    setCurrentItems(prev => {
-                      const filtered = prev.filter(item => item.noteId !== noteId);
-                      return sortItemsByLastVisited(filtered);
-                    });
-                  }
+              } catch (error) {
+                console.error('[OrganizedContentList] Error cleaning up sessionStorage after noteCreated:', error);
+              }
+            } else {
+              // Verification failed after all attempts - check if we should remove optimistic item
+              // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
+              const optimisticItem = optimisticItemsRef.current.get(noteId);
+              if (optimisticItem) {
+                const timeSinceCreation = Date.now() - optimisticItem.timestamp;
+                if (timeSinceCreation > 2000) {
+                  // Remove optimistic item after 2 seconds if still not confirmed
+                  optimisticItemsRef.current.delete(noteId);
+                  setCurrentItems(prev => {
+                    const filtered = prev.filter(item => item.noteId !== noteId);
+                    return sortItemsByLastVisited(filtered);
+                  });
                 }
               }
-            });
-          }, 200);
+            }
+          });
         }
       } else {
         // If not on dashboard, mark that we have a pending update
@@ -1273,40 +1271,37 @@ export default function OrganizedContentList({
         });
       }
       
-      // Use verification-based refresh instead of arbitrary delay (with retries to preserve optimistic item)
-      // Increased delay from 200ms to 400ms to ensure DB commit completes
-      setTimeout(() => {
-        refreshContentWithVerification(threadId, 'thread').then((success) => {
-          if (success) {
-            // Remove from sessionStorage after successful verification
-            try {
-              const recentThreadsStr = sessionStorage.getItem('recentlyCreatedThreads');
-              if (recentThreadsStr && threadId) {
-                const recentThreads = JSON.parse(recentThreadsStr);
-                const filtered = recentThreads.filter((t: any) => t.threadId !== threadId);
-                sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(filtered));
-              }
-            } catch (error) {
-              console.error('[OrganizedContentList] Error cleaning up sessionStorage after threadCreated:', error);
+      // Verify with API (retry logic handles transient failures)
+      refreshContentWithVerification(threadId, 'thread').then((success) => {
+        if (success) {
+          // Remove from sessionStorage after successful verification
+          try {
+            const recentThreadsStr = sessionStorage.getItem('recentlyCreatedThreads');
+            if (recentThreadsStr && threadId) {
+              const recentThreads = JSON.parse(recentThreadsStr);
+              const filtered = recentThreads.filter((t: any) => t.threadId !== threadId);
+              sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(filtered));
             }
-          } else {
-            // Verification failed after all attempts - check if we should remove optimistic item
-            // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
-            const optimisticItem = optimisticItemsRef.current.get(threadId);
-            if (optimisticItem) {
-              const timeSinceCreation = Date.now() - optimisticItem.timestamp;
-              if (timeSinceCreation > 2000) {
-                // Remove optimistic item after 2 seconds if still not confirmed
-                optimisticItemsRef.current.delete(threadId);
-                setCurrentItems(prev => {
-                  const filtered = prev.filter(item => item.threadId !== threadId);
-                  return sortItemsByLastVisited(filtered);
-                });
-              }
+          } catch (error) {
+            console.error('[OrganizedContentList] Error cleaning up sessionStorage after threadCreated:', error);
+          }
+        } else {
+          // Verification failed after all attempts - check if we should remove optimistic item
+          // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
+          const optimisticItem = optimisticItemsRef.current.get(threadId);
+          if (optimisticItem) {
+            const timeSinceCreation = Date.now() - optimisticItem.timestamp;
+            if (timeSinceCreation > 2000) {
+              // Remove optimistic item after 2 seconds if still not confirmed
+              optimisticItemsRef.current.delete(threadId);
+              setCurrentItems(prev => {
+                const filtered = prev.filter(item => item.threadId !== threadId);
+                return sortItemsByLastVisited(filtered);
+              });
             }
           }
-        });
-      }, 400); // Increased delay from 200ms to 400ms to ensure DB commit completes
+        }
+      });
     };
 
     const handleSpaceDeleted = () => {
@@ -1317,10 +1312,8 @@ export default function OrganizedContentList({
         clearTimeout(pendingRefreshTimeoutRef.current);
         pendingRefreshTimeoutRef.current = null;
       }
-      // Use verification-based refresh
-      setTimeout(() => {
-        refreshContentWithVerification();
-      }, 200);
+      // Verify with API (retry logic handles transient failures)
+      refreshContentWithVerification();
     };
 
     const handleNoteUpdated = (event?: Event) => {
@@ -1340,15 +1333,14 @@ export default function OrganizedContentList({
         clearTimeout(pendingRefreshTimeoutRef.current);
         pendingRefreshTimeoutRef.current = null;
       }
-      setTimeout(() => {
-        // If we're on the scripture tab, refresh scripture notes
-        // This ensures newly created scripture notes (from processScriptureReferences) appear
-        if (window.location.pathname === '/' && currentFilter === 'scripture') {
-          refreshScriptureNotes();
-        } else {
-          refreshContentWithVerification();
-        }
-      }, 400); // Increased delay from 200ms to 400ms to ensure DB commit completes
+      // If we're on the scripture tab, refresh scripture notes
+      // This ensures newly created scripture notes (from processScriptureReferences) appear
+      if (window.location.pathname === '/' && currentFilter === 'scripture') {
+        refreshScriptureNotes();
+      } else {
+        // Verify with API (retry logic handles transient failures)
+        refreshContentWithVerification();
+      }
     };
 
     const handleThreadUpdated = () => {
@@ -1358,11 +1350,8 @@ export default function OrganizedContentList({
         clearTimeout(pendingRefreshTimeoutRef.current);
         pendingRefreshTimeoutRef.current = null;
       }
-      // Use verification-based refresh
-      // Increased delay from 200ms to 400ms to ensure DB commit completes
-      setTimeout(() => {
-        refreshContentWithVerification();
-      }, 400);
+      // Verify with API (retry logic handles transient failures)
+      refreshContentWithVerification();
     };
 
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);

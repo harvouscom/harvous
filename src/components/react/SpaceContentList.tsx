@@ -605,38 +605,36 @@ export default function SpaceContentList({
           });
         }
 
-        // Verify with API after short delay (with retries to preserve optimistic item)
-        setTimeout(() => {
-          refreshSpaceContent(noteId, 'note').then((success) => {
-            if (success) {
-              // Remove from sessionStorage after successful verification
-              try {
-                const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
-                if (recentNotesStr) {
-                  const recentNotes = JSON.parse(recentNotesStr);
-                  const filtered = recentNotes.filter((n: any) => 
-                    !(n.spaceId === spaceId && n.noteId === noteId)
-                  );
-                  sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
-                }
-              } catch (error) {
-                console.error('[SpaceContentList] Error cleaning up sessionStorage after noteCreated:', error);
+        // Verify with API (retry logic handles transient failures)
+        refreshSpaceContent(noteId, 'note').then((success) => {
+          if (success) {
+            // Remove from sessionStorage after successful verification
+            try {
+              const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+              if (recentNotesStr) {
+                const recentNotes = JSON.parse(recentNotesStr);
+                const filtered = recentNotes.filter((n: any) => 
+                  !(n.spaceId === spaceId && n.noteId === noteId)
+                );
+                sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
               }
-            } else {
-              // Verification failed after all attempts - check if we should remove optimistic item
-              // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
-              const optimisticItem = optimisticItemsRef.current.get(noteId);
-              if (optimisticItem) {
-                const timeSinceCreation = Date.now() - optimisticItem.timestamp;
-                if (timeSinceCreation > 2000) {
-                  // Remove optimistic item after 2 seconds if still not confirmed
-                  optimisticItemsRef.current.delete(noteId);
-                  setItems(prev => prev.filter(item => item.id !== noteId));
-                }
+            } catch (error) {
+              console.error('[SpaceContentList] Error cleaning up sessionStorage after noteCreated:', error);
+            }
+          } else {
+            // Verification failed after all attempts - check if we should remove optimistic item
+            // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
+            const optimisticItem = optimisticItemsRef.current.get(noteId);
+            if (optimisticItem) {
+              const timeSinceCreation = Date.now() - optimisticItem.timestamp;
+              if (timeSinceCreation > 2000) {
+                // Remove optimistic item after 2 seconds if still not confirmed
+                optimisticItemsRef.current.delete(noteId);
+                setItems(prev => prev.filter(item => item.id !== noteId));
               }
             }
-          });
-        }, 200);
+          }
+        });
       }
     };
 
@@ -678,38 +676,36 @@ export default function SpaceContentList({
           });
         }
 
-        // Verify with API after short delay (with retries to preserve optimistic item)
-        setTimeout(() => {
-          refreshSpaceContent(actualThreadId, 'thread').then((success) => {
-            if (success) {
-              // Remove from sessionStorage after successful verification
-              try {
-                const recentThreadsStr = sessionStorage.getItem('recentlyCreatedThreads');
-                if (recentThreadsStr) {
-                  const recentThreads = JSON.parse(recentThreadsStr);
-                  const filtered = recentThreads.filter((t: any) => 
-                    !(t.spaceId === spaceId && t.threadId === actualThreadId)
-                  );
-                  sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(filtered));
-                }
-              } catch (error) {
-                console.error('[SpaceContentList] Error cleaning up sessionStorage after threadCreated:', error);
+        // Verify with API (retry logic handles transient failures)
+        refreshSpaceContent(actualThreadId, 'thread').then((success) => {
+          if (success) {
+            // Remove from sessionStorage after successful verification
+            try {
+              const recentThreadsStr = sessionStorage.getItem('recentlyCreatedThreads');
+              if (recentThreadsStr) {
+                const recentThreads = JSON.parse(recentThreadsStr);
+                const filtered = recentThreads.filter((t: any) => 
+                  !(t.spaceId === spaceId && t.threadId === actualThreadId)
+                );
+                sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(filtered));
               }
-            } else {
-              // Verification failed after all attempts - check if we should remove optimistic item
-              // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
-              const optimisticItem = optimisticItemsRef.current.get(actualThreadId);
-              if (optimisticItem) {
-                const timeSinceCreation = Date.now() - optimisticItem.timestamp;
-                if (timeSinceCreation > 2000) {
-                  // Remove optimistic item after 2 seconds if still not confirmed
-                  optimisticItemsRef.current.delete(actualThreadId);
-                  setItems(prev => prev.filter(item => item.id !== actualThreadId));
-                }
+            } catch (error) {
+              console.error('[SpaceContentList] Error cleaning up sessionStorage after threadCreated:', error);
+            }
+          } else {
+            // Verification failed after all attempts - check if we should remove optimistic item
+            // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
+            const optimisticItem = optimisticItemsRef.current.get(actualThreadId);
+            if (optimisticItem) {
+              const timeSinceCreation = Date.now() - optimisticItem.timestamp;
+              if (timeSinceCreation > 2000) {
+                // Remove optimistic item after 2 seconds if still not confirmed
+                optimisticItemsRef.current.delete(actualThreadId);
+                setItems(prev => prev.filter(item => item.id !== actualThreadId));
               }
             }
-          });
-        }, 200);
+          }
+        });
       }
     };
 
@@ -723,9 +719,8 @@ export default function SpaceContentList({
           item.itemType === 'thread' && item.id === threadId
         );
         if (threadInSpace) {
-          setTimeout(() => {
-            refreshSpaceContent();
-          }, 200);
+          // Verify with API (retry logic handles transient failures)
+          refreshSpaceContent();
         }
       }
     };
@@ -738,9 +733,8 @@ export default function SpaceContentList({
           item.itemType === 'thread' && item.id === threadId
         );
         if (threadInSpace) {
-          setTimeout(() => {
-            refreshSpaceContent();
-          }, 200);
+          // Verify with API (retry logic handles transient failures)
+          refreshSpaceContent();
         }
       }
     };
@@ -843,23 +837,21 @@ export default function SpaceContentList({
             optimisticUpdate: visitedItemId ? { id: visitedItemId, type: visitedItemType } : null
           });
 
-          // Background API refresh with minimal delay (optimistic update already handled visual feedback)
-          setTimeout(() => {
-            if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
-              debug('[SpaceContentList] Refreshing space content for verification');
-              refreshSpaceContent().then((success) => {
-                debug('[SpaceContentList] Refresh completed', { success, itemCount: itemsRef.current.length });
-                // Sorting is already applied in refreshSpaceContent
-              });
-            } else {
-              debug('[SpaceContentList] Skipped refresh - conditions not met', {
-                isMounted: isMountedRef.current,
-                currentPath: window.location.pathname,
-                expectedPath: `/${spaceId}`,
-                isNavigating: isNavigatingRef.current
-              });
-            }
-          }, 150); // Increased to 150ms to allow optimistic update to be visible
+          // Background API refresh (optimistic update already handled visual feedback, retry logic handles transient failures)
+          if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+            debug('[SpaceContentList] Refreshing space content for verification');
+            refreshSpaceContent().then((success) => {
+              debug('[SpaceContentList] Refresh completed', { success, itemCount: itemsRef.current.length });
+              // Sorting is already applied in refreshSpaceContent
+            });
+          } else {
+            debug('[SpaceContentList] Skipped refresh - conditions not met', {
+              isMounted: isMountedRef.current,
+              currentPath: window.location.pathname,
+              expectedPath: `/${spaceId}`,
+              isNavigating: isNavigatingRef.current
+            });
+          }
         } else {
           debug('[SpaceContentList] Skipping refresh - no navigation detected', {
             navigatedToSpace,
@@ -945,26 +937,21 @@ export default function SpaceContentList({
           optimisticUpdate: visitedItemId ? { id: visitedItemId, type: visitedItemType } : null
         });
         
-        // If PWA or stale data, refresh with delay to allow database commits
+        // If PWA or stale data, refresh immediately (retry logic handles transient failures)
         // Otherwise, use optimistic update for navigation scenarios
         if (inPWA || dataIsStale) {
-          // Increased delay for PWA/stale data to allow database commits (300ms)
-          setTimeout(() => {
-            if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
-              refreshSpaceContent().then((success) => {
-                debug('[SpaceContentList] Mount refresh completed (PWA/stale)', { success });
-              });
-            }
-          }, 300); // Increased from 50ms to 300ms to allow DB commits
+          if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+            refreshSpaceContent().then((success) => {
+              debug('[SpaceContentList] Mount refresh completed (PWA/stale)', { success });
+            });
+          }
         } else {
-          // Background API refresh with minimal delay for navigation scenarios
-          setTimeout(() => {
-            if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
-              refreshSpaceContent().then((success) => {
-                debug('[SpaceContentList] Mount refresh completed', { success });
-              });
-            }
-          }, 150); // Keep at 150ms for navigation scenarios
+          // Background API refresh for navigation scenarios (retry logic handles transient failures)
+          if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+            refreshSpaceContent().then((success) => {
+              debug('[SpaceContentList] Mount refresh completed', { success });
+            });
+          }
         }
       }
     };

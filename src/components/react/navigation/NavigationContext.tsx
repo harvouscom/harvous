@@ -655,10 +655,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           // Item is not closed - add it to history (first time opening)
           addToNavigationHistory(itemData);
           
-          // Refresh counts from API after adding new item to ensure accuracy
-          setTimeout(() => {
-            refreshNavigationCounts();
-          }, 300);
+          // Refresh counts from API after adding new item to ensure accuracy (retry logic handles transient failures)
+          refreshNavigationCounts();
         }
       } else {
         // Item exists in history - update it
@@ -678,11 +676,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         saveNavigationHistory(history);
         setNavigationHistory(history);
         
-        // Refresh counts from API after updating to ensure accuracy
+        // Refresh counts from API after updating to ensure accuracy (retry logic handles transient failures)
         // This ensures counts match the database even if page data is stale
-        setTimeout(() => {
-          refreshNavigationCounts();
-        }, 300);
+        refreshNavigationCounts();
       }
     } else if (retryCount >= 3) {
       // If we've exhausted retries and still can't find data, silently skip

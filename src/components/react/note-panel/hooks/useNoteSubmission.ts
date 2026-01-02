@@ -200,7 +200,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     
     // Re-check subscription status right before submission as a final fallback
     // This catches cases where subscription became active but UI didn't update
-    console.log('[useNoteSubmission] Re-checking subscription status before submission...');
+    debug('[useNoteSubmission] Re-checking subscription status before submission...');
     try {
       const statusResponse = await fetch('/api/subscription/status', {
         credentials: 'include',
@@ -208,13 +208,13 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       });
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
-        console.log('[useNoteSubmission] Pre-submission subscription check:', statusData);
+        debug('[useNoteSubmission] Pre-submission subscription check:', statusData);
         if (statusData.hasUnlimited) {
           // Dispatch event to update UI
           window.dispatchEvent(new CustomEvent('subscriptionUpgraded', {
             detail: { hasUnlimited: true, currentCount: statusData.currentCount, limit: statusData.limit }
           }));
-          console.log('[useNoteSubmission] Subscription is active, proceeding with note creation...');
+          debug('[useNoteSubmission] Subscription is active, proceeding with note creation...');
         }
       }
     } catch (error) {
@@ -681,27 +681,63 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             const tenSecondsAgo = Date.now() - 10000;
             const filtered = recentNotes.filter((n: any) => n.timestamp > tenSecondsAgo);
             sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+        debug('[useNoteSubmission] Stored note creation info in sessionStorage', {
+          noteId: noteCreationInfo.noteId,
+          threadId: noteCreationInfo.threadId,
+          spaceId: noteCreationInfo.spaceId,
+          timestamp: noteCreationInfo.timestamp
+        });
             debug('[useNoteSubmission] Stored note creation info in sessionStorage (before event)', noteCreationInfo);
           } catch (error) {
             console.error('[useNoteSubmission] Failed to store note creation info:', error);
           }
+        } else {
+          console.warn('[useNoteSubmission] Not storing in sessionStorage', {
+            hasNote: !!result.note,
+            hasNoteId: !!result.note?.id,
+            hasThreadId: !!actualThreadId
+          });
         }
         
         // Dispatch note created event with the correct thread ID
         // Use finalThreadId (overrideThreadId if provided) as the source of truth
         const threadIdForEvent = finalThreadId;
-        debug('[useNoteSubmission] Dispatching noteCreated event', { threadId: threadIdForEvent });
+        debug('[useNoteSubmission] Dispatching noteCreated event', { 
+          threadId: threadIdForEvent,
+          noteId: result.note?.id,
+          hasNote: !!result.note
+        });
         
         // PHASE 1: Include note info in event detail so components don't need to check sessionStorage
-        window.dispatchEvent(new CustomEvent('noteCreated', {
+        // The note object from API includes: id, title, content, noteType, createdAt, updatedAt, spaceId
+        // For resource notes, it may also include resourceTitle, resourceDescription, resourceImage
+        // ThreadNotesList handles incomplete note data by creating a minimal placeholder if needed
+        const noteCreatedEvent = new CustomEvent('noteCreated', {
           detail: { 
-            note: result.note,
+            note: result.note, // Complete note object from API response
             actualThreadId: threadIdForEvent, // Use the correct thread ID (overrideThreadId if provided)
             noteId: result.note?.id, // Include noteId for easy access
-            threadId: threadIdForEvent, // Include threadId for easy access
+            threadId: threadIdForEvent, // Include threadId for easy access (duplicate for compatibility)
             spaceId: result.note?.spaceId || (addToSpace && currentSpace?.id ? currentSpace.id : null) // Include spaceId if note was created in a space
           }
-        }));
+        });
+        
+        // Dispatch event synchronously and give listeners a chance to process it
+        // Use requestAnimationFrame to ensure event is processed before navigation
+        window.dispatchEvent(noteCreatedEvent);
+        
+        // Give event listeners a chance to process the event synchronously
+        // This is especially important for ThreadNotesList which needs to update before navigation
+        // Use a microtask to allow React state updates to be scheduled
+        await new Promise(resolve => {
+          // Use requestAnimationFrame to ensure React has a chance to process the event
+          requestAnimationFrame(() => {
+            // Use setTimeout(0) to allow React state updates to be batched and processed
+            setTimeout(() => {
+              resolve(undefined);
+            }, 0);
+          });
+        });
 
         // NOTE: We do NOT dispatch noteAddedToThread event here because we're about to navigate
         // to the note page. The event listener in [id].astro would refresh the thread page,
@@ -885,14 +921,21 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           
           debug('[useNoteSubmission] Navigating', { absoluteUrl });
           
+          // Give event listeners a small additional window to process the event
+          // This is especially important for ThreadNotesList which needs to update optimistically
+          // before the component unmounts due to navigation
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
           // Use replace for immediate navigation (no back button)
           // isSubmitting will remain true until navigation completes (panel closes on navigation)
-          // Note: Event listeners will process if fast enough, but we don't block navigation.
-          // Fallback refresh mechanism handles cases where event wasn't processed before navigation.
+          // Note: Event listeners should have processed by now, but fallback refresh mechanism
+          // handles cases where event wasn't processed before navigation.
+          // After this point, no code should execute as navigation will replace the page
           window.location.replace(absoluteUrl);
           
-          // This should never execute, but log it if it does
-          console.error('[useNoteSubmission] ERROR: Code executed after window.location.replace() - navigation may have failed!');
+          // Note: Code after window.location.replace() typically doesn't execute as the page is replaced.
+          // If this code does execute, it means navigation was prevented or failed, but we don't need to log an error
+          // as this can happen in normal operation (e.g., if navigation is intercepted by a service worker).
         } else {
           // If no note was created, still close the panel
           localStorage.removeItem('showNewNotePanel');

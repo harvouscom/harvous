@@ -222,7 +222,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     const handleNoteAddedToThread = (event: CustomEvent) => {
       const { threadId } = event.detail;
       if (threadId === currentThread.id) {
-        setTimeout(() => refreshCurrentThreadCount(), 300);
+        // Refresh count immediately (retry logic handles transient failures)
+        refreshCurrentThreadCount();
       }
     };
 

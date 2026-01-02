@@ -7,6 +7,7 @@ import EraseConfirmDialog from './EraseConfirmDialog';
 import Icon from './Icon';
 import { stripHtml } from '@/utils/html-stripper';
 import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
+import { debug } from '@/utils/logger';
 
 // Helper function to detect if running in PWA context
 function isPWA(): boolean {
@@ -102,6 +103,8 @@ export default function ThreadNotesList({
   noteTypeFilter = 'all',
   noteTypeCounts
 }: ThreadNotesListProps) {
+  debug('[ThreadNotesList] Component mounted/rendered', { threadId, noteTypeFilter, initialNotesCount: initialNotes.length });
+  
   // Manage notes list state for real-time updates
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [deletedNoteIds, setDeletedNoteIds] = useState<Set<string>>(new Set());
@@ -491,20 +494,119 @@ export default function ThreadNotesList({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
+    debug('[ThreadNotesList] Checking sessionStorage on mount', { threadId });
+    
     try {
       const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
-      if (!recentNotesStr) return;
+      let recentNotes: any[] = [];
       
-      const recentNotes = JSON.parse(recentNotesStr);
-      const fiveSecondsAgo = Date.now() - 5000;
+      if (recentNotesStr) {
+        try {
+          recentNotes = JSON.parse(recentNotesStr);
+        } catch (e) {
+          console.error('[ThreadNotesList] Error parsing sessionStorage:', e);
+          recentNotes = [];
+        }
+      }
       
-      // Check if any note was created in this thread within last 5 seconds
-      const relevantNote = recentNotes.find((n: any) => 
-        n.threadId === threadId && n.timestamp > fiveSecondsAgo
-      );
+      debug('[ThreadNotesList] sessionStorage data', { 
+        hasData: !!recentNotesStr,
+        recentNotesCount: recentNotes.length,
+        currentThreadId: threadId
+      });
+      
+      if (recentNotes.length === 0) {
+        return;
+      }
+      
+      // Increased window to 30 seconds to handle navigation delays
+      const thirtySecondsAgo = Date.now() - 30000;
+      const recentNotesInWindow = recentNotes.filter((n: any) => n.timestamp > thirtySecondsAgo);
+      
+      // Check if any note was created in this thread within last 30 seconds
+      // Match by threadId (exact match) or check if threadId matches any variation
+      // IMPORTANT: If we're on a thread page and there's a recent note, check if it might belong here
+      // This handles cases where the note was just created and we navigated back
+      
+      debug('[ThreadNotesList] Checking for relevant notes', {
+        recentNotesCount: recentNotes.length,
+        recentNotesInWindowCount: recentNotesInWindow.length,
+        threadId
+      });
+      
+      // First try exact threadId match
+      let relevantNote = recentNotesInWindow.find((n: any) => {
+        const matchesThreadId = n.threadId === threadId;
+        const isUnorganizedMatch = (threadId === 'thread_unorganized' && (!n.threadId || n.threadId === 'thread_unorganized'));
+        return matchesThreadId || isUnorganizedMatch;
+      });
+      
+      // If no exact match but there are very recent notes (within 10 seconds), 
+      // check if we should refresh anyway (handles threadId mismatches from navigation)
+      if (!relevantNote && recentNotesInWindow.length > 0) {
+        const tenSecondsAgo = Date.now() - 10000;
+        const veryRecentNotes = recentNotesInWindow.filter((n: any) => n.timestamp > tenSecondsAgo);
+        
+        // If there's a very recent note (within 10 seconds), refresh to check if it belongs to this thread
+        // This handles cases where the note was just created and we're navigating back
+        if (veryRecentNotes.length > 0) {
+          // Use the most recent note
+          relevantNote = veryRecentNotes.sort((a: any, b: any) => b.timestamp - a.timestamp)[0];
+          debug('[ThreadNotesList] Using very recent note for refresh check', {
+            noteId: relevantNote.noteId,
+            noteThreadId: relevantNote.threadId,
+            currentThreadId: threadId
+          });
+        }
+      }
       
       if (relevantNote) {
-        // Force immediate refresh with verification
+        debug('[ThreadNotesList] Found relevant note in sessionStorage, adding optimistically and refreshing', {
+          noteId: relevantNote.noteId,
+          noteThreadId: relevantNote.threadId,
+          currentThreadId: threadId
+        });
+        
+        // OPTIMISTIC UPDATE: Add note immediately if it's very recent (within 10 seconds)
+        // This provides instant feedback while API refresh happens
+        const tenSecondsAgo = Date.now() - 10000;
+        const isVeryRecent = relevantNote.timestamp > tenSecondsAgo;
+        
+        if (isVeryRecent) {
+          // Check if note is already in the list
+          const noteExists = notesRef.current.some(n => n.id === relevantNote.noteId);
+          if (!noteExists) {
+            // Create minimal note object for optimistic update
+            const optimisticNote: Note = {
+              id: relevantNote.noteId,
+              title: 'Untitled Note',
+              content: '',
+              noteType: 'default',
+              createdAt: new Date(relevantNote.timestamp)
+            };
+            
+            debug('[ThreadNotesList] Adding note optimistically from sessionStorage', {
+              noteId: optimisticNote.id
+            });
+            
+            // Track as optimistic note
+            optimisticNotesRef.current.set(relevantNote.noteId, {
+              timestamp: Date.now(),
+              note: optimisticNote
+            });
+            
+            // Add note optimistically (synchronous - happens immediately)
+            setNotes(prev => {
+              if (prev.some(n => n.id === relevantNote.noteId)) {
+                return prev;
+              }
+              const updated = [optimisticNote, ...prev];
+              return sortNotesByTime(updated);
+            });
+          }
+        }
+        
+        // Force immediate refresh with verification (will update with real data)
         refreshNotesList(relevantNote.noteId).then((success) => {
           // PHASE 4: Only remove from sessionStorage after successful verification
           // Check if note is now in the list before removing
@@ -523,9 +625,10 @@ export default function ThreadNotesList({
         });
       }
       
-      // Clean up old entries (older than 10 seconds) to prevent sessionStorage from growing
-      const tenSecondsAgo = Date.now() - 10000;
-      const cleanedNotes = recentNotes.filter((n: any) => n.timestamp > tenSecondsAgo);
+      // Clean up old entries (older than 60 seconds) to prevent sessionStorage from growing
+      // Increased from 10 to 60 seconds to handle navigation delays
+      const sixtySecondsAgo = Date.now() - 60000;
+      const cleanedNotes = recentNotes.filter((n: any) => n.timestamp > sixtySecondsAgo);
       if (cleanedNotes.length !== recentNotes.length) {
         sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(cleanedNotes));
       }
@@ -541,13 +644,24 @@ export default function ThreadNotesList({
       const { note, actualThreadId, threadId: eventThreadId, noteId: eventNoteId } = event.detail;
       
       // Use threadId from event detail first, fallback to actualThreadId, then note.threadId
+      // Improved matching: check both eventThreadId and actualThreadId
       const noteThreadId = eventThreadId || actualThreadId || note?.threadId;
       const noteId = eventNoteId || note?.id;
+      
+      debug('[ThreadNotesList] noteCreated event received', {
+        noteId,
+        noteThreadId,
+        currentThreadId: threadId,
+        hasNote: !!note
+      });
       
       // Check if note was created in the current thread
       // For unorganized thread: if threadId is null/undefined, treat as unorganized
       const isUnorganizedNote = !noteThreadId || noteThreadId === 'thread_unorganized';
-      const matchesCurrentThread = noteThreadId === threadId || (isUnorganizedNote && threadId === 'thread_unorganized');
+      const matchesCurrentThread = noteThreadId === threadId || 
+                                 (isUnorganizedNote && threadId === 'thread_unorganized') ||
+                                 actualThreadId === threadId ||
+                                 eventThreadId === threadId;
       
       if (matchesCurrentThread && noteId) {
         // Check if note is already in the list
@@ -556,70 +670,94 @@ export default function ThreadNotesList({
           return; // Already in list, skip
         }
 
-        // OPTIMISTIC UPDATE: Add note immediately if we have note data
-        if (note) {
-          // Check if note matches current filter
-          const matchesFilter = noteTypeFilter === 'all' ||
-                               (noteTypeFilter === 'scripture' && note.noteType === 'scripture') ||
-                               (noteTypeFilter === 'resources' && note.noteType === 'resource') ||
-                               (noteTypeFilter === 'default' && (note.noteType === 'default' || !note.noteType));
+        // IMMEDIATE OPTIMISTIC UPDATE: Add note synchronously before any async operations
+        // Create note object from event data, or minimal placeholder if incomplete
+        const noteToAdd: Note = note ? {
+          id: note.id || noteId,
+          title: note.title || null,
+          content: note.content || '',
+          noteType: note.noteType || 'default',
+          updatedAt: note.updatedAt ? new Date(note.updatedAt) : undefined,
+          createdAt: note.createdAt ? new Date(note.createdAt) : new Date(),
+          lastVisited: note.lastVisited ? new Date(note.lastVisited) : undefined,
+          resourceTitle: note.resourceTitle || null,
+          resourceDescription: note.resourceDescription || null,
+          resourceImage: note.resourceImage || null,
+        } : {
+          // Minimal placeholder if note data isn't available
+          id: noteId,
+          title: 'Untitled Note',
+          content: '',
+          noteType: 'default',
+          createdAt: new Date(),
+        };
 
-          if (matchesFilter) {
-            // Track as optimistic note
-            optimisticNotesRef.current.set(noteId, {
-              timestamp: Date.now(),
-              note: note
-            });
+        // Check if note matches current filter
+        const matchesFilter = noteTypeFilter === 'all' ||
+                             (noteTypeFilter === 'scripture' && noteToAdd.noteType === 'scripture') ||
+                             (noteTypeFilter === 'resources' && noteToAdd.noteType === 'resource') ||
+                             (noteTypeFilter === 'default' && (noteToAdd.noteType === 'default' || !noteToAdd.noteType));
 
-            // Add note optimistically
-            setNotes(prev => {
-              // Check if already exists
-              if (prev.some(n => n.id === noteId)) {
-                return prev;
-              }
-              // Add new note and re-sort
-              const updated = [note, ...prev];
-              return sortNotesByTime(updated);
-            });
-          }
+        if (matchesFilter) {
+          debug('[ThreadNotesList] Adding note optimistically', { noteId, title: noteToAdd.title });
+          
+          // Track as optimistic note
+          optimisticNotesRef.current.set(noteId, {
+            timestamp: Date.now(),
+            note: noteToAdd
+          });
+
+          // Add note optimistically (synchronous - happens immediately)
+          setNotes(prev => {
+            // Check if already exists
+            if (prev.some(n => n.id === noteId)) {
+              return prev;
+            }
+            // Add new note and re-sort
+            const updated = [noteToAdd, ...prev];
+            return sortNotesByTime(updated);
+          });
         }
 
         // Use verification-based refresh with noteId from event (with retries to preserve optimistic note)
+        // Don't await - let it happen asynchronously so UI update isn't blocked
         // PHASE 4: Only remove from sessionStorage after successful verification
-        const success = await refreshNotesList(noteId);
-        if (success) {
-          // Note confirmed in list, remove from sessionStorage after a short delay
-          // This ensures the note is fully rendered before cleanup
-          setTimeout(() => {
-            try {
-              const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
-              if (recentNotesStr) {
-                const recentNotes = JSON.parse(recentNotesStr);
-                const filtered = recentNotes.filter((n: any) => 
-                  !(n.threadId === threadId && n.noteId === noteId)
-                );
-                sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+        refreshNotesList(noteId).then((success) => {
+          if (success) {
+            // Note confirmed in list, remove from sessionStorage after a short delay
+            // This ensures the note is fully rendered before cleanup
+            setTimeout(() => {
+              try {
+                const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+                if (recentNotesStr) {
+                  const recentNotes = JSON.parse(recentNotesStr);
+                  const filtered = recentNotes.filter((n: any) => 
+                    !(n.threadId === threadId && n.noteId === noteId)
+                  );
+                  sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
+                }
+              } catch (error) {
+                console.error('[ThreadNotesList] Error cleaning up sessionStorage:', error);
               }
-            } catch (error) {
-              console.error('[ThreadNotesList] Error cleaning up sessionStorage:', error);
-            }
-          }, 500); // Small delay to ensure note is fully rendered
-        } else {
-          // Verification failed after all attempts - check if we should remove optimistic note
-          // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
-          const optimisticNote = optimisticNotesRef.current.get(noteId);
-          if (optimisticNote) {
-            const timeSinceCreation = Date.now() - optimisticNote.timestamp;
-            if (timeSinceCreation > 2000) {
-              // Remove optimistic note after 2 seconds if still not confirmed
-              optimisticNotesRef.current.delete(noteId);
-              setNotes(prev => prev.filter(n => n.id !== noteId));
+            }, 500); // Small delay to ensure note is fully rendered
+          } else {
+            // Verification failed after all attempts - check if we should remove optimistic note
+            // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
+            const optimisticNote = optimisticNotesRef.current.get(noteId);
+            if (optimisticNote) {
+              const timeSinceCreation = Date.now() - optimisticNote.timestamp;
+              if (timeSinceCreation > 2000) {
+                // Remove optimistic note after 2 seconds if still not confirmed
+                optimisticNotesRef.current.delete(noteId);
+                setNotes(prev => prev.filter(n => n.id !== noteId));
+              }
             }
           }
-        }
+        });
       }
     };
 
+    debug('[ThreadNotesList] Setting up noteCreated event listener', { threadId, noteTypeFilter });
     window.addEventListener('noteCreated', handleNoteCreated as unknown as EventListener);
 
     return () => {
@@ -821,7 +959,7 @@ export default function ThreadNotesList({
           lastVisibilityRefreshRef.current = Date.now();
           isRefreshingRef.current = true;
 
-          console.log('[ThreadNotesList] Visibility change: refreshing notes', {
+          debug('[ThreadNotesList] Visibility change: refreshing notes', {
             timeInBackground,
             inPWA,
             timeSinceLastRefresh,
@@ -830,7 +968,7 @@ export default function ThreadNotesList({
 
           refreshNotesList().then((success) => {
             isRefreshingRef.current = false;
-            console.log('[ThreadNotesList] Visibility refresh completed', { success });
+            debug('[ThreadNotesList] Visibility refresh completed', { success });
           }).catch((error) => {
             isRefreshingRef.current = false;
             console.error('[ThreadNotesList] Visibility refresh failed:', error);
