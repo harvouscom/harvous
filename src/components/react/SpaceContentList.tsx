@@ -4,6 +4,8 @@ import CardNote from './CardNote';
 import CondensedNoteItem from './CondensedNoteItem';
 import { debug } from '@/utils/logger';
 import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
+import { isPWA, isStaleData } from '@/utils/content-list-helpers';
+import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 
 interface SpaceItem {
   id: string;
@@ -28,36 +30,6 @@ interface SpaceContentListProps {
   initialItems: SpaceItem[];
   spaceId: string;
   filter?: 'all' | 'threads' | 'notes';
-}
-
-// Helper function to detect if running in PWA context
-function isPWA(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(display-mode: standalone)').matches ||
-         (window.navigator as any).standalone === true;
-}
-
-// Helper function to detect stale data (all items have same lastVisited or all null)
-function isStaleData(items: SpaceItem[]): boolean {
-  if (!items || items.length === 0) return false;
-  
-  const lastVisitedValues = items
-    .map(item => item.lastVisited)
-    .filter(val => val != null)
-    .map(val => {
-      const normalized = normalizeDate(val);
-      return normalized ? normalized.getTime() : null;
-    })
-    .filter(val => val != null) as number[];
-  
-  // If all items have null lastVisited, consider it stale
-  if (lastVisitedValues.length === 0) return true;
-  
-  // If all non-null lastVisited values are the same, consider it stale
-  const uniqueValues = new Set(lastVisitedValues);
-  if (uniqueValues.size === 1) return true;
-  
-  return false;
 }
 
 // Helper function to strip HTML tags
@@ -111,7 +83,7 @@ export default function SpaceContentList({
   const isNavigatingRef = useRef(false);
   const hasRefreshedOnMountRef = useRef(false); // Track if mount refresh happened
   // Track optimistically added items that haven't been confirmed by API yet
-  const optimisticItemsRef = useRef<Map<string, { timestamp: number; item: SpaceItem }>>(new Map());
+  const optimisticUpdates = useOptimisticUpdates<SpaceItem>();
   // Track visibility changes for PWA foreground refresh
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
@@ -364,29 +336,24 @@ export default function SpaceContentList({
             confirmedItemsMap.set(item.id, item);
           });
 
-          const optimisticItemsToKeep: SpaceItem[] = [];
-          const now = Date.now();
-          const fiveSecondsAgo = now - 5000;
-
-          // Keep optimistic items that:
-          // 1. Haven't been confirmed by API yet
-          // 2. Were added recently (within last 5 seconds)
-          // 3. Match the current filter
-          // Also preserve optimistic lastVisited updates if they're newer than API data
-          optimisticItemsRef.current.forEach(({ timestamp, item: optimisticItem }, itemId) => {
-            // Check if item is confirmed
-            const isConfirmed = confirmedItemIds.has(itemId) || confirmedItemIds.has(optimisticItem.id);
-
-            if (!isConfirmed && timestamp > fiveSecondsAgo) {
+          // Get optimistic items to merge (simplified - hook handles basic filtering)
+          const optimisticItemsToKeep = optimisticUpdates.getOptimisticItemsToMerge(
+            confirmedItemIds,
+            5000, // 5 seconds
+            (item) => {
               // Check if item matches current filter
               const matchesFilter = filter === 'all' || 
-                                   (filter === 'threads' && optimisticItem.itemType === 'thread') ||
-                                   (filter === 'notes' && optimisticItem.itemType === 'note');
-              
-              if (matchesFilter && !deletedItemIdsRef.current.has(itemId) && !deletedItemIdsRef.current.has(optimisticItem.id)) {
-                optimisticItemsToKeep.push(optimisticItem);
-              }
-            } else if (isConfirmed) {
+                                   (filter === 'threads' && item.itemType === 'thread') ||
+                                   (filter === 'notes' && item.itemType === 'note');
+              return matchesFilter && !deletedItemIdsRef.current.has(item.id);
+            }
+          );
+
+          // Preserve optimistic lastVisited updates if they're newer than API data
+          // This requires checking the hook's internal ref for timestamps
+          // For now, we'll handle this in a simpler way by checking confirmed items
+          optimisticUpdates.optimisticItemsRef.current.forEach(({ timestamp, item: optimisticItem }, itemId) => {
+            if (confirmedItemIds.has(itemId) || confirmedItemIds.has(optimisticItem.id)) {
               // Item confirmed by API - check if optimistic update has newer lastVisited
               const confirmedItem = confirmedItemsMap.get(itemId) || confirmedItemsMap.get(optimisticItem.id);
               
@@ -417,8 +384,8 @@ export default function SpaceContentList({
               }
               
               // Item confirmed by API, remove from optimistic tracking
-              optimisticItemsRef.current.delete(itemId);
-              optimisticItemsRef.current.delete(optimisticItem.id);
+              optimisticUpdates.removeOptimistic(itemId);
+              optimisticUpdates.removeOptimistic(optimisticItem.id);
             }
           });
 
@@ -472,7 +439,7 @@ export default function SpaceContentList({
             
             // If item exists after all attempts (or found), remove from optimistic tracking
             if (itemExists && confirmedItemIds.has(expectedItemId)) {
-              optimisticItemsRef.current.delete(expectedItemId);
+              optimisticUpdates.removeOptimistic(expectedItemId);
             }
           }
 
@@ -590,10 +557,7 @@ export default function SpaceContentList({
           };
 
           // Track as optimistic item
-          optimisticItemsRef.current.set(noteId, {
-            timestamp: Date.now(),
-            item: newItem
-          });
+          optimisticUpdates.addOptimistic(noteId, newItem);
 
           setItems(prev => {
             // Check if already exists
@@ -623,15 +587,10 @@ export default function SpaceContentList({
             }
           } else {
             // Verification failed after all attempts - check if we should remove optimistic item
-            // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
-            const optimisticItem = optimisticItemsRef.current.get(noteId);
-            if (optimisticItem) {
-              const timeSinceCreation = Date.now() - optimisticItem.timestamp;
-              if (timeSinceCreation > 2000) {
-                // Remove optimistic item after 2 seconds if still not confirmed
-                optimisticItemsRef.current.delete(noteId);
-                setItems(prev => prev.filter(item => item.id !== noteId));
-              }
+            if (optimisticUpdates.hasOptimistic(noteId)) {
+              // Remove optimistic item if verification failed
+              optimisticUpdates.removeOptimistic(noteId);
+              setItems(prev => prev.filter(item => item.id !== noteId));
             }
           }
         });
@@ -661,10 +620,7 @@ export default function SpaceContentList({
           };
 
           // Track as optimistic item
-          optimisticItemsRef.current.set(actualThreadId, {
-            timestamp: Date.now(),
-            item: newItem
-          });
+          optimisticUpdates.addOptimistic(actualThreadId, newItem);
 
           setItems(prev => {
             // Check if already exists
@@ -694,15 +650,10 @@ export default function SpaceContentList({
             }
           } else {
             // Verification failed after all attempts - check if we should remove optimistic item
-            // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
-            const optimisticItem = optimisticItemsRef.current.get(actualThreadId);
-            if (optimisticItem) {
-              const timeSinceCreation = Date.now() - optimisticItem.timestamp;
-              if (timeSinceCreation > 2000) {
-                // Remove optimistic item after 2 seconds if still not confirmed
-                optimisticItemsRef.current.delete(actualThreadId);
-                setItems(prev => prev.filter(item => item.id !== actualThreadId));
-              }
+            if (optimisticUpdates.hasOptimistic(actualThreadId)) {
+              // Remove optimistic item if verification failed
+              optimisticUpdates.removeOptimistic(actualThreadId);
+              setItems(prev => prev.filter(item => item.id !== actualThreadId));
             }
           }
         });
@@ -879,7 +830,7 @@ export default function SpaceContentList({
       const inPWA = isPWA();
       
       // Check if initial data is stale
-      const dataIsStale = isStaleData(initialItems);
+      const dataIsStale = isStaleData(initialItems, (item) => item.lastVisited);
 
       const referrer = document.referrer;
       const cameFromThreadOrNote = referrer && (

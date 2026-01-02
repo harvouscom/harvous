@@ -6,6 +6,8 @@ import CondensedNoteItem from './CondensedNoteItem';
 import { getThreadColorCSS } from '@/utils/colors';
 import { debug } from '@/utils/logger';
 import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
+import { isPWA, isStaleData } from '@/utils/content-list-helpers';
+import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 
 interface OrganizedContentItem {
   id: string;
@@ -34,35 +36,6 @@ interface OrganizedContentListProps {
   filter?: 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 }
 
-// Helper function to detect if running in PWA context
-function isPWA(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(display-mode: standalone)').matches ||
-         (window.navigator as any).standalone === true;
-}
-
-// Helper function to detect stale data (all items have same lastUpdated/lastVisited or all null)
-function isStaleData(items: OrganizedContentItem[]): boolean {
-  if (!items || items.length === 0) return false;
-  
-  const lastUpdatedValues = items
-    .map(item => item.lastUpdated || (item as any).lastVisited)
-    .filter(val => val != null)
-    .map(val => {
-      const normalized = normalizeDate(val);
-      return normalized ? normalized.getTime() : null;
-    })
-    .filter(val => val != null) as number[];
-  
-  // If all items have null lastUpdated/lastVisited, consider it stale
-  if (lastUpdatedValues.length === 0) return true;
-  
-  // If all non-null values are the same, consider it stale
-  const uniqueValues = new Set(lastUpdatedValues);
-  if (uniqueValues.size === 1) return true;
-  
-  return false;
-}
 
 export default function OrganizedContentList({ 
   initialItems, 
@@ -96,7 +69,7 @@ export default function OrganizedContentList({
   const pendingUpdateRef = useRef(false); // Track if an update event occurred while not on dashboard
   const currentItemsRef = useRef<OrganizedContentItem[]>(initialItems || []); // Track current items for verification
   // Track optimistically added items that haven't been confirmed by API yet
-  const optimisticItemsRef = useRef<Map<string, { timestamp: number; item: OrganizedContentItem }>>(new Map());
+  const optimisticUpdates = useOptimisticUpdates<OrganizedContentItem>();
   // Track visibility changes for PWA foreground refresh
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
@@ -529,11 +502,11 @@ export default function OrganizedContentList({
             if (itemExists && (confirmedItemIds.has(expectedItemId) || 
                 (expectedItemType === 'thread' && confirmedItemIds.has(`thread-${expectedItemId}`)) ||
                 (expectedItemType === 'note' && confirmedItemIds.has(`note-${expectedItemId}`)))) {
-              optimisticItemsRef.current.delete(expectedItemId);
+              optimisticUpdates.removeOptimistic(expectedItemId);
               if (expectedItemType === 'thread') {
-                optimisticItemsRef.current.delete(`thread-${expectedItemId}`);
+                optimisticUpdates.removeOptimistic(`thread-${expectedItemId}`);
               } else if (expectedItemType === 'note') {
-                optimisticItemsRef.current.delete(`note-${expectedItemId}`);
+                optimisticUpdates.removeOptimistic(`note-${expectedItemId}`);
               }
             }
           }
@@ -995,8 +968,8 @@ export default function OrganizedContentList({
       const { noteId } = event.detail;
       if (noteId) {
         // Remove from optimistic tracking if it exists
-        optimisticItemsRef.current.delete(noteId);
-        optimisticItemsRef.current.delete(`note-${noteId}`);
+        optimisticUpdates.removeOptimistic(noteId);
+        optimisticUpdates.removeOptimistic(`note-${noteId}`);
         
         setDeletedItemIds((prev: Set<string>) => {
           // Add both raw ID and prefixed ID to match item.id format (note-${id})
@@ -1011,8 +984,8 @@ export default function OrganizedContentList({
       const { threadId } = event.detail;
       if (threadId) {
         // Remove from optimistic tracking if it exists
-        optimisticItemsRef.current.delete(threadId);
-        optimisticItemsRef.current.delete(`thread-${threadId}`);
+        optimisticUpdates.removeOptimistic(threadId);
+        optimisticUpdates.removeOptimistic(`thread-${threadId}`);
         
         setDeletedItemIds((prev: Set<string>) => {
           // Add both raw ID and prefixed ID to match item.id format (thread-${id})
@@ -1159,10 +1132,7 @@ export default function OrganizedContentList({
             };
 
             // Track as optimistic item (use noteId as key)
-            optimisticItemsRef.current.set(noteId, {
-              timestamp: Date.now(),
-              item: noteItem
-            });
+            optimisticUpdates.addOptimistic(noteId, noteItem);
             
             setCurrentItems((prev: OrganizedContentItem[]) => {
               // Check if note already exists to avoid duplicates
@@ -1195,17 +1165,13 @@ export default function OrganizedContentList({
             } else {
               // Verification failed after all attempts - check if we should remove optimistic item
               // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
-              const optimisticItem = optimisticItemsRef.current.get(noteId);
-              if (optimisticItem) {
-                const timeSinceCreation = Date.now() - optimisticItem.timestamp;
-                if (timeSinceCreation > 2000) {
-                  // Remove optimistic item after 2 seconds if still not confirmed
-                  optimisticItemsRef.current.delete(noteId);
-                  setCurrentItems(prev => {
-                    const filtered = prev.filter(item => item.noteId !== noteId);
-                    return sortItemsByLastVisited(filtered);
-                  });
-                }
+              if (optimisticUpdates.hasOptimistic(noteId)) {
+                // Remove optimistic item if verification failed
+                optimisticUpdates.removeOptimistic(noteId);
+                setCurrentItems(prev => {
+                  const filtered = prev.filter(item => item.noteId !== noteId);
+                  return sortItemsByLastVisited(filtered);
+                });
               }
             }
           });
@@ -1250,10 +1216,7 @@ export default function OrganizedContentList({
         };
 
         // Track as optimistic item (use threadId as key)
-        optimisticItemsRef.current.set(threadId, {
-          timestamp: Date.now(),
-          item: threadItem
-        });
+        optimisticUpdates.addOptimistic(threadId, threadItem);
         
         setCurrentItems((prev: OrganizedContentItem[]) => {
           // Check if thread already exists to avoid duplicates
@@ -1288,17 +1251,13 @@ export default function OrganizedContentList({
         } else {
           // Verification failed after all attempts - check if we should remove optimistic item
           // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
-          const optimisticItem = optimisticItemsRef.current.get(threadId);
-          if (optimisticItem) {
-            const timeSinceCreation = Date.now() - optimisticItem.timestamp;
-            if (timeSinceCreation > 2000) {
-              // Remove optimistic item after 2 seconds if still not confirmed
-              optimisticItemsRef.current.delete(threadId);
-              setCurrentItems(prev => {
-                const filtered = prev.filter(item => item.threadId !== threadId);
-                return sortItemsByLastVisited(filtered);
-              });
-            }
+          if (optimisticUpdates.hasOptimistic(threadId)) {
+            // Remove optimistic item if verification failed
+            optimisticUpdates.removeOptimistic(threadId);
+            setCurrentItems(prev => {
+              const filtered = prev.filter(item => item.threadId !== threadId);
+              return sortItemsByLastVisited(filtered);
+            });
           }
         }
       });
@@ -1533,7 +1492,7 @@ export default function OrganizedContentList({
       const inPWA = isPWA();
       
       // Check if initial data is stale
-      const dataIsStale = isStaleData(initialItems);
+      const dataIsStale = isStaleData(initialItems, (item) => item.lastUpdated || item.lastVisited);
       
       // Check if we came from a note page
       const referrer = document.referrer;

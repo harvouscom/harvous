@@ -5,7 +5,7 @@
  * Works with the official PostHog Astro integration.
  */
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 
 interface PostHogUserInitProps {
   userId?: string;

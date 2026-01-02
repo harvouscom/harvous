@@ -5,7 +5,7 @@
  * after Clerk authentication.
  */
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { initPostHog, identifyUser, captureEvent } from '@/utils/posthog';
 
 interface PostHogInitProps {
