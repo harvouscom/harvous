@@ -235,9 +235,121 @@ const isRootRoute = (url) => {
   return path === '/';
 };
 
+// Idle detection: Track last successful root route fetch time
+const IDLE_STORAGE_KEY = 'harvous-last-root-fetch';
+const IDLE_CACHE_NAME = 'harvous-idle-state';
+
+// Get last fetch time from cache
+const getLastFetchTime = async () => {
+  try {
+    const cache = await caches.open(IDLE_CACHE_NAME);
+    const cached = await cache.match(IDLE_STORAGE_KEY);
+    if (cached) {
+      const data = await cached.json();
+      return data.timestamp || 0;
+    }
+  } catch (error) {
+    // Ignore errors - return 0 to assume long idle period
+  }
+  return 0;
+};
+
+// Update last fetch time
+const updateLastFetchTime = async () => {
+  try {
+    const cache = await caches.open(IDLE_CACHE_NAME);
+    const timestamp = Date.now();
+    await cache.put(IDLE_STORAGE_KEY, new Response(JSON.stringify({ timestamp }), {
+      headers: { 'Content-Type': 'application/json' }
+    }));
+  } catch (error) {
+    // Ignore errors - not critical
+  }
+};
+
+// Get timeout based on idle period
+const getTimeoutForIdlePeriod = async () => {
+  const lastFetch = await getLastFetchTime();
+  const now = Date.now();
+  const idleHours = lastFetch > 0 ? (now - lastFetch) / (1000 * 60 * 60) : 999; // Assume long idle if no record
+  
+  if (idleHours > 6) return 30000; // 30 seconds for > 6 hours idle
+  if (idleHours > 1) return 20000; // 20 seconds for 1-6 hours idle
+  return 10000; // 10 seconds default
+};
+
+// Detect if request comes after sign-in redirect
+const isPostSignInRequest = (request) => {
+  // Check referrer header for sign-in page
+  const referrer = request.headers.get('referer') || request.headers.get('referrer') || '';
+  if (referrer.includes('/sign-in') || referrer.includes('/sign-up')) {
+    return true;
+  }
+  
+  // Check if URL has redirect_url param (coming from sign-in)
+  try {
+    const url = new URL(request.url);
+    if (url.searchParams.has('redirect_url')) {
+      return true;
+    }
+  } catch (e) {
+    // Ignore URL parsing errors
+  }
+  
+  return false;
+};
+
+// Fetch with retry logic and exponential backoff
+const fetchWithRetry = async (request, maxRetries = 3) => {
+  let lastError = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // Get timeout based on idle period (only on first attempt, then use shorter timeouts)
+      const baseTimeout = attempt === 0 ? await getTimeoutForIdlePeriod() : 15000;
+      
+      const response = await Promise.race([
+        fetch(request),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Network timeout')), baseTimeout)
+        )
+      ]);
+      
+      // Validate response
+      if (!response || !response.ok) {
+        throw new Error(`Invalid response: ${response?.status || 'no response'}`);
+      }
+      
+      // Check response size - reject if too small (likely error)
+      const contentLength = response.headers.get('content-length');
+      if (contentLength && parseInt(contentLength) < 1000) {
+        throw new Error('Response too small');
+      }
+      
+      // Success - update last fetch time
+      await updateLastFetchTime();
+      return response;
+    } catch (error) {
+      lastError = error;
+      
+      // If this was the last attempt, throw the error
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = Math.pow(2, attempt) * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  // Should never reach here, but TypeScript needs it
+  throw lastError || new Error('Unknown error');
+};
+
 // Helper to create a network error page
 // Shows a user-friendly error message - authentication redirects are handled by middleware
-const createNetworkErrorPage = (currentUrl) => {
+const createNetworkErrorPage = (currentUrl, isPostSignIn = false) => {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -270,6 +382,17 @@ const createNetworkErrorPage = (currentUrl) => {
     p {
       color: #666;
       margin: 0 0 24px 0;
+      line-height: 1.5;
+    }
+    .status-message {
+      color: #888;
+      font-size: 14px;
+      margin: 16px 0;
+      min-height: 20px;
+    }
+    .retry-countdown {
+      color: #007bff;
+      font-weight: 500;
     }
     button {
       background: #007bff;
@@ -279,18 +402,123 @@ const createNetworkErrorPage = (currentUrl) => {
       border-radius: 6px;
       cursor: pointer;
       font-size: 16px;
+      margin: 8px;
+      transition: background 0.2s;
     }
     button:hover {
       background: #0056b3;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+    @media (min-width: 480px) {
+      .button-group {
+        flex-direction: row;
+        justify-content: center;
+      }
     }
   </style>
 </head>
 <body>
   <div class="error-container">
     <h1>Network Error</h1>
-    <p>Unable to connect to the server. Please check your internet connection and try again.</p>
-    <button onclick="window.location.reload()">Retry</button>
+    <p>${isPostSignIn 
+      ? 'The server is warming up after a period of inactivity. This usually takes 10-30 seconds. Please wait while we reconnect...'
+      : 'Unable to connect to the server. The server may be warming up after a period of inactivity.'}</p>
+    <div class="status-message" id="statusMessage"></div>
+    <div class="button-group">
+      <button id="retryButton" onclick="retryConnection()">Retry Now</button>
+      <button onclick="window.location.reload()">Reload Page</button>
+    </div>
   </div>
+  <script>
+    let retryCount = 0;
+    let autoRetryTimeout = null;
+    let countdownInterval = null;
+    const maxRetries = 5;
+    const retryDelays = [2000, 4000, 8000, 16000, 30000]; // Exponential backoff
+    
+    function updateStatus(message, showCountdown = false) {
+      const statusEl = document.getElementById('statusMessage');
+      if (showCountdown && retryCount < maxRetries) {
+        let countdown = retryDelays[retryCount] / 1000;
+        statusEl.innerHTML = message + ' <span class="retry-countdown">(Retrying in ' + countdown + 's...)</span>';
+        
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = setInterval(() => {
+          countdown--;
+          if (countdown > 0) {
+            statusEl.innerHTML = message + ' <span class="retry-countdown">(Retrying in ' + countdown + 's...)</span>';
+          } else {
+            clearInterval(countdownInterval);
+            statusEl.innerHTML = message + ' <span class="retry-countdown">(Retrying now...)</span>';
+          }
+        }, 1000);
+      } else {
+        statusEl.textContent = message;
+      }
+    }
+    
+    function retryConnection() {
+      if (retryCount >= maxRetries) {
+        updateStatus('Maximum retry attempts reached. Please reload the page.');
+        return;
+      }
+      
+      const button = document.getElementById('retryButton');
+      button.disabled = true;
+      updateStatus('Attempting to reconnect... (Attempt ' + (retryCount + 1) + ' of ' + maxRetries + ')', false);
+      
+      // Try to fetch the page
+      fetch(window.location.href, { 
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'include'
+      })
+        .then(response => {
+          if (response.ok) {
+            // Success - reload the page
+            window.location.reload();
+          } else {
+            throw new Error('Response not ok: ' + response.status);
+          }
+        })
+        .catch(error => {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            const delay = retryDelays[retryCount - 1];
+            updateStatus('Connection failed. Retrying... (Attempt ' + retryCount + ' of ' + maxRetries + ')', true);
+            button.disabled = false;
+            autoRetryTimeout = setTimeout(retryConnection, delay);
+          } else {
+            updateStatus('Unable to connect after ' + maxRetries + ' attempts. Please check your internet connection and try reloading.');
+            button.disabled = false;
+            button.textContent = 'Try Again';
+          }
+        });
+    }
+    
+    // Auto-retry on page load if post-sign-in
+    if (${isPostSignIn ? 'true' : 'false'}) {
+      updateStatus('Waiting for server to warm up...', true);
+      autoRetryTimeout = setTimeout(retryConnection, retryDelays[0]);
+    } else {
+      updateStatus('Click "Retry Now" to attempt reconnection.');
+    }
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      if (autoRetryTimeout) clearTimeout(autoRetryTimeout);
+      if (countdownInterval) clearInterval(countdownInterval);
+    });
+  </script>
 </body>
 </html>`;
 };
@@ -390,23 +618,29 @@ self.addEventListener('fetch', (event) => {
   // This ensures authenticated users always get the dashboard, not cached sign-in page
   if (isRootRoute(event.request.url) && event.request.mode === 'navigate') {
     event.respondWith(
-      Promise.race([
-        fetch(event.request),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Network timeout')), 10000)
-        )
-      ])
-        .then(async (response) => {
-          // Validate response before using
-          if (!response || !response.ok) {
-            throw new Error('Invalid response');
+      (async () => {
+        // Check if this is a post-sign-in request (needs longer timeout)
+        const postSignIn = isPostSignInRequest(event.request);
+        
+        // Try to get cached response first (for graceful degradation)
+        const cachedResponse = await caches.match(event.request);
+        let validCachedResponse = null;
+        
+        if (cachedResponse) {
+          // Validate cached response
+          const contentLength = cachedResponse.headers.get('content-length');
+          if (contentLength && parseInt(contentLength) >= 1000) {
+            // Check if cached response is sign-in page - don't serve it
+            const isSignIn = await isSignInPageResponse(cachedResponse.clone());
+            if (!isSignIn) {
+              validCachedResponse = cachedResponse;
+            }
           }
-          
-          // Check response size - reject if too small (likely error)
-          const contentLength = response.headers.get('content-length');
-          if (contentLength && parseInt(contentLength) < 1000) {
-            throw new Error('Response too small');
-          }
+        }
+        
+        try {
+          // Use retry logic with exponential backoff
+          const response = await fetchWithRetry(event.request, 3);
           
           // Cache the fresh response only if it's successful and NOT sign-in page
           if (shouldCacheResponse(response)) {
@@ -421,32 +655,24 @@ self.addEventListener('fetch', (event) => {
               });
             }
           }
+          
           return response;
-        })
-        .catch(async (error) => {
-          // If network fails or times out, try cache but verify it's not sign-in page
-          const cachedResponse = await caches.match(event.request);
-          if (cachedResponse) {
-            // Validate cached response
-            const contentLength = cachedResponse.headers.get('content-length');
-            if (contentLength && parseInt(contentLength) < 1000) {
-              // Cached response is too small, don't use it
-            } else {
-              // Check if cached response is sign-in page - don't serve it
-              const isSignIn = await isSignInPageResponse(cachedResponse.clone());
-              if (!isSignIn) {
-                return cachedResponse;
-              }
-            }
+        } catch (error) {
+          // If all retries failed, try to use cached response if available
+          if (validCachedResponse) {
+            // Return cached response while showing it might be stale
+            return validCachedResponse;
           }
-          // Fallback: return a user-friendly HTML error page
+          
+          // Fallback: return a user-friendly HTML error page with auto-retry
           // Middleware handles authentication redirects if needed
-          return new Response(createNetworkErrorPage(event.request.url), {
+          return new Response(createNetworkErrorPage(event.request.url, postSignIn), {
             status: 503,
             statusText: 'Service Unavailable',
             headers: { 'Content-Type': 'text/html' }
           });
-        })
+        }
+      })()
     );
     return;
   }
@@ -824,7 +1050,9 @@ self.addEventListener('message', (event) => {
 
 // Warm up the app when PWA is launched or brought back from background
 self.addEventListener('message', (event) => {
-  if (event.data === 'warmup') {
+  if (event.data === 'warmup' || (event.data && event.data.type === 'warmup')) {
+    const extendedIdle = event.data?.extendedIdle || false;
+    
     // Pre-fetch assets that might be needed soon
     // Note: Root route '/' is NOT pre-cached to prevent sign-in page flash
     // It uses network-first strategy to ensure correct authentication state
@@ -839,7 +1067,16 @@ self.addEventListener('message', (event) => {
     
     // Ping health endpoint to warm up serverless functions
     // This helps reduce cold start delays for the first user action
-    warmUpServerlessFunctions();
+    // For extended idle, make multiple warmup calls
+    if (extendedIdle) {
+      warmUpServerlessFunctions();
+      // Second warmup call after 1 second to ensure function is ready
+      setTimeout(() => {
+        warmUpServerlessFunctions();
+      }, 1000);
+    } else {
+      warmUpServerlessFunctions();
+    }
   }
 });
 

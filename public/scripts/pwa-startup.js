@@ -189,10 +189,11 @@ function isAuthReady() {
  * 
  * @param {Object} options - Warmup options
  * @param {boolean} options.skipThrottle - Skip the throttle check (for visibility change)
+ * @param {boolean} options.extendedIdle - True if idle > 1 hour (aggressive warmup)
  * @param {number} options.retryCount - Internal retry counter
  */
 function warmUpAPI(options = {}) {
-  const { skipThrottle = false, retryCount = 0 } = options;
+  const { skipThrottle = false, extendedIdle = false, retryCount = 0 } = options;
   const now = Date.now();
   
   // Only apply throttle for regular warmups, not visibility change warmups
@@ -213,41 +214,61 @@ function warmUpAPI(options = {}) {
     // Wait for auth to establish with exponential backoff
     const delay = Math.min(500 * Math.pow(2, retryCount), 2000);
     setTimeout(() => {
-      warmUpAPI({ skipThrottle, retryCount: retryCount + 1 });
+      warmUpAPI({ skipThrottle, extendedIdle, retryCount: retryCount + 1 });
     }, delay);
     return;
   }
   
   // Add additional delay after sign-in to ensure auth is fully propagated
   // This prevents race conditions where API is called before auth is ready
-  const initialDelay = retryCount === 0 ? 500 : 0;
+  // For extended idle, reduce delay to warm up faster
+  const initialDelay = extendedIdle ? 200 : (retryCount === 0 ? 500 : 0);
   
   setTimeout(() => {
-    // Call multiple endpoints IN PARALLEL to maximize warmup effectiveness
-    // The health endpoint is ultra-lightweight and wakes the function fast
-    // The navigation/data endpoint warms up database connections
-    Promise.all([
-      // Health endpoint - returns immediately, wakes function
+    // For extended idle, make multiple warmup calls to ensure server is ready
+    const warmupPromises = extendedIdle ? [
+      // First call - wake up the function
       fetch('/api/health', {
         method: 'GET',
         credentials: 'include'
       }).catch(() => null),
-      
+      // Second call after short delay - ensure it's warmed up
+      new Promise(resolve => setTimeout(() => {
+        fetch('/api/health', {
+          method: 'GET',
+          credentials: 'include'
+        }).catch(() => null).then(resolve);
+      }, 1000))
+    ] : [
+      // Health endpoint - returns immediately, wakes function
+      fetch('/api/health', {
+        method: 'GET',
+        credentials: 'include'
+      }).catch(() => null)
+    ];
+    
+    // Call multiple endpoints IN PARALLEL to maximize warmup effectiveness
+    // The health endpoint is ultra-lightweight and wakes the function fast
+    // The navigation/data endpoint warms up database connections
+    Promise.all([
+      ...warmupPromises,
       // Navigation data - warms database connection
       fetch('/api/navigation/data', {
         method: 'GET',
         credentials: 'include'
       }).catch(() => null)
     ])
-      .then(([healthResponse, navResponse]) => {
+      .then((responses) => {
         // Mark warmup as successful if at least one succeeded
+        const healthResponse = responses[0];
+        const navResponse = responses[responses.length - 1];
         if ((healthResponse && healthResponse.ok) || (navResponse && navResponse.ok)) {
           sessionStorage.setItem('lastAPIWarmup', now.toString());
         } else if (navResponse && navResponse.status === 401 && retryCount < 2) {
           // Auth not ready yet, retry with exponential backoff
           const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 3000);
           setTimeout(() => {
-            warmUpAPI({ skipThrottle, retryCount: retryCount + 1 });
+            warmUpAPI({ skipThrottle, extendedIdle, retryCount: retryCount + 1 });
           }, retryDelay);
         }
         // Silently handle errors - auth will establish soon
@@ -258,7 +279,7 @@ function warmUpAPI(options = {}) {
         if (retryCount < 2) {
           const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 3000);
           setTimeout(() => {
-            warmUpAPI({ skipThrottle, retryCount: retryCount + 1 });
+            warmUpAPI({ skipThrottle, extendedIdle, retryCount: retryCount + 1 });
           }, retryDelay);
         }
       });
@@ -307,10 +328,24 @@ function initPWA() {
   // This is critical for preventing cold start delays after 1+ hour idle
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
+      // Detect extended idle period
+      const lastWarmup = sessionStorage.getItem('lastAPIWarmup');
+      const now = Date.now();
+      const idleMinutes = lastWarmup ? (now - parseInt(lastWarmup, 10)) / (1000 * 60) : 999;
+      const extendedIdle = idleMinutes > 60; // More than 1 hour
+      
       // App is visible again - warm up API IMMEDIATELY to prevent cold start
       // Skip the normal throttle since cold starts happen after extended idle (1+ hours)
       // This ensures the serverless function is waking up before the user takes action
-      warmUpAPI({ skipThrottle: true });
+      warmUpAPI({ skipThrottle: true, extendedIdle });
+      
+      // Signal service worker about warmup state
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ 
+          type: 'warmup',
+          extendedIdle 
+        });
+      }
       
       // Also reset warmup flag and do full app warmup
       isWarmedUp = false;

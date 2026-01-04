@@ -921,8 +921,78 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
         // Create a unique key for this event to track injections
         const eventKey = `${e.key}-${e.timeStamp}-${beforeLength}-${beforeCursor}`;
         
-        // On mobile, use longer delays and multiple checks
-        // On desktop, use requestAnimationFrame for immediate check
+        // Helper function to inject the character
+        const injectCharacter = () => {
+          if (!editor || editor.isDestroyed) return;
+          
+          // Skip if we've already injected this event
+          if (injectedEvents.has(eventKey)) {
+            return;
+          }
+          
+          const eventToInject = pendingEvents.find(ev => ev.key === e.key && Date.now() - ev.timestamp < 100);
+          
+          if (eventToInject && !injectedEvents.has(eventKey)) {
+            try {
+              // Mark as injected to prevent double injection
+              injectedEvents.add(eventKey);
+              
+              // Clean up old injected events periodically (limit Set size)
+              if (injectedEvents.size > 100) {
+                injectedEvents.clear();
+              }
+              
+              // Handle different key types
+              if (isBackspace) {
+                // For Backspace: delete selection if exists, otherwise delete character before cursor
+                const { from, to } = editor.state.selection;
+                if (from !== to) {
+                  editor.commands.deleteSelection();
+                } else if (from > 0) {
+                  editor.commands.deleteRange({ from: from - 1, to: from });
+                }
+              } else if (isDelete) {
+                // For Delete: delete selection if exists, otherwise delete character after cursor
+                const { from, to } = editor.state.selection;
+                if (from !== to) {
+                  editor.commands.deleteSelection();
+                } else {
+                  const docSize = editor.state.doc.content.size;
+                  if (to < docSize) {
+                    editor.commands.deleteRange({ from: to, to: to + 1 });
+                  }
+                }
+              } else {
+                // Use Tiptap's insertContent command for printable characters
+                editor.commands.insertContent(e.key);
+              }
+              
+              // Clear the justCreatedPill flag after successful injection
+              if (justCreatedPill) {
+                (editor as any).__justCreatedPill = false;
+              }
+              
+              // Remove the injected event from pending
+              pendingEvents = pendingEvents.filter(ev => ev !== eventToInject);
+            } catch (error) {
+              // Silently handle injection errors
+              injectedEvents.delete(eventKey);
+            }
+          }
+        };
+        
+        // If we just created a pill, inject immediately without delayed checks
+        // Pill creation changes the document state, so delayed checks would incorrectly
+        // think ProseMirror processed the event when it was just the pill creation
+        if (justCreatedPill) {
+          // Use requestAnimationFrame for immediate injection (even on mobile)
+          requestAnimationFrame(() => {
+            injectCharacter();
+          });
+          return; // Skip delayed checks
+        }
+        
+        // For other cases, use delayed checks to determine if ProseMirror processed the event
         const checkIfNeedsInjection = (delay: number, checkNumber: number = 1) => {
           setTimeout(() => {
             if (!editor || editor.isDestroyed) return;
@@ -946,9 +1016,9 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
               return;
             }
             
-            // On mobile, require multiple checks before injecting (except for justCreatedPill)
+            // On mobile, require multiple checks before injecting
             // This prevents false positives due to timing differences
-            if (isMobile && !justCreatedPill) {
+            if (isMobile) {
               // Require at least 2 checks on mobile before injecting
               if (checkNumber < 2) {
                 // Check again with longer delay
@@ -957,69 +1027,11 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
               }
             }
             
-            // Only inject if:
-            // 1. We just created a pill (original use case), OR
-            // 2. Content didn't change AND cursor didn't move AND event wasn't defaultPrevented AND we haven't injected this event
-            const shouldInject = justCreatedPill || 
-                                (!contentChanged && !cursorMoved && !wasProcessed && !injectedEvents.has(eventKey));
+            // Only inject if content didn't change AND cursor didn't move AND event wasn't defaultPrevented
+            const shouldInject = !contentChanged && !cursorMoved && !wasProcessed && !injectedEvents.has(eventKey);
             
             if (shouldInject) {
-              const eventToInject = pendingEvents.find(ev => ev.key === e.key && Date.now() - ev.timestamp < 100);
-              
-              if (eventToInject && !injectedEvents.has(eventKey)) {
-                try {
-                  // Mark as injected to prevent double injection
-                  injectedEvents.add(eventKey);
-                  
-                  // Clean up old injected events periodically (limit Set size)
-                  // Since we're tracking events within ~200ms window, limit to reasonable size
-                  if (injectedEvents.size > 100) {
-                    // Clear all if we have too many (shouldn't happen in normal use)
-                    injectedEvents.clear();
-                  }
-                  
-                  // Handle different key types
-                  if (isBackspace) {
-                    // For Backspace: delete selection if exists, otherwise delete character before cursor
-                    const { from, to } = editor.state.selection;
-                    if (from !== to) {
-                      // There's a selection, delete it
-                      editor.commands.deleteSelection();
-                    } else if (from > 0) {
-                      // No selection, delete one character before cursor
-                      editor.commands.deleteRange({ from: from - 1, to: from });
-                    }
-                  } else if (isDelete) {
-                    // For Delete: delete selection if exists, otherwise delete character after cursor
-                    const { from, to } = editor.state.selection;
-                    if (from !== to) {
-                      // There's a selection, delete it
-                      editor.commands.deleteSelection();
-                    } else {
-                      // No selection, delete one character after cursor
-                      const docSize = editor.state.doc.content.size;
-                      if (to < docSize) {
-                        editor.commands.deleteRange({ from: to, to: to + 1 });
-                      }
-                    }
-                  } else {
-                    // Use Tiptap's insertContent command for printable characters
-                    editor.commands.insertContent(e.key);
-                  }
-                  
-                  // Clear the justCreatedPill flag after successful injection
-                  if (justCreatedPill) {
-                    (editor as any).__justCreatedPill = false;
-                  }
-                  
-                  // Remove the injected event from pending
-                  pendingEvents = pendingEvents.filter(ev => ev !== eventToInject);
-                } catch (error) {
-                  // Silently handle injection errors
-                  // Remove from injected set on error so it can be retried
-                  injectedEvents.delete(eventKey);
-                }
-              }
+              injectCharacter();
             } else {
               // Content changed or event was processed, remove this event from pending
               pendingEvents = pendingEvents.filter(ev => ev.key !== e.key || Date.now() - ev.timestamp > 100);
