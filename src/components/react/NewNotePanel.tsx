@@ -38,13 +38,6 @@ interface NewNotePanelProps {
 }
 
 export default function NewNotePanel({ currentThread, currentSpace, onClose, initialNoteType }: NewNotePanelProps) {
-  // Store editor instance for fallback event injection
-  const editorInstanceRef = useRef<any>(null);
-  
-  // Callback to receive editor instance from DefaultNoteForm
-  const handleEditorInstanceReady = useCallback((editor: any) => {
-    editorInstanceRef.current = editor;
-  }, []);
   
   // Get navigation context
   const navigation = useNavigation();
@@ -853,212 +846,6 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
   };
 
 
-  // FALLBACK: Manually inject keyboard events to ProseMirror if they don't reach it naturally
-  // This is needed because events are being stopped between container and editor DOM
-  useEffect(() => {
-    // Detect mobile devices (iOS and Android)
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPad on iOS 13+
-    
-    let pendingEvents: Array<{ key: string; timestamp: number; beforeLength: number; beforeCursor: number }> = [];
-    // Track injected events to prevent double injection
-    const injectedEvents = new Set<string>();
-    
-    const handleDocumentKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isFromEditor = target.closest('[id="new-note-content"]') !== null || 
-                           target.closest('.ProseMirror') !== null ||
-                           target.closest('[contenteditable="true"]') !== null;
-      
-      if (!isFromEditor) return;
-      
-      // Check if this is a printable character (not a control key)
-      const isControlKey = e.key.length > 1 || 
-        ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(e.key);
-      
-      const isPrintable = !isControlKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1;
-      const isBackspace = e.key === 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey;
-      const isDelete = e.key === 'Delete' && !e.metaKey && !e.ctrlKey && !e.altKey;
-      
-      // Handle printable characters, Backspace, and Delete
-      if (isPrintable || isBackspace || isDelete) {
-        // Use ref-based editor access (primary method)
-        let editor = editorInstanceRef.current;
-        
-        // Fallback to DOM lookup if ref is not available
-        if (!editor || editor.isDestroyed) {
-          const editorDom = document.querySelector('[id="new-note-content"]') as HTMLElement;
-          if (editorDom) {
-            editor = (editorDom as any).__tiptapEditor;
-          }
-        }
-        
-        if (!editor || editor.isDestroyed) {
-          return;
-        }
-        
-        // Store the current content length and cursor before the event
-        const beforeLength = editor.state.doc.textContent.length;
-        const beforeCursor = editor.state.selection.anchor;
-        
-        // Store event for potential injection
-        pendingEvents.push({
-          key: e.key,
-          timestamp: Date.now(),
-          beforeLength,
-          beforeCursor
-        });
-        
-        // Clear old pending events (older than 200ms)
-        pendingEvents = pendingEvents.filter(ev => Date.now() - ev.timestamp < 200);
-        
-        // Check if we just created a pill - if so, inject immediately without waiting
-        const justCreatedPill = (editor as any).__justCreatedPill === true;
-        
-        // Check if event was already processed by ProseMirror
-        const wasProcessed = e.defaultPrevented;
-        
-        // Create a unique key for this event to track injections
-        const eventKey = `${e.key}-${e.timeStamp}-${beforeLength}-${beforeCursor}`;
-        
-        // Helper function to inject the character
-        const injectCharacter = () => {
-          if (!editor || editor.isDestroyed) return;
-          
-          // Skip if we've already injected this event
-          if (injectedEvents.has(eventKey)) {
-            return;
-          }
-          
-          const eventToInject = pendingEvents.find(ev => ev.key === e.key && Date.now() - ev.timestamp < 100);
-          
-          if (eventToInject && !injectedEvents.has(eventKey)) {
-            try {
-              // Mark as injected to prevent double injection
-              injectedEvents.add(eventKey);
-              
-              // Clean up old injected events periodically (limit Set size)
-              if (injectedEvents.size > 100) {
-                injectedEvents.clear();
-              }
-              
-              // Handle different key types
-              if (isBackspace) {
-                // For Backspace: delete selection if exists, otherwise delete character before cursor
-                const { from, to } = editor.state.selection;
-                if (from !== to) {
-                  editor.commands.deleteSelection();
-                } else if (from > 0) {
-                  editor.commands.deleteRange({ from: from - 1, to: from });
-                }
-              } else if (isDelete) {
-                // For Delete: delete selection if exists, otherwise delete character after cursor
-                const { from, to } = editor.state.selection;
-                if (from !== to) {
-                  editor.commands.deleteSelection();
-                } else {
-                  const docSize = editor.state.doc.content.size;
-                  if (to < docSize) {
-                    editor.commands.deleteRange({ from: to, to: to + 1 });
-                  }
-                }
-              } else {
-                // Use Tiptap's insertContent command for printable characters
-                editor.commands.insertContent(e.key);
-              }
-              
-              // Clear the justCreatedPill flag after successful injection
-              if (justCreatedPill) {
-                (editor as any).__justCreatedPill = false;
-              }
-              
-              // Remove the injected event from pending
-              pendingEvents = pendingEvents.filter(ev => ev !== eventToInject);
-            } catch (error) {
-              // Silently handle injection errors
-              injectedEvents.delete(eventKey);
-            }
-          }
-        };
-        
-        // If we just created a pill, inject immediately without delayed checks
-        // Pill creation changes the document state, so delayed checks would incorrectly
-        // think ProseMirror processed the event when it was just the pill creation
-        if (justCreatedPill) {
-          // Use requestAnimationFrame for immediate injection (even on mobile)
-          requestAnimationFrame(() => {
-            injectCharacter();
-          });
-          return; // Skip delayed checks
-        }
-        
-        // For other cases, use delayed checks to determine if ProseMirror processed the event
-        const checkIfNeedsInjection = (delay: number, checkNumber: number = 1) => {
-          setTimeout(() => {
-            if (!editor || editor.isDestroyed) return;
-            
-            // Skip if we've already injected this event
-            if (injectedEvents.has(eventKey)) {
-              return;
-            }
-            
-            const afterLength = editor.state.doc.textContent.length;
-            const afterCursor = editor.state.selection.anchor;
-            
-            // Check if content changed or cursor moved (ProseMirror processed it)
-            const contentChanged = afterLength !== beforeLength;
-            const cursorMoved = afterCursor !== beforeCursor;
-            
-            // If content changed or cursor moved, ProseMirror processed it - don't inject
-            if (contentChanged || cursorMoved) {
-              // Remove this event from pending
-              pendingEvents = pendingEvents.filter(ev => ev.key !== e.key || Date.now() - ev.timestamp > 100);
-              return;
-            }
-            
-            // On mobile, require multiple checks before injecting
-            // This prevents false positives due to timing differences
-            if (isMobile) {
-              // Require at least 2 checks on mobile before injecting
-              if (checkNumber < 2) {
-                // Check again with longer delay
-                checkIfNeedsInjection(delay + 50, checkNumber + 1);
-                return;
-              }
-            }
-            
-            // Only inject if content didn't change AND cursor didn't move AND event wasn't defaultPrevented
-            const shouldInject = !contentChanged && !cursorMoved && !wasProcessed && !injectedEvents.has(eventKey);
-            
-            if (shouldInject) {
-              injectCharacter();
-            } else {
-              // Content changed or event was processed, remove this event from pending
-              pendingEvents = pendingEvents.filter(ev => ev.key !== e.key || Date.now() - ev.timestamp > 100);
-            }
-          }, delay);
-        };
-        
-        // Start checking: on mobile use longer initial delay, on desktop use requestAnimationFrame timing
-        if (isMobile) {
-          // On mobile, start with 50ms delay, then check again at 100ms if needed
-          checkIfNeedsInjection(50, 1);
-        } else {
-          // On desktop, use requestAnimationFrame timing (approximately 16ms)
-          requestAnimationFrame(() => {
-            checkIfNeedsInjection(0, 1);
-          });
-        }
-      }
-    };
-    
-    // Use capture phase to catch events early
-    document.addEventListener('keydown', handleDocumentKeyDown, true);
-    
-    return () => {
-      document.removeEventListener('keydown', handleDocumentKeyDown, true);
-    };
-  }, []);
 
   return (
     <>
@@ -1171,7 +958,6 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
               nextNoteId={nextNoteId}
               onEditorReady={handleEditorReady}
               parentThreadId={threadSelection.getSelectedThread()?.id}
-              onEditorInstanceReady={handleEditorInstanceReady}
             />
           )}
 
@@ -1184,7 +970,6 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
               nextNoteId={nextNoteId}
               onEditorReady={handleEditorReady}
               parentThreadId={threadSelection.getSelectedThread()?.id}
-              onEditorInstanceReady={handleEditorInstanceReady}
             />
           )}
 

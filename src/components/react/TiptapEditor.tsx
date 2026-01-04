@@ -1174,7 +1174,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
 }
 
 // Helper function to detect and create scripture notes
-async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: string, editorId?: string, isDetectingRef?: React.MutableRefObject<boolean>, justCreatedPillRef?: React.MutableRefObject<boolean>) {
+async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: string, editorId?: string, isDetectingRef?: React.MutableRefObject<boolean>) {
   
   if (!editor) {
     return;
@@ -1243,6 +1243,9 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
 
     const htmlContent = editor.getHTML();
     const doc = editor.state.doc;
+    
+    // Track if any pills were created in this detection cycle
+    let pillsCreated = false;
 
     // Process each detected reference
     for (const ref of detection.references) {
@@ -1292,19 +1295,6 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
         reference: normalizedRef,
         positionsCount: allPositions.length
       });
-      
-      // Set flag to indicate we just created a pill
-      // Store on both ref (for internal use) and editor instance (for external access)
-      if (justCreatedPillRef) {
-        justCreatedPillRef.current = true;
-        // Also store on editor instance so NewNotePanel can access it
-        (editor as any).__justCreatedPill = true;
-        // Clear flag after 500ms
-        setTimeout(() => {
-          justCreatedPillRef.current = false;
-          (editor as any).__justCreatedPill = false;
-        }, 500);
-      }
       
       // Helper function to validate reference context before creating pill
       // This is a conservative check - only rejects clear false positives
@@ -1449,6 +1439,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
               tr.removeMark(adjustedPos.from, adjustedPos.to, noteLinkMark);
             }
             editor.view.dispatch(tr);
+            pillsCreated = true; // Track that we created a pill
             
             debug('[TiptapEditor] Pill mark applied', {
               reference: normalizedRef,
@@ -1464,6 +1455,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
             .unsetMark('noteLink')
             .setMark('scripturePill', { reference: normalizedRef, noteId: noteId || undefined })
             .run();
+          pillsCreated = true; // Track that we created a pill
           
           debug('[TiptapEditor] Pill mark applied via chain API', {
             reference: normalizedRef,
@@ -2154,6 +2146,8 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
         // If even that fails, just leave it where it is
       }
     }
+    // NOTE: Flag is now set immediately after pill transaction (see above)
+    // This ensures it's ready when user types, before cursor positioning logic runs
   } catch (error) {
     console.error('Error in scripture detection:', error);
     // Don't show error toast for detection errors to avoid spam
@@ -2191,11 +2185,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const editorRef = useRef<any>(null);
   const toolbarPositionUpdater = useRef<() => void>(() => {});
   const scrollCursorAboveToolbarRef = useRef<() => void>(() => {});
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isDetectingRef = useRef<boolean>(false);
-  const justCreatedPillRef = useRef<boolean>(false);
-  const lastContentHashRef = useRef<string>('');
-  const lastCursorPosRef = useRef<number>(-1);
 
   // Helper function to check if editor/view is valid before accessing docView
   // This prevents errors when editor is destroyed but handlers still fire
@@ -2269,137 +2258,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         onContentChange(htmlContent);
       }
       
-      // Real-time scripture detection (debounced)
-      // Only detect if editor is focused and user is typing
-      // In form contexts, check both editor.isFocused and DOM focus
-      const isFocused = editor.isFocused || document.activeElement === (editor.view?.dom as HTMLElement);
-      
-      
-      if (isFocused && !isDetectingRef.current) {
-        const { selection } = editor.state;
-        const { from, to } = selection;
-        
-        // Skip if user is selecting text (not just typing)
-        if (from !== to) {
-          return;
-        }
-        
-        // Check if cursor is inside an existing pill - skip detection if so
-        try {
-          const $from = editor.state.doc.resolve(from);
-          const marks = $from.marks();
-          const isInsidePill = marks.some((m: any) => m.type.name === 'scripturePill');
-          if (isInsidePill) {
-            return; // Don't detect while inside a pill
-          }
-        } catch (e) {
-          // If we can't check, continue anyway
-        }
-        
-        // Create content hash to detect actual changes (not just cursor movement)
-        const textContent = editor.state.doc.textContent;
-        const contentHash = `${textContent.length}-${textContent.slice(-100)}`; // Use length + last 100 chars as hash
-        
-        // Only detect if content actually changed
-        if (contentHash !== lastContentHashRef.current || from !== lastCursorPosRef.current) {
-          lastContentHashRef.current = contentHash;
-          lastCursorPosRef.current = from;
-          
-          // Clear existing debounce timer
-          if (debounceTimerRef.current) {
-            clearTimeout(debounceTimerRef.current);
-            debounceTimerRef.current = null;
-          }
-          
-          // Editor-specific debounce: longer for editing existing notes (CardFullEditable)
-          // This prevents false positives when editing existing content
-          const isEditingExistingNote = id === 'edit-note-content';
-          const debounceDelay = isEditingExistingNote ? 1000 : 600; // 1000ms for editing, 600ms for new notes
-          
-          // Track cursor position and time for active editing detection
-          const cursorTrackingRef = { lastPos: from, lastTime: Date.now() };
-          
-          // Set new debounce timer
-          debounceTimerRef.current = setTimeout(async () => {
-            // Double-check editor is still valid and focused
-            // In form contexts, check both editor.isFocused and DOM focus
-            const isFocused = editor.isFocused || document.activeElement === (editor.view?.dom as HTMLElement);
-            if (!editor || editor.isDestroyed || !isFocused || isDetectingRef.current) {
-              return;
-            }
-            
-            // Check if cursor position changed significantly (user kept typing)
-            const currentPos = editor.state.selection.anchor;
-            const cursorMovement = Math.abs(currentPos - from);
-            
-            // For editing existing notes, be more conservative - require cursor to be stable
-            if (isEditingExistingNote && cursorMovement > 10) {
-              // Cursor moved significantly, user is actively editing - skip this detection
-              return;
-            } else if (!isEditingExistingNote && cursorMovement > 5) {
-              // For new notes, allow slightly more movement
-              return;
-            }
-            
-            // Check if content changed during debounce delay
-            const currentText = editor.state.doc.textContent;
-            const currentHash = `${currentText.length}-${currentText.slice(-100)}`;
-            if (currentHash !== contentHash) {
-              // Content changed, user is still typing - skip this detection
-              return;
-            }
-            
-            // Additional check: if cursor is inside or immediately after a pill, skip detection
-            // This prevents detection when user is editing near existing pills
-            try {
-              const $current = editor.state.doc.resolve(currentPos);
-              const marks = $current.marks();
-              const isInsidePill = marks.some((m: any) => m.type.name === 'scripturePill');
-              
-              // Also check if cursor is immediately after a pill (within 5 positions)
-              let isNearPill = false;
-              if (!isInsidePill && currentPos > 0) {
-                for (let checkPos = Math.max(0, currentPos - 5); checkPos < currentPos; checkPos++) {
-                  try {
-                    const $check = editor.state.doc.resolve(checkPos);
-                    const checkMarks = $check.marks();
-                    if (checkMarks.some((m: any) => m.type.name === 'scripturePill')) {
-                      isNearPill = true;
-                      break;
-                    }
-                  } catch (e) {
-                    // Skip if we can't resolve
-                  }
-                }
-              }
-              
-              if (isInsidePill || isNearPill) {
-                // Cursor is inside or near a pill - skip detection to avoid breaking existing pills
-                return;
-              }
-            } catch (e) {
-              // If we can't check, continue anyway
-            }
-            
-            // Mark as detecting to prevent concurrent detections
-            isDetectingRef.current = true;
-            
-            try {
-              // Check if there's enough text to detect (minimum 5 characters)
-              const fullText = editor.state.doc.textContent;
-              if (fullText.trim().length >= 5) {
-                await detectAndCreateScriptureNotes(editor, parentThreadId, id, isDetectingRef, justCreatedPillRef);
-              }
-            } catch (error) {
-              console.error('Error in debounced scripture detection:', error);
-            } finally {
-              // CRITICAL: Always reset isDetecting flag, even on error
-              // This ensures typing can continue even if detection fails
-              isDetectingRef.current = false;
-            }
-          }, debounceDelay);
-        }
-      }
+      // NOTE: Real-time scripture detection removed - pills are now created only on save
+      // See convertScriptureReferencesToPills() which is called after save
     },
     editable: true,
     editorProps: {
@@ -2413,29 +2273,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       handleDOMEvents: {
         // Log all keyboard events to debug input blocking
         keydown: (view, event) => {
-          // Only log in NewNotePanel context (editorId === 'new-note-content')
-          const editorId = (view.dom as HTMLElement)?.id;
-          if (editorId === 'new-note-content') {
-            const { selection } = view.state;
-            const { from, to } = selection;
-            const $from = view.state.selection.$from;
-            const marks = $from.marks();
-            const storedMarks = view.state.storedMarks || [];
-            
-            // Get editor instance to check justCreatedPill flag
-            const editorInstance = editorRef.current;
-            const justCreatedPill = justCreatedPillRef.current || (editorInstance as any)?.__justCreatedPill === true;
-            
-            
-            // If we just created a pill and this is a printable character, clear the flag
-            // (the fallback injection will handle it)
-            if (justCreatedPill && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-              justCreatedPillRef.current = false;
-              if (editorInstance) {
-                (editorInstance as any).__justCreatedPill = false;
-              }
-            }
-          }
           return false; // Let ProseMirror handle it
         },
         // Let ProseMirror handle all DOM events naturally
@@ -2702,12 +2539,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (id) {
         cleanupTracker(id);
       }
-      // Clear debounce timer on cleanup
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-      isDetectingRef.current = false;
     };
   }, [editor, id, onEditorInstanceReady]);
 
