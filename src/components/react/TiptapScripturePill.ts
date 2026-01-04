@@ -106,12 +106,12 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         getAttrs: element => {
           const reference = (element as HTMLElement).getAttribute('data-scripture-reference');
           const noteId = (element as HTMLElement).getAttribute('data-note-id');
-          // Require both reference AND noteId to create a valid scripture pill mark
-          // Without noteId, the pill won't be clickable and would be broken
-          if (!reference || !noteId) {
+          // Allow pills with just reference (pending state) - noteId will be set on save
+          // Only require reference, noteId is optional
+          if (!reference) {
             return false;
           }
-          return { reference, noteId };
+          return { reference, noteId: noteId || null };
         },
       },
       {
@@ -121,11 +121,12 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         getAttrs: (element) => {
           const noteId = (element as HTMLElement).getAttribute('data-note-id');
           const reference = (element as HTMLElement).getAttribute('data-scripture-reference');
-          // Require both reference AND noteId to create a valid scripture pill mark
-          if (!reference || !noteId) {
+          // Allow pills with just reference (pending state) - noteId will be set on save
+          // Only require reference, noteId is optional
+          if (!reference) {
             return false;
           }
-          return { reference, noteId };
+          return { reference, noteId: noteId || null };
         },
       },
     ];
@@ -135,9 +136,9 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
     const noteId = HTMLAttributes['data-note-id'] || null;
     const reference = HTMLAttributes['data-scripture-reference'] || null;
 
-    // If missing required attributes, output plain span without scripture-pill styling
-    // This prevents broken pills from appearing in the UI
-    if (!noteId || !reference) {
+    // Allow pills with just reference (pending state) - noteId will be set on save
+    // Only require reference, noteId is optional
+    if (!reference) {
       return ['span', {}, 0];
     }
 
@@ -146,14 +147,15 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
     // font-style: normal prevents inheritance of italic formatting from parent elements
     // white-space: normal ensures line breaks after pills are preserved
     const baseStyle = 'background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal;';
-    const cursorStyle = ' cursor: pointer;';
+    // Only make clickable if noteId exists (not pending)
+    const cursorStyle = noteId ? ' cursor: pointer;' : ' cursor: default;';
 
     return [
       'span',
       {
         ...this.options.HTMLAttributes,
         ...HTMLAttributes,
-        class: 'scripture-pill scripture-pill-clickable',
+        class: noteId ? 'scripture-pill scripture-pill-clickable' : 'scripture-pill',
         style: baseStyle + cursorStyle,
       },
       0,
@@ -418,6 +420,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         }
         
         // Check if cursor is RIGHT AFTER a pill (not inside, but immediately after)
+        // Also check if cursor is at the END of a pill (boundaries.end position)
         if (from > 0 && from === to) {
           try {
             const prevPos = from - 1;
@@ -425,20 +428,56 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
             const prevMarks = $prev.marks();
             const hasPill = prevMarks.some((m: any) => m.type.name === 'scripturePill');
             
-            if (hasPill) {
+            // Also check current position - might be at boundary where mark is still present
+            const currentMarks = $from.marks();
+            const currentHasPill = currentMarks.some((m: any) => m.type.name === 'scripturePill');
+            
+            if (hasPill || currentHasPill) {
               // Check if this is a printable character
               const key = (event as KeyboardEvent).key;
               const isControlKey = key.length > 1 || 
                 ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(key);
               
               if (!isControlKey && editor?.view) {
+                console.log('[TiptapScripturePill] Clearing stored marks for printable character after pill', {
+                  key,
+                  from,
+                  hasPill,
+                  currentHasPill,
+                  storedMarks: state.storedMarks?.map((m: any) => m.type.name) || []
+                });
+                
                 // Clear ALL stored marks before typing the character
                 // This prevents mark inheritance
+                // Use a fresh transaction to ensure marks are cleared
                 try {
                   const tr = state.tr.setStoredMarks([]);
                   editor.view.dispatch(tr);
+                  
+                  // Also ensure the current position doesn't have marks
+                  // If it does, move cursor forward one position
+                  if (currentHasPill && from < state.doc.content.size) {
+                    const nextPos = from + 1;
+                    try {
+                      const $next = state.doc.resolve(nextPos);
+                      const nextMarks = $next.marks();
+                      const nextHasPill = nextMarks.some((m: any) => m.type.name === 'scripturePill');
+                      if (!nextHasPill) {
+                        console.log('[TiptapScripturePill] Moving cursor forward to avoid pill mark', { from, nextPos });
+                        // Move cursor to next position without pill mark
+                        const moveTr = state.tr.setSelection(TextSelection.create(state.doc, nextPos));
+                        moveTr.setStoredMarks([]);
+                        editor.view.dispatch(moveTr);
+                      }
+                    } catch (e) {
+                      // If we can't resolve next position, just clear marks
+                      console.error('[TiptapScripturePill] Error resolving next position:', e);
+                    }
+                  }
+                  
                 } catch (e) {
                   // If dispatch fails, ignore and continue
+                  console.error('[TiptapScripturePill] Error clearing stored marks:', e);
                 }
                 // Return false to allow the character to be typed (with cleared marks)
                 return false;
@@ -446,6 +485,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
             }
           } catch (e) {
             // Ignore errors
+            console.error('[TiptapScripturePill] Error in keyboard handler:', e);
           }
         }
         
@@ -709,6 +749,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         const noteId = scripturePillMark?.attrs.noteId;
         const reference = scripturePillMark?.attrs.reference;
         
+        // Only navigate if pill has a noteId (not pending)
         if (noteId) {
           event.preventDefault();
           
@@ -856,6 +897,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           const clickedNoteId = pillElement.getAttribute('data-note-id');
           const clickedReference = pillElement.getAttribute('data-scripture-reference');
           
+          // Only navigate if pill has a noteId (not pending)
           if (clickedNoteId) {
             event.preventDefault();
             

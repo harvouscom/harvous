@@ -57,6 +57,7 @@ export async function processScriptureReferences(
   // This helps us track which references were already in the note
   // Use two patterns to handle different attribute orders (Tiptap may serialize attributes in varying order)
   const existingReferences = new Map<string, string>(); // normalizedReference -> noteId
+  const pendingPills = new Map<string, { reference: string; fullMatch: string; startIndex: number }>(); // normalizedReference -> pill info
   
   // Pattern 1: data-scripture-reference comes before data-note-id
   const pillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
@@ -77,6 +78,30 @@ export async function processScriptureReferences(
     // Only add if not already found by pattern 1
     if (!existingReferences.has(normalizedRef)) {
       existingReferences.set(normalizedRef, pillNoteId);
+    }
+  }
+  
+  // Pattern for pending pills: pills with data-scripture-reference but NO data-note-id
+  // These are pills created during real-time detection that haven't been saved yet
+  // Match spans with data-scripture-reference but check that they don't have data-note-id
+  const pendingPillPattern = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match = pendingPillPattern.exec(noteContent)) !== null) {
+    const fullMatch = match[0];
+    const reference = match[1];
+    
+    // Check if this span has data-note-id attribute (if so, it's not a pending pill)
+    if (fullMatch.includes('data-note-id')) {
+      continue; // Skip - this pill already has a noteId
+    }
+    
+    const normalizedRef = normalizeScriptureReference(reference);
+    // Only track if not already in existingReferences (has noteId) and not already in pendingPills
+    if (!existingReferences.has(normalizedRef) && !pendingPills.has(normalizedRef)) {
+      pendingPills.set(normalizedRef, {
+        reference: match[1],
+        fullMatch: match[0],
+        startIndex: match.index || 0
+      });
     }
   }
   
@@ -561,6 +586,167 @@ export async function processScriptureReferences(
       }
     } catch (junctionError) {
       // Ignore junction entry errors - non-critical
+    }
+  }
+
+  // Process pending pills (pills without noteId created during real-time detection)
+  // Create scripture notes for them and update the pills with noteId
+  for (const [normalizedRef, pillInfo] of pendingPills.entries()) {
+    try {
+      // Check if we already have a noteId for this reference (from above processing)
+      const existingNoteId = referenceMap.get(pillInfo.reference);
+      
+      if (existingNoteId) {
+        // Already processed, skip
+        continue;
+      }
+      
+      // Find or create scripture note for this reference
+      // Use the same logic as above for creating scripture notes
+      const parsed = parseScriptureReference(normalizedRef);
+      if (!parsed) {
+        continue; // Invalid reference, skip
+      }
+      
+      // Check if scripture note already exists for this user
+      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
+      
+      const existingScripture = await db.select()
+        .from(ScriptureMetadata)
+        .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+        .where(
+          and(
+            eq(Notes.userId, userId),
+            eq(ScriptureMetadata.book, parsed.book),
+            eq(ScriptureMetadata.chapter, parsed.chapter),
+            eq(ScriptureMetadata.verse, verseStart)
+          )
+        )
+        .limit(1)
+        .get();
+      
+      let scriptureNoteId: string;
+      
+      if (existingScripture) {
+        scriptureNoteId = existingScripture.ScriptureMetadata.noteId;
+      } else {
+        // Create new scripture note
+        // (Reuse the same logic from above for creating scripture notes)
+        const userMetadata = await db.select()
+          .from(UserMetadata)
+          .where(eq(UserMetadata.userId, userId))
+          .limit(1)
+          .get();
+        
+        const existingNotes = await db.select({
+          simpleNoteId: Notes.simpleNoteId
+        })
+          .from(Notes)
+          .where(
+            and(
+              eq(Notes.userId, userId),
+              isNotNull(Notes.simpleNoteId)
+            )
+          )
+          .orderBy(desc(Notes.simpleNoteId))
+          .limit(1);
+        
+        const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
+        
+        if (!userMetadata) {
+          await db.insert(UserMetadata).values({
+            userId: userId,
+            highestSimpleNoteId: highestExistingId
+          });
+        } else if ((userMetadata.highestSimpleNoteId || 0) < highestExistingId) {
+          await db.update(UserMetadata)
+            .set({ highestSimpleNoteId: highestExistingId })
+            .where(eq(UserMetadata.userId, userId));
+        }
+        
+        const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+        
+        // Fetch verse text
+        let verseText = pillInfo.reference;
+        try {
+          const verseResponse = await fetchWithTimeout(`https://api.esv.org/v3/passage/text/?q=${encodeURIComponent(pillInfo.reference)}&include-headings=false&include-footnotes=false&include-verse-numbers=false&include-short-copyright=false&include-passage-references=false`, {
+            headers: { 'Authorization': `Token ${process.env.ESV_API_KEY}` }
+          }, 5000);
+          
+          if (verseResponse.ok) {
+            const verseData = await verseResponse.json();
+            verseText = verseData.passages?.[0] || pillInfo.reference;
+          }
+        } catch (error) {
+          // Use reference as fallback
+        }
+        
+        const capitalizedVerseText = verseText.charAt(0).toUpperCase() + verseText.slice(1);
+        
+        scriptureNoteId = generateNoteId();
+        
+        await db.insert(Notes).values({
+          id: scriptureNoteId,
+          userId: userId,
+          title: pillInfo.reference,
+          content: capitalizedVerseText,
+          noteType: 'scripture',
+          simpleNoteId: nextSimpleNoteId,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        
+        await db.insert(ScriptureMetadata).values({
+          id: `scripture_${scriptureNoteId}_${Date.now()}`,
+          noteId: scriptureNoteId,
+          reference: normalizedRef,
+          book: parsed.book,
+          chapter: parsed.chapter,
+          verse: verseStart,
+          verseEnd: verseEnd || null,
+          translation: 'NET',
+          originalText: capitalizedVerseText,
+          createdAt: new Date()
+        });
+        
+        // Update user metadata
+        await db.update(UserMetadata)
+          .set({ highestSimpleNoteId: nextSimpleNoteId })
+          .where(eq(UserMetadata.userId, userId));
+        
+        // Add to unorganized thread
+        await db.insert(NoteThreads).values({
+          id: `note-thread-${scriptureNoteId}-thread_unorganized-${Date.now()}`,
+          noteId: scriptureNoteId,
+          threadId: 'thread_unorganized',
+          createdAt: new Date()
+        });
+        
+        results.push({
+          action: 'created',
+          noteId: scriptureNoteId,
+          reference: pillInfo.reference
+        });
+      }
+      
+      // Add to reference map and highlighting
+      referenceMap.set(pillInfo.reference, scriptureNoteId);
+      referencesForHighlighting.push({ reference: pillInfo.reference, noteId: scriptureNoteId });
+      
+      // Create junction entry
+      try {
+        await db.insert(NoteScriptureReferences).values({
+          id: `note-scripture-${noteId}-${scriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          noteId: noteId,
+          scriptureNoteId: scriptureNoteId,
+          createdAt: new Date()
+        });
+      } catch (junctionError) {
+        // Ignore junction entry errors - non-critical
+      }
+    } catch (error) {
+      console.error(`Error processing pending pill ${pillInfo.reference}:`, error);
     }
   }
 

@@ -15,6 +15,7 @@ import ButtonSmall from './ButtonSmall';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
+import { debug } from '@/utils/logger';
 import '@/styles/tiptap-editor.css';
 
 // Icon component for inline SVGs (allows CSS styling)
@@ -35,6 +36,7 @@ interface TiptapEditorProps {
   parentThreadId?: string;
   sourceNoteId?: string; // ID of the note this editor is editing (for hyperlink creation)
   onEditorReady?: (editor: any) => void;
+  onEditorInstanceReady?: (editor: any) => void; // Callback when editor instance is ready for direct access
 }
 
 // Helper function to find text positions in ProseMirror document
@@ -90,6 +92,66 @@ function findTextWithFlexibleMatching(fullText: string, searchText: string): Arr
   }
   
   return matches;
+}
+
+// Helper function to find pill boundaries (start and end positions of a pill mark)
+// Returns null if position is not inside a pill
+function findPillBoundaries(doc: any, pos: number): { start: number; end: number } | null {
+  let pillStart = pos;
+  let pillEnd = pos;
+  
+  // Find start of pill
+  for (let p = pos; p >= 0; p--) {
+    try {
+      const $p = doc.resolve(p);
+      const marks = $p.marks();
+      const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+      if (!hasPill) {
+        pillStart = p + 1;
+        break;
+      }
+      if (p === 0) {
+        pillStart = 0;
+        break;
+      }
+    } catch (e) {
+      pillStart = p + 1;
+      break;
+    }
+  }
+  
+  // Find end of pill
+  for (let p = pos; p <= doc.content.size; p++) {
+    try {
+      const $p = doc.resolve(p);
+      const marks = $p.marks();
+      const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+      if (!hasPill) {
+        pillEnd = p;
+        break;
+      }
+    } catch (e) {
+      pillEnd = p;
+      break;
+    }
+  }
+  
+  // If start and end are the same, we're not inside a pill
+  if (pillStart === pillEnd && pillStart === pos) {
+    // Check if we're actually at a pill boundary
+    try {
+      const $pos = doc.resolve(pos);
+      const marks = $pos.marks();
+      const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+      if (!hasPill) {
+        return null; // Not inside a pill
+      }
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  return { start: pillStart, end: pillEnd };
 }
 
 // Helper function to check if there's a hard break node at a given position
@@ -1072,8 +1134,16 @@ export async function convertNoteLinksToScripturePills(editor: any) {
 }
 
 // Helper function to detect and create scripture notes
-async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: string, editorId?: string) {
-  if (!editor) return;
+async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: string, editorId?: string, isDetectingRef?: React.MutableRefObject<boolean>, justCreatedPillRef?: React.MutableRefObject<boolean>) {
+  
+  if (!editor) {
+    return;
+  }
+  
+  // Mark as detecting to prevent concurrent detections
+  if (isDetectingRef) {
+    isDetectingRef.current = true;
+  }
 
   try {
     // Store current cursor position before processing
@@ -1173,13 +1243,27 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
         continue;
       }
       
-      // Get or create note once for all occurrences of this reference
-      // Pass parentThreadId so new notes are created in the correct thread
-      const { noteId } = await getOrCreateScriptureNote(reference, parentThreadId);
+      // For real-time detection, create pills WITHOUT creating scripture notes
+      // Notes will be created when the note is saved
+      // Set noteId to null/undefined to indicate pending state
+      const noteId = null; // Defer note creation until save
       
-      if (!noteId) {
-        // If note creation failed, skip processing this reference
-        continue;
+      debug('[TiptapEditor] Creating pill without noteId (deferred)', {
+        reference: normalizedRef,
+        positionsCount: allPositions.length
+      });
+      
+      // Set flag to indicate we just created a pill
+      // Store on both ref (for internal use) and editor instance (for external access)
+      if (justCreatedPillRef) {
+        justCreatedPillRef.current = true;
+        // Also store on editor instance so NewNotePanel can access it
+        (editor as any).__justCreatedPill = true;
+        // Clear flag after 500ms
+        setTimeout(() => {
+          justCreatedPillRef.current = false;
+          (editor as any).__justCreatedPill = false;
+        }, 500);
       }
       
       // Process each occurrence
@@ -1271,36 +1355,721 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
         }
         
         // Apply scripture pill mark using transaction API directly to avoid selection issues
+        // Note: noteId is null for real-time pills (will be set on save)
         try {
           const tr = editor.state.tr;
           const markType = editor.state.schema.marks.scripturePill;
           if (markType) {
-            tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
+            tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId: noteId || undefined }));
             // Remove noteLink mark if present
             const noteLinkMark = editor.state.schema.marks.noteLink;
             if (noteLinkMark) {
               tr.removeMark(adjustedPos.from, adjustedPos.to, noteLinkMark);
             }
             editor.view.dispatch(tr);
+            
+            debug('[TiptapEditor] Pill mark applied', {
+              reference: normalizedRef,
+              from: adjustedPos.from,
+              to: adjustedPos.to,
+              noteId: noteId || 'pending'
+            });
           }
         } catch (e) {
           // If transaction fails, fall back to chain API
           editor.chain()
             .setTextSelection(adjustedPos)
             .unsetMark('noteLink')
-            .setMark('scripturePill', { reference: normalizedRef, noteId })
+            .setMark('scripturePill', { reference: normalizedRef, noteId: noteId || undefined })
             .run();
+          
+          debug('[TiptapEditor] Pill mark applied via chain API', {
+            reference: normalizedRef,
+            from: adjustedPos.from,
+            to: adjustedPos.to,
+            noteId: noteId || 'pending'
+          });
         }
       }
+    }
+    
+    // Restore cursor position after all pills are created
+    // Check if cursor is inside a pill and move it after if needed
+      debug('[TiptapEditor] Starting cursor positioning after pill creation', {
+        currentCursorPos,
+        docSize: editor.state.doc.content.size
+      });
+    
+    try {
+      const doc = editor.state.doc;
+      const $current = doc.resolve(currentCursorPos);
+      const currentMarks = $current.marks();
+      const isInsidePill = currentMarks.some((m: any) => m.type.name === 'scripturePill');
       
-      // Restore cursor position to where it was before processing
-      // Don't insert any spaces - let Tiptap handle mark boundaries
+      debug('[TiptapEditor] Cursor position check', {
+        currentCursorPos,
+        isInsidePill,
+        marks: currentMarks.map((m: any) => m.type.name),
+        editorFocused: editor.isFocused
+      });
+      
+      if (isInsidePill) {
+        // Find pill boundaries and move cursor after it
+        const boundaries = findPillBoundaries(doc, currentCursorPos);
+        debug('[TiptapEditor] Pill boundaries found', {
+          boundaries,
+          currentCursorPos
+        });
+        
+        if (boundaries) {
+          // ProseMirror marks are inclusive at boundaries, so boundaries.end still has the pill mark
+          // We need to find the first position AFTER the pill that doesn't have the mark
+          let cursorPos = boundaries.end;
+          const maxPos = doc.content.size;
+          let foundPosition = false;
+          
+          debug('[TiptapEditor] Searching for safe position after pill', {
+            startPos: boundaries.end,
+            maxPos
+          });
+          
+          // Find first position without pill mark (up to 10 positions ahead)
+          for (let pos = boundaries.end; pos <= Math.min(boundaries.end + 10, maxPos); pos++) {
+            try {
+              const $pos = doc.resolve(pos);
+              const marks = $pos.marks();
+              const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+              if (!hasPill) {
+                cursorPos = pos;
+                foundPosition = true;
+                debug('[TiptapEditor] Found safe position', { pos, marks: marks.map((m: any) => m.type.name) });
+                break;
+              }
+            } catch (e) {
+              // If we can't resolve, use this position
+              cursorPos = pos;
+              foundPosition = true;
+              debug('[TiptapEditor] Using position after resolve error', { pos, error: e });
+              break;
+            }
+          }
+          
+          // If we're at the end of document and still inside pill, use document end
+          // The stored marks clearing will ensure typing works
+          if (!foundPosition && boundaries.end >= maxPos - 1) {
+            cursorPos = maxPos;
+            debug('[TiptapEditor] Using document end as safe position', { cursorPos });
+          }
+          
+          // Double-check the final cursor position doesn't have pill mark
+          // If it does, move forward one more position
+          // Keep checking until we find a position without the pill mark
+          let attempts = 0;
+          const maxAttempts = 20;
+          while (attempts < maxAttempts && cursorPos < maxPos) {
+            try {
+              const $finalPos = doc.resolve(cursorPos);
+              const finalMarks = $finalPos.marks();
+              const finalHasPill = finalMarks.some((m: any) => m.type.name === 'scripturePill');
+              if (!finalHasPill) {
+                debug('[TiptapEditor] Verified safe position', { cursorPos, attempts });
+                break; // Found a safe position
+              }
+              cursorPos = Math.min(cursorPos + 1, maxPos);
+              attempts++;
+            } catch (e) {
+              // If we can't resolve, use this position
+              debug('[TiptapEditor] Using position after verification error', { cursorPos, error: e });
+              break;
+            }
+          }
+          
+          debug('[TiptapEditor] Setting cursor position', {
+            cursorPos,
+            attempts,
+            editorFocused: editor.isFocused
+          });
+          
+          // Use transaction to set cursor and clear stored marks in one operation
+          const tr = editor.state.tr;
+          tr.setSelection(TextSelection.create(tr.doc, cursorPos));
+          tr.setStoredMarks([]);
+          
+          // CRITICAL: Ensure the editor is editable before dispatching
+          // Check if editor is in a state that can accept input
+          if (!editor.isEditable) {
+            // Editor not editable - skip cursor positioning
+            return;
+          }
+          
+          editor.view.dispatch(tr);
+          
+          // CRITICAL: After dispatching transaction, ensure view is updated and can receive input
+          // Force a view update to ensure ProseMirror processes the transaction
+          // Use requestAnimationFrame to ensure DOM is ready
+          requestAnimationFrame(() => {
+            if (editor && !editor.isDestroyed && editor.view) {
+              // Force view to update its state - this ensures ProseMirror processes the transaction
+              try {
+                // CRITICAL: Don't call updateState with the same state - this can cause issues
+                // Instead, just ensure the view is ready for input
+                // The view should already be updated by the dispatch above
+                
+                // Verify editor can still receive input
+                const dom = editor.view.dom as HTMLElement;
+                const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+                const targetElement = contentEditable || dom;
+                
+                const isEditable = targetElement.contentEditable === 'true';
+                const isDisabled = (targetElement as any).disabled;
+                const isReadOnly = (targetElement as any).readOnly;
+                
+                console.log('[TiptapEditor] Post-transaction editor state', {
+                  isEditable,
+                  editorIsEditable: editor.isEditable,
+                  contentEditable: targetElement.contentEditable,
+                  isDisabled,
+                  isReadOnly,
+                  editorFocused: editor.isFocused,
+                  domFocused: document.activeElement === dom,
+                  activeElement: document.activeElement?.tagName,
+                  // Check if element is actually interactive
+                  pointerEvents: window.getComputedStyle(targetElement).pointerEvents,
+                  userSelect: window.getComputedStyle(targetElement).userSelect,
+                  // Check view state
+                  viewEditable: (editor.view as any).editable,
+                  viewReadOnly: (editor.view as any).readOnly
+                });
+                
+                // If editor is not editable, this is a critical issue
+                if (!isEditable || isDisabled || isReadOnly) {
+                  console.error('[TiptapEditor] CRITICAL: Editor cannot receive input after transaction!', {
+                    isEditable,
+                    isDisabled,
+                    isReadOnly,
+                    contentEditable: targetElement.contentEditable
+                  });
+                  
+                  // Try to force it to be editable
+                  if (targetElement.contentEditable !== 'true') {
+                    targetElement.contentEditable = 'true';
+                  }
+                }
+                
+                // CRITICAL: Ensure the view is ready to receive input by focusing it
+                // This might be needed if the transaction somehow disrupted focus handling
+                setTimeout(() => {
+                  if (editor && !editor.isDestroyed && editor.view) {
+                    const dom = editor.view.dom as HTMLElement;
+                    const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+                    const targetElement = contentEditable || dom;
+                    
+                    // Force focus one more time
+                    targetElement.focus({ preventScroll: true });
+                    editor.commands.focus();
+                    
+                    // Verify focus
+                    const isFocused = document.activeElement === targetElement || 
+                                     document.activeElement === dom ||
+                                     editor.isFocused;
+                    
+                  }
+                }, 0);
+              } catch (e) {
+                console.error('[TiptapEditor] Error in post-transaction update', e);
+              }
+            }
+          });
+          
+          // CRITICAL: Reset isDetecting flag immediately after cursor positioning
+          // This ensures typing can continue right away, even before the setTimeout
+          if (isDetectingRef) {
+            isDetectingRef.current = false;
+          }
+          
+          // Double-check stored marks are actually cleared
+          const storedMarksAfter = editor.state.storedMarks || [];
+          if (storedMarksAfter.length > 0) {
+            // Force clear them again
+            const clearTr = editor.state.tr.setStoredMarks([]);
+            editor.view.dispatch(clearTr);
+          }
+          
+          // Immediately try to focus after transaction (before setTimeout)
+          // This helps in form contexts where focus might be stolen
+          try {
+            if (editor.view && editor.view.dom) {
+              const dom = editor.view.dom as HTMLElement;
+              
+              // Force focus with multiple methods for form contexts
+              dom.focus({ preventScroll: true });
+              editor.commands.focus();
+              
+              // Also try focusing the contentEditable element directly if it exists
+              const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+              if (contentEditable) {
+                contentEditable.focus({ preventScroll: true });
+              }
+              
+              // Verify focus and check if element can receive input
+              const isFocused = document.activeElement === dom || document.activeElement === contentEditable;
+              const canReceiveInput = dom.contentEditable === 'true' || contentEditable?.contentEditable === 'true';
+              
+              // If still not focused, try one more time after a microtask
+              if (!isFocused) {
+                Promise.resolve().then(() => {
+                  if (editor && !editor.isDestroyed && editor.view && editor.view.dom) {
+                    const dom = editor.view.dom as HTMLElement;
+                    dom.focus({ preventScroll: true });
+                    editor.commands.focus();
+                  }
+                });
+              }
+            }
+          } catch (e) {
+            console.error('[TiptapEditor] Error in immediate focus', e);
+          }
+          
+          // Verify cursor position after transaction - if still inside pill, move it again
+          // Also ensure stored marks are cleared
+          setTimeout(() => {
+            try {
+              if (!editor || editor.isDestroyed) {
+                debug('[TiptapEditor] Editor destroyed during verification, skipping');
+                return;
+              }
+              if (!editor.view || !editor.view.docView) {
+                debug('[TiptapEditor] Editor view invalid during verification, skipping');
+                return;
+              }
+              
+              // Get fresh state after transaction
+              const freshState = editor.state;
+              const currentSelection = freshState.selection;
+              const currentPos = currentSelection.anchor;
+              const $current = freshState.doc.resolve(currentPos);
+              const currentMarks = $current.marks();
+              const stillInsidePill = currentMarks.some((m: any) => m.type.name === 'scripturePill');
+              
+              debug('[TiptapEditor] Verifying cursor position after transaction', {
+                currentPos,
+                stillInsidePill,
+                marks: currentMarks.map((m: any) => m.type.name),
+                storedMarks: freshState.storedMarks?.map((m: any) => m.type.name) || [],
+                editorFocused: editor.isFocused
+              });
+              
+              if (stillInsidePill) {
+                debug('[TiptapEditor] Cursor still inside pill, repositioning', { currentPos });
+                // Still inside pill - find a safe position after it
+                const safeBoundaries = findPillBoundaries(freshState.doc, currentPos);
+                debug('[TiptapEditor] Safe boundaries for repositioning', { safeBoundaries, currentPos });
+                
+                if (safeBoundaries) {
+                  let safePos = safeBoundaries.end;
+                  const maxPos = freshState.doc.content.size;
+                  
+                  // Find first position without pill mark (check up to 20 positions)
+                  for (let pos = safeBoundaries.end; pos <= Math.min(safeBoundaries.end + 20, maxPos); pos++) {
+                    try {
+                      const $pos = freshState.doc.resolve(pos);
+                      const marks = $pos.marks();
+                      const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+                      if (!hasPill) {
+                        safePos = pos;
+                        debug('[TiptapEditor] Found safe position in verification', { safePos, pos });
+                        break;
+                      }
+                    } catch (e) {
+                      safePos = pos;
+                      debug('[TiptapEditor] Using position after resolve error in verification', { safePos, pos, error: e });
+                      break;
+                    }
+                  }
+                  
+                  // Check if there's a space after the safe position - if not, insert one
+                  const textAfter = freshState.doc.textBetween(safePos, Math.min(safePos + 1, maxPos));
+                  const needsSpace = textAfter !== ' ' && textAfter !== '\n';
+                  
+                  debug('[TiptapEditor] Space check for safe position', { safePos, textAfter, needsSpace });
+                  
+                  if (needsSpace && safePos < maxPos) {
+                    // Insert a space after the pill to ensure typing works smoothly
+                    const insertTr = freshState.tr;
+                    insertTr.insertText(' ', safePos);
+                    insertTr.setSelection(TextSelection.create(insertTr.doc, safePos + 1));
+                    insertTr.setStoredMarks([]);
+                    editor.view.dispatch(insertTr);
+                    
+                    debug('[TiptapEditor] Inserted space and repositioned cursor', {
+                      safePos: safePos + 1,
+                      spaceInserted: true
+                    });
+                  } else {
+                    // Move cursor to safe position and clear stored marks again
+                    const safeTr = freshState.tr;
+                    safeTr.setSelection(TextSelection.create(safeTr.doc, safePos));
+                    safeTr.setStoredMarks([]);
+                    editor.view.dispatch(safeTr);
+                    
+                    debug('[TiptapEditor] Repositioned cursor to safe position', { safePos });
+                  }
+                }
+              } else {
+                // Not inside pill, but ensure stored marks are cleared anyway
+                if (freshState.storedMarks && freshState.storedMarks.length > 0) {
+                  debug('[TiptapEditor] Clearing stored marks', {
+                    storedMarks: freshState.storedMarks.map((m: any) => m.type.name)
+                  });
+                  const clearTr = freshState.tr.setStoredMarks([]);
+                  editor.view.dispatch(clearTr);
+                } else {
+                  debug('[TiptapEditor] No stored marks to clear');
+                }
+              }
+              
+              // Force focus using view directly (more reliable in form contexts)
+              const { view } = editor;
+              if (view && view.dom) {
+                const dom = view.dom as HTMLElement;
+                const finalPos = editor.state.selection.anchor;
+                
+                
+                // Multiple focus attempts for form contexts
+                // 1. Focus the editor DOM element directly
+                dom.focus({ preventScroll: true });
+                
+                // 2. Use commands.focus() as backup
+                editor.commands.focus();
+                
+                // 3. Also try focusing the contentEditable element directly if it exists
+                const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+                if (contentEditable) {
+                  contentEditable.focus({ preventScroll: true });
+                }
+                
+                // 4. Force focus via requestAnimationFrame (ensures it happens after any form handlers)
+                requestAnimationFrame(() => {
+                  if (!editor || editor.isDestroyed) return;
+                  if (!editor.view || !editor.view.dom) return;
+                  
+                  const dom = editor.view.dom as HTMLElement;
+                  dom.focus({ preventScroll: true });
+                  editor.commands.focus();
+                  
+                  const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+                  if (contentEditable) {
+                    contentEditable.focus({ preventScroll: true });
+                  }
+                  
+                  // 5. One more attempt after a short delay to ensure focus sticks
+                  setTimeout(() => {
+                    if (!editor || editor.isDestroyed) return;
+                    if (!editor.view || !editor.view.dom) return;
+                    
+                    const dom = editor.view.dom as HTMLElement;
+                    const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+                    const isFocused = document.activeElement === dom || 
+                                    document.activeElement === contentEditable || 
+                                    editor.isFocused;
+                    
+                    
+                    if (!isFocused) {
+                      // Last resort: force focus again
+                      dom.focus({ preventScroll: true });
+                      editor.commands.focus();
+                      if (contentEditable) {
+                        contentEditable.focus({ preventScroll: true });
+                      }
+                    }
+                  }, 50);
+                });
+                
+                // CRITICAL: Verify editor can actually receive input
+                setTimeout(() => {
+                  if (!editor || editor.isDestroyed) return;
+                  if (!editor.view || !editor.view.dom) return;
+                  
+                  const dom = editor.view.dom as HTMLElement;
+                  const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+                  const targetElement = contentEditable || dom;
+                  
+                  // Check if element is actually focusable and can receive input
+                  const isFocusable = targetElement.tabIndex >= 0 || targetElement.contentEditable === 'true';
+                  const isDisabled = (targetElement as any).disabled || targetElement.contentEditable === 'false';
+                  const isReadOnly = (targetElement as any).readOnly;
+                  
+                  // Force focus one more time and verify
+                  if (targetElement && isFocusable && !isDisabled && !isReadOnly) {
+                    targetElement.focus({ preventScroll: true });
+                    editor.commands.focus();
+                  }
+                }, 150);
+                
+                // CRITICAL: Force focus and test if editor can actually receive input
+                setTimeout(() => {
+                  if (!editor || editor.isDestroyed) return;
+                  if (!editor.view || !editor.view.dom) return;
+                  
+                  const dom = editor.view.dom as HTMLElement;
+                  const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+                  const targetElement = contentEditable || dom;
+                  
+                  // Force focus multiple times to ensure it sticks
+                  targetElement.focus({ preventScroll: true });
+                  editor.commands.focus();
+                  
+                  // Also try clicking to focus (sometimes needed in form contexts)
+                  if (targetElement) {
+                    targetElement.click();
+                  }
+                  
+                  // Verify after a microtask
+                  Promise.resolve().then(() => {
+                    const isFocused = document.activeElement === targetElement || 
+                                     document.activeElement === dom ||
+                                     editor.isFocused;
+                    
+                    // If still not focused, try one more time with a small delay
+                    if (!isFocused) {
+                      setTimeout(() => {
+                        targetElement.focus({ preventScroll: true });
+                        editor.commands.focus();
+                      }, 50);
+                    }
+                  });
+                }, 10);
+                
+                // Ensure the cursor is visible by scrolling if needed
+                try {
+                  const coords = view.coordsAtPos(finalPos);
+                  if (coords) {
+                    const scrollContainer = dom.closest('.ProseMirror') || dom;
+                    if (scrollContainer) {
+                      const scrollRect = (scrollContainer as HTMLElement).getBoundingClientRect();
+                      // Check if cursor is outside visible area
+                      if (coords.top < scrollRect.top || coords.top > scrollRect.bottom) {
+                        (scrollContainer as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        debug('[TiptapEditor] Scrolled cursor into view', { finalPos, coords });
+                      }
+                    }
+                  }
+                } catch (scrollError) {
+                  debug('[TiptapEditor] Error scrolling cursor into view', { scrollError });
+                }
+              } else {
+                debug('[TiptapEditor] Cannot focus - view or dom missing', {
+                  hasView: !!view,
+                  hasDom: !!(view && view.dom)
+                });
+              }
+            } catch (e) {
+              debug('[TiptapEditor] Error during focus', { error: e });
+            }
+          }, 10); // Small delay to ensure transaction is processed
+          
+          // CRITICAL: Additional focus attempt after a longer delay
+          // This ensures focus sticks even if form handlers interfere
+          setTimeout(() => {
+            try {
+              if (!editor || editor.isDestroyed) return;
+              if (!editor.view || !editor.view.dom) return;
+              
+              const dom = editor.view.dom as HTMLElement;
+              const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+              
+              // Force focus one more time
+              if (contentEditable) {
+                contentEditable.focus({ preventScroll: true });
+              } else {
+                dom.focus({ preventScroll: true });
+              }
+              editor.commands.focus();
+              
+              // Verify focus
+              const isFocused = document.activeElement === dom || document.activeElement === contentEditable;
+            } catch (e) {
+              console.error('[TiptapEditor] Error in delayed focus', e);
+            }
+          }, 100); // Longer delay to ensure form handlers have finished
+          
+          // FINAL ATTEMPT: After all delays, force focus and test input capability
+          setTimeout(() => {
+            if (!editor || editor.isDestroyed) return;
+            if (!editor.view || !editor.view.dom) return;
+            
+            const dom = editor.view.dom as HTMLElement;
+            const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+            const targetElement = contentEditable || dom;
+            
+            
+            // Force focus with all methods
+            if (targetElement) {
+              // Method 1: Direct focus
+              targetElement.focus({ preventScroll: true });
+              
+              // Method 2: Click to focus (sometimes needed)
+              const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+              targetElement.dispatchEvent(clickEvent);
+              
+              // Method 3: Editor commands
+              editor.commands.focus();
+              
+              // Method 4: Set selection to ensure cursor is visible
+              try {
+                const doc = editor.state.doc;
+                const endPos = doc.content.size;
+                editor.commands.setTextSelection(endPos);
+              } catch (e) {
+                // Ignore
+              }
+            }
+            
+            // Verify after microtask
+            Promise.resolve().then(() => {
+              const isFocused = document.activeElement === targetElement || 
+                               document.activeElement === dom ||
+                               editor.isFocused;
+              
+            });
+          }, 200); // Even longer delay to ensure everything has settled
+          
+          // TEST: Try to programmatically insert text to verify editor can receive input
+          setTimeout(() => {
+            if (!editor || editor.isDestroyed) return;
+            if (!editor.view || !editor.view.dom) return;
+            
+            try {
+              // Try to insert a test character programmatically
+              const testChar = 'X';
+              const { from, to } = editor.state.selection;
+              
+              // Test programmatic insertion (but undo immediately)
+              if (editor.can().insertContent(testChar)) {
+                editor.commands.insertContent(testChar);
+                // Immediately undo to not affect user's content
+                setTimeout(() => {
+                  if (editor && !editor.isDestroyed) {
+                    editor.commands.undo();
+                  }
+                }, 10);
+              }
+            } catch (e) {
+              console.error('[TiptapEditor] Error testing programmatic insertion', e);
+            }
+          }, 250);
+        } else {
+          // Fallback: try to move cursor forward a bit
+          const newPos = Math.min(currentCursorPos + 1, doc.content.size);
+          const tr = editor.state.tr;
+          tr.setSelection(TextSelection.create(tr.doc, newPos));
+          tr.setStoredMarks([]);
+          editor.view.dispatch(tr);
+        }
+      } else {
+        // Restore original position if not inside pill
+        // But first check if that position now has a pill mark (pill might have been created there)
+        const $restorePos = doc.resolve(currentCursorPos);
+        const restoreMarks = $restorePos.marks();
+        const restoreHasPill = restoreMarks.some((m: any) => m.type.name === 'scripturePill');
+        
+        if (restoreHasPill) {
+          // The restore position is now inside a pill, find position after it
+          const restoreBoundaries = findPillBoundaries(doc, currentCursorPos);
+          if (restoreBoundaries) {
+            let cursorPos = restoreBoundaries.end;
+            const maxPos = doc.content.size;
+            
+            // Find first position without pill mark
+            let foundPosition = false;
+            for (let pos = restoreBoundaries.end; pos <= Math.min(restoreBoundaries.end + 10, maxPos); pos++) {
+              try {
+                const $pos = doc.resolve(pos);
+                const marks = $pos.marks();
+                const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+                if (!hasPill) {
+                  cursorPos = pos;
+                  foundPosition = true;
+                  break;
+                }
+              } catch (e) {
+                cursorPos = pos;
+                foundPosition = true;
+                break;
+              }
+            }
+            
+            // If at end of document, use document end
+            if (!foundPosition && restoreBoundaries.end >= maxPos - 1) {
+              cursorPos = maxPos;
+            }
+            
+            const tr = editor.state.tr;
+            tr.setSelection(TextSelection.create(tr.doc, cursorPos));
+            tr.setStoredMarks([]);
+            editor.view.dispatch(tr);
+            
+            // Ensure editor is focused and ready for input
+            setTimeout(() => {
+              try {
+                if (!editor || editor.isDestroyed) return;
+                if (!editor.view || !editor.view.docView) return;
+                
+                // Force focus using view directly (more reliable in form contexts)
+                const { view } = editor;
+                if (view && view.dom) {
+                  (view.dom as HTMLElement).focus();
+                  editor.commands.focus();
+                }
+              } catch (e) {
+                // Ignore errors during focus
+              }
+            }, 0);
+          } else {
+            // Fallback: clear marks at restore position
+            const tr = editor.state.tr;
+            tr.setSelection(TextSelection.create(tr.doc, currentCursorPos));
+            tr.setStoredMarks([]);
+            editor.view.dispatch(tr);
+          }
+        } else {
+          // Position is safe, restore it
+          const tr = editor.state.tr;
+          tr.setSelection(TextSelection.create(tr.doc, currentCursorPos));
+          tr.setStoredMarks([]);
+          editor.view.dispatch(tr);
+          
+          // Ensure editor stays focused
+          setTimeout(() => {
+            try {
+              if (!editor || editor.isDestroyed) return;
+              if (!editor.view || !editor.view.docView) return;
+              
+              // Only focus if editor was already focused (don't steal focus unnecessarily)
+              if (editor.isFocused) {
+                const { view } = editor;
+                if (view && view.dom) {
+                  (view.dom as HTMLElement).focus();
+                  editor.commands.focus();
+                }
+              }
+            } catch (e) {
+              // Ignore errors
+            }
+          }, 0);
+        }
+      }
+    } catch (e) {
+      // If cursor position is invalid, try to place cursor at end of document
       try {
-        editor.chain()
-          .setTextSelection(currentCursorPos)
-          .run();
-      } catch (e) {
-        // If cursor position is invalid, just leave it where it is
+        const doc = editor.state.doc;
+        const endPos = doc.content.size;
+        const tr = editor.state.tr;
+        tr.setSelection(TextSelection.create(tr.doc, endPos));
+        tr.setStoredMarks([]);
+        editor.view.dispatch(tr);
+      } catch (fallbackError) {
+        // If even that fails, just leave it where it is
       }
     }
   } catch (error) {
@@ -1321,7 +2090,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   enableCreateNoteFromSelection = false,
   parentThreadId,
   sourceNoteId,
-  onEditorReady
+  onEditorReady,
+  onEditorInstanceReady
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -1339,6 +2109,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const editorRef = useRef<any>(null);
   const toolbarPositionUpdater = useRef<() => void>(() => {});
   const scrollCursorAboveToolbarRef = useRef<() => void>(() => {});
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isDetectingRef = useRef<boolean>(false);
+  const justCreatedPillRef = useRef<boolean>(false);
+  const lastContentHashRef = useRef<string>('');
+  const lastCursorPosRef = useRef<number>(-1);
 
   // Helper function to check if editor/view is valid before accessing docView
   // This prevents errors when editor is destroyed but handlers still fire
@@ -1411,6 +2186,92 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (onContentChange) {
         onContentChange(htmlContent);
       }
+      
+      // Real-time scripture detection (debounced)
+      // Only detect if editor is focused and user is typing
+      // In form contexts, check both editor.isFocused and DOM focus
+      const isFocused = editor.isFocused || document.activeElement === (editor.view?.dom as HTMLElement);
+      
+      
+      if (isFocused && !isDetectingRef.current) {
+        const { selection } = editor.state;
+        const { from, to } = selection;
+        
+        // Skip if user is selecting text (not just typing)
+        if (from !== to) {
+          return;
+        }
+        
+        // Check if cursor is inside an existing pill - skip detection if so
+        try {
+          const $from = editor.state.doc.resolve(from);
+          const marks = $from.marks();
+          const isInsidePill = marks.some((m: any) => m.type.name === 'scripturePill');
+          if (isInsidePill) {
+            return; // Don't detect while inside a pill
+          }
+        } catch (e) {
+          // If we can't check, continue anyway
+        }
+        
+        // Create content hash to detect actual changes (not just cursor movement)
+        const textContent = editor.state.doc.textContent;
+        const contentHash = `${textContent.length}-${textContent.slice(-100)}`; // Use length + last 100 chars as hash
+        
+        // Only detect if content actually changed
+        if (contentHash !== lastContentHashRef.current || from !== lastCursorPosRef.current) {
+          lastContentHashRef.current = contentHash;
+          lastCursorPosRef.current = from;
+          
+          // Clear existing debounce timer
+          if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+            debounceTimerRef.current = null;
+          }
+          
+          // Set new debounce timer (600ms delay)
+          debounceTimerRef.current = setTimeout(async () => {
+            // Double-check editor is still valid and focused
+            // In form contexts, check both editor.isFocused and DOM focus
+            const isFocused = editor.isFocused || document.activeElement === (editor.view?.dom as HTMLElement);
+            if (!editor || editor.isDestroyed || !isFocused || isDetectingRef.current) {
+              return;
+            }
+            
+            // Check if cursor position changed significantly (user kept typing)
+            const currentPos = editor.state.selection.anchor;
+            if (Math.abs(currentPos - from) > 5) {
+              // Cursor moved significantly, user is still typing - skip this detection
+              return;
+            }
+            
+            // Check if content changed during debounce delay
+            const currentText = editor.state.doc.textContent;
+            const currentHash = `${currentText.length}-${currentText.slice(-100)}`;
+            if (currentHash !== contentHash) {
+              // Content changed, user is still typing - skip this detection
+              return;
+            }
+            
+            // Mark as detecting to prevent concurrent detections
+            isDetectingRef.current = true;
+            
+            try {
+              // Check if there's enough text to detect (minimum 5 characters)
+              const fullText = editor.state.doc.textContent;
+              if (fullText.trim().length >= 5) {
+                await detectAndCreateScriptureNotes(editor, parentThreadId, id, isDetectingRef, justCreatedPillRef);
+              }
+            } catch (error) {
+              console.error('Error in debounced scripture detection:', error);
+            } finally {
+              // CRITICAL: Always reset isDetecting flag, even on error
+              // This ensures typing can continue even if detection fails
+              isDetectingRef.current = false;
+            }
+          }, 600); // 600ms debounce delay
+        }
+      }
     },
     editable: true,
     editorProps: {
@@ -1422,6 +2283,33 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // NOTE: beforeinput handler removed - using plugin's handleTextInput instead
       // This prevents conflicts between DOM-level and ProseMirror-level handlers
       handleDOMEvents: {
+        // Log all keyboard events to debug input blocking
+        keydown: (view, event) => {
+          // Only log in NewNotePanel context (editorId === 'new-note-content')
+          const editorId = (view.dom as HTMLElement)?.id;
+          if (editorId === 'new-note-content') {
+            const { selection } = view.state;
+            const { from, to } = selection;
+            const $from = view.state.selection.$from;
+            const marks = $from.marks();
+            const storedMarks = view.state.storedMarks || [];
+            
+            // Get editor instance to check justCreatedPill flag
+            const editorInstance = editorRef.current;
+            const justCreatedPill = justCreatedPillRef.current || (editorInstance as any)?.__justCreatedPill === true;
+            
+            
+            // If we just created a pill and this is a printable character, clear the flag
+            // (the fallback injection will handle it)
+            if (justCreatedPill && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+              justCreatedPillRef.current = false;
+              if (editorInstance) {
+                (editorInstance as any).__justCreatedPill = false;
+              }
+            }
+          }
+          return false; // Let ProseMirror handle it
+        },
         // Let ProseMirror handle all DOM events naturally
         // This ensures cursor placement works correctly on tap
       },
@@ -1495,11 +2383,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Check if view.docView is still valid (docView exists at runtime but not in TS types)
         if (!view || !(view as any).docView) return false;
         
+        // Log for new-note-content editor to debug
+        const editorId = (view.dom as HTMLElement)?.id;
+        if (editorId === 'new-note-content') {
+          // Logging removed for production
+        }
+        
         // Handle Cmd+Enter to submit form (dispatch event for parent panels to handle)
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
           event.preventDefault();
           window.dispatchEvent(new CustomEvent('submitPanelForm'));
-          return true;
+          return true; // Prevent default for Cmd+Enter only
         }
         
         // Handle regular Enter key - trigger auto-scroll after newline is created
@@ -1573,50 +2467,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }
         
         if (scripturePillMark) {
-          // Helper to find pill boundaries
-          const findPillBoundaries = (doc: any, pos: number): { start: number; end: number } | null => {
-            let pillStart = pos;
-            let pillEnd = pos;
-            
-            // Find start of pill
-            for (let p = pos; p >= 0; p--) {
-              try {
-                const $p = doc.resolve(p);
-                const marks = $p.marks();
-                const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
-                if (!hasPill) {
-                  pillStart = p + 1;
-                  break;
-                }
-                if (p === 0) {
-                  pillStart = 0;
-                  break;
-                }
-              } catch (e) {
-                pillStart = p + 1;
-                break;
-              }
-            }
-            
-            // Find end of pill
-            for (let p = pos; p <= doc.content.size; p++) {
-              try {
-                const $p = doc.resolve(p);
-                const marks = $p.marks();
-                const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
-                if (!hasPill) {
-                  pillEnd = p;
-                  break;
-                }
-              } catch (e) {
-                pillEnd = p;
-                break;
-              }
-            }
-            
-            return { start: pillStart, end: pillEnd };
-          };
-          
           // Helper to check if entire pill is selected
           const isEntirePillSelected = (doc: any, from: number, to: number): boolean => {
             const boundaries = findPillBoundaries(doc, from);
@@ -1712,13 +2562,76 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (editor) {
       editorRef.current = editor;
       // Initialize previous text content reference
+      
+      // Call onEditorInstanceReady callback to notify parent components
+      if (onEditorInstanceReady) {
+        onEditorInstanceReady(editor);
+      }
     }
     
-    // Cleanup tracker when editor is destroyed
+    // Cleanup tracker and debounce timer when editor is destroyed
     return () => {
       if (id) {
         cleanupTracker(id);
       }
+      // Clear debounce timer on cleanup
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      isDetectingRef.current = false;
+    };
+  }, [editor, id, onEditorInstanceReady]);
+
+  // Store editor reference on DOM for fallback event injection (backup method)
+  useEffect(() => {
+    if (!editor || !editor.view || !editor.view.dom) return;
+    
+    const dom = editor.view.dom as HTMLElement;
+    const editorId = dom.id;
+    
+    // Only store for new-note-content editor
+    if (editorId !== 'new-note-content') return;
+    
+    // Store editor reference on DOM element so fallback can access it
+    (dom as any).__tiptapEditor = editor;
+    
+    
+    // Also verify the reference can be accessed - check multiple times to catch DOM replacement
+    const verifyRef = () => {
+      if (!editor || editor.isDestroyed) return;
+      if (!editor.view || !editor.view.dom) return;
+      
+      const currentDom = editor.view.dom as HTMLElement;
+      const storedEditor = (currentDom as any).__tiptapEditor;
+      
+      if (storedEditor !== editor) {
+        // Re-store if mismatch
+        (currentDom as any).__tiptapEditor = editor;
+      }
+    };
+    
+    // Verify multiple times to catch any DOM replacement
+    const verifyTimeout1 = setTimeout(verifyRef, 100);
+    const verifyTimeout2 = setTimeout(verifyRef, 500);
+    const verifyTimeout3 = setTimeout(verifyRef, 1000);
+    
+    // Also set up a MutationObserver to watch for DOM changes
+    const observer = new MutationObserver(() => {
+      verifyRef();
+    });
+    
+    if (dom.parentNode) {
+      observer.observe(dom.parentNode, { childList: true, subtree: true });
+    }
+    
+    return () => {
+      clearTimeout(verifyTimeout1);
+      clearTimeout(verifyTimeout2);
+      clearTimeout(verifyTimeout3);
+      observer.disconnect();
+      // Don't delete on cleanup - let it persist for fallback access
+      // delete (dom as any).__tiptapEditor;
     };
   }, [editor, id]);
 
@@ -1769,6 +2682,48 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
   }, [editor, content]);
 
+  // Add comprehensive event listeners at multiple levels to trace event propagation
+  useEffect(() => {
+    if (!editor || !editor.view || !editor.view.dom) return;
+    
+    const dom = editor.view.dom as HTMLElement;
+    const editorId = dom.id;
+    
+    // Only add listener for new-note-content editor
+    if (editorId !== 'new-note-content') return;
+    
+    const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
+    
+    // Direct DOM event listeners removed - no longer needed for debugging
+    const handleKeyDownCapture = () => {};
+    const handleKeyDownBubble = () => {};
+    const handleKeyPress = () => {};
+    const handleInput = () => {};
+    
+    // Add listeners with both capture and bubble phases
+    dom.addEventListener('keydown', handleKeyDownCapture, true); // Capture
+    dom.addEventListener('keydown', handleKeyDownBubble, false); // Bubble
+    
+    if (contentEditable) {
+      contentEditable.addEventListener('keydown', handleKeyDownCapture, true);
+      contentEditable.addEventListener('keydown', handleKeyDownBubble, false);
+    }
+    
+    dom.addEventListener('keypress', handleKeyPress, true);
+    dom.addEventListener('input', handleInput, true);
+    
+    return () => {
+      dom.removeEventListener('keydown', handleKeyDownCapture, true);
+      dom.removeEventListener('keydown', handleKeyDownBubble, false);
+      if (contentEditable) {
+        contentEditable.removeEventListener('keydown', handleKeyDownCapture, true);
+        contentEditable.removeEventListener('keydown', handleKeyDownBubble, false);
+      }
+      dom.removeEventListener('keypress', handleKeyPress, true);
+      dom.removeEventListener('input', handleInput, true);
+    };
+  }, [editor, id]);
+  
   // Ensure editor is focused and editable
   useEffect(() => {
     if (editor) {

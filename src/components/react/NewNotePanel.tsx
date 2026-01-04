@@ -38,6 +38,13 @@ interface NewNotePanelProps {
 }
 
 export default function NewNotePanel({ currentThread, currentSpace, onClose, initialNoteType }: NewNotePanelProps) {
+  // Store editor instance for fallback event injection
+  const editorInstanceRef = useRef<any>(null);
+  
+  // Callback to receive editor instance from DefaultNoteForm
+  const handleEditorInstanceReady = useCallback((editor: any) => {
+    editorInstanceRef.current = editor;
+  }, []);
   
   // Get navigation context
   const navigation = useNavigation();
@@ -845,23 +852,139 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
     await submission.handleSubmit(syntheticEvent);
   };
 
-  // Handle Cmd+Enter to submit form (for elements outside TiptapEditor)
-  const handleFormKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      if (!submission.isSubmitting && !showUnsavedDialog) {
-        const formElement = e.currentTarget as HTMLFormElement;
-        formElement.requestSubmit();
+
+  // FALLBACK: Manually inject keyboard events to ProseMirror if they don't reach it naturally
+  // This is needed because events are being stopped between container and editor DOM
+  useEffect(() => {
+    let pendingEvents: Array<{ key: string; timestamp: number; beforeLength: number; beforeCursor: number }> = [];
+    
+    const handleDocumentKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isFromEditor = target.closest('[id="new-note-content"]') !== null || 
+                           target.closest('.ProseMirror') !== null ||
+                           target.closest('[contenteditable="true"]') !== null;
+      
+      if (!isFromEditor) return;
+      
+      // Check if this is a printable character (not a control key)
+      const isControlKey = e.key.length > 1 || 
+        ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(e.key);
+      
+      const isPrintable = !isControlKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1;
+      const isBackspace = e.key === 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey;
+      const isDelete = e.key === 'Delete' && !e.metaKey && !e.ctrlKey && !e.altKey;
+      
+      // Handle printable characters, Backspace, and Delete
+      if (isPrintable || isBackspace || isDelete) {
+        // Use ref-based editor access (primary method)
+        let editor = editorInstanceRef.current;
+        
+        // Fallback to DOM lookup if ref is not available
+        if (!editor || editor.isDestroyed) {
+          const editorDom = document.querySelector('[id="new-note-content"]') as HTMLElement;
+          if (editorDom) {
+            editor = (editorDom as any).__tiptapEditor;
+          }
+        }
+        
+        if (!editor || editor.isDestroyed) {
+          return;
+        }
+        
+        // Store the current content length and cursor before the event
+        const beforeLength = editor.state.doc.textContent.length;
+        const beforeCursor = editor.state.selection.anchor;
+        
+        // Store event for potential injection
+        pendingEvents.push({
+          key: e.key,
+          timestamp: Date.now(),
+          beforeLength,
+          beforeCursor
+        });
+        
+        // Clear old pending events (older than 200ms)
+        pendingEvents = pendingEvents.filter(ev => Date.now() - ev.timestamp < 200);
+        
+        // Check if we just created a pill - if so, inject immediately without waiting
+        const justCreatedPill = (editor as any).__justCreatedPill === true;
+        
+        // Check immediately if content changed (no delay - inject right away if needed)
+        requestAnimationFrame(() => {
+          if (!editor || editor.isDestroyed) return;
+          
+          const afterLength = editor.state.doc.textContent.length;
+          const afterCursor = editor.state.selection.anchor;
+          
+          // If we just created a pill OR content didn't change and cursor didn't move, inject immediately
+          const shouldInject = justCreatedPill || (afterLength === beforeLength && afterCursor === beforeCursor);
+          
+          if (shouldInject) {
+            const eventToInject = pendingEvents.find(ev => ev.key === e.key && Date.now() - ev.timestamp < 100);
+            
+            if (eventToInject) {
+              try {
+                // Handle different key types
+                if (isBackspace) {
+                  // For Backspace: delete selection if exists, otherwise delete character before cursor
+                  const { from, to } = editor.state.selection;
+                  if (from !== to) {
+                    // There's a selection, delete it
+                    editor.commands.deleteSelection();
+                  } else if (from > 0) {
+                    // No selection, delete one character before cursor
+                    editor.commands.deleteRange({ from: from - 1, to: from });
+                  }
+                } else if (isDelete) {
+                  // For Delete: delete selection if exists, otherwise delete character after cursor
+                  const { from, to } = editor.state.selection;
+                  if (from !== to) {
+                    // There's a selection, delete it
+                    editor.commands.deleteSelection();
+                  } else {
+                    // No selection, delete one character after cursor
+                    const docSize = editor.state.doc.content.size;
+                    if (to < docSize) {
+                      editor.commands.deleteRange({ from: to, to: to + 1 });
+                    }
+                  }
+                } else {
+                  // Use Tiptap's insertContent command for printable characters
+                  editor.commands.insertContent(e.key);
+                }
+                
+                // Clear the justCreatedPill flag after successful injection
+                if (justCreatedPill) {
+                  (editor as any).__justCreatedPill = false;
+                }
+                
+                // Remove the injected event from pending
+                pendingEvents = pendingEvents.filter(ev => ev !== eventToInject);
+              } catch (error) {
+                // Silently handle injection errors
+              }
+            }
+          } else {
+            // Content changed, remove this event from pending
+            pendingEvents = pendingEvents.filter(ev => ev.key !== e.key || Date.now() - ev.timestamp > 100);
+          }
+        });
       }
-    }
-  };
+    };
+    
+    // Use capture phase to catch events early
+    document.addEventListener('keydown', handleDocumentKeyDown, true);
+    
+    return () => {
+      document.removeEventListener('keydown', handleDocumentKeyDown, true);
+    };
+  }, []);
 
   return (
     <>
       <NewNotePanelStyles />
       <form 
         onSubmit={handleFormSubmit}
-        onKeyDown={handleFormKeyDown}
         className="new-note-panel h-full flex flex-col w-full"
         style={{ 
           height: '100%',
@@ -967,6 +1090,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
               onContentChange={form.setContent}
               nextNoteId={nextNoteId}
               onEditorReady={handleEditorReady}
+              parentThreadId={threadSelection.getSelectedThread()?.id}
+              onEditorInstanceReady={handleEditorInstanceReady}
             />
           )}
 
@@ -978,6 +1103,8 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
               onContentChange={form.setContent}
               nextNoteId={nextNoteId}
               onEditorReady={handleEditorReady}
+              parentThreadId={threadSelection.getSelectedThread()?.id}
+              onEditorInstanceReady={handleEditorInstanceReady}
             />
           )}
 

@@ -9,6 +9,7 @@ export interface ScriptureNoteFormProps {
   onContentChange: (content: string) => void;
   nextNoteId: string;
   onEditorReady?: (editor: any) => void;
+  parentThreadId?: string;
 }
 
 /**
@@ -21,6 +22,8 @@ export default function ScriptureNoteForm({
   onContentChange,
   nextNoteId,
   onEditorReady,
+  parentThreadId,
+  onEditorInstanceReady,
 }: ScriptureNoteFormProps) {
   return (
     <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
@@ -53,6 +56,8 @@ export default function ScriptureNoteForm({
             minimalToolbar={false}
             onEditorReady={onEditorReady}
             onContentChange={onContentChange}
+            parentThreadId={parentThreadId}
+            onEditorInstanceReady={onEditorInstanceReady}
           />
         </div>
       </div>
