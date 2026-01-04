@@ -273,8 +273,9 @@ const getTimeoutForIdlePeriod = async () => {
   const now = Date.now();
   const idleHours = lastFetch > 0 ? (now - lastFetch) / (1000 * 60 * 60) : 999; // Assume long idle if no record
   
-  if (idleHours > 6) return 30000; // 30 seconds for > 6 hours idle
-  if (idleHours > 1) return 20000; // 20 seconds for 1-6 hours idle
+  if (idleHours > 24) return 60000; // 60 seconds for > 24 hours idle
+  if (idleHours > 6) return 45000;  // 45 seconds for 6-24 hours idle
+  if (idleHours > 1) return 30000; // 30 seconds for 1-6 hours idle
   return 10000; // 10 seconds default
 };
 
@@ -300,13 +301,13 @@ const isPostSignInRequest = (request) => {
 };
 
 // Fetch with retry logic and exponential backoff
-const fetchWithRetry = async (request, maxRetries = 3) => {
+const fetchWithRetry = async (request, maxRetries = 5) => {
   let lastError = null;
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       // Get timeout based on idle period (only on first attempt, then use shorter timeouts)
-      const baseTimeout = attempt === 0 ? await getTimeoutForIdlePeriod() : 15000;
+      const baseTimeout = attempt === 0 ? await getTimeoutForIdlePeriod() : 20000;
       
       const response = await Promise.race([
         fetch(request),
@@ -337,8 +338,8 @@ const fetchWithRetry = async (request, maxRetries = 3) => {
         throw error;
       }
       
-      // Exponential backoff: 1s, 2s, 4s
-      const delay = Math.pow(2, attempt) * 1000;
+      // Exponential backoff: 2s, 4s, 8s, 16s, 32s
+      const delay = Math.pow(2, attempt + 1) * 1000;
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -614,33 +615,48 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Root route '/' uses network-first to prevent sign-in page flash
-  // This ensures authenticated users always get the dashboard, not cached sign-in page
+  // Root route '/' uses stale-while-revalidate to always serve cached content first
+  // This ensures users never see error pages - cached content is served immediately
+  // Fresh content is fetched in background and cache is updated
   if (isRootRoute(event.request.url) && event.request.mode === 'navigate') {
     event.respondWith(
       (async () => {
         // Check if this is a post-sign-in request (needs longer timeout)
         const postSignIn = isPostSignInRequest(event.request);
         
-        // Try to get cached response first (for graceful degradation)
+        // Get cached response first (if available)
         const cachedResponse = await caches.match(event.request);
-        let validCachedResponse = null;
         
+        // If we have ANY cached content, serve it immediately (stale-while-revalidate)
         if (cachedResponse) {
-          // Validate cached response
-          const contentLength = cachedResponse.headers.get('content-length');
-          if (contentLength && parseInt(contentLength) >= 1000) {
-            // Check if cached response is sign-in page - don't serve it
-            const isSignIn = await isSignInPageResponse(cachedResponse.clone());
-            if (!isSignIn) {
-              validCachedResponse = cachedResponse;
+          // Start background fetch to update cache (don't wait for it)
+          fetchWithRetry(event.request, 5).then(async (response) => {
+            // Update cache in background if successful
+            if (response && shouldCacheResponse(response)) {
+              // Check if this is a sign-in page response (shouldn't cache for root)
+              const isSignIn = await isSignInPageResponse(response.clone());
+              if (!isSignIn) {
+                const responseClone = response.clone();
+                const timestampedResponse = addCacheTimestamp(responseClone);
+                const cacheClone = timestampedResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                  safeCachePut(cache, event.request, cacheClone);
+                });
+              }
             }
-          }
+          }).catch(() => {
+            // Silently fail - we already served cached content
+            // Background fetch will be retried on next navigation
+          });
+          
+          // Return cached content immediately (even if stale)
+          // Let middleware handle authentication redirects if needed
+          return cachedResponse;
         }
         
+        // No cache - try to fetch with retries
         try {
-          // Use retry logic with exponential backoff
-          const response = await fetchWithRetry(event.request, 3);
+          const response = await fetchWithRetry(event.request, 5);
           
           // Cache the fresh response only if it's successful and NOT sign-in page
           if (shouldCacheResponse(response)) {
@@ -658,14 +674,7 @@ self.addEventListener('fetch', (event) => {
           
           return response;
         } catch (error) {
-          // If all retries failed, try to use cached response if available
-          if (validCachedResponse) {
-            // Return cached response while showing it might be stale
-            return validCachedResponse;
-          }
-          
-          // Fallback: return a user-friendly HTML error page with auto-retry
-          // Middleware handles authentication redirects if needed
+          // Only show error page if we have no cache at all (last resort)
           return new Response(createNetworkErrorPage(event.request.url, postSignIn), {
             status: 503,
             statusText: 'Service Unavailable',

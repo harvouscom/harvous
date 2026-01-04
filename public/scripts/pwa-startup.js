@@ -339,6 +339,17 @@ function initPWA() {
       // This ensures the serverless function is waking up before the user takes action
       warmUpAPI({ skipThrottle: true, extendedIdle });
       
+      // For extended idle, make multiple warmup calls in parallel to ensure server is ready
+      if (extendedIdle) {
+        // Make 2 additional warmup calls with slight delays to ensure server is fully warmed
+        setTimeout(() => {
+          warmUpAPI({ skipThrottle: true, extendedIdle: true });
+        }, 1000);
+        setTimeout(() => {
+          warmUpAPI({ skipThrottle: true, extendedIdle: true });
+        }, 2000);
+      }
+      
       // Signal service worker about warmup state
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ 
