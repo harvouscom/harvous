@@ -84,16 +84,45 @@ export default function OrganizedContentList({
   // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
   // Note: OrganizedContentItem uses lastUpdated instead of updatedAt, so we need to map it
   const sortItemsByLastVisited = useCallback((items: OrganizedContentItem[]): OrganizedContentItem[] => {
-    // Map lastUpdated to updatedAt for the shared sorting function
-    const itemsWithUpdatedAt = items.map(item => ({
+    // Normalize all date fields to Date objects (or null) before sorting
+    // This ensures consistent sorting regardless of whether dates come as strings or Date objects
+    const normalizedItems = items.map(item => ({
       ...item,
-      updatedAt: item.lastUpdated
+      lastVisited: item.lastVisited instanceof Date 
+        ? item.lastVisited 
+        : item.lastVisited 
+          ? normalizeDate(item.lastVisited) 
+          : null,
+      updatedAt: item.lastUpdated 
+        ? (item.lastUpdated instanceof Date 
+            ? item.lastUpdated 
+            : normalizeDate(item.lastUpdated))
+        : null,
+      createdAt: item.createdAt instanceof Date 
+        ? item.createdAt 
+        : item.createdAt 
+          ? normalizeDate(item.createdAt) 
+          : null
+    }));
+    
+    // Map lastUpdated to updatedAt for the shared sorting function
+    const itemsWithUpdatedAt = normalizedItems.map(item => ({
+      ...item,
+      updatedAt: item.updatedAt
     }));
     
     const sorted = sortByLastVisited(itemsWithUpdatedAt);
     
     // Map back to remove updatedAt (keep lastUpdated)
-    return sorted.map(({ updatedAt, ...item }) => item);
+    // Preserve normalized lastVisited as Date object
+    return sorted.map(({ updatedAt, ...item }) => ({
+      ...item,
+      lastVisited: item.lastVisited instanceof Date 
+        ? item.lastVisited 
+        : item.lastVisited 
+          ? normalizeDate(item.lastVisited) 
+          : null
+    }));
   }, []);
 
   // Process pending optimistic updates when items are ready
@@ -327,12 +356,24 @@ export default function OrganizedContentList({
 
           if (!isMountedRef.current) return false;
 
-          // Normalize dates in fresh items
+          // Normalize dates in fresh items - always normalize to Date objects (or null) for consistent sorting
           const freshItemsNormalized = freshItemsRaw.map((item: any) => ({
             ...item,
-            lastUpdated: item.lastUpdated ? (normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
-            lastVisited: item.lastVisited ? (normalizeDate(item.lastVisited) || item.lastVisited) : item.lastVisited,
-            createdAt: item.createdAt ? (normalizeDate(item.createdAt) || item.createdAt) : item.createdAt
+            lastUpdated: item.lastUpdated 
+              ? (item.lastUpdated instanceof Date 
+                  ? item.lastUpdated.toISOString() 
+                  : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated)
+              : item.lastUpdated,
+            lastVisited: item.lastVisited instanceof Date 
+              ? item.lastVisited 
+              : item.lastVisited 
+                ? normalizeDate(item.lastVisited) 
+                : null,
+            createdAt: item.createdAt instanceof Date 
+              ? item.createdAt 
+              : item.createdAt 
+                ? normalizeDate(item.createdAt) 
+                : null
           }));
 
           // Re-sort by lastVisited (matching API logic) to ensure consistency
@@ -497,20 +538,24 @@ export default function OrganizedContentList({
           });
 
           // Combine API items with optimistic items, then re-sort
-          // Ensure all dates are normalized before sorting
+          // Ensure all dates are normalized before sorting - always normalize to Date objects (or null)
           const combinedItemsRaw = [...filtered, ...optimisticItemsToKeep].map(item => ({
             ...item,
             lastVisited: item.lastVisited instanceof Date 
               ? item.lastVisited 
               : item.lastVisited 
-                ? (normalizeDate(item.lastVisited) || item.lastVisited)
-                : item.lastVisited,
-            lastUpdated: item.lastUpdated ? (typeof item.lastUpdated === 'string' ? item.lastUpdated : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+                ? normalizeDate(item.lastVisited) 
+                : null,
+            lastUpdated: item.lastUpdated 
+              ? (item.lastUpdated instanceof Date 
+                  ? item.lastUpdated.toISOString() 
+                  : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated)
+              : item.lastUpdated,
             createdAt: item.createdAt instanceof Date 
               ? item.createdAt 
               : item.createdAt 
-                ? (normalizeDate(item.createdAt) || item.createdAt)
-                : item.createdAt
+                ? normalizeDate(item.createdAt) 
+                : null
           }));
           const combinedItems = sortItemsByLastVisited(combinedItemsRaw);
           
@@ -667,20 +712,24 @@ export default function OrganizedContentList({
           threadItemsCount: threadItems.length
         });
         
-        // Normalize dates in refreshed items - ensure consistent format
+        // Normalize dates in refreshed items - always normalize to Date objects (or null) for consistent sorting
         const normalizedItems = (data.items || []).map((item: any) => ({
           ...item,
-          lastUpdated: item.lastUpdated ? (typeof item.lastUpdated === 'string' ? item.lastUpdated : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+          lastUpdated: item.lastUpdated 
+            ? (item.lastUpdated instanceof Date 
+                ? item.lastUpdated.toISOString() 
+                : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated)
+            : item.lastUpdated,
           lastVisited: item.lastVisited instanceof Date 
             ? item.lastVisited 
             : item.lastVisited 
-              ? (normalizeDate(item.lastVisited) || item.lastVisited)
-              : item.lastVisited,
+              ? normalizeDate(item.lastVisited) 
+              : null,
           createdAt: item.createdAt instanceof Date 
             ? item.createdAt 
             : item.createdAt 
-              ? (normalizeDate(item.createdAt) || item.createdAt)
-              : item.createdAt
+              ? normalizeDate(item.createdAt) 
+              : null
         }));
         
         // Filter out deleted items from refreshed items
@@ -689,15 +738,8 @@ export default function OrganizedContentList({
         });
         
         // Re-sort by lastVisited (matching API logic) to ensure consistency
-        // Ensure all dates are normalized before sorting
-        const filteredItems = sortItemsByLastVisited(filteredItemsRaw.map(item => ({
-          ...item,
-          lastVisited: item.lastVisited instanceof Date 
-            ? item.lastVisited 
-            : item.lastVisited 
-              ? (normalizeDate(item.lastVisited) || item.lastVisited)
-              : item.lastVisited
-        })));
+        // Dates are already normalized above, but ensure consistency one more time
+        const filteredItems = sortItemsByLastVisited(filteredItemsRaw);
         
         // Create a key from the refreshed items to track what we just loaded
         const refreshedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
@@ -805,20 +847,24 @@ export default function OrganizedContentList({
 
       const data = await response.json();
       
-      // Normalize dates in refreshed items - ensure consistent format
+      // Normalize dates in refreshed items - always normalize to Date objects (or null) for consistent sorting
       const normalizedItems = (data.items || []).map((item: any) => ({
         ...item,
-        lastUpdated: item.lastUpdated ? (typeof item.lastUpdated === 'string' ? item.lastUpdated : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+        lastUpdated: item.lastUpdated 
+          ? (item.lastUpdated instanceof Date 
+              ? item.lastUpdated.toISOString() 
+              : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated)
+          : item.lastUpdated,
         lastVisited: item.lastVisited instanceof Date 
           ? item.lastVisited 
           : item.lastVisited 
-            ? (normalizeDate(item.lastVisited) || item.lastVisited)
-            : item.lastVisited,
+            ? normalizeDate(item.lastVisited) 
+            : null,
         createdAt: item.createdAt instanceof Date 
           ? item.createdAt 
           : item.createdAt 
-            ? (normalizeDate(item.createdAt) || item.createdAt)
-            : item.createdAt
+            ? normalizeDate(item.createdAt) 
+            : null
       }));
       
       // Filter out deleted items from refreshed items
@@ -827,15 +873,8 @@ export default function OrganizedContentList({
       });
       
       // Re-sort by lastVisited (matching API logic) to ensure consistency
-      // Ensure all dates are normalized before sorting
-      const filteredItems = sortItemsByLastVisited(filteredItemsRaw.map(item => ({
-        ...item,
-        lastVisited: item.lastVisited instanceof Date 
-          ? item.lastVisited 
-          : item.lastVisited 
-            ? (normalizeDate(item.lastVisited) || item.lastVisited)
-            : item.lastVisited
-      })));
+      // Dates are already normalized above
+      const filteredItems = sortItemsByLastVisited(filteredItemsRaw);
       
       // Create a key from the refreshed items to track what we just loaded
       const refreshedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
@@ -849,17 +888,8 @@ export default function OrganizedContentList({
           isRefreshingItemsRef.current = true;
           lastRefreshItemsKeyRef.current = refreshedItemsKey;
           
-          // Ensure items are sorted before setting
-          // Normalize dates before sorting to ensure consistency
-          const normalizedFiltered = filteredItems.map(item => ({
-            ...item,
-            lastVisited: item.lastVisited instanceof Date 
-              ? item.lastVisited 
-              : item.lastVisited 
-                ? (normalizeDate(item.lastVisited) || item.lastVisited)
-                : item.lastVisited
-          }));
-          const sorted = sortItemsByLastVisited(normalizedFiltered);
+          // Items are already sorted and normalized above
+          const sorted = filteredItems;
           setCurrentItems(sorted);
           currentItemsRef.current = sorted;
           debug('[OrganizedContentList] Updated scripture notes', { itemCount: sorted.length, forceUpdate });
@@ -1056,20 +1086,24 @@ export default function OrganizedContentList({
     });
     
     // Ensure items are sorted before setting
-    // Normalize dates before sorting to ensure consistency
+    // Normalize dates before sorting to ensure consistency - always normalize to Date objects (or null)
     const normalizedFiltered = filtered.map(item => ({
       ...item,
       lastVisited: item.lastVisited instanceof Date 
         ? item.lastVisited 
         : item.lastVisited 
-          ? (normalizeDate(item.lastVisited) || item.lastVisited)
-          : item.lastVisited,
-      lastUpdated: item.lastUpdated ? (typeof item.lastUpdated === 'string' ? item.lastUpdated : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
+          ? normalizeDate(item.lastVisited) 
+          : null,
+      lastUpdated: item.lastUpdated 
+        ? (item.lastUpdated instanceof Date 
+            ? item.lastUpdated.toISOString() 
+            : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated)
+        : item.lastUpdated,
       createdAt: item.createdAt instanceof Date 
         ? item.createdAt 
         : item.createdAt 
-          ? (normalizeDate(item.createdAt) || item.createdAt)
-          : item.createdAt
+          ? normalizeDate(item.createdAt) 
+          : null
     }));
     const sorted = sortItemsByLastVisited(normalizedFiltered);
     setCurrentItems(sorted);
@@ -1788,8 +1822,29 @@ export default function OrganizedContentList({
     }
 
     const data = await response.json();
+    
+    // Normalize dates from API responses - always normalize to Date objects (or null) for consistent sorting
+    const normalizedItems = (data.items || []).map((item: any) => ({
+      ...item,
+      lastUpdated: item.lastUpdated 
+        ? (item.lastUpdated instanceof Date 
+            ? item.lastUpdated.toISOString() 
+            : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated)
+        : item.lastUpdated,
+      lastVisited: item.lastVisited instanceof Date 
+        ? item.lastVisited 
+        : item.lastVisited 
+          ? normalizeDate(item.lastVisited) 
+          : null,
+      createdAt: item.createdAt instanceof Date 
+        ? item.createdAt 
+        : item.createdAt 
+          ? normalizeDate(item.createdAt) 
+          : null
+    }));
+    
     // Filter out deleted items from loaded items using ref to get latest state
-    const filteredItems = data.items.filter((item: OrganizedContentItem) => {
+    const filteredItems = normalizedItems.filter((item: OrganizedContentItem) => {
       // Use item.id as the primary identifier (it's always present)
       return !deletedItemIdsRef.current.has(item.id);
     });
