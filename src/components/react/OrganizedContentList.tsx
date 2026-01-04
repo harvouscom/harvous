@@ -44,7 +44,12 @@ export default function OrganizedContentList({
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const deletedItemIdsRef = useRef<Set<string>>(new Set());
   // Initialize currentItems with sorted initialItems (like SpaceContentList does)
+  // For scripture filter, start with empty array since we always fetch from API
   const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(() => {
+    // For scripture filter, don't use initialItems - we'll fetch from API
+    if (filter === 'scripture') {
+      return [];
+    }
     // Use shared sorting function that matches API logic
     const itemsWithUpdatedAt = (initialItems || []).map(item => ({
       ...item,
@@ -352,6 +357,46 @@ export default function OrganizedContentList({
             return !deletedItemIdsRef.current.has(item.id);
           });
 
+          // Preserve optimistic lastVisited updates from currentItems (for existing items that were updated optimistically)
+          // Compare currentItems with fresh API items and preserve optimistic lastVisited if newer
+          const currentItemsSnapshot = currentItemsRef.current;
+          filtered.forEach((freshItem, index) => {
+            // Find matching item in currentItems by ID, threadId, or noteId
+            const currentItem = currentItemsSnapshot.find(item => 
+              item.id === freshItem.id ||
+              (freshItem.threadId && item.threadId === freshItem.threadId) ||
+              (freshItem.noteId && item.noteId === freshItem.noteId)
+            );
+
+            if (currentItem) {
+              // Compare lastVisited dates - preserve optimistic if newer
+              const currentLastVisited = currentItem.lastVisited instanceof Date 
+                ? currentItem.lastVisited 
+                : currentItem.lastVisited 
+                  ? normalizeDate(currentItem.lastVisited) 
+                  : null;
+              const freshLastVisited = freshItem.lastVisited instanceof Date 
+                ? freshItem.lastVisited 
+                : freshItem.lastVisited 
+                  ? normalizeDate(freshItem.lastVisited) 
+                  : null;
+
+              // If current item has a newer lastVisited (optimistic update), preserve it
+              if (currentLastVisited && (!freshLastVisited || currentLastVisited > freshLastVisited)) {
+                filtered[index] = {
+                  ...filtered[index],
+                  lastVisited: currentLastVisited,
+                  lastUpdated: currentItem.lastUpdated || filtered[index].lastUpdated
+                };
+                debug('[OrganizedContentList] Preserved optimistic lastVisited from currentItems', {
+                  itemId: freshItem.id,
+                  optimisticLastVisited: currentLastVisited,
+                  apiLastVisited: freshLastVisited
+                });
+              }
+            }
+          });
+
           // Merge with optimistic items that haven't been confirmed yet
           // Create a set of all confirmed item IDs (including both prefixed and raw IDs)
           const confirmedItemIds = new Set<string>();
@@ -382,7 +427,7 @@ export default function OrganizedContentList({
           // 2. Were added recently (within last 5 seconds)
           // 3. Match the current filter
           // Also preserve optimistic lastVisited updates if they're newer than API data
-          optimisticItemsRef.current.forEach(({ timestamp, item: optimisticItem }, itemId) => {
+          optimisticUpdates.optimisticItemsRef.current.forEach(({ timestamp, item: optimisticItem }, itemId) => {
             // Check if item is confirmed (by ID, threadId, or noteId)
             const isConfirmed = confirmedItemIds.has(itemId) ||
                                (optimisticItem.threadId && confirmedItemIds.has(optimisticItem.threadId)) ||
@@ -438,16 +483,16 @@ export default function OrganizedContentList({
               }
               
               // Item confirmed by API, remove from optimistic tracking (check all possible keys)
-              optimisticItemsRef.current.delete(itemId);
+              optimisticUpdates.optimisticItemsRef.current.delete(itemId);
               if (optimisticItem.threadId) {
-                optimisticItemsRef.current.delete(optimisticItem.threadId);
-                optimisticItemsRef.current.delete(`thread-${optimisticItem.threadId}`);
+                optimisticUpdates.optimisticItemsRef.current.delete(optimisticItem.threadId);
+                optimisticUpdates.optimisticItemsRef.current.delete(`thread-${optimisticItem.threadId}`);
               }
               if (optimisticItem.noteId) {
-                optimisticItemsRef.current.delete(optimisticItem.noteId);
-                optimisticItemsRef.current.delete(`note-${optimisticItem.noteId}`);
+                optimisticUpdates.optimisticItemsRef.current.delete(optimisticItem.noteId);
+                optimisticUpdates.optimisticItemsRef.current.delete(`note-${optimisticItem.noteId}`);
               }
-              optimisticItemsRef.current.delete(optimisticItem.id);
+              optimisticUpdates.optimisticItemsRef.current.delete(optimisticItem.id);
             }
           });
 
@@ -869,6 +914,7 @@ export default function OrganizedContentList({
     // This ensures we show all scripture notes, not just the ones from initialItems
     if (filter === 'scripture') {
       // Only fetch if filter just changed to scripture (not on every render)
+      // OR if this is the initial mount (prevFilterRef.current is null)
       if (prevFilterRef.current !== filter) {
         setCurrentItems([]);
         currentItemsRef.current = [];
@@ -877,6 +923,75 @@ export default function OrganizedContentList({
     }
     prevFilterRef.current = filter;
   }, [filter, refreshScriptureNotes]);
+
+  // Listen for tab visibility changes to refresh when tab becomes visible
+  // This handles cases where component is mounted but hidden (client:visible or hidden tab)
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    // Check if this component's container is visible
+    const checkVisibility = () => {
+      // Find the parent container with data-tab-content attribute
+      const container = document.querySelector(`[data-tab-content="${filter}"]`);
+      if (!container) return;
+
+      const isVisible = !container.classList.contains('hidden') && 
+                       container.style.display !== 'none' &&
+                       window.getComputedStyle(container).display !== 'none';
+
+      // If container just became visible and we have no items, refresh
+      // For scripture tab, always refresh when visible to ensure we get all scripture notes
+      // For other tabs, refresh if currentItems is empty (even if initialItems has items, 
+      // because the component might have just mounted with client:visible and needs to process/refresh)
+      if (isVisible) {
+        if (filter === 'scripture') {
+          // Scripture tab should always refresh when visible to get all scripture notes
+          if (currentItems.length === 0 || currentItemsRef.current.length === 0) {
+            debug('[OrganizedContentList] Scripture tab became visible, refreshing', {
+              currentItemsCount: currentItems.length,
+              filter
+            });
+            refreshScriptureNotes();
+          }
+        } else if (currentItems.length === 0) {
+          // For other tabs, refresh if currentItems is empty
+          // This handles cases where:
+          // 1. Component just mounted with client:visible and hasn't processed initialItems yet
+          // 2. Component mounted but initialItems was empty
+          // 3. Component needs to refresh to get latest data from API
+          debug('[OrganizedContentList] Tab became visible with empty currentItems, refreshing', {
+            filter,
+            initialItemsCount: initialItems.length,
+            currentItemsCount: currentItems.length
+          });
+          // Use a small delay to allow initialItems useEffect to process first (if it has items)
+          // If initialItems has items, the useEffect will set currentItems and this refresh won't overwrite it
+          // If initialItems is empty or the useEffect doesn't run in time, this refresh will fetch from API
+          setTimeout(() => {
+            // Double-check currentItems is still empty before refreshing
+            if (currentItemsRef.current.length === 0 && isMountedRef.current && window.location.pathname === '/') {
+              refreshContentRef.current?.();
+            }
+          }, 100);
+        }
+      }
+    };
+
+    // Check on mount and when tab changes
+    const timeoutId = setTimeout(checkVisibility, 100);
+
+    // Listen for tab change events
+    const handleTabChange = () => {
+      setTimeout(checkVisibility, 50);
+    };
+
+    document.addEventListener('tabChange', handleTabChange);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('tabChange', handleTabChange);
+    };
+  }, [filter, currentItems.length, initialItems.length, refreshScriptureNotes]);
   
   // Update currentItems when initialItems change (e.g., after navigation)
   useEffect(() => {
@@ -901,7 +1016,8 @@ export default function OrganizedContentList({
     
     // Only update if items actually changed (not just reference)
     // Note: Filter changes are handled by the separate useEffect above
-    if (itemsKey === prevInitialItemsKeyRef.current) {
+    // BUT: Always process on first mount (when prevInitialItemsKeyRef is empty) to ensure items are displayed
+    if (itemsKey === prevInitialItemsKeyRef.current && prevInitialItemsKeyRef.current !== '') {
       debug('[OrganizedContentList] initialItems unchanged, skipping update', {
         itemCount: initialItems.length,
         filter
