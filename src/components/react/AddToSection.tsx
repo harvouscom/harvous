@@ -152,12 +152,20 @@ export default function AddToSection({
             }
           }
         `}</style>
-        <button
+        <div
           onClick={onClick}
           className="relative rounded-xl h-[48px] cursor-pointer transition-transform duration-200 w-full text-left overflow-hidden hover:scale-[1.002]"
           style={{
             backgroundColor: 'white',
             boxShadow: '0px 2px 8px 0px rgba(120, 118, 111, 0.1)'
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onClick();
+            }
           }}
         >
           {/* Accent bar on left - wider like CardThread so icon sits on it */}
@@ -232,7 +240,7 @@ export default function AddToSection({
             className="absolute top-1/2 right-3 transform -translate-y-1/2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
             disabled={isLoading}
           />
-        </button>
+        </div>
       </div>
     );
   };

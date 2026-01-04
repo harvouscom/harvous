@@ -166,8 +166,8 @@ export default function InfiniteScrollList<T>({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        // Double-check visibility before loading
-        if (entries[0].isIntersecting && hasMore && !isLoading && !loadingRef.current && isElementVisible(containerRef.current)) {
+        // Trust IntersectionObserver - if intersecting, component is visible
+        if (entries[0].isIntersecting && hasMore && !isLoading && !loadingRef.current) {
           handleLoadMore();
         }
       },
@@ -195,21 +195,15 @@ export default function InfiniteScrollList<T>({
       const becameVisible = !wasVisible && isVisible;
       wasVisible = isVisible;
       
-      // If component just became visible, check if we need to load more
-      if (becameVisible || isVisible) {
-        if (isLoading || loadingRef.current) return;
-        
+      // If component just became visible and we need more items, trigger load
+      if (becameVisible && hasMore && !isLoading && !loadingRef.current) {
         const expectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
-        
-        // Check if we need more items - we're below expected count
         const needsMoreItems = items.length < expectedCount;
         
-        if (needsMoreItems && isVisible) {
+        if (needsMoreItems) {
           // Small delay to ensure DOM is ready
           setTimeout(() => {
-            const stillVisible = isElementVisible(containerRef.current);
-            const stillNeedsMore = items.length < expectedCount;
-            if (stillNeedsMore && !isLoading && !loadingRef.current && stillVisible) {
+            if (hasMore && !isLoading && !loadingRef.current && isElementVisible(containerRef.current)) {
               handleLoadMore();
             }
           }, 150);
