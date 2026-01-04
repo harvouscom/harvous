@@ -43,6 +43,18 @@ export default function OrganizedContentList({
 }: OrganizedContentListProps) {
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const deletedItemIdsRef = useRef<Set<string>>(new Set());
+  // Persistent storage for scripture notes that should be preserved across refreshes
+  // Keyed by noteId for easy lookup and cleanup
+  // Defined early so it can be used in initial state
+  const preservedScriptureNotesRef = useRef<Map<string, OrganizedContentItem>>(new Map());
+  // Track hasMore state based on API responses
+  const [hasMore, setHasMore] = useState<boolean>(() => {
+    // Calculate initial hasMore based on initialItems length
+    if (filter === 'scripture') {
+      return true; // Scripture filter always fetches from API, assume more available
+    }
+    return (initialItems || []).length >= 20; // Default limit is 20
+  });
   // Initialize currentItems with sorted initialItems (like SpaceContentList does)
   // For scripture filter, start with empty array since we always fetch from API
   const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(() => {
@@ -56,7 +68,33 @@ export default function OrganizedContentList({
       updatedAt: item.lastUpdated
     }));
     const sorted = sortByLastVisited(itemsWithUpdatedAt);
-    return sorted.map(({ updatedAt, ...item }) => item);
+    const result = sorted.map(({ updatedAt, ...item }) => item);
+    
+    // Populate persistent storage with scripture notes from initialItems on first mount
+    // This ensures they can be preserved on refresh even if they get filtered out
+    if (filter === 'all') {
+      result.forEach(item => {
+        if (item.type === 'note' && item.noteType === 'scripture' && item.noteId) {
+          preservedScriptureNotesRef.current.set(item.noteId, item);
+        }
+      });
+    }
+    
+    // Debug: Log lastVisited values from initialItems
+    if (result.length > 0) {
+      debug('[OrganizedContentList] Initial items lastVisited values', {
+        sampleItems: result.slice(0, 3).map(item => ({
+          id: item.id,
+          title: item.title?.substring(0, 30),
+          lastVisited: item.lastVisited,
+          lastUpdated: item.lastUpdated,
+          hasLastVisited: !!item.lastVisited,
+          lastVisitedType: item.lastVisited instanceof Date ? 'Date' : typeof item.lastVisited
+        }))
+      });
+    }
+    
+    return result;
   });
   const isRefreshingRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -69,10 +107,13 @@ export default function OrganizedContentList({
   const filterRef = useRef<string>(filter);
   const isRefreshingItemsRef = useRef(false); // Track when we're refreshing to prevent auto-load
   const lastRefreshItemsKeyRef = useRef<string>(''); // Track what items we last refreshed
+  const lastRefreshTimestampRef = useRef<number>(0); // Track when refresh completed (timestamp-based cooldown)
+  const refreshCooldownMs = 500; // Cooldown period after refresh before allowing loadMore (replaces arbitrary 100ms)
   const DEBOUNCE_WINDOW_MS = 2000; // 2 seconds minimum between refreshes
   const shouldBypassDebounceRef = useRef(false); // Flag to bypass debounce for navigation-triggered refreshes
   const pendingUpdateRef = useRef(false); // Track if an update event occurred while not on dashboard
   const currentItemsRef = useRef<OrganizedContentItem[]>(initialItems || []); // Track current items for verification
+  const hasMoreRef = useRef<boolean>(hasMore); // Track hasMore in ref for use in callbacks
   // Track optimistically added items that haven't been confirmed by API yet
   const optimisticUpdates = useOptimisticUpdates<OrganizedContentItem>();
   // Track visibility changes for PWA foreground refresh
@@ -80,6 +121,89 @@ export default function OrganizedContentList({
   const lastVisibilityRefreshRef = useRef<number>(0);
   // Track pending optimistic updates (when list is empty)
   const pendingOptimisticUpdateRef = useRef<{ itemId: string; itemType: 'thread' | 'note' } | null>(null);
+
+  // Helper function to preserve scripture notes from currentItems that were filtered out
+  // This happens when filter='all' and referenced scripture notes without lastVisited are excluded
+  // We want to keep them visible until they're explicitly removed or the user navigates away
+  const preserveScriptureNotes = useCallback((
+    freshItems: OrganizedContentItem[],
+    currentItemsSnapshot: OrganizedContentItem[]
+  ): OrganizedContentItem[] => {
+    // Only preserve for 'all' filter
+    if (filterRef.current !== 'all') {
+      return freshItems;
+    }
+
+    const freshItemIds = new Set(freshItems.map(item => item.id));
+    const freshNoteIds = new Set(freshItems.map(item => item.noteId).filter(Boolean));
+    
+    const preservedScriptureNotes: OrganizedContentItem[] = [];
+    
+    // Check both currentItemsSnapshot and persistent storage for scripture notes to preserve
+    const persistentScriptureNotes = Array.from(preservedScriptureNotesRef.current.values());
+    const allCurrentItems = [
+      ...currentItemsSnapshot,
+      ...persistentScriptureNotes
+    ];
+    
+    debug('[OrganizedContentList] preserveScriptureNotes check', {
+      freshItemsCount: freshItems.length,
+      currentItemsSnapshotCount: currentItemsSnapshot.length,
+      persistentStorageCount: persistentScriptureNotes.length,
+      freshNoteIds: Array.from(freshNoteIds),
+      persistentNoteIds: persistentScriptureNotes.map(n => n.noteId)
+    });
+    
+    // Use a Set to track which noteIds we've already added to avoid duplicates
+    const addedNoteIds = new Set<string>();
+    
+    allCurrentItems.forEach(currentItem => {
+      // Only preserve scripture notes that:
+      // 1. Are scripture type notes
+      // 2. Are not in the fresh items (were filtered out)
+      // 3. Are not deleted
+      // 4. Match the current filter (all)
+      // 5. Haven't been added already (avoid duplicates)
+      if (currentItem.type === 'note' && 
+          currentItem.noteType === 'scripture' &&
+          currentItem.noteId &&
+          !freshItemIds.has(currentItem.id) &&
+          !freshNoteIds.has(currentItem.noteId) &&
+          !deletedItemIdsRef.current.has(currentItem.id) &&
+          !addedNoteIds.has(currentItem.noteId)) {
+        preservedScriptureNotes.push(currentItem);
+        addedNoteIds.add(currentItem.noteId);
+        
+        // Also add to persistent storage so it survives future refreshes
+        preservedScriptureNotesRef.current.set(currentItem.noteId, currentItem);
+        
+        debug('[OrganizedContentList] Preserving scripture note filtered out', {
+          noteId: currentItem.noteId,
+          title: currentItem.title?.substring(0, 30),
+          fromPersistentStorage: !currentItemsSnapshot.some(item => item.noteId === currentItem.noteId),
+          wasInFreshItems: false
+        });
+      }
+    });
+    
+    // Remove scripture notes from persistent storage if they appear in fresh items
+    // This means they're now confirmed and have lastVisited, so they'll appear in future API responses
+    freshNoteIds.forEach(noteId => {
+      if (preservedScriptureNotesRef.current.has(noteId)) {
+        preservedScriptureNotesRef.current.delete(noteId);
+        debug('[OrganizedContentList] Removing scripture note from persistent storage - now confirmed in API', {
+          noteId
+        });
+      }
+    });
+    
+    // Add preserved scripture notes to fresh items
+    if (preservedScriptureNotes.length > 0) {
+      return [...freshItems, ...preservedScriptureNotes];
+    }
+    
+    return freshItems;
+  }, []);
 
   // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
   // Note: OrganizedContentItem uses lastUpdated instead of updatedAt, so we need to map it
@@ -353,8 +477,50 @@ export default function OrganizedContentList({
 
           const data = await response.json();
           const freshItemsRaw = data.items || [];
+          const referencedScriptureNotesRaw = data.referencedScriptureNotes || [];
 
           if (!isMountedRef.current) return false;
+
+          // Normalize dates in referenced scripture notes and add to persistent storage
+          if (referencedScriptureNotesRaw.length > 0 && filterRef.current === 'all') {
+            const normalizedReferenced = referencedScriptureNotesRaw.map((item: any) => {
+              // Normalize all date fields to Date objects (or null) for consistent sorting
+              const lastUpdatedDate = item.lastUpdated 
+                ? (item.lastUpdated instanceof Date 
+                    ? item.lastUpdated 
+                    : normalizeDate(item.lastUpdated))
+                : null;
+              const updatedAtDate = item.updatedAt 
+                ? (item.updatedAt instanceof Date 
+                    ? item.updatedAt 
+                    : normalizeDate(item.updatedAt))
+                : (lastUpdatedDate || null);
+              const createdAtDate = item.createdAt instanceof Date 
+                ? item.createdAt 
+                : item.createdAt 
+                  ? normalizeDate(item.createdAt) 
+                  : null;
+              
+              return {
+                ...item,
+                lastUpdated: lastUpdatedDate ? lastUpdatedDate.toISOString() : item.lastUpdated,
+                updatedAt: updatedAtDate, // Set updatedAt for sorting (use lastUpdated or createdAt as fallback)
+                lastVisited: null, // Explicitly null since these don't have lastVisited
+                createdAt: createdAtDate
+              };
+            });
+            
+            // Add to persistent storage
+            normalizedReferenced.forEach((item: OrganizedContentItem) => {
+              if (item.noteId) {
+                preservedScriptureNotesRef.current.set(item.noteId, item);
+                debug('[OrganizedContentList] Added referenced scripture note to persistent storage from API', {
+                  noteId: item.noteId,
+                  title: item.title?.substring(0, 30)
+                });
+              }
+            });
+          }
 
           // Normalize dates in fresh items - always normalize to Date objects (or null) for consistent sorting
           const freshItemsNormalized = freshItemsRaw.map((item: any) => ({
@@ -375,6 +541,19 @@ export default function OrganizedContentList({
                 ? normalizeDate(item.createdAt) 
                 : null
           }));
+          
+          // Debug: Log lastVisited values to track if they're being preserved
+          if (freshItemsNormalized.length > 0) {
+            debug('[OrganizedContentList] Fresh items lastVisited values', {
+              sampleItems: freshItemsNormalized.slice(0, 3).map(item => ({
+                id: item.id,
+                title: item.title?.substring(0, 30),
+                lastVisited: item.lastVisited,
+                lastUpdated: item.lastUpdated,
+                hasLastVisited: !!item.lastVisited
+              }))
+            });
+          }
 
           // Re-sort by lastVisited (matching API logic) to ensure consistency
           const freshItems = sortItemsByLastVisited(freshItemsNormalized);
@@ -401,7 +580,58 @@ export default function OrganizedContentList({
           // Preserve optimistic lastVisited updates from currentItems (for existing items that were updated optimistically)
           // Compare currentItems with fresh API items and preserve optimistic lastVisited if newer
           const currentItemsSnapshot = currentItemsRef.current;
-          filtered.forEach((freshItem, index) => {
+          
+          // Preserve scripture notes from currentItems that were filtered out by API refresh
+          // This happens when filter='all' and referenced scripture notes without lastVisited are excluded
+          // We want to keep them visible until they're explicitly removed or the user navigates away
+          // Also include referenced scripture notes from persistent storage (which were fetched proactively)
+          const filteredWithPreserved = preserveScriptureNotes(filtered, currentItemsSnapshot);
+          
+          // Get referenced scripture notes from persistent storage that should be displayed
+          // These are notes that were fetched proactively but aren't in the fresh API response
+          const persistentScriptureNotes = Array.from(preservedScriptureNotesRef.current.values());
+          const freshItemIds = new Set(filteredWithPreserved.map(item => item.id));
+          const freshNoteIds = new Set(filteredWithPreserved.map(item => item.noteId).filter(Boolean));
+          
+          const additionalScriptureNotes = persistentScriptureNotes.filter(item => 
+            item.type === 'note' && 
+            item.noteType === 'scripture' &&
+            item.noteId &&
+            !freshItemIds.has(item.id) &&
+            !freshNoteIds.has(item.noteId) &&
+            !deletedItemIdsRef.current.has(item.id)
+          );
+          
+          if (additionalScriptureNotes.length > 0) {
+            debug('[OrganizedContentList] Adding referenced scripture notes from persistent storage', {
+              count: additionalScriptureNotes.length,
+              noteIds: additionalScriptureNotes.map(n => n.noteId)
+            });
+          }
+          
+          const allItemsWithScripture = [...filteredWithPreserved, ...additionalScriptureNotes];
+          
+          // Update allItemsWithScripture to remove any scripture notes that now appear in filteredWithPreserved with lastVisited
+          // This handles the case where a scripture note was visited and now appears in the main API response
+          const finalItemsWithScripture = allItemsWithScripture.filter(item => {
+            // If this is a scripture note from persistent storage, check if it now appears in filteredWithPreserved with lastVisited
+            if (item.type === 'note' && item.noteType === 'scripture' && item.noteId) {
+              const inMainList = filteredWithPreserved.some(mainItem => 
+                mainItem.noteId === item.noteId && mainItem.lastVisited != null
+              );
+              if (inMainList) {
+                // This note now appears in the main list with lastVisited, so remove it from persistent storage
+                preservedScriptureNotesRef.current.delete(item.noteId);
+                debug('[OrganizedContentList] Removing scripture note from persistent storage - now in main list with lastVisited', {
+                  noteId: item.noteId
+                });
+                return false; // Don't include it in the final list (it's already in filteredWithPreserved)
+              }
+            }
+            return true;
+          });
+          
+          filteredWithPreserved.forEach((freshItem, index) => {
             // Find matching item in currentItems by ID, threadId, or noteId
             const currentItem = currentItemsSnapshot.find(item => 
               item.id === freshItem.id ||
@@ -424,10 +654,18 @@ export default function OrganizedContentList({
 
               // If current item has a newer lastVisited (optimistic update), preserve it
               if (currentLastVisited && (!freshLastVisited || currentLastVisited > freshLastVisited)) {
-                filtered[index] = {
-                  ...filtered[index],
+                // Ensure updatedAt is set correctly for sorting (use lastUpdated or current time)
+                const updatedAtForSort = currentItem.lastUpdated 
+                  ? (currentItem.lastUpdated instanceof Date 
+                      ? currentItem.lastUpdated 
+                      : normalizeDate(currentItem.lastUpdated))
+                  : (currentLastVisited || null);
+                
+                filteredWithPreserved[index] = {
+                  ...filteredWithPreserved[index],
                   lastVisited: currentLastVisited,
-                  lastUpdated: currentItem.lastUpdated || filtered[index].lastUpdated
+                  lastUpdated: currentItem.lastUpdated || filteredWithPreserved[index].lastUpdated || currentLastVisited.toISOString(),
+                  updatedAt: updatedAtForSort // Ensure updatedAt is set for proper sorting
                 };
                 debug('[OrganizedContentList] Preserved optimistic lastVisited from currentItems', {
                   itemId: freshItem.id,
@@ -508,16 +746,24 @@ export default function OrganizedContentList({
                 
                 // If optimistic update is newer, update the confirmed item with optimistic date
                 if (optimisticLastVisited && (!apiLastVisited || optimisticLastVisited > apiLastVisited)) {
-                  const itemIndex = filtered.findIndex(i => 
+                  const itemIndex = filteredWithPreserved.findIndex(i => 
                     i.id === confirmedItem.id || 
                     (optimisticItem.threadId && i.threadId === optimisticItem.threadId) ||
                     (optimisticItem.noteId && i.noteId === optimisticItem.noteId)
                   );
                   if (itemIndex !== -1) {
-                    filtered[itemIndex] = {
-                      ...filtered[itemIndex],
+                    // Ensure updatedAt is set correctly for sorting
+                    const updatedAtForSort = optimisticItem.lastUpdated 
+                      ? (optimisticItem.lastUpdated instanceof Date 
+                          ? optimisticItem.lastUpdated 
+                          : normalizeDate(optimisticItem.lastUpdated))
+                      : (optimisticLastVisited || null);
+                    
+                    filteredWithPreserved[itemIndex] = {
+                      ...filteredWithPreserved[itemIndex],
                       lastVisited: optimisticLastVisited,
-                      lastUpdated: optimisticItem.lastUpdated || filtered[itemIndex].lastUpdated
+                      lastUpdated: optimisticItem.lastUpdated || filteredWithPreserved[itemIndex].lastUpdated || optimisticLastVisited.toISOString(),
+                      updatedAt: updatedAtForSort // Ensure updatedAt is set for proper sorting
                     };
                   }
                 }
@@ -539,24 +785,37 @@ export default function OrganizedContentList({
 
           // Combine API items with optimistic items, then re-sort
           // Ensure all dates are normalized before sorting - always normalize to Date objects (or null)
-          const combinedItemsRaw = [...filtered, ...optimisticItemsToKeep].map(item => ({
-            ...item,
-            lastVisited: item.lastVisited instanceof Date 
+          // Map lastUpdated to updatedAt for sorting function
+          const combinedItemsRaw = [...finalItemsWithScripture, ...optimisticItemsToKeep].map(item => {
+            const lastVisitedDate = item.lastVisited instanceof Date 
               ? item.lastVisited 
               : item.lastVisited 
                 ? normalizeDate(item.lastVisited) 
-                : null,
-            lastUpdated: item.lastUpdated 
+                : null;
+            const lastUpdatedDate = item.lastUpdated 
               ? (item.lastUpdated instanceof Date 
-                  ? item.lastUpdated.toISOString() 
-                  : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated)
-              : item.lastUpdated,
-            createdAt: item.createdAt instanceof Date 
+                  ? item.lastUpdated 
+                  : normalizeDate(item.lastUpdated))
+              : null;
+            const updatedAtDate = item.updatedAt 
+              ? (item.updatedAt instanceof Date 
+                  ? item.updatedAt 
+                  : normalizeDate(item.updatedAt))
+              : (lastUpdatedDate || null);
+            const createdAtDate = item.createdAt instanceof Date 
               ? item.createdAt 
               : item.createdAt 
                 ? normalizeDate(item.createdAt) 
-                : null
-          }));
+                : null;
+            
+            return {
+              ...item,
+              lastVisited: lastVisitedDate,
+              lastUpdated: lastUpdatedDate ? lastUpdatedDate.toISOString() : item.lastUpdated,
+              updatedAt: updatedAtDate, // Ensure updatedAt is set for sorting
+              createdAt: createdAtDate
+            };
+          });
           const combinedItems = sortItemsByLastVisited(combinedItemsRaw);
           
           // Create a key from the refreshed items to track what we just loaded
@@ -570,14 +829,22 @@ export default function OrganizedContentList({
               isRefreshingItemsRef.current = true;
               lastRefreshItemsKeyRef.current = refreshedItemsKey;
               
+              // Update hasMore state based on API response (if we got exactly limit items, there might be more)
+              // For verification refresh, we fetch 100 items, so if we got 100, there might be more
+              const newHasMore = combinedItems.length >= 100;
+              setHasMore(newHasMore);
+              hasMoreRef.current = newHasMore;
+              
               setCurrentItems(combinedItems);
               currentItemsRef.current = combinedItems;
-              debug('[OrganizedContentList] Updated currentItems with verification', { itemCount: combinedItems.length, optimisticCount: optimisticItemsToKeep.length });
+              debug('[OrganizedContentList] Updated currentItems with verification', { itemCount: combinedItems.length, optimisticCount: optimisticItemsToKeep.length, hasMore: newHasMore });
               
-              // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
+              // Clear the refreshing flag and set cooldown timestamp after state updates
+              // Use setTimeout with 0 delay to ensure React has processed the state update
               setTimeout(() => {
                 isRefreshingItemsRef.current = false;
-              }, 100);
+                lastRefreshTimestampRef.current = Date.now();
+              }, 0);
             }
           }
 
@@ -706,11 +973,54 @@ export default function OrganizedContentList({
 
         const data = await response.json();
         const threadItems = data.items?.filter((i: OrganizedContentItem) => i.type === 'thread') || [];
+        const referencedScriptureNotesRaw = data.referencedScriptureNotes || [];
         debug('[OrganizedContentList] Refresh response', { 
           itemCount: data.items?.length, 
           filter: currentFilter,
-          threadItemsCount: threadItems.length
+          threadItemsCount: threadItems.length,
+          referencedScriptureNotesCount: referencedScriptureNotesRaw.length
         });
+        
+        // Normalize dates in referenced scripture notes and add to persistent storage
+        if (referencedScriptureNotesRaw.length > 0 && currentFilter === 'all') {
+          const normalizedReferenced = referencedScriptureNotesRaw.map((item: any) => {
+            // Normalize all date fields to Date objects (or null) for consistent sorting
+            const lastUpdatedDate = item.lastUpdated 
+              ? (item.lastUpdated instanceof Date 
+                  ? item.lastUpdated 
+                  : normalizeDate(item.lastUpdated))
+              : null;
+            const updatedAtDate = item.updatedAt 
+              ? (item.updatedAt instanceof Date 
+                  ? item.updatedAt 
+                  : normalizeDate(item.updatedAt))
+              : (lastUpdatedDate || null);
+            const createdAtDate = item.createdAt instanceof Date 
+              ? item.createdAt 
+              : item.createdAt 
+                ? normalizeDate(item.createdAt) 
+                : null;
+            
+            return {
+              ...item,
+              lastUpdated: lastUpdatedDate ? lastUpdatedDate.toISOString() : item.lastUpdated,
+              updatedAt: updatedAtDate, // Set updatedAt for sorting (use lastUpdated or createdAt as fallback)
+              lastVisited: null, // Explicitly null since these don't have lastVisited
+              createdAt: createdAtDate
+            };
+          });
+          
+          // Add to persistent storage
+          normalizedReferenced.forEach((item: OrganizedContentItem) => {
+            if (item.noteId) {
+              preservedScriptureNotesRef.current.set(item.noteId, item);
+              debug('[OrganizedContentList] Added referenced scripture note to persistent storage from refresh', {
+                noteId: item.noteId,
+                title: item.title?.substring(0, 30)
+              });
+            }
+          });
+        }
         
         // Normalize dates in refreshed items - always normalize to Date objects (or null) for consistent sorting
         const normalizedItems = (data.items || []).map((item: any) => ({
@@ -732,14 +1042,106 @@ export default function OrganizedContentList({
               : null
         }));
         
+        // Debug: Log lastVisited values from API to track if they're being preserved
+        if (normalizedItems.length > 0) {
+          debug('[OrganizedContentList] Refreshed items lastVisited values', {
+            sampleItems: normalizedItems.slice(0, 3).map(item => ({
+              id: item.id,
+              title: item.title?.substring(0, 30),
+              lastVisited: item.lastVisited,
+              lastUpdated: item.lastUpdated,
+              hasLastVisited: !!item.lastVisited,
+              lastVisitedType: item.lastVisited instanceof Date ? 'Date' : typeof item.lastVisited
+            }))
+          });
+        }
+        
         // Filter out deleted items from refreshed items
         const filteredItemsRaw = normalizedItems.filter((item: OrganizedContentItem) => {
           return !deletedItemIdsRef.current.has(item.id);
         });
         
+        // Preserve scripture notes from currentItems that were filtered out by API refresh
+        // This happens when filter='all' and referenced scripture notes without lastVisited are excluded
+        // We want to keep them visible until they're explicitly removed or the user navigates away
+        // Also include referenced scripture notes from persistent storage (which were fetched proactively)
+        const itemsToSortWithPreserved = preserveScriptureNotes(filteredItemsRaw, currentItemsRef.current);
+        
+        // Get referenced scripture notes from persistent storage that should be displayed
+        const persistentScriptureNotes = Array.from(preservedScriptureNotesRef.current.values());
+        const freshItemIds = new Set(itemsToSortWithPreserved.map(item => item.id));
+        const freshNoteIds = new Set(itemsToSortWithPreserved.map(item => item.noteId).filter(Boolean));
+        
+        const additionalScriptureNotes = persistentScriptureNotes.filter(item => 
+          item.type === 'note' && 
+          item.noteType === 'scripture' &&
+          item.noteId &&
+          !freshItemIds.has(item.id) &&
+          !freshNoteIds.has(item.noteId) &&
+          !deletedItemIdsRef.current.has(item.id)
+        );
+        
+        if (additionalScriptureNotes.length > 0) {
+          debug('[OrganizedContentList] Adding referenced scripture notes from persistent storage in refreshContent', {
+            count: additionalScriptureNotes.length
+          });
+        }
+        
+        const itemsToSort = [...itemsToSortWithPreserved, ...additionalScriptureNotes];
+        
+        // Remove any scripture notes from persistent storage that now appear in itemsToSortWithPreserved with lastVisited
+        // This handles the case where a scripture note was visited and now appears in the main API response
+        const finalItemsToSort = itemsToSort.filter(item => {
+          // If this is a scripture note from persistent storage, check if it now appears in itemsToSortWithPreserved with lastVisited
+          if (item.type === 'note' && item.noteType === 'scripture' && item.noteId) {
+            const inMainList = itemsToSortWithPreserved.some(mainItem => 
+              mainItem.noteId === item.noteId && mainItem.lastVisited != null
+            );
+            if (inMainList) {
+              // This note now appears in the main list with lastVisited, so remove it from persistent storage
+              preservedScriptureNotesRef.current.delete(item.noteId);
+              debug('[OrganizedContentList] Removing scripture note from persistent storage in refreshContent - now in main list with lastVisited', {
+                noteId: item.noteId
+              });
+              return false; // Don't include it in the final list (it's already in itemsToSortWithPreserved)
+            }
+          }
+          return true;
+        });
+        
         // Re-sort by lastVisited (matching API logic) to ensure consistency
-        // Dates are already normalized above, but ensure consistency one more time
-        const filteredItems = sortItemsByLastVisited(filteredItemsRaw);
+        // Ensure all items have updatedAt mapped from lastUpdated for sorting
+        const normalizedForSort = finalItemsToSort.map(item => {
+          const lastVisitedDate = item.lastVisited instanceof Date 
+            ? item.lastVisited 
+            : item.lastVisited 
+              ? normalizeDate(item.lastVisited) 
+              : null;
+          const lastUpdatedDate = item.lastUpdated 
+            ? (item.lastUpdated instanceof Date 
+                ? item.lastUpdated 
+                : normalizeDate(item.lastUpdated))
+            : null;
+          const updatedAtDate = item.updatedAt 
+            ? (item.updatedAt instanceof Date 
+                ? item.updatedAt 
+                : normalizeDate(item.updatedAt))
+            : (lastUpdatedDate || null);
+          const createdAtDate = item.createdAt instanceof Date 
+            ? item.createdAt 
+            : item.createdAt 
+              ? normalizeDate(item.createdAt) 
+              : null;
+          
+          return {
+            ...item,
+            lastVisited: lastVisitedDate,
+            lastUpdated: lastUpdatedDate ? lastUpdatedDate.toISOString() : item.lastUpdated,
+            updatedAt: updatedAtDate, // Ensure updatedAt is set for sorting
+            createdAt: createdAtDate
+          };
+        });
+        const filteredItems = sortItemsByLastVisited(normalizedForSort);
         
         // Create a key from the refreshed items to track what we just loaded
         const refreshedItemsKey = filteredItems.map((item: OrganizedContentItem) => item.id).join(',') + `|${filteredItems.length}`;
@@ -753,14 +1155,22 @@ export default function OrganizedContentList({
             isRefreshingItemsRef.current = true;
             lastRefreshItemsKeyRef.current = refreshedItemsKey;
             
+            // Update hasMore state based on API response (if we got exactly limit items, there might be more)
+            // refreshContent fetches 100 items, so if we got 100, there might be more
+            const newHasMore = filteredItems.length >= 100;
+            setHasMore(newHasMore);
+            hasMoreRef.current = newHasMore;
+            
             setCurrentItems(filteredItems);
             currentItemsRef.current = filteredItems;
-            debug('[OrganizedContentList] Updated currentItems', { itemCount: filteredItems.length });
+            debug('[OrganizedContentList] Updated currentItems', { itemCount: filteredItems.length, hasMore: newHasMore });
             
-            // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
+            // Clear the refreshing flag and set cooldown timestamp after state updates
+            // Use setTimeout with 0 delay to ensure React has processed the state update
             setTimeout(() => {
               isRefreshingItemsRef.current = false;
-            }, 100);
+              lastRefreshTimestampRef.current = Date.now();
+            }, 0);
           } else {
             debug('[OrganizedContentList] Refresh returned same items, skipping update', { itemCount: filteredItems.length });
             // Still clear refreshing flag even if we didn't update
@@ -888,16 +1298,24 @@ export default function OrganizedContentList({
           isRefreshingItemsRef.current = true;
           lastRefreshItemsKeyRef.current = refreshedItemsKey;
           
+          // Update hasMore state based on API response (scripture filter fetches 200 items)
+          // If we got 200 items, there might be more
+          const newHasMore = filteredItems.length >= 200;
+          setHasMore(newHasMore);
+          hasMoreRef.current = newHasMore;
+          
           // Items are already sorted and normalized above
           const sorted = filteredItems;
           setCurrentItems(sorted);
           currentItemsRef.current = sorted;
-          debug('[OrganizedContentList] Updated scripture notes', { itemCount: sorted.length, forceUpdate });
+          debug('[OrganizedContentList] Updated scripture notes', { itemCount: sorted.length, forceUpdate, hasMore: newHasMore });
           
-          // Clear the refreshing flag after a short delay to allow InfiniteScrollList to process the update
+          // Clear the refreshing flag and set cooldown timestamp after state updates
+          // Use setTimeout with 0 delay to ensure React has processed the state update
           setTimeout(() => {
             isRefreshingItemsRef.current = false;
-          }, 100);
+            lastRefreshTimestampRef.current = Date.now();
+          }, 0);
         } else {
           debug('[OrganizedContentList] Scripture refresh returned same items, skipping update', { itemCount: filteredItems.length });
           isRefreshingRef.current = false;
@@ -932,6 +1350,11 @@ export default function OrganizedContentList({
     currentItemsRef.current = currentItems;
   }, [currentItems]);
 
+  // Keep hasMoreRef in sync with state
+  useEffect(() => {
+    hasMoreRef.current = hasMore;
+  }, [hasMore]);
+
   // Track previous filter to detect tab switches
   const prevFilterRef = useRef<string | null>(null);
   
@@ -939,6 +1362,13 @@ export default function OrganizedContentList({
   useEffect(() => {
     // Clear refresh tracking when filter changes
     lastRefreshItemsKeyRef.current = '';
+    
+    // Clear persistent scripture notes storage when filter changes away from 'all'
+    // They should only persist when viewing the 'all' tab
+    if (filter !== 'all' && prevFilterRef.current === 'all') {
+      preservedScriptureNotesRef.current.clear();
+      debug('[OrganizedContentList] Cleared persistent scripture notes storage - filter changed away from all');
+    }
     
     // If filter is 'scripture', always fetch all scripture notes (including referenced ones)
     // This ensures we show all scripture notes, not just the ones from initialItems
@@ -1078,37 +1508,277 @@ export default function OrganizedContentList({
     // For 'all' filter, no additional filtering needed - server handles filtering referenced scripture notes
     // For 'scripture' filter, we skip this useEffect entirely and let the filter useEffect handle it
     
+    // Populate persistent storage with scripture notes from initialItems (if they're visible)
+    // This ensures they can be preserved on refresh even if they get filtered out
+    if (filter === 'all') {
+      filtered.forEach(item => {
+        if (item.type === 'note' && item.noteType === 'scripture' && item.noteId) {
+          // Add to persistent storage if not already there
+          // This ensures scripture notes that are visible initially can be preserved on refresh
+          if (!preservedScriptureNotesRef.current.has(item.noteId)) {
+            preservedScriptureNotesRef.current.set(item.noteId, item);
+            debug('[OrganizedContentList] Added scripture note to persistent storage from initialItems', {
+              noteId: item.noteId,
+              title: item.title?.substring(0, 30)
+            });
+          }
+        }
+      });
+    }
+    
+    // Preserve scripture notes from currentItems that were filtered out by initialItems update
+    // This happens when filter='all' and referenced scripture notes without lastVisited are excluded
+    // We want to keep them visible until they're explicitly removed or the user navigates away
+    // Also include referenced scripture notes from persistent storage (which were fetched proactively)
+    const filteredWithPreserved = preserveScriptureNotes(filtered, currentItemsRef.current);
+    
+    // Get referenced scripture notes from persistent storage that should be displayed
+    const persistentScriptureNotes = Array.from(preservedScriptureNotesRef.current.values());
+    const freshItemIds = new Set(filteredWithPreserved.map(item => item.id));
+    const freshNoteIds = new Set(filteredWithPreserved.map(item => item.noteId).filter(Boolean));
+    
+    const additionalScriptureNotes = persistentScriptureNotes.filter(item => 
+      item.type === 'note' && 
+      item.noteType === 'scripture' &&
+      item.noteId &&
+      !freshItemIds.has(item.id) &&
+      !freshNoteIds.has(item.noteId) &&
+      !deletedItemIds.has(item.id)
+    );
+    
+    if (additionalScriptureNotes.length > 0) {
+      debug('[OrganizedContentList] Adding referenced scripture notes from persistent storage in initialItems', {
+        count: additionalScriptureNotes.length
+      });
+    }
+    
+    const allItemsWithScripture = [...filteredWithPreserved, ...additionalScriptureNotes];
+    
+    // Remove any scripture notes from persistent storage that now appear in filteredWithPreserved with lastVisited
+    // This handles the case where a scripture note was visited and now appears in the main API response
+    const finalItemsWithScripture = allItemsWithScripture.filter(item => {
+      // If this is a scripture note from persistent storage, check if it now appears in filteredWithPreserved with lastVisited
+      if (item.type === 'note' && item.noteType === 'scripture' && item.noteId) {
+        const inMainList = filteredWithPreserved.some(mainItem => 
+          mainItem.noteId === item.noteId && mainItem.lastVisited != null
+        );
+        if (inMainList) {
+          // This note now appears in the main list with lastVisited, so remove it from persistent storage
+          preservedScriptureNotesRef.current.delete(item.noteId);
+          debug('[OrganizedContentList] Removing scripture note from persistent storage in initialItems - now in main list with lastVisited', {
+            noteId: item.noteId
+          });
+          return false; // Don't include it in the final list (it's already in filteredWithPreserved)
+        }
+      }
+      return true;
+    });
+    
     debug('[OrganizedContentList] Updating currentItems from initialItems', {
       initialItemsCount: initialItems.length,
       filteredCount: filtered.length,
+      preservedCount: filteredWithPreserved.length - filtered.length,
       filter,
       itemsKey
     });
     
     // Ensure items are sorted before setting
     // Normalize dates before sorting to ensure consistency - always normalize to Date objects (or null)
-    const normalizedFiltered = filtered.map(item => ({
-      ...item,
-      lastVisited: item.lastVisited instanceof Date 
+    // Map lastUpdated to updatedAt for sorting function
+    const normalizedFiltered = finalItemsWithScripture.map(item => {
+      const lastVisitedDate = item.lastVisited instanceof Date 
         ? item.lastVisited 
         : item.lastVisited 
           ? normalizeDate(item.lastVisited) 
-          : null,
-      lastUpdated: item.lastUpdated 
+          : null;
+      const lastUpdatedDate = item.lastUpdated 
         ? (item.lastUpdated instanceof Date 
-            ? item.lastUpdated.toISOString() 
-            : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated)
-        : item.lastUpdated,
-      createdAt: item.createdAt instanceof Date 
+            ? item.lastUpdated 
+            : normalizeDate(item.lastUpdated))
+        : null;
+      const updatedAtDate = item.updatedAt 
+        ? (item.updatedAt instanceof Date 
+            ? item.updatedAt 
+            : normalizeDate(item.updatedAt))
+        : (lastUpdatedDate || null);
+      const createdAtDate = item.createdAt instanceof Date 
         ? item.createdAt 
         : item.createdAt 
           ? normalizeDate(item.createdAt) 
-          : null
-    }));
+          : null;
+      
+      return {
+        ...item,
+        lastVisited: lastVisitedDate,
+        lastUpdated: lastUpdatedDate ? lastUpdatedDate.toISOString() : item.lastUpdated,
+        updatedAt: updatedAtDate, // Ensure updatedAt is set for sorting
+        createdAt: createdAtDate
+      };
+    });
     const sorted = sortItemsByLastVisited(normalizedFiltered);
+    
+    // Update hasMore based on initialItems length (if we got fewer than limit, there are no more)
+    // For initialItems from server, if we got exactly limit items, assume there might be more
+    const newHasMore = sorted.length >= 20; // Default limit is 20
+    setHasMore(newHasMore);
+    hasMoreRef.current = newHasMore;
+    
     setCurrentItems(sorted);
     currentItemsRef.current = sorted;
   }, [initialItems, deletedItemIds, filter]);
+
+  // Fetch referenced scripture notes on initial mount when filter is 'all'
+  // These notes are filtered out by the server-side initialItems, so we need to fetch them client-side
+  useEffect(() => {
+    // Only fetch on mount when filter is 'all' and we're on the dashboard
+    if (typeof window === 'undefined') return;
+    if (window.location.pathname !== '/') return;
+    if (filter !== 'all') return;
+    
+    // Skip if we already have scripture notes in currentItems (they might have been fetched already)
+    const hasScriptureNotes = currentItems.some(item => item.type === 'note' && item.noteType === 'scripture');
+    if (hasScriptureNotes && preservedScriptureNotesRef.current.size > 0) {
+      // Already have scripture notes, skip fetch
+      return;
+    }
+    
+    // Fetch referenced scripture notes from API
+    const fetchReferencedScriptureNotes = async () => {
+      try {
+        const url = new URL('/api/content/load-more', window.location.origin);
+        url.searchParams.set('offset', '0');
+        url.searchParams.set('limit', '20');
+        url.searchParams.set('filter', 'all');
+
+        const response = await fetch(url.toString(), {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+
+        if (!response.ok) {
+          console.error('[OrganizedContentList] Failed to fetch referenced scripture notes:', response.status);
+          return;
+        }
+
+        const data = await response.json();
+        const referencedScriptureNotesRaw = data.referencedScriptureNotes || [];
+
+        if (referencedScriptureNotesRaw.length === 0) {
+          return; // No referenced scripture notes to add
+        }
+
+        // Normalize dates in referenced scripture notes
+        const normalizedReferenced = referencedScriptureNotesRaw.map((item: any) => {
+          // Normalize all date fields to Date objects (or null) for consistent sorting
+          const lastUpdatedDate = item.lastUpdated 
+            ? (item.lastUpdated instanceof Date 
+                ? item.lastUpdated 
+                : normalizeDate(item.lastUpdated))
+            : null;
+          const updatedAtDate = item.updatedAt 
+            ? (item.updatedAt instanceof Date 
+                ? item.updatedAt 
+                : normalizeDate(item.updatedAt))
+            : (lastUpdatedDate || null);
+          const createdAtDate = item.createdAt instanceof Date 
+            ? item.createdAt 
+            : item.createdAt 
+              ? normalizeDate(item.createdAt) 
+              : null;
+          
+          return {
+            ...item,
+            lastUpdated: lastUpdatedDate ? lastUpdatedDate.toISOString() : item.lastUpdated,
+            updatedAt: updatedAtDate, // Set updatedAt for sorting (use lastUpdated or createdAt as fallback)
+            lastVisited: null, // Explicitly null since these don't have lastVisited
+            createdAt: createdAtDate
+          };
+        });
+
+        // Add to persistent storage
+        normalizedReferenced.forEach((item: OrganizedContentItem) => {
+          if (item.noteId && !preservedScriptureNotesRef.current.has(item.noteId)) {
+            preservedScriptureNotesRef.current.set(item.noteId, item);
+            debug('[OrganizedContentList] Added referenced scripture note to persistent storage on mount', {
+              noteId: item.noteId,
+              title: item.title?.substring(0, 30)
+            });
+          }
+        });
+
+        // Update currentItems to include referenced scripture notes
+        setCurrentItems(prev => {
+          // Check which notes are already in the list
+          const existingNoteIds = new Set(prev.map(item => item.noteId).filter(Boolean));
+          const existingItemIds = new Set(prev.map(item => item.id));
+          
+          // Filter out notes that are already in the list
+          const newScriptureNotes = normalizedReferenced.filter((item: OrganizedContentItem) => 
+            item.noteId &&
+            !existingNoteIds.has(item.noteId) &&
+            !existingItemIds.has(item.id) &&
+            !deletedItemIdsRef.current.has(item.id)
+          );
+
+          if (newScriptureNotes.length === 0) {
+            return prev; // No new notes to add
+          }
+
+          // Combine with existing items and re-sort
+          const combined = [...prev, ...newScriptureNotes];
+          const normalizedCombined = combined.map(item => {
+            const lastVisitedDate = item.lastVisited instanceof Date 
+              ? item.lastVisited 
+              : item.lastVisited 
+                ? normalizeDate(item.lastVisited) 
+                : null;
+            const lastUpdatedDate = item.lastUpdated 
+              ? (item.lastUpdated instanceof Date 
+                  ? item.lastUpdated 
+                  : normalizeDate(item.lastUpdated))
+              : null;
+            const updatedAtDate = item.updatedAt 
+              ? (item.updatedAt instanceof Date 
+                  ? item.updatedAt 
+                  : normalizeDate(item.updatedAt))
+              : (lastUpdatedDate || null);
+            const createdAtDate = item.createdAt instanceof Date 
+              ? item.createdAt 
+              : item.createdAt 
+                ? normalizeDate(item.createdAt) 
+                : null;
+            
+            return {
+              ...item,
+              lastVisited: lastVisitedDate,
+              lastUpdated: lastUpdatedDate ? lastUpdatedDate.toISOString() : item.lastUpdated,
+              updatedAt: updatedAtDate, // Ensure updatedAt is set for sorting
+              createdAt: createdAtDate
+            };
+          });
+          
+          const sorted = sortItemsByLastVisited(normalizedCombined);
+          currentItemsRef.current = sorted;
+          
+          debug('[OrganizedContentList] Added referenced scripture notes on mount', {
+            count: newScriptureNotes.length,
+            totalItems: sorted.length
+          });
+          
+          return sorted;
+        });
+      } catch (error) {
+        console.error('[OrganizedContentList] Error fetching referenced scripture notes on mount:', error);
+      }
+    };
+
+    // Small delay to ensure component is fully mounted and initialItems are processed
+    const timeoutId = setTimeout(fetchReferencedScriptureNotes, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [filter, sortItemsByLastVisited]); // Only run when filter changes to 'all'
 
   // Listen for deletion events to track deleted items
   useEffect(() => {
@@ -1120,6 +1790,12 @@ export default function OrganizedContentList({
         // Remove from optimistic tracking if it exists
         optimisticUpdates.removeOptimistic(noteId);
         optimisticUpdates.removeOptimistic(`note-${noteId}`);
+        
+        // Remove from persistent scripture notes storage if it exists
+        if (preservedScriptureNotesRef.current.has(noteId)) {
+          preservedScriptureNotesRef.current.delete(noteId);
+          debug('[OrganizedContentList] Removed scripture note from persistent storage - deleted', { noteId });
+        }
         
         setDeletedItemIds((prev: Set<string>) => {
           // Add both raw ID and prefixed ID to match item.id format (note-${id})
@@ -1512,6 +2188,14 @@ export default function OrganizedContentList({
       
       const isDashboard = window.location.pathname === '/';
       const navigatedToDashboard = isDashboard && previousPathnameRef.current !== '/';
+      const navigatedAwayFromDashboard = !isDashboard && previousPathnameRef.current === '/';
+      
+      // Clear persistent scripture notes storage when navigating away from dashboard
+      // They should only persist while on the dashboard
+      if (navigatedAwayFromDashboard) {
+        preservedScriptureNotesRef.current.clear();
+        debug('[OrganizedContentList] Cleared persistent scripture notes storage - navigated away from dashboard');
+      }
       
       // Check if we came from a thread or note page (for sorting updates)
       const referrer = document.referrer;
@@ -1792,11 +2476,28 @@ export default function OrganizedContentList({
     // Use filterRef.current to get the current filter value (not closure value)
     const currentFilter = filterRef.current;
     
+    // Check if we're in cooldown period after refresh (timestamp-based, more reliable than arbitrary timeout)
+    const now = Date.now();
+    const timeSinceRefresh = now - lastRefreshTimestampRef.current;
+    const inCooldown = timeSinceRefresh < refreshCooldownMs;
+    
     // Don't load more if we're currently refreshing (refreshContent is running)
     // This prevents loading duplicates when refreshContent updates items
     if (isRefreshingRef.current || isRefreshingItemsRef.current) {
       debug('[OrganizedContentList] Skipping loadMore - refresh in progress', { offset, filter: currentFilter });
-      return { items: [], hasMore: false };
+      return { items: [], hasMore: hasMoreRef.current };
+    }
+    
+    // Don't load more if we're in cooldown period after refresh
+    // This prevents race conditions where loadMore is called immediately after refresh completes
+    if (inCooldown && offset === 0) {
+      debug('[OrganizedContentList] Skipping loadMore - in cooldown period after refresh', { 
+        offset, 
+        filter: currentFilter,
+        timeSinceRefresh,
+        cooldownMs: refreshCooldownMs
+      });
+      return { items: [], hasMore: hasMoreRef.current };
     }
     
     // If offset is 0 and we just refreshed via refreshContent (not from initialItems), skip this load
@@ -1805,7 +2506,7 @@ export default function OrganizedContentList({
     // Only skip if we're actively refreshing (isRefreshingItemsRef) to avoid blocking normal pagination
     if (offset === 0 && isRefreshingItemsRef.current && currentFilter !== 'scripture') {
       debug('[OrganizedContentList] Skipping loadMore offset 0 - refresh in progress', { offset, filter: currentFilter });
-      return { items: [], hasMore: false };
+      return { items: [], hasMore: hasMoreRef.current };
     }
     
     const url = new URL('/api/content/load-more', window.location.origin);
@@ -1822,6 +2523,32 @@ export default function OrganizedContentList({
     }
 
     const data = await response.json();
+    const referencedScriptureNotesRaw = data.referencedScriptureNotes || [];
+    
+    // Normalize dates in referenced scripture notes and add to persistent storage (only for 'all' filter and offset 0)
+    if (referencedScriptureNotesRaw.length > 0 && currentFilter === 'all' && offset === 0) {
+      const normalizedReferenced = referencedScriptureNotesRaw.map((item: any) => ({
+        ...item,
+        lastUpdated: item.lastUpdated 
+          ? (item.lastUpdated instanceof Date 
+              ? item.lastUpdated.toISOString() 
+              : normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated)
+          : item.lastUpdated,
+        lastVisited: null, // Explicitly null since these don't have lastVisited
+        createdAt: item.createdAt instanceof Date 
+          ? item.createdAt 
+          : item.createdAt 
+            ? normalizeDate(item.createdAt) 
+            : null
+      }));
+      
+      // Add to persistent storage
+      normalizedReferenced.forEach((item: OrganizedContentItem) => {
+        if (item.noteId) {
+          preservedScriptureNotesRef.current.set(item.noteId, item);
+        }
+      });
+    }
     
     // Normalize dates from API responses - always normalize to Date objects (or null) for consistent sorting
     const normalizedItems = (data.items || []).map((item: any) => ({
@@ -1848,6 +2575,10 @@ export default function OrganizedContentList({
       // Use item.id as the primary identifier (it's always present)
       return !deletedItemIdsRef.current.has(item.id);
     });
+    
+    // Update hasMore state based on API response
+    setHasMore(data.hasMore);
+    hasMoreRef.current = data.hasMore;
     
     debug('[OrganizedContentList] loadMore completed', {
       offset,
@@ -1914,6 +2645,8 @@ export default function OrganizedContentList({
                 count: item.count,
                 accentColor: item.accentColor,
                 lastUpdated: item.lastUpdated,
+                lastVisited: item.lastVisited,
+                createdAt: item.createdAt,
                 isPrivate: item.isPrivate
               }}
             />
@@ -1932,6 +2665,7 @@ export default function OrganizedContentList({
         itemKey={(item) => item.id}
         limit={20}
         className="flex flex-col"
+        initialHasMore={hasMore}
       />
     </div>
   );

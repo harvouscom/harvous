@@ -1488,6 +1488,129 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
   }
 }
 
+// Fetch referenced scripture notes that don't have lastVisited
+// These are scripture notes that are referenced by other notes but haven't been visited yet
+// They should appear in the 'all' tab even though they're filtered out by the main API
+export async function getReferencedScriptureNotesWithoutLastVisited(userId: string): Promise<any[]> {
+  try {
+    // Get all scripture note IDs that are referenced by other notes
+    const junctionEntries = await db.select({
+      scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
+    })
+    .from(NoteScriptureReferences)
+    .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+    .where(and(
+      eq(Notes.userId, userId),
+      eq(Notes.noteType, 'scripture')
+    ))
+    .all();
+
+    // Get unique scripture note IDs
+    const referencedScriptureNoteIds = [...new Set(junctionEntries.map(e => e.scriptureNoteId))];
+
+    if (referencedScriptureNoteIds.length === 0) {
+      return [];
+    }
+
+    // Fetch scripture notes that are referenced but don't have lastVisited
+    const notes = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      threadId: Notes.threadId,
+      spaceId: Notes.spaceId,
+      simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
+      isPublic: Notes.isPublic,
+      isFeatured: Notes.isFeatured,
+      createdAt: Notes.createdAt,
+      updatedAt: Notes.updatedAt,
+      lastVisited: Notes.lastVisited,
+    })
+    .from(Notes)
+    .where(and(
+      inArray(Notes.id, referencedScriptureNoteIds),
+      eq(Notes.userId, userId),
+      eq(Notes.noteType, 'scripture'),
+      isNull(Notes.lastVisited) // Only get notes without lastVisited
+    ))
+    .all();
+
+    if (notes.length === 0) {
+      return [];
+    }
+
+    // Batch fetch thread colors for all notes
+    const noteIds = notes.map(note => note.id);
+    let threadColorsMap: Record<string, Array<{ color: string; frequency: number }>> = {};
+
+    if (noteIds.length > 0) {
+      try {
+        const allNoteThreads = await db.select({
+          noteId: NoteThreads.noteId,
+          threadId: NoteThreads.threadId,
+          color: Threads.color,
+        })
+        .from(NoteThreads)
+        .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+        .where(and(
+          inArray(NoteThreads.noteId, noteIds),
+          eq(Threads.userId, userId),
+          ne(Threads.id, "thread_unorganized")
+        ))
+        .all();
+
+        const noteColorMap = new Map<string, Map<string, number>>();
+        
+        for (const nt of allNoteThreads) {
+          if (nt.color) {
+            if (!noteColorMap.has(nt.noteId)) {
+              noteColorMap.set(nt.noteId, new Map());
+            }
+            const colorMap = noteColorMap.get(nt.noteId)!;
+            const currentCount = colorMap.get(nt.color) || 0;
+            colorMap.set(nt.color, currentCount + 1);
+          }
+        }
+
+        for (const [noteId, colorMap] of noteColorMap.entries()) {
+          threadColorsMap[noteId] = Array.from(colorMap.entries()).map(([color, frequency]) => ({
+            color,
+            frequency,
+          }));
+        }
+      } catch (error) {
+        console.error('Error batch fetching thread colors for referenced scripture notes:', error);
+      }
+    }
+
+    // Format notes to match OrganizedContentItem interface
+    const noteItems = notes.map(note => {
+      const cleanContent = stripHtml(note.content);
+      return {
+        id: `note-${note.id}`,
+        type: "note" as const,
+        title: note.title || "Untitled Note",
+        content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        noteId: note.id,
+        threadId: note.threadId,
+        spaceId: note.spaceId,
+        noteType: note.noteType || 'scripture',
+        lastUpdated: note.updatedAt || note.createdAt,
+        updatedAt: note.updatedAt || note.createdAt,
+        lastVisited: null, // Explicitly null since we filtered for this
+        createdAt: note.createdAt,
+        threadColors: threadColorsMap[note.id] || undefined,
+      };
+    });
+
+    return noteItems;
+  } catch (error) {
+    console.error("Error fetching referenced scripture notes without lastVisited:", error);
+    return [];
+  }
+}
+
 // Optimized function to fetch scripture notes directly from database
 // This avoids fetching all notes and filtering in memory
 export async function getScriptureNotesForDashboard(userId: string, limit = 20, offset = 0): Promise<{ items: any[]; hasMore: boolean }> {

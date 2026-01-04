@@ -53,6 +53,10 @@ const CardNote: React.FC<CardNoteProps> = ({
   scriptureReferences: propScriptureReferences = []
 }) => {
   const [isScriptureRefsExpanded, setIsScriptureRefsExpanded] = useState(false);
+  // Generate mesh gradient on client only to avoid hydration mismatch
+  // Start with null to match server render, then generate after mount
+  const [meshGradient, setMeshGradient] = useState<string | null>(null);
+  
   // For resource notes, prioritize metadata over regular props
   const effectiveTitle = noteType === 'resource' 
     ? (resourceTitle || title || "Untitled Resource")
@@ -72,10 +76,16 @@ const CardNote: React.FC<CardNoteProps> = ({
   // For resource notes with images, automatically use withImage variant
   const effectiveVariant = (noteType === 'resource' && effectiveImageUrl) ? "withImage" : variant;
   
-  // Generate mesh gradient from thread colors (only if no image present)
-  const meshGradient = !effectiveImageUrl && threadColors && threadColors.length > 0
-    ? generateThreadMeshGradient(threadColors, noteId)
-    : null;
+  // Generate mesh gradient on client only (after hydration) to avoid mismatch
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return; // Only run on client
+    
+    // Generate mesh gradient from thread colors (only if no image present)
+    if (!effectiveImageUrl && threadColors && threadColors.length > 0 && noteId) {
+      const gradient = generateThreadMeshGradient(threadColors, noteId);
+      setMeshGradient(gradient);
+    }
+  }, [effectiveImageUrl, threadColors, noteId]);
   
   // Sidebar style: use gradient if available, otherwise default
   const sidebarStyle = meshGradient

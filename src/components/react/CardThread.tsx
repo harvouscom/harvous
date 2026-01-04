@@ -10,6 +10,7 @@ interface Thread {
   count?: number;
   accentColor?: string;
   lastUpdated?: string;
+  lastVisited?: Date | string | null;
   createdAt?: string;
   isPrivate?: boolean;
   isPrimary?: boolean;
@@ -28,6 +29,7 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
     count = 2,
     accentColor,
     lastUpdated,
+    lastVisited,
     createdAt,
     isPrivate = true
   } = thread;
@@ -37,29 +39,41 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
 
   // Format the timestamp properly - prioritize time over note count (subtitle)
   // Use useState/useEffect to avoid hydration mismatch
-  // Start with "recently" (matches server render), then update after mount
-  const [displaySubtitle, setDisplaySubtitle] = React.useState<string>(() => {
-    // Initial state: check if lastUpdated is already a relative time string
-    if (lastUpdated && typeof lastUpdated === 'string' && 
-        (lastUpdated.includes('ago') || lastUpdated.includes('day') || lastUpdated.includes('hour') || 
-         lastUpdated.includes('minute') || lastUpdated.includes('Just now') || lastUpdated.includes('recently'))) {
-      return lastUpdated;
-    }
-    // Default to "recently" to match server render
-    return "recently";
-  });
+  // Always start with "recently" to match server render, then update after mount
+  // This ensures server and client render the same initial value
+  const [displaySubtitle, setDisplaySubtitle] = React.useState<string>("recently");
 
   // Update timestamp after hydration to show actual relative time
+  // Prioritize lastVisited over lastUpdated (which may fall back to updatedAt/createdAt)
+  // This runs only on the client after hydration to avoid mismatch
   React.useEffect(() => {
-    // If lastUpdated is already a relative time string, keep it
-    if (lastUpdated && typeof lastUpdated === 'string' && 
-        (lastUpdated.includes('ago') || lastUpdated.includes('day') || lastUpdated.includes('hour') || 
-         lastUpdated.includes('minute') || lastUpdated.includes('Just now') || lastUpdated.includes('recently'))) {
-      return; // Already set correctly
+    // Only run on client (after hydration)
+    if (typeof window === 'undefined') return;
+    
+    // Priority 1: Use lastVisited if available (most accurate for user's actual visit time)
+    if (lastVisited) {
+      try {
+        const date = lastVisited instanceof Date ? lastVisited : new Date(lastVisited);
+        if (!isNaN(date.getTime())) {
+          setDisplaySubtitle(getRelativeTime(date));
+          return;
+        }
+      } catch (error) {
+        // Fall through
+      }
     }
     
-    // Calculate relative time from date strings
+    // Priority 2: Fall back to lastUpdated (which is computed as lastVisited || updatedAt || createdAt)
     if (lastUpdated) {
+      // Check if lastUpdated is already a relative time string (from server)
+      if (typeof lastUpdated === 'string' && 
+          (lastUpdated.includes('ago') || lastUpdated.includes('day') || lastUpdated.includes('hour') || 
+           lastUpdated.includes('minute') || lastUpdated.includes('Just now') || lastUpdated.includes('recently'))) {
+        setDisplaySubtitle(lastUpdated);
+        return;
+      }
+      
+      // Otherwise, parse as date
       try {
         const date = new Date(lastUpdated);
         if (!isNaN(date.getTime())) {
@@ -71,6 +85,7 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
       }
     }
     
+    // Priority 3: Fall back to createdAt
     if (createdAt) {
       try {
         const date = new Date(createdAt);
@@ -82,7 +97,9 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
         // Fall through
       }
     }
-  }, [lastUpdated, createdAt]);
+    
+    // If all else fails, keep "recently"
+  }, [lastVisited, lastUpdated, createdAt]);
 
   return (
     <div className={`card card-thread ${className}`}>

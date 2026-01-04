@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getContentItems, getScriptureNotesForDashboard } from '@/utils/dashboard-data';
+import { getContentItems, getScriptureNotesForDashboard, getReferencedScriptureNotesWithoutLastVisited } from '@/utils/dashboard-data';
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
@@ -41,6 +41,13 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const filterExcludeReferencedScripture = filter === 'all';
     
     const items = await getContentItems(userId, fetchLimit, offset, filterExcludeReferencedScripture);
+    
+    // For 'all' filter on initial load (offset === 0), also fetch referenced scripture notes without lastVisited
+    // These should appear in the UI even though they're filtered out by the main API
+    let referencedScriptureNotes: any[] = [];
+    if (filter === 'all' && offset === 0) {
+      referencedScriptureNotes = await getReferencedScriptureNotesWithoutLastVisited(userId);
+    }
 
     // Filter by type if needed
     let filteredItems = items;
@@ -63,7 +70,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
       items: limitedItems,
       hasMore,
       offset,
-      limit
+      limit,
+      referencedScriptureNotes: filter === 'all' && offset === 0 ? referencedScriptureNotes : undefined
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
