@@ -47,6 +47,9 @@ export default function CardFullEditable({
   isEditable = true,
   onSave 
 }: CardFullEditableProps) {
+  // Override isEditable for scripture notes - they should always be read-only
+  const effectiveIsEditable = noteType === 'scripture' ? false : isEditable;
+  
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [isContentEditing, setIsContentEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -86,7 +89,9 @@ export default function CardFullEditable({
   // Listen for keyboard shortcut to start editing
   useEffect(() => {
     const handleEditNote = () => {
-      if (!isContentEditing && !isTitleEditing && isEditable) {
+      // Prevent editing scripture notes
+      if (noteType === 'scripture') return;
+      if (!isContentEditing && !isTitleEditing && effectiveIsEditable) {
         // Save current scroll position
         if (contentDisplayRef.current) {
           const currentScroll = contentDisplayRef.current.scrollTop;
@@ -107,7 +112,7 @@ export default function CardFullEditable({
     return () => {
       window.removeEventListener('editNote', handleEditNote);
     };
-  }, [isContentEditing, isTitleEditing, isEditable, displayTitle, displayContent]);
+  }, [isContentEditing, isTitleEditing, effectiveIsEditable, displayTitle, displayContent, noteType]);
 
   // Listen for hyperlink creation event
   useEffect(() => {
@@ -360,6 +365,11 @@ export default function CardFullEditable({
 
 
   const startEditing = (focus: 'title' | 'content' = 'title') => {
+    // Prevent editing scripture notes - they are read-only
+    if (noteType === 'scripture') {
+      return;
+    }
+    
     // Save current scroll position
     if (contentDisplayRef.current) {
       const currentScroll = contentDisplayRef.current.scrollTop;
@@ -769,8 +779,10 @@ export default function CardFullEditable({
       }
     }
     
-    // If not a note-link or scripture pill, enter edit mode
-    startEditing('content');
+    // If not a note-link or scripture pill, enter edit mode (unless it's a scripture note)
+    if (noteType !== 'scripture') {
+      startEditing('content');
+    }
   };
 
   // Resource note - special display with card-image-link design + editable content
@@ -1040,7 +1052,7 @@ export default function CardFullEditable({
           {/* Display mode */}
           {!isTitleEditing ? (
             <p 
-              className="cursor-pointer rounded"
+              className={noteType === 'scripture' ? 'rounded' : 'cursor-pointer rounded'}
               style={{
                 lineHeight: '1.2',
                 margin: '-4px -8px',
@@ -1056,7 +1068,7 @@ export default function CardFullEditable({
                 height: 'auto',
                 verticalAlign: 'middle'
               }}
-              onClick={() => startEditing('title')}
+              onClick={noteType === 'scripture' ? undefined : () => startEditing('title')}
             >
               {displayTitle}
             </p>
@@ -1138,7 +1150,7 @@ export default function CardFullEditable({
                 {displayContent && displayContent.trim() ? (
                   <div 
                     ref={contentDisplayRef}
-                    className="flex-1 overflow-auto cursor-pointer rounded"
+                    className={noteType === 'scripture' ? 'flex-1 overflow-auto rounded' : 'flex-1 overflow-auto cursor-pointer rounded'}
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
                     onClick={handleContentClick}
                     dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
@@ -1146,7 +1158,7 @@ export default function CardFullEditable({
                 ) : (
                   <div 
                     ref={contentDisplayRef}
-                    className="flex-1 overflow-auto cursor-pointer rounded"
+                    className={noteType === 'scripture' ? 'flex-1 overflow-auto rounded' : 'flex-1 overflow-auto cursor-pointer rounded'}
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px' }}
                     onClick={handleContentClick}
                   >
