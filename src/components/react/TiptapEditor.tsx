@@ -12,7 +12,7 @@ import { ScripturePill } from './TiptapScripturePill.ts';
 import { BoldCustom } from './TiptapBoldCustom.ts';
 import { HighlightCustom } from './TiptapHighlightCustom.ts';
 import ButtonSmall from './ButtonSmall';
-import { normalizeScriptureReference } from '@/utils/scripture-detector';
+import { normalizeScriptureReference, detectScriptureReferences, type ScriptureReference } from '@/utils/scripture-detector';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
 import { debug } from '@/utils/logger';
@@ -59,11 +59,15 @@ function normalizeTextForMatching(text: string): string {
 
 // Helper function to find text positions with flexible matching for verse ranges
 function findTextWithFlexibleMatching(fullText: string, searchText: string): Array<{ index: number; length: number }> {
+  console.log('[findTextWithFlexibleMatching] fullText:', JSON.stringify(fullText), 'searchText:', JSON.stringify(searchText));
+  
   const normalizedSearch = normalizeTextForMatching(searchText);
   const matches: Array<{ index: number; length: number }> = [];
   
   // Try exact match first
   let index = fullText.indexOf(searchText);
+  console.log('[findTextWithFlexibleMatching] Exact match indexOf result:', index);
+  
   while (index !== -1) {
     matches.push({ index, length: searchText.length });
     index = fullText.indexOf(searchText, index + 1);
@@ -382,14 +386,20 @@ function adjustPositionForParagraphBoundary(doc: any, from: number, to: number):
 function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean = true): Array<{ from: number; to: number }> {
   const fullText = doc.textContent;
   
+  console.log('[findAllTextPositions] fullText:', JSON.stringify(fullText), 'searchText:', JSON.stringify(searchText));
+  
   if (!fullText || fullText.trim().length === 0) {
+    console.log('[findAllTextPositions] Empty full text');
     return [];
   }
   
   // Find all matches with flexible spacing handling
   const matches = findTextWithFlexibleMatching(fullText, searchText);
   
+  console.log('[findAllTextPositions] matches from findTextWithFlexibleMatching:', matches);
+  
   if (matches.length === 0) {
+    console.log('[findAllTextPositions] No matches found');
     return [];
   }
 
@@ -423,12 +433,25 @@ function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean 
     const searchIndex = match.index;
     const matchLength = match.length;
     
+    console.log('[findAllTextPositions] Processing match:', {
+      searchIndex,
+      matchLength,
+      textToDocMap
+    });
+    
     // Find which text node contains this index
     for (const map of textToDocMap) {
       if (searchIndex >= map.textStart && searchIndex < map.textEnd) {
         const offset = searchIndex - map.textStart;
         let candidateFrom = map.docStart + offset;
         let candidateTo = candidateFrom + matchLength;
+        
+        console.log('[findAllTextPositions] Found containing text node:', {
+          map,
+          offset,
+          candidateFrom,
+          candidateTo
+        });
         
         // Verify the end position is correct by checking what's actually at that position
         // and ensuring we don't cross paragraph boundaries
@@ -692,30 +715,187 @@ async function getOrCreateScriptureNote(reference: string, parentThreadId?: stri
 
 // Helper function to convert scripture references to pills using processed results data
 // This is more reliable than parsing HTML since Tiptap may have already parsed/removed spans
+// Helper function to create pending pills for detected scripture references
+// Helper function to create pending pills for detected scripture references
+// This is called after space key press to show visual feedback
+function createPendingPillsForReferences(editor: any, references: ScriptureReference[]) {
+  if (!editor || !references || references.length === 0) {
+    return;
+  }
+  
+  try {
+    const view = editor.view;
+    let state = view.state;
+    let tr = state.tr;
+    let modified = false;
+    
+    // Save the current cursor position
+    const originalCursorPos = state.selection.from;
+    console.log('[createPendingPills] Original cursor at:', originalCursorPos);
+    
+    for (const ref of references) {
+      const reference = ref.reference;
+      if (!reference) continue;
+      
+      const doc = tr.doc;
+      const positions = findAllTextPositions(doc, reference, true);
+      console.log('[createPendingPills] Found positions for', reference, ':', positions);
+      
+      for (let i = positions.length - 1; i >= 0; i--) {
+        const pos = positions[i];
+        
+        try {
+          const $from = doc.resolve(pos.from);
+          const hasPill = $from.marks().some((m: any) => m.type.name === 'scripturePill');
+          
+          if (hasPill) continue;
+          
+          if (!isWithinSingleParagraph(doc, pos.from, pos.to)) continue;
+          const adjustedPos = adjustPositionForParagraphBoundary(doc, pos.from, pos.to);
+          if (!isWithinSingleParagraph(doc, adjustedPos.from, adjustedPos.to)) continue;
+          
+          const markType = state.schema.marks.scripturePill;
+          if (markType) {
+            tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ 
+              reference: reference, 
+              noteId: 'pending' 
+            }));
+            modified = true;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+    
+    if (modified) {
+      tr.setMeta('addToHistory', false);
+      view.dispatch(tr);
+      
+      // Update our local state reference after dispatch
+      state = view.state;
+    }
+    
+    // Position cursor and clear marks
+    setTimeout(() => {
+      if (!editor || editor.isDestroyed) return;
+      
+      const doc = editor.state.doc;
+      const currentPos = editor.state.selection.from;
+      let pillEndPos = currentPos;
+      let foundPill = false;
+      
+      for (let checkPos = Math.max(0, currentPos - 5); checkPos <= Math.min(currentPos + 2, doc.content.size); checkPos++) {
+        try {
+          const $check = doc.resolve(checkPos);
+          if ($check.marks().some((m: any) => m.type.name === 'scripturePill')) {
+            foundPill = true;
+            for (let p = checkPos; p <= doc.content.size; p++) {
+              const $p = doc.resolve(p);
+              if (!$p.marks().some((m: any) => m.type.name === 'scripturePill')) {
+                pillEndPos = Math.max(pillEndPos, p);
+                break;
+              }
+            }
+          }
+        } catch (e) {}
+      }
+      
+      if (foundPill || true) { // Always clear marks after pill creation attempt
+        const targetPos = Math.max(pillEndPos, currentPos);
+        editor.chain()
+          .setTextSelection(targetPos)
+          .unsetMark('scripturePill')
+          .focus()
+          .run();
+      }
+    }, 10);
+    
+  } catch (error) {
+    console.error('Error creating pending pills:', error);
+  }
+}
+
 export async function convertScriptureReferencesToPills(
   editor: any, 
   scriptureResults: Array<{ reference: string; noteId: string }>
 ) {
-  if (!editor || !scriptureResults || scriptureResults.length === 0) {
+  if (!editor) {
     return;
   }
   
   try {
     // Get fresh document state after content was set
     const doc = editor.state.doc;
-    const fullText = doc.textContent;
     
-    // Process each scripture reference from the results
+    // If no results, remove all pending pills (they weren't validated)
+    if (!scriptureResults || scriptureResults.length === 0) {
+      // Remove all pending pills
+      const pendingPills: Array<{from: number, to: number}> = [];
+      
+      doc.descendants((node: any, pos: number) => {
+        if (node.marks) {
+          const pillMark = node.marks.find((m: any) => m.type.name === 'scripturePill');
+          if (pillMark && pillMark.attrs.noteId === 'pending') {
+            pendingPills.push({
+              from: pos,
+              to: pos + node.nodeSize
+            });
+          }
+        }
+      });
+      
+      // Remove invalid pending pills
+      for (let i = pendingPills.length - 1; i >= 0; i--) {
+        const pill = pendingPills[i];
+        const tr = editor.state.tr;
+        tr.removeMark(pill.from, pill.to, editor.state.schema.marks.scripturePill);
+        editor.view.dispatch(tr);
+      }
+      return;
+    }
+    
+    const validReferences = new Set(scriptureResults.map(r => normalizeScriptureReference(r.reference)));
+    
+    // Step 1: Remove pending pills that weren't validated by server
+    const pendingPillsToRemove: Array<{from: number, to: number, reference: string}> = [];
+    
+    doc.descendants((node: any, pos: number) => {
+      if (node.marks) {
+        const pillMark = node.marks.find((m: any) => m.type.name === 'scripturePill');
+        if (pillMark && pillMark.attrs.noteId === 'pending') {
+          const normalizedRef = normalizeScriptureReference(pillMark.attrs.reference);
+          if (!validReferences.has(normalizedRef)) {
+            // This pending pill wasn't validated - mark for removal
+            pendingPillsToRemove.push({
+              from: pos,
+              to: pos + node.nodeSize,
+              reference: pillMark.attrs.reference
+            });
+          }
+        }
+      }
+    });
+    
+    // Remove invalid pending pills
+    for (let i = pendingPillsToRemove.length - 1; i >= 0; i--) {
+      const pill = pendingPillsToRemove[i];
+      const tr = editor.state.tr;
+      tr.removeMark(pill.from, pill.to, editor.state.schema.marks.scripturePill);
+      editor.view.dispatch(tr);
+    }
+    
+    // Step 2: Update pending pills with real noteIds or create new pills
     for (const result of scriptureResults) {
       const { reference, noteId } = result;
       if (!reference || !noteId) {
         continue;
       }
-      
+
       const normalizedRef = normalizeScriptureReference(reference);
       
-      // Find all positions of this reference in the document
-      const positions = findAllTextPositions(doc, reference, true);
+      // Find all positions of this reference in the document (don't skip marked - we need to update pending ones)
+      const positions = findAllTextPositions(doc, reference, false);
       
       if (positions.length === 0) {
         continue;
@@ -729,10 +909,22 @@ export async function convertScriptureReferencesToPills(
         try {
           const $from = doc.resolve(pos.from);
           const marks = $from.marks();
-          const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+          const pillMark = marks.find((m: any) => m.type.name === 'scripturePill');
           
-          if (hasPill) {
-            continue; // Already a pill
+          if (pillMark) {
+            // Already has a pill - check if it's pending and needs updating
+            if (pillMark.attrs.noteId === 'pending') {
+              // Update pending pill with real noteId
+              const tr = editor.state.tr;
+              tr.removeMark(pos.from, pos.to, editor.state.schema.marks.scripturePill);
+              tr.addMark(pos.from, pos.to, editor.state.schema.marks.scripturePill.create({
+                reference: normalizedRef,
+                noteId: noteId
+              }));
+              editor.view.dispatch(tr);
+            }
+            // If it already has a real noteId, skip it
+            continue;
           }
           
           // Validate that the position doesn't span across paragraph boundaries
@@ -1007,7 +1199,8 @@ export async function convertNoteLinksToScripturePills(editor: any) {
     // Check each note-link to see if it references a scripture note
     for (const noteLink of Array.from(noteLinks)) {
       const noteId = (noteLink as HTMLElement).getAttribute('data-note-id');
-      if (!noteId) continue;
+      // Skip if no noteId or if it's a pending pill (not yet saved)
+      if (!noteId || noteId === 'pending') continue;
       
       // Check if this note is a scripture note
       try {
@@ -2271,10 +2464,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // NOTE: beforeinput handler removed - using plugin's handleTextInput instead
       // This prevents conflicts between DOM-level and ProseMirror-level handlers
       handleDOMEvents: {
-        // Log all keyboard events to debug input blocking
-        keydown: (view, event) => {
-          return false; // Let ProseMirror handle it
-        },
         // Let ProseMirror handle all DOM events naturally
         // This ensures cursor placement works correctly on tap
       },
@@ -2340,19 +2529,28 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       },
       handleKeyDown: (view, event) => {
         const editor = editorRef.current;
-        if (!editor) return false;
+        if (!editor) {
+          console.log('[TiptapEditor handleKeyDown] No editor ref');
+          return false;
+        }
         
         // Check if editor is still valid (not destroyed)
-        if (!isEditorValid(editor)) return false;
+        if (!isEditorValid(editor)) {
+          console.log('[TiptapEditor handleKeyDown] Editor not valid');
+          return false;
+        }
         
         // Check if view.docView is still valid (docView exists at runtime but not in TS types)
-        if (!view || !(view as any).docView) return false;
-        
-        // Log for new-note-content editor to debug
-        const editorId = (view.dom as HTMLElement)?.id;
-        if (editorId === 'new-note-content') {
-          // Logging removed for production
+        if (!view || !(view as any).docView) {
+          console.log('[TiptapEditor handleKeyDown] View not valid');
+          return false;
         }
+        
+        // Debug all keypresses
+        const editorId = (view.dom as HTMLElement)?.id;
+        const editable = editor.isEditable;
+        const cursorPos = editor.state.selection.from;
+        console.log('[TiptapEditor handleKeyDown]', event.key, 'editorId:', editorId, 'editable:', editable, 'cursorPos:', cursorPos);
         
         // Handle Cmd+Enter to submit form (dispatch event for parent panels to handle)
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -2397,41 +2595,41 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
         
         // Detect scripture references when space is pressed (before cursor is in a pill)
-        // This provides better UX: user types "John 3:16 " and it converts to a pill immediately
         if (event.key === ' ' && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          // Get text before cursor (back to last space or start of paragraph)
           const doc = view.state.doc;
-          let textStart = from;
+          const $from = view.state.selection.$from;
+          const paragraphStart = $from.start($from.depth);
+          const textStart = Math.max(paragraphStart, from - 60);
           
-          // Find the start of the current word/phrase (back to space or paragraph start)
-          for (let pos = from - 1; pos >= 0; pos--) {
-            try {
-              const $pos = doc.resolve(pos);
-              const char = doc.textBetween(pos, pos + 1);
-              
-              // Stop at space, newline, or paragraph boundary
-              if (char === ' ' || char === '\n' || $pos.parentOffset === 0) {
-                textStart = pos + 1;
-                break;
+          try {
+            const textBeforeCursor = doc.textBetween(textStart, from);
+            if (textBeforeCursor.trim().length > 0) {
+              const references = detectScriptureReferences(textBeforeCursor);
+              if (references.length > 0) {
+                // Synchronously handle the space and the pill creation
+                event.preventDefault();
+                
+                // Create a single transaction for the space insertion
+                const tr = view.state.tr;
+                tr.insertText(' ', from);
+                tr.setStoredMarks([]);
+                view.dispatch(tr);
+                
+                // Immediately create pills for the references found before the space
+                // This now happens after the space is safely in the document
+                console.log('[TiptapEditor] Space inserted, creating pending pills...');
+                createPendingPillsForReferences(editor, references);
+                return true;
               }
-              
-              // Also stop at start of document
-              if (pos === 0) {
-                textStart = 0;
-                break;
-              }
-            } catch (e) {
-              break;
             }
+          } catch (e) {
+            console.error('[TiptapEditor] Error in space detection:', e);
           }
-          
-          // Get the potential scripture reference text
-          const potentialReference = doc.textBetween(textStart, from);
-          
-          // Scripture detection removed - now happens on save only
         }
         
         if (scripturePillMark) {
+          console.log('[TiptapEditor] Cursor has pill mark, key:', event.key, 'noteId:', scripturePillMark.attrs.noteId, 'from:', from, 'to:', to);
+          
           // Helper to check if entire pill is selected
           const isEntirePillSelected = (doc: any, from: number, to: number): boolean => {
             const boundaries = findPillBoundaries(doc, from);
@@ -2440,6 +2638,52 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           };
           
           const boundaries = findPillBoundaries(view.state.doc, from);
+          console.log('[TiptapEditor] Pill boundaries:', boundaries);
+          
+          // CRITICAL: Check if cursor is at the END boundary of the pill
+          // The key insight: check if NEXT position does NOT have a pill mark
+          let atEndOfPill = false;
+          let nextHasPill = true; // default to true (inside pill)
+          
+          if (boundaries) {
+            try {
+              // Check if next position exists and doesn't have pill mark
+              if (from < view.state.doc.content.size) {
+                const $next = view.state.doc.resolve(from + 1);
+                const nextMarks = $next.marks();
+                nextHasPill = nextMarks.some((m: any) => m.type.name === 'scripturePill');
+                
+                console.log('[TiptapEditor] Next position has pill?', nextHasPill, 'from:', from, 'boundaries.end:', boundaries.end);
+                
+                // If next doesn't have pill AND we're at or past the boundary, we're truly after the pill
+                if (!nextHasPill && from >= boundaries.end - 1) {
+                  atEndOfPill = true;
+                }
+              } else {
+                // At end of document
+                console.log('[TiptapEditor] At end of document, from:', from, 'boundaries.end:', boundaries.end);
+                if (from >= boundaries.end) {
+                  atEndOfPill = true;
+                  nextHasPill = false;
+                }
+              }
+            } catch (e) {
+              console.error('[TiptapEditor] Error checking next position:', e);
+              // If we can't check next position, we're probably at the end of doc
+              if (from >= boundaries.end) {
+                atEndOfPill = true;
+              }
+            }
+          }
+          
+          console.log('[TiptapEditor] At end of pill?', atEndOfPill, 'nextHasPill:', nextHasPill);
+          
+          if (atEndOfPill) {
+            console.log('[TiptapEditor] ✓ Cursor at END of pill, allowing typing');
+            return false; // Let ProseMirror handle the character insertion
+          }
+          
+          console.log('[TiptapEditor] ✗ Cursor INSIDE pill, will handle specially');
           
           if (boundaries) {
             // Handle Tab and Space to exit scripture pills
@@ -2479,22 +2723,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               // If entire pill is selected, allow normal deletion (return false)
             }
             
-            // Prevent all text input when cursor is inside a pill (not entire selection)
-            if (from === to) {
-              // Check if this is a printable character (not a control key)
-              const isControlKey = event.key.length > 1 || 
-                ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(event.key);
-              
-              if (!isControlKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-                // Move cursor to end of pill and clear marks before typing
-                editor.chain()
-                  .setTextSelection(boundaries.end)
-                  .unsetAllMarks()
-                  .run();
-                // Then allow the character to be typed (return false to allow default)
-                return false;
-              }
+          if (from === to) {
+            // Check if this is a printable character (not a control key)
+            const isControlKey = event.key.length > 1 || 
+              ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(event.key);
+            
+            if (!isControlKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+              console.log('[TiptapEditor] Printable char inside pill, moving cursor to:', boundaries.end);
+              // Move cursor to end of pill and then let ProseMirror handle character insertion
+              editor.chain()
+                .setTextSelection(boundaries.end)
+                .run();
+              return false;
             }
+          }
           }
         }
         

@@ -1650,7 +1650,10 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
       if (!aTime && !bTime) return 0;
       if (!aTime) return 1; // null lastVisited goes after
       if (!bTime) return -1; // null lastVisited goes after
-      return bTime.getTime() - aTime.getTime(); // Newest first
+      // Ensure dates are Date objects before calling getTime()
+      const aDate = aTime instanceof Date ? aTime : new Date(aTime);
+      const bDate = bTime instanceof Date ? bTime : new Date(bTime);
+      return bDate.getTime() - aDate.getTime(); // Newest first
     });
 
     // Apply limit after sorting

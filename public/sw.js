@@ -349,176 +349,205 @@ const fetchWithRetry = async (request, maxRetries = 5) => {
 };
 
 // Helper to create a network error page
-// Shows a user-friendly error message - authentication redirects are handled by middleware
+// Shows a user-friendly loading state that feels like part of the app
 const createNetworkErrorPage = (currentUrl, isPostSignIn = false) => {
   return `<!DOCTYPE html>
 <html>
 <head>
-  <title>Network Error</title>
+  <title>Warming Up - Harvous</title>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover">
   <style>
+    :root {
+      --color-light-paper: #F3F2EC;
+      --color-paper: #E8E6DF;
+      --color-text-main: #4a473d;
+      --color-text-secondary: #78766f;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-family: var(--font-sans);
+      margin: 0;
+      padding: 0;
+      background: var(--color-light-paper);
+      color: var(--color-text-main);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .skeleton-header {
+      height: 64px;
+      background: white;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
       display: flex;
       align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
-      background: #f5f5f5;
+      padding: 0 20px;
     }
-    .error-container {
+    .skeleton-sidebar {
+      width: 260px;
+      background: white;
+      border-right: 1px solid rgba(0,0,0,0.05);
+      display: none;
+    }
+    @media (min-width: 1160px) {
+      .skeleton-sidebar { display: block; }
+    }
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
       text-align: center;
+    }
+    .warmup-container {
+      max-width: 400px;
       background: white;
       padding: 40px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      max-width: 500px;
+      border-radius: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+    }
+    .loader {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--color-paper);
+      border-top: 3px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 24px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
     h1 {
-      color: #333;
-      margin: 0 0 16px 0;
+      font-size: 20px;
+      margin: 0 0 12px;
+      font-weight: 600;
     }
     p {
-      color: #666;
-      margin: 0 0 24px 0;
+      font-size: 15px;
+      color: var(--color-text-secondary);
       line-height: 1.5;
+      margin: 0 0 24px;
     }
-    .status-message {
-      color: #888;
-      font-size: 14px;
-      margin: 16px 0;
-      min-height: 20px;
+    .progress-bar {
+      height: 6px;
+      background: var(--color-paper);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 8px;
     }
-    .retry-countdown {
-      color: #007bff;
-      font-weight: 500;
+    .progress-fill {
+      height: 100%;
+      background: #007bff;
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+    .status-text {
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 24px;
+    }
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
     button {
       background: #007bff;
       color: white;
       border: none;
-      padding: 12px 24px;
-      border-radius: 6px;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
       cursor: pointer;
-      font-size: 16px;
-      margin: 8px;
-      transition: background 0.2s;
+      transition: all 0.2s;
     }
-    button:hover {
-      background: #0056b3;
-    }
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-    .button-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      align-items: center;
-    }
-    @media (min-width: 480px) {
-      .button-group {
-        flex-direction: row;
-        justify-content: center;
-      }
+    button:active { transform: scale(0.98); }
+    button.secondary {
+      background: var(--color-paper);
+      color: var(--color-text-main);
     }
   </style>
 </head>
 <body>
-  <div class="error-container">
-    <h1>Network Error</h1>
-    <p>${isPostSignIn 
-      ? 'The server is warming up after a period of inactivity. This usually takes 10-30 seconds. Please wait while we reconnect...'
-      : 'Unable to connect to the server. The server may be warming up after a period of inactivity.'}</p>
-    <div class="status-message" id="statusMessage"></div>
-    <div class="button-group">
-      <button id="retryButton" onclick="retryConnection()">Retry Now</button>
-      <button onclick="window.location.reload()">Reload Page</button>
+  <div class="skeleton-header">
+    <div style="width: 32px; height: 32px; background: var(--color-paper); border-radius: 8px;"></div>
+  </div>
+  <div style="display: flex; flex: 1;">
+    <div class="skeleton-sidebar"></div>
+    <div class="main-content">
+      <div class="warmup-container">
+        <div class="loader"></div>
+        <h1>Almost there...</h1>
+        <p>Your Harvous is warming up after its rest. This usually takes about 10-20 seconds.</p>
+        
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="status-text" id="statusText">Preparing your notes...</div>
+        
+        <div class="button-group">
+          <button id="retryButton" onclick="manualRetry()">Retry Now</button>
+          <button class="secondary" onclick="window.location.reload()">Reload Page</button>
+        </div>
+      </div>
     </div>
   </div>
+
   <script>
-    let retryCount = 0;
-    let autoRetryTimeout = null;
-    let countdownInterval = null;
-    const maxRetries = 5;
-    const retryDelays = [2000, 4000, 8000, 16000, 30000]; // Exponential backoff
+    let progress = 0;
+    const progressFill = document.getElementById('progressFill');
+    const statusText = document.getElementById('statusText');
+    const statusMessages = [
+      "Waking up the server...",
+      "Connecting to database...",
+      "Fetching your latest notes...",
+      "Organizing your thoughts...",
+      "Almost ready..."
+    ];
     
-    function updateStatus(message, showCountdown = false) {
-      const statusEl = document.getElementById('statusMessage');
-      if (showCountdown && retryCount < maxRetries) {
-        let countdown = retryDelays[retryCount] / 1000;
-        statusEl.innerHTML = message + ' <span class="retry-countdown">(Retrying in ' + countdown + 's...)</span>';
-        
-        if (countdownInterval) clearInterval(countdownInterval);
-        countdownInterval = setInterval(() => {
-          countdown--;
-          if (countdown > 0) {
-            statusEl.innerHTML = message + ' <span class="retry-countdown">(Retrying in ' + countdown + 's...)</span>';
-          } else {
-            clearInterval(countdownInterval);
-            statusEl.innerHTML = message + ' <span class="retry-countdown">(Retrying now...)</span>';
-          }
-        }, 1000);
-      } else {
-        statusEl.textContent = message;
-      }
-    }
-    
-    function retryConnection() {
-      if (retryCount >= maxRetries) {
-        updateStatus('Maximum retry attempts reached. Please reload the page.');
-        return;
-      }
+    const interval = setInterval(() => {
+      progress += (100 - progress) * 0.1;
+      progressFill.style.width = progress + '%';
       
-      const button = document.getElementById('retryButton');
-      button.disabled = true;
-      updateStatus('Attempting to reconnect... (Attempt ' + (retryCount + 1) + ' of ' + maxRetries + ')', false);
+      const msgIndex = Math.min(Math.floor(progress / 20), statusMessages.length - 1);
+      statusText.textContent = statusMessages[msgIndex];
       
-      // Try to fetch the page
-      fetch(window.location.href, { 
-        method: 'GET',
-        cache: 'no-store',
-        credentials: 'include'
-      })
-        .then(response => {
-          if (response.ok) {
-            // Success - reload the page
-            window.location.reload();
-          } else {
-            throw new Error('Response not ok: ' + response.status);
-          }
+      if (progress > 95) clearInterval(interval);
+    }, 1000);
+
+    function checkConnection() {
+      fetch(window.location.href, { method: 'HEAD', cache: 'no-store' })
+        .then(res => {
+          if (res.ok) window.location.reload();
         })
-        .catch(error => {
-          retryCount++;
-          if (retryCount < maxRetries) {
-            const delay = retryDelays[retryCount - 1];
-            updateStatus('Connection failed. Retrying... (Attempt ' + retryCount + ' of ' + maxRetries + ')', true);
-            button.disabled = false;
-            autoRetryTimeout = setTimeout(retryConnection, delay);
-          } else {
-            updateStatus('Unable to connect after ' + maxRetries + ' attempts. Please check your internet connection and try reloading.');
-            button.disabled = false;
-            button.textContent = 'Try Again';
-          }
+        .catch(() => {});
+    }
+
+    // Auto-check connection every 3 seconds
+    const checkInterval = setInterval(checkConnection, 3000);
+
+    function manualRetry() {
+      const btn = document.getElementById('retryButton');
+      btn.disabled = true;
+      btn.textContent = "Checking...";
+      
+      fetch(window.location.href, { method: 'GET', cache: 'no-store', credentials: 'include' })
+        .then(res => {
+          if (res.ok) window.location.reload();
+          else throw new Error();
+        })
+        .catch(() => {
+          btn.disabled = false;
+          btn.textContent = "Retry Now";
+          alert("Still warming up. Please wait a moment longer.");
         });
     }
-    
-    // Auto-retry on page load if post-sign-in
-    if (${isPostSignIn ? 'true' : 'false'}) {
-      updateStatus('Waiting for server to warm up...', true);
-      autoRetryTimeout = setTimeout(retryConnection, retryDelays[0]);
-    } else {
-      updateStatus('Click "Retry Now" to attempt reconnection.');
-    }
-    
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', () => {
-      if (autoRetryTimeout) clearTimeout(autoRetryTimeout);
-      if (countdownInterval) clearInterval(countdownInterval);
-    });
   </script>
 </body>
 </html>`;
