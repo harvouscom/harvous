@@ -170,91 +170,48 @@ Implement real-time detection so pills appear while typing (debounced), providin
 
 ---
 
-## Key Issues Encountered
+### Attempt 9: Synchronous Atomic Transactions & Mark Exclusion (SUCCESS)
 
-### 1. Mobile vs Desktop Timing Differences
+**What we tried:**
+- Moved detection from `onUpdate` to a synchronous `handleKeyDown` trigger on the `Space` key.
+- Implemented a "Pending" state (`noteId: 'pending'`) to decouple UI feedback from server operations.
+- Used **Atomic Transactions**: The space is inserted and pills are created in a coordinated sequence within the same event cycle.
+- **Mark Exclusion**: Set `inclusive: false` and `excludes: '_'` on the `scripturePill` mark.
+- Removed all complex background plugins (`handleTextInput`, `filterTransaction`, etc.) that were causing "gridlock".
+- Applied `cursor: pointer !important` via global CSS to ensure consistent "link" feedback.
 
-**Problem:** Mobile browsers process events differently than desktop, causing timing issues.
+**What worked:**
+- ✅ **Perfect Typing Flow**: Users can keep typing immediately after a pill is created without any dropped characters or blocking.
+- ✅ **No Stickiness**: New text never inherits the pill formatting thanks to `excludes: '_'`.
+- ✅ **Multi-word Detection**: Can detect "John 3:16" by looking back up to 60 characters on space press.
+- ✅ **Reliable Navigation**: Pending pills are visually identical but don't trigger 404s when clicked.
+- ✅ **Mobile Compatible**: By avoiding async `setTimeout` loops for core logic, it respects mobile event timings.
 
-**Attempted solutions:**
-- Mobile-specific delays
-- Multiple verification checks
-- Conservative injection logic
-
-**Result:** Never fully resolved.
-
-### 2. Transaction Processing Race Conditions
-
-**Problem:** Multiple ProseMirror transactions (pill creation, cursor positioning, stored marks clearing) happening simultaneously interfered with keyboard input.
-
-**Attempted solutions:**
-- Set flag after transactions settle
-- Use `requestAnimationFrame` to ensure processing
-- Simplify transaction logic
-
-**Result:** Partially resolved on desktop, never on mobile.
-
-### 3. Event Propagation Issues
-
-**Problem:** Keyboard events not reaching ProseMirror after pill creation, especially in form contexts.
-
-**Attempted solutions:**
-- Document-level event listeners
-- Fallback injection mechanism
-- Focus restoration
-
-**Result:** Worked on desktop, unreliable on mobile.
-
-### 4. Flag Timing Race Conditions
-
-**Problem:** `justCreatedPill` flag cleared or checked at wrong times, causing missed injections.
-
-**Attempted solutions:**
-- Store flag value immediately
-- Don't clear flag prematurely
-- Use longer flag duration (500ms)
-
-**Result:** Improved but not fully resolved.
+**The "Magic" Solves:**
+1. **`inclusive: false`**: Prevents the mark from "stretching" as you type after it.
+2. **`excludes: '_'`**: The "nuclear option" that prevents any other mark (including itself) from overlapping, which kills the "stickiness" that previously blocked the cursor.
+3. **Synchronous Execution**: Creating the pill *immediately* after the space insertion in the `keydown` handler ensures ProseMirror's internal state is never "surprised" by async changes.
 
 ---
 
-## What We Learned
+## Key Issues Encountered (and how they were finally solved)
 
-### 1. Real-Time Detection is Complex
+### 1. Mobile vs Desktop Timing Differences
+**Final Solution:** Eliminated `onUpdate` debouncing for creation. By using the `Space` key as a discrete trigger, we aligned with how both desktop and mobile browsers process "completed" words.
 
-Creating pills while typing introduces many edge cases:
-- Transaction timing
-- Event propagation
-- Mobile browser differences
-- Race conditions
+### 2. Transaction Processing Race Conditions
+**Final Solution:** Unified pill creation into a single transaction dispatch. Instead of multiple small updates, we accumulate all changes and apply them at once, keeping the Undo/Redo history clean and the cursor stable.
 
-### 2. Mobile Browsers Are Different
+### 3. Event Propagation Issues (Typing Blocked)
+**Final Solution:** This was actually a "Mark Stickiness" issue. ProseMirror was getting stuck inside a mark that it thought should continue. `excludes: '_'` and `inclusive: false` solved this at the schema level rather than the event level.
 
-Mobile browsers (especially iOS Safari) handle:
-- Keyboard events differently
-- Transaction processing differently
-- Focus management differently
+---
 
-This made it extremely difficult to create a solution that worked reliably on both desktop and mobile.
+## What We Learned (Updated)
 
-### 3. Form Contexts Add Complexity
-
-Form contexts (like `NewNotePanel`) add additional complexity:
-- Event propagation through form elements
-- Focus management
-- Multiple event handlers competing
-
-### 4. ProseMirror Transactions Are Async
-
-Even though `dispatch(tr)` appears synchronous, the actual processing and DOM updates are async, making timing critical.
-
-### 5. Simpler is Better
-
-The original button-only approach is simpler and more reliable:
-- No timing issues
-- No race conditions
-- Works consistently on all platforms
-- Easier to maintain
+1. **Schema over Scripts**: Solving "stickiness" via mark properties (`inclusive`, `excludes`) is 100x more reliable than trying to manage cursor positions with `setTimeout`.
+2. **Pending States are King**: Visualizing the pill immediately but deferring the DB work to the "Save" action removes all latency and 404 risks.
+3. **Atomic is Better**: If you change the document, do it all in one transaction or one `editor.chain()`. Split transactions lead to race conditions.
 
 ---
 
