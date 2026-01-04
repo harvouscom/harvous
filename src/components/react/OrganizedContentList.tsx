@@ -146,7 +146,11 @@ export default function OrganizedContentList({
         // Determine limit based on filter
         const limit = currentFilter === 'scripture' ? 200 : 100;
 
-        const url = new URL('/api/content/load-more', window.location.origin);
+        const origin = window.location.origin && window.location.origin !== 'null' 
+          ? window.location.origin 
+          : window.location.protocol + '//' + window.location.host;
+
+        const url = new URL('/api/content/load-more', origin);
         url.searchParams.set('offset', '0');
         url.searchParams.set('limit', limit.toString());
         url.searchParams.set('filter', currentFilter);
@@ -327,6 +331,9 @@ export default function OrganizedContentList({
     if (filter === 'scripture' && isMountedRef.current) {
       setCurrentItems([]);
       currentItemsRef.current = [];
+      // Set hasMore to true for scripture tab so it can load the initial batch
+      setHasMore(true);
+      hasMoreRef.current = true;
       refreshContent();
     }
   }, [filter, refreshContent]);
@@ -635,9 +642,20 @@ export default function OrganizedContentList({
       const inPWA = isPWA();
       const dataIsStale = isStaleData(initialItems, (item) => item.lastUpdated || item.lastVisited);
       const referrer = document.referrer;
+      const origin = window.location.origin && window.location.origin !== 'null' 
+        ? window.location.origin 
+        : window.location.protocol + '//' + window.location.host;
+        
       const cameFromNotePage = referrer && (
         referrer.includes('/note_') || 
-        new URL(referrer).pathname.startsWith('/note_')
+        (() => {
+          try {
+            // Always provide a base for relative referrers to avoid Safari "pattern" error
+            return new URL(referrer, origin).pathname.startsWith('/note_');
+          } catch (e) {
+            return false;
+          }
+        })()
       );
       const previousWasNote = previousPathnameRef.current.startsWith('/note_');
 
@@ -743,10 +761,13 @@ export default function OrganizedContentList({
     const inCooldown = timeSinceRefresh < 500;
 
     if (refreshStateRef.current.isRefreshing || inCooldown) {
-      return { items: [], hasMore: hasMoreRef.current };
+      // If we're currently refreshing or in cooldown, return empty but set hasMore to false 
+      // temporarily to prevent InfiniteScrollList from immediately re-triggering.
+      // The hasMore state will be correctly restored once the refresh completes.
+      return { items: [], hasMore: false };
     }
 
-    const url = new URL('/api/content/load-more', window.location.origin);
+    const url = new URL('/api/content/load-more', window.location.origin && window.location.origin !== 'null' ? window.location.origin : window.location.href);
     url.searchParams.set('offset', offset.toString());
     url.searchParams.set('limit', limit.toString());
     url.searchParams.set('filter', currentFilter);

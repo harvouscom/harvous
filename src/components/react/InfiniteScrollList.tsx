@@ -44,11 +44,16 @@ export default function InfiniteScrollList<T>({
 
   // Helper function to check if element is visible
   const isElementVisible = useCallback((element: HTMLElement | null): boolean => {
-    if (!element) return false;
+    if (!element || !element.isConnected) return false;
     
     // Check if element has display: none or visibility: hidden
-    const style = window.getComputedStyle(element);
-    if (style.display === 'none' || style.visibility === 'hidden') {
+    try {
+      const style = window.getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden') {
+        return false;
+      }
+    } catch (e) {
+      // In some browsers, getComputedStyle can throw if element is not in DOM
       return false;
     }
     
@@ -171,7 +176,10 @@ export default function InfiniteScrollList<T>({
           handleLoadMore();
         }
       },
-      { rootMargin: `${threshold}px` }
+      { 
+        // Use full margin string for better compatibility across browsers (especially Safari)
+        rootMargin: `${threshold}px 0px ${threshold}px 0px` 
+      }
     );
 
     const currentTarget = observerTarget.current;
