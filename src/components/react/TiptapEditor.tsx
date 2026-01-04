@@ -484,15 +484,55 @@ function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean 
           break;
         }
         
-        // Check if this position already has a scripture pill mark
+        // Check if this position already has a scripture pill mark or overlaps with existing pills
         if (skipMarked) {
           try {
-            const $from = doc.resolve(candidateFrom);
-            const marks = $from.marks();
-            const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
+            // Check multiple positions within the match to catch pills that might span part of it
+            let hasPill = false;
+            const checkPositions = [
+              candidateFrom,
+              candidateFrom + Math.floor((candidateTo - candidateFrom) / 2),
+              candidateTo - 1
+            ];
+            
+            for (const checkPos of checkPositions) {
+              try {
+                const $check = doc.resolve(checkPos);
+                const marks = $check.marks();
+                if (marks.some((m: any) => m.type.name === 'scripturePill')) {
+                  hasPill = true;
+                  break;
+                }
+              } catch (e) {
+                // If we can't resolve, continue checking other positions
+              }
+            }
+            
             if (hasPill) {
-              // Skip this position
+              // Skip this position - it's already inside a pill
               continue;
+            }
+            
+            // Also check if this position overlaps with any existing pill boundaries
+            // by checking positions just before and after the match
+            const checkBefore = Math.max(0, candidateFrom - 1);
+            const checkAfter = Math.min(doc.content.size, candidateTo + 1);
+            
+            try {
+              const $before = doc.resolve(checkBefore);
+              const $after = doc.resolve(checkAfter);
+              const marksBefore = $before.marks();
+              const marksAfter = $after.marks();
+              
+              // If positions immediately before or after have pills, this might overlap
+              if (marksBefore.some((m: any) => m.type.name === 'scripturePill') ||
+                  marksAfter.some((m: any) => m.type.name === 'scripturePill')) {
+                // Check if the pill extends into our match area
+                // If so, skip to avoid overlapping pills
+                continue;
+              }
+            } catch (e) {
+              // If we can't check, continue anyway
             }
           } catch (e) {
             // If we can't resolve, skip it
@@ -1266,6 +1306,42 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
         }, 500);
       }
       
+      // Helper function to validate reference context before creating pill
+      // This is a conservative check - only rejects clear false positives
+      // The main validation happens in scripture-detector.ts, this is a secondary check
+      const validateReferenceContext = (doc: any, from: number, to: number, refText: string): boolean => {
+        try {
+          // Get text around the reference position
+          const fullText = doc.textContent;
+          const textBefore = fullText.substring(Math.max(0, from - 30), from).trim();
+          const textAfter = fullText.substring(to, Math.min(to + 30, fullText.length)).trim();
+          
+          // Only check for very clear false positives
+          // Pattern like "John 3 years ago" - check for number + time word + "ago"
+          const falsePositivePattern = /^\s*(years?|months?|days?|dollars?|people|times?|hours?|minutes?|seconds?|weeks?)\s+(ago|later|before|after)\b/i;
+          if (falsePositivePattern.test(textAfter)) {
+            // Check if reference is chapter-only (no colon) - more likely to be false positive
+            if (!refText.includes(':')) {
+              return false; // Likely false positive like "John 3 years ago"
+            }
+          }
+          
+          // Check for "Book Number" followed immediately by time/quantity words (no space)
+          // This catches cases where regex matched but it's actually part of a phrase
+          const immediateFalsePositive = /^(years?|months?|days?|dollars?|people)\b/i;
+          if (immediateFalsePositive.test(textAfter) && !refText.includes(':')) {
+            // Chapter-only reference followed by quantity word - likely false positive
+            return false;
+          }
+          
+          // Default: allow the reference (be permissive - main validation is in scripture-detector.ts)
+          return true;
+        } catch (e) {
+          // If we can't validate, allow it (safer to allow than block)
+          return true;
+        }
+      };
+      
       // Process each occurrence
       // Note: We process in reverse order (from end to start) to avoid position shifts
       // when marks are applied, since applying a mark doesn't change document size
@@ -1275,6 +1351,12 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
         
         // Get fresh document state after previous mark applications
         const currentDoc = editor.state.doc;
+        
+        // Validate reference context before creating pill
+        if (!validateReferenceContext(currentDoc, positions.from, positions.to, reference)) {
+          // Skip this position - it's not in a valid scripture context
+          continue;
+        }
         
         // Double-check that this position doesn't already have a pill mark
         // (in case it was marked between when we found it and now)
@@ -2229,7 +2311,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             debounceTimerRef.current = null;
           }
           
-          // Set new debounce timer (600ms delay)
+          // Editor-specific debounce: longer for editing existing notes (CardFullEditable)
+          // This prevents false positives when editing existing content
+          const isEditingExistingNote = id === 'edit-note-content';
+          const debounceDelay = isEditingExistingNote ? 1000 : 600; // 1000ms for editing, 600ms for new notes
+          
+          // Track cursor position and time for active editing detection
+          const cursorTrackingRef = { lastPos: from, lastTime: Date.now() };
+          
+          // Set new debounce timer
           debounceTimerRef.current = setTimeout(async () => {
             // Double-check editor is still valid and focused
             // In form contexts, check both editor.isFocused and DOM focus
@@ -2240,8 +2330,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             
             // Check if cursor position changed significantly (user kept typing)
             const currentPos = editor.state.selection.anchor;
-            if (Math.abs(currentPos - from) > 5) {
-              // Cursor moved significantly, user is still typing - skip this detection
+            const cursorMovement = Math.abs(currentPos - from);
+            
+            // For editing existing notes, be more conservative - require cursor to be stable
+            if (isEditingExistingNote && cursorMovement > 10) {
+              // Cursor moved significantly, user is actively editing - skip this detection
+              return;
+            } else if (!isEditingExistingNote && cursorMovement > 5) {
+              // For new notes, allow slightly more movement
               return;
             }
             
@@ -2251,6 +2347,38 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             if (currentHash !== contentHash) {
               // Content changed, user is still typing - skip this detection
               return;
+            }
+            
+            // Additional check: if cursor is inside or immediately after a pill, skip detection
+            // This prevents detection when user is editing near existing pills
+            try {
+              const $current = editor.state.doc.resolve(currentPos);
+              const marks = $current.marks();
+              const isInsidePill = marks.some((m: any) => m.type.name === 'scripturePill');
+              
+              // Also check if cursor is immediately after a pill (within 5 positions)
+              let isNearPill = false;
+              if (!isInsidePill && currentPos > 0) {
+                for (let checkPos = Math.max(0, currentPos - 5); checkPos < currentPos; checkPos++) {
+                  try {
+                    const $check = editor.state.doc.resolve(checkPos);
+                    const checkMarks = $check.marks();
+                    if (checkMarks.some((m: any) => m.type.name === 'scripturePill')) {
+                      isNearPill = true;
+                      break;
+                    }
+                  } catch (e) {
+                    // Skip if we can't resolve
+                  }
+                }
+              }
+              
+              if (isInsidePill || isNearPill) {
+                // Cursor is inside or near a pill - skip detection to avoid breaking existing pills
+                return;
+              }
+            } catch (e) {
+              // If we can't check, continue anyway
             }
             
             // Mark as detecting to prevent concurrent detections
@@ -2269,7 +2397,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               // This ensures typing can continue even if detection fails
               isDetectingRef.current = false;
             }
-          }, 600); // 600ms debounce delay
+          }, debounceDelay);
         }
       }
     },

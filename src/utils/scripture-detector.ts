@@ -320,6 +320,80 @@ const parseReference = (match: string): ScriptureReference | null => {
   return null;
 };
 
+// Validate if a detected reference is in a valid scripture context
+// Rejects matches that are part of larger phrases (e.g., "John 3 years ago")
+// This is a conservative check - only rejects clear false positives
+function isValidScriptureContext(text: string, matchIndex: number, matchLength: number): boolean {
+  const before = text.substring(Math.max(0, matchIndex - 30), matchIndex).trim();
+  const after = text.substring(matchIndex + matchLength, matchIndex + matchLength + 30).trim();
+  
+  // Check if followed by common non-scripture words that indicate it's not a reference
+  // Only check for words that are VERY likely to be false positives
+  // Use word boundary to ensure we match whole words, not parts of words
+  const invalidAfterPattern = /\b(years?|months?|days?|dollars?|people|times?|hours?|minutes?|seconds?|weeks?)\s+(ago|later|before|after)\b/i;
+  if (invalidAfterPattern.test(after)) {
+    // Pattern like "3 years ago" or "5 dollars" - clear false positive
+    return false;
+  }
+  
+  // Check for specific false positive patterns
+  // "John 3 years" - the word "years" immediately after a number
+  const falsePositivePattern = /^\s*(years?|months?|days?|dollars?|people|times?|hours?|minutes?|seconds?|weeks?)\b/i;
+  if (falsePositivePattern.test(after)) {
+    // Check if the reference ends with just a number (chapter-only pattern)
+    // This catches "John 3 years" but allows "John 3:16 years" (though that's also unlikely)
+    const refText = text.substring(matchIndex, matchIndex + matchLength);
+    // If reference is just "Book Number" (no colon), and followed by "years", it's likely false
+    if (!refText.includes(':') && falsePositivePattern.test(after)) {
+      return false;
+    }
+  }
+  
+  // Valid references should be followed by punctuation, newline, space, or end of text
+  // Allow most characters after - only reject if it's clearly part of a word
+  const firstCharAfter = after.charAt(0);
+  
+  // If there's no text after, it's valid (end of text)
+  if (!firstCharAfter) {
+    return true;
+  }
+  
+  // If it's a space, punctuation, or newline, it's valid
+  const validAfterChars = /^[.,;:!?\s\n]/;
+  if (validAfterChars.test(firstCharAfter)) {
+    return true;
+  }
+  
+  // If it's a lowercase letter immediately after (no space), it might be part of a word
+  // But be conservative - only reject if it's clearly part of a word
+  // For example, "John 3:16is" would be invalid, but "John 3:16 is" is valid (space before "is")
+  // Since we already checked for space above, if we get here and it's lowercase, it might be invalid
+  // But be very conservative - only reject if it's a common word pattern
+  if (/^[a-z]/.test(after)) {
+    // Check if it's a common word that would make it a false positive
+    const commonWordsAfter = /^(is|are|was|were|has|have|had|will|would|can|could|should|may|might)\b/i;
+    if (commonWordsAfter.test(after)) {
+      // This is likely a false positive like "John 3 is" (though "John 3:16 is" should be valid)
+      // But since there's no space, it's probably "John 3is" which is invalid
+      // Actually, if there's no space, the regex wouldn't have matched "John 3" in the first place
+      // So this is probably safe to allow
+      return true; // Allow it - the regex matching already ensures proper spacing
+    }
+  }
+  
+  // Check if preceded by words that make it part of a phrase
+  // Only reject if it's clearly a prepositional phrase
+  const invalidBefore = /\b(about|around|over|under|near|from|to|at|in|on|for|with|by)\s+$/i;
+  if (invalidBefore.test(before)) {
+    // But allow if it's part of a valid phrase like "referring to John 3:16"
+    // Actually, this is probably a false positive, so reject it
+    return false;
+  }
+  
+  // Default: allow the reference (be permissive)
+  return true;
+}
+
 // Detect scripture references in text
 export const detectScriptureReferences = (text: string): ScriptureReference[] => {
   const references: ScriptureReference[] = [];
@@ -418,6 +492,12 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
     
     const extracted = parseReference(fullMatch);
     if (extracted) {
+      // Context validation: Check if this match is in a valid scripture context
+      if (!isValidScriptureContext(text, match.index, fullMatch.length)) {
+        // Skip this match - it's likely a false positive (e.g., "John 3 years ago")
+        continue;
+      }
+      
       // Validation: Ensure the verse number in the parsed reference matches what was in the original match
       // This prevents issues where "John 1:14" might be incorrectly parsed as "John 1:1"
       const versePartInMatch = fullMatch.match(/:\s*(\d+)/);
@@ -472,6 +552,12 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
 
   // Next, find chapter range references (e.g., "Matthew 5-7")
   while ((match = chapterRangePattern.exec(text)) !== null) {
+    // Context validation: Check if this match is in a valid scripture context
+    if (!isValidScriptureContext(text, match.index, match[0].length)) {
+      // Skip this match - it's likely a false positive
+      continue;
+    }
+    
     const bookPart = match[1].trim();
     const chapterStart = parseInt(match[2]);
     const chapterEnd = parseInt(match[3]);
@@ -509,6 +595,13 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
 
   // Finally, find single chapter references (e.g., "Matthew 5")
   while ((match = chapterOnlyPattern.exec(text)) !== null) {
+    // Context validation: Check if this match is in a valid scripture context
+    // This is especially important for chapter-only patterns which are more prone to false positives
+    if (!isValidScriptureContext(text, match.index, match[0].length)) {
+      // Skip this match - it's likely a false positive (e.g., "John 3 years ago")
+      continue;
+    }
+    
     const bookPart = match[1].trim();
     const chapter = parseInt(match[2]);
     

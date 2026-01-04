@@ -856,7 +856,13 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
   // FALLBACK: Manually inject keyboard events to ProseMirror if they don't reach it naturally
   // This is needed because events are being stopped between container and editor DOM
   useEffect(() => {
+    // Detect mobile devices (iOS and Android)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPad on iOS 13+
+    
     let pendingEvents: Array<{ key: string; timestamp: number; beforeLength: number; beforeCursor: number }> = [];
+    // Track injected events to prevent double injection
+    const injectedEvents = new Set<string>();
     
     const handleDocumentKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -909,66 +915,128 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
         // Check if we just created a pill - if so, inject immediately without waiting
         const justCreatedPill = (editor as any).__justCreatedPill === true;
         
-        // Check immediately if content changed (no delay - inject right away if needed)
-        requestAnimationFrame(() => {
-          if (!editor || editor.isDestroyed) return;
-          
-          const afterLength = editor.state.doc.textContent.length;
-          const afterCursor = editor.state.selection.anchor;
-          
-          // If we just created a pill OR content didn't change and cursor didn't move, inject immediately
-          const shouldInject = justCreatedPill || (afterLength === beforeLength && afterCursor === beforeCursor);
-          
-          if (shouldInject) {
-            const eventToInject = pendingEvents.find(ev => ev.key === e.key && Date.now() - ev.timestamp < 100);
+        // Check if event was already processed by ProseMirror
+        const wasProcessed = e.defaultPrevented;
+        
+        // Create a unique key for this event to track injections
+        const eventKey = `${e.key}-${e.timeStamp}-${beforeLength}-${beforeCursor}`;
+        
+        // On mobile, use longer delays and multiple checks
+        // On desktop, use requestAnimationFrame for immediate check
+        const checkIfNeedsInjection = (delay: number, checkNumber: number = 1) => {
+          setTimeout(() => {
+            if (!editor || editor.isDestroyed) return;
             
-            if (eventToInject) {
-              try {
-                // Handle different key types
-                if (isBackspace) {
-                  // For Backspace: delete selection if exists, otherwise delete character before cursor
-                  const { from, to } = editor.state.selection;
-                  if (from !== to) {
-                    // There's a selection, delete it
-                    editor.commands.deleteSelection();
-                  } else if (from > 0) {
-                    // No selection, delete one character before cursor
-                    editor.commands.deleteRange({ from: from - 1, to: from });
-                  }
-                } else if (isDelete) {
-                  // For Delete: delete selection if exists, otherwise delete character after cursor
-                  const { from, to } = editor.state.selection;
-                  if (from !== to) {
-                    // There's a selection, delete it
-                    editor.commands.deleteSelection();
-                  } else {
-                    // No selection, delete one character after cursor
-                    const docSize = editor.state.doc.content.size;
-                    if (to < docSize) {
-                      editor.commands.deleteRange({ from: to, to: to + 1 });
-                    }
-                  }
-                } else {
-                  // Use Tiptap's insertContent command for printable characters
-                  editor.commands.insertContent(e.key);
-                }
-                
-                // Clear the justCreatedPill flag after successful injection
-                if (justCreatedPill) {
-                  (editor as any).__justCreatedPill = false;
-                }
-                
-                // Remove the injected event from pending
-                pendingEvents = pendingEvents.filter(ev => ev !== eventToInject);
-              } catch (error) {
-                // Silently handle injection errors
+            // Skip if we've already injected this event
+            if (injectedEvents.has(eventKey)) {
+              return;
+            }
+            
+            const afterLength = editor.state.doc.textContent.length;
+            const afterCursor = editor.state.selection.anchor;
+            
+            // Check if content changed or cursor moved (ProseMirror processed it)
+            const contentChanged = afterLength !== beforeLength;
+            const cursorMoved = afterCursor !== beforeCursor;
+            
+            // If content changed or cursor moved, ProseMirror processed it - don't inject
+            if (contentChanged || cursorMoved) {
+              // Remove this event from pending
+              pendingEvents = pendingEvents.filter(ev => ev.key !== e.key || Date.now() - ev.timestamp > 100);
+              return;
+            }
+            
+            // On mobile, require multiple checks before injecting (except for justCreatedPill)
+            // This prevents false positives due to timing differences
+            if (isMobile && !justCreatedPill) {
+              // Require at least 2 checks on mobile before injecting
+              if (checkNumber < 2) {
+                // Check again with longer delay
+                checkIfNeedsInjection(delay + 50, checkNumber + 1);
+                return;
               }
             }
-          } else {
-            // Content changed, remove this event from pending
-            pendingEvents = pendingEvents.filter(ev => ev.key !== e.key || Date.now() - ev.timestamp > 100);
-          }
-        });
+            
+            // Only inject if:
+            // 1. We just created a pill (original use case), OR
+            // 2. Content didn't change AND cursor didn't move AND event wasn't defaultPrevented AND we haven't injected this event
+            const shouldInject = justCreatedPill || 
+                                (!contentChanged && !cursorMoved && !wasProcessed && !injectedEvents.has(eventKey));
+            
+            if (shouldInject) {
+              const eventToInject = pendingEvents.find(ev => ev.key === e.key && Date.now() - ev.timestamp < 100);
+              
+              if (eventToInject && !injectedEvents.has(eventKey)) {
+                try {
+                  // Mark as injected to prevent double injection
+                  injectedEvents.add(eventKey);
+                  
+                  // Clean up old injected events periodically (limit Set size)
+                  // Since we're tracking events within ~200ms window, limit to reasonable size
+                  if (injectedEvents.size > 100) {
+                    // Clear all if we have too many (shouldn't happen in normal use)
+                    injectedEvents.clear();
+                  }
+                  
+                  // Handle different key types
+                  if (isBackspace) {
+                    // For Backspace: delete selection if exists, otherwise delete character before cursor
+                    const { from, to } = editor.state.selection;
+                    if (from !== to) {
+                      // There's a selection, delete it
+                      editor.commands.deleteSelection();
+                    } else if (from > 0) {
+                      // No selection, delete one character before cursor
+                      editor.commands.deleteRange({ from: from - 1, to: from });
+                    }
+                  } else if (isDelete) {
+                    // For Delete: delete selection if exists, otherwise delete character after cursor
+                    const { from, to } = editor.state.selection;
+                    if (from !== to) {
+                      // There's a selection, delete it
+                      editor.commands.deleteSelection();
+                    } else {
+                      // No selection, delete one character after cursor
+                      const docSize = editor.state.doc.content.size;
+                      if (to < docSize) {
+                        editor.commands.deleteRange({ from: to, to: to + 1 });
+                      }
+                    }
+                  } else {
+                    // Use Tiptap's insertContent command for printable characters
+                    editor.commands.insertContent(e.key);
+                  }
+                  
+                  // Clear the justCreatedPill flag after successful injection
+                  if (justCreatedPill) {
+                    (editor as any).__justCreatedPill = false;
+                  }
+                  
+                  // Remove the injected event from pending
+                  pendingEvents = pendingEvents.filter(ev => ev !== eventToInject);
+                } catch (error) {
+                  // Silently handle injection errors
+                  // Remove from injected set on error so it can be retried
+                  injectedEvents.delete(eventKey);
+                }
+              }
+            } else {
+              // Content changed or event was processed, remove this event from pending
+              pendingEvents = pendingEvents.filter(ev => ev.key !== e.key || Date.now() - ev.timestamp > 100);
+            }
+          }, delay);
+        };
+        
+        // Start checking: on mobile use longer initial delay, on desktop use requestAnimationFrame timing
+        if (isMobile) {
+          // On mobile, start with 50ms delay, then check again at 100ms if needed
+          checkIfNeedsInjection(50, 1);
+        } else {
+          // On desktop, use requestAnimationFrame timing (approximately 16ms)
+          requestAnimationFrame(() => {
+            checkIfNeedsInjection(0, 1);
+          });
+        }
       }
     };
     
