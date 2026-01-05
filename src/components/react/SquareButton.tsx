@@ -71,6 +71,19 @@ export default function SquareButton({
 
   const menuOptions = getMenuOptionsData();
 
+  // Debug menu rendering
+  useEffect(() => {
+    if (withMenu) {
+      console.log('[SquareButton] Menu state:', { 
+        variant, 
+        withMenu, 
+        isOpen, 
+        menuOptionsCount: menuOptions.length,
+        menuOptions: menuOptions.map(o => o.label)
+      });
+    }
+  }, [variant, withMenu, isOpen, menuOptions]);
+
   // Close menu when closeMoreMenu event is dispatched
   useEffect(() => {
     const handleCloseMenu = () => {
@@ -115,10 +128,13 @@ export default function SquareButton({
   }, [withMenu, isOpen]);
 
   const toggleMenu = () => {
-    setIsOpen(!isOpen);
+    const newState = !isOpen;
+    console.log('[SquareButton] Toggling menu:', { variant, withMenu, currentState: isOpen, newState, menuOptionsCount: menuOptions.length });
+    setIsOpen(newState);
   };
 
   const handleButtonClick = () => {
+    console.log('[SquareButton] Button clicked:', { variant, withMenu, isOpen, menuOptionsCount: menuOptions.length });
     if (withMenu) {
       toggleMenu();
     } else if (onClick) {

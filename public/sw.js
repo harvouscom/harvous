@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v0-244-0'; // Bump version for new SW
+const CACHE_NAME = 'harvous-cache-v0-247-0'; // Bump version for new SW (CDN font caching)
 const NAV_API_CACHE = 'harvous-nav-api-v4';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -95,7 +95,41 @@ const safeCachePut = async (cache, request, response) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
-  // Skip cross-origin requests
+  // Handle CDN font CSS (jsDelivr) - cache-first for offline support
+  if (url.origin === 'https://cdn.jsdelivr.net' && url.pathname.includes('@fontsource')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) {
+          // Refresh in background
+          fetch(event.request).then((response) => {
+            if (shouldCacheResponse(response)) {
+              caches.open(CACHE_NAME).then((cache) => {
+                safeCachePut(cache, event.request, addCacheTimestamp(response.clone()));
+              });
+            }
+          }).catch(() => {});
+          return cached;
+        }
+        
+        return fetch(event.request).then((response) => {
+          if (shouldCacheResponse(response)) {
+            const timestamped = addCacheTimestamp(response.clone());
+            caches.open(CACHE_NAME).then((cache) => {
+              safeCachePut(cache, event.request, timestamped.clone());
+            });
+            return timestamped;
+          }
+          return response;
+        }).catch(() => {
+          // If fetch fails and we have cache, return it
+          return caches.match(event.request);
+        });
+      })
+    );
+    return;
+  }
+  
+  // Skip other cross-origin requests
   if (!url.origin.includes(self.location.origin)) {
     return;
   }
@@ -157,7 +191,77 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Static assets (/_astro/) - cache-first
+  // Font files - cache-first (critical for offline mode)
+  const isFontFile = /\.(woff2?|ttf|otf|eot)$/i.test(url.pathname);
+  if (isFontFile) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) {
+          // Refresh in background
+          fetch(event.request).then((response) => {
+            if (shouldCacheResponse(response)) {
+              caches.open(CACHE_NAME).then((cache) => {
+                safeCachePut(cache, event.request, addCacheTimestamp(response.clone()));
+              });
+            }
+          }).catch(() => {});
+          return cached;
+        }
+        
+        return fetch(event.request).then((response) => {
+          if (shouldCacheResponse(response)) {
+            const timestamped = addCacheTimestamp(response.clone());
+            caches.open(CACHE_NAME).then((cache) => {
+              safeCachePut(cache, event.request, timestamped.clone());
+            });
+            return timestamped;
+          }
+          return response;
+        }).catch(() => {
+          // If fetch fails and we have cache, return it
+          return caches.match(event.request);
+        });
+      })
+    );
+    return;
+  }
+  
+  // CSS files - cache-first (critical for offline mode, includes font CSS)
+  const isCSSFile = /\.css$/i.test(url.pathname);
+  if (isCSSFile) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) {
+          // Refresh in background
+          fetch(event.request).then((response) => {
+            if (shouldCacheResponse(response)) {
+              caches.open(CACHE_NAME).then((cache) => {
+                safeCachePut(cache, event.request, addCacheTimestamp(response.clone()));
+              });
+            }
+          }).catch(() => {});
+          return cached;
+        }
+        
+        return fetch(event.request).then((response) => {
+          if (shouldCacheResponse(response)) {
+            const timestamped = addCacheTimestamp(response.clone());
+            caches.open(CACHE_NAME).then((cache) => {
+              safeCachePut(cache, event.request, timestamped.clone());
+            });
+            return timestamped;
+          }
+          return response;
+        }).catch(() => {
+          // If fetch fails and we have cache, return it
+          return caches.match(event.request);
+        });
+      })
+    );
+    return;
+  }
+  
+  // Static assets (/_astro/) - cache-first (includes font CSS files)
   if (url.pathname.startsWith('/_astro/')) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
@@ -182,6 +286,9 @@ self.addEventListener('fetch', (event) => {
             return timestamped;
           }
           return response;
+        }).catch(() => {
+          // If fetch fails and we have cache, return it
+          return caches.match(event.request);
         });
       })
     );

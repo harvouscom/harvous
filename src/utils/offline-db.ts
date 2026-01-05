@@ -134,30 +134,30 @@ class OfflineDatabase extends Dexie {
     super('HarvousOfflineDB');
     
     // Define schema with indexes for efficient queries
-    this.version(1).stores({
+    this.version(2).stores({
       // Spaces: indexed by userId, spaceId, syncStatus, lastModified
-      spaces: 'id, userId, syncStatus, lastModified, [userId+syncStatus]',
+      spaces: 'id, userId, syncStatus, lastModified, [userId+syncStatus], [userId+id]',
       
       // Threads: indexed by userId, threadId, spaceId, syncStatus, lastModified
-      threads: 'id, userId, spaceId, syncStatus, lastModified, [userId+spaceId], [userId+syncStatus]',
+      threads: 'id, userId, spaceId, syncStatus, lastModified, [userId+spaceId], [userId+syncStatus], [userId+id]',
       
       // Notes: indexed by userId, noteId, threadId, spaceId, syncStatus, lastModified, simpleNoteId
-      notes: 'id, userId, threadId, spaceId, syncStatus, lastModified, simpleNoteId, [userId+threadId], [userId+spaceId], [userId+syncStatus], [userId+simpleNoteId]',
+      notes: 'id, userId, threadId, spaceId, syncStatus, lastModified, simpleNoteId, [userId+threadId], [userId+spaceId], [userId+syncStatus], [userId+simpleNoteId], [userId+id]',
       
       // NoteThreads junction: indexed by userId, noteId, threadId
-      noteThreads: 'id, userId, noteId, threadId, [userId+noteId], [userId+threadId], [noteId+threadId]',
+      noteThreads: 'id, userId, noteId, threadId, [userId+noteId], [userId+threadId], [noteId+threadId], [userId+id]',
       
       // Tags: indexed by userId, tagId, syncStatus
-      tags: 'id, userId, syncStatus, [userId+syncStatus]',
+      tags: 'id, userId, syncStatus, [userId+syncStatus], [userId+id]',
       
       // NoteTags junction: indexed by userId, noteId, tagId
-      noteTags: 'id, userId, noteId, tagId, [userId+noteId], [userId+tagId]',
+      noteTags: 'id, userId, noteId, tagId, [userId+noteId], [userId+tagId], [userId+id]',
       
       // UserMetadata: indexed by userId (unique)
-      userMetadata: 'id, userId',
+      userMetadata: 'id, userId, [userId+id]',
       
       // Sync queue: indexed by userId, operation, entityType, entityId, timestamp
-      syncQueue: '++id, userId, operation, entityType, entityId, timestamp, [userId+operation], [userId+entityType]',
+      syncQueue: '++id, userId, operation, entityType, entityId, timestamp, [userId+operation], [userId+entityType], [userId+id]',
       
       // Sync state: indexed by userId (unique)
       syncState: 'userId'
@@ -167,6 +167,50 @@ class OfflineDatabase extends Dexie {
 
 // Create singleton instance
 export const offlineDB = new OfflineDatabase();
+
+// Helper function to retry IndexedDB operations with exponential backoff
+export async function retryIndexedDBOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 100
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Check if it's a quota error - these are usually permanent
+      if (error?.name === 'QuotaExceededError') {
+        console.error('[retryIndexedDBOperation] Quota exceeded, cannot retry:', error);
+        throw error;
+      }
+      
+      // Check if it's a connection error - retry with backoff
+      if (error?.name === 'DatabaseClosedError' || error?.message?.includes('closed')) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.warn(`[retryIndexedDBOperation] Database closed, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // For other errors, retry once more
+      if (attempt < maxRetries - 1) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.warn(`[retryIndexedDBOperation] Operation failed, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries}):`, error);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // Last attempt failed
+      throw error;
+    }
+  }
+  
+  throw lastError || new Error('Operation failed after retries');
+}
 
 // Helper function to get user-specific data
 export async function getUserId(): Promise<string | null> {

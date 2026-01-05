@@ -1,33 +1,68 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { offlineDB } from '@/utils/offline-db';
 import { getSyncState } from '@/utils/sync-manager';
-import { useUser } from '@clerk/clerk-react';
+import { usePersistedUserId } from '@/utils/user-id';
+import Icon from './Icon';
 
 /**
  * Offline indicator component showing sync status
  * Displays offline banner, pending sync count, and error state
+ * Self-contained - reads userId directly instead of relying on prop
+ * Matches ToastProvider design and positioning
  */
-export default function OfflineIndicator() {
-  const { user } = useUser();
+export default function OfflineIndicator({ userId: propUserId }: { userId?: string }) {
+  // Use persisted userId directly - works online and offline
+  const persistedUserId = usePersistedUserId();
+  const userId = propUserId || persistedUserId;
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
+
+  // Check viewport (same logic as ToastProvider)
+  const checkViewport = useCallback(() => {
+    const width = window.innerWidth;
+    setIsMobile(width < 1160);
+    setIsSmallScreen(width < 800);
+  }, []);
+
+  // Check viewport on mount and resize
+  useEffect(() => {
+    checkViewport();
+    window.addEventListener('resize', checkViewport);
+    return () => window.removeEventListener('resize', checkViewport);
+  }, [checkViewport]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!userId) {
+      console.log('[OfflineIndicator] No userId available, skipping sync status check');
+      return;
+    }
 
-    const userId = user.id;
+    console.log('[OfflineIndicator] Initializing with userId:', userId);
 
     // Check online/offline status
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
+    const handleOnline = () => {
+      console.log('[OfflineIndicator] Online event detected');
+      setIsOffline(false);
+    };
+    const handleOffline = () => {
+      console.log('[OfflineIndicator] Offline event detected');
+      setIsOffline(true);
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
     // Check pending sync count and sync state
     const checkSyncStatus = async () => {
+      if (!userId) {
+        console.warn('[OfflineIndicator] checkSyncStatus called but userId is null');
+        return;
+      }
+      
       try {
         // Get pending sync queue count
         const pendingCount = await offlineDB.syncQueue
@@ -44,7 +79,7 @@ export default function OfflineIndicator() {
           setSyncError(syncState.syncError);
         }
       } catch (error) {
-        console.error('Error checking sync status:', error);
+        console.error('[OfflineIndicator] Error checking sync status:', error);
       }
     };
 
@@ -67,51 +102,70 @@ export default function OfflineIndicator() {
       window.removeEventListener('online', handleOnlineWithCheck);
       clearInterval(interval);
     };
-  }, [user?.id]);
+  }, [userId]);
 
-  // Don't show if online, no pending syncs, and no errors
-  if (!isOffline && pendingSyncCount === 0 && !syncError && !isSyncing) {
+  // Only show when offline OR there's a sync error
+  // When online, syncing happens silently in the background
+  if (!isOffline && !syncError) {
     return null;
   }
 
+  // Base styles matching ToastProvider
+  const baseStyle: React.CSSProperties = {
+    backgroundColor: 'rgb(255, 255, 255)',
+    background: syncError 
+      ? 'linear-gradient(168.707deg, rgba(239, 68, 68, 1.0) 11.711%, rgb(220, 38, 38) 71.325%)'
+      : 'linear-gradient(168.707deg, rgba(245, 158, 11, 1.0) 11.711%, rgb(217, 119, 6) 71.325%)',
+    color: 'white',
+    fontFamily: '"Reddit Sans", system-ui, -apple-system, sans-serif',
+    fontSize: '16px',
+    fontWeight: '600',
+    borderRadius: '12px',
+    boxShadow: '0px 7px 16px 0px rgba(0, 0, 0, 0.1), 0px 30px 30px 0px rgba(0, 0, 0, 0.09), 0px 67px 40px 0px rgba(0, 0, 0, 0.05), 0px 119px 47px 0px rgba(0, 0, 0, 0.01), 0px 185px 52px 0px rgba(0, 0, 0, 0)',
+    padding: '16px 20px',
+    textAlign: 'center',
+    minWidth: '280px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    position: 'fixed',
+    zIndex: 1000,
+  };
+
+  // Apply responsive positioning (matching ToastProvider CSS from global.css)
+  const indicatorStyle: React.CSSProperties = isSmallScreen
+    ? {
+        ...baseStyle,
+        bottom: '48px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '90vw',
+        minWidth: 'auto',
+      }
+    : isMobile
+    ? {
+        ...baseStyle,
+        bottom: '16px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '75%',
+        maxWidth: 'calc(100vw - 32px)',
+      }
+    : {
+        // Desktop: Left side, above nav column (matches toast positioning)
+        ...baseStyle,
+        left: '24px',
+        bottom: '100px', // 64px nav-column-bottom height + 12px spacing + 24px layout padding
+        width: '310px',
+        minWidth: '310px',
+        maxWidth: '310px',
+        transform: 'none',
+      };
+
   return (
-    <div className="offline-indicator" style={{
-      position: 'fixed',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      zIndex: 1000,
-      padding: '0.75rem 1rem',
-      backgroundColor: isOffline ? '#f59e0b' : syncError ? '#ef4444' : '#3b82f6',
-      color: 'white',
-      fontSize: '0.875rem',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '0.5rem',
-      boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.1)',
-    }}>
-      {isOffline ? (
-        <>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M17 17h.01" />
-            <path d="M3 3l18 18" />
-            <path d="M12 12h.01" />
-            <path d="M8 8h.01" />
-            <path d="M5 5h.01" />
-          </svg>
-          <span>You're offline. Changes will sync when you reconnect.</span>
-        </>
-      ) : syncError ? (
+    <div className="offline-indicator" style={indicatorStyle}>
+      {syncError ? (
         <>
           <svg
             width="16"
@@ -129,49 +183,12 @@ export default function OfflineIndicator() {
           </svg>
           <span>Sync error: {syncError}</span>
         </>
-      ) : isSyncing ? (
+      ) : isOffline ? (
         <>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              animation: 'spin 1s linear infinite',
-            }}
-          >
-            <path d="M21 12a9 9 0 11-6.219-8.56" />
-          </svg>
-          <span>Syncing...</span>
-        </>
-      ) : pendingSyncCount > 0 ? (
-        <>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M21 12a9 9 0 11-6.219-8.56" />
-          </svg>
-          <span>Syncing {pendingSyncCount} {pendingSyncCount === 1 ? 'change' : 'changes'}...</span>
+          <Icon name="wifi" size={16} />
+          <span>You're currently offline</span>
         </>
       ) : null}
-      
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

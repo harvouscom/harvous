@@ -11,7 +11,8 @@ import { stripHtmlForPreview } from '@/utils/html-stripper';
 import Icon from './Icon';
 import { safeURL } from '@/utils/safe-url';
 import { updateThreadOffline } from '@/utils/offline-mutations';
-import { useUser } from '@clerk/clerk-react';
+import { usePersistedUserId } from '@/utils/user-id';
+import { isNetworkError } from '@/utils/network';
 
 interface Note {
   id: string;
@@ -43,13 +44,7 @@ export default function EditThreadPanel({
     setIsMounted(true);
   }, []);
 
-  const { user } = (() => {
-    try {
-      return useUser();
-    } catch (e) {
-      return { user: null };
-    }
-  })();
+  const userId = usePersistedUserId();
   const [formData, setFormData] = useState({
     title: initialTitle,
     selectedColor: initialColor,
@@ -160,9 +155,9 @@ export default function EditThreadPanel({
 
       // OFFLINE-FIRST: Update thread in local IndexedDB immediately
       let offlineUpdateSuccess = false;
-      if (user?.id) {
+      if (userId) {
         try {
-          await updateThreadOffline(user.id, threadId, {
+          await updateThreadOffline(userId, threadId, {
             title: formData.title,
             color: formData.selectedColor,
           });
@@ -174,14 +169,63 @@ export default function EditThreadPanel({
         }
       }
 
-      const response = await fetch('/api/threads/update', {
-        method: 'POST',
-        body: formDataToSend,
-      });
+      let response: Response | null = null;
+      let networkError = false;
+      
+      try {
+        response = await fetch('/api/threads/update', {
+          method: 'POST',
+          body: formDataToSend,
+        });
+      } catch (error) {
+        // Network error occurred
+        networkError = isNetworkError(error);
+        
+        if (networkError && offlineUpdateSuccess) {
+          // Offline update succeeded - treat as success
+          console.log('[EditThreadPanel] Network error but thread updated offline, treating as success', { threadId });
+          
+          // Show "Saved offline" toast
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Thread updated offline. It will sync when you\'re back online.',
+              type: 'success'
+            }
+          }));
+          
+          // Dispatch threadUpdated event
+          window.dispatchEvent(new CustomEvent('threadUpdated', {
+            detail: { threadId: threadId }
+          }));
+          
+          // Close panel after a short delay
+          setTimeout(() => {
+            if (onClose) {
+              onClose();
+            } else {
+              window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+            }
+          }, 500);
+
+          // Stay on current page when offline - thread will update from IndexedDB
+          const currentUrl = safeURL(window.location.href);
+          if (currentUrl) {
+            currentUrl.searchParams.set('toast', 'success');
+            currentUrl.searchParams.set('message', encodeURIComponent('Thread updated offline. It will sync when you\'re back online.'));
+            window.history.replaceState({}, '', currentUrl.toString());
+          }
+          
+          setIsSubmitting(false);
+          return;
+        } else {
+          // Network error but offline update also failed - rethrow
+          throw error;
+        }
+      }
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (response && response.ok) {
         // Clear selected items
         setSelectedItems([]);
         
@@ -220,6 +264,41 @@ export default function EditThreadPanel({
           safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         }
       } else {
+        // Check if offline update succeeded
+        if (offlineUpdateSuccess) {
+          // Offline update succeeded - treat as success
+          console.log('[EditThreadPanel] Server error but thread updated offline, treating as success', { threadId });
+          
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Thread updated offline. It will sync when you\'re back online.',
+              type: 'success'
+            }
+          }));
+          
+          window.dispatchEvent(new CustomEvent('threadUpdated', {
+            detail: { threadId: threadId }
+          }));
+          
+          setTimeout(() => {
+            if (onClose) {
+              onClose();
+            } else {
+              window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+            }
+          }, 500);
+
+          const currentUrl = safeURL(window.location.href);
+          if (currentUrl) {
+            currentUrl.searchParams.set('toast', 'success');
+            currentUrl.searchParams.set('message', encodeURIComponent('Thread updated offline'));
+            safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          }
+          
+          setIsSubmitting(false);
+          return;
+        }
+        
         console.error('EditThreadPanel: Thread update failed:', data);
         
         // Show error toast
@@ -232,13 +311,46 @@ export default function EditThreadPanel({
       }
 
     } catch (error) {
-      console.error('❌ EditThreadPanel: Error updating thread:', error);
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: 'Error updating thread. Please try again.',
-          type: 'error'
+      // Check if this is a network error and we have an offline update
+      if (isNetworkError(error) && offlineUpdateSuccess) {
+        // Network error but offline update succeeded - treat as success
+        console.log('[EditThreadPanel] Network error but thread updated offline, treating as success', { threadId });
+        
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Thread updated offline. It will sync when you\'re back online.',
+            type: 'success'
+          }
+        }));
+        
+        window.dispatchEvent(new CustomEvent('threadUpdated', {
+          detail: { threadId: threadId }
+        }));
+        
+        setTimeout(() => {
+          if (onClose) {
+            onClose();
+          } else {
+            window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+          }
+        }, 500);
+
+        const currentUrl = safeURL(window.location.href);
+        if (currentUrl) {
+          currentUrl.searchParams.set('toast', 'success');
+          currentUrl.searchParams.set('message', encodeURIComponent('Thread updated offline'));
+          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
         }
-      }));
+      } else {
+        // Real error - log and show error toast
+        console.error('❌ EditThreadPanel: Error updating thread:', error);
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Error updating thread. Please try again.',
+            type: 'error'
+          }
+        }));
+      }
     } finally {
       setIsSubmitting(false);
     }

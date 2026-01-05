@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useUser } from '@clerk/clerk-react';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
 import ActionButton from './ActionButton';
@@ -13,6 +12,7 @@ import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 import { deleteNoteOffline } from '@/utils/offline-mutations';
+import { getPersistedUserId } from '@/utils/user-id';
 
 
 interface Note {
@@ -931,8 +931,7 @@ export default function ThreadNotesList({
     
     try {
       // OFFLINE-FIRST: Delete note from local IndexedDB immediately
-      const { user } = (window as any).__useUserHook?.() || {};
-      const userId = user?.id;
+      const userId = getPersistedUserId();
       
       if (userId) {
         try {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { useUser } from '@clerk/clerk-react';
+import { usePersistedUserId } from '@/utils/user-id';
 import DeleteAccountConfirmDialog from './DeleteAccountConfirmDialog';
 import ClearDataConfirmDialog from './ClearDataConfirmDialog';
 import SquareButton from './SquareButton';
@@ -23,13 +23,7 @@ const ChevronIcon = () => (
 
 export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPanelProps) {
   const [isMounted, setIsMounted] = useState(false);
-  const { user } = (() => {
-    try {
-      return useUser();
-    } catch (e) {
-      return { user: null };
-    }
-  })();
+  const userId = usePersistedUserId();
 
   useEffect(() => {
     setIsMounted(true);
@@ -54,12 +48,12 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
   // Check sync status
   const checkSyncStatus = async () => {
-    if (!isMounted || !user?.id) return;
+    if (!isMounted || !userId) return;
 
     try {
       const count = await offlineDB.syncQueue
         .where('userId')
-        .equals(user.id)
+        .equals(userId)
         .filter(op => op.retryCount < 5)
         .count();
       setPendingSyncCount(count);
@@ -84,7 +78,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
   // Check sync status on mount and periodically
   useEffect(() => {
-    if (!isMounted || !user?.id) return;
+    if (!isMounted || !userId) return;
 
     checkSyncStatus();
 
@@ -99,15 +93,15 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [isMounted, user?.id]);
+  }, [isMounted, userId]);
 
   // Handle manual sync
   const handleSyncNow = async () => {
-    if (!user?.id || !isOnline || isSyncing) return;
+    if (!userId || !isOnline || isSyncing) return;
 
     setIsSyncing(true);
     try {
-      await syncNow(user.id);
+      await syncNow(userId);
       await checkSyncStatus();
       toast.success('Sync complete', { icon: null });
     } catch (error) {

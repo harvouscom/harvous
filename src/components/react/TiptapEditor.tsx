@@ -59,14 +59,11 @@ function normalizeTextForMatching(text: string): string {
 
 // Helper function to find text positions with flexible matching for verse ranges
 function findTextWithFlexibleMatching(fullText: string, searchText: string): Array<{ index: number; length: number }> {
-  console.log('[findTextWithFlexibleMatching] fullText:', JSON.stringify(fullText), 'searchText:', JSON.stringify(searchText));
-  
   const normalizedSearch = normalizeTextForMatching(searchText);
   const matches: Array<{ index: number; length: number }> = [];
   
   // Try exact match first
   let index = fullText.indexOf(searchText);
-  console.log('[findTextWithFlexibleMatching] Exact match indexOf result:', index);
   
   while (index !== -1) {
     matches.push({ index, length: searchText.length });
@@ -386,20 +383,14 @@ function adjustPositionForParagraphBoundary(doc: any, from: number, to: number):
 function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean = true): Array<{ from: number; to: number }> {
   const fullText = doc.textContent;
   
-  console.log('[findAllTextPositions] fullText:', JSON.stringify(fullText), 'searchText:', JSON.stringify(searchText));
-  
   if (!fullText || fullText.trim().length === 0) {
-    console.log('[findAllTextPositions] Empty full text');
     return [];
   }
   
   // Find all matches with flexible spacing handling
   const matches = findTextWithFlexibleMatching(fullText, searchText);
   
-  console.log('[findAllTextPositions] matches from findTextWithFlexibleMatching:', matches);
-  
   if (matches.length === 0) {
-    console.log('[findAllTextPositions] No matches found');
     return [];
   }
 
@@ -433,25 +424,12 @@ function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean 
     const searchIndex = match.index;
     const matchLength = match.length;
     
-    console.log('[findAllTextPositions] Processing match:', {
-      searchIndex,
-      matchLength,
-      textToDocMap
-    });
-    
     // Find which text node contains this index
     for (const map of textToDocMap) {
       if (searchIndex >= map.textStart && searchIndex < map.textEnd) {
         const offset = searchIndex - map.textStart;
         let candidateFrom = map.docStart + offset;
         let candidateTo = candidateFrom + matchLength;
-        
-        console.log('[findAllTextPositions] Found containing text node:', {
-          map,
-          offset,
-          candidateFrom,
-          candidateTo
-        });
         
         // Verify the end position is correct by checking what's actually at that position
         // and ensuring we don't cross paragraph boundaries
@@ -731,7 +709,6 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
     
     // Save the current cursor position
     const originalCursorPos = state.selection.from;
-    console.log('[createPendingPills] Original cursor at:', originalCursorPos);
     
     for (const ref of references) {
       const reference = ref.reference;
@@ -739,7 +716,6 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
       
       const doc = tr.doc;
       const positions = findAllTextPositions(doc, reference, true);
-      console.log('[createPendingPills] Found positions for', reference, ':', positions);
       
       for (let i = positions.length - 1; i >= 0; i--) {
         const pos = positions[i];
@@ -1791,23 +1767,6 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
                 const isDisabled = (targetElement as any).disabled;
                 const isReadOnly = (targetElement as any).readOnly;
                 
-                console.log('[TiptapEditor] Post-transaction editor state', {
-                  isEditable,
-                  editorIsEditable: editor.isEditable,
-                  contentEditable: targetElement.contentEditable,
-                  isDisabled,
-                  isReadOnly,
-                  editorFocused: editor.isFocused,
-                  domFocused: document.activeElement === dom,
-                  activeElement: document.activeElement?.tagName,
-                  // Check if element is actually interactive
-                  pointerEvents: window.getComputedStyle(targetElement).pointerEvents,
-                  userSelect: window.getComputedStyle(targetElement).userSelect,
-                  // Check view state
-                  viewEditable: (editor.view as any).editable,
-                  viewReadOnly: (editor.view as any).readOnly
-                });
-                
                 // If editor is not editable, this is a critical issue
                 if (!isEditable || isDisabled || isReadOnly) {
                   console.error('[TiptapEditor] CRITICAL: Editor cannot receive input after transaction!', {
@@ -2530,27 +2489,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       handleKeyDown: (view, event) => {
         const editor = editorRef.current;
         if (!editor) {
-          console.log('[TiptapEditor handleKeyDown] No editor ref');
           return false;
         }
         
         // Check if editor is still valid (not destroyed)
         if (!isEditorValid(editor)) {
-          console.log('[TiptapEditor handleKeyDown] Editor not valid');
           return false;
         }
         
         // Check if view.docView is still valid (docView exists at runtime but not in TS types)
         if (!view || !(view as any).docView) {
-          console.log('[TiptapEditor handleKeyDown] View not valid');
           return false;
         }
-        
-        // Debug all keypresses
-        const editorId = (view.dom as HTMLElement)?.id;
-        const editable = editor.isEditable;
-        const cursorPos = editor.state.selection.from;
-        console.log('[TiptapEditor handleKeyDown]', event.key, 'editorId:', editorId, 'editable:', editable, 'cursorPos:', cursorPos);
         
         // Handle Cmd+Enter to submit form (dispatch event for parent panels to handle)
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -2617,7 +2567,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 
                 // Immediately create pills for the references found before the space
                 // This now happens after the space is safely in the document
-                console.log('[TiptapEditor] Space inserted, creating pending pills...');
                 createPendingPillsForReferences(editor, references);
                 return true;
               }
@@ -2628,8 +2577,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }
         
         if (scripturePillMark) {
-          console.log('[TiptapEditor] Cursor has pill mark, key:', event.key, 'noteId:', scripturePillMark.attrs.noteId, 'from:', from, 'to:', to);
-          
           // Helper to check if entire pill is selected
           const isEntirePillSelected = (doc: any, from: number, to: number): boolean => {
             const boundaries = findPillBoundaries(doc, from);
@@ -2638,7 +2585,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           };
           
           const boundaries = findPillBoundaries(view.state.doc, from);
-          console.log('[TiptapEditor] Pill boundaries:', boundaries);
           
           // CRITICAL: Check if cursor is at the END boundary of the pill
           // The key insight: check if NEXT position does NOT have a pill mark
@@ -2653,15 +2599,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 const nextMarks = $next.marks();
                 nextHasPill = nextMarks.some((m: any) => m.type.name === 'scripturePill');
                 
-                console.log('[TiptapEditor] Next position has pill?', nextHasPill, 'from:', from, 'boundaries.end:', boundaries.end);
-                
                 // If next doesn't have pill AND we're at or past the boundary, we're truly after the pill
                 if (!nextHasPill && from >= boundaries.end - 1) {
                   atEndOfPill = true;
                 }
               } else {
                 // At end of document
-                console.log('[TiptapEditor] At end of document, from:', from, 'boundaries.end:', boundaries.end);
                 if (from >= boundaries.end) {
                   atEndOfPill = true;
                   nextHasPill = false;
@@ -2676,14 +2619,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }
           }
           
-          console.log('[TiptapEditor] At end of pill?', atEndOfPill, 'nextHasPill:', nextHasPill);
-          
           if (atEndOfPill) {
-            console.log('[TiptapEditor] ✓ Cursor at END of pill, allowing typing');
             return false; // Let ProseMirror handle the character insertion
           }
-          
-          console.log('[TiptapEditor] ✗ Cursor INSIDE pill, will handle specially');
           
           if (boundaries) {
             // Handle Tab and Space to exit scripture pills
@@ -2729,7 +2667,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(event.key);
             
             if (!isControlKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-              console.log('[TiptapEditor] Printable char inside pill, moving cursor to:', boundaries.end);
               // Move cursor to end of pill and then let ProseMirror handle character insertion
               editor.chain()
                 .setTextSelection(boundaries.end)

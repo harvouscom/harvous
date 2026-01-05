@@ -1,45 +1,76 @@
 import React, { useEffect, useState } from 'react';
-import { useUser } from '@clerk/clerk-react';
 import { initializeSync } from '@/utils/sync-init';
+import { persistUserId, getPersistedUserId } from '@/utils/user-id';
 import OfflineIndicator from './OfflineIndicator';
 
 /**
  * Global component to manage sync loop and show offline indicator.
  * This component MUST only run on the client side.
- * We use a try/catch and a ready state to handle Clerk initialization timing.
+ * Works both online (with Clerk) and offline (with localStorage).
+ * 
+ * Uses a separate component to safely call Clerk hooks without crashing when offline.
  */
 export default function SyncManagerIsland() {
-  const [clerkReady, setClerkReady] = useState(false);
-  
-  // Use a separate component for the inner logic to isolate the useUser() call
-  // This prevents the whole island from crashing if useUser is called too early
+  // Initialize from localStorage immediately (works offline)
+  const [userId, setUserId] = useState<string | null>(() => getPersistedUserId());
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Initialize sync if we have a persisted userId (handles offline start)
+  useEffect(() => {
+    if (userId && !hasInitialized) {
+      console.log('[SyncManagerIsland] Initializing sync with persisted userId:', userId);
+      initializeSync(userId).catch(err => {
+        console.error('[SyncManagerIsland] Failed to initialize sync:', err);
+      });
+      setHasInitialized(true);
+    }
+  }, [userId, hasInitialized]);
+
+  // Use a separate component for Clerk access to isolate potential crashes
   return (
-    <ClerkSyncWrapper />
+    <>
+      <ClerkSyncWrapper onUserIdChange={(id) => {
+        if (id) {
+          setUserId(id);
+        }
+      }} />
+      <OfflineIndicator userId={userId} />
+    </>
   );
 }
 
-function ClerkSyncWrapper() {
-  let user: any = null;
+/**
+ * Separate component that safely attempts to use Clerk.
+ * If Clerk is unavailable (offline), this component simply doesn't render,
+ * but the parent SyncManagerIsland continues to work with localStorage userId.
+ */
+function ClerkSyncWrapper({ onUserIdChange }: { onUserIdChange: (userId: string | null) => void }) {
+  // Try to use Clerk - if it fails, component won't render but parent continues
+  let clerkUser: any = null;
   let isLoaded = false;
 
-  // Safely call useUser
   try {
+    // Dynamically import and use Clerk
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useUser } = require('@clerk/clerk-react');
     const clerk = useUser();
-    user = clerk.user;
+    clerkUser = clerk.user;
     isLoaded = clerk.isLoaded;
   } catch (e) {
-    // Clerk provider not ready yet
+    // Clerk not available (offline) - return null, parent continues with localStorage
     return null;
   }
 
   useEffect(() => {
-    if (isLoaded && user?.id) {
-      initializeSync(user.id).catch(err => {
-        console.error('[SyncManagerIsland] Failed to initialize sync:', err);
-      });
+    if (isLoaded && clerkUser?.id) {
+      // Persist userId for offline access
+      persistUserId(clerkUser.id);
+      // Update parent component's userId
+      onUserIdChange(clerkUser.id);
     }
-  }, [user?.id, isLoaded]);
+  }, [clerkUser?.id, isLoaded, onUserIdChange]);
 
-  return <OfflineIndicator />;
+  // This component doesn't render anything visible
+  return null;
 }
 

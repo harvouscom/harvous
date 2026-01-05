@@ -6,11 +6,13 @@ import AddToSpaceSection from './AddToSpaceSection';
 import { captureException } from '@/utils/posthog';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { safeURL } from '@/utils/safe-url';
 import Icon from './Icon';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import { createSpaceOffline } from '@/utils/offline-mutations';
-import { useUser } from '@clerk/clerk-react';
+import { usePersistedUserId } from '@/utils/user-id';
+import { isNetworkError } from '@/utils/network';
 
 interface Note {
   id: string;
@@ -44,13 +46,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     setIsMounted(true);
   }, []);
 
-  const { user } = (() => {
-    try {
-      return useUser();
-    } catch (e) {
-      return { user: null };
-    }
-  })();
+  const userId = usePersistedUserId();
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
@@ -283,9 +279,9 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       
       // OFFLINE-FIRST: Create space in local IndexedDB immediately
       let offlineSpaceId: string | null = null;
-      if (user?.id) {
+      if (userId) {
         try {
-          offlineSpaceId = await createSpaceOffline(user.id, {
+          offlineSpaceId = await createSpaceOffline(userId, {
             title: title.trim(),
             color: selectedColor,
             isPublic: false,
@@ -297,13 +293,74 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         }
       }
       
-      const response = await fetch('/api/spaces/create', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-      });
+      let response: Response | null = null;
+      let networkError = false;
+      
+      try {
+        response = await fetch('/api/spaces/create', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        });
+      } catch (error) {
+        // Network error occurred
+        networkError = isNetworkError(error);
+        
+        if (networkError && offlineSpaceId) {
+          // Offline save succeeded - treat as success
+          console.log('[NewSpacePanel] Network error but space saved offline, treating as success', { offlineSpaceId });
+          
+          // Show "Saved offline" toast
+          if (window.toast) {
+            window.toast.success('Space saved offline. It will sync when you\'re back online.');
+          }
+          
+          // Dispatch spaceCreated event with offline space data
+          const offlineSpaceEvent = new CustomEvent('spaceCreated', {
+            detail: {
+              space: {
+                id: offlineSpaceId,
+                title: title.trim(),
+                color: selectedColor,
+                totalItemCount: 0,
+              },
+              isOffline: true
+            }
+          });
+          window.dispatchEvent(offlineSpaceEvent);
+          
+          // Clear form data
+          setTitle('');
+          setSelectedColor('paper');
+          setSelectedType('Private');
+          setSelectedItems([]);
+          localStorage.removeItem('newSpaceTitle');
+          localStorage.removeItem('newSpaceColor');
+          localStorage.removeItem('newSpaceType');
+          
+          // Close panel
+          window.dispatchEvent(new CustomEvent('closeNewSpacePanel'));
+          if (onClose) {
+            onClose();
+          }
+          
+          // Stay on current page when offline - space will appear in list from IndexedDB
+          const currentUrl = safeURL(window.location.href);
+          if (currentUrl) {
+            currentUrl.searchParams.set('toast', 'success');
+            currentUrl.searchParams.set('message', encodeURIComponent('Space saved offline. It will sync when you\'re back online.'));
+            window.history.replaceState({}, '', currentUrl.toString());
+          }
+          
+          setIsSubmitting(false);
+          return;
+        } else {
+          // Network error but offline save also failed - rethrow
+          throw error;
+        }
+      }
 
-      if (response.ok) {
+      if (response && response.ok) {
         const result = await response.json();
         
         // Clear form data
@@ -383,32 +440,117 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
           }
         }
       } else {
+        // Check if this is a network error
+        const errorText = await response.text();
         let errorMessage = `Failed to create space: ${response.status}`;
+        
         try {
-          const errorText = await response.text();
-          console.error('NewSpacePanel: API error response:', errorText);
           const errorJson = JSON.parse(errorText);
           errorMessage = errorJson.error || errorMessage;
         } catch (e) {
           console.error('NewSpacePanel: Could not parse error response');
         }
+        
+        // Check if offline save succeeded
+        if (offlineSpaceId) {
+          // Offline save succeeded - treat as success
+          console.log('[NewSpacePanel] Server error but space saved offline, treating as success', { offlineSpaceId });
+          
+          if (window.toast) {
+            window.toast.success('Space saved offline. It will sync when you\'re back online.');
+          }
+          
+          const offlineSpaceEvent = new CustomEvent('spaceCreated', {
+            detail: {
+              space: {
+                id: offlineSpaceId,
+                title: title.trim(),
+                color: selectedColor,
+                totalItemCount: 0,
+              },
+              isOffline: true
+            }
+          });
+          window.dispatchEvent(offlineSpaceEvent);
+          
+          setTitle('');
+          setSelectedColor('paper');
+          setSelectedType('Private');
+          setSelectedItems([]);
+          localStorage.removeItem('newSpaceTitle');
+          localStorage.removeItem('newSpaceColor');
+          localStorage.removeItem('newSpaceType');
+          
+          window.dispatchEvent(new CustomEvent('closeNewSpacePanel'));
+          if (onClose) {
+            onClose();
+          }
+          
+          setTimeout(() => {
+            safeNavigate('/?toast=success&message=' + encodeURIComponent('Space saved offline'), { history: 'replace' });
+          }, 100);
+          
+          setIsSubmitting(false);
+          return;
+        }
+        
         throw new Error(errorMessage);
       }
     } catch (error: any) {
-      // Track error in PostHog
-      if (typeof window !== 'undefined' && window.posthog) {
-        captureException(error, {
-          context: 'space_creation',
-          endpoint: '/api/spaces/create',
+      // Check if this is a network error and we have an offline space
+      if (isNetworkError(error) && offlineSpaceId) {
+        // Network error but offline save succeeded - treat as success
+        console.log('[NewSpacePanel] Network error but space saved offline, treating as success', { offlineSpaceId });
+        
+        if (window.toast) {
+          window.toast.success('Space saved offline. It will sync when you\'re back online.');
+        }
+        
+        const offlineSpaceEvent = new CustomEvent('spaceCreated', {
+          detail: {
+            space: {
+              id: offlineSpaceId,
+              title: title.trim(),
+              color: selectedColor,
+              totalItemCount: 0,
+            },
+            isOffline: true
+          }
         });
-      }
-      
-      console.error('NewSpacePanel: Error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create space. Please try again.';
-      if (window.toast) {
-        window.toast.error(errorMessage);
+        window.dispatchEvent(offlineSpaceEvent);
+        
+        setTitle('');
+        setSelectedColor('paper');
+        setSelectedType('Private');
+        setSelectedItems([]);
+        localStorage.removeItem('newSpaceTitle');
+        localStorage.removeItem('newSpaceColor');
+        localStorage.removeItem('newSpaceType');
+        
+        window.dispatchEvent(new CustomEvent('closeNewSpacePanel'));
+        if (onClose) {
+          onClose();
+        }
+        
+        setTimeout(() => {
+          safeNavigate('/?toast=success&message=' + encodeURIComponent('Space saved offline'), { history: 'replace' });
+        }, 100);
       } else {
-        alert(errorMessage);
+        // Real error - log and show error toast
+        if (typeof window !== 'undefined' && window.posthog) {
+          captureException(error, {
+            context: 'space_creation',
+            endpoint: '/api/spaces/create',
+          });
+        }
+        
+        console.error('NewSpacePanel: Error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to create space. Please try again.';
+        if (window.toast) {
+          window.toast.error(errorMessage);
+        } else {
+          alert(errorMessage);
+        }
       }
     } finally {
       setTimeout(() => {

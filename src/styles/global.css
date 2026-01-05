@@ -256,8 +256,8 @@ nav a {
 /* Design Tokens */
 :root {
   /* Typography */
-  --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
-  --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: "Reddit Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --primary-color: var(--color-bold-blue);
   
   /* Responsive Breakpoints */
@@ -821,19 +821,21 @@ button[disabled] {
     text-align: center !important;
 }
 
-/* Desktop: Set minimum width to 280px, allow expansion for longer messages */
-/* Position at bottom-right (Sonner handles this via position prop) */
+/* Desktop: Position above nav-column-bottom, spanning full navigation column width */
+/* Position 12px above nav-column-bottom (left: 24px, width: 310px to match nav column) */
 @media (min-width: 1160px) {
     [data-sonner-toaster] {
-        left: auto !important;
-        right: 16px !important;
+        left: 24px !important;
+        right: auto !important;
+        bottom: 100px !important; /* 64px nav-column-bottom height + 12px spacing + 24px layout padding */
+        width: 310px !important;
         transform: none !important;
     }
     
     [data-sonner-toast] {
-        min-width: 280px !important;
-        width: auto !important;
-        max-width: none !important;
+        width: 310px !important;
+        min-width: 310px !important;
+        max-width: 310px !important;
     }
 }
 

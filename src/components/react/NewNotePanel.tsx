@@ -6,6 +6,8 @@ import { captureException } from '@/utils/posthog';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { debug } from '@/utils/logger';
 import { safeURL } from '@/utils/safe-url';
+import { usePersistedUserId } from '@/utils/user-id';
+import { getNextSimpleNoteIdPreview, getLocalNoteCount } from '@/utils/offline-mutations';
 
 // Import extracted hooks
 import {
@@ -44,6 +46,9 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Get userId for offline operations (works online and offline)
+  const userId = usePersistedUserId();
 
   // Get navigation context
   const navigation = useNavigation();
@@ -93,9 +98,10 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
     scriptureVersion: form.scriptureVersion,
   });
 
-  // Load next note ID
-  const loadNextNoteId = async () => {
+  // Load next note ID - with offline fallback
+  const loadNextNoteId = useCallback(async () => {
     try {
+      // Try server first
       const response = await safeFetch('/api/notes/next-id', {
         retries: 2,
         retryDelay: 1000
@@ -103,12 +109,31 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       
       if (response && response.ok) {
         const data = await response.json();
-        setNextNoteId(`#${data.formattedId}`);
+        // Server already returns formattedId as "N502", don't add "#" prefix
+        setNextNoteId(data.formattedId);
+        return;
       }
     } catch (error) {
+      // Server request failed - try offline preview
+      if (userId) {
+        try {
+          const previewId = await getNextSimpleNoteIdPreview(userId);
+          if (previewId !== null) {
+            // Format the ID to match server format (e.g., 502 -> "N502")
+            const formattedId = `N${previewId.toString().padStart(3, '0')}`;
+            setNextNoteId(formattedId);
+            return;
+          }
+        } catch (offlineError) {
+          console.error('[NewNotePanel] Error getting offline ID preview:', offlineError);
+        }
+      }
+      
+      // If offline preview also fails, keep "#New" as fallback
+      setNextNoteId('#New');
       captureException(error as Error);
     }
-  };
+  }, [userId]);
 
   // Use extracted submission hook
   const submission = useNoteSubmission({
@@ -164,9 +189,9 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
   // Initialize data
   useEffect(() => {
     loadNextNoteId();
-  }, []);
+  }, [loadNextNoteId]);
 
-  // Check subscription status via API (simplified - no client-side checks needed)
+  // Check subscription status via API with offline fallback
   const checkSubscriptionStatus = useCallback(async () => {
     // Don't check if page isn't ready
     if (typeof window === 'undefined' || document.readyState === 'loading') {
@@ -189,17 +214,42 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
         if (response.status !== 401) {
           console.warn('[NewNotePanel] Subscription status check returned:', response.status);
         }
+        // Fall through to offline check
+        throw new Error('API check failed');
       }
     } catch (error) {
-      // Only log if it's not a network error during page load
+      // Server request failed - try offline check
+      if (userId) {
+        try {
+          const localCount = await getLocalNoteCount(userId);
+          // Use default limit of 1000 if we can't get it from server
+          const defaultLimit = 1000;
+          setCurrentCount(localCount);
+          setLimit(defaultLimit);
+          // Check if user is close to limit (within 10 notes) to prevent abuse
+          setIsLimitReached(localCount >= defaultLimit - 10);
+          
+          if (localCount >= defaultLimit - 10) {
+            console.warn('[NewNotePanel] User approaching note limit offline:', localCount, '/', defaultLimit);
+          }
+        } catch (offlineError) {
+          console.error('[NewNotePanel] Error checking offline note count:', offlineError);
+          // Keep default values on error
+        }
+      }
+      
+      // Only log if it's not a network error during page load and we didn't do offline check
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         // This can happen during page transitions or if the server isn't ready
-        // Silently ignore - the check will retry on next interaction
+        // Offline check already attempted above if userId exists
         return;
       }
-      console.error('[NewNotePanel] Failed to check subscription status:', error);
+      if (!userId) {
+        // Only log if we didn't attempt offline check
+        console.error('[NewNotePanel] Failed to check subscription status:', error);
+      }
     }
-  }, []);
+  }, [userId]);
 
   // Check subscription status on mount
   useEffect(() => {
@@ -874,7 +924,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
         <div className="mb-3.5 shrink-0">
           <ThreadCombobox
             selectedThread={threadSelection.selectedThread}
-            onThreadSelect={(thread) => {
+            onThreadSelect={(thread: string) => {
               threadSelection.handleThreadSelect(thread);
               setSuggestedThreadName(null); // Clear suggestion when user manually selects
               
@@ -889,14 +939,14 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
             threads={threadSelection.threadOptions}
             placeholder="Select thread..."
             suggestedThreadName={suggestedThreadName}
-            onSuggestedThreadNameChange={(editedName) => {
+            onSuggestedThreadNameChange={(editedName: string) => {
               // Sync edited thread name back to suggestedThreadName state
               // This ensures the SuggestedThreadDialog shows the edited name
               if (editedName && editedName.trim()) {
                 setSuggestedThreadName(editedName.trim());
               }
             }}
-            onCreateThread={async (threadName) => {
+            onCreateThread={async (threadName: string) => {
               const trimmedName = threadName.trim();
               if (!trimmedName) return;
 

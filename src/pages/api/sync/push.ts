@@ -133,8 +133,15 @@ async function processSpaceMutation(userId: string, operation: string, entityId:
 
 // Thread mutation handlers
 async function processThreadMutation(userId: string, operation: string, entityId: string, data: any) {
+  console.log('[processThreadMutation] Processing thread mutation:', {
+    operation,
+    entityId,
+    color: data.color,
+    title: data.title
+  });
+  
   if (operation === 'create') {
-    const newThread = await db.insert(Threads).values({
+    const threadData = {
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
       title: data.title,
       subtitle: data.subtitle || null,
@@ -146,7 +153,20 @@ async function processThreadMutation(userId: string, operation: string, entityId
       userId,
       createdAt: new Date(),
       updatedAt: new Date(),
-    }).returning().get();
+    };
+    
+    console.log('[processThreadMutation] Inserting thread with color:', {
+      color: threadData.color,
+      title: threadData.title
+    });
+    
+    const newThread = await db.insert(Threads).values(threadData).returning().get();
+
+    console.log('[processThreadMutation] Thread created on server:', {
+      serverId: newThread.id,
+      color: newThread.color,
+      title: newThread.title
+    });
 
     return { success: true, entityId, serverId: newThread.id };
   } else if (operation === 'update') {

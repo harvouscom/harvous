@@ -13,6 +13,90 @@ import { enqueueMutation } from './sync-manager';
 import { generateNoteId, generateSpaceId, generateThreadId } from './ids';
 
 /**
+ * Get a preview of the next SimpleNoteId that would be allocated offline
+ * This does NOT consume the ID - it's just for preview purposes
+ * Returns null if no ID can be previewed (no metadata or range exhausted)
+ */
+export async function getNextSimpleNoteIdPreview(userId: string): Promise<number | null> {
+  try {
+    let userMeta = await offlineDB.userMetadata.where('userId').equals(userId).first();
+    
+    if (!userMeta) {
+      console.log('[getNextSimpleNoteIdPreview] No user metadata found, checking local notes...');
+      
+      // Try to find the highest simpleNoteId from existing notes
+      const notes = await offlineDB.notes.where('userId').equals(userId).toArray();
+      const highestId = notes.reduce((max, note) => {
+        return note.simpleNoteId && note.simpleNoteId > max ? note.simpleNoteId : max;
+      }, 0);
+      
+      console.log('[getNextSimpleNoteIdPreview] Found highest simpleNoteId from notes:', highestId);
+      
+      // If we found notes, return next ID
+      if (highestId > 0) {
+        return highestId + 1;
+      }
+      
+      // No notes and no metadata - return 1 as first ID
+      console.log('[getNextSimpleNoteIdPreview] No notes found, returning 1 as first ID');
+      return 1;
+    }
+
+    console.log('[getNextSimpleNoteIdPreview] Found user metadata:', {
+      highestSimpleNoteId: userMeta.highestSimpleNoteId,
+      hasReservedRange: !!userMeta.reservedSimpleNoteIdRange,
+      reservedRange: userMeta.reservedSimpleNoteIdRange,
+      usedReservedIds: userMeta.usedReservedIds?.length || 0
+    });
+
+    // 1. Try reserved range first (most accurate for offline preview)
+    if (userMeta.reservedSimpleNoteIdRange) {
+      const { start, end } = userMeta.reservedSimpleNoteIdRange;
+      const usedIds = userMeta.usedReservedIds || [];
+      
+      // Find next available ID in range
+      for (let id = start; id <= end; id++) {
+        if (!usedIds.includes(id)) {
+          console.log('[getNextSimpleNoteIdPreview] Found available ID in reserved range:', id);
+          return id; // Return preview without consuming
+        }
+      }
+      
+      // All IDs in range are used - fall through to highestSimpleNoteId + 1
+      console.log('[getNextSimpleNoteIdPreview] Reserved range exhausted, falling back to highestSimpleNoteId + 1');
+    }
+
+    // 2. Fallback to highest seen + 1 (might collide on server, but good for preview)
+    // This gives a reasonable estimate when no reserved range exists or range is exhausted
+    const nextId = (userMeta.highestSimpleNoteId || 0) + 1;
+    console.log('[getNextSimpleNoteIdPreview] Using fallback ID:', nextId);
+    return nextId;
+  } catch (error) {
+    console.error('[getNextSimpleNoteIdPreview] Error:', error);
+    return null;
+  }
+}
+
+/**
+ * Get the current note count from local IndexedDB
+ * This is used to check subscription limits offline
+ */
+export async function getLocalNoteCount(userId: string): Promise<number> {
+  try {
+    // Count all notes that are not deleted
+    const count = await offlineDB.notes
+      .where('userId')
+      .equals(userId)
+      .filter(note => note.syncStatus !== 'deleted')
+      .count();
+    return count;
+  } catch (error) {
+    console.error('[getLocalNoteCount] Error:', error);
+    return 0;
+  }
+}
+
+/**
  * Create a space offline
  */
 export async function createSpaceOffline(userId: string, data: {
@@ -143,6 +227,12 @@ export async function createThreadOffline(userId: string, data: {
   const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = Date.now();
 
+  console.log('[createThreadOffline] Creating thread with color:', { 
+    localId, 
+    color: data.color, 
+    title: data.title 
+  });
+
   const thread: OfflineThread = ensureUserPartition<OfflineThread>({
     id: localId,
     title: data.title,
@@ -160,21 +250,38 @@ export async function createThreadOffline(userId: string, data: {
   }, userId);
 
   await offlineDB.threads.add(thread);
+  
+  // Verify color was stored correctly
+  const stored = await offlineDB.threads.where('[userId+id]').equals([userId, localId]).first();
+  console.log('[createThreadOffline] Thread stored in IndexedDB:', { 
+    id: stored?.id, 
+    color: stored?.color,
+    storedCorrectly: stored?.color === data.color 
+  });
 
   // Queue sync operation
+  const mutationData = {
+    title: data.title,
+    subtitle: data.subtitle,
+    spaceId: data.spaceId,
+    color: data.color,
+    isPublic: data.isPublic,
+    isPinned: data.isPinned,
+    order: data.order,
+  };
+  
+  console.log('[createThreadOffline] Queuing mutation with color:', { 
+    operation: 'create',
+    entityType: 'thread',
+    entityId: localId,
+    color: mutationData.color 
+  });
+  
   await enqueueMutation(userId, {
     operation: 'create',
     entityType: 'thread',
     entityId: localId,
-    data: {
-      title: data.title,
-      subtitle: data.subtitle,
-      spaceId: data.spaceId,
-      color: data.color,
-      isPublic: data.isPublic,
-      isPinned: data.isPinned,
-      order: data.order,
-    },
+    data: mutationData,
     timestamp: now,
     retryCount: 0,
   });
@@ -286,6 +393,12 @@ export async function createNoteOffline(userId: string, data: {
     
     // If all IDs in range are used, simpleNoteId remains null
     // Server will assign one on sync
+  } else if (!simpleNoteId && userMeta) {
+    // No reserved range - use highestSimpleNoteId + 1 for preview
+    // This is just for preview - server will assign actual ID on sync
+    const currentHighest = userMeta.highestSimpleNoteId || 0;
+    simpleNoteId = currentHighest + 1;
+    console.log('[createNoteOffline] No reserved range, using preview ID:', simpleNoteId);
   }
 
   const note: OfflineNote = ensureUserPartition<OfflineNote>({
@@ -308,6 +421,18 @@ export async function createNoteOffline(userId: string, data: {
   }, userId);
 
   await offlineDB.notes.add(note);
+
+  // Update highestSimpleNoteId if we allocated an ID (for preview purposes)
+  // Note: This is just for local preview - server will assign actual ID on sync
+  if (simpleNoteId && userMeta) {
+    const currentHighest = userMeta.highestSimpleNoteId || 0;
+    if (simpleNoteId > currentHighest) {
+      await offlineDB.userMetadata.update(userMeta.id, {
+        highestSimpleNoteId: simpleNoteId,
+      });
+      console.log('[createNoteOffline] Updated highestSimpleNoteId for preview:', { old: currentHighest, new: simpleNoteId });
+    }
+  }
 
   // Create NoteThread relationship if threadId is provided
   if (data.threadId && data.threadId !== 'thread_unorganized') {

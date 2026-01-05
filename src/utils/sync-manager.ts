@@ -499,6 +499,9 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
     const bootstrapData = await response.json();
     await applyBootstrapData(userId, bootstrapData);
 
+    // Clear isSyncing flag on success
+    await updateSyncState(userId, { isSyncing: false });
+
     return { success: true, pulledCount: bootstrapData.notes?.length || 0 };
   } catch (error) {
     console.error('Error bootstrapping sync:', error);
@@ -571,7 +574,9 @@ export async function enqueueMutation(userId: string, operation: SyncOperation):
  * Push queued mutations to server
  */
 export async function pushQueue(userId: string): Promise<SyncResult> {
+  console.log('[Sync] pushQueue starting for user:', userId);
   if (!navigator.onLine) {
+    console.log('[Sync] pushQueue aborting: Offline');
     return { success: false, error: 'Offline' };
   }
 
@@ -582,6 +587,8 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       .equals(userId)
       .filter(op => op.retryCount < 5)
       .toArray();
+
+    console.log(`[Sync] Found ${pendingOps.length} pending operations in queue`);
 
     if (pendingOps.length === 0) {
       return { success: true, pushedCount: 0 };
@@ -596,6 +603,19 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       operationId: op.id,
     }));
 
+    // Log thread mutations specifically to track color
+    const threadMutations = mutations.filter(m => m.entityType === 'thread');
+    if (threadMutations.length > 0) {
+      console.log('[Sync] Thread mutations being sent:', threadMutations.map(m => ({
+        operation: m.operation,
+        entityId: m.entityId,
+        color: m.data?.color,
+        title: m.data?.title
+      })));
+    }
+
+    console.log('[Sync] Sending mutations to server:', mutations);
+
     // Send batch to server
     const response = await fetch('/api/sync/push', {
       method: 'POST',
@@ -604,32 +624,67 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       credentials: 'include',
     });
 
+    console.log('[Sync] Server response status:', response.status);
+
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Sync] Push failed with error response:', errorText);
       throw new Error(`Push failed: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();
+    console.log('[Sync] Push result data:', result);
     const results = result.results || [];
 
     // Process results and update local state
     let pushedCount = 0;
     for (const res of results) {
       const op = pendingOps.find(o => o.id === res.operationId);
-      if (!op) continue;
+      if (!op) {
+        console.warn('[Sync] Could not find operation in pendingOps for ID:', res.operationId);
+        continue;
+      }
 
       if (res.success) {
+        console.log(`[Sync] Operation ${res.operationId} success! ServerID: ${res.serverId}`);
+        
+        // Log thread-specific sync details
+        if (op.entityType === 'thread') {
+          console.log('[Sync] Thread sync success:', {
+            operationId: res.operationId,
+            oldId: op.entityId,
+            newId: res.serverId,
+            originalColor: op.data?.color,
+            originalTitle: op.data?.title
+          });
+        }
+        
         // Update entity with server ID if provided
         if (res.serverId && res.serverId !== op.entityId) {
+          console.log(`[Sync] Updating entity ID from ${op.entityId} to ${res.serverId}`);
           await updateEntityId(op.entityType, op.entityId, res.serverId, userId);
         }
 
         // Mark entity as synced
         await markEntitySynced(op.entityType, res.serverId || op.entityId, userId);
+        
+        // Verify thread color after sync
+        if (op.entityType === 'thread') {
+          const threadId = res.serverId || op.entityId;
+          const syncedThread = await offlineDB.threads.where('[userId+id]').equals([userId, threadId]).first();
+          console.log('[Sync] Thread after markEntitySynced:', {
+            threadId,
+            color: syncedThread?.color,
+            expectedColor: op.data?.color,
+            colorMatch: syncedThread?.color === op.data?.color
+          });
+        }
 
         // Remove from queue
         await offlineDB.syncQueue.delete(op.id!);
         pushedCount++;
       } else {
+        console.error(`[Sync] Operation ${res.operationId} failed on server:`, res.error);
         // Increment retry count
         await offlineDB.syncQueue.update(op.id!, {
           retryCount: op.retryCount + 1,
@@ -638,9 +693,10 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       }
     }
 
+    console.log(`[Sync] pushQueue finished. Pushed ${pushedCount} successfully.`);
     return { success: true, pushedCount, results };
   } catch (error) {
-    console.error('Error pushing queue:', error);
+    console.error('[Sync] Error pushing queue:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -693,10 +749,27 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
         });
         break;
       case 'thread':
+        // Get thread before modifying to verify color is preserved
+        const threadBefore = await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).first();
+        console.log('[markEntitySynced] Thread before sync status update:', {
+          entityId,
+          color: threadBefore?.color,
+          title: threadBefore?.title
+        });
+        
         await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).modify({
           syncStatus: 'synced',
           lastModified: now,
           serverVersion: now,
+        });
+        
+        // Verify color is still there after modify
+        const threadAfter = await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).first();
+        console.log('[markEntitySynced] Thread after sync status update:', {
+          entityId,
+          color: threadAfter?.color,
+          title: threadAfter?.title,
+          colorPreserved: threadAfter?.color === threadBefore?.color
         });
         break;
       case 'note':
@@ -737,7 +810,9 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
  * Sync now (pull + push)
  */
 export async function syncNow(userId: string): Promise<SyncResult> {
+  console.log('[Sync] Starting syncNow for user:', userId);
   if (!navigator.onLine) {
+    console.log('[Sync] Aborting syncNow: navigator.onLine is false');
     return { success: false, error: 'Offline' };
   }
 
@@ -745,30 +820,43 @@ export async function syncNow(userId: string): Promise<SyncResult> {
     await updateSyncState(userId, { isSyncing: true, syncError: null });
 
     // Check if bootstrap needed
-    if (await needsBootstrap(userId)) {
+    const needsBoot = await needsBootstrap(userId);
+    console.log('[Sync] Needs bootstrap:', needsBoot);
+    if (needsBoot) {
       const bootstrapResult = await bootstrapSync(userId);
+      console.log('[Sync] Bootstrap result:', bootstrapResult);
       if (!bootstrapResult.success) {
+        // Clear isSyncing flag before returning
+        await updateSyncState(userId, { isSyncing: false });
         return bootstrapResult;
       }
     }
 
     // Pull changes
+    console.log('[Sync] Pulling changes...');
     const pullResult = await pullChanges(userId);
+    console.log('[Sync] Pull result:', pullResult);
     if (!pullResult.success && pullResult.error !== 'Bootstrap required') {
+      // Clear isSyncing flag before returning
+      await updateSyncState(userId, { isSyncing: false });
       return pullResult;
     }
 
     // Push queue
+    console.log('[Sync] Pushing queue...');
     const pushResult = await pushQueue(userId);
+    console.log('[Sync] Push result:', pushResult);
 
     await updateSyncState(userId, { isSyncing: false });
 
+    console.log('[Sync] syncNow completed successfully');
     return {
       success: true,
       pulledCount: pullResult.pulledCount || 0,
       pushedCount: pushResult.pushedCount || 0,
     };
   } catch (error) {
+    console.error('[Sync] syncNow error:', error);
     await updateSyncState(userId, {
       isSyncing: false,
       syncError: error instanceof Error ? error.message : String(error),

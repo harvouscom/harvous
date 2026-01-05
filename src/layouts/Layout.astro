@@ -1,11 +1,5 @@
 ---
 import "../styles/global.css";
-import "@fontsource/reddit-sans/400.css";
-import "@fontsource/reddit-sans/500.css";
-import "@fontsource/reddit-sans/600.css";
-import "@fontsource/reddit-sans/700.css";
-import "@fontsource/reddit-mono/500.css";
-import "@fontsource/reddit-mono/600.css";
 import "sonner/dist/styles.css";
 import ToastProvider from "@/components/react/ToastProvider.tsx";
 import SquareButton from "@/components/SquareButton.astro";
@@ -77,6 +71,17 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <link rel="apple-touch-icon" href="/favicon.png" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    
+    <!-- Font CSS - loaded as external stylesheets that persist across view transitions -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/400.css" transition:persist />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/500.css" transition:persist />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/600.css" transition:persist />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/700.css" transition:persist />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-mono@5.1.1/500.css" transition:persist />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-mono@5.1.1/600.css" transition:persist />
+    
+    <!-- Preload fonts for offline support -->
+    <link rel="preload" href="/fonts/Roundo-Variable.ttf" as="font" type="font/ttf" crossorigin="anonymous" />
     
     <!-- Prefetch critical routes for faster navigation -->
     <link rel="prefetch" href="/" />
@@ -294,12 +299,15 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <!-- Development environment fixes -->
     <script>
       // Only run in development
+      // @ts-ignore
       if (import.meta.env.DEV) {
         // Override module script loading to handle MIME type issues
         const originalCreateElement = document.createElement;
-        document.createElement = function(tagName: string) {
+        // @ts-ignore
+        document.createElement = function(tagName) {
           const element = originalCreateElement.call(this, tagName);
-          if (tagName === 'script' && (element as HTMLScriptElement).type === 'module') {
+          // @ts-ignore
+          if (tagName === 'script' && element.type === 'module') {
             element.addEventListener('error', function(e) {
               // Don't prevent the error, but log it as a warning
               console.warn('Module script loading issue (development):', e);
@@ -310,6 +318,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         
         // Suppress specific MIME type errors in console
         const originalConsoleError = console.error;
+        // @ts-ignore
         console.error = function(...args) {
           const message = args[0];
           if (typeof message === 'string' && 
@@ -428,7 +437,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         currentNote={currentNote}
         contentType={contentType}
         publishableKey={publishableKey}
-        client:load
       />
     </div>
   </body>
@@ -512,11 +520,12 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
 <!-- Custom Toast event listener -->
 <script>
-  window.addEventListener('showToast', (event: Event) => {
-    const customEvent = event as CustomEvent<{ message: string; type: 'success' | 'error' | 'info' | 'warning' }>;
-    const { message, type } = customEvent.detail;
+  window.addEventListener('showToast', (event) => {
+    // @ts-ignore - event.detail is a CustomEvent detail
+    const { message, type } = event.detail;
     if (window.toast && type in window.toast) {
-      const toastMethod = window.toast[type as keyof typeof window.toast];
+      // @ts-ignore
+      const toastMethod = window.toast[type];
       if (typeof toastMethod === 'function') {
         toastMethod(message);
       }
@@ -689,4 +698,3 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
 <!-- Persistent Navigation Renderer -->
 <script is:inline src="/scripts/navigation/persistent-navigation.js?v=4"></script>
-

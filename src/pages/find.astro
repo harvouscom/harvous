@@ -731,9 +731,9 @@ if (query.trim()) {
 
   // Recent searches functionality is now handled by RecentSearches React component
   // Keep removeFromRecentSearches globally available for updateCurrentSearchCount compatibility
-  function removeFromRecentSearches(searchTerm: string) {
+  function removeFromRecentSearches(searchTerm) {
     const recentSearches = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
-    const updatedSearches = recentSearches.filter((search: any) => {
+    const updatedSearches = recentSearches.filter((search) => {
       // Handle both old format (strings) and new format (objects)
       const term = typeof search === 'string' ? search : search.term;
       return term !== searchTerm;
@@ -745,7 +745,7 @@ if (query.trim()) {
   }
 
   // Make function globally available for compatibility
-  (window as any).removeFromRecentSearches = removeFromRecentSearches;
+  window.removeFromRecentSearches = removeFromRecentSearches;
 
   // Update result count for current search
   function updateCurrentSearchCount() {
@@ -768,7 +768,7 @@ if (query.trim()) {
       }
       
       const recentSearches = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
-      const updatedSearches = recentSearches.map((search: any) => {
+      const updatedSearches = recentSearches.map((search) => {
         if (search.term === currentQuery) {
           return { ...search, count: resultCount };
         }
@@ -788,7 +788,7 @@ if (query.trim()) {
     // Also use MutationObserver to watch for search results
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
-        if (mutation.type === 'childList' && (mutation.target as Element).classList?.contains('search-results')) {
+        if (mutation.type === 'childList' && mutation.target.classList?.contains('search-results')) {
           setTimeout(updateCurrentSearchCount, 100);
         }
       });
@@ -802,7 +802,7 @@ if (query.trim()) {
   });
   
   // Also run after View Transitions (debounced)
-  let searchCountTimeout: ReturnType<typeof setTimeout> | null = null;
+  let searchCountTimeout = null;
   document.addEventListener('astro:page-load', () => {
     if (searchCountTimeout) clearTimeout(searchCountTimeout);
     searchCountTimeout = setTimeout(updateCurrentSearchCount, 100);
