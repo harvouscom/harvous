@@ -273,10 +273,12 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         if (shouldCacheResponse(response)) {
           const timestamped = addCacheTimestamp(response.clone());
+          // Clone before returning to avoid "body already used" error
+          const responseToReturn = timestamped.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            safeCachePut(cache, event.request, timestamped.clone());
+            safeCachePut(cache, event.request, timestamped);
           });
-          return timestamped;
+          return responseToReturn;
         }
         return response;
       })
