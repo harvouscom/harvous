@@ -1,4 +1,4 @@
-import Dexie, { Table } from 'dexie';
+import Dexie, { type Table } from 'dexie';
 
 // Sync status for offline entities
 export type SyncStatus = 'synced' | 'pending' | 'conflict' | 'deleted';
