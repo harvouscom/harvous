@@ -168,7 +168,7 @@ async function processThreadMutation(userId: string, operation: string, entityId
       title: newThread.title
     });
 
-    return { success: true, entityId, serverId: newThread.id };
+    return { success: true, entityId, serverId: newThread.id, data: { color: newThread.color } };
   } else if (operation === 'update') {
     const existing = await db.select().from(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId))).get();
     if (!existing) {
@@ -188,7 +188,7 @@ async function processThreadMutation(userId: string, operation: string, entityId
       })
       .where(eq(Threads.id, entityId));
 
-    return { success: true, entityId, serverId: entityId };
+    return { success: true, entityId, serverId: entityId, data: { color: data.color } };
   } else if (operation === 'delete') {
     // Thread deletion logic (move notes to unorganized, etc.)
     // Simplified for now - just mark as deleted conceptually

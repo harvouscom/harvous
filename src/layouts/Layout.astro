@@ -80,8 +80,8 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-mono@5.1.1/500.css" transition:persist />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-mono@5.1.1/600.css" transition:persist />
     
-    <!-- Preload fonts for offline support -->
-    <link rel="preload" href="/fonts/Roundo-Variable.ttf" as="font" type="font/ttf" crossorigin="anonymous" />
+    <!-- Prefetch fonts (avoid preload "not used" warnings) -->
+    <link rel="prefetch" href="/fonts/Roundo-Variable.ttf" as="font" type="font/ttf" crossorigin="anonymous" />
     
     <!-- Prefetch critical routes for faster navigation -->
     <link rel="prefetch" href="/" />

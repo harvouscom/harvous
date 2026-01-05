@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v0-245-0'; // Bump version for new SW (CDN font caching)
+const CACHE_NAME = 'harvous-cache-v0-246-0'; // Bump version for SW changes
 const NAV_API_CACHE = 'harvous-nav-api-v4';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -71,11 +71,13 @@ const shouldCacheResponse = (response) => {
 // Helper to add cache timestamp
 const addCacheTimestamp = (response) => {
   if (!response) return response;
-  const headers = new Headers(response.clone().headers);
+  // Clone once and use that clone for both headers and body
+  const cloned = response.clone();
+  const headers = new Headers(cloned.headers);
   if (!headers.has('date')) {
     headers.set('date', new Date().toUTCString());
   }
-  return new Response(response.clone().body, {
+  return new Response(cloned.body, {
     status: response.status,
     statusText: response.statusText,
     headers: headers
@@ -114,8 +116,10 @@ self.addEventListener('fetch', (event) => {
         return fetch(event.request).then((response) => {
           if (shouldCacheResponse(response)) {
             const timestamped = addCacheTimestamp(response.clone());
+            // Clone synchronously before returning; later clone() can throw once the body is being read.
+            const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              safeCachePut(cache, event.request, timestamped.clone());
+              safeCachePut(cache, event.request, responseToCache);
             });
             return timestamped;
           }
@@ -211,8 +215,10 @@ self.addEventListener('fetch', (event) => {
         return fetch(event.request).then((response) => {
           if (shouldCacheResponse(response)) {
             const timestamped = addCacheTimestamp(response.clone());
+            // Clone synchronously before returning; later clone() can throw once the body is being read.
+            const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              safeCachePut(cache, event.request, timestamped.clone());
+              safeCachePut(cache, event.request, responseToCache);
             });
             return timestamped;
           }
@@ -246,8 +252,10 @@ self.addEventListener('fetch', (event) => {
         return fetch(event.request).then((response) => {
           if (shouldCacheResponse(response)) {
             const timestamped = addCacheTimestamp(response.clone());
+            // Clone synchronously before returning; later clone() can throw once the body is being read.
+            const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              safeCachePut(cache, event.request, timestamped.clone());
+              safeCachePut(cache, event.request, responseToCache);
             });
             return timestamped;
           }
@@ -280,8 +288,10 @@ self.addEventListener('fetch', (event) => {
         return fetch(event.request).then((response) => {
           if (shouldCacheResponse(response)) {
             const timestamped = addCacheTimestamp(response.clone());
+            // Clone synchronously before returning; later clone() can throw once the body is being read.
+            const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              safeCachePut(cache, event.request, timestamped.clone());
+              safeCachePut(cache, event.request, responseToCache);
             });
             return timestamped;
           }

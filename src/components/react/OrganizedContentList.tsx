@@ -98,19 +98,89 @@ function matchesItem(
   return false;
 }
 
+// Helper to get raw UUID from any ID format
+function normalizeId(id: string | undefined | null): string {
+  if (!id) return '';
+  // Some IDs can end up double-prefixed (e.g. "thread-thread_abc" or "note-note_abc")
+  // so strip prefixes repeatedly until stable.
+  let out = id;
+  for (let i = 0; i < 4; i++) {
+    const next = out.replace(/^(note_|thread_|note-|thread-)/, '');
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
 export default function OrganizedContentList({ 
   initialItems, 
   filter = 'all',
   userId
 }: OrganizedContentListProps) {
-  const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
+  // Prevent a "flash" of server-rendered items that might include content the user deleted.
+  // We can't read sessionStorage on the server, so we intentionally render a lightweight
+  // placeholder until the client hydrates and we can apply the deleted ID filter.
+  const [isHydrated, setIsHydrated] = useState(false);
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(() => {
+    // Restore deleted items. We store in BOTH sessionStorage and localStorage because
+    // sessionStorage can be unexpectedly cleared in some browser/PWA flows.
+    const merged = new Set<string>();
+    try {
+      const sessionStored = typeof window !== 'undefined' ? sessionStorage.getItem('deletedContentItems') : null;
+      if (sessionStored) {
+        const ids = JSON.parse(sessionStored) as string[];
+        ids.map(normalizeId).forEach(id => merged.add(id));
+      }
+    } catch (err) {
+      console.error('[OrganizedContentList] Failed to restore deleted items from sessionStorage:', err);
+    }
+    try {
+      const localStored = typeof window !== 'undefined' ? localStorage.getItem('deletedContentItems') : null;
+      if (localStored) {
+        const ids = JSON.parse(localStored) as string[];
+        ids.map(normalizeId).forEach(id => merged.add(id));
+      }
+    } catch (err) {
+      console.error('[OrganizedContentList] Failed to restore deleted items from localStorage:', err);
+    }
+    return merged;
+  });
   const [hasMore, setHasMore] = useState<boolean>(() => {
     if (filter === 'scripture') return true;
     return (initialItems || []).length >= 20;
   });
   const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(() => {
     if (filter === 'scripture') return [];
-    return sortItems((initialItems || []).map(normalizeItemDates));
+    
+    // CRITICAL: Filter initialItems IMMEDIATELY in the state initializer
+    // This prevents deleted items from appearing on the first render
+    let initialDeleted = new Set<string>();
+    try {
+      if (typeof window !== 'undefined') {
+        const sessionStored = sessionStorage.getItem('deletedContentItems');
+        if (sessionStored) {
+          (JSON.parse(sessionStored) as string[]).map(normalizeId).forEach(id => initialDeleted.add(id));
+        }
+        const localStored = localStorage.getItem('deletedContentItems');
+        if (localStored) {
+          (JSON.parse(localStored) as string[]).map(normalizeId).forEach(id => initialDeleted.add(id));
+        }
+      }
+    } catch {}
+
+    const rawItems = (initialItems || []).map(normalizeItemDates);
+    const filtered = rawItems.filter(item => {
+      if (!item || !item.id) return false;
+      return !initialDeleted.has(normalizeId(item.id)) && 
+             !initialDeleted.has(normalizeId(item.threadId)) && 
+             !initialDeleted.has(normalizeId(item.noteId));
+    });
+
+    return sortItems(filtered);
   });
 
   // Use offline reads if userId is provided
@@ -153,12 +223,19 @@ export default function OrganizedContentList({
             }))
           ];
 
+          // CRITICAL: Filter out deleted items before any other filtering
+          const notDeletedItems = localItems.filter(item => {
+            return !deletedItemIdsRef.current.has(normalizeId(item.id)) && 
+                   !deletedItemIdsRef.current.has(normalizeId(item.threadId)) && 
+                   !deletedItemIdsRef.current.has(normalizeId(item.noteId));
+          });
+
           // Filter by the current list filter
-          let filteredItems = localItems;
-          if (filter === 'threads') filteredItems = localItems.filter(i => i.type === 'thread');
-          if (filter === 'notes') filteredItems = localItems.filter(i => i.type === 'note' && (i.noteType === 'default' || !i.noteType));
-          if (filter === 'scripture') filteredItems = localItems.filter(i => i.type === 'note' && i.noteType === 'scripture');
-          if (filter === 'resources') filteredItems = localItems.filter(i => i.type === 'note' && i.noteType === 'resource');
+          let filteredItems = notDeletedItems;
+          if (filter === 'threads') filteredItems = notDeletedItems.filter(i => i.type === 'thread');
+          if (filter === 'notes') filteredItems = notDeletedItems.filter(i => i.type === 'note' && (i.noteType === 'default' || !i.noteType));
+          if (filter === 'scripture') filteredItems = notDeletedItems.filter(i => i.type === 'note' && i.noteType === 'scripture');
+          if (filter === 'resources') filteredItems = notDeletedItems.filter(i => i.type === 'note' && i.noteType === 'resource');
 
           // Sort and normalize
           const sorted = sortItems(filteredItems.map(normalizeItemDates));
@@ -181,7 +258,7 @@ export default function OrganizedContentList({
     };
 
     loadLocalData();
-  }, [userId, filter]);
+  }, [userId, filter, deletedItemIds]);
 
   // Essential refs only
   const isMountedRef = useRef(true);
@@ -283,17 +360,11 @@ export default function OrganizedContentList({
         // Normalize dates once at API boundary
         const normalizedItems = (data.items || []).map(normalizeItemDates);
 
-        // Filter out deleted items
-        const filtered = normalizedItems.filter(item => !deletedItemIdsRef.current.has(item.id));
-
-        // Preserve optimistic lastVisited updates
+        // Preserve optimistic lastVisited updates using raw items
         const currentSnapshot = currentItemsRef.current;
-        filtered.forEach((freshItem, index) => {
-          // Use unified matching helper to find current item
+        normalizedItems.forEach((freshItem, index) => {
           const currentItem = currentSnapshot.find(item => {
-            // Direct ID match (most common case)
             if (item.id === freshItem.id) return true;
-            // Use unified matching for UUID-based matching
             if (freshItem.type === 'thread' && freshItem.threadId) {
               return matchesItem(item, freshItem.threadId, 'thread');
             }
@@ -308,44 +379,32 @@ export default function OrganizedContentList({
             const freshLastVisited = normalizeDate(freshItem.lastVisited);
 
             if (currentLastVisited && (!freshLastVisited || currentLastVisited > freshLastVisited)) {
-              filtered[index] = {
-                ...filtered[index],
+              normalizedItems[index] = {
+                ...normalizedItems[index],
                 lastVisited: currentLastVisited,
-                lastUpdated: currentItem.lastUpdated || filtered[index].lastUpdated || currentLastVisited.toISOString()
+                lastUpdated: currentItem.lastUpdated || normalizedItems[index].lastUpdated || currentLastVisited.toISOString()
               };
             }
           }
         });
 
-        // Merge with optimistic items
-        // Build confirmed IDs set using unified matching
+        // Merge with optimistic items (unfiltered for master list)
         const confirmedIds = new Set<string>();
-        filtered.forEach(item => {
-          confirmedIds.add(item.id);
-          if (item.threadId) confirmedIds.add(item.threadId);
-          if (item.noteId) confirmedIds.add(item.noteId);
+        normalizedItems.forEach(item => {
+          confirmedIds.add(normalizeId(item.id));
+          if (item.threadId) confirmedIds.add(normalizeId(item.threadId));
+          if (item.noteId) confirmedIds.add(normalizeId(item.noteId));
         });
 
         const optimisticItemsToKeep: OrganizedContentItem[] = [];
         const fiveSecondsAgo = Date.now() - 5000;
 
         optimisticUpdates.optimisticItemsRef.current.forEach(({ timestamp, item: optimisticItem }, itemId) => {
-          // Check if optimistic item is confirmed using unified matching
-          const isConfirmed = confirmedIds.has(itemId) || confirmedIds.has(optimisticItem.id) ||
-            (optimisticItem.threadId && confirmedIds.has(optimisticItem.threadId)) ||
-            (optimisticItem.noteId && confirmedIds.has(optimisticItem.noteId)) ||
-            // Also check if any filtered item matches the optimistic item
-            filtered.some(item => matchesItem(item, itemId, optimisticItem.type));
+          const isConfirmed = confirmedIds.has(normalizeId(itemId)) || 
+                             confirmedIds.has(normalizeId(optimisticItem.id));
 
           if (!isConfirmed && timestamp > fiveSecondsAgo) {
-            const matchesFilter = currentFilter === 'all' ||
-              (currentFilter === 'threads' && optimisticItem.type === 'thread') ||
-              (currentFilter === 'notes' && optimisticItem.type === 'note' && (optimisticItem.noteType === 'default' || !optimisticItem.noteType)) ||
-              (currentFilter === 'resources' && optimisticItem.type === 'note' && optimisticItem.noteType === 'resource');
-
-            if (matchesFilter && !deletedItemIdsRef.current.has(itemId) && !deletedItemIdsRef.current.has(optimisticItem.id)) {
-              optimisticItemsToKeep.push(optimisticItem);
-            }
+            optimisticItemsToKeep.push(optimisticItem);
           } else if (isConfirmed) {
             optimisticUpdates.removeOptimistic(itemId);
             if (optimisticItem.threadId) optimisticUpdates.removeOptimistic(optimisticItem.threadId);
@@ -354,14 +413,17 @@ export default function OrganizedContentList({
           }
         });
 
-        // Combine and sort
-        const combined = [...filtered, ...optimisticItemsToKeep];
+        // Combine and sort for the master list
+        const combined = [...normalizedItems, ...optimisticItemsToKeep];
         const sorted = sortItems(combined);
 
-        // Check if we're looking for a specific item
+        // Check if we're looking for a specific item (using filtering logic for check only)
         if (options?.expectedItemId && options?.expectedItemType) {
           const itemExists = sorted.some(item => 
-            matchesItem(item, options.expectedItemId, options.expectedItemType)
+            matchesItem(item, options.expectedItemId, options.expectedItemType) &&
+            !deletedItemIdsRef.current.has(normalizeId(item.id)) &&
+            !deletedItemIdsRef.current.has(normalizeId(item.threadId)) &&
+            !deletedItemIdsRef.current.has(normalizeId(item.noteId))
           );
           if (!itemExists && attempt < maxRetries - 1) {
             await new Promise(resolve => setTimeout(resolve, delays[attempt]));
@@ -369,7 +431,7 @@ export default function OrganizedContentList({
           }
         }
 
-        // Update state
+        // Update state with the master list
         const refreshedKey = sorted.map(item => item.id).join(',') + `|${sorted.length}`;
         if (isMountedRef.current && window.location.pathname === '/' && 
             !refreshStateRef.current.isNavigating && filterRef.current === currentFilter) {
@@ -456,7 +518,10 @@ export default function OrganizedContentList({
     }
   }, [filter, refreshContent]);
 
-  // Handle initialItems changes
+  // Track previous initialItems to detect actual changes from server
+  const prevPropsInitialItemsRef = useRef<string>('');
+
+  // Handle initialItems changes (server-side props update)
   useEffect(() => {
     if (filter === 'scripture') return;
     if (!initialItems || !Array.isArray(initialItems)) {
@@ -465,39 +530,42 @@ export default function OrganizedContentList({
       return;
     }
 
-    const filtered = initialItems
-      .map(normalizeItemDates)
-      .filter(item => item && item.id && !deletedItemIds.has(item.id));
+    const itemsKey = initialItems.map(i => i.id).join(',');
+    const isNewServerData = itemsKey !== prevPropsInitialItemsRef.current;
 
-    let finalFiltered = filtered;
-    if (filter === 'threads') {
-      finalFiltered = filtered.filter(item => item.type === 'thread');
-    } else if (filter === 'notes') {
-      finalFiltered = filtered.filter(item => item.type === 'note' && (item.noteType === 'default' || !item.noteType));
-    } else if (filter === 'resources') {
-      finalFiltered = filtered.filter(item => item.type === 'note' && item.noteType === 'resource');
+    if (isNewServerData) {
+      prevPropsInitialItemsRef.current = itemsKey;
+      
+      const rawItems = initialItems.map(normalizeItemDates);
+      const sorted = sortItems(rawItems);
+      
+      setHasMore(sorted.length >= 20);
+      hasMoreRef.current = sorted.length >= 20;
+      setCurrentItems(sorted);
+      currentItemsRef.current = sorted;
     }
+  }, [initialItems, filter]); // Removed deletedItemIds from dependencies to prevent list reset on deletion
 
-    const sorted = sortItems(finalFiltered);
-    const newHasMore = sorted.length >= 20;
-    setHasMore(newHasMore);
-    hasMoreRef.current = newHasMore;
-    setCurrentItems(sorted);
-    currentItemsRef.current = sorted;
-  }, [initialItems, deletedItemIds, filter]);
-
-  // Handle deletion events
+  // Listen for deletion events (client-only)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const handleNoteDeleted = (event: CustomEvent) => {
       const { noteId } = event.detail;
       if (noteId) {
+        const normId = normalizeId(noteId);
         optimisticUpdates.removeOptimistic(noteId);
         optimisticUpdates.removeOptimistic(`note-${noteId}`);
         setDeletedItemIds(prev => {
-          const newSet = new Set([...prev, noteId, `note-${noteId}`]);
+          const newSet = new Set([...prev, normId]);
           deletedItemIdsRef.current = newSet;
+          // Persist deletion state so deleted items stay deleted across page refreshes
+          try {
+            sessionStorage.setItem('deletedContentItems', JSON.stringify([...newSet]));
+            localStorage.setItem('deletedContentItems', JSON.stringify([...newSet]));
+          } catch (err) {
+            console.error('[OrganizedContentList] Failed to persist deleted items:', err);
+          }
           return newSet;
         });
       }
@@ -506,11 +574,19 @@ export default function OrganizedContentList({
     const handleThreadDeleted = (event: CustomEvent) => {
       const { threadId } = event.detail;
       if (threadId) {
+        const normId = normalizeId(threadId);
         optimisticUpdates.removeOptimistic(threadId);
         optimisticUpdates.removeOptimistic(`thread-${threadId}`);
         setDeletedItemIds(prev => {
-          const newSet = new Set([...prev, threadId, `thread-${threadId}`]);
+          const newSet = new Set([...prev, normId]);
           deletedItemIdsRef.current = newSet;
+          // Persist deletion state so deleted items stay deleted across page refreshes
+          try {
+            sessionStorage.setItem('deletedContentItems', JSON.stringify([...newSet]));
+            localStorage.setItem('deletedContentItems', JSON.stringify([...newSet]));
+          } catch (err) {
+            console.error('[OrganizedContentList] Failed to persist deleted items:', err);
+          }
           return newSet;
         });
       }
@@ -534,12 +610,22 @@ export default function OrganizedContentList({
       if (recentNotesStr) {
         const recentNotes = JSON.parse(recentNotesStr);
         const fiveSecondsAgo = Date.now() - 5000;
-        const relevantNote = recentNotes.find((n: any) => n.timestamp > fiveSecondsAgo);
+        
+        // Filter out notes that were deleted
+        const activeRecentNotes = recentNotes.filter((n: any) => 
+          !deletedItemIdsRef.current.has(normalizeId(n.noteId))
+        );
+        
+        if (activeRecentNotes.length !== recentNotes.length) {
+          sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(activeRecentNotes));
+        }
+
+        const relevantNote = activeRecentNotes.find((n: any) => n.timestamp > fiveSecondsAgo);
 
         if (relevantNote?.noteId) {
           refreshContent({ expectedItemId: relevantNote.noteId, expectedItemType: 'note' }).then(success => {
             if (success) {
-              const filtered = recentNotes.filter((n: any) => n.noteId !== relevantNote.noteId);
+              const filtered = activeRecentNotes.filter((n: any) => n.noteId !== relevantNote.noteId);
               sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
             }
           });
@@ -550,12 +636,22 @@ export default function OrganizedContentList({
       if (recentThreadsStr) {
         const recentThreads = JSON.parse(recentThreadsStr);
         const fiveSecondsAgo = Date.now() - 5000;
-        const relevantThread = recentThreads.find((t: any) => t.timestamp > fiveSecondsAgo);
+        
+        // Filter out threads that were deleted
+        const activeRecentThreads = recentThreads.filter((t: any) => 
+          !deletedItemIdsRef.current.has(normalizeId(t.threadId))
+        );
+        
+        if (activeRecentThreads.length !== recentThreads.length) {
+          sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(activeRecentThreads));
+        }
+
+        const relevantThread = activeRecentThreads.find((t: any) => t.timestamp > fiveSecondsAgo);
 
         if (relevantThread?.threadId) {
           refreshContent({ expectedItemId: relevantThread.threadId, expectedItemType: 'thread' }).then(success => {
             if (success) {
-              const filtered = recentThreads.filter((t: any) => t.threadId !== relevantThread.threadId);
+              const filtered = activeRecentThreads.filter((t: any) => t.threadId !== relevantThread.threadId);
               sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(filtered));
             }
           });
@@ -575,6 +671,12 @@ export default function OrganizedContentList({
       const note = customEvent?.detail?.note;
       const noteId = customEvent?.detail?.noteId || note?.id;
       const currentFilter = filterRef.current;
+
+      // CRITICAL: Don't add if the note was just deleted (using normalized check)
+      if (noteId && deletedItemIdsRef.current.has(normalizeId(noteId))) {
+        debug('[OrganizedContentList] handleNoteCreated: Skipping deleted note', { noteId });
+        return;
+      }
 
       if (window.location.pathname === '/') {
         if (currentFilter === 'scripture') {
@@ -616,6 +718,12 @@ export default function OrganizedContentList({
       const currentFilter = filterRef.current;
 
       if (!thread || !threadId) return;
+
+      // CRITICAL: Don't add if the thread was just deleted (using normalized check)
+      if (deletedItemIdsRef.current.has(normalizeId(threadId))) {
+        debug('[OrganizedContentList] handleThreadCreated: Skipping deleted thread', { threadId });
+        return;
+      }
 
       if (window.location.pathname === '/') {
         if (currentFilter === 'all' || currentFilter === 'threads') {
@@ -853,7 +961,7 @@ export default function OrganizedContentList({
   }, []);
 
   // Load more function
-  const loadMore = useCallback(async (offset: number, limit: number) => {
+  const loadMore = useCallback(async (_ignoredOffset: number, limit: number) => {
     if (typeof window === 'undefined') {
       return { items: [], hasMore: false };
     }
@@ -864,11 +972,11 @@ export default function OrganizedContentList({
     const inCooldown = timeSinceRefresh < 500;
 
     if (refreshStateRef.current.isRefreshing || inCooldown) {
-      // If we're currently refreshing or in cooldown, return empty but set hasMore to false 
-      // temporarily to prevent InfiniteScrollList from immediately re-triggering.
-      // The hasMore state will be correctly restored once the refresh completes.
       return { items: [], hasMore: false };
     }
+
+    // Use the raw currentItems length for the offset to ensure correct pagination
+    const offset = currentItemsRef.current.length;
 
     const url = buildAPIUrl('/api/content/load-more', {
       offset: offset.toString(),
@@ -889,14 +997,18 @@ export default function OrganizedContentList({
     }
 
     const data = await response.json();
-    const normalizedItems = (data.items || []).map(normalizeItemDates);
-    const filteredItems = normalizedItems.filter(item => !deletedItemIdsRef.current.has(item.id));
+    const newItems = (data.items || []).map(normalizeItemDates);
+    
+    // Update the master list with the new items
+    setCurrentItems(prev => [...prev, ...newItems]);
 
     setHasMore(data.hasMore);
     hasMoreRef.current = data.hasMore;
 
+    // Return empty items because we've already updated the parent state
+    // which will update the 'items' prop of the InfiniteScrollList
     return {
-      items: filteredItems,
+      items: [],
       hasMore: data.hasMore
     };
   }, []);
@@ -978,15 +1090,22 @@ export default function OrganizedContentList({
     );
   };
 
-  const filteredInitialItems = (currentItems || []).filter((item: OrganizedContentItem) => {
-    return item && item.id && !deletedItemIds.has(item.id);
+  const displayItems = (currentItems || []).filter((item: OrganizedContentItem) => {
+    if (!item || !item.id) return false;
+    return !deletedItemIds.has(normalizeId(item.id)) && 
+           !deletedItemIds.has(normalizeId(item.threadId)) && 
+           !deletedItemIds.has(normalizeId(item.noteId));
   });
 
   return (
     <div className="flex flex-col">
-      {filteredInitialItems.length > 0 ? (
+      {!isHydrated ? (
+        // Must match server render to avoid hydration mismatch; prevents deleted-item flash.
+        <div style={{ minHeight: '300px', width: '100%' }} />
+      ) : displayItems.length > 0 ? (
         <InfiniteScrollList
-          initialItems={filteredInitialItems}
+          initialItems={displayItems}
+          items={displayItems}
           loadMore={loadMore}
           renderItem={renderItem}
           itemKey={(item) => item.id}

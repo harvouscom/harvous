@@ -665,8 +665,13 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
           await updateEntityId(op.entityType, op.entityId, res.serverId, userId);
         }
 
-        // Mark entity as synced
-        await markEntitySynced(op.entityType, res.serverId || op.entityId, userId);
+        // Mark entity as synced with potential server data (like color)
+        if (res.data) {
+          console.log(`[Sync] Marking ${op.entityType}:${res.serverId || op.entityId} as synced with data:`, res.data);
+          await markEntitySynced(op.entityType, res.serverId || op.entityId, userId, res.data);
+        } else {
+          await markEntitySynced(op.entityType, res.serverId || op.entityId, userId);
+        }
         
         // Verify thread color after sync
         if (op.entityType === 'thread') {
@@ -675,8 +680,8 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
           console.log('[Sync] Thread after markEntitySynced:', {
             threadId,
             color: syncedThread?.color,
-            expectedColor: op.data?.color,
-            colorMatch: syncedThread?.color === op.data?.color
+            expectedColor: res.data?.color || op.data?.color,
+            colorMatch: syncedThread?.color === (res.data?.color || op.data?.color)
           });
         }
 
@@ -737,16 +742,23 @@ async function updateEntityId(entityType: string, oldId: string, newId: string, 
 /**
  * Mark entity as synced
  */
-async function markEntitySynced(entityType: string, entityId: string, userId: string): Promise<void> {
+async function markEntitySynced(entityType: string, entityId: string, userId: string, data?: any): Promise<void> {
   try {
     const now = Date.now();
+    const updateData: { syncStatus: SyncStatus; lastModified: number; serverVersion: number; [key: string]: any } = {
+      syncStatus: 'synced' as SyncStatus,
+      lastModified: now,
+      serverVersion: now,
+    };
+
+    // Include any additional data returned from the server (e.g. assigned color)
+    if (data) {
+      Object.assign(updateData, data);
+    }
+
     switch (entityType) {
       case 'space':
-        await offlineDB.spaces.where('[userId+id]').equals([userId, entityId]).modify({
-          syncStatus: 'synced',
-          lastModified: now,
-          serverVersion: now,
-        });
+        await offlineDB.spaces.where('[userId+id]').equals([userId, entityId]).modify(updateData);
         break;
       case 'thread':
         // Get thread before modifying to verify color is preserved
@@ -754,14 +766,11 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
         console.log('[markEntitySynced] Thread before sync status update:', {
           entityId,
           color: threadBefore?.color,
-          title: threadBefore?.title
+          title: threadBefore?.title,
+          incomingData: data
         });
         
-        await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).modify({
-          syncStatus: 'synced',
-          lastModified: now,
-          serverVersion: now,
-        });
+        await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).modify(updateData);
         
         // Verify color is still there after modify
         const threadAfter = await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).first();
@@ -769,36 +778,20 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
           entityId,
           color: threadAfter?.color,
           title: threadAfter?.title,
-          colorPreserved: threadAfter?.color === threadBefore?.color
+          colorMatch: data?.color ? threadAfter?.color === data.color : true
         });
         break;
       case 'note':
-        await offlineDB.notes.where('[userId+id]').equals([userId, entityId]).modify({
-          syncStatus: 'synced',
-          lastModified: now,
-          serverVersion: now,
-        });
+        await offlineDB.notes.where('[userId+id]').equals([userId, entityId]).modify(updateData);
         break;
       case 'noteThread':
-        await offlineDB.noteThreads.where('[userId+id]').equals([userId, entityId]).modify({
-          syncStatus: 'synced',
-          lastModified: now,
-          serverVersion: now,
-        });
+        await offlineDB.noteThreads.where('[userId+id]').equals([userId, entityId]).modify(updateData);
         break;
       case 'tag':
-        await offlineDB.tags.where('[userId+id]').equals([userId, entityId]).modify({
-          syncStatus: 'synced',
-          lastModified: now,
-          serverVersion: now,
-        });
+        await offlineDB.tags.where('[userId+id]').equals([userId, entityId]).modify(updateData);
         break;
       case 'noteTag':
-        await offlineDB.noteTags.where('[userId+id]').equals([userId, entityId]).modify({
-          syncStatus: 'synced',
-          lastModified: now,
-          serverVersion: now,
-        });
+        await offlineDB.noteTags.where('[userId+id]').equals([userId, entityId]).modify(updateData);
         break;
     }
   } catch (error) {
