@@ -3,6 +3,7 @@ import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
 import { debug } from '@/utils/logger';
+import { buildAPIUrl, getSafeOrigin } from '@/utils/safe-url';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
 
@@ -428,11 +429,16 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             
             for (let attempt = 0; attempt < maxAttempts; attempt++) {
               try {
-                const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
-                url.searchParams.set('offset', '0');
-                url.searchParams.set('limit', '100');
+                const url = buildAPIUrl(`/api/threads/${threadId}/notes`, {
+                  offset: '0',
+                  limit: '100'
+                });
                 
-                const verifyResponse = await fetch(url.toString(), {
+                if (!url) {
+                  throw new Error('Failed to build verification URL');
+                }
+                
+                const verifyResponse = await fetch(url, {
                   credentials: 'include',
                   cache: 'no-store'
                 });
@@ -868,7 +874,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // OPTIMIZATION: Prefetch the destination page before navigating
           // This improves perceived performance, especially on slow connections
           // Keep "Creating..." state visible during prefetch
-          const absoluteUrl = `${window.location.origin}${redirectUrl}`;
+          const origin = getSafeOrigin();
+          const absoluteUrl = origin ? `${origin}${redirectUrl}` : redirectUrl;
           debug('[useNoteSubmission] Prefetching destination', { absoluteUrl });
           
           try {
@@ -1085,7 +1092,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           
           // OPTIMIZATION: Prefetch the destination page before navigating
           // This improves perceived performance, especially on slow connections
-          const absoluteUrl = `${window.location.origin}${redirectUrl}`;
+          const origin = getSafeOrigin();
+          const absoluteUrl = origin ? `${origin}${redirectUrl}` : redirectUrl;
           debug('[useNoteSubmission] Prefetching destination (save and close)', { absoluteUrl });
           
           try {

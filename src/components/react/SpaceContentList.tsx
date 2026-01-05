@@ -6,6 +6,7 @@ import { debug } from '@/utils/logger';
 import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
+import { safeParseReferrer, referrerMatchesPattern } from '@/utils/safe-url';
 
 interface SpaceItem {
   id: string;
@@ -730,12 +731,7 @@ export default function SpaceContentList({
       if (isSpacePage && isMountedRef.current) {
         // Check if we came from a thread or note page
         const referrer = document.referrer;
-        const cameFromThreadOrNote = referrer && (
-          referrer.includes('/thread_') || 
-          referrer.includes('/note_') ||
-          new URL(referrer).pathname.startsWith('/thread_') ||
-          new URL(referrer).pathname.startsWith('/note_')
-        );
+        const cameFromThreadOrNote = referrerMatchesPattern('/thread_') || referrerMatchesPattern('/note_');
 
         // Also check if previous pathname was a thread/note (for View Transitions scenarios)
         const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread_') || 
@@ -760,15 +756,13 @@ export default function SpaceContentList({
 
           // Fallback to referrer if previous pathname didn't work
           if (!visitedItemId && cameFromThreadOrNote && referrer) {
-            try {
-              const referrerUrl = new URL(referrer);
+            const referrerUrl = safeParseReferrer(referrer);
+            if (referrerUrl) {
               const extracted = extractItemIdFromPath(referrerUrl.pathname);
               if (extracted) {
                 visitedItemId = extracted.id;
                 visitedItemType = extracted.type;
               }
-            } catch (e) {
-              // Invalid referrer URL, skip
             }
           }
 
@@ -833,12 +827,7 @@ export default function SpaceContentList({
       const dataIsStale = isStaleData(initialItems, (item) => item.lastVisited);
 
       const referrer = document.referrer;
-      const cameFromThreadOrNote = referrer && (
-        referrer.includes('/thread_') || 
-        referrer.includes('/note_') ||
-        new URL(referrer).pathname.startsWith('/thread_') ||
-        new URL(referrer).pathname.startsWith('/note_')
-      );
+      const cameFromThreadOrNote = referrerMatchesPattern('/thread_') || referrerMatchesPattern('/note_');
 
       const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread_') || 
                                       previousPathnameRef.current.startsWith('/note_');
@@ -860,15 +849,13 @@ export default function SpaceContentList({
 
         // Fallback to referrer
         if (!visitedItemId && cameFromThreadOrNote && referrer) {
-          try {
-            const referrerUrl = new URL(referrer);
+          const referrerUrl = safeParseReferrer(referrer);
+          if (referrerUrl) {
             const extracted = extractItemIdFromPath(referrerUrl.pathname);
             if (extracted) {
               visitedItemId = extracted.id;
               visitedItemType = extracted.type;
             }
-          } catch (e) {
-            // Invalid referrer URL, skip
           }
         }
 

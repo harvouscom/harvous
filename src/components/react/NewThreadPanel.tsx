@@ -10,6 +10,7 @@ import { safeFetch } from '@/utils/safe-fetch';
 import Icon from './Icon';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
+import { safeURL } from '@/utils/safe-url';
 
 interface Note {
   id: string;
@@ -233,10 +234,12 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           }
           
           // Navigate to show updated thread with URL-based toast using View Transitions
-          const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.set('toast', 'success');
-          currentUrl.searchParams.set('message', encodeURIComponent('Thread updated!'));
-          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          const currentUrl = safeURL(window.location.href);
+          if (currentUrl) {
+            currentUrl.searchParams.set('toast', 'success');
+            currentUrl.searchParams.set('message', encodeURIComponent('Thread updated!'));
+            safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          }
         } else {
           const errorText = await response.text();
           console.error('NewThreadPanel: API error response:', errorText);

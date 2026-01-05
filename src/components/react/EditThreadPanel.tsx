@@ -9,6 +9,7 @@ import { safeFetch } from '@/utils/safe-fetch';
 import { captureException } from '@/utils/posthog';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import Icon from './Icon';
+import { safeURL } from '@/utils/safe-url';
 
 interface Note {
   id: string;
@@ -183,8 +184,10 @@ export default function EditThreadPanel({
         }, 500);
 
         // Navigate to show updated thread using View Transitions
-        const currentUrl = new URL(window.location.href);
-        safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+        const currentUrl = safeURL(window.location.href);
+        if (currentUrl) {
+          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+        }
       } else {
         console.error('EditThreadPanel: Thread update failed:', data);
         

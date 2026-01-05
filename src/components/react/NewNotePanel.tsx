@@ -5,6 +5,7 @@ import { safeFetch } from '@/utils/safe-fetch';
 import { captureException } from '@/utils/posthog';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { debug } from '@/utils/logger';
+import { safeURL } from '@/utils/safe-url';
 
 // Import extracted hooks
 import {
@@ -213,10 +214,12 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       }, 500);
       
       // Clean up URL parameter without reloading
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('upgrade');
-      newUrl.searchParams.delete('success');
-      window.history.replaceState({}, '', newUrl.toString());
+      const newUrl = safeURL(window.location.href);
+      if (newUrl) {
+        newUrl.searchParams.delete('upgrade');
+        newUrl.searchParams.delete('success');
+        window.history.replaceState({}, '', newUrl.toString());
+      }
     }
   }, [checkSubscriptionStatus]);
 

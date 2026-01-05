@@ -7,6 +7,7 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
+import { safeURL } from '@/utils/safe-url';
 
 interface Note {
   id: string;
@@ -173,8 +174,10 @@ export default function EditSpacePanel({
         }, 500);
 
         // Navigate to show updated space using View Transitions
-        const currentUrl = new URL(window.location.href);
-        safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+        const currentUrl = safeURL(window.location.href);
+        if (currentUrl) {
+          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+        }
       } else {
         console.error('EditSpacePanel: Space update failed:', data);
         

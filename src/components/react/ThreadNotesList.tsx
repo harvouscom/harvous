@@ -10,6 +10,7 @@ import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
 import { debug } from '@/utils/logger';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
+import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 
 
 interface Note {
@@ -211,11 +212,16 @@ export default function ThreadNotesList({
       
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
-          const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
-          url.searchParams.set('offset', '0');
-          url.searchParams.set('limit', '100');
+          const url = buildAPIUrl(`/api/threads/${threadId}/notes`, {
+            offset: '0',
+            limit: '100'
+          });
 
-          const response = await fetch(url.toString(), {
+          if (!url) {
+            throw new Error('Failed to build verification URL');
+          }
+
+          const response = await fetch(url, {
             credentials: 'include',
             cache: 'no-store'
           });
@@ -778,10 +784,7 @@ export default function ThreadNotesList({
       const dataIsStale = isStaleData(initialNotes, (note) => note.lastVisited);
       
       // Check if we came from a note page
-      const cameFromNotePage = referrer && (
-        referrer.includes('/note_') || 
-        new URL(referrer).pathname.startsWith('/note_')
-      );
+      const cameFromNotePage = referrerMatchesPattern('/note_');
       
       // Also check if previous pathname was a note (for View Transitions scenarios)
       const previousWasNote = previousPathnameRef.current.startsWith('/note_');
@@ -1045,11 +1048,16 @@ export default function ThreadNotesList({
     // The API needs to know how many total notes we've fetched, not how many filtered items we've displayed
     const dbOffset = databaseOffsetRef.current;
     
-    const url = new URL(`/api/threads/${threadId}/notes`, window.location.origin);
-    url.searchParams.set('offset', dbOffset.toString());
-    url.searchParams.set('limit', limit.toString());
+    const url = buildAPIUrl(`/api/threads/${threadId}/notes`, {
+      offset: dbOffset.toString(),
+      limit: limit.toString()
+    });
 
-    const response = await fetch(url.toString(), {
+    if (!url) {
+      throw new Error('Failed to build load-more URL');
+    }
+
+    const response = await fetch(url, {
       credentials: 'include'
     });
 

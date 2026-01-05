@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import CardFeat from './CardFeat';
 import { toast } from '@/utils/toast';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { safeURL } from '@/utils/safe-url';
 
 interface InboxItem {
   id: string;
@@ -197,10 +198,12 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
           // Close the preview panel
           window.dispatchEvent(new CustomEvent('closeInboxPreview'));
           // Navigate with URL-based toast using View Transitions
-          const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.set('toast', 'success');
-          currentUrl.searchParams.set('message', encodeURIComponent('Added to Harvous'));
-          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          const currentUrl = safeURL(window.location.href);
+          if (currentUrl) {
+            currentUrl.searchParams.set('toast', 'success');
+            currentUrl.searchParams.set('message', encodeURIComponent('Added to Harvous'));
+            safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+          }
         }
       } catch (error) {
         console.error('Error adding to Harvous:', error);

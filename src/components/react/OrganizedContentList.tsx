@@ -8,6 +8,7 @@ import { debug } from '@/utils/logger';
 import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
+import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 
 interface OrganizedContentItem {
   id: string;
@@ -146,16 +147,17 @@ export default function OrganizedContentList({
         // Determine limit based on filter
         const limit = currentFilter === 'scripture' ? 200 : 100;
 
-        const origin = window.location.origin && window.location.origin !== 'null' 
-          ? window.location.origin 
-          : window.location.protocol + '//' + window.location.host;
+        const url = buildAPIUrl('/api/content/load-more', {
+          offset: '0',
+          limit: limit.toString(),
+          filter: currentFilter
+        });
 
-        const url = new URL('/api/content/load-more', origin);
-        url.searchParams.set('offset', '0');
-        url.searchParams.set('limit', limit.toString());
-        url.searchParams.set('filter', currentFilter);
+        if (!url) {
+          throw new Error('Failed to build refresh URL');
+        }
 
-        const response = await fetch(url.toString(), {
+        const response = await fetch(url, {
           credentials: 'include',
           cache: options?.expectedItemId ? 'no-store' : 'default'
         });
@@ -331,10 +333,14 @@ export default function OrganizedContentList({
     if (filter === 'scripture' && isMountedRef.current) {
       setCurrentItems([]);
       currentItemsRef.current = [];
-      // Set hasMore to true for scripture tab so it can load the initial batch
-      setHasMore(true);
-      hasMoreRef.current = true;
-      refreshContent();
+      // Set hasMore to false initially to prevent InfiniteScrollList from auto-loading
+      // until the refresh completes
+      setHasMore(false);
+      hasMoreRef.current = false;
+      // Trigger refresh which will update hasMore based on actual data
+      refreshContent().then(() => {
+        // Refresh completed - InfiniteScrollList will handle loading more if needed
+      });
     }
   }, [filter, refreshContent]);
 
@@ -641,22 +647,7 @@ export default function OrganizedContentList({
 
       const inPWA = isPWA();
       const dataIsStale = isStaleData(initialItems, (item) => item.lastUpdated || item.lastVisited);
-      const referrer = document.referrer;
-      const origin = window.location.origin && window.location.origin !== 'null' 
-        ? window.location.origin 
-        : window.location.protocol + '//' + window.location.host;
-        
-      const cameFromNotePage = referrer && (
-        referrer.includes('/note_') || 
-        (() => {
-          try {
-            // Always provide a base for relative referrers to avoid Safari "pattern" error
-            return new URL(referrer, origin).pathname.startsWith('/note_');
-          } catch (e) {
-            return false;
-          }
-        })()
-      );
+      const cameFromNotePage = referrerMatchesPattern('/note_');
       const previousWasNote = previousPathnameRef.current.startsWith('/note_');
 
       if (inPWA || dataIsStale || cameFromNotePage || previousWasNote) {
@@ -767,12 +758,17 @@ export default function OrganizedContentList({
       return { items: [], hasMore: false };
     }
 
-    const url = new URL('/api/content/load-more', window.location.origin && window.location.origin !== 'null' ? window.location.origin : window.location.href);
-    url.searchParams.set('offset', offset.toString());
-    url.searchParams.set('limit', limit.toString());
-    url.searchParams.set('filter', currentFilter);
+    const url = buildAPIUrl('/api/content/load-more', {
+      offset: offset.toString(),
+      limit: limit.toString(),
+      filter: currentFilter
+    });
 
-    const response = await fetch(url.toString(), {
+    if (!url) {
+      throw new Error('Failed to build load-more URL');
+    }
+
+    const response = await fetch(url, {
       credentials: 'include'
     });
 
