@@ -37,7 +37,19 @@ export default function EditThreadPanel({
   onClose,
   inBottomSheet = false
 }: EditThreadPanelProps) {
-  const { user } = useUser();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const { user } = (() => {
+    try {
+      return useUser();
+    } catch (e) {
+      return { user: null };
+    }
+  })();
   const [formData, setFormData] = useState({
     title: initialTitle,
     selectedColor: initialColor,
@@ -435,6 +447,10 @@ export default function EditThreadPanel({
       </div>
     );
   };
+
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div className="h-full flex flex-col min-h-0">

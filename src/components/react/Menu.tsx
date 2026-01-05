@@ -253,7 +253,14 @@ export default function Menu({
     
     try {
       // OFFLINE-FIRST: Delete from local IndexedDB immediately
-      const { user } = useUser() || {};
+      const clerk = (() => {
+        try {
+          return useUser();
+        } catch (e) {
+          return { user: null };
+        }
+      })();
+      const user = clerk?.user;
       const userId = user?.id;
       
       if (userId) {

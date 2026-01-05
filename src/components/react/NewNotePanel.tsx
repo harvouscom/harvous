@@ -39,7 +39,12 @@ interface NewNotePanelProps {
 }
 
 export default function NewNotePanel({ currentThread, currentSpace, onClose, initialNoteType }: NewNotePanelProps) {
-  
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Get navigation context
   const navigation = useNavigation();
   const { addToNavigationHistory, navigationHistory } = navigation;
@@ -848,7 +853,9 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
     await submission.handleSubmit(syntheticEvent);
   };
 
-
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <>

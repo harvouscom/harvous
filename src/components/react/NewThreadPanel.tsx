@@ -43,7 +43,19 @@ interface NewThreadPanelProps {
 }
 
 export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor, noteIdToAdd, initialNotes }: NewThreadPanelProps) {
-  const { user } = useUser();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const { user } = (() => {
+    try {
+      return useUser();
+    } catch (e) {
+      return { user: null };
+    }
+  })();
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
@@ -516,6 +528,10 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
 
   // Use centralized stripHtml utility
   const stripHtml = (html: string): string => stripHtmlForPreview(html, 150);
+
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div className="panel-wrapper panel-wrapper--bottom-sheet w-full">

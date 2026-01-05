@@ -38,7 +38,19 @@ interface NewSpacePanelProps {
 }
 
 export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet = false }: NewSpacePanelProps) {
-  const { user } = useUser();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const { user } = (() => {
+    try {
+      return useUser();
+    } catch (e) {
+      return { user: null };
+    }
+  })();
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
@@ -661,6 +673,10 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       </div>
     );
   };
+
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>

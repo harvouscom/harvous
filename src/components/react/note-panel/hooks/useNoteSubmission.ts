@@ -81,7 +81,13 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     setContent,
   } = options;
 
-  const { user } = useUser();
+  const { user } = (() => {
+    try {
+      return useUser();
+    } catch (e) {
+      return { user: null };
+    }
+  })();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Helper to show toast
