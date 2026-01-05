@@ -9,6 +9,8 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import Icon from './Icon';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
+import { createSpaceOffline } from '@/utils/offline-mutations';
+import { useUser } from '@clerk/clerk-react';
 
 interface Note {
   id: string;
@@ -36,6 +38,7 @@ interface NewSpacePanelProps {
 }
 
 export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet = false }: NewSpacePanelProps) {
+  const { user } = useUser();
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
@@ -264,6 +267,22 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       }
       if (selectedThreadIds.length > 0) {
         formData.append('selectedThreadIds', JSON.stringify(selectedThreadIds));
+      }
+      
+      // OFFLINE-FIRST: Create space in local IndexedDB immediately
+      let offlineSpaceId: string | null = null;
+      if (user?.id) {
+        try {
+          offlineSpaceId = await createSpaceOffline(user.id, {
+            title: title.trim(),
+            color: selectedColor,
+            isPublic: false,
+          });
+          console.log('[NewSpacePanel] Space created locally in IndexedDB', { offlineSpaceId });
+        } catch (err) {
+          console.error('[NewSpacePanel] Failed to create space offline:', err);
+          // Continue with server API call
+        }
       }
       
       const response = await fetch('/api/spaces/create', {

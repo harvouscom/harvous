@@ -11,6 +11,8 @@ import Icon from './Icon';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { safeURL } from '@/utils/safe-url';
+import { createThreadOffline } from '@/utils/offline-mutations';
+import { useUser } from '@clerk/clerk-react';
 
 interface Note {
   id: string;
@@ -41,6 +43,7 @@ interface NewThreadPanelProps {
 }
 
 export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor, noteIdToAdd, initialNotes }: NewThreadPanelProps) {
+  const { user } = useUser();
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
@@ -265,6 +268,23 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
         
         if (selectedNoteIds.length > 0) {
           formData.append('selectedNoteIds', JSON.stringify(selectedNoteIds));
+        }
+        
+        // OFFLINE-FIRST: Create thread in local IndexedDB immediately
+        let offlineThreadId: string | null = null;
+        if (user?.id) {
+          try {
+            offlineThreadId = await createThreadOffline(user.id, {
+              title: title.trim(),
+              color: selectedColor,
+              spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
+              isPublic: false,
+            });
+            console.log('[NewThreadPanel] Thread created locally in IndexedDB', { offlineThreadId });
+          } catch (err) {
+            console.error('[NewThreadPanel] Failed to create thread offline:', err);
+            // Continue with server API call
+          }
         }
         
         const response = await fetch('/api/threads/create', {

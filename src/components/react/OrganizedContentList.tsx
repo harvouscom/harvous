@@ -35,6 +35,7 @@ interface OrganizedContentItem {
 interface OrganizedContentListProps {
   initialItems: OrganizedContentItem[];
   filter?: 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
+  userId?: string;
 }
 
 // Helper to normalize dates once at API boundary
@@ -99,7 +100,8 @@ function matchesItem(
 
 export default function OrganizedContentList({ 
   initialItems, 
-  filter = 'all' 
+  filter = 'all',
+  userId
 }: OrganizedContentListProps) {
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const [hasMore, setHasMore] = useState<boolean>(() => {
@@ -110,6 +112,76 @@ export default function OrganizedContentList({
     if (filter === 'scripture') return [];
     return sortItems((initialItems || []).map(normalizeItemDates));
   });
+
+  // Use offline reads if userId is provided
+  useEffect(() => {
+    if (!userId) return;
+
+    const loadLocalData = async () => {
+      try {
+        const { getDashboardSnapshotLocal } = await import('@/utils/offline-read-layer');
+        const snapshot = await getDashboardSnapshotLocal(userId);
+        
+        if (snapshot) {
+          // Map snapshot data to OrganizedContentItem format
+          const localItems: OrganizedContentItem[] = [
+            ...snapshot.threads.map(t => ({
+              id: `thread-${t.id}`,
+              type: 'thread' as const,
+              title: t.title,
+              subtitle: t.subtitle || `${t.noteCount} notes`,
+              count: t.noteCount,
+              threadId: t.id,
+              spaceId: t.spaceId,
+              accentColor: t.color || 'blue',
+              lastVisited: t.lastVisited,
+              createdAt: t.createdAt,
+              updatedAt: t.updatedAt || t.createdAt,
+            })),
+            ...snapshot.recentNotes.map(n => ({
+              id: `note-${n.id}`,
+              type: 'note' as const,
+              title: n.title || 'Untitled Note',
+              content: n.content,
+              noteId: n.id,
+              threadId: n.threadId,
+              spaceId: n.spaceId,
+              noteType: n.noteType,
+              lastVisited: n.lastVisited,
+              createdAt: n.createdAt,
+              updatedAt: n.updatedAt || n.createdAt,
+            }))
+          ];
+
+          // Filter by the current list filter
+          let filteredItems = localItems;
+          if (filter === 'threads') filteredItems = localItems.filter(i => i.type === 'thread');
+          if (filter === 'notes') filteredItems = localItems.filter(i => i.type === 'note' && (i.noteType === 'default' || !i.noteType));
+          if (filter === 'scripture') filteredItems = localItems.filter(i => i.type === 'note' && i.noteType === 'scripture');
+          if (filter === 'resources') filteredItems = localItems.filter(i => i.type === 'note' && i.noteType === 'resource');
+
+          // Sort and normalize
+          const sorted = sortItems(filteredItems.map(normalizeItemDates));
+          
+          // Only update if we have items or if the server items are empty
+          // This allows local data to "take over" the initial render
+          setCurrentItems(prev => {
+            // Simple heuristic: if local has more items or items are different, use local
+            if (sorted.length > 0 || prev.length === 0) {
+              return sorted;
+            }
+            return prev;
+          });
+          
+          debug(`[OrganizedContentList] Checked local storage for filter: ${filter}`);
+        }
+      } catch (err) {
+        console.error('[OrganizedContentList] Local data load failed:', err);
+      }
+    };
+
+    loadLocalData();
+  }, [userId, filter]);
 
   // Essential refs only
   const isMountedRef = useRef(true);

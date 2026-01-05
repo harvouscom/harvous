@@ -19,6 +19,7 @@ import KeyboardShortcutsInit from "@/components/react/KeyboardShortcutsInit.tsx"
 import PostHog from "@/components/posthog.astro";
 import PostHogUserInit from "@/components/react/PostHogUserInit.tsx";
 import UpgradeSuccessHandler from "@/components/react/UpgradeSuccessHandler.tsx";
+import SyncManagerIsland from "@/components/react/SyncManagerIsland.tsx";
 import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 // Initialize toast utility globally
@@ -334,6 +335,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <KeyboardShortcutsInit client:load />
     <PostHogUserInit client:load userId={userId} userData={userData} />
     <UpgradeSuccessHandler client:load />
+    <SyncManagerIsland client:load />
 
     <div class="app-layout" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->

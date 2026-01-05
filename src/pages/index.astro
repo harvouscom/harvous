@@ -329,6 +329,7 @@ try {
                       <OrganizedContentList 
                         initialItems={organizedContent}
                         filter="all"
+                        userId={userId}
                         client:visible
                       />
                     </div>
@@ -338,6 +339,7 @@ try {
                       <OrganizedContentList 
                         initialItems={organizedContent.filter(item => item.type === 'thread')}
                         filter="threads"
+                        userId={userId}
                         client:visible
                       />
                     </div>
@@ -347,6 +349,7 @@ try {
                       <OrganizedContentList 
                         initialItems={organizedContent.filter((item: any) => item?.type === 'note' && (item?.noteType === 'default' || !item?.noteType))}
                         filter="notes"
+                        userId={userId}
                         client:visible
                       />
                     </div>
@@ -356,6 +359,7 @@ try {
                       <OrganizedContentList 
                         initialItems={organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'scripture')}
                         filter="scripture"
+                        userId={userId}
                         client:load
                       />
                     </div>

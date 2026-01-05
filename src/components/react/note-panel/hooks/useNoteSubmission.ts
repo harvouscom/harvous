@@ -4,6 +4,8 @@ import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
 import { debug } from '@/utils/logger';
 import { buildAPIUrl, getSafeOrigin } from '@/utils/safe-url';
+import { createNoteOffline } from '@/utils/offline-mutations';
+import { useUser } from '@clerk/clerk-react';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
 
@@ -79,6 +81,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     setContent,
   } = options;
 
+  const { user } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Helper to show toast
@@ -390,6 +393,30 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
       }
 
+      // OFFLINE-FIRST: Create note in local IndexedDB immediately
+      let offlineNoteId: string | null = null;
+      if (user?.id) {
+        try {
+          const threadIdToUse = overrideThreadId || getSelectedThread().id;
+          offlineNoteId = await createNoteOffline(user.id, {
+            title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
+            content: currentContent,
+            threadId: threadIdToUse,
+            spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
+            noteType: currentNoteType,
+            scriptureReference: currentNoteType === 'scripture' ? formatReferenceForAPI(currentScriptureReference) : undefined,
+            scriptureVersion: currentNoteType === 'scripture' ? currentScriptureVersion : undefined,
+            resourceUrl: currentNoteType === 'resource' ? normalizedResourceUrl : undefined,
+            resourceMetadata: currentNoteType === 'resource' ? resourceMetadata : undefined,
+          });
+          debug('[useNoteSubmission] Note created locally in IndexedDB', { offlineNoteId });
+        } catch (err) {
+          console.error('[useNoteSubmission] Failed to create note offline:', err);
+          // Continue with server API call - if offline fails, at least server still has it
+        }
+      }
+
+      // Try to push to server (will queue if offline)
       const response = await fetch('/api/notes/create', {
         method: 'POST',
         body: formData,
