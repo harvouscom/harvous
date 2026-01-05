@@ -348,6 +348,46 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                {/* Sync Status Section */}
+                {pendingSyncCount > 0 && (
+                  <div className="panel__section">
+                    <div className="rounded-3xl p-4 mb-3" style={{ 
+                      backgroundColor: isOnline ? 'var(--color-snow-white)' : '#FFF4E6',
+                      border: `1px solid ${isOnline ? 'var(--color-gray)' : '#FFA500'}`
+                    }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-sans text-[16px] font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
+                          {isOnline ? 'Pending Sync' : 'Offline Changes'}
+                        </span>
+                        <span className="font-sans text-[16px] font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
+                          {pendingSyncCount}
+                        </span>
+                      </div>
+                      <p className="font-sans text-[14px] mb-3" style={{ color: 'var(--color-pebble-grey)' }}>
+                        {isOnline 
+                          ? `${pendingSyncCount} change${pendingSyncCount > 1 ? 's' : ''} waiting to sync`
+                          : 'Your changes will sync when you\'re back online'}
+                      </p>
+                      {isOnline && (
+                        <button
+                          className="w-full rounded-2xl h-[40px] cursor-pointer transition-opacity duration-200 flex items-center justify-center"
+                          style={{ 
+                            backgroundColor: 'var(--color-deep-grey)',
+                            opacity: isSyncing ? 0.6 : 1,
+                            pointerEvents: isSyncing ? 'none' : 'auto'
+                          }}
+                          onClick={handleSyncNow}
+                          disabled={isSyncing}
+                        >
+                          <span className="font-sans text-[14px] font-semibold" style={{ color: 'white' }}>
+                            {isSyncing ? 'Syncing...' : 'Sync Now'}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Export Buttons */}
                 <div className="panel__section">
                   {/* Export as CSV */}
