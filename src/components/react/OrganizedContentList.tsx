@@ -58,6 +58,45 @@ function sortItems(items: OrganizedContentItem[]): OrganizedContentItem[] {
   return sorted.map(({ updatedAt, ...item }) => item);
 }
 
+/**
+ * Unified item matching helper that understands all ID formats:
+ * - Prefixed IDs: "note-uuid" or "thread-uuid" (used in OrganizedContentList)
+ * - UUIDs: "note_..." or "thread_..." (database IDs)
+ * - Simple IDs: numeric or string IDs (for URL generation only)
+ * 
+ * This ensures consistent matching regardless of which ID format is used.
+ */
+function matchesItem(
+  item: OrganizedContentItem,
+  searchId: string,
+  searchType: 'thread' | 'note'
+): boolean {
+  // Type must match
+  if (item.type !== searchType) return false;
+
+  // Normalize search ID: remove prefixes to get UUID
+  const normalizedSearchId = searchId.startsWith('thread_') ? searchId.substring(7) :
+                             searchId.startsWith('note_') ? searchId.substring(5) :
+                             searchId.startsWith('thread-') ? searchId.substring(7) :
+                             searchId.startsWith('note-') ? searchId.substring(5) :
+                             searchId;
+
+  // Check all possible ID formats
+  if (searchType === 'thread') {
+    // Match by prefixed ID
+    if (item.id === `thread-${normalizedSearchId}` || item.id === searchId) return true;
+    // Match by threadId (UUID)
+    if (item.threadId === normalizedSearchId || item.threadId === searchId) return true;
+  } else {
+    // Match by prefixed ID
+    if (item.id === `note-${normalizedSearchId}` || item.id === searchId) return true;
+    // Match by noteId (UUID)
+    if (item.noteId === normalizedSearchId || item.noteId === searchId) return true;
+  }
+
+  return false;
+}
+
 export default function OrganizedContentList({ 
   initialItems, 
   filter = 'all' 
@@ -178,11 +217,19 @@ export default function OrganizedContentList({
         // Preserve optimistic lastVisited updates
         const currentSnapshot = currentItemsRef.current;
         filtered.forEach((freshItem, index) => {
-          const currentItem = currentSnapshot.find(item => 
-            item.id === freshItem.id ||
-            (freshItem.threadId && item.threadId === freshItem.threadId) ||
-            (freshItem.noteId && item.noteId === freshItem.noteId)
-          );
+          // Use unified matching helper to find current item
+          const currentItem = currentSnapshot.find(item => {
+            // Direct ID match (most common case)
+            if (item.id === freshItem.id) return true;
+            // Use unified matching for UUID-based matching
+            if (freshItem.type === 'thread' && freshItem.threadId) {
+              return matchesItem(item, freshItem.threadId, 'thread');
+            }
+            if (freshItem.type === 'note' && freshItem.noteId) {
+              return matchesItem(item, freshItem.noteId, 'note');
+            }
+            return false;
+          });
 
           if (currentItem) {
             const currentLastVisited = normalizeDate(currentItem.lastVisited);
@@ -199,6 +246,7 @@ export default function OrganizedContentList({
         });
 
         // Merge with optimistic items
+        // Build confirmed IDs set using unified matching
         const confirmedIds = new Set<string>();
         filtered.forEach(item => {
           confirmedIds.add(item.id);
@@ -210,9 +258,12 @@ export default function OrganizedContentList({
         const fiveSecondsAgo = Date.now() - 5000;
 
         optimisticUpdates.optimisticItemsRef.current.forEach(({ timestamp, item: optimisticItem }, itemId) => {
+          // Check if optimistic item is confirmed using unified matching
           const isConfirmed = confirmedIds.has(itemId) || confirmedIds.has(optimisticItem.id) ||
             (optimisticItem.threadId && confirmedIds.has(optimisticItem.threadId)) ||
-            (optimisticItem.noteId && confirmedIds.has(optimisticItem.noteId));
+            (optimisticItem.noteId && confirmedIds.has(optimisticItem.noteId)) ||
+            // Also check if any filtered item matches the optimistic item
+            filtered.some(item => matchesItem(item, itemId, optimisticItem.type));
 
           if (!isConfirmed && timestamp > fiveSecondsAgo) {
             const matchesFilter = currentFilter === 'all' ||
@@ -236,12 +287,10 @@ export default function OrganizedContentList({
         const sorted = sortItems(combined);
 
         // Check if we're looking for a specific item
-        if (options?.expectedItemId) {
-          const itemExists = sorted.some(item => {
-            const itemId = options.expectedItemType === 'thread' ? `thread-${options.expectedItemId}` : 
-                         options.expectedItemType === 'note' ? `note-${options.expectedItemId}` : options.expectedItemId;
-            return item.id === itemId || item.threadId === options.expectedItemId || item.noteId === options.expectedItemId;
-          });
+        if (options?.expectedItemId && options?.expectedItemType) {
+          const itemExists = sorted.some(item => 
+            matchesItem(item, options.expectedItemId, options.expectedItemType)
+          );
           if (!itemExists && attempt < maxRetries - 1) {
             await new Promise(resolve => setTimeout(resolve, delays[attempt]));
             continue;
@@ -289,17 +338,8 @@ export default function OrganizedContentList({
     if (!isMountedRef.current) return;
 
     setCurrentItems(prev => {
-      const normalizedId = itemId.startsWith('thread_') ? itemId.substring(7) :
-                           itemId.startsWith('note_') ? itemId.substring(5) : itemId;
-
-      const itemIndex = prev.findIndex(item => {
-        if (item.type !== itemType) return false;
-        if (itemType === 'thread') {
-          return item.threadId === normalizedId || item.id === `thread-${normalizedId}` || item.id === itemId;
-        } else {
-          return item.noteId === normalizedId || item.id === `note-${normalizedId}` || item.id === itemId;
-        }
-      });
+      // Use unified matching helper to find the item
+      const itemIndex = prev.findIndex(item => matchesItem(item, itemId, itemType));
 
       if (itemIndex === -1) return prev;
 

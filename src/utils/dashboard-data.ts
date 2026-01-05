@@ -3,6 +3,7 @@ import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 import { getInboxItems, getInboxCount as getInboxCountUtil } from "./inbox-data";
 import { getRelativeTime } from "./date-formatting";
 import { stripHtml } from "./html-stripper";
+import { sortByLastVisited } from "./sorting";
 
 // Helper function to find unorganized thread (create it if it doesn't exist)
 async function findUnorganizedThread(userId: string) {
@@ -507,12 +508,12 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     // Sort by lastVisited/createdAt, apply offset and limit
     // Note: Database already orders by lastVisited/createdAt, but we sort again
     // to ensure consistent ordering in case of ties
-    const sortedAllNotes = allNotes
-      .sort((a, b) => {
-        const aTime = a.lastVisited || a.createdAt;
-        const bTime = b.lastVisited || b.createdAt;
-        return bTime.getTime() - aTime.getTime();
-      });
+    // Use unified sorting utility for consistency
+    const sortedAllNotes = sortByLastVisited(allNotes.map(note => ({
+      ...note,
+      updatedAt: note.updatedAt || note.createdAt,
+      id: note.id || ''
+    })));
     
     // Determine if there are more items beyond the requested range
     // We fetched limit + offset + 1 items, so if we have more than offset + limit items, there are more
@@ -751,12 +752,12 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
     // Sort by lastVisited/createdAt, apply offset and limit
     // Note: Database already orders by lastVisited/createdAt, but we sort again
     // to ensure consistent ordering in case of ties
-    const sortedAllNotes = allNotes
-      .sort((a, b) => {
-        const aTime = a.lastVisited || a.createdAt;
-        const bTime = b.lastVisited || b.createdAt;
-        return bTime.getTime() - aTime.getTime();
-      });
+    // Use unified sorting utility for consistency
+    const sortedAllNotes = sortByLastVisited(allNotes.map(note => ({
+      ...note,
+      updatedAt: note.updatedAt || note.createdAt,
+      id: note.id || ''
+    })));
     
     // Determine if there are more items beyond the requested range
     // We fetched limit + offset + 1 items, so if we have more than offset + limit items, there are more
@@ -1214,64 +1215,8 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
 
     // Convert map to array and sort by lastVisited (newest first)
     // Apply offset and limit after sorting
-    // Use deterministic three-tier sort: lastVisited → updatedAt → createdAt
-    // This ensures consistent ordering even when items have the same lastVisited timestamp
-    const allItems = Array.from(allItemsMap.values())
-      .sort((a, b) => {
-        // Helper function to get a timestamp as Date or null
-        const getTime = (item: any, field: 'lastVisited' | 'updatedAt' | 'createdAt'): Date | null => {
-          const value = item[field];
-          if (!value) return null;
-          return value instanceof Date ? value : new Date(value);
-        };
-
-        // Primary sort: lastVisited (newest first)
-        const aLastVisited = getTime(a, 'lastVisited');
-        const bLastVisited = getTime(b, 'lastVisited');
-        
-        if (aLastVisited && bLastVisited) {
-          const diff = bLastVisited.getTime() - aLastVisited.getTime();
-          if (diff !== 0) return diff; // Different lastVisited, use that
-        } else if (aLastVisited && !bLastVisited) {
-          return -1; // a has lastVisited, b doesn't - a comes first
-        } else if (!aLastVisited && bLastVisited) {
-          return 1; // b has lastVisited, a doesn't - b comes first
-        }
-        // Both have null lastVisited, continue to secondary sort
-
-        // Secondary sort: updatedAt (newest first)
-        const aUpdatedAt = getTime(a, 'updatedAt');
-        const bUpdatedAt = getTime(b, 'updatedAt');
-        
-        if (aUpdatedAt && bUpdatedAt) {
-          const diff = bUpdatedAt.getTime() - aUpdatedAt.getTime();
-          if (diff !== 0) return diff; // Different updatedAt, use that
-        } else if (aUpdatedAt && !bUpdatedAt) {
-          return -1; // a has updatedAt, b doesn't - a comes first
-        } else if (!aUpdatedAt && bUpdatedAt) {
-          return 1; // b has updatedAt, a doesn't - b comes first
-        }
-        // Both have null updatedAt, continue to tertiary sort
-
-        // Tertiary sort: createdAt (newest first)
-        const aCreatedAt = getTime(a, 'createdAt');
-        const bCreatedAt = getTime(b, 'createdAt');
-        
-        if (aCreatedAt && bCreatedAt) {
-          const diff = bCreatedAt.getTime() - aCreatedAt.getTime();
-          if (diff !== 0) return diff; // Different createdAt, use that
-        } else if (aCreatedAt && !bCreatedAt) {
-          return -1; // a has createdAt, b doesn't - a comes first
-        } else if (!aCreatedAt && bCreatedAt) {
-          return 1; // b has createdAt, a doesn't - b comes first
-        }
-        
-        // Quaternary sort: id (for deterministic ordering when all timestamps are equal)
-        // Use string comparison for consistent ordering
-        const aId = a.id || '';
-        const bId = b.id || '';
-        return aId.localeCompare(bId);
-      })
+    // Use unified sorting utility for consistency
+    const allItems = sortByLastVisited(Array.from(allItemsMap.values()))
       .slice(offset, offset + limit);
 
     return allItems;
@@ -1643,18 +1588,12 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
     .all();
 
     // Sort in JavaScript to ensure correct ordering (lastVisited with fallback to createdAt)
-    // This handles null lastVisited values correctly
-    const sortedNotes = notes.sort((a, b) => {
-      const aTime = a.lastVisited || a.createdAt;
-      const bTime = b.lastVisited || b.createdAt;
-      if (!aTime && !bTime) return 0;
-      if (!aTime) return 1; // null lastVisited goes after
-      if (!bTime) return -1; // null lastVisited goes after
-      // Ensure dates are Date objects before calling getTime()
-      const aDate = aTime instanceof Date ? aTime : new Date(aTime);
-      const bDate = bTime instanceof Date ? bTime : new Date(bTime);
-      return bDate.getTime() - aDate.getTime(); // Newest first
-    });
+    // Use unified sorting utility for consistency
+    const sortedNotes = sortByLastVisited(notes.map(note => ({
+      ...note,
+      updatedAt: note.updatedAt || note.createdAt,
+      id: note.id || ''
+    })));
 
     // Apply limit after sorting
     const limitedNotes = sortedNotes.slice(0, limit);

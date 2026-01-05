@@ -21,7 +21,8 @@ export function normalizeDate(date: Date | string | null | undefined): Date | nu
  * Multi-tier sorting: lastVisited → updatedAt → createdAt → id
  * Matches API sorting logic in dashboard-data.ts
  * 
- * This ensures consistent ordering even when items have the same lastVisited timestamp
+ * This ensures consistent ordering even when items have the same lastVisited timestamp.
+ * All date comparisons use getTime() to avoid string/date mismatches.
  */
 export function sortByLastVisited<T extends { 
   lastVisited?: Date | string | null;
@@ -30,8 +31,9 @@ export function sortByLastVisited<T extends {
   id?: string;
 }>(items: T[]): T[] {
   return [...items].sort((a, b) => {
-    // Helper function to get a timestamp as number or 0
-    const getSortTime = (item: T): number => {
+    // Helper function to get a timestamp as number or null
+    // Returns null (not 0) to distinguish between "has no time" and "time is epoch"
+    const getSortTime = (item: T): number | null => {
       // Primary: lastVisited
       if (item.lastVisited) {
         const date = normalizeDate(item.lastVisited);
@@ -47,19 +49,19 @@ export function sortByLastVisited<T extends {
         const date = normalizeDate(item.createdAt);
         if (date) return date.getTime();
       }
-      return 0;
+      return null;
     };
     
     const aTime = getSortTime(a);
     const bTime = getSortTime(b);
     
     // Primary sort: lastVisited (newest first)
-    if (aTime && bTime) {
+    if (aTime !== null && bTime !== null) {
       const diff = bTime - aTime;
       if (diff !== 0) return diff; // Different times, use that
-    } else if (aTime && !bTime) {
+    } else if (aTime !== null && bTime === null) {
       return -1; // a has time, b doesn't - a comes first
-    } else if (!aTime && bTime) {
+    } else if (aTime === null && bTime !== null) {
       return 1; // b has time, a doesn't - b comes first
     }
     // Both have no time, continue to quaternary sort
