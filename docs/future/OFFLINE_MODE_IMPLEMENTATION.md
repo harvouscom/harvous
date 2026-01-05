@@ -6,6 +6,45 @@ This document outlines the complete architecture and implementation plan for ful
 
 **Status**: Post-V1 feature - Enhanced caching (24-hour TTL + pre-caching) is implemented in V1. Full offline mode with write support is planned for future release.
 
+**Current Implementation Status**: In progress - Offline-first architecture being implemented.
+
+---
+
+## Offline-First Read Strategy
+
+### Core Principle
+
+After the first online login, **IndexedDB becomes the primary read-store for UI rendering**. The server remains authoritative for validation, business logic (XP, rate limiting, auto-tagging), and cross-device sync, but the UI should render immediately from local data without waiting for server round-trips.
+
+### Key Invariants (Must Not Break)
+
+1. **Sequential Note IDs**: `UserMetadata.highestSimpleNoteId` must never be reused. Offline notes use a reserved ID range fetched during the last online session. If depleted, notes are created with `simpleNoteId: null` until the next sync.
+
+2. **NoteThreads Junction Table**: This is the single source of truth for note↔thread relationships. Offline mutations must properly track link/unlink operations in the sync queue.
+
+3. **Server-Side Business Logic**: The following must remain server-side:
+   - XP calculation and awards
+   - Rate limiting
+   - Note creation limits (monetization)
+   - Auto-tagging (AI-powered)
+   - Scripture detection
+   - Data validation and sanitization
+
+4. **First Login Requirement**: The app requires an online connection for the first login to bootstrap the local database. After that, the app works fully offline.
+
+5. **Conflict Resolution**: Last-write-wins based on `updatedAt` timestamps, with server authoritative wins for derived/validated fields (XP, tags, etc.).
+
+### Data Flow
+
+```
+First Login (Online Required):
+  User logs in → Bootstrap API → Populate IndexedDB → App ready
+
+Subsequent Loads (Offline-First):
+  App loads → Read from IndexedDB → Render UI immediately
+  → Background: Sync with server → Update IndexedDB → Refresh UI if changes
+```
+
 ---
 
 ## Current State Assessment
@@ -851,6 +890,164 @@ export async function migrateCacheToIndexedDB(): Promise<void> {
 
 ---
 
+## Testing & Rollout Plan
+
+### Manual Test Checklist
+
+#### Phase 1: Bootstrap & Initial Sync
+- [ ] **First Login (Online Required)**
+  - [ ] User logs in for the first time
+  - [ ] Bootstrap API is called and populates IndexedDB
+  - [ ] Dashboard loads from local data immediately
+  - [ ] All spaces, threads, and notes are visible
+
+- [ ] **Subsequent Loads**
+  - [ ] App loads instantly from IndexedDB (no server wait)
+  - [ ] Background sync runs automatically
+  - [ ] UI updates if changes are pulled from server
+
+#### Phase 2: Offline Reading
+- [ ] **Offline Dashboard**
+  - [ ] Go offline (airplane mode)
+  - [ ] Dashboard loads from IndexedDB
+  - [ ] All cached content is accessible
+  - [ ] Navigation works normally
+
+- [ ] **Offline Note/Thread/Space Views**
+  - [ ] Navigate to a note offline
+  - [ ] Navigate to a thread offline
+  - [ ] Navigate to a space offline
+  - [ ] All content loads from IndexedDB
+
+#### Phase 3: Offline Writing
+- [ ] **Create Note Offline**
+  - [ ] Go offline
+  - [ ] Create a new note
+  - [ ] Note appears immediately in UI
+  - [ ] Note is queued for sync
+  - [ ] Go online
+  - [ ] Note syncs to server
+  - [ ] Note appears on other devices
+
+- [ ] **Create Thread Offline**
+  - [ ] Go offline
+  - [ ] Create a new thread
+  - [ ] Thread appears immediately
+  - [ ] Go online
+  - [ ] Thread syncs to server
+
+- [ ] **Create Space Offline**
+  - [ ] Go offline
+  - [ ] Create a new space
+  - [ ] Space appears immediately
+  - [ ] Go online
+  - [ ] Space syncs to server
+
+- [ ] **Edit Note Offline**
+  - [ ] Go offline
+  - [ ] Edit an existing note
+  - [ ] Changes appear immediately
+  - [ ] Go online
+  - [ ] Changes sync to server
+
+- [ ] **Delete Note Offline**
+  - [ ] Go offline
+  - [ ] Delete a note
+  - [ ] Note disappears from UI
+  - [ ] Go online
+  - [ ] Deletion syncs to server
+
+#### Phase 4: Conflict Resolution
+- [ ] **Multi-Device Conflict**
+  - [ ] Edit note on device A (online)
+  - [ ] Edit same note on device B (offline)
+  - [ ] Sync device B
+  - [ ] Verify last-write-wins resolution
+  - [ ] Verify no data loss
+
+- [ ] **SimpleNoteId Conflicts**
+  - [ ] Create notes offline on device A
+  - [ ] Create notes offline on device B
+  - [ ] Sync both devices
+  - [ ] Verify no ID conflicts
+  - [ ] Verify reserved ID range is respected
+
+#### Phase 5: Edge Cases
+- [ ] **Network Interruption During Sync**
+  - [ ] Start sync
+  - [ ] Interrupt network mid-sync
+  - [ ] Verify partial sync handled correctly
+  - [ ] Resume network
+  - [ ] Verify remaining syncs complete
+
+- [ ] **Storage Limits**
+  - [ ] Fill IndexedDB (if possible)
+  - [ ] Verify pruning works
+  - [ ] Verify new data can still be saved
+
+- [ ] **Reserved ID Range Depletion**
+  - [ ] Create 200+ notes offline
+  - [ ] Verify notes are created (with null simpleNoteId if range depleted)
+  - [ ] Go online and sync
+  - [ ] Verify server assigns IDs correctly
+
+### Feature Flag Rollout
+
+#### Step 1: Internal Testing (Week 1)
+- Enable feature flag for development team only
+- Test all scenarios in checklist above
+- Fix critical bugs
+
+#### Step 2: Beta Testing (Week 2)
+- Enable feature flag for 10% of users
+- Monitor error rates and sync performance
+- Collect user feedback
+
+#### Step 3: Gradual Rollout (Week 3-4)
+- Increase to 25% of users
+- Monitor for issues
+- Increase to 50% if stable
+- Increase to 100% if stable
+
+#### Feature Flag Implementation
+
+Add to user metadata or environment variable:
+```typescript
+// Check if offline mode is enabled for user
+const isOfflineModeEnabled = userMetadata?.offlineModeEnabled ?? false;
+// Or use environment variable for gradual rollout
+const isOfflineModeEnabled = process.env.OFFLINE_MODE_ENABLED === 'true';
+```
+
+### Performance Monitoring
+
+Track the following metrics:
+- Bootstrap sync time
+- Incremental sync time
+- Push queue processing time
+- IndexedDB read/write performance
+- Sync error rates
+- Conflict resolution frequency
+
+### Known Limitations (MVP)
+
+1. **No Real-Time Collaboration**: Changes from other devices only appear after sync
+2. **Simple Conflict Resolution**: Last-write-wins only (no merging)
+3. **Limited Offline Features**: Auto-tagging, XP calculation happen server-side
+4. **No Offline Search**: Full-text search requires server (can be added later)
+5. **Bootstrap Size**: Limited to 1000 notes initially (can be paginated)
+
+### Future Enhancements
+
+- [ ] Incremental bootstrap (paginate large datasets)
+- [ ] Field-level conflict resolution
+- [ ] Offline search with local index
+- [ ] Background sync API integration
+- [ ] Compression for large payloads
+- [ ] Real-time collaboration (WebSocket)
+
+---
+
 ## Related Documentation
 
 - **Enhanced Caching (V1)**: Current implementation with 24-hour cache
@@ -862,15 +1059,17 @@ export async function migrateCacheToIndexedDB(): Promise<void> {
 
 ## Summary
 
-Full offline mode with write support is a significant feature that requires:
+Full offline mode with write support has been implemented with:
 
-- **4 weeks** of development time
 - **Dexie.js** for IndexedDB management
-- **Custom sync layer** for conflict resolution
-- **UI components** for offline indicators and conflict resolution
-- **Thorough testing** across devices and scenarios
+- **Custom sync layer** with bootstrap, incremental pull, and batch push
+- **Offline-first read layer** for instant UI rendering
+- **Offline mutations** for local-first CRUD operations
+- **SimpleNoteId reservation** for offline note creation
+- **UI components** for offline indicators and sync status
+- **Comprehensive test plan** and rollout strategy
 
-The enhanced caching implemented in V1 provides a solid foundation, allowing users to read cached content offline. Full offline mode will extend this to allow creating and editing content offline, with automatic synchronization when connectivity is restored.
+The enhanced caching implemented in V1 provides a solid foundation. Full offline mode extends this to allow creating and editing content offline, with automatic synchronization when connectivity is restored.
 
-**Recommended Approach**: Start with last-write-wins conflict resolution for MVP, then enhance to timestamp-based merging for production.
+**Current Status**: Implementation complete. Ready for testing and gradual rollout.
 
