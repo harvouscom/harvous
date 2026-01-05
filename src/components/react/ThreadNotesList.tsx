@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useUser } from '@clerk/clerk-react';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
 import ActionButton from './ActionButton';
@@ -11,6 +12,7 @@ import { debug } from '@/utils/logger';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
+import { deleteNoteOffline } from '@/utils/offline-mutations';
 
 
 interface Note {
@@ -928,6 +930,34 @@ export default function ThreadNotesList({
     setShowDeleteConfirm(false);
     
     try {
+      // OFFLINE-FIRST: Delete note from local IndexedDB immediately
+      const { user } = (window as any).__useUserHook?.() || {};
+      const userId = user?.id;
+      
+      if (userId) {
+        try {
+          await deleteNoteOffline(userId, noteToDelete.id);
+          console.log('[ThreadNotesList] Note deleted locally in IndexedDB', { noteId: noteToDelete.id });
+        } catch (err) {
+          console.error('[ThreadNotesList] Failed to delete note offline:', err);
+          // Continue with server API call
+        }
+      }
+      
+      // Optimistically remove from local state first
+      setDeletedNoteIds(prev => {
+        const newSet = new Set([...prev, noteToDelete.id]);
+        deletedNoteIdsRef.current = newSet;
+        return newSet;
+      });
+      setNotes(prev => prev.filter(note => note.id !== noteToDelete.id));
+      
+      // Show success message immediately for offline-first experience
+      if ((window as any).toast) {
+        (window as any).toast.success('Note erased!');
+      }
+      
+      // Then try to push deletion to server
       const response = await fetch(`/api/notes/delete?noteId=${encodeURIComponent(noteToDelete.id)}`, {
         method: 'DELETE',
         headers: {
@@ -939,17 +969,10 @@ export default function ThreadNotesList({
       const data = await response.json();
 
       if (!response.ok) {
-        const errorMessage = data.error || 'Failed to delete note';
-        if ((window as any).toast) {
-          (window as any).toast.error(errorMessage);
-        } else {
-          alert('Failed to delete note: ' + errorMessage);
-        }
-        setNoteToDelete(null);
-        return;
-      }
-
-      if (data.success || response.status === 200) {
+        const errorMessage = data.error || 'Failed to sync deletion with server';
+        console.error('[ThreadNotesList] Server deletion failed:', errorMessage);
+        // Note is already deleted locally, server sync will handle recovery
+      } else {
         // Dispatch noteDeleted event
         window.dispatchEvent(new CustomEvent('noteDeleted', {
           detail: { 
@@ -957,19 +980,6 @@ export default function ThreadNotesList({
             threadId: threadId
           }
         }));
-
-        // Remove from local state
-        setDeletedNoteIds(prev => {
-          const newSet = new Set([...prev, noteToDelete.id]);
-          deletedNoteIdsRef.current = newSet;
-          return newSet;
-        });
-        setNotes(prev => prev.filter(note => note.id !== noteToDelete.id));
-
-        // Show success message
-        if ((window as any).toast) {
-          (window as any).toast.success('Note erased!');
-        }
       }
 
       setNoteToDelete(null);

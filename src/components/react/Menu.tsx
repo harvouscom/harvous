@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useUser } from '@clerk/clerk-react';
 import { safeNavigate } from '@/utils/safe-navigate';
 import EraseConfirmDialog from './EraseConfirmDialog';
+import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
 
 export interface MenuOption {
   action: string;
@@ -250,6 +252,32 @@ export default function Menu({
     }
     
     try {
+      // OFFLINE-FIRST: Delete from local IndexedDB immediately
+      const { user } = useUser() || {};
+      const userId = user?.id;
+      
+      if (userId) {
+        try {
+          if (contentType === 'note') {
+            await deleteNoteOffline(userId, contentId);
+          } else if (contentType === 'thread') {
+            await deleteThreadOffline(userId, contentId);
+          } else if (contentType === 'space') {
+            await deleteSpaceOffline(userId, contentId);
+          }
+          console.log(`[Menu] ${contentType} deleted locally in IndexedDB`, { id: contentId });
+        } catch (err) {
+          console.error(`[Menu] Failed to delete ${contentType} offline:`, err);
+          // Continue with server API call
+        }
+      }
+      
+      // Show success message immediately for offline-first experience
+      if ((window as any).toast) {
+        (window as any).toast.success(successMessage);
+      }
+      
+      // Then try to push deletion to server
       // Make the delete request
       const response = await fetch(`${apiUrl}?${paramName}=${encodeURIComponent(contentId)}`, {
         method: 'DELETE',
@@ -263,17 +291,10 @@ export default function Menu({
       
       if (!response.ok) {
         console.error('Delete failed:', data);
-        const errorMessage = data.error || 'Failed to erase item';
-        
-        if ((window as any).toast) {
-          (window as any).toast.error(errorMessage);
-        } else {
-          alert('Failed to erase item: ' + errorMessage);
-        }
-        return;
-      }
-      
-      if (data.success || response.status === 200) {
+        const errorMessage = data.error || 'Failed to sync deletion with server';
+        console.error('[Menu] Server deletion failed:', errorMessage);
+        // Item is already deleted locally, server sync will handle recovery
+      } else {
         // Dispatch appropriate deletion event for navigation updates
         if (contentType === 'thread') {
           window.dispatchEvent(new CustomEvent('threadDeleted', {
@@ -305,6 +326,7 @@ export default function Menu({
             detail: { spaceId: contentId }
           }));
         }
+      }
         
         // Redirect based on content type
         let redirectUrl: string;
@@ -316,17 +338,14 @@ export default function Menu({
           if (threadPageMatch) {
             const threadIdFromUrl = threadPageMatch[1];
             redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
-          }
-          // Priority 2: Use the explicitly passed currentThreadId if available
-          else if (currentThreadId) {
+          } else if (currentThreadId) {
+            // Priority 2: Use the explicitly passed currentThreadId if available
             redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
-          }
-          // Priority 3: Fallback to the threadId from the API response
-          else if (data.threadId && data.threadId !== 'thread_unorganized') {
+          } else if (data.threadId && data.threadId !== 'thread_unorganized') {
+            // Priority 3: Fallback to the threadId from the API response
             redirectUrl = `/${data.threadId}?toast=success&message=` + encodeURIComponent(successMessage);
-          }
-          // Priority 4: Fallback to dashboard
-          else {
+          } else {
+            // Priority 4: Fallback to dashboard
             redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
           }
         } else {
@@ -335,15 +354,6 @@ export default function Menu({
         }
         // Use View Transitions instead of hard redirect to maintain React state
         safeNavigate(redirectUrl, { history: 'replace' });
-      } else {
-        // Show error toast immediately (no redirect on error)
-        console.error('Delete failed:', data.error);
-        if ((window as any).toast) {
-          (window as any).toast.error(data.error || 'Failed to erase item');
-        } else {
-          alert('Failed to erase item: ' + (data.error || 'Unknown error'));
-        }
-      }
     } catch (error) {
       console.error('Error deleting item:', error);
       if ((window as any).toast) {
