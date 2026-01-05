@@ -134,6 +134,32 @@ function updateReadme(newVersion) {
   }
 }
 
+// Update Service Worker cache name to match app version
+function updateServiceWorkerCacheName(newVersion) {
+  const swPath = join(__dirname, '..', 'public', 'sw.js');
+  try {
+    let swContent = readFileSync(swPath, 'utf-8');
+    
+    // Replace CACHE_NAME with version-based cache name
+    // Pattern: const CACHE_NAME = 'harvous-cache-v8';
+    // New pattern: const CACHE_NAME = 'harvous-cache-v{version}';
+    // Replace dots with dashes for cache name (e.g., 0.240.2 -> v0-240-2)
+    const cacheVersion = newVersion.replace(/\./g, '-');
+    const cacheNamePattern = /const CACHE_NAME = ['"]harvous-cache-v[^'"]+['"];/;
+    const newCacheName = `const CACHE_NAME = 'harvous-cache-v${cacheVersion}';`;
+    
+    if (cacheNamePattern.test(swContent)) {
+      const updatedContent = swContent.replace(cacheNamePattern, newCacheName);
+      writeFileSync(swPath, updatedContent, 'utf-8');
+      console.log(`✅ Service Worker cache name updated to v${cacheVersion}`);
+    } else {
+      console.warn('⚠️  Could not find CACHE_NAME pattern in sw.js');
+    }
+  } catch (error) {
+    console.warn(`⚠️  Could not update sw.js: ${error.message}`);
+  }
+}
+
 // Main execution
 try {
   // Check if we're in a git repository
@@ -214,11 +240,14 @@ try {
   // Update README.md
   updateReadme(newVersion);
 
+  // Update Service Worker cache name
+  updateServiceWorkerCacheName(newVersion);
+
   // Stage the updated files
   try {
-    execSync('git add package.json README.md', { stdio: 'ignore' });
+    execSync('git add package.json README.md public/sw.js', { stdio: 'ignore' });
   } catch (error) {
-    console.warn('⚠️  Could not stage package.json and README.md. You may need to stage them manually.');
+    console.warn('⚠️  Could not stage package.json, README.md, and public/sw.js. You may need to stage them manually.');
   }
 
   console.log(`\n💡 Next step: Run 'git commit --amend --no-edit' to include version bump in your commit,`);

@@ -2,24 +2,102 @@
 // Deferred to avoid blocking initial render - runs after page is interactive
 (function() {
   if ('serviceWorker' in navigator) {
+    // Store registration reference for update checks
+    let registrationRef = null;
+    
+    // Get app version from package.json (injected at build time or from meta tag)
+    // Fallback to reading from a meta tag if available
+    function getAppVersion() {
+      const versionMeta = document.querySelector('meta[name="app-version"]');
+      if (versionMeta) {
+        return versionMeta.getAttribute('content');
+      }
+      // Fallback: try to get from window if set elsewhere
+      if (window.__APP_VERSION__) {
+        return window.__APP_VERSION__;
+      }
+      return 'unknown';
+    }
+    
+    // Expose version to window for debugging
+    window.__APP_VERSION__ = getAppVersion();
+    
+    // Function to check for service worker updates and handle them
+    const checkForUpdates = (registration) => {
+      if (!registration) return;
+      
+      // Check if there's a waiting worker
+      if (registration.waiting) {
+        // Send skipWaiting message to activate the new worker
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        
+        // Listen for controller change (when new SW takes control)
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          // Reload the page to get the new version
+          window.location.reload();
+        });
+        
+        return;
+      }
+      
+      // Check if there's an installing worker
+      if (registration.installing) {
+        registration.installing.addEventListener('statechange', () => {
+          if (registration.installing.state === 'installed' && navigator.serviceWorker.controller) {
+            // New service worker installed, send skipWaiting and reload
+            registration.installing.postMessage({ type: 'SKIP_WAITING' });
+            
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              window.location.reload();
+            });
+          }
+        });
+      }
+    };
+    
     // Register service worker asynchronously after page load to avoid blocking render
     const registerServiceWorker = () => {
       navigator.serviceWorker.register('/sw.js')
         .then(registration => {
+          registrationRef = registration;
           
-          // Check if there's a waiting worker and offer update if needed
-          if (registration.waiting) {
-            // New service worker is waiting - could prompt user to refresh
-          }
+          // Check for updates immediately
+          checkForUpdates(registration);
           
           // Listen for new updates
           registration.addEventListener('updatefound', () => {
             const newWorker = registration.installing;
             if (newWorker) {
               newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New service worker available, could notify user
+                if (newWorker.state === 'installed') {
+                  if (navigator.serviceWorker.controller) {
+                    // New service worker available - activate it
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                      window.location.reload();
+                    });
+                  } else {
+                    // First time installation, no need to reload
+                    console.log('Service Worker installed for the first time');
+                  }
                 }
+              });
+            }
+          });
+          
+          // Periodically check for updates (every hour)
+          setInterval(() => {
+            registration.update().catch(err => {
+              console.log('Service Worker update check failed:', err);
+            });
+          }, 60 * 60 * 1000); // 1 hour
+          
+          // Also check for updates when page becomes visible (after being hidden)
+          document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+              registration.update().catch(err => {
+                console.log('Service Worker update check failed:', err);
               });
             }
           });
