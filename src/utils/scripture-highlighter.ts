@@ -17,43 +17,29 @@ export interface ScriptureReference {
  * IMPORTANT: Only strips note-link spans that contain scripture references, preserves regular note links
  */
 function stripNoteLinkScriptureSpans(content: string): string {
+  if (!content) return content;
+  
   let result = content;
   
-  // Pattern 1: note-link spans - class comes after data-note-id
-  const noteLinkPattern1 = /<span[^>]*data-note-id\s*=\s*["'][^"']+["'][^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi;
+  // Combine patterns into a more general regex for note-link spans
+  const noteLinkRegex = /<span[^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>|<span[^>]*data-note-id\s*=\s*["'][^"']+["'][^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi;
   
-  // Pattern 2: note-link spans - class comes before data-note-id
-  const noteLinkPattern2 = /<span[^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*data-note-id\s*=\s*["'][^"']+["'][^>]*>([\s\S]*?)<\/span>/gi;
-  
-  // Collect all note-link spans
-  const spans: Array<{ fullMatch: string; innerContent: string }> = [];
-  
-  let match;
-  while ((match = noteLinkPattern1.exec(content)) !== null) {
-    spans.push({ fullMatch: match[0], innerContent: match[1] });
-  }
-  while ((match = noteLinkPattern2.exec(content)) !== null) {
-    // Check if not already matched by pattern 1
-    if (!spans.some(s => s.fullMatch === match[0])) {
-      spans.push({ fullMatch: match[0], innerContent: match[1] });
-    }
-  }
-  
-  // Only replace note-link spans that contain scripture references
-  // This preserves regular note links (highlights) that don't contain scripture references
-  for (const span of spans) {
+  result = result.replace(noteLinkRegex, (match, inner1, inner2) => {
+    const innerContent = inner1 || inner2 || '';
     // Extract plain text from inner content (remove HTML tags)
-    const plainText = span.innerContent.replace(/<[^>]*>/g, '').trim();
+    const plainText = innerContent.replace(/<[^>]*>/g, '').trim();
     
     // Check if this text contains a scripture reference
     const scriptureRefs = detectScriptureReferences(plainText);
     
     // Only strip if it contains a scripture reference
     if (scriptureRefs.length > 0) {
-      result = result.replace(span.fullMatch, span.innerContent);
+      return innerContent;
     }
-    // Otherwise, preserve the note-link span (it's a regular highlight, not a scripture reference)
-  }
+    
+    // Otherwise, preserve the note-link span
+    return match;
+  });
   
   return result;
 }
@@ -66,40 +52,28 @@ function stripNoteLinkScriptureSpans(content: string): string {
  * This prevents nested spans when re-wrapping broken pills
  */
 function stripBrokenPillSpans(content: string): string {
-  // Find spans that have data-scripture-reference
-  // These could be broken pills that need to be unwrapped
-  // Use [\s\S]*? to match any content including nested HTML (non-greedy)
-  const brokenPillPattern = /<span[^>]*data-scripture-reference\s*=\s*["'][^"']+["'][^>]*>([\s\S]*?)<\/span>/gi;
+  if (!content) return content;
   
   let result = content;
-  let match;
   
-  // Find all potential broken pill spans
-  const brokenSpans: Array<{ fullMatch: string; innerContent: string; hasValidNoteId: boolean }> = [];
+  // Use a more aggressive regex to find all scripture-pill spans
+  // This matches spans that have data-scripture-reference
+  const spanRegex = /<span[^>]*data-scripture-reference\s*=\s*["'][^"']+["'][^>]*>([\s\S]*?)<\/span>/gi;
   
-  while ((match = brokenPillPattern.exec(content)) !== null) {
-    const fullMatch = match[0];
-    const innerContent = match[1];
-    // Check if this span has a VALID data-note-id (not "pending", not empty, not null)
-    // Pending pills should be treated as broken and stripped for re-wrapping
-    const noteIdMatch = fullMatch.match(/data-note-id\s*=\s*["']([^"']+)["']/);
+  // Replace each match if it doesn't have a valid note ID
+  result = result.replace(spanRegex, (match, innerContent) => {
+    // Check if this specific match has a VALID data-note-id (not "pending", not empty, not null)
+    const noteIdMatch = match.match(/data-note-id\s*=\s*["']([^"']+)["']/);
     let hasValidNoteId = false;
+    
     if (noteIdMatch) {
       const noteIdValue = noteIdMatch[1];
-      // A valid noteId is one that's not pending, not null, and not empty
       hasValidNoteId = noteIdValue && noteIdValue !== 'pending' && noteIdValue !== 'null' && noteIdValue !== '';
     }
-    brokenSpans.push({ fullMatch, innerContent, hasValidNoteId });
-  }
-  
-  // Replace broken/pending spans (those without valid data-note-id) with just their inner content
-  // Process in reverse order to preserve indices when replacing
-  for (let i = brokenSpans.length - 1; i >= 0; i--) {
-    const span = brokenSpans[i];
-    if (!span.hasValidNoteId) {
-      result = result.replace(span.fullMatch, span.innerContent);
-    }
-  }
+    
+    // If it has a valid note ID, keep the whole span. Otherwise, just keep the inner text.
+    return hasValidNoteId ? match : innerContent;
+  });
   
   return result;
 }
@@ -190,10 +164,15 @@ export function highlightScriptureReferences(
         const spanTag = updatedContent.substring(lastSpanOpen, spanTagEnd + 1);
         
         // Check if this is a COMPLETE scripture pill span with BOTH required attributes
-        // A valid pill must have both data-scripture-reference AND data-note-id
+        // A valid pill must have both data-scripture-reference AND a VALID data-note-id
         const hasScriptureRef = spanTag.includes('data-scripture-reference');
-        const hasNoteId = spanTag.includes('data-note-id');
-        const isCompletePillSpan = hasScriptureRef && hasNoteId;
+        
+        // Use a more specific check for a valid note ID (not "pending", not "null", etc.)
+        const noteIdMatch = spanTag.match(/data-note-id\s*=\s*["']([^"']+)["']/);
+        const noteIdValue = noteIdMatch ? noteIdMatch[1] : null;
+        const hasValidNoteId = noteIdValue && noteIdValue !== 'pending' && noteIdValue !== 'null' && noteIdValue !== '';
+        
+        const isCompletePillSpan = hasScriptureRef && hasValidNoteId;
         
         // Check if this span is closed before our match
         const spanCloseAfter = updatedContent.indexOf('</span>', spanTagEnd + 1);
