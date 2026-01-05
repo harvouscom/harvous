@@ -1,4 +1,12 @@
-import { offlineDB, OfflineSpace, OfflineThread, OfflineNote, OfflineNoteThread, OfflineUserMetadata, SyncStatus } from './offline-db';
+import { 
+  offlineDB, 
+  type OfflineSpace, 
+  type OfflineThread, 
+  type OfflineNote, 
+  type OfflineNoteThread, 
+  type OfflineUserMetadata, 
+  type SyncStatus 
+} from './offline-db';
 
 /**
  * Dashboard snapshot - all data needed for initial dashboard render

@@ -1,4 +1,17 @@
-import { offlineDB, OfflineSpace, OfflineThread, OfflineNote, OfflineNoteThread, OfflineTag, OfflineNoteTag, OfflineUserMetadata, SyncOperation, SyncState, SyncStatus, ensureUserPartition } from './offline-db';
+import { 
+  offlineDB, 
+  type OfflineSpace, 
+  type OfflineThread, 
+  type OfflineNote, 
+  type OfflineNoteThread, 
+  type OfflineTag, 
+  type OfflineNoteTag, 
+  type OfflineUserMetadata, 
+  type SyncOperation, 
+  type SyncState, 
+  type SyncStatus, 
+  ensureUserPartition 
+} from './offline-db';
 
 export interface SyncResult {
   success: boolean;
