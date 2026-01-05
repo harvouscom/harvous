@@ -1052,6 +1052,27 @@ if (!content) {
         throw new Error('Note ID not found');
       }
       
+      // OFFLINE-FIRST: Update note in local IndexedDB immediately
+      let offlineUpdateSuccess = false;
+      try {
+        // Import updateNoteOffline dynamically
+        const { updateNoteOffline } = await import('@/utils/offline-mutations');
+        const userId = (window as any).__harvous_userId || localStorage.getItem('harvous-user-id');
+        
+        if (userId) {
+          await updateNoteOffline(userId, noteId, {
+            title: newTitle,
+            content: newContent
+          });
+          offlineUpdateSuccess = true;
+          console.log('[noteSaveCallback] Note updated locally in IndexedDB', { noteId });
+        }
+      } catch (err) {
+        console.error('[noteSaveCallback] Failed to update note offline:', err);
+        // Continue with server API call - offline update will be retried on next sync
+      }
+      
+      // Try to push to server (will queue if offline)
       const response = await fetch('/api/notes/update', {
         method: 'PUT',
         headers: {

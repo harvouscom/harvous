@@ -10,6 +10,8 @@ import { captureException } from '@/utils/posthog';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import Icon from './Icon';
 import { safeURL } from '@/utils/safe-url';
+import { updateThreadOffline } from '@/utils/offline-mutations';
+import { useUser } from '@clerk/clerk-react';
 
 interface Note {
   id: string;
@@ -35,6 +37,7 @@ export default function EditThreadPanel({
   onClose,
   inBottomSheet = false
 }: EditThreadPanelProps) {
+  const { user } = useUser();
   const [formData, setFormData] = useState({
     title: initialTitle,
     selectedColor: initialColor,
@@ -141,6 +144,22 @@ export default function EditThreadPanel({
       
       if (selectedNoteIds.length > 0) {
         formDataToSend.append('selectedNoteIds', JSON.stringify(selectedNoteIds));
+      }
+
+      // OFFLINE-FIRST: Update thread in local IndexedDB immediately
+      let offlineUpdateSuccess = false;
+      if (user?.id) {
+        try {
+          await updateThreadOffline(user.id, threadId, {
+            title: formData.title,
+            color: formData.selectedColor,
+          });
+          offlineUpdateSuccess = true;
+          console.log('[EditThreadPanel] Thread updated locally in IndexedDB', { threadId });
+        } catch (err) {
+          console.error('[EditThreadPanel] Failed to update thread offline:', err);
+          // Continue with server API call
+        }
       }
 
       const response = await fetch('/api/threads/update', {
