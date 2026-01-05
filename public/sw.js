@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Improves initial load and re-engagement performance
 
-const CACHE_NAME = 'harvous-cache-v0-240-2'; // Auto-updated by bump-version.js - matches package.json version
+const CACHE_NAME = 'harvous-cache-v0-240-3'; // Auto-updated by bump-version.js - matches package.json version
 // Note: OFFLINE_URL should not be '/' as it may contain sign-in page
 // Use a dedicated offline page or show error message instead
 const OFFLINE_URL = null; // Don't use cached root as offline fallback
