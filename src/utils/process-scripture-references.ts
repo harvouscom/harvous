@@ -81,17 +81,24 @@ export async function processScriptureReferences(
     }
   }
   
-  // Pattern for pending pills: pills with data-scripture-reference but NO data-note-id
-  // These are pills created during real-time detection that haven't been saved yet
-  // Match spans with data-scripture-reference but check that they don't have data-note-id
+  // Pattern for pending pills: pills with data-scripture-reference and either:
+  // 1. NO data-note-id attribute at all, OR
+  // 2. data-note-id="pending" (created during real-time detection)
+  // These are pills that haven't been saved yet and need scripture notes created
   const pendingPillPattern = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
   while ((match = pendingPillPattern.exec(noteContent)) !== null) {
     const fullMatch = match[0];
     const reference = match[1];
     
-    // Check if this span has data-note-id attribute (if so, it's not a pending pill)
-    if (fullMatch.includes('data-note-id')) {
-      continue; // Skip - this pill already has a noteId
+    // Check if this span has a REAL data-note-id attribute (not "pending")
+    // Pills with data-note-id="pending" should be treated as pending pills
+    const noteIdMatch = fullMatch.match(/data-note-id\s*=\s*["']([^"']+)["']/);
+    if (noteIdMatch) {
+      const noteIdValue = noteIdMatch[1];
+      // Skip if it has a real noteId (not "pending", not empty, not null)
+      if (noteIdValue && noteIdValue !== 'pending' && noteIdValue !== 'null' && noteIdValue !== '') {
+        continue; // Skip - this pill already has a real noteId
+      }
     }
     
     const normalizedRef = normalizeScriptureReference(reference);

@@ -59,13 +59,15 @@ function stripNoteLinkScriptureSpans(content: string): string {
 }
 
 /**
- * Strips incomplete/broken scripture pill spans from HTML content
- * A broken pill is one that has data-scripture-reference but is missing data-note-id
+ * Strips incomplete/broken/pending scripture pill spans from HTML content
+ * A broken pill is one that:
+ * 1. Has data-scripture-reference but is missing data-note-id, OR
+ * 2. Has data-note-id="pending" (created during real-time detection, not yet saved)
  * This prevents nested spans when re-wrapping broken pills
  */
 function stripBrokenPillSpans(content: string): string {
-  // Find spans that have data-scripture-reference but NOT data-note-id
-  // These are broken pills that need to be unwrapped
+  // Find spans that have data-scripture-reference
+  // These could be broken pills that need to be unwrapped
   // Use [\s\S]*? to match any content including nested HTML (non-greedy)
   const brokenPillPattern = /<span[^>]*data-scripture-reference\s*=\s*["'][^"']+["'][^>]*>([\s\S]*?)<\/span>/gi;
   
@@ -73,21 +75,28 @@ function stripBrokenPillSpans(content: string): string {
   let match;
   
   // Find all potential broken pill spans
-  const brokenSpans: Array<{ fullMatch: string; innerContent: string; hasNoteId: boolean }> = [];
+  const brokenSpans: Array<{ fullMatch: string; innerContent: string; hasValidNoteId: boolean }> = [];
   
   while ((match = brokenPillPattern.exec(content)) !== null) {
     const fullMatch = match[0];
     const innerContent = match[1];
-    // Check if this span also has data-note-id (if so, it's complete, not broken)
-    const hasNoteId = fullMatch.includes('data-note-id');
-    brokenSpans.push({ fullMatch, innerContent, hasNoteId });
+    // Check if this span has a VALID data-note-id (not "pending", not empty, not null)
+    // Pending pills should be treated as broken and stripped for re-wrapping
+    const noteIdMatch = fullMatch.match(/data-note-id\s*=\s*["']([^"']+)["']/);
+    let hasValidNoteId = false;
+    if (noteIdMatch) {
+      const noteIdValue = noteIdMatch[1];
+      // A valid noteId is one that's not pending, not null, and not empty
+      hasValidNoteId = noteIdValue && noteIdValue !== 'pending' && noteIdValue !== 'null' && noteIdValue !== '';
+    }
+    brokenSpans.push({ fullMatch, innerContent, hasValidNoteId });
   }
   
-  // Replace broken spans (those without data-note-id) with just their inner content
+  // Replace broken/pending spans (those without valid data-note-id) with just their inner content
   // Process in reverse order to preserve indices when replacing
   for (let i = brokenSpans.length - 1; i >= 0; i--) {
     const span = brokenSpans[i];
-    if (!span.hasNoteId) {
+    if (!span.hasValidNoteId) {
       result = result.replace(span.fullMatch, span.innerContent);
     }
   }
