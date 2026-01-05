@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { useUser } from '@clerk/clerk-react';
 import DeleteAccountConfirmDialog from './DeleteAccountConfirmDialog';
 import ClearDataConfirmDialog from './ClearDataConfirmDialog';
 import SquareButton from './SquareButton';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { offlineDB } from '@/utils/offline-db';
+import { syncNow } from '@/utils/sync-manager';
 
 interface MyDataPanelProps {
   onClose?: () => void;
@@ -19,6 +22,19 @@ const ChevronIcon = () => (
 );
 
 export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPanelProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  const { user } = (() => {
+    try {
+      return useUser();
+    } catch (e) {
+      return { user: null };
+    }
+  })();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const handleClose = () => {
     if (onClose) {
       onClose();
@@ -32,6 +48,75 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
   const [isExporting, setIsExporting] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState<string | null>(null);
   const [isClearingData, setIsClearingData] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Check sync status
+  const checkSyncStatus = async () => {
+    if (!isMounted || !user?.id) return;
+
+    try {
+      const count = await offlineDB.syncQueue
+        .where('userId')
+        .equals(user.id)
+        .filter(op => op.retryCount < 5)
+        .count();
+      setPendingSyncCount(count);
+    } catch (error) {
+      console.error('[MyDataPanel] Error checking sync status:', error);
+    }
+  };
+
+  // Monitor online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Check sync status on mount and periodically
+  useEffect(() => {
+    if (!isMounted || !user?.id) return;
+
+    checkSyncStatus();
+
+    // Check every 5 seconds
+    const interval = setInterval(checkSyncStatus, 5000);
+
+    // Also check when window regains focus
+    const handleFocus = () => checkSyncStatus();
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [isMounted, user?.id]);
+
+  // Handle manual sync
+  const handleSyncNow = async () => {
+    if (!user?.id || !isOnline || isSyncing) return;
+
+    setIsSyncing(true);
+    try {
+      await syncNow(user.id);
+      await checkSyncStatus();
+      toast.success('Sync complete', { icon: null });
+    } catch (error) {
+      console.error('[MyDataPanel] Sync error:', error);
+      toast.error('Sync failed. Please try again.', { icon: null });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Prevent body scroll when dialog is open
   useEffect(() => {
@@ -95,6 +180,18 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
   const handleDeleteAccount = async () => {
     setShowDeleteConfirm(false);
     
+    // Warn if there are unsynced changes
+    if (pendingSyncCount > 0) {
+      const confirmed = window.confirm(
+        `Warning: You have ${pendingSyncCount} unsynced change${pendingSyncCount > 1 ? 's' : ''} that will be lost forever. ` +
+        'Are you sure you want to delete your account?'
+      );
+      if (!confirmed) {
+        setShowDeleteConfirm(true);
+        return;
+      }
+    }
+    
     try {
       const response = await fetch('/api/user/delete-account', {
         method: 'DELETE',
@@ -134,6 +231,19 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
   const handleConfirmClearData = async () => {
     setShowClearDataConfirm(false);
+    
+    // Warn if there are unsynced changes
+    if (pendingSyncCount > 0) {
+      const confirmed = window.confirm(
+        `Warning: You have ${pendingSyncCount} unsynced change${pendingSyncCount > 1 ? 's' : ''} that will be lost forever. ` +
+        'Are you sure you want to clear all data?'
+      );
+      if (!confirmed) {
+        setShowClearDataConfirm(true);
+        return;
+      }
+    }
+
     setIsClearingData(true);
     try {
       const response = await fetch('/api/user/clear-data', {
