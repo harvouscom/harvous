@@ -1256,18 +1256,26 @@ export default function ThreadNotesList({
   return (
     <>
       <div ref={containerRef} style={{ paddingBottom: '12px' }}>
-        <InfiniteScrollList
-          initialItems={filteredNotes}
-          items={filteredNotes}
-          onItemsChange={handleItemsChange}
-          loadMore={loadMore}
-          renderItem={renderItem}
-          itemKey={(note) => note.id}
-          limit={20}
-          className="flex flex-col gap-3"
-          initialHasMore={initialHasMore}
-          minimumExpectedCount={totalCountForFilter}
-        />
+        {filteredNotes.length > 0 ? (
+          <InfiniteScrollList
+            initialItems={filteredNotes}
+            items={filteredNotes}
+            onItemsChange={handleItemsChange}
+            loadMore={loadMore}
+            renderItem={renderItem}
+            itemKey={(note) => note.id}
+            limit={20}
+            className="flex flex-col gap-3"
+            initialHasMore={initialHasMore}
+            minimumExpectedCount={totalCountForFilter}
+          />
+        ) : (
+          <div style={{ textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
+            <p style={{ fontWeight: 600, color: 'var(--color-pebble-grey)', fontSize: '18px' }}>
+              No notes found in this thread.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Delete Confirmation Dialog - Rendered via Portal */}

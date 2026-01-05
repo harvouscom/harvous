@@ -872,15 +872,28 @@ export default function OrganizedContentList({
 
   return (
     <div className="flex flex-col">
-      <InfiniteScrollList
-        initialItems={filteredInitialItems}
-        loadMore={loadMore}
-        renderItem={renderItem}
-        itemKey={(item) => item.id}
-        limit={20}
-        className="flex flex-col"
-        initialHasMore={hasMore}
-      />
+      {filteredInitialItems.length > 0 ? (
+        <InfiniteScrollList
+          initialItems={filteredInitialItems}
+          loadMore={loadMore}
+          renderItem={renderItem}
+          itemKey={(item) => item.id}
+          limit={20}
+          className="flex flex-col"
+          initialHasMore={hasMore}
+        />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', width: '100%', textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
+          <div className="empty-state-message">
+            <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, color: '#4a473d', fontSize: '18px', lineHeight: '1.2' }}>
+              <p>So when's move-in day?</p>
+            </div>
+            <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px', lineHeight: '1.3', maxWidth: '250px' }}>
+              <p>Add to your Harvous and this area will start to feel lived in.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -808,63 +808,35 @@ if (!content) {
                     
                     {/* All Notes Content */}
                     <div class="organized-content flex flex-col" data-tab-content="all">
-                      {threadNotes.length > 0 ? (
-                        <ThreadNotesList 
-                          initialNotes={threadNotes}
-                          threadId={id!}
-                          noteTypeFilter="all"
-                          noteTypeCounts={noteTypeCounts || undefined}
-                          client:load
-                        />
-                      ) : (
-                        <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                          <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
-                        </div>
-                      )}
+                      <ThreadNotesList 
+                        initialNotes={threadNotes}
+                        threadId={id!}
+                        noteTypeFilter="all"
+                        noteTypeCounts={noteTypeCounts || undefined}
+                        client:load
+                      />
                     </div>
                     
                     {/* Notes Only Content */}
                     <div class="organized-content flex flex-col hidden" data-tab-content="notes">
-                      {threadNotes.length > 0 ? (
-                        <ThreadNotesList 
-                          initialNotes={threadNotes}
-                          threadId={id!}
-                          noteTypeFilter="default"
-                          noteTypeCounts={noteTypeCounts || undefined}
-                          client:visible
-                        />
-                      ) : (
-                        <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                          <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
-                        </div>
-                      )}
+                      <ThreadNotesList 
+                        initialNotes={threadNotes}
+                        threadId={id!}
+                        noteTypeFilter="default"
+                        noteTypeCounts={noteTypeCounts || undefined}
+                        client:visible
+                      />
                     </div>
                     
                     {/* Scripture Only Content */}
                     <div class="organized-content flex flex-col hidden" data-tab-content="scripture">
-                      {threadNotes.length > 0 ? (
-                        <ThreadNotesList 
-                          initialNotes={threadNotes}
-                          threadId={id!}
-                          noteTypeFilter="scripture"
-                          noteTypeCounts={noteTypeCounts || undefined}
-                          client:load
-                        />
-                      ) : (
-                        <>
-                          {/* Always render ThreadNotesList so event listeners are set up, even if no items initially */}
-                          <ThreadNotesList 
-                            initialNotes={[]}
-                            threadId={id!}
-                            noteTypeFilter="scripture"
-                            noteTypeCounts={noteTypeCounts || undefined}
-                            client:load
-                          />
-                          <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                            <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No scripture notes found in this thread.</p>
-                          </div>
-                        </>
-                      )}
+                      <ThreadNotesList 
+                        initialNotes={threadNotes}
+                        threadId={id!}
+                        noteTypeFilter="scripture"
+                        noteTypeCounts={noteTypeCounts || undefined}
+                        client:load
+                      />
                     </div>
                   </div>
                 ) : isSpace && content ? (
