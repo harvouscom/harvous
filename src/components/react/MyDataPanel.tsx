@@ -480,6 +480,33 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                           'Not synced'
                         )}
                       </div>
+                      {/* Cache freshness indicator */}
+                      {syncState?.lastCacheUpdate && (
+                        <div className="text-xs" style={{ color: 'var(--color-pebble-grey)', marginTop: '4px' }}>
+                          {(() => {
+                            const cacheDate = new Date(syncState.lastCacheUpdate);
+                            const cacheAge = Date.now() - syncState.lastCacheUpdate;
+                            const hoursAgo = Math.floor(cacheAge / (1000 * 60 * 60));
+                            const isStale = cacheAge > 24 * 60 * 60 * 1000; // 24 hours
+                            const month = cacheDate.toLocaleString('en-US', { month: 'short' });
+                            const day = cacheDate.getDate();
+                            const year = cacheDate.getFullYear();
+                            const time = cacheDate.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                            
+                            if (hoursAgo < 1) {
+                              return `Cache: Just now`;
+                            } else if (hoursAgo < 24) {
+                              return `Cache: ${hoursAgo} hour${hoursAgo > 1 ? 's' : ''} ago`;
+                            } else {
+                              return (
+                                <span style={{ color: isStale ? '#F59E0B' : 'var(--color-pebble-grey)' }}>
+                                  Cache: {month} {day}, {year} {time} {isStale ? '(may be outdated)' : ''}
+                                </span>
+                              );
+                            }
+                          })()}
+                        </div>
+                      )}
                     </div>
                     
                     {/* Button on the right */}

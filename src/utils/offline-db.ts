@@ -116,6 +116,8 @@ export interface SyncState {
   lastBootstrapTimestamp: number | null; // When bootstrap was last completed
   isSyncing: boolean; // Whether sync is currently in progress
   syncError: string | null; // Last sync error
+  lastCacheUpdate?: number; // Timestamp of last service worker cache update
+  cacheSize?: number; // Estimated cache size in bytes (optional)
 }
 
 // Offline database class

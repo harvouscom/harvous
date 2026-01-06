@@ -819,6 +819,20 @@ async function updateSyncState(userId: string, updates: Partial<SyncState>): Pro
 }
 
 /**
+ * Update cache timestamp in sync state
+ * Called after service worker cache is updated
+ */
+export async function updateCacheTimestamp(userId: string): Promise<void> {
+  try {
+    await updateSyncState(userId, {
+      lastCacheUpdate: Date.now()
+    });
+  } catch (error) {
+    console.error('[updateCacheTimestamp] Error updating cache timestamp:', error);
+  }
+}
+
+/**
  * Enqueue a mutation for sync
  */
 export async function enqueueMutation(userId: string, operation: Omit<SyncOperation, 'userId' | 'id' | 'timestamp' | 'retryCount'>): Promise<void> {
