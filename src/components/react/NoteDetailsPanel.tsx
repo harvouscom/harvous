@@ -505,7 +505,7 @@ export default function NoteDetailsPanel({
                           className="text-metadata cursor-pointer"
                           title="Click to copy note ID"
                         >
-                          {`#N${noteSimpleId.toString().padStart(3, '0')}`}
+                          {`N${noteSimpleId.toString().padStart(3, '0')}`}
                         </button>
                       )}
                     </div>
@@ -716,7 +716,7 @@ export default function NoteDetailsPanel({
                                 style={{ touchAction: 'manipulation' }}
                               >
                                 <CardNote
-                                  title={refNote.noteType === 'resource' && refNote.resourceTitle ? refNote.resourceTitle : (refNote.title || `Note #N${refNote.simpleNoteId?.toString().padStart(3, '0') || 'N/A'}`)}
+                                  title={refNote.noteType === 'resource' && refNote.resourceTitle ? refNote.resourceTitle : (refNote.title || `Note N${refNote.simpleNoteId?.toString().padStart(3, '0') || 'N/A'}`)}
                                   content={refNote.noteType === 'resource' && refNote.resourceDescription ? refNote.resourceDescription : refNote.content}
                                   noteType={(refNote.noteType === 'scripture' || refNote.noteType === 'resource') ? refNote.noteType : 'default'}
                                   resourceTitle={refNote.noteType === 'resource' ? (refNote.resourceTitle || null) : undefined}
