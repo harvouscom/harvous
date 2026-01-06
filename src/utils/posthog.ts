@@ -164,16 +164,11 @@ export function getFeatureFlag(flagName: string): string | boolean | undefined {
 }
 
 /**
- * Feature flag name for offline mode
- */
-const OFFLINE_MODE_FLAG = 'offline-mode-enabled';
-
-/**
- * Check if offline mode is enabled via PostHog feature flag
- * Returns false if PostHog is not available or flag is disabled
+ * Check if offline mode is enabled
+ * Offline mode is now always enabled (feature flag removed)
  */
 export function isOfflineModeEnabled(): boolean {
-  return isFeatureEnabled(OFFLINE_MODE_FLAG);
+  return true;
 }
 
 /**
