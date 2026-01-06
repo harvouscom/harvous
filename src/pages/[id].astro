@@ -14,6 +14,7 @@ import ThreadNotesList from "@/components/react/ThreadNotesList";
 import SpaceContentList from "@/components/react/SpaceContentList";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
+import OfflineThreadLoader from "@/components/react/OfflineThreadLoader";
 import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
 import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
@@ -136,10 +137,12 @@ const { id } = Astro.params;
 const isThread = id?.startsWith('thread_');
 const isNote = id?.startsWith('note_');
 const isSpace = id?.startsWith('space_');
+// Detect offline thread IDs (local_ prefix)
+const isOfflineThread = id?.startsWith('local_');
 
 // Determine content type for context-aware More menu
 let contentType: "thread" | "note" | "space" | "dashboard" = "dashboard";
-if (isThread) contentType = "thread";
+if (isThread || isOfflineThread) contentType = "thread";
 else if (isNote) contentType = "note";
 else if (isSpace) contentType = "space";
 
@@ -322,14 +325,40 @@ try {
             
             // Note: lastVisited was already updated before data fetch (see above)
           } else {
-            // Thread not found even in direct query - log for debugging
-            console.error(`[id].astro] Thread not found in direct query: ${id} for user: ${authenticatedUserId}`);
-            // Also check if thread exists at all (without userId check) for debugging
-            const anyThread = await db.select()
-              .from(Threads)
-              .where(eq(Threads.id, id!))
-              .get();
-            console.error(`[id].astro] Thread exists in DB (any user):`, !!anyThread, anyThread ? `userId: ${anyThread.userId}` : 'N/A');
+            // Thread not found even in direct query
+            // Check if this is an offline thread (local_ prefix)
+            if (isOfflineThread) {
+              // Set up minimal content for offline thread - will be hydrated by client-side loader
+              content = {
+                id: id!,
+                title: 'Loading...',
+                subtitle: null,
+                color: null,
+                spaceId: null,
+                notes: [],
+                noteCount: 0
+              };
+              currentThread = {
+                id: id!,
+                title: 'Loading...',
+                color: null,
+                noteCount: 0,
+                backgroundGradient: getThreadGradientCSS('paper')
+              };
+              threadNotes = [];
+              noteTypeCounts = { all: 0, default: 0, scripture: 0, resource: 0 };
+              pageTitle = 'Loading...';
+              pageContent = '0 notes';
+            } else {
+              // Thread not found and not an offline thread - log for debugging
+              console.error(`[id].astro] Thread not found in direct query: ${id} for user: ${authenticatedUserId}`);
+              // Also check if thread exists at all (without userId check) for debugging
+              const anyThread = await db.select()
+                .from(Threads)
+                .where(eq(Threads.id, id!))
+                .get();
+              console.error(`[id].astro] Thread exists in DB (any user):`, !!anyThread, anyThread ? `userId: ${anyThread.userId}` : 'N/A');
+            }
           }
         }
       }
@@ -730,6 +759,10 @@ if (!content) {
 
   <!-- Main Column -->
   <div slot="main" class="h-full min-h-0 overflow-hidden" data-navigation-item={id} data-title={pageTitle} data-count={isNote ? 0 : (currentThread?.noteCount || currentSpace?.threadCount || 0)} data-background-gradient={isNote ? "var(--color-gradient-gray)" : (currentThread?.backgroundGradient || currentSpace?.backgroundGradient || "var(--color-gradient-gray)")}>
+          {/* Load offline thread data if this is an offline thread */}
+          {isOfflineThread && id && (
+            <OfflineThreadLoader threadId={id} client:load />
+          )}
           {isNote && content ? (
             <div 
               data-note-id={content.id}

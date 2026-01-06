@@ -5,9 +5,12 @@ import { usePersistedUserId } from '@/utils/user-id';
 import DeleteAccountConfirmDialog from './DeleteAccountConfirmDialog';
 import ClearDataConfirmDialog from './ClearDataConfirmDialog';
 import SquareButton from './SquareButton';
+import ButtonSmall from './ButtonSmall';
+import Icon from './Icon';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { offlineDB } from '@/utils/offline-db';
-import { syncNow } from '@/utils/sync-manager';
+import { syncNow, getSyncState } from '@/utils/sync-manager';
+import type { SyncState } from '@/utils/offline-db';
 
 interface MyDataPanelProps {
   onClose?: () => void;
@@ -44,19 +47,29 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
   const [isClearingData, setIsClearingData] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncState, setSyncState] = useState<SyncState | null>(null);
 
   // Check sync status
   const checkSyncStatus = async () => {
     if (!isMounted || !userId) return;
 
     try {
+      // Get pending sync count
       const count = await offlineDB.syncQueue
         .where('userId')
         .equals(userId)
         .filter(op => op.retryCount < 5)
         .count();
       setPendingSyncCount(count);
+
+      // Get sync state
+      const state = await getSyncState(userId);
+      setSyncState(state);
+      if (state) {
+        setIsSyncing(state.isSyncing || false);
+      }
     } catch (error) {
       console.error('[MyDataPanel] Error checking sync status:', error);
     }
@@ -100,6 +113,10 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     if (!userId || !isOnline || isSyncing) return;
 
     setIsSyncing(true);
+    setIsAnimating(true);
+    
+    const syncStartTime = Date.now();
+    
     try {
       await syncNow(userId);
       await checkSyncStatus();
@@ -109,6 +126,18 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       toast.error('Sync failed. Please try again.', { icon: null });
     } finally {
       setIsSyncing(false);
+      
+      // Ensure animation runs for at least one cycle (1 second)
+      const elapsed = Date.now() - syncStartTime;
+      const remainingTime = Math.max(0, 1000 - elapsed);
+      
+      if (remainingTime > 0) {
+        setTimeout(() => {
+          setIsAnimating(false);
+        }, remainingTime);
+      } else {
+        setIsAnimating(false);
+      }
     }
   };
 
@@ -262,8 +291,11 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
         
         // Clear IndexedDB
         try {
-          const { offlineDB } = await import('@/utils/offline-db');
+          const { offlineDB, ensureDatabaseOpen } = await import('@/utils/offline-db');
           await offlineDB.delete();
+          // Reopen the database after deletion so future sync operations can continue
+          // This prevents DatabaseClosedError when sync operations try to access the database
+          await ensureDatabaseOpen();
         } catch (e) {
           console.warn('[MyDataPanel] Failed to clear IndexedDB:', e);
         }
@@ -360,45 +392,108 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-                {/* Sync Status Section */}
-                {pendingSyncCount > 0 && (
-                  <div className="panel__section">
-                    <div className="rounded-3xl p-4 mb-3" style={{ 
-                      backgroundColor: isOnline ? 'var(--color-snow-white)' : '#FFF4E6',
-                      border: `1px solid ${isOnline ? 'var(--color-gray)' : '#FFA500'}`
-                    }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-sans text-[16px] font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                          {isOnline ? 'Pending Sync' : 'Offline Changes'}
-                        </span>
-                        <span className="font-sans text-[16px] font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                          {pendingSyncCount}
-                        </span>
+                {/* Sync Status Section - Always visible */}
+                <div className="panel__section">
+                  <div 
+                    className="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3 w-full relative"
+                    style={{ 
+                      backgroundColor: syncState?.syncError 
+                        ? '#FFE6E6' 
+                        : isOnline 
+                          ? 'white' 
+                          : '#FFF4E6',
+                      borderColor: syncState?.syncError 
+                        ? '#FF6B6B' 
+                        : isOnline 
+                          ? 'var(--color-fog-white)' 
+                          : '#FFA500'
+                    }}
+                  >
+                    {/* Progress bar when syncing */}
+                    {isAnimating && (
+                      <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
+                        <div className="panel__progress-fill"></div>
                       </div>
-                      <p className="font-sans text-[14px] mb-3" style={{ color: 'var(--color-pebble-grey)' }}>
-                        {isOnline 
-                          ? `${pendingSyncCount} change${pendingSyncCount > 1 ? 's' : ''} waiting to sync`
-                          : 'Your changes will sync when you\'re back online'}
-                      </p>
-                      {isOnline && (
-                        <button
-                          className="w-full rounded-2xl h-[40px] cursor-pointer transition-opacity duration-200 flex items-center justify-center"
-                          style={{ 
-                            backgroundColor: 'var(--color-deep-grey)',
-                            opacity: isSyncing ? 0.6 : 1,
-                            pointerEvents: isSyncing ? 'none' : 'auto'
-                          }}
-                          onClick={handleSyncNow}
-                          disabled={isSyncing}
-                        >
-                          <span className="font-sans text-[14px] font-semibold" style={{ color: 'white' }}>
-                            {isSyncing ? 'Syncing...' : 'Sync Now'}
-                          </span>
-                        </button>
-                      )}
+                    )}
+                    
+                    {/* Icon on the left */}
+                    <div 
+                      className="flex-shrink-0"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '20px',
+                        height: '20px'
+                      }}
+                    >
+                      <Icon 
+                        name="arrows-rotate" 
+                        size={20}
+                        style={{ 
+                          color: 'var(--color-deep-grey)',
+                          ...(isAnimating ? {
+                            animation: 'spin 1s linear infinite',
+                            transformOrigin: '50% 50%',
+                            willChange: 'transform'
+                          } : {})
+                        }}
+                      />
                     </div>
+                    
+                    {/* Text content in the middle */}
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <div className="text-lg font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
+                        {syncState?.syncError 
+                          ? 'Sync Error' 
+                          : isOnline 
+                            ? 'Latest Sync' 
+                            : 'Offline'}
+                        {pendingSyncCount > 0 && !isSyncing && (
+                          <span className="ml-2" style={{ color: 'var(--color-pebble-grey)' }}>
+                            ({pendingSyncCount} pending)
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm" style={{ color: 'var(--color-pebble-grey)' }}>
+                        {syncState?.syncError ? (
+                          <span style={{ color: '#D32F2F' }}>{syncState.syncError}</span>
+                        ) : syncState?.lastSyncTimestamp ? (
+                          (() => {
+                            const date = new Date(syncState.lastSyncTimestamp);
+                            const month = date.toLocaleString('en-US', { month: 'short' });
+                            const day = date.getDate();
+                            const year = date.getFullYear();
+                            const time = date.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                            return `${month} ${day}, ${year} ${time}`;
+                          })()
+                        ) : syncState?.lastBootstrapTimestamp ? (
+                          (() => {
+                            const date = new Date(syncState.lastBootstrapTimestamp);
+                            const month = date.toLocaleString('en-US', { month: 'short' });
+                            const day = date.getDate();
+                            const year = date.getFullYear();
+                            const time = date.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                            return `${month} ${day}, ${year} ${time}`;
+                          })()
+                        ) : (
+                          'Not synced'
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Button on the right */}
+                    {isOnline && !isSyncing && (
+                      <ButtonSmall
+                        state="Secondary"
+                        onClick={handleSyncNow}
+                        disabled={isSyncing}
+                      >
+                        Sync
+                      </ButtonSmall>
+                    )}
                   </div>
-                )}
+                </div>
 
                 {/* Export Buttons */}
                 <div className="panel__section">

@@ -7,25 +7,63 @@ import { bootstrapSync, syncNow, needsBootstrap, startBackgroundSync } from './s
  * Should be called once when the app starts (after user is authenticated)
  */
 export async function initializeSync(userId: string): Promise<void> {
+  console.log('[initializeSync] 🔄 Starting sync initialization for userId:', userId, {
+    isOnline: navigator.onLine,
+    timestamp: new Date().toISOString()
+  });
+
   try {
     // Check if bootstrap is needed
-    if (await needsBootstrap(userId)) {
+    console.log('[initializeSync] 🔍 Checking if bootstrap is needed...');
+    const needsBoot = await needsBootstrap(userId);
+    console.log('[initializeSync] Bootstrap needed:', needsBoot);
+
+    if (needsBoot) {
       if (navigator.onLine) {
-        await bootstrapSync(userId);
+        console.log('[initializeSync] ✅ Online - starting bootstrap sync...');
+        const bootstrapResult = await bootstrapSync(userId);
+        console.log('[initializeSync] Bootstrap result:', {
+          success: bootstrapResult.success,
+          error: bootstrapResult.error,
+          pulledCount: bootstrapResult.pulledCount
+        });
+        
+        if (!bootstrapResult.success) {
+          console.error('[initializeSync] ❌ Bootstrap failed:', bootstrapResult.error);
+        } else {
+          console.log('[initializeSync] ✅ Bootstrap completed successfully');
+        }
       } else {
-        console.warn('Bootstrap needed but offline - will bootstrap when online');
+        console.warn('[initializeSync] ⚠️ Bootstrap needed but offline - will bootstrap when online');
       }
     } else {
       // Incremental sync if online
       if (navigator.onLine) {
-        await syncNow(userId);
+        console.log('[initializeSync] ✅ Online - starting incremental sync...');
+        const syncResult = await syncNow(userId);
+        console.log('[initializeSync] Incremental sync result:', {
+          success: syncResult.success,
+          error: syncResult.error,
+          pulledCount: syncResult.pulledCount,
+          pushedCount: syncResult.pushedCount
+        });
+      } else {
+        console.log('[initializeSync] ⚠️ Offline - skipping incremental sync');
       }
     }
 
     // Start background sync loop
+    console.log('[initializeSync] 🔄 Starting background sync loop (30s interval)...');
     startBackgroundSync(userId, 30000); // Sync every 30 seconds
+    console.log('[initializeSync] ✅ Background sync loop started');
   } catch (error) {
-    console.error('Error initializing sync:', error);
+    console.error('[initializeSync] ❌ Error initializing sync:', {
+      error,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId
+    });
+    throw error; // Re-throw to let caller handle
   }
 }
 

@@ -676,6 +676,35 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     }
   };
 
+  // Handle title keydown for auto-capitalize and select all
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Handle Select All (Cmd+A on Mac, Ctrl+A on Windows/Linux)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+      e.preventDefault();
+      e.currentTarget.select();
+      return;
+    }
+    
+    // Auto-capitalize first letter
+    const input = e.currentTarget;
+    if (input.selectionStart === 0 && input.selectionEnd === 0) {
+      // Cursor is at the start
+      if (e.key.length === 1 && /^[a-z]$/.test(e.key)) {
+        e.preventDefault();
+        const capitalized = e.key.toUpperCase();
+        if (title.length === 0) {
+          setTitle(capitalized);
+        } else {
+          setTitle(capitalized + title);
+        }
+        // Set cursor position after the capitalized letter
+        setTimeout(() => {
+          input.setSelectionRange(1, 1);
+        }, 0);
+      }
+    }
+  };
+
   // Use centralized stripHtml utility
   const stripHtml = (html: string): string => stripHtmlForPreview(html, 150);
 
@@ -705,6 +734,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={handleTitleKeyDown}
                   placeholder="Thread name"
                   className="w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center placeholder:text-[var(--color-pebble-grey)]"
                   style={{ 

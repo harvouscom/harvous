@@ -10,9 +10,12 @@ import {
   type SyncOperation, 
   type SyncState, 
   type SyncStatus, 
-  ensureUserPartition 
+  ensureUserPartition,
+  ensureDatabaseOpen,
+  retryIndexedDBOperation
 } from './offline-db';
 import { cacheHighestSimpleNoteId } from './offline-mutations';
+import { THREAD_COLORS } from './colors';
 
 export interface SyncResult {
   success: boolean;
@@ -87,6 +90,31 @@ export function classifySyncError(error: string | number): SyncErrorType {
 }
 
 /**
+ * Normalize thread color from long format (blessed-blue) to short format (blue)
+ * Ensures colors stored in IndexedDB are in the format expected by components
+ */
+function normalizeThreadColor(color: string | null | undefined): string | null {
+  if (!color) return null;
+  
+  // Map long names to short names
+  const colorMap: Record<string, string> = {
+    "blessed-blue": "blue",
+    "graceful-gold": "yellow",
+    "mindful-mint": "green",
+    "pleasant-peach": "orange",
+    "peaceful-pink": "pink",
+    "lovely-lavender": "purple",
+  };
+  
+  const normalized = colorMap[color.toLowerCase()] || color;
+  // Only return if it's a valid thread color
+  if (THREAD_COLORS.includes(normalized as any)) {
+    return normalized;
+  }
+  return null;
+}
+
+/**
  * Check if an error type should be retried
  */
 export function shouldRetryError(errorType: SyncErrorType): boolean {
@@ -99,8 +127,11 @@ export function shouldRetryError(errorType: SyncErrorType): boolean {
  * Apply bootstrap data to local IndexedDB
  */
 export async function applyBootstrapData(userId: string, bootstrapData: any): Promise<void> {
+  console.log('[applyBootstrapData] 🔄 Starting to apply bootstrap data for userId:', userId);
+  
   try {
     // Clear existing data for this user (fresh start)
+    console.log('[applyBootstrapData] 🗑️ Clearing existing data for user...');
     await Promise.all([
       offlineDB.spaces.where('userId').equals(userId).delete(),
       offlineDB.threads.where('userId').equals(userId).delete(),
@@ -110,9 +141,11 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
       offlineDB.noteTags.where('userId').equals(userId).delete(),
       offlineDB.userMetadata.where('userId').equals(userId).delete(),
     ]);
+    console.log('[applyBootstrapData] ✅ Existing data cleared');
 
     // Insert spaces
     if (bootstrapData.spaces && bootstrapData.spaces.length > 0) {
+      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.spaces.length} spaces...`);
       const spaces: OfflineSpace[] = bootstrapData.spaces.map((space: any) =>
         ensureUserPartition<OfflineSpace>({
           id: space.id,
@@ -131,17 +164,21 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.spaces.bulkPut(spaces);
+      console.log(`[applyBootstrapData] ✅ Inserted ${spaces.length} spaces`);
+    } else {
+      console.log('[applyBootstrapData] ℹ️ No spaces to insert');
     }
 
     // Insert threads
     if (bootstrapData.threads && bootstrapData.threads.length > 0) {
+      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.threads.length} threads...`);
       const threads: OfflineThread[] = bootstrapData.threads.map((thread: any) =>
         ensureUserPartition<OfflineThread>({
           id: thread.id,
           title: thread.title,
           subtitle: thread.subtitle,
           spaceId: thread.spaceId,
-          color: thread.color,
+          color: normalizeThreadColor(thread.color),
           isPublic: thread.isPublic,
           isPinned: thread.isPinned,
           order: thread.order,
@@ -154,10 +191,14 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.threads.bulkPut(threads);
+      console.log(`[applyBootstrapData] ✅ Inserted ${threads.length} threads`);
+    } else {
+      console.log('[applyBootstrapData] ℹ️ No threads to insert');
     }
 
     // Insert notes
     if (bootstrapData.notes && bootstrapData.notes.length > 0) {
+      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.notes.length} notes...`);
       const notes: OfflineNote[] = bootstrapData.notes.map((note: any) =>
         ensureUserPartition<OfflineNote>({
           id: note.id,
@@ -180,10 +221,14 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.notes.bulkPut(notes);
+      console.log(`[applyBootstrapData] ✅ Inserted ${notes.length} notes`);
+    } else {
+      console.log('[applyBootstrapData] ℹ️ No notes to insert');
     }
 
     // Insert noteThreads
     if (bootstrapData.noteThreads && bootstrapData.noteThreads.length > 0) {
+      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.noteThreads.length} noteThreads...`);
       const noteThreads: OfflineNoteThread[] = bootstrapData.noteThreads.map((nt: any) =>
         ensureUserPartition<OfflineNoteThread>({
           id: nt.id,
@@ -197,10 +242,14 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.noteThreads.bulkPut(noteThreads);
+      console.log(`[applyBootstrapData] ✅ Inserted ${noteThreads.length} noteThreads`);
+    } else {
+      console.log('[applyBootstrapData] ℹ️ No noteThreads to insert');
     }
 
     // Insert tags
     if (bootstrapData.tags && bootstrapData.tags.length > 0) {
+      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.tags.length} tags...`);
       const tags: OfflineTag[] = bootstrapData.tags.map((tag: any) =>
         ensureUserPartition<OfflineTag>({
           id: tag.id,
@@ -216,10 +265,14 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.tags.bulkPut(tags);
+      console.log(`[applyBootstrapData] ✅ Inserted ${tags.length} tags`);
+    } else {
+      console.log('[applyBootstrapData] ℹ️ No tags to insert');
     }
 
     // Insert noteTags
     if (bootstrapData.noteTags && bootstrapData.noteTags.length > 0) {
+      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.noteTags.length} noteTags...`);
       const noteTags: OfflineNoteTag[] = bootstrapData.noteTags.map((nt: any) =>
         ensureUserPartition<OfflineNoteTag>({
           id: nt.id,
@@ -235,10 +288,14 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.noteTags.bulkPut(noteTags);
+      console.log(`[applyBootstrapData] ✅ Inserted ${noteTags.length} noteTags`);
+    } else {
+      console.log('[applyBootstrapData] ℹ️ No noteTags to insert');
     }
 
     // Insert/update userMetadata
     if (bootstrapData.userMetadata) {
+      console.log('[applyBootstrapData] 📦 Inserting userMetadata...');
       const um = bootstrapData.userMetadata;
       const userMetadata: OfflineUserMetadata = ensureUserPartition<OfflineUserMetadata>({
         id: um.id,
@@ -265,23 +322,47 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         updatedAt: um.updatedAt ? new Date(um.updatedAt) : null,
       }, userId);
       await offlineDB.userMetadata.put(userMetadata);
+      console.log('[applyBootstrapData] ✅ Inserted userMetadata:', {
+        userId: userMetadata.userId,
+        highestSimpleNoteId: userMetadata.highestSimpleNoteId
+      });
       
       // Cache highestSimpleNoteId in localStorage for instant offline access
       if (um.highestSimpleNoteId !== undefined) {
         cacheHighestSimpleNoteId(userId, um.highestSimpleNoteId);
+        console.log('[applyBootstrapData] 💾 Cached highestSimpleNoteId to localStorage:', um.highestSimpleNoteId);
       }
+    } else {
+      console.log('[applyBootstrapData] ⚠️ No userMetadata in bootstrap data');
     }
 
     // Update sync state
-    await updateSyncState(userId, {
+    const syncStateUpdate = {
       lastSyncCursor: bootstrapData.cursor,
       lastSyncTimestamp: Date.now(),
       lastBootstrapTimestamp: Date.now(),
       isSyncing: false,
       syncError: null,
+    };
+    console.log('[applyBootstrapData] 📝 Updating sync state:', syncStateUpdate);
+    await updateSyncState(userId, syncStateUpdate);
+    
+    // Verify sync state was updated
+    const updatedState = await getSyncState(userId);
+    console.log('[applyBootstrapData] ✅ Sync state updated:', {
+      lastSyncTimestamp: updatedState?.lastSyncTimestamp,
+      lastBootstrapTimestamp: updatedState?.lastBootstrapTimestamp,
+      isSyncing: updatedState?.isSyncing
     });
+    
+    console.log('[applyBootstrapData] ✅ Bootstrap data application completed successfully');
   } catch (error) {
-    console.error('Error applying bootstrap data:', error);
+    console.error('[applyBootstrapData] ❌ Error applying bootstrap data:', {
+      error,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId
+    });
     throw error;
   }
 }
@@ -334,7 +415,7 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
             title: thread.title,
             subtitle: thread.subtitle,
             spaceId: thread.spaceId,
-            color: thread.color,
+            color: normalizeThreadColor(thread.color),
             isPublic: thread.isPublic,
             isPinned: thread.isPinned,
             order: thread.order,
@@ -565,35 +646,83 @@ export async function pullChanges(userId: string): Promise<SyncResult> {
  * Bootstrap sync (first load)
  */
 export async function bootstrapSync(userId: string): Promise<SyncResult> {
+  console.log('[bootstrapSync] 🚀 Starting bootstrap sync for userId:', userId, {
+    isOnline: navigator.onLine,
+    timestamp: new Date().toISOString()
+  });
+
   if (!navigator.onLine) {
+    console.log('[bootstrapSync] ❌ Aborting: not online');
     return { success: false, error: 'Bootstrap requires online connection' };
   }
 
   try {
+    console.log('[bootstrapSync] 📝 Updating sync state: isSyncing = true');
     await updateSyncState(userId, { isSyncing: true, syncError: null });
 
+    console.log('[bootstrapSync] 🌐 Fetching /api/sync/bootstrap...');
     const response = await fetch('/api/sync/bootstrap', {
       method: 'GET',
       credentials: 'include',
     });
 
+    console.log('[bootstrapSync] 📡 Response received:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+
     if (!response.ok) {
-      throw new Error(`Bootstrap failed: ${response.status} ${response.statusText}`);
+      const errorText = await response.text().catch(() => 'Could not read error response');
+      console.error('[bootstrapSync] ❌ Bootstrap API failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText
+      });
+      throw new Error(`Bootstrap failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
+    console.log('[bootstrapSync] 📦 Parsing bootstrap data...');
     const bootstrapData = await response.json();
+    console.log('[bootstrapSync] 📊 Bootstrap data received:', {
+      spaces: bootstrapData.spaces?.length || 0,
+      threads: bootstrapData.threads?.length || 0,
+      notes: bootstrapData.notes?.length || 0,
+      noteThreads: bootstrapData.noteThreads?.length || 0,
+      tags: bootstrapData.tags?.length || 0,
+      noteTags: bootstrapData.noteTags?.length || 0,
+      hasUserMetadata: !!bootstrapData.userMetadata,
+      cursor: bootstrapData.cursor
+    });
+
+    console.log('[bootstrapSync] 💾 Applying bootstrap data to IndexedDB...');
     await applyBootstrapData(userId, bootstrapData);
+    console.log('[bootstrapSync] ✅ Bootstrap data applied successfully');
 
     // Clear isSyncing flag on success
+    console.log('[bootstrapSync] 📝 Updating sync state: isSyncing = false, lastSyncTimestamp = now');
     await updateSyncState(userId, { isSyncing: false });
 
-    return { success: true, pulledCount: bootstrapData.notes?.length || 0 };
+    const result = { 
+      success: true, 
+      pulledCount: bootstrapData.notes?.length || 0 
+    };
+    console.log('[bootstrapSync] ✅ Bootstrap completed successfully:', result);
+    return result;
   } catch (error) {
-    console.error('Error bootstrapping sync:', error);
+    console.error('[bootstrapSync] ❌ Error bootstrapping sync:', {
+      error,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId
+    });
+    
     await updateSyncState(userId, {
       isSyncing: false,
       syncError: error instanceof Error ? error.message : String(error),
     });
+    
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -606,7 +735,12 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
  */
 export async function getSyncState(userId: string): Promise<SyncState | null> {
   try {
-    return await offlineDB.syncState.where('userId').equals(userId).first() || null;
+    // Ensure database is open before querying
+    await ensureDatabaseOpen();
+    
+    return await retryIndexedDBOperation(async () => {
+      return await offlineDB.syncState.where('userId').equals(userId).first() || null;
+    });
   } catch (error) {
     console.error('Error getting sync state:', error);
     return null;
@@ -618,23 +752,38 @@ export async function getSyncState(userId: string): Promise<SyncState | null> {
  */
 async function updateSyncState(userId: string, updates: Partial<SyncState>): Promise<void> {
   try {
-    const existing = await offlineDB.syncState.where('userId').equals(userId).first();
+    // Ensure database is open before operations
+    await ensureDatabaseOpen();
     
-    if (existing) {
-      await offlineDB.syncState.update(userId, updates);
-    } else {
-      await offlineDB.syncState.add({
-        userId,
-        lastSyncCursor: null,
-        lastSyncTimestamp: null,
-        lastBootstrapTimestamp: null,
-        isSyncing: false,
-        syncError: null,
-        ...updates,
-      });
-    }
+    await retryIndexedDBOperation(async () => {
+      const existing = await offlineDB.syncState.where('userId').equals(userId).first();
+      
+      if (existing) {
+        console.log('[updateSyncState] 📝 Updating existing sync state:', updates);
+        await offlineDB.syncState.update(userId, updates);
+      } else {
+        console.log('[updateSyncState] ➕ Creating new sync state:', {
+          userId,
+          ...updates
+        });
+        await offlineDB.syncState.add({
+          userId,
+          lastSyncCursor: null,
+          lastSyncTimestamp: null,
+          lastBootstrapTimestamp: null,
+          isSyncing: false,
+          syncError: null,
+          ...updates,
+        });
+      }
+    });
   } catch (error) {
-    console.error('Error updating sync state:', error);
+    console.error('[updateSyncState] ❌ Error updating sync state:', {
+      error,
+      message: error instanceof Error ? error.message : String(error),
+      userId,
+      updates
+    });
   }
 }
 
@@ -679,8 +828,14 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       return { success: true, pushedCount: 0 };
     }
 
+    // Sort mutations by dependency order to ensure dependencies are processed first
+    const sortedOps = pendingOps.sort((a, b) => {
+      const order: Record<string, number> = { space: 1, thread: 2, note: 3, noteThread: 4, tag: 5, noteTag: 6 };
+      return (order[a.entityType] || 99) - (order[b.entityType] || 99);
+    });
+
     // Prepare mutations for batch push
-    const mutations = pendingOps.map(op => ({
+    const mutations = sortedOps.map(op => ({
       operation: op.operation,
       entityType: op.entityType,
       entityId: op.entityId,
@@ -724,7 +879,7 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
     // Process results and update local state
     let pushedCount = 0;
     for (const res of results) {
-      const op = pendingOps.find(o => o.id === res.operationId);
+      const op = sortedOps.find(o => o.id === res.operationId);
       if (!op) {
         console.warn('[Sync] Could not find operation in pendingOps for ID:', res.operationId);
         continue;
@@ -819,15 +974,50 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
  */
 async function updateEntityId(entityType: string, oldId: string, newId: string, userId: string): Promise<void> {
   try {
+    // Update the entity ID in IndexedDB
     switch (entityType) {
       case 'space':
         await offlineDB.spaces.where('[userId+id]').equals([userId, oldId]).modify({ id: newId });
         break;
       case 'thread':
         await offlineDB.threads.where('[userId+id]').equals([userId, oldId]).modify({ id: newId });
+        
+        // Update any pending note mutations that reference this threadId
+        const threadOps = await offlineDB.syncQueue
+          .where('userId')
+          .equals(userId)
+          .filter(op => 
+            (op.entityType === 'note' || op.entityType === 'noteThread') &&
+            op.data?.threadId === oldId &&
+            op.retryCount < 5
+          )
+          .toArray();
+        
+        for (const op of threadOps) {
+          await offlineDB.syncQueue.update(op.id!, {
+            data: { ...op.data, threadId: newId }
+          });
+        }
         break;
       case 'note':
         await offlineDB.notes.where('[userId+id]').equals([userId, oldId]).modify({ id: newId });
+        
+        // Update any pending NoteThread mutations that reference this noteId
+        const noteThreadOps = await offlineDB.syncQueue
+          .where('userId')
+          .equals(userId)
+          .filter(op => 
+            op.entityType === 'noteThread' && 
+            op.data?.noteId === oldId &&
+            op.retryCount < 5
+          )
+          .toArray();
+        
+        for (const op of noteThreadOps) {
+          await offlineDB.syncQueue.update(op.id!, {
+            data: { ...op.data, noteId: newId }
+          });
+        }
         break;
       case 'noteThread':
         await offlineDB.noteThreads.where('[userId+id]').equals([userId, oldId]).modify({ id: newId });
@@ -838,6 +1028,113 @@ async function updateEntityId(entityType: string, oldId: string, newId: string, 
       case 'noteTag':
         await offlineDB.noteTags.where('[userId+id]').equals([userId, oldId]).modify({ id: newId });
         break;
+    }
+    
+    // Update navigation state if we're in the browser
+    if (typeof window !== 'undefined') {
+      const currentPath = window.location.pathname;
+      const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+      
+      // If user is currently viewing this item, update the URL
+      if (currentItemId === oldId) {
+        const newUrl = `/${newId}`;
+        // Use replace to avoid adding to history
+        window.history.replaceState({}, '', newUrl);
+        
+        // Dispatch event to notify components of ID change
+        window.dispatchEvent(new CustomEvent('entityIdChanged', {
+          detail: { oldId, newId, entityType }
+        }));
+      }
+      
+      // Update navigation history if it exists
+      try {
+        const navHistoryStr = sessionStorage.getItem('harvous-navigation-history');
+        if (navHistoryStr) {
+          const navHistory = JSON.parse(navHistoryStr);
+          const updated = navHistory.map((item: any) => 
+            item.id === oldId ? { ...item, id: newId } : item
+          );
+          sessionStorage.setItem('harvous-navigation-history', JSON.stringify(updated));
+        }
+      } catch (e) {
+        console.warn('[updateEntityId] Failed to update navigation history:', e);
+      }
+      
+      // Update persistent navigation if it exists
+      try {
+        const persistentNavStr = localStorage.getItem('harvous-persistent-navigation');
+        if (persistentNavStr) {
+          const persistentNav = JSON.parse(persistentNavStr);
+          const updated = persistentNav.map((item: any) => 
+            item.id === oldId ? { ...item, id: newId } : item
+          );
+          localStorage.setItem('harvous-persistent-navigation', JSON.stringify(updated));
+        }
+      } catch (e) {
+        console.warn('[updateEntityId] Failed to update persistent navigation:', e);
+      }
+      
+      // Update recently created items in sessionStorage
+      try {
+        // Update recentlyCreatedNotes
+        const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+        if (recentNotesStr && entityType === 'note') {
+          const recentNotes = JSON.parse(recentNotesStr);
+          const updated = recentNotes.map((item: any) => 
+            item.id === oldId ? { ...item, id: newId } : item
+          );
+          sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(updated));
+        }
+        
+        // Update recentlyCreatedThreads
+        const recentThreadsStr = sessionStorage.getItem('recentlyCreatedThreads');
+        if (recentThreadsStr && entityType === 'thread') {
+          const recentThreads = JSON.parse(recentThreadsStr);
+          const updated = recentThreads.map((item: any) => 
+            item.id === oldId ? { ...item, id: newId } : item
+          );
+          sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(updated));
+        }
+      } catch (e) {
+        console.warn('[updateEntityId] Failed to update recently created items:', e);
+      }
+      
+      // Update thread context references in localStorage
+      if (entityType === 'thread') {
+        try {
+          const referrerThreadId = localStorage.getItem('harvous-referrer-thread-context');
+          if (referrerThreadId === oldId) {
+            localStorage.setItem('harvous-referrer-thread-context', newId);
+          }
+          
+          const currentThreadId = localStorage.getItem('harvous-current-thread-context');
+          if (currentThreadId === oldId) {
+            localStorage.setItem('harvous-current-thread-context', newId);
+          }
+          
+          const newNoteThread = localStorage.getItem('newNoteThread');
+          if (newNoteThread === oldId) {
+            localStorage.setItem('newNoteThread', newId);
+          }
+          
+          // Update pending thread in sessionStorage
+          const pendingThreadStr = sessionStorage.getItem('harvous-pending-thread');
+          if (pendingThreadStr) {
+            try {
+              const pendingThread = JSON.parse(pendingThreadStr);
+              if (pendingThread.id === oldId) {
+                pendingThread.id = newId;
+                sessionStorage.setItem('harvous-pending-thread', JSON.stringify(pendingThread));
+              }
+            } catch (e) {
+              // Ignore parse errors
+            }
+          }
+        } catch (e) {
+          console.warn('[updateEntityId] Failed to update thread context references:', e);
+        }
+      }
     }
   } catch (error) {
     console.error('Error updating entity ID:', error);
@@ -972,9 +1269,17 @@ export async function syncNow(userId: string): Promise<SyncResult> {
 export async function needsBootstrap(userId: string): Promise<boolean> {
   try {
     const syncState = await getSyncState(userId);
-    return !syncState || !syncState.lastBootstrapTimestamp;
+    const needsBoot = !syncState || !syncState.lastBootstrapTimestamp;
+    console.log('[needsBootstrap] Check result:', {
+      userId,
+      hasSyncState: !!syncState,
+      lastBootstrapTimestamp: syncState?.lastBootstrapTimestamp,
+      needsBootstrap: needsBoot
+    });
+    return needsBoot;
   } catch (error) {
-    return true;
+    console.error('[needsBootstrap] ❌ Error checking bootstrap status:', error);
+    return true; // Default to needing bootstrap on error
   }
 }
 

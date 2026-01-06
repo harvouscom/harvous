@@ -75,12 +75,23 @@
   --color-gray: oklch(var(--lch-gray));
 
   /* Thread Colors (used for thread/space backgrounds) */
-  --color-blue: oklch(var(--lch-thread-blue));
-  --color-yellow: oklch(var(--lch-thread-yellow));
-  --color-green: oklch(var(--lch-thread-green));
-  --color-pink: oklch(var(--lch-thread-pink));
-  --color-orange: oklch(var(--lch-thread-orange));
-  --color-purple: oklch(var(--lch-thread-purple));
+  /* Hex fallbacks ensure correct rendering when offline or if OKLCH isn't supported */
+  --color-blue: #C3E4FF;
+  --color-yellow: #F9DE78;
+  --color-green: #C7ECBB;
+  --color-pink: #F7CEEE;
+  --color-orange: #FCD8A0;
+  --color-purple: #E8C9FF;
+  
+  /* OKLCH versions for browsers that support it (better color accuracy) */
+  @supports (color: oklch(0% 0 0)) {
+    --color-blue: oklch(var(--lch-thread-blue));
+    --color-yellow: oklch(var(--lch-thread-yellow));
+    --color-green: oklch(var(--lch-thread-green));
+    --color-pink: oklch(var(--lch-thread-pink));
+    --color-orange: oklch(var(--lch-thread-orange));
+    --color-purple: oklch(var(--lch-thread-purple));
+  }
 
   /* Accent */
   --color-highlighter: oklch(var(--lch-highlighter));

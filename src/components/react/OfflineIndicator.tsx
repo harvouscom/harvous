@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { offlineDB } from '@/utils/offline-db';
+import { offlineDB, ensureDatabaseOpen, retryIndexedDBOperation } from '@/utils/offline-db';
 import { getSyncState, syncNow } from '@/utils/sync-manager';
 import { usePersistedUserId } from '@/utils/user-id';
+import { formatBadgeCount } from '@/utils/badge-count';
 import Icon from './Icon';
 
 /**
@@ -68,22 +69,32 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
       }
       
       try {
-        // Get pending sync queue count
-        const pendingCount = await offlineDB.syncQueue
-          .where('userId')
-          .equals(userId)
-          .filter(op => op.retryCount < 5)
-          .count();
+        // Ensure database is open before operations
+        await ensureDatabaseOpen();
+        
+        // Get pending sync queue count with retry logic
+        const pendingCount = await retryIndexedDBOperation(async () => {
+          return await offlineDB.syncQueue
+            .where('userId')
+            .equals(userId)
+            .filter(op => op.retryCount < 5)
+            .count();
+        });
         setPendingSyncCount(pendingCount);
 
-        // Get sync state
+        // Get sync state (already has error handling and database check)
         const syncState = await getSyncState(userId);
         if (syncState) {
           setIsSyncing(syncState.isSyncing || false);
           setSyncError(syncState.syncError);
         }
       } catch (error) {
-        console.error('[OfflineIndicator] Error checking sync status:', error);
+        // Silently handle database errors - don't spam console when database is closed
+        // Only log if it's not a DatabaseClosedError
+        const errorName = (error as any)?.name;
+        if (errorName !== 'DatabaseClosedError' && !(error as any)?.message?.includes('closed')) {
+          console.error('[OfflineIndicator] Error checking sync status:', error);
+        }
       }
     };
 
@@ -115,12 +126,15 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
       const result = await syncNow(userId);
       if (result.success) {
         setSyncError(null);
-        // Refresh the pending count
-        const pendingCount = await offlineDB.syncQueue
-          .where('userId')
-          .equals(userId)
-          .filter(op => op.retryCount < 5)
-          .count();
+        // Refresh the pending count - ensure database is open first
+        await ensureDatabaseOpen();
+        const pendingCount = await retryIndexedDBOperation(async () => {
+          return await offlineDB.syncQueue
+            .where('userId')
+            .equals(userId)
+            .filter(op => op.retryCount < 5)
+            .count();
+        });
         setPendingSyncCount(pendingCount);
       }
     } catch (error) {
@@ -259,9 +273,22 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
           <span>
             You're currently offline
             {pendingSyncCount > 0 && (
-              <span style={{ fontWeight: 400, opacity: 0.9 }}>
-                {' '}· {pendingSyncCount} change{pendingSyncCount !== 1 ? 's' : ''} pending
-              </span>
+              <>
+                {' '}·{' '}
+                <span 
+                  className="badge-count" 
+                  style={{ 
+                    display: 'inline-flex', 
+                    verticalAlign: 'middle', 
+                    marginLeft: '4px',
+                    background: 'rgba(255, 255, 255, 0.25)',
+                    width: '24px',
+                    height: '24px'
+                  }}
+                >
+                  <span className="badge-number" style={{ color: 'white' }}>{formatBadgeCount(pendingSyncCount)}</span>
+                </span>
+              </>
             )}
           </span>
         </>
@@ -269,4 +296,5 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     </div>
   );
 }
+
 

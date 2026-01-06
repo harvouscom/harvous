@@ -247,7 +247,7 @@ export default function OrganizedContentList({
               count: t.noteCount,
               threadId: t.id,
               spaceId: t.spaceId,
-              accentColor: t.color || 'blue',
+              accentColor: t.color ? getThreadColorCSS(t.color) : getThreadColorCSS('blue'),
               lastVisited: t.lastVisited,
               createdAt: t.createdAt,
               updatedAt: t.updatedAt || t.createdAt,

@@ -100,6 +100,43 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
     return 'var(--color-gradient-gray)';
   };
 
+  // Handle create thread name keydown for auto-capitalize
+  const handleCreateThreadNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Handle Enter key (existing behavior)
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (createThreadName.trim()) {
+        onCreateThread?.(createThreadName.trim());
+        setOpen(false);
+        setSearchValue('');
+        setCreateThreadName('');
+      }
+      return;
+    }
+    
+    // Auto-capitalize first letter
+    const input = e.currentTarget;
+    if (input.selectionStart === 0 && input.selectionEnd === 0) {
+      // Cursor is at the start
+      if (e.key.length === 1 && /^[a-z]$/.test(e.key)) {
+        e.preventDefault();
+        const capitalized = e.key.toUpperCase();
+        if (createThreadName.length === 0) {
+          setCreateThreadName(capitalized);
+          setSearchValue(capitalized);
+        } else {
+          const newValue = capitalized + createThreadName;
+          setCreateThreadName(newValue);
+          setSearchValue(newValue);
+        }
+        // Set cursor position after the capitalized letter
+        setTimeout(() => {
+          input.setSelectionRange(1, 1);
+        }, 0);
+      }
+    }
+  };
+
   return (
     <div className="relative">
       {/* Trigger Button */}
@@ -390,17 +427,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                           // Also update search value to keep them in sync
                           setSearchValue(newValue);
                         }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (createThreadName.trim()) {
-                              onCreateThread(createThreadName.trim());
-                              setOpen(false);
-                              setSearchValue('');
-                              setCreateThreadName('');
-                            }
-                          }
-                        }}
+                        onKeyDown={handleCreateThreadNameKeyDown}
                         className="flex-1 font-sans font-bold text-[var(--color-deep-grey)] text-[16px] bg-transparent border-none outline-none min-w-0"
                         placeholder="Thread name..."
                       />

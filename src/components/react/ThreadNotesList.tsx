@@ -212,16 +212,17 @@ export default function ThreadNotesList({
   const refreshNotesList = useCallback(async (expectedNoteId?: string): Promise<boolean> => {
     if (!isMountedRef.current) return false;
 
-    // If offline, load from IndexedDB instead of API
-    if (!navigator.onLine) {
+    // If offline OR thread is a local/offline thread (hasn't synced yet), load from IndexedDB
+    const isLocalThread = threadId.startsWith('local_');
+    if (!navigator.onLine || isLocalThread) {
       const userId = getPersistedUserId();
       if (!userId) {
-        debug('[ThreadNotesList] Offline but no userId, skipping refresh');
+        debug('[ThreadNotesList] Offline/local thread but no userId, skipping refresh');
         return false;
       }
 
       try {
-        debug('[ThreadNotesList] Loading notes from IndexedDB (offline)', { threadId });
+        debug('[ThreadNotesList] Loading notes from IndexedDB', { threadId, reason: !navigator.onLine ? 'offline' : 'local_thread' });
         const localResult = await getNotesForThreadLocal(userId, threadId, 100, 0);
         const localNotes = localResult.notes || [];
 
@@ -262,6 +263,13 @@ export default function ThreadNotesList({
 
     // Verification-based refresh: poll until note appears or timeout
     const verifyAndRefresh = async (maxAttempts = 3): Promise<boolean> => {
+      // Skip API verification for local threads - they don't exist on server yet
+      const isLocalThread = threadId.startsWith('local_');
+      if (isLocalThread) {
+        debug('[ThreadNotesList] Skipping API verification for local thread', { threadId });
+        return true; // Return true since we already loaded from IndexedDB above
+      }
+
       const delays = [100, 200, 400]; // Exponential backoff in ms
       
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -1129,6 +1137,54 @@ export default function ThreadNotesList({
         items: [],
         hasMore: false
       };
+    }
+    
+    // If this is a local thread, load from IndexedDB instead of API
+    const isLocalThread = threadId.startsWith('local_');
+    if (isLocalThread) {
+      const userId = getPersistedUserId();
+      if (!userId) {
+        return { items: [], hasMore: false };
+      }
+
+      try {
+        const dbOffset = databaseOffsetRef.current;
+        const localResult = await getNotesForThreadLocal(userId, threadId, limit, dbOffset);
+        const localNotes = localResult.notes || [];
+
+        // Normalize dates
+        const normalized = localNotes.map((note: any) => ({
+          ...note,
+          lastVisited: note.lastVisited ? (normalizeDate(note.lastVisited) || note.lastVisited) : note.lastVisited,
+          createdAt: note.createdAt ? (normalizeDate(note.createdAt) || note.createdAt) : note.createdAt,
+          updatedAt: note.updatedAt ? (normalizeDate(note.updatedAt) || note.updatedAt) : note.updatedAt,
+        }));
+
+        // Filter out deleted notes
+        const filteredDeleted = normalized.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+        // Apply note type filter
+        const filteredByType = filterNotesByType(filteredDeleted, noteTypeFilter);
+
+        // Update database offset
+        databaseOffsetRef.current = dbOffset + localNotes.length;
+
+        // Update accumulated filtered count
+        const currentActualFilteredCount = accumulatedFilteredCountRef.current;
+        const newFilteredCount = currentActualFilteredCount + filteredByType.length;
+        accumulatedFilteredCountRef.current = newFilteredCount;
+
+        // Determine hasMore
+        const hasReachedExpectedCount = newFilteredCount >= totalCountForFilterRef.current;
+        const hasMore = !hasReachedExpectedCount && localResult.hasMore;
+
+        return {
+          items: filteredByType,
+          hasMore
+        };
+      } catch (error) {
+        console.error('[ThreadNotesList] Error loading more notes from IndexedDB:', error);
+        return { items: [], hasMore: false };
+      }
     }
     
     // Use the database offset ref for API calls (since API doesn't filter by type)

@@ -1472,6 +1472,38 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
+  // Listen for entity ID changes (when local IDs become server IDs during sync)
+  useEffect(() => {
+    const handleIdChange = (event: CustomEvent) => {
+      const { oldId, newId, entityType } = event.detail;
+      
+      // Update navigation history
+      setNavigationHistory(prev => 
+        prev.map(item => item.id === oldId ? { ...item, id: newId } : item)
+      );
+      
+      // Update closed items if needed
+      const closedItems = getClosedItems();
+      if (closedItems.includes(oldId)) {
+        // Remove old ID and add new ID to closed items
+        removeFromClosedItems(oldId);
+        addToClosedItems(newId);
+      }
+      
+      // Update storage to persist the change
+      const history = getNavigationHistory();
+      const updated = history.map(item => 
+        item.id === oldId ? { ...item, id: newId } : item
+      );
+      saveNavigationHistory(updated);
+    };
+    
+    window.addEventListener('entityIdChanged', handleIdChange as EventListener);
+    return () => {
+      window.removeEventListener('entityIdChanged', handleIdChange as EventListener);
+    };
+  }, []);
+
   // Memoize filtered navigation history to prevent recalculation on unrelated renders
   const filteredNavigationHistory = useMemo(() => {
     const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];

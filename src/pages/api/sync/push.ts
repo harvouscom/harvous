@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { db, Spaces, Threads, Notes, NoteThreads, Tags, NoteTags, UserMetadata, eq, and } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 import { unauthorizedResponse, serverErrorResponse, errorResponse } from '@/utils/api-responses';
-import { generateNoteId } from '@/utils/ids';
+import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
 
 /**
  * Batch push endpoint for offline mutations
@@ -86,7 +86,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 async function processSpaceMutation(userId: string, operation: string, entityId: string, data: any) {
   if (operation === 'create') {
     const newSpace = await db.insert(Spaces).values({
-      id: entityId.startsWith('local_') ? generateNoteId() : entityId,
+      id: entityId.startsWith('local_') ? generateSpaceId() : entityId,
       title: data.title,
       description: data.description || null,
       color: data.color || null,
@@ -142,7 +142,7 @@ async function processThreadMutation(userId: string, operation: string, entityId
   
   if (operation === 'create') {
     const threadData = {
-      id: entityId.startsWith('local_') ? generateNoteId() : entityId,
+      id: entityId.startsWith('local_') ? generateThreadId() : entityId,
       title: data.title,
       subtitle: data.subtitle || null,
       spaceId: data.spaceId || null,
@@ -205,11 +205,23 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     const userMeta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
     const nextSimpleNoteId = (userMeta?.highestSimpleNoteId || 0) + 1;
 
+    let threadId = data.threadId || 'thread_unorganized';
+    
+    // If threadId is a local ID, try to find the synced thread
+    // This shouldn't happen if mutations are sorted, but handle gracefully
+    if (threadId.startsWith('local_')) {
+      // Note: We can't query by old local ID directly, so this is a fallback
+      // In practice, mutations should be sorted so threads sync first
+      // If we can't find it, default to unorganized
+      console.warn(`[processNoteMutation] Thread ${threadId} is a local ID, using unorganized as fallback`);
+      threadId = 'thread_unorganized';
+    }
+
     const newNote = await db.insert(Notes).values({
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
       title: data.title || null,
       content: data.content,
-      threadId: data.threadId || 'thread_unorganized',
+      threadId: threadId,
       spaceId: data.spaceId || null,
       simpleNoteId: data.simpleNoteId || nextSimpleNoteId,
       noteType: data.noteType || 'default',
@@ -230,11 +242,11 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     }
 
     // Create NoteThread relationship if threadId is provided
-    if (data.threadId && data.threadId !== 'thread_unorganized') {
+    if (threadId && threadId !== 'thread_unorganized') {
       await db.insert(NoteThreads).values({
         id: generateNoteId(),
         noteId: newNote.id,
-        threadId: data.threadId,
+        threadId: threadId,
         createdAt: new Date(),
       });
     }
@@ -274,6 +286,17 @@ async function processNoteThreadMutation(userId: string, operation: string, enti
     const note = await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).get();
     if (!note) {
       return { success: false, error: 'Note not found' };
+    }
+
+    // Check if relationship already exists (may have been created by note mutation)
+    const existing = await db.select()
+      .from(NoteThreads)
+      .where(and(eq(NoteThreads.noteId, data.noteId), eq(NoteThreads.threadId, data.threadId)))
+      .get();
+    
+    if (existing) {
+      // Relationship already exists, return success with existing ID
+      return { success: true, entityId, serverId: existing.id };
     }
 
     const newNoteThread = await db.insert(NoteThreads).values({

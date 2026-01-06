@@ -168,6 +168,37 @@ class OfflineDatabase extends Dexie {
 // Create singleton instance
 export const offlineDB = new OfflineDatabase();
 
+/**
+ * Ensure database is open, reopen if closed
+ * This is necessary because the database can be closed after deletion or other operations
+ */
+export async function ensureDatabaseOpen(): Promise<void> {
+  try {
+    // Check if database is already open
+    if (offlineDB.isOpen()) {
+      return;
+    }
+    
+    // Database is closed, try to reopen it
+    console.warn('[ensureDatabaseOpen] Database was closed, reopening...');
+    await offlineDB.open();
+  } catch (error: any) {
+    // If open fails, it might be because the database was deleted
+    // Try to open again - Dexie will recreate the database if needed
+    if (error?.name === 'DatabaseClosedError' || error?.message?.includes('closed')) {
+      console.warn('[ensureDatabaseOpen] Database open failed, retrying...', error);
+      try {
+        await offlineDB.open();
+      } catch (retryError) {
+        console.error('[ensureDatabaseOpen] Failed to reopen database after retry:', retryError);
+        throw retryError;
+      }
+    } else {
+      throw error;
+    }
+  }
+}
+
 // Helper function to retry IndexedDB operations with exponential backoff
 export async function retryIndexedDBOperation<T>(
   operation: () => Promise<T>,
@@ -188,10 +219,19 @@ export async function retryIndexedDBOperation<T>(
         throw error;
       }
       
-      // Check if it's a connection error - retry with backoff
+      // Check if it's a connection error - reopen database and retry with backoff
       if (error?.name === 'DatabaseClosedError' || error?.message?.includes('closed')) {
         const delay = baseDelay * Math.pow(2, attempt);
-        console.warn(`[retryIndexedDBOperation] Database closed, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        console.warn(`[retryIndexedDBOperation] Database closed, reopening and retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        
+        // Try to reopen the database before retrying
+        try {
+          await ensureDatabaseOpen();
+        } catch (reopenError) {
+          console.error('[retryIndexedDBOperation] Failed to reopen database:', reopenError);
+          // Continue with retry anyway - the operation might succeed if database opens during delay
+        }
+        
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
