@@ -4,7 +4,7 @@ import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
 import { debug } from '@/utils/logger';
 import { buildAPIUrl, getSafeOrigin, safeURL } from '@/utils/safe-url';
-import { createNoteOffline } from '@/utils/offline-mutations';
+import { createNoteOffline, cacheHighestSimpleNoteId } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
@@ -506,6 +506,13 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
       if (response && response.ok) {
         const result = await response.json();
+        
+        // Cache the simpleNoteId for offline access
+        // This ensures the next note ID is correct when going offline
+        if (result.note && result.note.simpleNoteId && userId) {
+          cacheHighestSimpleNoteId(userId, result.note.simpleNoteId);
+          debug('[useNoteSubmission] Cached simpleNoteId', { simpleNoteId: result.note.simpleNoteId });
+        }
         
         // Build scripture toast message for redirect (only for 'created' actions - these are non-obvious)
         // 'added' and 'unorganized' actions are visible when viewing the thread, so we skip those
@@ -1262,6 +1269,13 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
       if (response.ok) {
         const result = await response.json();
+        
+        // Cache the simpleNoteId for offline access
+        // This ensures the next note ID is correct when going offline
+        if (result.note && result.note.simpleNoteId && userId) {
+          cacheHighestSimpleNoteId(userId, result.note.simpleNoteId);
+          debug('[useNoteSubmission] Cached simpleNoteId (save and close)', { simpleNoteId: result.note.simpleNoteId });
+        }
 
         // Build scripture toast message for redirect (only for 'created' actions)
         let scriptureToastMessage = '';

@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v0-245-1'; // Bump version for SW changes
+const CACHE_NAME = 'harvous-cache-v0-246-2'; // Bump version for SW changes
 const NAV_API_CACHE = 'harvous-nav-api-v4';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -10,7 +10,17 @@ const CRITICAL_ASSETS = [
   '/favicon.svg',
   '/favicon.png',
   '/manifest.json',
-  '/scripts/pwa-startup.js'
+  '/scripts/pwa-startup.js',
+  // Pre-cache font CSS for offline mode
+  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/400.css',
+  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/500.css',
+  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/600.css',
+  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/700.css',
+  // Pre-cache actual woff2 font files for offline mode (these are referenced by the CSS)
+  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-400-normal.woff2',
+  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-500-normal.woff2',
+  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-600-normal.woff2',
+  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-700-normal.woff2',
 ];
 
 // Install event - precache critical assets
@@ -349,34 +359,113 @@ self.addEventListener('fetch', (event) => {
             return cached;
           }
           
-          // Last resort: simple offline message
-          // Only shown when truly offline with no cache
-          return new Response(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <title>Offline - Harvous</title>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <style>
-                body { font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #F3F2EC; }
-                .message { text-align: center; padding: 20px; }
-                h1 { color: #4a473d; margin-bottom: 8px; }
-                p { color: #78766f; }
-                button { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 16px; }
-              </style>
-            </head>
-            <body>
-              <div class="message">
-                <h1>You're offline</h1>
-                <p>Check your connection and try again.</p>
-                <button onclick="location.reload()">Retry</button>
-              </div>
-            </body>
-            </html>
-          `, {
-            status: 503,
-            headers: { 'Content-Type': 'text/html' }
+          // Last resort: smart offline page that tries to find cached content
+          // Only shown when truly offline with no cache for this specific URL
+          return caches.open(CACHE_NAME).then(async (cache) => {
+            // Try to find any cached page we can redirect to
+            const keys = await cache.keys();
+            const cachedPages = keys.filter(req => {
+              const reqUrl = new URL(req.url);
+              return req.mode === 'navigate' || 
+                     reqUrl.pathname === '/' || 
+                     reqUrl.pathname === '/dashboard' ||
+                     reqUrl.pathname === '/inbox' ||
+                     /^\/\d+$/.test(reqUrl.pathname); // Note pages like /123
+            });
+            
+            // If we have cached pages, show a helpful redirect option
+            const cachedUrls = cachedPages.map(req => new URL(req.url).pathname);
+            const hasDashboard = cachedUrls.includes('/') || cachedUrls.includes('/dashboard');
+            
+            return new Response(`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <title>Offline - Harvous</title>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/500.css">
+                <style>
+                  body { 
+                    font-family: "Reddit Sans", -apple-system, sans-serif; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    min-height: 100vh; 
+                    margin: 0; 
+                    background: #F3F2EC; 
+                  }
+                  .message { 
+                    text-align: center; 
+                    padding: 24px; 
+                    max-width: 400px;
+                  }
+                  .logo {
+                    width: 48px;
+                    height: 48px;
+                    margin-bottom: 16px;
+                  }
+                  h1 { 
+                    color: #4a473d; 
+                    margin: 0 0 8px 0;
+                    font-size: 24px;
+                    font-weight: 600;
+                  }
+                  p { 
+                    color: #78766f; 
+                    margin: 0 0 24px 0;
+                    font-size: 16px;
+                    line-height: 1.5;
+                  }
+                  .buttons {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                  }
+                  button, a.btn { 
+                    font-family: "Reddit Sans", -apple-system, sans-serif;
+                    background: #4a473d; 
+                    color: white; 
+                    border: none; 
+                    padding: 14px 24px; 
+                    border-radius: 12px; 
+                    font-size: 16px; 
+                    font-weight: 500;
+                    cursor: pointer; 
+                    text-decoration: none;
+                    display: inline-block;
+                    transition: opacity 0.2s;
+                  }
+                  button:hover, a.btn:hover {
+                    opacity: 0.9;
+                  }
+                  .btn-secondary {
+                    background: transparent;
+                    color: #4a473d;
+                    border: 1px solid #d1d0c9;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="message">
+                  <img src="/favicon.svg" alt="Harvous" class="logo" onerror="this.style.display='none'">
+                  <h1>You're offline</h1>
+                  <p>${hasDashboard 
+                    ? 'This page isn\'t cached yet, but you can access your dashboard.' 
+                    : 'This page isn\'t cached. Visit pages while online to access them offline.'}</p>
+                  <div class="buttons">
+                    ${hasDashboard 
+                      ? '<a href="/" class="btn">Go to Dashboard</a>' 
+                      : ''}
+                    <button class="btn-secondary" onclick="location.reload()">Retry Connection</button>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `, {
+              status: 503,
+              headers: { 'Content-Type': 'text/html' }
+            });
           });
         });
       })

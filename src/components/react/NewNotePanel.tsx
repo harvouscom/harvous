@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ThreadCombobox from './ThreadCombobox';
 import { useNavigation } from './navigation/NavigationContext';
@@ -7,7 +9,7 @@ import { getThreadGradientCSS } from '@/utils/colors';
 import { debug } from '@/utils/logger';
 import { safeURL } from '@/utils/safe-url';
 import { usePersistedUserId } from '@/utils/user-id';
-import { getNextSimpleNoteIdPreview, getLocalNoteCount } from '@/utils/offline-mutations';
+import { getNextSimpleNoteIdPreview, getLocalNoteCount, cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId } from '@/utils/offline-mutations';
 
 // Import extracted hooks
 import {
@@ -100,8 +102,73 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
 
   // Load next note ID - with offline fallback
   const loadNextNoteId = useCallback(async () => {
+    debug('[NewNotePanel] loadNextNoteId called', { userId, online: navigator.onLine });
+    
+    // Helper function to try offline preview
+    const tryOfflinePreview = async (userIdToUse: string): Promise<boolean> => {
+      try {
+        debug('[NewNotePanel] Trying offline preview', { userIdToUse });
+        const previewId = await getNextSimpleNoteIdPreview(userIdToUse);
+        debug('[NewNotePanel] Offline preview result', { previewId });
+        if (previewId !== null) {
+          // Format the ID to match server format (e.g., 502 -> "N502")
+          const formattedId = `N${previewId.toString().padStart(3, '0')}`;
+          setNextNoteId(formattedId);
+          return true;
+        }
+      } catch (offlineError) {
+        console.error('[NewNotePanel] Error getting offline ID preview:', offlineError);
+      }
+      return false;
+    };
+
+    // Check localStorage cache first (instant, synchronous)
+    if (userId) {
+      const cachedId = getCachedHighestSimpleNoteId(userId);
+      if (cachedId !== null) {
+        const nextId = cachedId + 1;
+        const formattedId = `N${nextId.toString().padStart(3, '0')}`;
+        debug('[NewNotePanel] Using cached ID', { cachedId, nextId, formattedId });
+        setNextNoteId(formattedId);
+        // Don't return - still try to fetch from server to update cache, but show cached value immediately
+      }
+    }
+
+    // If offline, use local preview directly without trying server
+    if (!navigator.onLine) {
+      debug('[NewNotePanel] Offline mode detected');
+      if (userId) {
+        // If we already set from cache, we're done
+        if (getCachedHighestSimpleNoteId(userId) !== null) {
+          return;
+        }
+        
+        const success = await tryOfflinePreview(userId);
+        if (success) {
+          return;
+        }
+        // Offline preview failed - use fallback ID based on local count
+        debug('[NewNotePanel] Offline preview failed, using fallback');
+        try {
+          const localCount = await getLocalNoteCount(userId);
+          const fallbackId = `N${(localCount + 1).toString().padStart(3, '0')}`;
+          debug('[NewNotePanel] Using fallback ID', { localCount, fallbackId });
+          setNextNoteId(fallbackId);
+        } catch (countError) {
+          // Last resort: show N001
+          debug('[NewNotePanel] Local count failed, using N001');
+          setNextNoteId('N001');
+        }
+        return;
+      }
+      // No userId yet - show temporary ID, effect will re-run when userId available
+      debug('[NewNotePanel] No userId yet, showing N001 temporarily');
+      setNextNoteId('N001');
+      return;
+    }
+
     try {
-      // Try server first
+      // Try server first (only when online)
       const response = await safeFetch('/api/notes/next-id', {
         retries: 2,
         retryDelay: 1000
@@ -109,24 +176,30 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       
       if (response && response.ok) {
         const data = await response.json();
+        // Server returns both nextNoteId (numeric) and formattedId (string)
+        // Cache the numeric ID for offline use
+        if (userId && data.nextNoteId !== undefined) {
+          // Cache the highest ID (nextNoteId - 1) since nextNoteId is what will be assigned
+          cacheHighestSimpleNoteId(userId, data.nextNoteId - 1);
+          debug('[NewNotePanel] Cached highestSimpleNoteId', { cached: data.nextNoteId - 1 });
+        }
         // Server already returns formattedId as "N502", don't add "#" prefix
         setNextNoteId(data.formattedId);
         return;
       }
+      
+      // Response not ok (e.g., null from safeFetch or non-200)
+      // Try offline preview if userId is available
+      if (userId && await tryOfflinePreview(userId)) {
+        return;
+      }
+      
+      // If offline preview also fails, keep "#New" as fallback
+      setNextNoteId('#New');
     } catch (error) {
       // Server request failed - try offline preview
-      if (userId) {
-        try {
-          const previewId = await getNextSimpleNoteIdPreview(userId);
-          if (previewId !== null) {
-            // Format the ID to match server format (e.g., 502 -> "N502")
-            const formattedId = `N${previewId.toString().padStart(3, '0')}`;
-            setNextNoteId(formattedId);
-            return;
-          }
-        } catch (offlineError) {
-          console.error('[NewNotePanel] Error getting offline ID preview:', offlineError);
-        }
+      if (userId && await tryOfflinePreview(userId)) {
+        return;
       }
       
       // If offline preview also fails, keep "#New" as fallback
@@ -198,6 +271,33 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       return;
     }
 
+    // Helper to check local count
+    const checkLocalCount = async () => {
+      if (!userId) return;
+      try {
+        const localCount = await getLocalNoteCount(userId);
+        // Use default limit of 1000 if we can't get it from server
+        const defaultLimit = 1000;
+        setCurrentCount(localCount);
+        setLimit(defaultLimit);
+        // Check if user is close to limit (within 10 notes) to prevent abuse
+        setIsLimitReached(localCount >= defaultLimit - 10);
+        
+        if (localCount >= defaultLimit - 10) {
+          console.warn('[NewNotePanel] User approaching note limit offline:', localCount, '/', defaultLimit);
+        }
+      } catch (offlineError) {
+        console.error('[NewNotePanel] Error checking offline note count:', offlineError);
+        // Keep default values on error
+      }
+    };
+
+    // If offline, skip network request and use local data directly
+    if (!navigator.onLine) {
+      await checkLocalCount();
+      return;
+    }
+
     try {
       const response = await fetch('/api/subscription/status', {
         credentials: 'include',
@@ -219,35 +319,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       }
     } catch (error) {
       // Server request failed - try offline check
-      if (userId) {
-        try {
-          const localCount = await getLocalNoteCount(userId);
-          // Use default limit of 1000 if we can't get it from server
-          const defaultLimit = 1000;
-          setCurrentCount(localCount);
-          setLimit(defaultLimit);
-          // Check if user is close to limit (within 10 notes) to prevent abuse
-          setIsLimitReached(localCount >= defaultLimit - 10);
-          
-          if (localCount >= defaultLimit - 10) {
-            console.warn('[NewNotePanel] User approaching note limit offline:', localCount, '/', defaultLimit);
-          }
-        } catch (offlineError) {
-          console.error('[NewNotePanel] Error checking offline note count:', offlineError);
-          // Keep default values on error
-        }
-      }
-      
-      // Only log if it's not a network error during page load and we didn't do offline check
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        // This can happen during page transitions or if the server isn't ready
-        // Offline check already attempted above if userId exists
-        return;
-      }
-      if (!userId) {
-        // Only log if we didn't attempt offline check
-        console.error('[NewNotePanel] Failed to check subscription status:', error);
-      }
+      await checkLocalCount();
     }
   }, [userId]);
 

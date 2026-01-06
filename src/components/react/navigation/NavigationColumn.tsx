@@ -225,6 +225,11 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         return;
       }
 
+      // Skip network requests when offline - use cached data
+      if (!navigator.onLine) {
+        return;
+      }
+
       // Get expected count from current state
       const expectedCount = updatedActiveThread?.noteCount || activeThread?.noteCount || 0;
       

@@ -184,6 +184,7 @@ export default function OrganizedContentList({
   });
 
   // Use offline reads if userId is provided
+  // When offline, prioritize local data immediately
   useEffect(() => {
     if (!userId) return;
 
@@ -240,11 +241,16 @@ export default function OrganizedContentList({
           // Sort and normalize
           const sorted = sortItems(filteredItems.map(normalizeItemDates));
           
-          // Only update if we have items or if the server items are empty
-          // This allows local data to "take over" the initial render
+          // When offline, prioritize local data immediately
+          // When online, only use local if server data is empty or local has more items
           setCurrentItems(prev => {
-            // Simple heuristic: if local has more items or items are different, use local
-            if (sorted.length > 0 || prev.length === 0) {
+            const shouldUseLocal = !navigator.onLine || sorted.length > 0 || prev.length === 0;
+            
+            if (shouldUseLocal) {
+              debug(`[OrganizedContentList] Using local data (offline: ${!navigator.onLine})`, { 
+                localCount: sorted.length,
+                serverCount: prev.length 
+              });
               return sorted;
             }
             return prev;

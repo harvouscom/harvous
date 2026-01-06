@@ -900,6 +900,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return;
       }
 
+      // Skip validation when offline - no need to hit network
+      if (!navigator.onLine) {
+        return;
+      }
+
       // Fetch current threads from API with safe fetch
       const response = await safeFetch('/api/threads/list');
       

@@ -6,11 +6,44 @@ import {
   type OfflineNoteThread, 
   type OfflineTag, 
   type OfflineNoteTag, 
+  type OfflineUserMetadata,
   type SyncOperation, 
   ensureUserPartition 
 } from './offline-db';
 import { enqueueMutation } from './sync-manager';
 import { generateNoteId, generateSpaceId, generateThreadId } from './ids';
+
+/**
+ * localStorage cache key prefix for highestSimpleNoteId
+ */
+const HIGHEST_NOTE_ID_KEY = 'harvous_highestSimpleNoteId';
+
+/**
+ * Cache the highest simple note ID in localStorage for instant offline access
+ */
+export function cacheHighestSimpleNoteId(userId: string, id: number): void {
+  try {
+    localStorage.setItem(`${HIGHEST_NOTE_ID_KEY}_${userId}`, String(id));
+  } catch (error) {
+    // localStorage might be unavailable (private browsing, quota exceeded, etc.)
+    console.warn('[cacheHighestSimpleNoteId] Failed to cache ID:', error);
+  }
+}
+
+/**
+ * Get the cached highest simple note ID from localStorage
+ * Returns null if not cached or if localStorage is unavailable
+ */
+export function getCachedHighestSimpleNoteId(userId: string): number | null {
+  try {
+    const cached = localStorage.getItem(`${HIGHEST_NOTE_ID_KEY}_${userId}`);
+    return cached ? parseInt(cached, 10) : null;
+  } catch (error) {
+    // localStorage might be unavailable
+    console.warn('[getCachedHighestSimpleNoteId] Failed to read cache:', error);
+    return null;
+  }
+}
 
 /**
  * Get a preview of the next SimpleNoteId that would be allocated offline
@@ -142,8 +175,6 @@ export async function createSpaceOffline(userId: string, data: {
       isActive: data.isActive,
       order: data.order,
     },
-    timestamp: now,
-    retryCount: 0,
   });
 
   return localId;
@@ -180,8 +211,6 @@ export async function updateSpaceOffline(userId: string, spaceId: string, update
     entityType: 'space',
     entityId: spaceId,
     data: updates,
-    timestamp: now,
-    retryCount: 0,
   });
 }
 
@@ -207,8 +236,6 @@ export async function deleteSpaceOffline(userId: string, spaceId: string): Promi
     entityType: 'space',
     entityId: spaceId,
     data: {},
-    timestamp: now,
-    retryCount: 0,
   });
 }
 
@@ -282,8 +309,6 @@ export async function createThreadOffline(userId: string, data: {
     entityType: 'thread',
     entityId: localId,
     data: mutationData,
-    timestamp: now,
-    retryCount: 0,
   });
 
   return localId;
@@ -320,8 +345,6 @@ export async function updateThreadOffline(userId: string, threadId: string, upda
     entityType: 'thread',
     entityId: threadId,
     data: updates,
-    timestamp: now,
-    retryCount: 0,
   });
 }
 
@@ -347,8 +370,6 @@ export async function deleteThreadOffline(userId: string, threadId: string): Pro
     entityType: 'thread',
     entityId: threadId,
     data: {},
-    timestamp: now,
-    retryCount: 0,
   });
 }
 
@@ -370,12 +391,47 @@ export async function createNoteOffline(userId: string, data: {
   const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = Date.now();
 
-  // Get user metadata to check reserved ID range
-  const userMeta = await offlineDB.userMetadata.where('userId').equals(userId).first();
+  // Get or create user metadata for ID allocation
+  let userMeta = await offlineDB.userMetadata.where('userId').equals(userId).first();
   let simpleNoteId: number | null = data.simpleNoteId || null;
 
+  // Create user metadata if it doesn't exist
+  if (!userMeta) {
+    // First, check existing notes for highest simpleNoteId
+    const existingNotes = await offlineDB.notes.where('userId').equals(userId).toArray();
+    const highestExisting = existingNotes.reduce((max, note) => {
+      return note.simpleNoteId && note.simpleNoteId > max ? note.simpleNoteId : max;
+    }, 0);
+
+    userMeta = ensureUserPartition<OfflineUserMetadata>({
+      id: `meta_${userId}`,
+      highestSimpleNoteId: highestExisting,
+      reservedSimpleNoteIdRange: null,
+      usedReservedIds: [],
+      userColor: 'paper',
+      firstName: null,
+      lastName: null,
+      email: null,
+      profileImageUrl: null,
+      clerkDataUpdatedAt: null,
+      churchName: null,
+      churchCity: null,
+      churchState: null,
+      churchCountry: null,
+      currentSeason: null,
+      lastMonthlyVisit: null,
+      churchAddedAt: null,
+      syncStatus: 'pending',
+      lastModified: Date.now(),
+      createdAt: new Date(),
+      updatedAt: null,
+    }, userId);
+    await offlineDB.userMetadata.add(userMeta);
+    console.log('[createNoteOffline] Created user metadata', { highestSimpleNoteId: highestExisting });
+  }
+
   // If no simpleNoteId provided, try to allocate from reserved range
-  if (!simpleNoteId && userMeta?.reservedSimpleNoteIdRange) {
+  if (!simpleNoteId && userMeta.reservedSimpleNoteIdRange) {
     const { start, end } = userMeta.reservedSimpleNoteIdRange;
     const usedIds = userMeta.usedReservedIds || [];
     
@@ -393,12 +449,13 @@ export async function createNoteOffline(userId: string, data: {
     
     // If all IDs in range are used, simpleNoteId remains null
     // Server will assign one on sync
-  } else if (!simpleNoteId && userMeta) {
-    // No reserved range - use highestSimpleNoteId + 1 for preview
-    // This is just for preview - server will assign actual ID on sync
+  }
+  
+  // If still no simpleNoteId, use highestSimpleNoteId + 1 for preview
+  if (!simpleNoteId) {
     const currentHighest = userMeta.highestSimpleNoteId || 0;
     simpleNoteId = currentHighest + 1;
-    console.log('[createNoteOffline] No reserved range, using preview ID:', simpleNoteId);
+    console.log('[createNoteOffline] Using preview ID:', simpleNoteId);
   }
 
   const note: OfflineNote = ensureUserPartition<OfflineNote>({
@@ -430,6 +487,8 @@ export async function createNoteOffline(userId: string, data: {
       await offlineDB.userMetadata.update(userMeta.id, {
         highestSimpleNoteId: simpleNoteId,
       });
+      // Also update localStorage cache for instant offline access
+      cacheHighestSimpleNoteId(userId, simpleNoteId);
       console.log('[createNoteOffline] Updated highestSimpleNoteId for preview:', { old: currentHighest, new: simpleNoteId });
     }
   }
@@ -458,8 +517,6 @@ export async function createNoteOffline(userId: string, data: {
         noteId: localId,
         threadId: data.threadId,
       },
-      timestamp: now,
-      retryCount: 0,
     });
   }
 
@@ -480,8 +537,6 @@ export async function createNoteOffline(userId: string, data: {
       isFeatured: data.isFeatured,
       order: data.order,
     },
-    timestamp: now,
-    retryCount: 0,
   });
 
   return localId;
@@ -517,8 +572,6 @@ export async function updateNoteOffline(userId: string, noteId: string, updates:
     entityType: 'note',
     entityId: noteId,
     data: updates,
-    timestamp: now,
-    retryCount: 0,
   });
 }
 
@@ -544,8 +597,6 @@ export async function deleteNoteOffline(userId: string, noteId: string): Promise
     entityType: 'note',
     entityId: noteId,
     data: {},
-    timestamp: now,
-    retryCount: 0,
   });
 }
 
@@ -587,8 +638,6 @@ export async function linkNoteToThreadOffline(userId: string, noteId: string, th
       noteId,
       threadId,
     },
-    timestamp: now,
-    retryCount: 0,
   });
 
   return localId;
@@ -625,8 +674,6 @@ export async function unlinkNoteFromThreadOffline(userId: string, noteId: string
         noteId,
         threadId,
       },
-      timestamp: now,
-      retryCount: 0,
     });
   } else {
     // Pending operation - just delete locally

@@ -13,6 +13,7 @@ import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 import { deleteNoteOffline } from '@/utils/offline-mutations';
 import { getPersistedUserId } from '@/utils/user-id';
+import { getNotesForThreadLocal } from '@/utils/offline-read-layer';
 
 
 interface Note {
@@ -207,6 +208,53 @@ export default function ThreadNotesList({
   // PHASE 2: Unified refresh function with verification-based approach
   const refreshNotesList = useCallback(async (expectedNoteId?: string): Promise<boolean> => {
     if (!isMountedRef.current) return false;
+
+    // If offline, load from IndexedDB instead of API
+    if (!navigator.onLine) {
+      const userId = getPersistedUserId();
+      if (!userId) {
+        debug('[ThreadNotesList] Offline but no userId, skipping refresh');
+        return false;
+      }
+
+      try {
+        debug('[ThreadNotesList] Loading notes from IndexedDB (offline)', { threadId });
+        const localResult = await getNotesForThreadLocal(userId, threadId, 100, 0);
+        const localNotes = localResult.notes || [];
+
+        // Normalize dates
+        const normalized = localNotes.map((note: any) => ({
+          ...note,
+          lastVisited: note.lastVisited ? (normalizeDate(note.lastVisited) || note.lastVisited) : note.lastVisited,
+          createdAt: note.createdAt ? (normalizeDate(note.createdAt) || note.createdAt) : note.createdAt,
+          updatedAt: note.updatedAt ? (normalizeDate(note.updatedAt) || note.updatedAt) : note.updatedAt
+        }));
+
+        // Filter out deleted notes
+        const filtered = normalized.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+
+        // Apply note type filter
+        const typeFiltered = noteTypeFilter === 'all' 
+          ? filtered 
+          : filterNotesByType(filtered, noteTypeFilter);
+
+        // Deduplicate and sort
+        const uniqueNotes = Array.from(
+          new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
+        );
+        const sortedNotes = sortNotesByTime(uniqueNotes);
+
+        setNotes(sortedNotes);
+        accumulatedFilteredCountRef.current = sortedNotes.length;
+        databaseOffsetRef.current = localNotes.length;
+
+        debug('[ThreadNotesList] Loaded notes from IndexedDB', { count: sortedNotes.length });
+        return true;
+      } catch (error) {
+        console.error('[ThreadNotesList] Error loading notes from IndexedDB:', error);
+        return false;
+      }
+    }
 
     // Verification-based refresh: poll until note appears or timeout
     const verifyAndRefresh = async (maxAttempts = 3): Promise<boolean> => {
@@ -868,6 +916,12 @@ export default function ThreadNotesList({
         
         // Only refresh if we're on the correct thread page (including unorganized)
         if (currentThreadId !== threadId) return;
+
+        // Skip refresh if offline - refreshNotesList will handle loading from IndexedDB
+        if (!navigator.onLine) {
+          debug('[ThreadNotesList] Visibility change but offline, skipping refresh');
+          return;
+        }
 
         const timeInBackground = lastBackgroundTimeRef.current > 0 
           ? Date.now() - lastBackgroundTimeRef.current 

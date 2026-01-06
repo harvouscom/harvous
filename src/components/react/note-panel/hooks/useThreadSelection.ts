@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { safeFetch } from '@/utils/safe-fetch';
 import { captureException } from '@/utils/posthog';
+import { getThreadsLocal } from '@/utils/offline-read-layer';
+import { usePersistedUserId } from '@/utils/user-id';
 
 export interface Thread {
   id: string;
@@ -48,6 +50,9 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
   const [selectedThread, setSelectedThread] = useState('Unorganized');
   const [hasSetThreadFromSaved, setHasSetThreadFromSaved] = useState(false);
   
+  // Get userId for offline data access
+  const userId = usePersistedUserId();
+  
   // Track if we've initialized from currentThread to prevent resetting user's manual selection
   const hasInitializedFromCurrentThread = useRef(false);
   // Track if user has manually selected a thread (to prevent automatic resets)
@@ -92,7 +97,7 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     return null;
   }, [navigationHistory]);
 
-  // Load threads from API with debouncing
+  // Load threads from API with debouncing (or from IndexedDB when offline)
   const loadThreads = useCallback(async () => {
     const now = Date.now();
     const timeSinceLastCall = now - loadThreadsRef.current.lastCallTime;
@@ -103,6 +108,56 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     loadThreadsRef.current.lastCallTime = now;
     loadThreadsRef.current.isLoading = true;
 
+    // Helper to format threads array
+    const formatThreads = (threads: any[]): Thread[] => {
+      return threads.map((thread: any) => {
+        const isSuggested = suggestedThreadIds?.includes(thread.id) || false;
+        let suggestedReason: string | undefined = undefined;
+        
+        if (isSuggested) {
+          if (suggestionReasons && suggestionReasons[thread.id]) {
+            suggestedReason = suggestionReasons[thread.id];
+          } else if (suggestedDomain) {
+            suggestedReason = `From ${suggestedDomain}`;
+          }
+        }
+        
+        return {
+          id: thread.id,
+          title: thread.title,
+          color: thread.color,
+          noteCount: thread.noteCount || 0,
+          backgroundGradient: thread.backgroundGradient || 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+          isSuggested,
+          suggestedReason,
+        };
+      });
+    };
+
+    // If offline, load from IndexedDB directly
+    if (!navigator.onLine && userId) {
+      try {
+        const localThreads = await getThreadsLocal(userId);
+        const formattedThreads = formatThreads(localThreads);
+        
+        // Ensure 'Unorganized' thread exists
+        const hasUnorganizedThread = formattedThreads.some((thread: Thread) => 
+          thread.title === 'Unorganized' || thread.id === 'thread_unorganized'
+        );
+        
+        if (!hasUnorganizedThread) {
+          formattedThreads.unshift(DEFAULT_UNORGANIZED_THREAD);
+        }
+        
+        setThreadOptions(formattedThreads);
+      } catch (offlineError) {
+        console.error('[useThreadSelection] Error loading threads from IndexedDB:', offlineError);
+      } finally {
+        loadThreadsRef.current.isLoading = false;
+      }
+      return;
+    }
+
     try {
       const response = await safeFetch('/api/threads/list', {
         retries: 2,
@@ -111,30 +166,7 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
       
       if (response && response.ok) {
         const threads = await response.json();
-        const formattedThreads: Thread[] = threads.map((thread: any) => {
-          const isSuggested = suggestedThreadIds?.includes(thread.id) || false;
-          let suggestedReason: string | undefined = undefined;
-          
-          if (isSuggested) {
-            if (suggestionReasons && suggestionReasons[thread.id]) {
-              // Use reason from suggestionReasons map (for default notes)
-              suggestedReason = suggestionReasons[thread.id];
-            } else if (suggestedDomain) {
-              // Use domain-based reason (for resource notes)
-              suggestedReason = `From ${suggestedDomain}`;
-            }
-          }
-          
-          return {
-            id: thread.id,
-            title: thread.title,
-            color: thread.color,
-            noteCount: thread.noteCount || 0,
-            backgroundGradient: thread.backgroundGradient,
-            isSuggested,
-            suggestedReason,
-          };
-        });
+        const formattedThreads = formatThreads(threads);
         
         // Ensure 'Unorganized' thread exists
         const hasUnorganizedThread = formattedThreads.some((thread: Thread) => 

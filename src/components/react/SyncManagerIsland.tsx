@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { initializeSync } from '@/utils/sync-init';
 import { persistUserId, getPersistedUserId } from '@/utils/user-id';
+import { executeOnlineRecovery } from '@/utils/network';
 import OfflineIndicator from './OfflineIndicator';
 
 /**
@@ -9,6 +10,7 @@ import OfflineIndicator from './OfflineIndicator';
  * Works both online (with Clerk) and offline (with localStorage).
  * 
  * Uses a separate component to safely call Clerk hooks without crashing when offline.
+ * Also coordinates online recovery to prevent thundering herd when connection is restored.
  */
 export default function SyncManagerIsland() {
   // Initialize from localStorage immediately (works offline)
@@ -25,6 +27,17 @@ export default function SyncManagerIsland() {
       setHasInitialized(true);
     }
   }, [userId, hasInitialized]);
+
+  // Coordinate online recovery - single point of handling 'online' events
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[SyncManagerIsland] Online event detected, executing recovery...');
+      executeOnlineRecovery();
+    };
+
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
 
   // Use a separate component for Clerk access to isolate potential crashes
   return (

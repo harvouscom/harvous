@@ -35,31 +35,34 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     return () => window.removeEventListener('resize', checkViewport);
   }, [checkViewport]);
 
+  // Unconditional useEffect for online/offline detection
+  // This MUST run regardless of userId to detect offline state
   useEffect(() => {
-    if (!userId) {
-      console.log('[OfflineIndicator] No userId available, skipping sync status check');
-      return;
-    }
-
-    console.log('[OfflineIndicator] Initializing with userId:', userId);
-
-    // Check online/offline status
     const handleOnline = () => {
-      console.log('[OfflineIndicator] Online event detected');
       setIsOffline(false);
     };
     const handleOffline = () => {
-      console.log('[OfflineIndicator] Offline event detected');
       setIsOffline(true);
     };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []); // No dependencies - always runs
+
+  // Separate useEffect for sync status checking (requires userId)
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
     // Check pending sync count and sync state
     const checkSyncStatus = async () => {
       if (!userId) {
-        console.warn('[OfflineIndicator] checkSyncStatus called but userId is null');
         return;
       }
       
@@ -97,8 +100,6 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     window.addEventListener('online', handleOnlineWithCheck);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnlineWithCheck);
       clearInterval(interval);
     };

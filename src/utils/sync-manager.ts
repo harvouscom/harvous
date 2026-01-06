@@ -12,6 +12,7 @@ import {
   type SyncStatus, 
   ensureUserPartition 
 } from './offline-db';
+import { cacheHighestSimpleNoteId } from './offline-mutations';
 
 export interface SyncResult {
   success: boolean;
@@ -191,6 +192,11 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         updatedAt: um.updatedAt ? new Date(um.updatedAt) : null,
       }, userId);
       await offlineDB.userMetadata.put(userMetadata);
+      
+      // Cache highestSimpleNoteId in localStorage for instant offline access
+      if (um.highestSimpleNoteId !== undefined) {
+        cacheHighestSimpleNoteId(userId, um.highestSimpleNoteId);
+      }
     }
 
     // Update sync state
@@ -409,6 +415,12 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
           updatedAt: um.updatedAt ? new Date(um.updatedAt) : null,
         }, userId);
         await offlineDB.userMetadata.put(userMetadata);
+        
+        // Cache highestSimpleNoteId in localStorage for instant offline access
+        if (um.highestSimpleNoteId !== undefined) {
+          cacheHighestSimpleNoteId(userId, um.highestSimpleNoteId);
+        }
+        
         appliedCount++;
       }
     }
@@ -556,7 +568,7 @@ async function updateSyncState(userId: string, updates: Partial<SyncState>): Pro
 /**
  * Enqueue a mutation for sync
  */
-export async function enqueueMutation(userId: string, operation: SyncOperation): Promise<void> {
+export async function enqueueMutation(userId: string, operation: Omit<SyncOperation, 'userId' | 'id' | 'timestamp' | 'retryCount'>): Promise<void> {
   try {
     await offlineDB.syncQueue.add({
       ...operation,
@@ -895,9 +907,19 @@ export function startBackgroundSync(userId: string, intervalMs: number = 30000):
   // Set up interval
   syncInterval = window.setInterval(sync, intervalMs);
 
-  // Also sync on online event
+  // Also sync on online event - with delay to ensure connection is stable
+  let onlineTimeout: ReturnType<typeof setTimeout> | null = null;
   const handleOnline = () => {
-    sync();
+    // Clear any pending timeout to debounce rapid online/offline toggling
+    if (onlineTimeout) {
+      clearTimeout(onlineTimeout);
+    }
+    // Wait 1 second before syncing to ensure connection is stable
+    onlineTimeout = setTimeout(() => {
+      if (navigator.onLine) {
+        sync();
+      }
+    }, 1000);
   };
   window.addEventListener('online', handleOnline);
 
@@ -905,6 +927,9 @@ export function startBackgroundSync(userId: string, intervalMs: number = 30000):
   return () => {
     if (syncInterval !== null) {
       clearInterval(syncInterval);
+    }
+    if (onlineTimeout) {
+      clearTimeout(onlineTimeout);
     }
     window.removeEventListener('online', handleOnline);
   };
