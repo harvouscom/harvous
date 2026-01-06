@@ -7,6 +7,7 @@ import SearchInput from "@/components/SearchInput.astro";
 import SquareButton from "@/components/SquareButton.astro";
 import Avatar from "@/components/Avatar.astro";
 import TabNav from "@/components/TabNav.astro";
+import TabNavReact from "@/components/react/TabNav";
 import CardNote from "@/components/CardNote.astro";
 import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import ThreadNotesList from "@/components/react/ThreadNotesList";
@@ -781,8 +782,8 @@ if (!content) {
                 
                 {isThread && threadNotes ? (
                   <div class="flex flex-col gap-3">
-                    {/* Tab Navigation */}
-                    <TabNav 
+                    {/* Tab Navigation - React for dynamic badge updates */}
+                    <TabNavReact 
                       tabs={[
                         { 
                           id: "all", 
@@ -803,7 +804,9 @@ if (!content) {
                           count: noteTypeCounts?.scripture
                         }
                       ]}
-                      class="content-tabs"
+                      className="content-tabs"
+                      threadId={id}
+                      client:load
                     />
                     
                     {/* All Notes Content */}

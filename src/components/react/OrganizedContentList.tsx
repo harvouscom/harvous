@@ -10,6 +10,48 @@ import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 
+// Content cache configuration
+const CONTENT_CACHE_KEY = 'harvous_content_cache';
+const CONTENT_CACHE_DURATION = 30 * 1000; // 30 seconds
+
+interface ContentCache {
+  items: any[];
+  filter: string;
+  timestamp: number;
+}
+
+// Get cached content from localStorage
+function getCachedContent(filter: string): ContentCache | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(`${CONTENT_CACHE_KEY}_${filter}`);
+    if (!cached) return null;
+    return JSON.parse(cached);
+  } catch {
+    return null;
+  }
+}
+
+// Set content cache in localStorage
+function setCachedContent(filter: string, items: any[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const cache: ContentCache = {
+      items,
+      filter,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(`${CONTENT_CACHE_KEY}_${filter}`, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Failed to cache content:', error);
+  }
+}
+
+// Check if cache is stale
+function isCacheStale(timestamp: number): boolean {
+  return Date.now() - timestamp > CONTENT_CACHE_DURATION;
+}
+
 interface OrganizedContentItem {
   id: string;
   type: 'thread' | 'note';
@@ -30,6 +72,7 @@ interface OrganizedContentItem {
   scriptureReferences?: Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>;
   lastVisited?: Date | string | null;
   createdAt?: Date | string | null;
+  syncStatus?: 'synced' | 'pending' | 'conflict' | 'deleted';
 }
 
 interface OrganizedContentListProps {
@@ -221,6 +264,7 @@ export default function OrganizedContentList({
               lastVisited: n.lastVisited,
               createdAt: n.createdAt,
               updatedAt: n.updatedAt || n.createdAt,
+              syncStatus: n.syncStatus,
             }))
           ];
 
@@ -448,6 +492,8 @@ export default function OrganizedContentList({
             hasMoreRef.current = newHasMore;
             setCurrentItems(sorted);
             currentItemsRef.current = sorted;
+            // Cache the updated content for future visits
+            setCachedContent(currentFilter, sorted);
 
             setTimeout(() => {
               refreshStateRef.current.isRefreshing = false;
@@ -523,6 +569,27 @@ export default function OrganizedContentList({
       });
     }
   }, [filter, refreshContent]);
+
+  // Cache SSR content and trigger background refresh if stale
+  // This implements stale-while-revalidate pattern for instant loads
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    if (typeof window === 'undefined') return;
+    if (window.location.pathname !== '/') return;
+    if (filter === 'scripture') return;
+    
+    // Cache the SSR content for future visits
+    if (initialItems && initialItems.length > 0) {
+      setCachedContent(filter, initialItems);
+    }
+    
+    // Check if we should background refresh
+    const cached = getCachedContent(filter);
+    if (cached && isCacheStale(cached.timestamp)) {
+      // Stale cache - trigger background refresh
+      refreshContent();
+    }
+  }, [filter, initialItems, refreshContent]);
 
   // Track previous initialItems to detect actual changes from server
   const prevPropsInitialItemsRef = useRef<string>('');
@@ -1070,6 +1137,7 @@ export default function OrganizedContentList({
               noteId={item.noteId}
               showScriptureRefsCollapsible={filter === 'all'}
               scriptureReferences={item.scriptureReferences}
+              isPendingSync={item.syncStatus === 'pending'}
             />
           </div>
         ) : (

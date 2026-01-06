@@ -57,7 +57,19 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
   const { addToNavigationHistory, navigationHistory } = navigation;
 
   // State for next note ID, unsaved dialog, and suggested thread
-  const [nextNoteId, setNextNoteId] = useState('#New');
+  // Initialize from localStorage cache immediately for better offline UX
+  const [nextNoteId, setNextNoteId] = useState(() => {
+    if (typeof window === 'undefined') return 'N...';
+    const persistedUserId = localStorage.getItem('harvous-user-id');
+    if (persistedUserId) {
+      const cachedId = localStorage.getItem(`harvous_highestSimpleNoteId_${persistedUserId}`);
+      if (cachedId) {
+        const nextId = parseInt(cachedId, 10) + 1;
+        return `N${nextId.toString().padStart(3, '0')}`;
+      }
+    }
+    return 'N...'; // Show loading indicator instead of #New
+  });
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [suggestedThreadName, setSuggestedThreadName] = useState<string | null>(null);
   const [showSuggestedThreadDialog, setShowSuggestedThreadDialog] = useState(false);
@@ -102,18 +114,20 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
 
   // Load next note ID - with offline fallback
   const loadNextNoteId = useCallback(async () => {
-    debug('[NewNotePanel] loadNextNoteId called', { userId, online: navigator.onLine });
+    const isOffline = !navigator.onLine;
+    debug('[NewNotePanel] loadNextNoteId called', { userId, online: !isOffline });
     
-    // Helper function to try offline preview
+    // Helper function to format note ID consistently
+    const formatNoteId = (id: number): string => `N${id.toString().padStart(3, '0')}`;
+    
+    // Helper function to try offline preview from IndexedDB
     const tryOfflinePreview = async (userIdToUse: string): Promise<boolean> => {
       try {
-        debug('[NewNotePanel] Trying offline preview', { userIdToUse });
+        debug('[NewNotePanel] Trying offline preview from IndexedDB', { userIdToUse });
         const previewId = await getNextSimpleNoteIdPreview(userIdToUse);
         debug('[NewNotePanel] Offline preview result', { previewId });
         if (previewId !== null) {
-          // Format the ID to match server format (e.g., 502 -> "N502")
-          const formattedId = `N${previewId.toString().padStart(3, '0')}`;
-          setNextNoteId(formattedId);
+          setNextNoteId(formatNoteId(previewId));
           return true;
         }
       } catch (offlineError) {
@@ -121,54 +135,69 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       }
       return false;
     };
+    
+    // Helper function to get fallback ID from local note count
+    const tryLocalCountFallback = async (userIdToUse: string): Promise<boolean> => {
+      try {
+        const localCount = await getLocalNoteCount(userIdToUse);
+        const fallbackId = formatNoteId(localCount + 1);
+        debug('[NewNotePanel] Using local count fallback', { localCount, fallbackId });
+        setNextNoteId(fallbackId);
+        return true;
+      } catch (countError) {
+        console.error('[NewNotePanel] Error getting local note count:', countError);
+        return false;
+      }
+    };
 
-    // Check localStorage cache first (instant, synchronous)
+    // STEP 1: Always check localStorage cache first (instant, synchronous)
+    // This provides immediate feedback while we fetch the real value
     if (userId) {
       const cachedId = getCachedHighestSimpleNoteId(userId);
       if (cachedId !== null) {
         const nextId = cachedId + 1;
-        const formattedId = `N${nextId.toString().padStart(3, '0')}`;
-        debug('[NewNotePanel] Using cached ID', { cachedId, nextId, formattedId });
+        const formattedId = formatNoteId(nextId);
+        debug('[NewNotePanel] Using cached ID for immediate display', { cachedId, nextId, formattedId, isOffline });
         setNextNoteId(formattedId);
-        // Don't return - still try to fetch from server to update cache, but show cached value immediately
+        
+        // If offline, we're done - cached value is our best bet
+        if (isOffline) {
+          debug('[NewNotePanel] Offline - using cached ID as final value');
+          return;
+        }
+        // If online, continue to fetch from server to update cache
       }
     }
 
-    // If offline, use local preview directly without trying server
-    if (!navigator.onLine) {
-      debug('[NewNotePanel] Offline mode detected');
-      if (userId) {
-        // If we already set from cache, we're done
-        if (getCachedHighestSimpleNoteId(userId) !== null) {
-          return;
-        }
-        
-        const success = await tryOfflinePreview(userId);
-        if (success) {
-          return;
-        }
-        // Offline preview failed - use fallback ID based on local count
-        debug('[NewNotePanel] Offline preview failed, using fallback');
-        try {
-          const localCount = await getLocalNoteCount(userId);
-          const fallbackId = `N${(localCount + 1).toString().padStart(3, '0')}`;
-          debug('[NewNotePanel] Using fallback ID', { localCount, fallbackId });
-          setNextNoteId(fallbackId);
-        } catch (countError) {
-          // Last resort: show N001
-          debug('[NewNotePanel] Local count failed, using N001');
-          setNextNoteId('N001');
-        }
+    // STEP 2: Handle offline mode - prioritize local sources
+    if (isOffline) {
+      debug('[NewNotePanel] Offline mode - using local sources only');
+      
+      if (!userId) {
+        // No userId yet - show N001 as default for new users
+        debug('[NewNotePanel] No userId in offline mode, showing N001');
+        setNextNoteId('N001');
         return;
       }
-      // No userId yet - show temporary ID, effect will re-run when userId available
-      debug('[NewNotePanel] No userId yet, showing N001 temporarily');
+      
+      // Try IndexedDB preview
+      if (await tryOfflinePreview(userId)) {
+        return;
+      }
+      
+      // Try local note count fallback
+      if (await tryLocalCountFallback(userId)) {
+        return;
+      }
+      
+      // Last resort: show N001 for offline mode (never #New)
+      debug('[NewNotePanel] All offline sources failed, showing N001 as fallback');
       setNextNoteId('N001');
       return;
     }
 
+    // STEP 3: Online mode - try server, fallback to local sources
     try {
-      // Try server first (only when online)
       const response = await safeFetch('/api/notes/next-id', {
         retries: 2,
         retryDelay: 1000
@@ -181,30 +210,37 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
         if (userId && data.nextNoteId !== undefined) {
           // Cache the highest ID (nextNoteId - 1) since nextNoteId is what will be assigned
           cacheHighestSimpleNoteId(userId, data.nextNoteId - 1);
-          debug('[NewNotePanel] Cached highestSimpleNoteId', { cached: data.nextNoteId - 1 });
+          debug('[NewNotePanel] Cached highestSimpleNoteId from server', { cached: data.nextNoteId - 1 });
         }
-        // Server already returns formattedId as "N502", don't add "#" prefix
+        // Server already returns formattedId as "N502"
         setNextNoteId(data.formattedId);
         return;
       }
       
-      // Response not ok (e.g., null from safeFetch or non-200)
-      // Try offline preview if userId is available
-      if (userId && await tryOfflinePreview(userId)) {
-        return;
+      // Response not ok - fallback to local sources
+      debug('[NewNotePanel] Server response not ok, trying local fallbacks');
+      if (userId) {
+        if (await tryOfflinePreview(userId)) return;
+        if (await tryLocalCountFallback(userId)) return;
       }
       
-      // If offline preview also fails, keep "#New" as fallback
-      setNextNoteId('#New');
+      // Keep cached value if we have one, otherwise show N001
+      if (!getCachedHighestSimpleNoteId(userId || '')) {
+        setNextNoteId('N001');
+      }
     } catch (error) {
-      // Server request failed - try offline preview
-      if (userId && await tryOfflinePreview(userId)) {
-        return;
+      // Server request failed - try local sources
+      debug('[NewNotePanel] Server request failed, trying local fallbacks', { error });
+      if (userId) {
+        if (await tryOfflinePreview(userId)) return;
+        if (await tryLocalCountFallback(userId)) return;
       }
       
-      // If offline preview also fails, keep "#New" as fallback
-      setNextNoteId('#New');
-      captureException(error as Error);
+      // Keep cached value if we have one, otherwise show N001
+      if (!getCachedHighestSimpleNoteId(userId || '')) {
+        setNextNoteId('N001');
+        captureException(error as Error);
+      }
     }
   }, [userId]);
 

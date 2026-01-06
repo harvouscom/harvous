@@ -13,8 +13,16 @@ import OfflineIndicator from './OfflineIndicator';
  * Also coordinates online recovery to prevent thundering herd when connection is restored.
  */
 export default function SyncManagerIsland() {
-  // Initialize from localStorage immediately (works offline)
-  const [userId, setUserId] = useState<string | null>(() => getPersistedUserId());
+  // Initialize from localStorage immediately AND set window variable
+  // This ensures window.__harvous_userId is available synchronously for all components
+  const [userId, setUserId] = useState<string | null>(() => {
+    const persisted = getPersistedUserId();
+    // Ensure window variable is set for synchronous access elsewhere
+    if (persisted && typeof window !== 'undefined') {
+      (window as any).__harvous_userId = persisted;
+    }
+    return persisted;
+  });
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // Initialize sync if we have a persisted userId (handles offline start)

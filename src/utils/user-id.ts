@@ -29,7 +29,14 @@ export function getPersistedUserId(): string | null {
     }
     
     // Fallback to localStorage
-    return localStorage.getItem(USER_ID_STORAGE_KEY);
+    const storedId = localStorage.getItem(USER_ID_STORAGE_KEY);
+    
+    // If found in localStorage, also set on window for faster subsequent access
+    if (storedId && typeof window !== 'undefined') {
+      (window as any).__harvous_userId = storedId;
+    }
+    
+    return storedId;
   } catch (error) {
     console.error('[getPersistedUserId] Failed to get persisted userId:', error);
     return null;

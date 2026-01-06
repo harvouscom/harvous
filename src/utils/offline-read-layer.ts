@@ -54,6 +54,7 @@ export interface DashboardSnapshot {
     createdAt: Date;
     updatedAt: Date | null;
     lastVisited: Date | null;
+    syncStatus?: 'synced' | 'pending' | 'conflict' | 'deleted';
   }>;
   userMetadata: {
     highestSimpleNoteId: number;
@@ -119,6 +120,7 @@ export async function getDashboardSnapshotLocal(userId: string): Promise<Dashboa
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
         lastVisited: note.lastVisited,
+        syncStatus: note.syncStatus,
       })),
       userMetadata: userMetadata ? {
         highestSimpleNoteId: userMetadata.highestSimpleNoteId,

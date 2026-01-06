@@ -384,10 +384,39 @@ self.addEventListener('fetch', (event) => {
                 <title>Offline - Harvous</title>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
-                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/500.css">
                 <style>
+                  /* Inline @font-face declarations as fallback for offline mode */
+                  /* These reference the pre-cached woff2 files from jsDelivr */
+                  @font-face {
+                    font-family: 'Reddit Sans';
+                    font-style: normal;
+                    font-display: swap;
+                    font-weight: 400;
+                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-400-normal.woff2') format('woff2');
+                  }
+                  @font-face {
+                    font-family: 'Reddit Sans';
+                    font-style: normal;
+                    font-display: swap;
+                    font-weight: 500;
+                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-500-normal.woff2') format('woff2');
+                  }
+                  @font-face {
+                    font-family: 'Reddit Sans';
+                    font-style: normal;
+                    font-display: swap;
+                    font-weight: 600;
+                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-600-normal.woff2') format('woff2');
+                  }
+                  @font-face {
+                    font-family: 'Reddit Sans';
+                    font-style: normal;
+                    font-display: swap;
+                    font-weight: 700;
+                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-700-normal.woff2') format('woff2');
+                  }
                   body { 
-                    font-family: "Reddit Sans", -apple-system, sans-serif; 
+                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
                     display: flex; 
                     align-items: center; 
                     justify-content: center; 
@@ -406,12 +435,14 @@ self.addEventListener('fetch', (event) => {
                     margin-bottom: 16px;
                   }
                   h1 { 
+                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                     color: #4a473d; 
                     margin: 0 0 8px 0;
                     font-size: 24px;
                     font-weight: 600;
                   }
                   p { 
+                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                     color: #78766f; 
                     margin: 0 0 24px 0;
                     font-size: 16px;
@@ -423,7 +454,7 @@ self.addEventListener('fetch', (event) => {
                     gap: 12px;
                   }
                   button, a.btn { 
-                    font-family: "Reddit Sans", -apple-system, sans-serif;
+                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                     background: #4a473d; 
                     color: white; 
                     border: none; 

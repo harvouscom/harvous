@@ -4,8 +4,8 @@ import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
 import { debug } from '@/utils/logger';
 import { buildAPIUrl, getSafeOrigin, safeURL } from '@/utils/safe-url';
-import { createNoteOffline, cacheHighestSimpleNoteId } from '@/utils/offline-mutations';
-import { usePersistedUserId } from '@/utils/user-id';
+import { createNoteOfflineWithRetry, cacheHighestSimpleNoteId, getOfflineErrorMessage, type OfflineOperationResult } from '@/utils/offline-mutations';
+import { usePersistedUserId, getPersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
@@ -394,27 +394,60 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
       }
 
-      // OFFLINE-FIRST: Create note in local IndexedDB immediately
+      // OFFLINE-FIRST: Create note in local IndexedDB immediately with retry
       let offlineNoteId: string | null = null;
-      if (userId) {
-        try {
-          const threadIdToUse = overrideThreadId || getSelectedThread().id;
-          offlineNoteId = await createNoteOffline(userId, {
-            title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
-            content: currentContent,
-            threadId: threadIdToUse,
-            spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
-            noteType: currentNoteType,
-            scriptureReference: currentNoteType === 'scripture' ? formatReferenceForAPI(currentScriptureReference) : undefined,
-            scriptureVersion: currentNoteType === 'scripture' ? currentScriptureVersion : undefined,
-            resourceUrl: currentNoteType === 'resource' ? normalizedResourceUrl : undefined,
-            resourceMetadata: currentNoteType === 'resource' ? resourceMetadata : undefined,
-          });
+      let offlineSaveError: string | null = null;
+      
+      // Get userId - try hook value first, then directly from localStorage
+      // The hook might not have the value yet if it hasn't re-rendered
+      const persistedUserIdValue = getPersistedUserId();
+      const effectiveUserId = userId || persistedUserIdValue;
+      
+      // Debug logging to help diagnose userId issues
+      console.log('[useNoteSubmission] userId check:', { 
+        hookUserId: userId, 
+        persistedUserId: persistedUserIdValue,
+        effectiveUserId: effectiveUserId,
+        isOffline: !navigator.onLine,
+        windowUserId: typeof window !== 'undefined' ? (window as any).__harvous_userId : undefined
+      });
+      
+      if (effectiveUserId) {
+        const threadIdToUse = overrideThreadId || getSelectedThread().id;
+        const offlineResult = await createNoteOfflineWithRetry(effectiveUserId, {
+          title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
+          content: currentContent,
+          threadId: threadIdToUse,
+          spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
+          noteType: currentNoteType,
+          scriptureReference: currentNoteType === 'scripture' ? formatReferenceForAPI(currentScriptureReference) : undefined,
+          scriptureVersion: currentNoteType === 'scripture' ? currentScriptureVersion : undefined,
+          resourceUrl: currentNoteType === 'resource' ? normalizedResourceUrl : undefined,
+          resourceMetadata: currentNoteType === 'resource' ? resourceMetadata : undefined,
+        });
+        
+        if (offlineResult.success && offlineResult.noteId) {
+          offlineNoteId = offlineResult.noteId;
           debug('[useNoteSubmission] Note created locally in IndexedDB', { offlineNoteId });
-        } catch (err) {
-          console.error('[useNoteSubmission] Failed to create note offline:', err);
-          // Continue with server API call - if offline fails, at least server still has it
+        } else {
+          offlineSaveError = offlineResult.error || 'Failed to save offline';
+          console.error('[useNoteSubmission] Failed to create note offline:', {
+            error: offlineSaveError,
+            errorType: offlineResult.errorType
+          });
+          // Continue with server API call - if offline fails, at least server might work
         }
+      } else {
+        // No userId available anywhere - this is a real issue
+        console.error('[useNoteSubmission] No userId available from hook or localStorage', {
+          hookUserId: userId,
+          persistedUserId: persistedUserIdValue,
+          localStorageCheck: typeof window !== 'undefined' ? localStorage.getItem('harvous-user-id') : 'N/A'
+        });
+        debug('[useNoteSubmission] No userId available from hook or localStorage');
+        // Set an error message so the error handling blocks show a helpful message
+        // instead of a generic "You're offline" message
+        offlineSaveError = 'Unable to create note offline. Please sign in while online first, then you can create notes offline.';
       }
 
       // Try to push to server (will queue if offline)
@@ -498,8 +531,20 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
           
           return;
+        } else if (networkError && offlineSaveError) {
+          // Network error AND offline save failed - show offline error message
+          debug('[useNoteSubmission] Network error and offline save failed', { offlineSaveError });
+          showToast(offlineSaveError, 'error');
+          setIsSubmitting(false);
+          return;
+        } else if (networkError) {
+          // Network error but no offline context - show friendly offline message
+          debug('[useNoteSubmission] Network error with no offline context');
+          showToast('You\'re offline. Please try again when connected.', 'error');
+          setIsSubmitting(false);
+          return;
         } else {
-          // Network error but offline save also failed - rethrow
+          // Non-network error - rethrow
           throw error;
         }
       }
@@ -1142,6 +1187,12 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
               currentUrl.searchParams.set('message', encodeURIComponent('Note saved offline. It will sync when you\'re back online.'));
               window.history.replaceState({}, '', currentUrl.toString());
             }
+          } else if (isNetworkError(error) && offlineSaveError) {
+            // Network error AND offline save failed - show the specific offline error
+            showToast(offlineSaveError, 'error');
+          } else if (isNetworkError(error)) {
+            // Network error with no offline context - show friendly offline message
+            showToast('You\'re offline. Please try again when connected.', 'error');
           } else {
             showToast(error.error || 'Error creating note', 'error');
           }
@@ -1189,6 +1240,12 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           currentUrl.searchParams.set('message', encodeURIComponent('Note saved offline. It will sync when you\'re back online.'));
           window.history.replaceState({}, '', currentUrl.toString());
         }
+      } else if (isNetworkError(error) && offlineSaveError) {
+        // Network error AND offline save failed - show the specific offline error
+        showToast(offlineSaveError, 'error');
+      } else if (isNetworkError(error)) {
+        // Network error with no offline context - show friendly offline message
+        showToast('You\'re offline. Please try again when connected.', 'error');
       } else {
         // Real error - log and show error toast
         if (typeof window !== 'undefined' && window.posthog) {

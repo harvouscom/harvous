@@ -23,6 +23,79 @@ export interface SyncResult {
 }
 
 /**
+ * Sync error types for classification
+ */
+export type SyncErrorType = 
+  | 'transient'      // Network issues, timeouts - should retry
+  | 'auth'           // 401/403 - user needs to re-authenticate
+  | 'validation'     // 400 - data is invalid, won't succeed on retry
+  | 'not_found'      // 404 - entity no longer exists
+  | 'conflict'       // 409 - conflict with server data
+  | 'server'         // 500+ - server error, may retry later
+  | 'unknown';       // Unknown error
+
+/**
+ * Classify an error to determine retry behavior
+ */
+export function classifySyncError(error: string | number): SyncErrorType {
+  // If it's an HTTP status code
+  if (typeof error === 'number') {
+    if (error === 401 || error === 403) return 'auth';
+    if (error === 400) return 'validation';
+    if (error === 404) return 'not_found';
+    if (error === 409) return 'conflict';
+    if (error >= 500) return 'server';
+    return 'unknown';
+  }
+
+  // If it's a string error message
+  const lowerError = error.toLowerCase();
+  
+  // Auth errors
+  if (lowerError.includes('unauthorized') || lowerError.includes('401') || lowerError.includes('403')) {
+    return 'auth';
+  }
+  
+  // Validation errors
+  if (lowerError.includes('invalid') || lowerError.includes('validation') || lowerError.includes('400')) {
+    return 'validation';
+  }
+  
+  // Not found errors
+  if (lowerError.includes('not found') || lowerError.includes('404') || lowerError.includes('does not exist')) {
+    return 'not_found';
+  }
+  
+  // Conflict errors
+  if (lowerError.includes('conflict') || lowerError.includes('409')) {
+    return 'conflict';
+  }
+  
+  // Network/transient errors
+  if (lowerError.includes('network') || lowerError.includes('timeout') || lowerError.includes('fetch') ||
+      lowerError.includes('offline') || lowerError.includes('connection') || lowerError.includes('econnrefused')) {
+    return 'transient';
+  }
+  
+  // Server errors
+  if (lowerError.includes('500') || lowerError.includes('502') || lowerError.includes('503') ||
+      lowerError.includes('server error') || lowerError.includes('internal server')) {
+    return 'server';
+  }
+  
+  return 'unknown';
+}
+
+/**
+ * Check if an error type should be retried
+ */
+export function shouldRetryError(errorType: SyncErrorType): boolean {
+  // Only retry transient and server errors
+  // Don't retry: auth (need re-login), validation (data won't change), not_found, conflict
+  return errorType === 'transient' || errorType === 'server';
+}
+
+/**
  * Apply bootstrap data to local IndexedDB
  */
 export async function applyBootstrapData(userId: string, bootstrapData: any): Promise<void> {
@@ -701,12 +774,32 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
         await offlineDB.syncQueue.delete(op.id!);
         pushedCount++;
       } else {
-        console.error(`[Sync] Operation ${res.operationId} failed on server:`, res.error);
-        // Increment retry count
-        await offlineDB.syncQueue.update(op.id!, {
-          retryCount: op.retryCount + 1,
-          lastError: res.error || 'Unknown error',
+        const errorMessage = res.error || 'Unknown error';
+        const errorType = classifySyncError(errorMessage);
+        const shouldRetry = shouldRetryError(errorType);
+        
+        console.error(`[Sync] Operation ${res.operationId} failed on server:`, {
+          error: errorMessage,
+          errorType,
+          shouldRetry,
+          currentRetryCount: op.retryCount
         });
+        
+        if (shouldRetry) {
+          // Transient/server errors - increment retry count
+          await offlineDB.syncQueue.update(op.id!, {
+            retryCount: op.retryCount + 1,
+            lastError: errorMessage,
+          });
+        } else {
+          // Permanent errors - mark with high retry count to stop retrying
+          // but keep in queue so user can see it failed
+          console.log(`[Sync] Marking operation as permanently failed (${errorType}):`, res.operationId);
+          await offlineDB.syncQueue.update(op.id!, {
+            retryCount: 999, // High count to prevent further retries
+            lastError: `[${errorType}] ${errorMessage}`,
+          });
+        }
       }
     }
 

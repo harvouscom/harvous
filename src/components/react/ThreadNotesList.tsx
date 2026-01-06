@@ -14,6 +14,7 @@ import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 import { deleteNoteOffline } from '@/utils/offline-mutations';
 import { getPersistedUserId } from '@/utils/user-id';
 import { getNotesForThreadLocal } from '@/utils/offline-read-layer';
+import { isNetworkError } from '@/utils/network';
 
 
 interface Note {
@@ -28,6 +29,8 @@ interface Note {
   resourceTitle?: string | null;
   resourceDescription?: string | null;
   resourceImage?: string | null;
+  // Sync status for offline mode
+  syncStatus?: 'synced' | 'pending' | 'conflict' | 'deleted';
 }
 
 interface NoteTypeCounts {
@@ -222,12 +225,13 @@ export default function ThreadNotesList({
         const localResult = await getNotesForThreadLocal(userId, threadId, 100, 0);
         const localNotes = localResult.notes || [];
 
-        // Normalize dates
+        // Normalize dates and preserve syncStatus
         const normalized = localNotes.map((note: any) => ({
           ...note,
           lastVisited: note.lastVisited ? (normalizeDate(note.lastVisited) || note.lastVisited) : note.lastVisited,
           createdAt: note.createdAt ? (normalizeDate(note.createdAt) || note.createdAt) : note.createdAt,
-          updatedAt: note.updatedAt ? (normalizeDate(note.updatedAt) || note.updatedAt) : note.updatedAt
+          updatedAt: note.updatedAt ? (normalizeDate(note.updatedAt) || note.updatedAt) : note.updatedAt,
+          syncStatus: note.syncStatus || 'synced' // Preserve syncStatus from IndexedDB
         }));
 
         // Filter out deleted notes
@@ -1038,6 +1042,26 @@ export default function ThreadNotesList({
       setNoteToDelete(null);
     } catch (error) {
       console.error('Error deleting note:', error);
+      
+      // Check if it's a network error - the note is already deleted locally
+      if (isNetworkError(error)) {
+        // Network error but local deletion succeeded - this is fine for offline-first
+        console.log('[ThreadNotesList] Network error during deletion, but note deleted locally');
+        
+        // Dispatch noteDeleted event so UI updates happen
+        window.dispatchEvent(new CustomEvent('noteDeleted', {
+          detail: { 
+            noteId: noteToDelete.id,
+            threadId: threadId
+          }
+        }));
+        
+        // Don't show an error - the deletion worked locally and will sync later
+        setNoteToDelete(null);
+        return;
+      }
+      
+      // Non-network error - show error message
       if ((window as any).toast) {
         (window as any).toast.error('Failed to delete note');
       } else {
@@ -1287,6 +1311,7 @@ export default function ThreadNotesList({
               resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
               resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
               resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
+              isPendingSync={note.syncStatus === 'pending'}
             />
           )}
         </a>

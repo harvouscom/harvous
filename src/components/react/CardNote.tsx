@@ -24,6 +24,8 @@ interface CardNoteProps {
   showScriptureRefsCollapsible?: boolean;
   // Scripture references from junction table (with note IDs and thread colors for linking and mesh gradient)
   scriptureReferences?: Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>;
+  // Offline sync status indicator
+  isPendingSync?: boolean;
 }
 
 // Helper function to convert HTML to readable text
@@ -50,7 +52,8 @@ const CardNote: React.FC<CardNoteProps> = ({
   threadColors,
   noteId,
   showScriptureRefsCollapsible = false,
-  scriptureReferences: propScriptureReferences = []
+  scriptureReferences: propScriptureReferences = [],
+  isPendingSync = false
 }) => {
   const [isScriptureRefsExpanded, setIsScriptureRefsExpanded] = useState(false);
   // Generate mesh gradient on client only to avoid hydration mismatch
@@ -99,7 +102,29 @@ const CardNote: React.FC<CardNoteProps> = ({
   const hasScriptureRefs = showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0;
   
   return (
-    <div className={`card card-note ${className}`} onClick={onClick}>
+    <div className={`card card-note ${className}`} onClick={onClick} style={{ position: 'relative' }}>
+      {/* Pending sync indicator */}
+      {isPendingSync && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '20px',
+            height: '20px',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            borderRadius: '50%',
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
+          }}
+          title="Pending sync - will sync when online"
+        >
+          <Icon name="cloud-arrow-up" size={12} style={{ color: 'var(--color-stone-grey)', opacity: 0.7 }} />
+        </div>
+      )}
       {effectiveVariant === "default" && (
         hasScriptureRefs ? (
           <div className="card-note__inner">

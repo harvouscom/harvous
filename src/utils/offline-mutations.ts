@@ -681,3 +681,150 @@ export async function unlinkNoteFromThreadOffline(userId: string, noteId: string
   }
 }
 
+/**
+ * Error types for offline operations
+ */
+export type OfflineErrorType = 
+  | 'indexeddb_unavailable'
+  | 'quota_exceeded'
+  | 'database_error'
+  | 'unknown';
+
+export interface OfflineOperationResult {
+  success: boolean;
+  noteId?: string;
+  error?: string;
+  errorType?: OfflineErrorType;
+}
+
+/**
+ * Classify an error into an OfflineErrorType
+ */
+function classifyOfflineError(error: any): OfflineErrorType {
+  if (!error) return 'unknown';
+  
+  const message = error.message?.toLowerCase() || error.toString().toLowerCase();
+  const name = error.name?.toLowerCase() || '';
+  
+  // IndexedDB unavailable
+  if (
+    message.includes('indexeddb') && (message.includes('unavailable') || message.includes('not available')) ||
+    name === 'dexie.noidberror' ||
+    message.includes('no indexeddb')
+  ) {
+    return 'indexeddb_unavailable';
+  }
+  
+  // Quota exceeded
+  if (
+    name === 'quotaexceedederror' ||
+    message.includes('quota') ||
+    message.includes('storage') && message.includes('full')
+  ) {
+    return 'quota_exceeded';
+  }
+  
+  // Database errors
+  if (
+    message.includes('database') ||
+    message.includes('dexie') ||
+    message.includes('transaction')
+  ) {
+    return 'database_error';
+  }
+  
+  return 'unknown';
+}
+
+/**
+ * Get user-friendly error message based on error type
+ */
+export function getOfflineErrorMessage(errorType: OfflineErrorType): string {
+  switch (errorType) {
+    case 'indexeddb_unavailable':
+      return 'Offline storage is unavailable. Please try again when online.';
+    case 'quota_exceeded':
+      return 'Device storage is full. Free up space and try again.';
+    case 'database_error':
+      return 'Unable to save offline. Please try again.';
+    default:
+      return 'Unable to save offline. Please try again when online.';
+  }
+}
+
+/**
+ * Create a note offline with retry logic and better error reporting
+ * This is a wrapper around createNoteOffline that adds resilience
+ */
+export async function createNoteOfflineWithRetry(
+  userId: string, 
+  data: {
+    title?: string | null;
+    content: string;
+    threadId?: string;
+    spaceId?: string | null;
+    simpleNoteId?: number | null;
+    noteType?: 'default' | 'scripture' | 'resource';
+    addedBy?: string;
+    isPublic?: boolean;
+    isFeatured?: boolean;
+    order?: number;
+    scriptureReference?: string;
+    scriptureVersion?: string;
+    resourceUrl?: string;
+    resourceMetadata?: any;
+  },
+  options: { retries?: number; retryDelay?: number } = {}
+): Promise<OfflineOperationResult> {
+  const { retries = 2, retryDelay = 100 } = options;
+  let lastError: any = null;
+  
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const noteId = await createNoteOffline(userId, data);
+      console.log('[createNoteOfflineWithRetry] Success on attempt', attempt + 1, { noteId });
+      return { success: true, noteId };
+    } catch (error: any) {
+      lastError = error;
+      const errorType = classifyOfflineError(error);
+      
+      console.error(`[createNoteOfflineWithRetry] Attempt ${attempt + 1} failed:`, {
+        error: error.message || error,
+        errorType,
+        attempt: attempt + 1,
+        maxAttempts: retries + 1
+      });
+      
+      // Don't retry for certain error types
+      if (errorType === 'quota_exceeded' || errorType === 'indexeddb_unavailable') {
+        console.log('[createNoteOfflineWithRetry] Non-retryable error, giving up');
+        return {
+          success: false,
+          error: getOfflineErrorMessage(errorType),
+          errorType
+        };
+      }
+      
+      // Wait before retrying
+      if (attempt < retries) {
+        const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
+        console.log(`[createNoteOfflineWithRetry] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  // All retries exhausted
+  const errorType = classifyOfflineError(lastError);
+  console.error('[createNoteOfflineWithRetry] All retries exhausted', {
+    error: lastError?.message || lastError,
+    errorType
+  });
+  
+  return {
+    success: false,
+    error: getOfflineErrorMessage(errorType),
+    errorType
+  };
+}
+

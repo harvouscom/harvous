@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { offlineDB } from '@/utils/offline-db';
-import { getSyncState } from '@/utils/sync-manager';
+import { getSyncState, syncNow } from '@/utils/sync-manager';
 import { usePersistedUserId } from '@/utils/user-id';
 import Icon from './Icon';
 
@@ -20,6 +20,7 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Check viewport (same logic as ToastProvider)
   const checkViewport = useCallback(() => {
@@ -105,6 +106,30 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     };
   }, [userId]);
 
+  // Retry sync handler
+  const handleRetrySync = useCallback(async () => {
+    if (!userId || isRetrying || !navigator.onLine) return;
+    
+    setIsRetrying(true);
+    try {
+      const result = await syncNow(userId);
+      if (result.success) {
+        setSyncError(null);
+        // Refresh the pending count
+        const pendingCount = await offlineDB.syncQueue
+          .where('userId')
+          .equals(userId)
+          .filter(op => op.retryCount < 5)
+          .count();
+        setPendingSyncCount(pendingCount);
+      }
+    } catch (error) {
+      console.error('[OfflineIndicator] Retry sync failed:', error);
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [userId, isRetrying]);
+
   // Only show when offline OR there's a sync error
   // When online, syncing happens silently in the background
   if (!isOffline && !syncError) {
@@ -164,25 +189,69 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
         transform: 'none',
       };
 
+  // Get a user-friendly error message
+  const getFriendlyErrorMessage = (error: string): string => {
+    if (error.toLowerCase().includes('network') || error.toLowerCase().includes('fetch')) {
+      return 'Network issue';
+    }
+    if (error.toLowerCase().includes('unauthorized') || error.toLowerCase().includes('401')) {
+      return 'Session expired';
+    }
+    if (error.toLowerCase().includes('timeout')) {
+      return 'Request timed out';
+    }
+    // Truncate long error messages
+    return error.length > 30 ? error.substring(0, 30) + '...' : error;
+  };
+
   return (
     <div className="offline-indicator" style={indicatorStyle}>
       {syncError ? (
         <>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <span>Sync error: {syncError}</span>
+          <Icon name="circle-exclamation" size={16} />
+          <span style={{ flex: 1 }}>
+            Sync failed: {getFriendlyErrorMessage(syncError)}
+            {pendingSyncCount > 0 && (
+              <span style={{ fontWeight: 400, opacity: 0.9 }}>
+                {' '}· {pendingSyncCount} pending
+              </span>
+            )}
+          </span>
+          {navigator.onLine && (
+            <button
+              onClick={handleRetrySync}
+              disabled={isRetrying}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                borderRadius: '6px',
+                color: 'white',
+                padding: '6px 12px',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: isRetrying ? 'not-allowed' : 'pointer',
+                opacity: isRetrying ? 0.7 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                flexShrink: 0
+              }}
+            >
+              {isRetrying ? (
+                <>
+                  <span style={{ animation: 'spin 1s linear infinite', display: 'inline-flex' }}>
+                    <Icon name="spinner" size={14} />
+                  </span>
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <Icon name="arrows-rotate" size={14} />
+                  Retry
+                </>
+              )}
+            </button>
+          )}
         </>
       ) : isOffline ? (
         <>
