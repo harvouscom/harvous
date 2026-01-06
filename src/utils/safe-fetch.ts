@@ -147,25 +147,31 @@ export async function safeFetch(
         }
         
         // Handle 503 Service Unavailable - retry with backoff
+        // Completely suppress retry logs - only log final error after all retries
         if (response.status === 503 && attempt < retries) {
           const delay = retryDelay * Math.pow(2, attempt);
-          console.warn(`[safeFetch] 503 for ${url}, retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+          // Don't log retries - completely silent during retries
           await sleep(delay);
           continue;
         }
         
         // Handle other 5xx errors - retry with backoff
+        // Completely suppress retry logs - only log final error after all retries
         if (response.status >= 500 && attempt < retries) {
           const delay = retryDelay * Math.pow(2, attempt);
-          console.warn(`[safeFetch] ${response.status} for ${url}, retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+          // Don't log retries - completely silent during retries
           await sleep(delay);
           continue;
         }
         
         // Log errors but don't throw
+        // Only log after all retries are exhausted or for non-retryable errors
         if (!response.ok) {
           if (response.status >= 500) {
-            console.error(`[safeFetch] Server error ${response.status} for ${url}`);
+            // Only log server errors after ALL retries are exhausted (attempt === retries)
+            if (attempt === retries) {
+              console.error(`[safeFetch] Server error ${response.status} for ${url} (after ${retries + 1} attempts)`);
+            }
           } else if (import.meta.env.DEV && response.status >= 400) {
             console.warn(`[safeFetch] Client error ${response.status} for ${url}`);
           }
@@ -200,8 +206,16 @@ export async function safeFetch(
       }
     }
     
-    // All retries exhausted
-    console.error(`[safeFetch] All retries exhausted for ${url}`, lastError?.message || '');
+    // All retries exhausted - only log if it's not a server error (those are logged above)
+    // Server errors (503/5xx) are already logged when response.ok is false after retries
+    // Only log network/timeout errors that aren't server errors
+    if (lastError) {
+      const errorMsg = lastError.message || String(lastError);
+      const isServerError = /50[0-9]|503/.test(errorMsg) || errorMsg.includes('Service Unavailable');
+      if (!isServerError) {
+        console.error(`[safeFetch] All retries exhausted for ${url}`, errorMsg);
+      }
+    }
     return null;
   })();
 

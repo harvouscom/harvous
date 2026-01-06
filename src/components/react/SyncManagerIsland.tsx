@@ -4,6 +4,7 @@ import { persistUserId, getPersistedUserId } from '@/utils/user-id';
 import { executeOnlineRecovery, onOnlineRecovery, offOnlineRecovery } from '@/utils/network';
 import { syncNow } from '@/utils/sync-manager';
 import { offlineDB, ensureDatabaseOpen, retryIndexedDBOperation } from '@/utils/offline-db';
+import { isOfflineModeEnabled } from '@/utils/posthog';
 import OfflineIndicator from './OfflineIndicator';
 
 interface SyncManagerIslandProps {
@@ -71,7 +72,14 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
   }, [userId, hasInitialized, serverUserId]);
 
   // Initialize sync if we have a persisted userId (handles offline start)
+  // Only initialize if offline mode feature flag is enabled
   useEffect(() => {
+    // Check feature flag before initializing
+    if (!isOfflineModeEnabled()) {
+      console.log('[SyncManagerIsland] ⏸️ Offline mode disabled via feature flag, skipping sync initialization');
+      return;
+    }
+
     if (userId && !hasInitialized) {
       console.log('[SyncManagerIsland] 🚀 Starting sync initialization with userId:', userId, {
         isOnline: navigator.onLine,
@@ -113,8 +121,9 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
   // Register sync callback for online recovery
   // This ensures offline notes are synced when coming back online,
   // even if background sync hasn't been initialized yet
+  // Only register if offline mode is enabled
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !isOfflineModeEnabled()) {
       return;
     }
 
@@ -163,6 +172,9 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
     };
   }, [userId]);
 
+  // Only render offline indicator if offline mode is enabled
+  const isOfflineEnabled = isOfflineModeEnabled();
+
   // Use a separate component for Clerk access to isolate potential crashes
   return (
     <>
@@ -171,7 +183,7 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
           setUserId(id);
         }
       }} />
-      <OfflineIndicator userId={userId} />
+      {isOfflineEnabled && <OfflineIndicator userId={userId} />}
     </>
   );
 }

@@ -164,6 +164,19 @@ export function getFeatureFlag(flagName: string): string | boolean | undefined {
 }
 
 /**
+ * Feature flag name for offline mode
+ */
+const OFFLINE_MODE_FLAG = 'offline-mode-enabled';
+
+/**
+ * Check if offline mode is enabled via PostHog feature flag
+ * Returns false if PostHog is not available or flag is disabled
+ */
+export function isOfflineModeEnabled(): boolean {
+  return isFeatureEnabled(OFFLINE_MODE_FLAG);
+}
+
+/**
  * Enable session recording (opt-in)
  */
 export function enableSessionRecording() {

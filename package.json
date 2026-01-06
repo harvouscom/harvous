@@ -21,7 +21,10 @@
     "deploy": "npm run build",
     "precommit": "npm run db:check",
     "version:bump": "node scripts/bump-version.js",
-    "version:check": "node -e \"console.log(require('./package.json').version)\""
+    "version:check": "node -e \"console.log(require('./package.json').version)\"",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
@@ -70,5 +73,12 @@
     "sonner": "^2.0.7",
     "turndown": "^7.2.2",
     "typescript": "^5.9.2"
+  },
+  "devDependencies": {
+    "@vitest/ui": "^2.1.8",
+    "vitest": "^2.1.8",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "jsdom": "^25.0.1"
   }
 }

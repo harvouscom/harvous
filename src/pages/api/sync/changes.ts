@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Spaces, Threads, Notes, NoteThreads, Tags, NoteTags, UserMetadata, eq, gt, and } from 'astro:db';
+import { db, Spaces, Threads, Notes, NoteThreads, Tags, NoteTags, UserMetadata, eq, gt, and, or } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 import { unauthorizedResponse, serverErrorResponse, errorResponse } from '@/utils/api-responses';
 
@@ -63,7 +63,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .from(Spaces)
       .where(and(
         eq(Spaces.userId, userId),
-        gt(Spaces.updatedAt || Spaces.createdAt, sinceDate)
+        or(
+          gt(Spaces.updatedAt, sinceDate),
+          gt(Spaces.createdAt, sinceDate)
+        )
       ))
       .all(),
 
@@ -84,7 +87,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .from(Threads)
       .where(and(
         eq(Threads.userId, userId),
-        gt(Threads.updatedAt || Threads.createdAt, sinceDate)
+        or(
+          gt(Threads.updatedAt, sinceDate),
+          gt(Threads.createdAt, sinceDate)
+        )
       ))
       .all(),
 
@@ -108,7 +114,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .from(Notes)
       .where(and(
         eq(Notes.userId, userId),
-        gt(Notes.updatedAt || Notes.createdAt, sinceDate)
+        or(
+          gt(Notes.updatedAt, sinceDate),
+          gt(Notes.createdAt, sinceDate)
+        )
       ))
       .all(),
 
@@ -140,7 +149,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .from(Tags)
       .where(and(
         eq(Tags.userId, userId),
-        gt(Tags.updatedAt || Tags.createdAt, sinceDate)
+        or(
+          gt(Tags.updatedAt, sinceDate),
+          gt(Tags.createdAt, sinceDate)
+        )
       ))
       .all(),
 
@@ -185,7 +197,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .from(UserMetadata)
       .where(and(
         eq(UserMetadata.userId, userId),
-        gt(UserMetadata.updatedAt || UserMetadata.createdAt, sinceDate)
+        or(
+          gt(UserMetadata.updatedAt, sinceDate),
+          gt(UserMetadata.createdAt, sinceDate)
+        )
       ))
       .get(),
     ]);

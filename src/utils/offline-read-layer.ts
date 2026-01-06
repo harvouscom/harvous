@@ -7,6 +7,7 @@ import {
   type OfflineUserMetadata, 
   type SyncStatus 
 } from './offline-db';
+import { isOfflineModeEnabled } from './posthog';
 
 /**
  * Dashboard snapshot - all data needed for initial dashboard render
@@ -67,9 +68,13 @@ export interface DashboardSnapshot {
 
 /**
  * Get dashboard snapshot from local IndexedDB
- * Returns null if no data exists (first load scenario)
+ * Returns null if no data exists (first load scenario) or if offline mode is disabled
  */
 export async function getDashboardSnapshotLocal(userId: string): Promise<DashboardSnapshot | null> {
+  if (!isOfflineModeEnabled()) {
+    return null; // Offline mode disabled - return null to trigger server fetch
+  }
+
   try {
     // Check if we have any data for this user
     const hasData = await offlineDB.notes.where('userId').equals(userId).count() > 0;
@@ -140,6 +145,10 @@ export async function getDashboardSnapshotLocal(userId: string): Promise<Dashboa
  * Get all spaces for a user from local DB
  */
 export async function getSpacesLocal(userId: string): Promise<OfflineSpace[]> {
+  if (!isOfflineModeEnabled()) {
+    return []; // Offline mode disabled - return empty array
+  }
+
   try {
     return await offlineDB.spaces
       .where('userId')
@@ -156,6 +165,10 @@ export async function getSpacesLocal(userId: string): Promise<OfflineSpace[]> {
  * Get all threads for a user from local DB
  */
 export async function getThreadsLocal(userId: string): Promise<OfflineThread[]> {
+  if (!isOfflineModeEnabled()) {
+    return []; // Offline mode disabled - return empty array
+  }
+
   try {
     return await offlineDB.threads
       .where('userId')
@@ -188,6 +201,10 @@ export async function getThreadsForSpaceLocal(userId: string, spaceId: string): 
  * Get a single note by ID from local DB
  */
 export async function getNoteLocal(userId: string, noteId: string): Promise<OfflineNote | null> {
+  if (!isOfflineModeEnabled()) {
+    return null; // Offline mode disabled - return null to trigger server fetch
+  }
+
   try {
     const note = await offlineDB.notes
       .where('[userId+id]')
@@ -209,6 +226,10 @@ export async function getNoteLocal(userId: string, noteId: string): Promise<Offl
  * Get a single thread by ID from local DB
  */
 export async function getThreadLocal(userId: string, threadId: string): Promise<OfflineThread | null> {
+  if (!isOfflineModeEnabled()) {
+    return null; // Offline mode disabled - return null to trigger server fetch
+  }
+
   try {
     const thread = await offlineDB.threads
       .where('[userId+id]')
@@ -230,6 +251,10 @@ export async function getThreadLocal(userId: string, threadId: string): Promise<
  * Get a single space by ID from local DB
  */
 export async function getSpaceLocal(userId: string, spaceId: string): Promise<OfflineSpace | null> {
+  if (!isOfflineModeEnabled()) {
+    return null; // Offline mode disabled - return null to trigger server fetch
+  }
+
   try {
     const space = await offlineDB.spaces
       .where('[userId+id]')

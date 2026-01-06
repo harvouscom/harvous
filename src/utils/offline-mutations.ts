@@ -12,6 +12,7 @@ import {
 } from './offline-db';
 import { enqueueMutation } from './sync-manager';
 import { generateNoteId, generateSpaceId, generateThreadId } from './ids';
+import { isOfflineModeEnabled } from './posthog';
 
 /**
  * localStorage cache key prefix for highestSimpleNoteId
@@ -141,6 +142,10 @@ export async function createSpaceOffline(userId: string, data: {
   isActive?: boolean;
   order?: number;
 }): Promise<string> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
   const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = Date.now();
 
@@ -192,6 +197,10 @@ export async function updateSpaceOffline(userId: string, spaceId: string, update
   isActive: boolean;
   order: number;
 }>): Promise<void> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
   const space = await offlineDB.spaces.where('[userId+id]').equals([userId, spaceId]).first();
   if (!space) {
     throw new Error('Space not found');
@@ -218,6 +227,10 @@ export async function updateSpaceOffline(userId: string, spaceId: string, update
  * Delete a space offline
  */
 export async function deleteSpaceOffline(userId: string, spaceId: string): Promise<void> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
   const space = await offlineDB.spaces.where('[userId+id]').equals([userId, spaceId]).first();
   if (!space) {
     throw new Error('Space not found');
@@ -251,6 +264,10 @@ export async function createThreadOffline(userId: string, data: {
   isPinned?: boolean;
   order?: number;
 }): Promise<string> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
   const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = Date.now();
 
@@ -326,6 +343,10 @@ export async function updateThreadOffline(userId: string, threadId: string, upda
   isPinned: boolean;
   order: number;
 }>): Promise<void> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
   const thread = await offlineDB.threads.where('[userId+id]').equals([userId, threadId]).first();
   if (!thread) {
     throw new Error('Thread not found');
@@ -352,6 +373,10 @@ export async function updateThreadOffline(userId: string, threadId: string, upda
  * Delete a thread offline
  */
 export async function deleteThreadOffline(userId: string, threadId: string): Promise<void> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
   const thread = await offlineDB.threads.where('[userId+id]').equals([userId, threadId]).first();
   if (!thread) {
     throw new Error('Thread not found');
@@ -388,6 +413,10 @@ export async function createNoteOffline(userId: string, data: {
   isFeatured?: boolean;
   order?: number;
 }): Promise<string> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
   const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = Date.now();
 
@@ -553,6 +582,10 @@ export async function updateNoteOffline(userId: string, noteId: string, updates:
   isFeatured: boolean;
   order: number;
 }>): Promise<void> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
   const note = await offlineDB.notes.where('[userId+id]').equals([userId, noteId]).first();
   if (!note) {
     throw new Error('Note not found');
@@ -579,6 +612,10 @@ export async function updateNoteOffline(userId: string, noteId: string, updates:
  * Delete a note offline
  */
 export async function deleteNoteOffline(userId: string, noteId: string): Promise<void> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
   const note = await offlineDB.notes.where('[userId+id]').equals([userId, noteId]).first();
   if (!note) {
     throw new Error('Note not found');

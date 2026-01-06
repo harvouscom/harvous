@@ -615,13 +615,35 @@ export async function pullChanges(userId: string): Promise<SyncResult> {
       return { success: false, error: 'Bootstrap required' };
     }
 
-    const response = await fetch(`/api/sync/changes?since=${encodeURIComponent(sinceCursor)}`, {
+    // Use safeFetch for automatic retry logic on 503/5xx errors
+    const { safeFetch } = await import('./safe-fetch');
+    const response = await safeFetch(`/api/sync/changes?since=${encodeURIComponent(sinceCursor)}`, {
       method: 'GET',
-      credentials: 'include',
+      retries: 3,
+      retryDelay: 1000,
     });
 
+    if (!response) {
+      // safeFetch returns null on failure after retries
+      // Don't log this - safeFetch already logged the final error after retries
+      return { success: false, error: 'Sync failed: Request failed after retries' };
+    }
+
     if (!response.ok) {
-      throw new Error(`Sync failed: ${response.status} ${response.statusText}`);
+      const errorType = classifySyncError(response.status);
+      const errorMessage = `Sync failed: ${response.status} ${response.statusText}`;
+      
+      // Completely suppress logging for server/transient errors - safeFetch already handled retries
+      // Only log non-transient errors that need user attention
+      if (errorType !== 'server' && errorType !== 'transient') {
+        console.error('Error pulling changes:', errorMessage);
+      }
+      // For server/transient errors, don't log anything - safeFetch already logged final error
+      
+      return {
+        success: false,
+        error: errorMessage,
+      };
     }
 
     const changes = await response.json();
@@ -634,10 +656,19 @@ export async function pullChanges(userId: string): Promise<SyncResult> {
 
     return { success: true, pulledCount: appliedCount };
   } catch (error) {
-    console.error('Error pulling changes:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorType = classifySyncError(errorMessage);
+    
+    // Completely suppress logging for server/transient errors
+    // These are expected during retries and safeFetch already handles logging
+    if (errorType !== 'server' && errorType !== 'transient') {
+      console.error('Error pulling changes:', error);
+    }
+    // For server/transient errors, don't log anything
+    
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
     };
   }
 }
@@ -1230,8 +1261,26 @@ export async function syncNow(userId: string): Promise<SyncResult> {
     // Pull changes
     console.log('[Sync] Pulling changes...');
     const pullResult = await pullChanges(userId);
-    console.log('[Sync] Pull result:', pullResult);
+    
+    // Completely suppress logging for transient/server errors - safeFetch already handled retries
+    const pullErrorType = pullResult.error ? classifySyncError(pullResult.error) : null;
+    if (pullResult.success || (pullErrorType !== 'server' && pullErrorType !== 'transient')) {
+      // Only log non-transient errors or successful results
+      console.log('[Sync] Pull result:', pullResult);
+    }
+    // For transient/server errors, don't log anything - completely silent
+    
     if (!pullResult.success && pullResult.error !== 'Bootstrap required') {
+      // For transient/server errors, don't mark sync as failed - it will retry later
+      if (pullErrorType === 'server' || pullErrorType === 'transient') {
+        // Clear isSyncing flag but don't set syncError for transient issues
+        await updateSyncState(userId, { isSyncing: false });
+        return {
+          success: false,
+          error: pullResult.error,
+        };
+      }
+      
       // Clear isSyncing flag before returning
       await updateSyncState(userId, { isSyncing: false });
       return pullResult;

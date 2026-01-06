@@ -1,12 +1,20 @@
 import React from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { bootstrapSync, syncNow, needsBootstrap, startBackgroundSync } from './sync-manager';
+import { isOfflineModeEnabled } from './posthog';
 
 /**
  * Initialize sync on app load
  * Should be called once when the app starts (after user is authenticated)
+ * Only initializes if offline mode feature flag is enabled
  */
 export async function initializeSync(userId: string): Promise<void> {
+  // Check if offline mode is enabled via feature flag
+  if (!isOfflineModeEnabled()) {
+    console.log('[initializeSync] ⏸️ Offline mode disabled via feature flag, skipping initialization');
+    return;
+  }
+
   console.log('[initializeSync] 🔄 Starting sync initialization for userId:', userId, {
     isOnline: navigator.onLine,
     timestamp: new Date().toISOString()
