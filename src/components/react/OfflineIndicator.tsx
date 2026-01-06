@@ -187,7 +187,14 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
       ) : isOffline ? (
         <>
           <Icon name="wifi" size={16} />
-          <span>You're currently offline</span>
+          <span>
+            You're currently offline
+            {pendingSyncCount > 0 && (
+              <span style={{ fontWeight: 400, opacity: 0.9 }}>
+                {' '}· {pendingSyncCount} change{pendingSyncCount !== 1 ? 's' : ''} pending
+              </span>
+            )}
+          </span>
         </>
       ) : null}
     </div>

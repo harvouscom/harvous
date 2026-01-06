@@ -250,6 +250,24 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       if (response.ok) {
         toast.success('All data cleared', { icon: null });
         
+        // Clear localStorage caches that are user-specific
+        if (userId) {
+          localStorage.removeItem(`harvous_highestSimpleNoteId_${userId}`);
+        }
+        // Clear generic caches
+        localStorage.removeItem('deletedContentItems');
+        sessionStorage.removeItem('deletedContentItems');
+        sessionStorage.removeItem('recentlyCreatedNotes');
+        sessionStorage.removeItem('recentlyCreatedThreads');
+        
+        // Clear IndexedDB
+        try {
+          const { offlineDB } = await import('@/utils/offline-db');
+          await offlineDB.delete();
+        } catch (e) {
+          console.warn('[MyDataPanel] Failed to clear IndexedDB:', e);
+        }
+        
         // Navigate after a short delay using View Transitions
         setTimeout(() => {
           safeNavigate(window.location.pathname, { history: 'replace' });
