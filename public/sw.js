@@ -1,26 +1,17 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v0-250-6'; // Bump version for SW changes (fixed merge conflicts)
-const NAV_API_CACHE = 'harvous-nav-api-v6'; // Increased for thread prefetch caching
+const CACHE_NAME = 'harvous-cache-v0-250-7'; // Removed font pre-caching to fix CSP errors
+const NAV_API_CACHE = 'harvous-nav-api-v7'; // Removed font pre-caching to fix CSP errors
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 // Resources to pre-cache for faster initial load
+// Note: Fonts are cached on first use via fetch handler, not pre-cached to avoid CSP issues
 const CRITICAL_ASSETS = [
   '/favicon.svg',
   '/favicon.png',
   '/manifest.json',
-  '/scripts/pwa-startup.js',
-  // Pre-cache font CSS for offline mode
-  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/400.css',
-  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/500.css',
-  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/600.css',
-  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/700.css',
-  // Pre-cache actual woff2 font files for offline mode (these are referenced by the CSS)
-  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-400-normal.woff2',
-  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-500-normal.woff2',
-  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-600-normal.woff2',
-  'https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-700-normal.woff2',
+  '/scripts/pwa-startup.js'
 ];
 
 // Install event - precache critical assets
