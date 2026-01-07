@@ -162,9 +162,10 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       <div class="mt-4 mb-safe">
         <a
           id="logout-button"
-          href="/logout"
+          href="#"
           data-outer-shadow
           class="btn-cta btn--secondary flex-1 group no-underline"
+          onclick="event.preventDefault(); if (window.Clerk && window.Clerk.signOut) { window.Clerk.signOut({ redirectUrl: '/sign-in' }); } else { window.location.href = '/sign-in'; } return false;"
         >
           <span class="btn-cta__content">
             Logout
