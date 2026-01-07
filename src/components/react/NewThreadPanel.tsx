@@ -41,9 +41,11 @@ interface NewThreadPanelProps {
   noteIdToAdd?: string;
   // Optional: initial notes fetched in Astro (for better performance)
   initialNotes?: Note[];
+  // Optional: show Back button instead of Close button
+  useBackButton?: boolean;
 }
 
-export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor, noteIdToAdd, initialNotes }: NewThreadPanelProps) {
+export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor, noteIdToAdd, initialNotes, useBackButton = false }: NewThreadPanelProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -342,8 +344,10 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             localStorage.removeItem('newThreadColor');
             localStorage.removeItem('newThreadType');
             
-            // Close panel
-            window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+            // Close panel - only dispatch event if not using back button
+            if (!useBackButton) {
+              window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+            }
             if (onClose) {
               onClose();
             }
@@ -467,8 +471,10 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             onThreadCreated();
           } else {
             // Default behavior: redirect to the newly created thread
-            // Close panel
-            window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+            // Close panel - only dispatch event if not using back button
+            if (!useBackButton) {
+              window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+            }
             // Default behavior: redirect to the newly created thread
             if (onClose) {
               onClose();
@@ -529,7 +535,10 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             localStorage.removeItem('newThreadColor');
             localStorage.removeItem('newThreadType');
             
-            window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+            // Only dispatch event if not using back button
+            if (!useBackButton) {
+              window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+            }
             if (onClose) {
               onClose();
             }
@@ -579,7 +588,10 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
         localStorage.removeItem('newThreadColor');
         localStorage.removeItem('newThreadType');
         
-        window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+        // Only dispatch event if not using back button
+        if (!useBackButton) {
+          window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+        }
         if (onClose) {
           onClose();
         }
@@ -617,8 +629,11 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     if (title.trim() || selectedItems.length > 0) {
       setShowUnsavedDialog(true);
     } else {
-      // Dispatch close event for event system
-      window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+      // Only dispatch close event if not using back button (i.e., not inside another panel)
+      // When useBackButton is true, we're inside NoteDetailsPanel and should only use onClose callback
+      if (!useBackButton) {
+        window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+      }
       
       if (onClose) {
         onClose();
@@ -639,8 +654,11 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     // localStorage.removeItem('newThreadActiveTab');
     setShowUnsavedDialog(false);
     
-    // Dispatch close event for event system
-    window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+    // Only dispatch close event if not using back button (i.e., not inside another panel)
+    // When useBackButton is true, we're inside NoteDetailsPanel and should only use onClose callback
+    if (!useBackButton) {
+      window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+    }
     
     if (onClose) {
       onClose();
@@ -1023,9 +1041,9 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
 
         {/* Bottom buttons */}
         <div className="panel__footer--buttons">
-          {/* Close button using SquareButton Close variant */}
+          {/* Back or Close button - conditionally render based on useBackButton prop */}
           <SquareButton 
-            variant="Close" 
+            variant={useBackButton ? "Back" : "Close"} 
             onClick={handleClose}
           />
           

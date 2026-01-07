@@ -381,6 +381,8 @@ export default function NoteDetailsPanel({
 
   const handleCloseNewThreadPanel = () => {
     setShowNewThreadPanel(false);
+    // Ensure threads tab is active when returning
+    setActiveTab('threads');
   };
 
   const removeTagFromNote = async (tagId: string) => {
@@ -408,12 +410,17 @@ export default function NoteDetailsPanel({
   // If showing new thread panel, render it instead of the details panel
   if (showNewThreadPanel) {
     return (
-      <NewThreadPanel
-        currentSpace={null}
-        onClose={handleCloseNewThreadPanel}
-        onThreadCreated={handleThreadCreated}
-        noteIdToAdd={noteId}
-      />
+      <div className={`note-details-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
+        <div className="form-layout--expand w-full h-full">
+          <NewThreadPanel
+            currentSpace={null}
+            onClose={handleCloseNewThreadPanel}
+            onThreadCreated={handleThreadCreated}
+            noteIdToAdd={noteId}
+            useBackButton={true}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -634,69 +641,89 @@ export default function NoteDetailsPanel({
                     </div>
 
                     {/* Add to Thread Section - fills remaining space */}
-                    <div className="tab-content__section--expand">
-                      <AddToSection
-                        allItems={localAllUserThreads.filter((thread: Thread) => thread.id !== 'thread_unorganized')}
-                        currentItems={localThreads}
-                        onItemSelect={handleAddToThread}
-                        isLoading={isMovingThread}
-                        loadingText="Adding to thread..."
-                        title="Add to Thread"
-                        placeholder="Find threads to add to..."
-                        emptyMessage="No threads found"
-                      />
+                    <div className="tab-content__section--expand" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                        <AddToSection
+                          allItems={localAllUserThreads.filter((thread: Thread) => thread.id !== 'thread_unorganized')}
+                          currentItems={localThreads}
+                          onItemSelect={handleAddToThread}
+                          isLoading={isMovingThread}
+                          loadingText="Adding to thread..."
+                          title="Add to Thread"
+                          placeholder="Find threads to add to..."
+                          emptyMessage="No threads found"
+                        />
+                      </div>
+                      
+                      {/* New Thread button - at bottom of expandable section */}
+                      <button 
+                        type="button"
+                        onClick={addNewThread}
+                        data-outer-shadow
+                        className="btn-cta w-full group"
+                        style={{ marginTop: 'auto', flexShrink: 0 }}
+                      >
+                        <span className="btn-cta__content">
+                          New Thread
+                        </span>
+                        <div className="btn-cta__shadow" />
+                      </button>
                     </div>
                   </div>
                 )}
                     {activeTab === 'tags' && (
-                      <div className="tab-content__section">
-                        {/* Existing tags */}
-                        {localTags.length === 0 ? (
-                          <div className="panel__empty-state-with-description">
-                            <p>No tags found for this note.</p>
-                            <p className="panel__empty-state-description">Tags are automatically generated based on your note content when you create or update notes.</p>
-                          </div>
-                        ) : (
-                          <div className="tag-list">
-                            {localTags.map((tag: Tag) => (
-                              <div key={tag.id} className="content-item tag-item">
-                                <div className="relative nav-item-container">
-                                  <div className="btn btn--tag group w-auto">
-                                    <div className="btn__content">
-                                      <span className="whitespace-nowrap">
-                                        {tag.name}
-                                      </span>
+                      <div className="tab-content__section" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                        {/* Existing tags - takes available space */}
+                        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                          {localTags.length === 0 ? (
+                            <div className="panel__empty-state-with-description">
+                              <p>No tags found for this note.</p>
+                              <p className="panel__empty-state-description">Tags are automatically generated based on your note content when you create or update notes.</p>
+                            </div>
+                          ) : (
+                            <div className="tag-list">
+                              {localTags.map((tag: Tag) => (
+                                <div key={tag.id} className="content-item tag-item">
+                                  <div className="relative nav-item-container">
+                                    <div className="btn btn--tag group w-auto">
+                                      <div className="btn__content">
+                                        <span className="whitespace-nowrap">
+                                          {tag.name}
+                                        </span>
+                                      </div>
+                                      <div className="btn__shadow-overlay" />
                                     </div>
-                                    <div className="btn__shadow-overlay" />
-                                  </div>
-                                  {/* Close icon - absolutely positioned, matches RecentSearches pattern */}
-                                  <div
-                                    onClick={(e: any) => {
-                                      e.stopPropagation();
-                                      e.preventDefault();
-                                      removeTagFromNote(tag.id);
-                                    }}
-                                    className="tag-close-icon absolute top-1/2 right-3 transform -translate-y-1/2 flex items-center justify-center w-4 h-4 cursor-pointer"
-                                    data-item-id={tag.id}
-                                  >
-                                    <svg className="w-4 h-4 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 384 512">
-                                      <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
-                                    </svg>
+                                    {/* Close icon - absolutely positioned, matches RecentSearches pattern */}
+                                    <div
+                                      onClick={(e: any) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        removeTagFromNote(tag.id);
+                                      }}
+                                      className="tag-close-icon absolute top-1/2 right-3 transform -translate-y-1/2 flex items-center justify-center w-4 h-4 cursor-pointer"
+                                      data-item-id={tag.id}
+                                    >
+                                      <svg className="w-4 h-4 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 384 512">
+                                        <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+                                      </svg>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                              ))}
+                            </div>
+                          )}
+                        </div>
 
-                        {/* New Tag Form - always visible like AddToSection */}
-                        <NewTagPanel
-                          noteId={noteId}
-                          onClose={() => {}} // No-op since it's always visible
-                          onTagCreated={handleTagCreated}
-                          inBottomSheet={inBottomSheet}
-                          inline={true}
-                        />
+                        {/* New Tag Form - positioned at bottom */}
+                        <div style={{ marginTop: 'auto', flexShrink: 0 }}>
+                          <NewTagPanel
+                            noteId={noteId}
+                            onClose={() => {}} // No-op since it's always visible
+                            onTagCreated={handleTagCreated}
+                            inBottomSheet={inBottomSheet}
+                            inline={true}
+                          />
+                        </div>
                       </div>
                     )}
                     {activeTab === 'notes' && isScriptureNote && (
@@ -796,22 +823,6 @@ export default function NoteDetailsPanel({
           onClick={closePanel}
           inBottomSheet={inBottomSheet}
         />
-        
-        {/* Add Thread button - only show on threads tab */}
-        {activeTab === 'threads' && (
-          <button 
-            type="button"
-            onClick={addNewThread}
-            data-outer-shadow
-            className="btn-cta flex-1 group"
-          >
-            <span className="btn-cta__content">
-              Add Thread
-            </span>
-            <div className="btn-cta__shadow" />
-          </button>
-        )}
-        
       </div>
       </div>
     </>
