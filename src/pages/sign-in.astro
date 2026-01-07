@@ -5,6 +5,10 @@ import { ClientRouter } from "astro:transitions";
 
 // Get redirect URL from query params, fallback to home
 const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
+// Check if coming from logout - prevent auto-redirect in this case
+const fromLogout = Astro.url.searchParams.get('from_logout') === 'true';
+// If coming from logout, don't auto-redirect authenticated users (stay on sign-in page)
+const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
 ---
 
 <EmptyLayout title="Sign In">
@@ -75,7 +79,7 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
           }
         }}
         signUpUrl="/sign-up"
-        fallbackRedirectUrl={redirectUrl}
+        fallbackRedirectUrl={effectiveRedirectUrl}
       />
         </div>
       </div>
@@ -94,8 +98,60 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
     // Check if we're in production (avoid using import.meta in inline scripts)
     var isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
     
+    // Check if coming from logout
+    var urlParams = new URLSearchParams(window.location.search);
+    var fromLogout = urlParams.get('from_logout') === 'true';
+    
     // Track if clerk:loaded listener has been set up (only set up once)
     var clerkLoadedListenerSetup = false;
+    
+    // Force sign-out if user is still authenticated after logout
+    function forceSignOutIfNeeded() {
+      if (!fromLogout) return;
+      
+      // Wait for Clerk to be available
+      if (window.Clerk && window.Clerk.signOut) {
+        // User just logged out, but might still have a cached session
+        // Force sign-out to ensure session is fully cleared
+        window.Clerk.signOut().then(function() {
+          // Clear storage
+          try {
+            sessionStorage.clear();
+            localStorage.removeItem('userProfileData');
+            localStorage.removeItem('profileData');
+          } catch (error) {
+            console.error('Storage clear error:', error);
+          }
+          // Remove from_logout parameter to clean up URL
+          var newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('from_logout');
+          window.history.replaceState({}, '', newUrl);
+        }).catch(function(error) {
+          // Sign-out might fail if user is already signed out, which is fine
+          // Just clean up the URL parameter
+          var newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('from_logout');
+          window.history.replaceState({}, '', newUrl);
+        });
+      } else {
+        // Clerk not loaded yet, wait and retry (max 5 seconds)
+        var attempts = 0;
+        var maxAttempts = 50;
+        var checkInterval = setInterval(function() {
+          attempts++;
+          if (window.Clerk && window.Clerk.signOut) {
+            clearInterval(checkInterval);
+            forceSignOutIfNeeded();
+          } else if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            // Clerk didn't load, just clean up URL
+            var newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('from_logout');
+            window.history.replaceState({}, '', newUrl);
+          }
+        }, 100);
+      }
+    }
     
     // Debug: Check if @clerk/astro scripts are in the DOM
     function checkClerkScripts() {
@@ -165,6 +221,8 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
             console.log('[Clerk] Clerk loaded event fired, mounted components');
           }
         }
+        // Check if we need to force sign-out after Clerk loads
+        forceSignOutIfNeeded();
       });
       clerkLoadedListenerSetup = true;
     }
@@ -174,10 +232,15 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
     
     // Initial load
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeSignIn);
+      document.addEventListener('DOMContentLoaded', function() {
+        initializeSignIn();
+        // Also check for force sign-out on initial load
+        setTimeout(forceSignOutIfNeeded, 500);
+      });
     } else {
       // DOM already ready, initialize immediately
       setTimeout(initializeSignIn, 100);
+      setTimeout(forceSignOutIfNeeded, 500);
     }
     
     // View Transitions: Re-initialize on page navigation
