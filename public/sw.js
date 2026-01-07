@@ -1,8 +1,8 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v0-250-3'; // Bump version for SW changes
-const NAV_API_CACHE = 'harvous-nav-api-v4';
+const CACHE_NAME = 'harvous-cache-v0-250-4'; // Bump version for SW changes
+const NAV_API_CACHE = 'harvous-nav-api-v5'; // Increased for thread prefetch caching
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 // Resources to pre-cache for faster initial load
@@ -158,7 +158,9 @@ self.addEventListener('fetch', (event) => {
   const cacheableApiEndpoints = [
     '/api/navigation/data',
     '/api/spaces/items',
-    '/api/notes/recent'
+    '/api/notes/recent',
+    '/api/threads/',  // Thread prefetch endpoints
+    '/api/content/load-more'  // Content pagination
   ];
   
   // Check if this is a cacheable API endpoint
@@ -166,6 +168,14 @@ self.addEventListener('fetch', (event) => {
     if (endpoint === '/api/notes/recent') {
       // Match /api/notes/recent with or without query params
       return url.pathname === '/api/notes/recent';
+    }
+    if (endpoint === '/api/threads/') {
+      // Match any thread API endpoint (e.g., /api/threads/thread_123/prefetch)
+      return url.pathname.startsWith('/api/threads/');
+    }
+    if (endpoint === '/api/content/load-more') {
+      // Match content pagination endpoint
+      return url.pathname === '/api/content/load-more';
     }
     return url.pathname === endpoint;
   });

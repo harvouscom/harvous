@@ -81,6 +81,60 @@ async function findUnorganizedThread(userId: string) {
   }
 }
 
+// Fetch a single thread by ID with note count (optimized for thread page loads)
+// This is much faster than getAllThreadsWithCounts when you only need one thread
+export async function getThreadWithCount(threadId: string, userId: string) {
+  try {
+    // Get the thread
+    const thread = await db.select({
+      id: Threads.id,
+      title: Threads.title,
+      subtitle: Threads.subtitle,
+      color: Threads.color,
+      spaceId: Threads.spaceId,
+      isPublic: Threads.isPublic,
+      isPinned: Threads.isPinned,
+      createdAt: Threads.createdAt,
+      updatedAt: Threads.updatedAt,
+      lastVisited: Threads.lastVisited,
+    })
+    .from(Threads)
+    .where(and(
+      eq(Threads.id, threadId),
+      eq(Threads.userId, userId)
+    ))
+    .get();
+
+    if (!thread) {
+      return null;
+    }
+
+    // Get note count for this thread
+    const noteCountResult = await db.select({
+      count: count(),
+    })
+    .from(NoteThreads)
+    .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
+    .where(and(
+      eq(NoteThreads.threadId, threadId),
+      eq(Notes.userId, userId)
+    ))
+    .get();
+
+    const noteCount = noteCountResult?.count || 0;
+
+    return {
+      ...thread,
+      noteCount,
+      lastUpdated: thread.lastVisited || thread.updatedAt || thread.createdAt,
+      accentColor: getThreadColorCSS(thread.color),
+      backgroundGradient: getThreadGradientCSS(thread.color),
+    };
+  } catch (error) {
+    console.error("Error fetching thread with count:", error);
+    return null;
+  }
+}
 
 // Fetch all threads with note counts (excluding unorganized thread) - OPTIMIZED
 export async function getAllThreadsWithCounts(userId: string) {
