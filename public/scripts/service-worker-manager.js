@@ -42,11 +42,12 @@
       
       // Check if there's an installing worker
       if (registration.installing) {
-        registration.installing.addEventListener('statechange', () => {
-          if (registration.installing.state === 'installed' && navigator.serviceWorker.controller) {
+        const installingWorker = registration.installing;
+        installingWorker.addEventListener('statechange', () => {
+          if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
             // New service worker installed, send skipWaiting and reload
-            registration.installing.postMessage({ type: 'SKIP_WAITING' });
-            
+            installingWorker.postMessage({ type: 'SKIP_WAITING' });
+
             navigator.serviceWorker.addEventListener('controllerchange', () => {
               window.location.reload();
             });

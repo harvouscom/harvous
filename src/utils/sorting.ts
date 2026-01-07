@@ -64,10 +64,8 @@ export function sortByLastVisited<T extends {
     } else if (aTime === null && bTime !== null) {
       return 1; // b has time, a doesn't - b comes first
     }
-    // Both have no time, continue to quaternary sort
-    
-    // Quaternary: ID for deterministic sorting
-    return (a.id || '').localeCompare(b.id || '');
+    // Both have no time - maintain current order (stable sort)
+    return 0;
   });
 }
 
