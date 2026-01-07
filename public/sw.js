@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v0-250-3'; // Bump version for SW changes
+const CACHE_NAME = 'harvous-cache-v0-250-4'; // Bump version for SW changes
 const NAV_API_CACHE = 'harvous-nav-api-v5'; // Increased for thread prefetch caching
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
