@@ -258,11 +258,6 @@ export async function createThreadOffline(userId: string, data: {
   const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = Date.now();
 
-    localId, 
-    color: data.color, 
-    title: data.title 
-  });
-
   const thread: OfflineThread = ensureUserPartition<OfflineThread>({
     id: localId,
     title: data.title,
@@ -280,13 +275,6 @@ export async function createThreadOffline(userId: string, data: {
   }, userId);
 
   await offlineDB.threads.add(thread);
-  
-  // Verify color was stored correctly
-  const stored = await offlineDB.threads.where('[userId+id]').equals([userId, localId]).first();
-    id: stored?.id, 
-    color: stored?.color,
-    storedCorrectly: stored?.color === data.color 
-  });
 
   // Queue sync operation
   const mutationData = {
@@ -298,13 +286,7 @@ export async function createThreadOffline(userId: string, data: {
     isPinned: data.isPinned,
     order: data.order,
   };
-  
-    operation: 'create',
-    entityType: 'thread',
-    entityId: localId,
-    color: mutationData.color 
-  });
-  
+
   await enqueueMutation(userId, {
     operation: 'create',
     entityType: 'thread',

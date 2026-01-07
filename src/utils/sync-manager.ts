@@ -300,10 +300,7 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         updatedAt: um.updatedAt ? new Date(um.updatedAt) : null,
       }, userId);
       await offlineDB.userMetadata.put(userMetadata);
-        userId: userMetadata.userId,
-        highestSimpleNoteId: userMetadata.highestSimpleNoteId
-      });
-      
+
       // Cache highestSimpleNoteId in localStorage for instant offline access
       if (um.highestSimpleNoteId !== undefined) {
         cacheHighestSimpleNoteId(userId, um.highestSimpleNoteId);
@@ -320,14 +317,7 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
       syncError: null,
     };
     await updateSyncState(userId, syncStateUpdate);
-    
-    // Verify sync state was updated
-    const updatedState = await getSyncState(userId);
-      lastSyncTimestamp: updatedState?.lastSyncTimestamp,
-      lastBootstrapTimestamp: updatedState?.lastBootstrapTimestamp,
-      isSyncing: updatedState?.isSyncing
-    });
-    
+
   } catch (error) {
     console.error('[applyBootstrapData] ❌ Error applying bootstrap data:', {
       error,
@@ -649,10 +639,6 @@ export async function pullChanges(userId: string): Promise<SyncResult> {
  * Bootstrap sync (first load)
  */
 export async function bootstrapSync(userId: string): Promise<SyncResult> {
-    isOnline: navigator.onLine,
-    timestamp: new Date().toISOString()
-  });
-
   if (!navigator.onLine) {
     return { success: false, error: 'Bootstrap requires online connection' };
   }
@@ -663,12 +649,6 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
     const response = await fetch('/api/sync/bootstrap', {
       method: 'GET',
       credentials: 'include',
-    });
-
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok,
-      headers: Object.fromEntries(response.headers.entries())
     });
 
     if (!response.ok) {
@@ -694,15 +674,6 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
     }
 
     const bootstrapData = await response.json();
-      spaces: bootstrapData.spaces?.length || 0,
-      threads: bootstrapData.threads?.length || 0,
-      notes: bootstrapData.notes?.length || 0,
-      noteThreads: bootstrapData.noteThreads?.length || 0,
-      tags: bootstrapData.tags?.length || 0,
-      noteTags: bootstrapData.noteTags?.length || 0,
-      hasUserMetadata: !!bootstrapData.userMetadata,
-      cursor: bootstrapData.cursor
-    });
 
     await applyBootstrapData(userId, bootstrapData);
 
@@ -770,9 +741,6 @@ async function updateSyncState(userId: string, updates: Partial<SyncState>): Pro
       if (existing) {
         await offlineDB.syncState.update(userId, updates);
       } else {
-          userId,
-          ...updates
-        });
         await offlineDB.syncState.add({
           userId,
           lastSyncCursor: null,
@@ -861,17 +829,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       operationId: op.id,
     }));
 
-    // Log thread mutations specifically to track color
-    const threadMutations = mutations.filter(m => m.entityType === 'thread');
-    if (threadMutations.length > 0) {
-        operation: m.operation,
-        entityId: m.entityId,
-        color: m.data?.color,
-        title: m.data?.title
-      })));
-    }
-
-
     // Send batch to server
     const response = await fetch('/api/sync/push', {
       method: 'POST',
@@ -901,16 +858,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
 
       if (res.success) {
         
-        // Log thread-specific sync details
-        if (op.entityType === 'thread') {
-            operationId: res.operationId,
-            oldId: op.entityId,
-            newId: res.serverId,
-            originalColor: op.data?.color,
-            originalTitle: op.data?.title
-          });
-        }
-        
         // Update entity with server ID if provided
         if (res.serverId && res.serverId !== op.entityId) {
           await updateEntityId(op.entityType, op.entityId, res.serverId, userId);
@@ -923,17 +870,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
           await markEntitySynced(op.entityType, res.serverId || op.entityId, userId);
         }
         
-        // Verify thread color after sync
-        if (op.entityType === 'thread') {
-          const threadId = res.serverId || op.entityId;
-          const syncedThread = await offlineDB.threads.where('[userId+id]').equals([userId, threadId]).first();
-            threadId,
-            color: syncedThread?.color,
-            expectedColor: res.data?.color || op.data?.color,
-            colorMatch: syncedThread?.color === (res.data?.color || op.data?.color)
-          });
-        }
-
         // Remove from queue
         await offlineDB.syncQueue.delete(op.id!);
         pushedCount++;
@@ -1172,21 +1108,11 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
       case 'thread':
         // Get thread before modifying to verify color is preserved
         const threadBefore = await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).first();
-          entityId,
-          color: threadBefore?.color,
-          title: threadBefore?.title,
-          incomingData: data
-        });
-        
+
         await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).modify(updateData);
-        
+
         // Verify color is still there after modify
         const threadAfter = await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).first();
-          entityId,
-          color: threadAfter?.color,
-          title: threadAfter?.title,
-          colorMatch: data?.color ? threadAfter?.color === data.color : true
-        });
         break;
       case 'note':
         await offlineDB.notes.where('[userId+id]').equals([userId, entityId]).modify(updateData);
