@@ -317,14 +317,7 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
       syncError: null,
     };
     await updateSyncState(userId, syncStateUpdate);
-    
-    // Verify sync state was updated
-    const updatedState = await getSyncState(userId);
-      lastSyncTimestamp: updatedState?.lastSyncTimestamp,
-      lastBootstrapTimestamp: updatedState?.lastBootstrapTimestamp,
-      isSyncing: updatedState?.isSyncing
-    });
-    
+
   } catch (error) {
     console.error('[applyBootstrapData] ❌ Error applying bootstrap data:', {
       error,
