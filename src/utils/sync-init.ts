@@ -11,80 +11,40 @@ import { isOfflineModeEnabled } from './posthog';
 export async function initializeSync(userId: string): Promise<void> {
   // Check if offline mode is enabled via feature flag
   if (!isOfflineModeEnabled()) {
-    console.log('[initializeSync] ⏸️ Offline mode disabled via feature flag, skipping initialization');
     return;
   }
 
-  console.log('[initializeSync] 🔄 Starting sync initialization for userId:', userId, {
-    isOnline: navigator.onLine,
-    timestamp: new Date().toISOString()
-  });
-
   try {
     // Check if bootstrap is needed
-    console.log('[initializeSync] 🔍 Checking if bootstrap is needed...');
     const needsBoot = await needsBootstrap(userId);
-    console.log('[initializeSync] Bootstrap needed:', needsBoot);
 
     if (needsBoot) {
       if (navigator.onLine) {
-        console.log('[initializeSync] ✅ Online - starting bootstrap sync...');
         const bootstrapResult = await bootstrapSync(userId);
-        console.log('[initializeSync] Bootstrap result:', {
-          success: bootstrapResult.success,
-          error: bootstrapResult.error,
-          pulledCount: bootstrapResult.pulledCount
-        });
-        
-        if (!bootstrapResult.success) {
-          // Silently ignore AUTH_NOT_READY errors (auth still loading)
-          if (bootstrapResult.error !== 'AUTH_NOT_READY') {
-            console.error('[initializeSync] ❌ Bootstrap failed:', bootstrapResult.error);
-          } else {
-            console.log('[initializeSync] ⏸️ Auth not ready yet, will retry on background sync');
-          }
-        } else {
-          console.log('[initializeSync] ✅ Bootstrap completed successfully');
+
+        if (!bootstrapResult.success && bootstrapResult.error !== 'AUTH_NOT_READY') {
+          console.error('[initializeSync] Bootstrap failed:', bootstrapResult.error);
         }
-      } else {
-        console.warn('[initializeSync] ⚠️ Bootstrap needed but offline - will bootstrap when online');
       }
     } else {
       // Incremental sync if online
       if (navigator.onLine) {
-        console.log('[initializeSync] ✅ Online - starting incremental sync...');
-        const syncResult = await syncNow(userId);
-        console.log('[initializeSync] Incremental sync result:', {
-          success: syncResult.success,
-          error: syncResult.error,
-          pulledCount: syncResult.pulledCount,
-          pushedCount: syncResult.pushedCount
-        });
-      } else {
-        console.log('[initializeSync] ⚠️ Offline - skipping incremental sync');
+        await syncNow(userId);
       }
     }
 
     // Start background sync loop
-    console.log('[initializeSync] 🔄 Starting background sync loop (30s interval)...');
     startBackgroundSync(userId, 30000); // Sync every 30 seconds
-    console.log('[initializeSync] ✅ Background sync loop started');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
     // Silently ignore AUTH_NOT_READY errors (auth still loading)
     if (errorMessage === 'AUTH_NOT_READY') {
-      console.log('[initializeSync] ⏸️ Auth not ready yet, will retry on background sync');
-      return; // Exit silently
+      return;
     }
 
-    console.error('[initializeSync] ❌ Error initializing sync:', {
-      error,
-      message: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      userId
-    });
-    throw error; // Re-throw to let caller handle
+    console.error('[initializeSync] Error:', errorMessage);
+    throw error;
   }
 }
 

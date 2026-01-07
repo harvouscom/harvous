@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v0-250-9'; // Removed font pre-caching to fix CSP errors
+const CACHE_NAME = 'harvous-cache-v0-250-10'; // Removed font pre-caching to fix CSP errors
 const NAV_API_CACHE = 'harvous-nav-api-v7'; // Removed font pre-caching to fix CSP errors
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
