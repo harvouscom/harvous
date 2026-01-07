@@ -7,6 +7,20 @@ import { ClientRouter } from "astro:transitions";
 const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
 // Check if user just logged out - prevent auto-redirect in this case
 const loggedOut = Astro.url.searchParams.get('logged_out') === 'true';
+
+// Server-side check: If user is still authenticated when they arrive with logged_out=true,
+// redirect them back to /logout to force complete sign-out
+// This prevents Clerk's SignIn component from auto-redirecting authenticated users
+const auth = Astro.locals.auth();
+const { userId } = auth;
+
+if (userId && loggedOut) {
+  // User is still authenticated but trying to access sign-in after logout
+  // Redirect to logout to complete the sign-out process
+  // Add from_signin parameter to prevent infinite redirect loops
+  return Astro.redirect('/logout?from_signin=true');
+}
+
 // If user just logged out, don't redirect automatically (stay on sign-in page)
 const effectiveRedirectUrl = loggedOut ? undefined : redirectUrl;
 ---

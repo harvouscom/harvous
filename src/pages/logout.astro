@@ -13,10 +13,46 @@ import EmptyLayout from "@/layouts/EmptyLayout.astro";
 <script is:inline>
   // Logout script - clears all data and signs out via Clerk
   (async function() {
+    // Check if we're in a redirect loop (coming from sign-in page)
+    // If so, force a hard redirect to sign-in without the logged_out param
+    // This breaks the loop and shows the sign-in page
+    var urlParams = new URLSearchParams(window.location.search);
+    var fromSignIn = urlParams.get('from_signin') === 'true';
+    
+    if (fromSignIn) {
+      // We're in a loop - just clear everything and go to sign-in without params
+      try {
+        sessionStorage.clear();
+        localStorage.removeItem('userProfileData');
+        localStorage.removeItem('profileData');
+      } catch (error) {
+        console.error('Storage clear error:', error);
+      }
+      // Hard redirect to sign-in without any query params
+      window.location.replace('/sign-in');
+      return;
+    }
+    
+    // Wait for Clerk to be fully loaded before attempting sign-out
+    var clerkReady = false;
+    var maxWaitTime = 3000; // Max 3 seconds to wait for Clerk
+    var startTime = Date.now();
+    
+    while (!clerkReady && (Date.now() - startTime) < maxWaitTime) {
+      if (window.Clerk && window.Clerk.signOut) {
+        clerkReady = true;
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
     try {
       // Try to use Clerk signOut if available
       if (window.Clerk && window.Clerk.signOut) {
+        // Call signOut and wait for it to complete
         await window.Clerk.signOut();
+        // Additional wait to ensure session is fully cleared on server
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
     } catch (error) {
       console.error('Clerk signOut error:', error);
@@ -31,8 +67,9 @@ import EmptyLayout from "@/layouts/EmptyLayout.astro";
       console.error('Storage clear error:', error);
     }
     
-    // Small delay to ensure session clears before redirect
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Longer delay to ensure session clears before redirect
+    // This gives Clerk time to properly invalidate the session
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     // Redirect to sign-in with logged_out parameter to prevent auto-login
     window.location.href = '/sign-in?logged_out=true';

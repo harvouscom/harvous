@@ -113,11 +113,11 @@ function sortItemsInitialLoad(items: OrganizedContentItem[]): OrganizedContentIt
   const sortedThreads = [...threads].sort((a, b) => {
     const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() : null;
     const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() : null;
-    if (aTime !== null && bTime !== null) {
+    if (aTime != null && bTime != null) {
       return aTime - bTime; // Ascending order (oldest first)
-    } else if (aTime !== null && bTime === null) {
+    } else if (aTime != null && bTime == null) {
       return -1;
-    } else if (aTime === null && bTime !== null) {
+    } else if (aTime == null && bTime != null) {
       return 1;
     }
     return (a.id || '').localeCompare(b.id || '');
@@ -127,11 +127,11 @@ function sortItemsInitialLoad(items: OrganizedContentItem[]): OrganizedContentIt
   const sortedNotes = [...notes].sort((a, b) => {
     const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() : null;
     const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() : null;
-    if (aTime !== null && bTime !== null) {
+    if (aTime != null && bTime != null) {
       return aTime - bTime; // Ascending order (oldest first)
-    } else if (aTime !== null && bTime === null) {
+    } else if (aTime != null && bTime == null) {
       return -1;
-    } else if (aTime === null && bTime !== null) {
+    } else if (aTime == null && bTime != null) {
       return 1;
     }
     return (a.id || '').localeCompare(b.id || '');
@@ -329,6 +329,11 @@ export default function OrganizedContentList({
     if (!isMountedRef.current) return false;
     if (window.location.pathname !== '/') return false;
     if (refreshStateRef.current.isNavigating) return false;
+    
+    // Skip API calls if user is on sign-in page (not authenticated)
+    if (window.location.pathname.includes('/sign-in') || window.location.pathname.includes('/sign-up')) {
+      return false;
+    }
 
     const currentFilter = filterRef.current;
     const maxRetries = options?.maxRetries ?? (options?.expectedItemId ? 3 : 1);
@@ -372,6 +377,20 @@ export default function OrganizedContentList({
           credentials: 'include',
           cache: options?.expectedItemId ? 'no-store' : 'default'
         });
+
+        // Handle auth errors and redirects gracefully
+        if (response.status === 401 || response.status === 403) {
+          // User not authenticated - silently fail
+          refreshStateRef.current.isRefreshing = false;
+          return false;
+        }
+
+        // Handle redirects (3xx) - likely redirecting to sign-in page
+        if (response.status >= 300 && response.status < 400) {
+          // Likely redirecting to sign-in - silently fail
+          refreshStateRef.current.isRefreshing = false;
+          return false;
+        }
 
         if (!response.ok) {
           throw new Error(`Failed to refresh: ${response.status}`);
@@ -482,8 +501,16 @@ export default function OrganizedContentList({
         }
 
         return true;
-      } catch (error) {
-        console.error('[OrganizedContentList] Refresh error:', error);
+      } catch (error: any) {
+        // Suppress errors when user is not authenticated (likely on sign-in page)
+        const isAuthError = error?.message?.includes('HTML instead of JSON') || 
+                           error?.message?.includes('401') ||
+                           error?.message?.includes('403');
+        
+        if (!isAuthError) {
+          console.error('[OrganizedContentList] Refresh error:', error);
+        }
+        
         if (attempt < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, delays[attempt]));
         }
@@ -1042,6 +1069,11 @@ export default function OrganizedContentList({
       return { items: [], hasMore: false };
     }
 
+    // Skip API calls if user is on sign-in page (not authenticated)
+    if (window.location.pathname.includes('/sign-in') || window.location.pathname.includes('/sign-up')) {
+      return { items: [], hasMore: false };
+    }
+
     const currentFilter = filterRef.current;
     const now = Date.now();
     const timeSinceRefresh = now - refreshStateRef.current.lastRefreshTimestamp;
@@ -1068,25 +1100,51 @@ export default function OrganizedContentList({
       credentials: 'include'
     });
 
+    // Handle auth errors and redirects gracefully
+    if (response.status === 401 || response.status === 403) {
+      // User not authenticated - return empty
+      return { items: [], hasMore: false };
+    }
+
+    // Handle redirects (3xx) - likely redirecting to sign-in page
+    if (response.status >= 300 && response.status < 400) {
+      // Likely redirecting to sign-in - return empty
+      return { items: [], hasMore: false };
+    }
+
     if (!response.ok) {
       throw new Error('Failed to load more content');
     }
 
-    const data = await safeParseJSON(response);
-    const newItems = (data.items || []).map(normalizeItemDates);
-    
-    // Update the master list with the new items
-    setCurrentItems(prev => [...prev, ...newItems]);
+    try {
+      const data = await safeParseJSON(response);
+      const newItems = (data.items || []).map(normalizeItemDates);
+      
+      // Update the master list with the new items
+      setCurrentItems(prev => [...prev, ...newItems]);
 
-    setHasMore(data.hasMore);
-    hasMoreRef.current = data.hasMore;
+      setHasMore(data.hasMore);
+      hasMoreRef.current = data.hasMore;
 
-    // Return empty items because we've already updated the parent state
-    // which will update the 'items' prop of the InfiniteScrollList
-    return {
-      items: [],
-      hasMore: data.hasMore
-    };
+      // Return empty items because we've already updated the parent state
+      // which will update the 'items' prop of the InfiniteScrollList
+      return {
+        items: [],
+        hasMore: data.hasMore
+      };
+    } catch (error: any) {
+      // Suppress errors when user is not authenticated (likely on sign-in page)
+      const isAuthError = error?.message?.includes('HTML instead of JSON') || 
+                         error?.message?.includes('401') ||
+                         error?.message?.includes('403');
+      
+      if (!isAuthError) {
+        console.error('[OrganizedContentList] Load more error:', error);
+      }
+      
+      // Return empty to prevent further errors
+      return { items: [], hasMore: false };
+    }
   }, []);
 
   const renderItem = (item: OrganizedContentItem, index: number) => {
