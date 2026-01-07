@@ -1144,6 +1144,18 @@ button {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Offline indicator retry button - white text override */
+.offline-indicator button {
+  color: white !important;
+}
+
+.offline-indicator button span,
+.offline-indicator button div,
+.offline-indicator button p,
+.offline-indicator button * {
+  color: white !important;
+}
+
 /* Button text content - ensure bold */
 button span,
 button div,
