@@ -858,16 +858,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
 
       if (res.success) {
         
-        // Log thread-specific sync details
-        if (op.entityType === 'thread') {
-            operationId: res.operationId,
-            oldId: op.entityId,
-            newId: res.serverId,
-            originalColor: op.data?.color,
-            originalTitle: op.data?.title
-          });
-        }
-        
         // Update entity with server ID if provided
         if (res.serverId && res.serverId !== op.entityId) {
           await updateEntityId(op.entityType, op.entityId, res.serverId, userId);
