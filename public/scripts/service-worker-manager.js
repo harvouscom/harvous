@@ -4,7 +4,8 @@
   if ('serviceWorker' in navigator) {
     // Store registration reference for update checks
     let registrationRef = null;
-    
+    let reloadingForUpdate = false; // Prevent infinite reload loops
+
     // Get app version from package.json (injected at build time or from meta tag)
     // Fallback to reading from a meta tag if available
     function getAppVersion() {
@@ -18,39 +19,37 @@
       }
       return 'unknown';
     }
-    
+
     // Expose version to window for debugging
     window.__APP_VERSION__ = getAppVersion();
-    
+
+    // Set up controller change listener once
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloadingForUpdate) {
+        return; // Already reloading
+      }
+      reloadingForUpdate = true;
+      window.location.reload();
+    });
+
     // Function to check for service worker updates and handle them
     const checkForUpdates = (registration) => {
       if (!registration) return;
-      
+
       // Check if there's a waiting worker
       if (registration.waiting) {
         // Send skipWaiting message to activate the new worker
         registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        
-        // Listen for controller change (when new SW takes control)
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          // Reload the page to get the new version
-          window.location.reload();
-        });
-        
         return;
       }
-      
+
       // Check if there's an installing worker
       if (registration.installing) {
         const installingWorker = registration.installing;
         installingWorker.addEventListener('statechange', () => {
           if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New service worker installed, send skipWaiting and reload
+            // New service worker installed, send skipWaiting
             installingWorker.postMessage({ type: 'SKIP_WAITING' });
-
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-              window.location.reload();
-            });
           }
         });
       }
@@ -70,18 +69,9 @@
             const newWorker = registration.installing;
             if (newWorker) {
               newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed') {
-                  if (navigator.serviceWorker.controller) {
-                    // New service worker available - activate it
-                    newWorker.postMessage({ type: 'SKIP_WAITING' });
-                    
-                    navigator.serviceWorker.addEventListener('controllerchange', () => {
-                      window.location.reload();
-                    });
-                  } else {
-                    // First time installation, no need to reload
-                    console.log('Service Worker installed for the first time');
-                  }
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New service worker available - activate it (controllerchange will handle reload)
+                  newWorker.postMessage({ type: 'SKIP_WAITING' });
                 }
               });
             }
