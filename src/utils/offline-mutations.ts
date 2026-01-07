@@ -258,11 +258,6 @@ export async function createThreadOffline(userId: string, data: {
   const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = Date.now();
 
-    localId, 
-    color: data.color, 
-    title: data.title 
-  });
-
   const thread: OfflineThread = ensureUserPartition<OfflineThread>({
     id: localId,
     title: data.title,
