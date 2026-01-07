@@ -5,24 +5,6 @@ import { ClientRouter } from "astro:transitions";
 
 // Get redirect URL from query params, fallback to home
 const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
-// Check if user just logged out - prevent auto-redirect in this case
-const loggedOut = Astro.url.searchParams.get('logged_out') === 'true';
-
-// Server-side check: If user is still authenticated when they arrive with logged_out=true,
-// redirect them back to /logout to force complete sign-out
-// This prevents Clerk's SignIn component from auto-redirecting authenticated users
-const auth = Astro.locals.auth();
-const { userId } = auth;
-
-if (userId && loggedOut) {
-  // User is still authenticated but trying to access sign-in after logout
-  // Redirect to logout to complete the sign-out process
-  // Add from_signin parameter to prevent infinite redirect loops
-  return Astro.redirect('/logout?from_signin=true');
-}
-
-// If user just logged out, don't redirect automatically (stay on sign-in page)
-const effectiveRedirectUrl = loggedOut ? undefined : redirectUrl;
 ---
 
 <EmptyLayout title="Sign In">
@@ -93,7 +75,7 @@ const effectiveRedirectUrl = loggedOut ? undefined : redirectUrl;
           }
         }}
         signUpUrl="/sign-up"
-        fallbackRedirectUrl={effectiveRedirectUrl}
+        fallbackRedirectUrl={redirectUrl}
       />
         </div>
       </div>
@@ -112,60 +94,8 @@ const effectiveRedirectUrl = loggedOut ? undefined : redirectUrl;
     // Check if we're in production (avoid using import.meta in inline scripts)
     var isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
     
-    // Check if user just logged out
-    var urlParams = new URLSearchParams(window.location.search);
-    var loggedOut = urlParams.get('logged_out') === 'true';
-    
     // Track if clerk:loaded listener has been set up (only set up once)
     var clerkLoadedListenerSetup = false;
-    
-    // Force sign-out if user is still authenticated after logout
-    function forceSignOutIfNeeded() {
-      if (!loggedOut) return;
-      
-      // Wait for Clerk to be available
-      if (window.Clerk && window.Clerk.signOut) {
-        // User just logged out, but might still have a cached session
-        // Force sign-out to ensure session is fully cleared
-        window.Clerk.signOut().then(function() {
-          // Clear storage
-          try {
-            sessionStorage.clear();
-            localStorage.removeItem('userProfileData');
-            localStorage.removeItem('profileData');
-          } catch (error) {
-            console.error('Storage clear error:', error);
-          }
-          // Remove logged_out parameter to clean up URL
-          var newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('logged_out');
-          window.history.replaceState({}, '', newUrl);
-        }).catch(function(error) {
-          // Sign-out might fail if user is already signed out, which is fine
-          // Just clean up the URL parameter
-          var newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('logged_out');
-          window.history.replaceState({}, '', newUrl);
-        });
-      } else {
-        // Clerk not loaded yet, wait and retry (max 5 seconds)
-        var attempts = 0;
-        var maxAttempts = 50;
-        var checkInterval = setInterval(function() {
-          attempts++;
-          if (window.Clerk && window.Clerk.signOut) {
-            clearInterval(checkInterval);
-            forceSignOutIfNeeded();
-          } else if (attempts >= maxAttempts) {
-            clearInterval(checkInterval);
-            // Clerk didn't load, just clean up URL
-            var newUrl = new URL(window.location.href);
-            newUrl.searchParams.delete('logged_out');
-            window.history.replaceState({}, '', newUrl);
-          }
-        }, 100);
-      }
-    }
     
     // Debug: Check if @clerk/astro scripts are in the DOM
     function checkClerkScripts() {
@@ -235,19 +165,8 @@ const effectiveRedirectUrl = loggedOut ? undefined : redirectUrl;
             console.log('[Clerk] Clerk loaded event fired, mounted components');
           }
         }
-        // Check if we need to force sign-out after Clerk loads
-        forceSignOutIfNeeded();
       });
       clerkLoadedListenerSetup = true;
-    }
-    
-    // Also check on initial load (in case clerk:loaded already fired)
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function() {
-        setTimeout(forceSignOutIfNeeded, 500);
-      });
-    } else {
-      setTimeout(forceSignOutIfNeeded, 500);
     }
     
     // Check for Clerk scripts after a short delay (only on initial load)
