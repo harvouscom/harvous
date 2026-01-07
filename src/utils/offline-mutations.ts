@@ -275,13 +275,6 @@ export async function createThreadOffline(userId: string, data: {
   }, userId);
 
   await offlineDB.threads.add(thread);
-  
-  // Verify color was stored correctly
-  const stored = await offlineDB.threads.where('[userId+id]').equals([userId, localId]).first();
-    id: stored?.id, 
-    color: stored?.color,
-    storedCorrectly: stored?.color === data.color 
-  });
 
   // Queue sync operation
   const mutationData = {
