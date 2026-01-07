@@ -1210,11 +1210,6 @@ export async function needsBootstrap(userId: string): Promise<boolean> {
   try {
     const syncState = await getSyncState(userId);
     const needsBoot = !syncState || !syncState.lastBootstrapTimestamp;
-      userId,
-      hasSyncState: !!syncState,
-      lastBootstrapTimestamp: syncState?.lastBootstrapTimestamp,
-      needsBootstrap: needsBoot
-    });
     return needsBoot;
   } catch (error) {
     console.error('[needsBootstrap] ❌ Error checking bootstrap status:', error);
