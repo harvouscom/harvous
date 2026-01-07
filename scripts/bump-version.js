@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { generateChangelog } from './generate-changelog.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -242,6 +243,26 @@ try {
 
   // Update Service Worker cache name
   updateServiceWorkerCacheName(newVersion);
+
+  // Generate changelog
+  try {
+    const changelogPath = generateChangelog(newVersion, currentVersion);
+    if (changelogPath) {
+      // Stage the changelog file (use relative path from repo root)
+      try {
+        // Get repo root directory
+        const repoRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
+        // Convert absolute path to relative path from repo root
+        const relativePath = changelogPath.replace(repoRoot + '/', '');
+        execSync(`git add ${relativePath}`, { stdio: 'ignore' });
+      } catch (error) {
+        console.warn(`⚠️  Could not stage changelog file. You may need to stage it manually.`);
+      }
+    }
+  } catch (error) {
+    console.warn(`⚠️  Could not generate changelog: ${error.message}`);
+    // Don't fail the version bump if changelog generation fails
+  }
 
   // Stage the updated files
   try {
