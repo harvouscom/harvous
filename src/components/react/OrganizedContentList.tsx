@@ -232,6 +232,10 @@ export default function OrganizedContentList({
   // IMPORTANT: Only run after hydration to avoid wiping server-rendered data
   useEffect(() => {
     if (!userId || !isHydrated) return;
+    
+    // When online, skip local data - use server data only
+    // Local data is only for offline scenarios to avoid duplicates and ID conflicts
+    if (navigator.onLine) return;
 
     const loadLocalData = async () => {
       try {
@@ -353,6 +357,11 @@ export default function OrganizedContentList({
   }, [filter]);
 
   // Unified refresh function
+  // IMPORTANT: This does a FULL REPLACEMENT of currentItems with server data
+  // - Server response is the source of truth (complete, fresh list)
+  // - We do NOT merge with existing currentItems to avoid duplicates and stale data
+  // - Optimistic items are only kept if not confirmed by server response
+  // - This ensures each refresh gets fresh data from the server
   const refreshContent = useCallback(async (options?: {
     expectedItemId?: string;
     expectedItemType?: 'thread' | 'note';
@@ -456,23 +465,50 @@ export default function OrganizedContentList({
         });
 
         // Merge with optimistic items (unfiltered for master list)
+        // Build confirmedIds set with all possible ID formats from server response
         const confirmedIds = new Set<string>();
         normalizedItems.forEach(item => {
-          confirmedIds.add(normalizeId(item.id));
-          if (item.threadId) confirmedIds.add(normalizeId(item.threadId));
-          if (item.noteId) confirmedIds.add(normalizeId(item.noteId));
+          const normalizedId = normalizeId(item.id);
+          confirmedIds.add(normalizedId);
+          if (item.threadId) {
+            confirmedIds.add(normalizeId(item.threadId));
+            // Also add the prefixed version for matching
+            confirmedIds.add(`thread-${normalizeId(item.threadId)}`);
+          }
+          if (item.noteId) {
+            confirmedIds.add(normalizeId(item.noteId));
+            // Also add the prefixed version for matching
+            confirmedIds.add(`note-${normalizeId(item.noteId)}`);
+          }
         });
 
         const optimisticItemsToKeep: OrganizedContentItem[] = [];
         const fiveSecondsAgo = Date.now() - 5000;
 
         optimisticUpdates.optimisticItemsRef.current.forEach(({ timestamp, item: optimisticItem }, itemId) => {
-          const isConfirmed = confirmedIds.has(normalizeId(itemId)) || 
-                             confirmedIds.has(normalizeId(optimisticItem.id));
+          // Check all possible ID formats to see if this optimistic item is confirmed by server response
+          const normalizedItemId = normalizeId(itemId);
+          const normalizedOptimisticId = normalizeId(optimisticItem.id);
+          const normalizedOptimisticThreadId = optimisticItem.threadId ? normalizeId(optimisticItem.threadId) : null;
+          const normalizedOptimisticNoteId = optimisticItem.noteId ? normalizeId(optimisticItem.noteId) : null;
+          
+          const isConfirmed = confirmedIds.has(normalizedItemId) || 
+                             confirmedIds.has(normalizedOptimisticId) ||
+                             (normalizedOptimisticThreadId && confirmedIds.has(normalizedOptimisticThreadId)) ||
+                             (normalizedOptimisticNoteId && confirmedIds.has(normalizedOptimisticNoteId)) ||
+                             // Also check if any server item matches this optimistic item
+                             normalizedItems.some(serverItem => {
+                               if (optimisticItem.type === 'thread') {
+                                 return matchesItem(serverItem, optimisticItem.threadId || optimisticItem.id, 'thread');
+                               } else {
+                                 return matchesItem(serverItem, optimisticItem.noteId || optimisticItem.id, 'note');
+                               }
+                             });
 
           if (!isConfirmed && timestamp > fiveSecondsAgo) {
             optimisticItemsToKeep.push(optimisticItem);
           } else if (isConfirmed) {
+            // Item confirmed by server - remove from optimistic tracking
             optimisticUpdates.removeOptimistic(itemId);
             if (optimisticItem.threadId) optimisticUpdates.removeOptimistic(optimisticItem.threadId);
             if (optimisticItem.noteId) optimisticUpdates.removeOptimistic(optimisticItem.noteId);
@@ -480,9 +516,58 @@ export default function OrganizedContentList({
           }
         });
 
-        // Combine and sort for the master list
-        const combined = [...normalizedItems, ...optimisticItemsToKeep];
-        const sorted = sortItems(combined);
+        // refreshContent does a FULL REPLACEMENT with server data as source of truth
+        // We do NOT deduplicate against currentItemsRef because:
+        // 1. Server response is authoritative - it contains the complete, fresh list
+        // 2. Filtering against currentItemsRef would cause us to lose items or keep stale data
+        // 3. This is a refresh operation, not a merge operation
+
+        // Deduplicate optimistic items against server response
+        // This ensures optimistic items that are confirmed by server are removed
+        // (they're already handled by the confirmation logic above, but this is a safety check)
+        const deduplicatedOptimisticItemsFinal = optimisticItemsToKeep.filter(optimisticItem => {
+          // Check against all normalizedItems (server response) to ensure no duplicates
+          return !normalizedItems.some(normalizedItem => {
+            if (optimisticItem.type === 'thread' && normalizedItem.type === 'thread') {
+              const optimisticThreadId = normalizeId(optimisticItem.threadId || optimisticItem.id);
+              const normalizedThreadId = normalizeId(normalizedItem.threadId || normalizedItem.id);
+              return optimisticThreadId === normalizedThreadId;
+            } else if (optimisticItem.type === 'note' && normalizedItem.type === 'note') {
+              const optimisticNoteId = normalizeId(optimisticItem.noteId || optimisticItem.id);
+              const normalizedNoteId = normalizeId(normalizedItem.noteId || normalizedItem.id);
+              return optimisticNoteId === normalizedNoteId;
+            }
+            return false;
+          });
+        });
+
+        // Combine server response with unconfirmed optimistic items
+        // Server response (normalizedItems) is the source of truth
+        // Optimistic items are only kept if not confirmed by server
+        const combined = [...normalizedItems, ...deduplicatedOptimisticItemsFinal];
+        
+        // Final deduplication pass: use a Set to track seen items by normalized ID
+        // This is a safety net to catch any duplicates within the refresh response itself
+        // (e.g., if server response has duplicates or optimistic items weren't properly filtered)
+        const seenIds = new Set<string>();
+        const finalDeduplicated = combined.filter(item => {
+          // Get the unique identifier for this item (threadId for threads, noteId for notes)
+          const uniqueId = item.type === 'thread' 
+            ? normalizeId(item.threadId || item.id)
+            : normalizeId(item.noteId || item.id);
+          
+          // If we've seen this ID before, skip it (duplicate)
+          if (seenIds.has(uniqueId)) {
+            return false;
+          }
+          
+          // Mark this ID as seen
+          seenIds.add(uniqueId);
+          return true;
+        });
+        
+        // Sort the final deduplicated list
+        const sorted = sortItems(finalDeduplicated);
 
         // Check if we're looking for a specific item (using filtering logic for check only)
         if (options?.expectedItemId && options?.expectedItemType) {
@@ -787,10 +872,6 @@ export default function OrganizedContentList({
             };
 
             optimisticUpdates.addOptimistic(noteId, noteItem);
-            setCurrentItems(prev => {
-              if (prev.some(item => item.noteId === note.id)) return prev;
-              return sortItems([noteItem, ...prev]);
-            });
           }
 
           refreshContent({ 
@@ -830,10 +911,6 @@ export default function OrganizedContentList({
           };
 
           optimisticUpdates.addOptimistic(threadId, threadItem);
-          setCurrentItems(prev => {
-            if (prev.some(item => item.threadId === thread.id)) return prev;
-            return sortItems([threadItem, ...prev]);
-          });
         }
 
         refreshContent({ expectedItemId: threadId, expectedItemType: 'thread' });

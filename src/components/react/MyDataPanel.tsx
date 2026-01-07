@@ -7,10 +7,10 @@ import ClearDataConfirmDialog from './ClearDataConfirmDialog';
 import SquareButton from './SquareButton';
 import ButtonSmall from './ButtonSmall';
 import Icon from './Icon';
-import { safeNavigate } from '@/utils/safe-navigate';
 import { offlineDB } from '@/utils/offline-db';
 import { syncNow, getSyncState } from '@/utils/sync-manager';
 import type { SyncState } from '@/utils/offline-db';
+import { clearNavigationCache } from '@/utils/navigation-cache';
 
 interface MyDataPanelProps {
   onClose?: () => void;
@@ -289,6 +289,30 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
         sessionStorage.removeItem('recentlyCreatedNotes');
         sessionStorage.removeItem('recentlyCreatedThreads');
         
+        // Clear navigation history
+        localStorage.removeItem('harvous-navigation-history-v2');
+        sessionStorage.removeItem('harvous-navigation-history');
+        // Clear navigation backup global variable
+        if (typeof window !== 'undefined' && (window as any).navigationHistoryBackup) {
+          (window as any).navigationHistoryBackup = null;
+        }
+        
+        // Clear thread context tracking
+        localStorage.removeItem('harvous-current-thread-context');
+        localStorage.removeItem('harvous-thread-context-timestamp');
+        localStorage.removeItem('harvous-referrer-thread-context');
+        localStorage.removeItem('harvous-breadcrumb-navigation');
+        
+        // Clear panel state
+        localStorage.removeItem('newNoteThread');
+        localStorage.removeItem('newNoteThreadPending');
+        localStorage.removeItem('newThreadTitle');
+        localStorage.removeItem('newThreadColor');
+        localStorage.removeItem('newThreadType');
+        localStorage.removeItem('showNewNotePanel');
+        localStorage.removeItem('showNewThreadPanel');
+        localStorage.removeItem('showNewResourcePanel');
+        
         // Clear IndexedDB
         try {
           const { offlineDB, ensureDatabaseOpen } = await import('@/utils/offline-db');
@@ -300,9 +324,18 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
           console.warn('[MyDataPanel] Failed to clear IndexedDB:', e);
         }
         
-        // Navigate after a short delay using View Transitions
+        // Clear content cache (harvous_content_cache_* for all filters)
+        const filters = ['all', 'threads', 'notes', 'scripture', 'resources'];
+        filters.forEach(filter => {
+          localStorage.removeItem(`harvous_content_cache_${filter}`);
+        });
+        
+        // Clear navigation cache
+        clearNavigationCache();
+        
+        // Hard page reload to reset all React state
         setTimeout(() => {
-          safeNavigate(window.location.pathname, { history: 'replace' });
+          window.location.href = '/';
         }, 1500);
       } else {
         throw new Error(data.error || 'Failed to clear data');
