@@ -1,8 +1,8 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v0-250-5'; // Bump version for SW changes
-const NAV_API_CACHE = 'harvous-nav-api-v5'; // Increased for thread prefetch caching
+const CACHE_NAME = 'harvous-cache-v0-250-6'; // Bump version for SW changes (fixed merge conflicts)
+const NAV_API_CACHE = 'harvous-nav-api-v6'; // Increased for thread prefetch caching
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 // Resources to pre-cache for faster initial load
@@ -349,19 +349,11 @@ self.addEventListener('fetch', (event) => {
         
         return fetch(event.request).then((response) => {
           if (shouldCacheResponse(response)) {
-<<<<<<< HEAD
             const timestamped = addCacheTimestamp(response.clone());
             // Clone synchronously before returning; later clone() can throw once the body is being read.
             const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
               safeCachePut(cache, event.request, responseToCache);
-=======
-            const timestamped = addCacheTimestamp(response);
-            // Clone before returning to browser - browser will consume the body
-            const timestampedClone = timestamped.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              safeCachePut(cache, event.request, timestampedClone);
->>>>>>> sharp-lalande
             });
             return timestamped;
           }
@@ -612,19 +604,11 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then((response) => {
         if (shouldCacheResponse(response)) {
-<<<<<<< HEAD
           const timestamped = addCacheTimestamp(response.clone());
           // Clone before returning to avoid "body already used" error
           const responseToReturn = timestamped.clone();
           caches.open(CACHE_NAME).then((cache) => {
             safeCachePut(cache, event.request, timestamped);
-=======
-          const timestamped = addCacheTimestamp(response);
-          // Clone before returning to browser - browser will consume the body
-          const timestampedClone = timestamped.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            safeCachePut(cache, event.request, timestampedClone);
->>>>>>> sharp-lalande
           });
           return responseToReturn;
         }
