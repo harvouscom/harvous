@@ -56,7 +56,6 @@ export async function getNextSimpleNoteIdPreview(userId: string): Promise<number
     let userMeta = await offlineDB.userMetadata.where('userId').equals(userId).first();
     
     if (!userMeta) {
-      console.log('[getNextSimpleNoteIdPreview] No user metadata found, checking local notes...');
       
       // Try to find the highest simpleNoteId from existing notes
       const notes = await offlineDB.notes.where('userId').equals(userId).toArray();
@@ -64,7 +63,6 @@ export async function getNextSimpleNoteIdPreview(userId: string): Promise<number
         return note.simpleNoteId && note.simpleNoteId > max ? note.simpleNoteId : max;
       }, 0);
       
-      console.log('[getNextSimpleNoteIdPreview] Found highest simpleNoteId from notes:', highestId);
       
       // If we found notes, return next ID
       if (highestId > 0) {
@@ -72,11 +70,9 @@ export async function getNextSimpleNoteIdPreview(userId: string): Promise<number
       }
       
       // No notes and no metadata - return 1 as first ID
-      console.log('[getNextSimpleNoteIdPreview] No notes found, returning 1 as first ID');
       return 1;
     }
 
-    console.log('[getNextSimpleNoteIdPreview] Found user metadata:', {
       highestSimpleNoteId: userMeta.highestSimpleNoteId,
       hasReservedRange: !!userMeta.reservedSimpleNoteIdRange,
       reservedRange: userMeta.reservedSimpleNoteIdRange,
@@ -91,19 +87,16 @@ export async function getNextSimpleNoteIdPreview(userId: string): Promise<number
       // Find next available ID in range
       for (let id = start; id <= end; id++) {
         if (!usedIds.includes(id)) {
-          console.log('[getNextSimpleNoteIdPreview] Found available ID in reserved range:', id);
           return id; // Return preview without consuming
         }
       }
       
       // All IDs in range are used - fall through to highestSimpleNoteId + 1
-      console.log('[getNextSimpleNoteIdPreview] Reserved range exhausted, falling back to highestSimpleNoteId + 1');
     }
 
     // 2. Fallback to highest seen + 1 (might collide on server, but good for preview)
     // This gives a reasonable estimate when no reserved range exists or range is exhausted
     const nextId = (userMeta.highestSimpleNoteId || 0) + 1;
-    console.log('[getNextSimpleNoteIdPreview] Using fallback ID:', nextId);
     return nextId;
   } catch (error) {
     console.error('[getNextSimpleNoteIdPreview] Error:', error);
@@ -271,7 +264,6 @@ export async function createThreadOffline(userId: string, data: {
   const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = Date.now();
 
-  console.log('[createThreadOffline] Creating thread with color:', { 
     localId, 
     color: data.color, 
     title: data.title 
@@ -297,7 +289,6 @@ export async function createThreadOffline(userId: string, data: {
   
   // Verify color was stored correctly
   const stored = await offlineDB.threads.where('[userId+id]').equals([userId, localId]).first();
-  console.log('[createThreadOffline] Thread stored in IndexedDB:', { 
     id: stored?.id, 
     color: stored?.color,
     storedCorrectly: stored?.color === data.color 
@@ -314,7 +305,6 @@ export async function createThreadOffline(userId: string, data: {
     order: data.order,
   };
   
-  console.log('[createThreadOffline] Queuing mutation with color:', { 
     operation: 'create',
     entityType: 'thread',
     entityId: localId,
@@ -456,7 +446,6 @@ export async function createNoteOffline(userId: string, data: {
       updatedAt: null,
     }, userId);
     await offlineDB.userMetadata.add(userMeta);
-    console.log('[createNoteOffline] Created user metadata', { highestSimpleNoteId: highestExisting });
   }
 
   // If no simpleNoteId provided, try to allocate from reserved range
@@ -484,7 +473,6 @@ export async function createNoteOffline(userId: string, data: {
   if (!simpleNoteId) {
     const currentHighest = userMeta.highestSimpleNoteId || 0;
     simpleNoteId = currentHighest + 1;
-    console.log('[createNoteOffline] Using preview ID:', simpleNoteId);
   }
 
   const note: OfflineNote = ensureUserPartition<OfflineNote>({
@@ -518,7 +506,6 @@ export async function createNoteOffline(userId: string, data: {
       });
       // Also update localStorage cache for instant offline access
       cacheHighestSimpleNoteId(userId, simpleNoteId);
-      console.log('[createNoteOffline] Updated highestSimpleNoteId for preview:', { old: currentHighest, new: simpleNoteId });
     }
   }
 
@@ -819,7 +806,6 @@ export async function createNoteOfflineWithRetry(
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const noteId = await createNoteOffline(userId, data);
-      console.log('[createNoteOfflineWithRetry] Success on attempt', attempt + 1, { noteId });
       return { success: true, noteId };
     } catch (error: any) {
       lastError = error;
@@ -834,7 +820,6 @@ export async function createNoteOfflineWithRetry(
       
       // Don't retry for certain error types
       if (errorType === 'quota_exceeded' || errorType === 'indexeddb_unavailable') {
-        console.log('[createNoteOfflineWithRetry] Non-retryable error, giving up');
         return {
           success: false,
           error: getOfflineErrorMessage(errorType),
@@ -845,7 +830,6 @@ export async function createNoteOfflineWithRetry(
       // Wait before retrying
       if (attempt < retries) {
         const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
-        console.log(`[createNoteOfflineWithRetry] Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
