@@ -54,3 +54,12 @@ export function getPersistedUserId(): string | null {
 export function getPersistedUserIdWithIndexedDB(): string | null {
   return getPersistedUserId();
 }
+
+/**
+ * Persist userId to localStorage
+ * Use this to store userId when user logs in
+ */
+export function persistUserId(userId: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('harvous_userId', userId);
+}
