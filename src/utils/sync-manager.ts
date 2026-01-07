@@ -870,17 +870,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
           await markEntitySynced(op.entityType, res.serverId || op.entityId, userId);
         }
         
-        // Verify thread color after sync
-        if (op.entityType === 'thread') {
-          const threadId = res.serverId || op.entityId;
-          const syncedThread = await offlineDB.threads.where('[userId+id]').equals([userId, threadId]).first();
-            threadId,
-            color: syncedThread?.color,
-            expectedColor: res.data?.color || op.data?.color,
-            colorMatch: syncedThread?.color === (res.data?.color || op.data?.color)
-          });
-        }
-
         // Remove from queue
         await offlineDB.syncQueue.delete(op.id!);
         pushedCount++;
