@@ -639,10 +639,6 @@ export async function pullChanges(userId: string): Promise<SyncResult> {
  * Bootstrap sync (first load)
  */
 export async function bootstrapSync(userId: string): Promise<SyncResult> {
-    isOnline: navigator.onLine,
-    timestamp: new Date().toISOString()
-  });
-
   if (!navigator.onLine) {
     return { success: false, error: 'Bootstrap requires online connection' };
   }
@@ -678,15 +674,6 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
     }
 
     const bootstrapData = await response.json();
-      spaces: bootstrapData.spaces?.length || 0,
-      threads: bootstrapData.threads?.length || 0,
-      notes: bootstrapData.notes?.length || 0,
-      noteThreads: bootstrapData.noteThreads?.length || 0,
-      tags: bootstrapData.tags?.length || 0,
-      noteTags: bootstrapData.noteTags?.length || 0,
-      hasUserMetadata: !!bootstrapData.userMetadata,
-      cursor: bootstrapData.cursor
-    });
 
     await applyBootstrapData(userId, bootstrapData);
 
