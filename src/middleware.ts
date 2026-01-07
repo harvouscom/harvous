@@ -16,7 +16,6 @@ if (import.meta.env.PROD) {
 const isPublicRoute = createRouteMatcher([
   '/sign-in',
   '/sign-up',
-  '/logout',
   '/api/health', // Lightweight warmup endpoint - must be public for cold start optimization
   '/api/test/xp-comprehensive', // Test endpoint for XP system (dev only)
   '/api/webflow/sync-inbox', // Webflow sync endpoint (uses server-side WEBFLOW_API_TOKEN for auth)
