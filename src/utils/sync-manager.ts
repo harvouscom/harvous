@@ -741,9 +741,6 @@ async function updateSyncState(userId: string, updates: Partial<SyncState>): Pro
       if (existing) {
         await offlineDB.syncState.update(userId, updates);
       } else {
-          userId,
-          ...updates
-        });
         await offlineDB.syncState.add({
           userId,
           lastSyncCursor: null,
