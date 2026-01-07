@@ -448,102 +448,107 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
       }
 
-      // OFFLINE-FIRST: Create note in local IndexedDB immediately with retry
+      // OFFLINE-AWARE: Only create in IndexedDB if we're offline
+      // When online, server is the single source of truth to avoid duplication
       let offlineNoteId: string | null = null;
       let offlineSaveError: string | null = null;
-      
-      // Get userId with enhanced fallback mechanisms (includes IndexedDB check)
-      console.log('[useNoteSubmission] Starting userId retrieval with all fallbacks...');
-      let effectiveUserIdResult: { userId: string | null; indexedDBIsEmpty: boolean } = { userId: null, indexedDBIsEmpty: true };
-      try {
-        effectiveUserIdResult = await getEffectiveUserId();
-      } catch (error: any) {
-        console.error('[useNoteSubmission] Error in getEffectiveUserId:', {
-          error: error?.message || error,
-          name: error?.name,
-          stack: error?.stack
-        });
-        // Continue with null - will show error below
-      }
-      
-      const effectiveUserId = effectiveUserIdResult.userId;
-      
-      // Enhanced debug logging to help diagnose userId issues
-      const persistedUserIdValue = getPersistedUserId();
-      const windowUserId = typeof window !== 'undefined' ? (window as any).__harvous_userId : undefined;
-      const localStorageUserId = typeof window !== 'undefined' ? localStorage.getItem('harvous-user-id') : null;
-      
-      console.log('[useNoteSubmission] userId check result:', { 
-        hookUserId: userId, 
-        persistedUserId: persistedUserIdValue,
-        windowUserId: windowUserId,
-        localStorageUserId: localStorageUserId,
-        effectiveUserId: effectiveUserId,
-        indexedDBIsEmpty: effectiveUserIdResult.indexedDBIsEmpty,
-        isOffline: !navigator.onLine,
-        allSources: {
-          hook: userId,
-          persisted: persistedUserIdValue,
-          window: windowUserId,
-          localStorage: localStorageUserId,
-          indexedDB: effectiveUserId ? 'found' : (effectiveUserIdResult.indexedDBIsEmpty ? 'empty' : 'has data but no userId')
-        }
-      });
-      
-      if (effectiveUserId) {
-        const threadIdToUse = overrideThreadId || getSelectedThread().id;
-        const offlineResult = await createNoteOfflineWithRetry(effectiveUserId, {
-          title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
-          content: currentContent,
-          threadId: threadIdToUse,
-          spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
-          noteType: currentNoteType,
-          scriptureReference: currentNoteType === 'scripture' ? formatReferenceForAPI(currentScriptureReference) : undefined,
-          scriptureVersion: currentNoteType === 'scripture' ? currentScriptureVersion : undefined,
-          resourceUrl: currentNoteType === 'resource' ? normalizedResourceUrl : undefined,
-          resourceMetadata: currentNoteType === 'resource' ? resourceMetadata : undefined,
-        });
-        
-        if (offlineResult.success && offlineResult.noteId) {
-          offlineNoteId = offlineResult.noteId;
-          debug('[useNoteSubmission] Note created locally in IndexedDB', { offlineNoteId });
-        } else {
-          offlineSaveError = offlineResult.error || 'Failed to save offline';
-          console.error('[useNoteSubmission] Failed to create note offline:', {
-            error: offlineSaveError,
-            errorType: offlineResult.errorType
+      const isOffline = !navigator.onLine;
+
+      // Only attempt offline save if we're actually offline
+      if (isOffline) {
+        // Get userId with enhanced fallback mechanisms (includes IndexedDB check)
+        console.log('[useNoteSubmission] Offline mode - attempting local save...');
+        let effectiveUserIdResult: { userId: string | null; indexedDBIsEmpty: boolean } = { userId: null, indexedDBIsEmpty: true };
+        try {
+          effectiveUserIdResult = await getEffectiveUserId();
+        } catch (error: any) {
+          console.error('[useNoteSubmission] Error in getEffectiveUserId:', {
+            error: error?.message || error,
+            name: error?.name,
+            stack: error?.stack
           });
-          // Continue with server API call - if offline fails, at least server might work
+          // Continue with null - will show error below
         }
-      } else {
-        // No userId available anywhere - this is a real issue
-        // Enhanced error logging with all diagnostic information
-        const diagnosticInfo = {
+
+        const effectiveUserId = effectiveUserIdResult.userId;
+
+        // Enhanced debug logging to help diagnose userId issues
+        const persistedUserIdValue = getPersistedUserId();
+        const windowUserId = typeof window !== 'undefined' ? (window as any).__harvous_userId : undefined;
+        const localStorageUserId = typeof window !== 'undefined' ? localStorage.getItem('harvous-user-id') : null;
+
+        console.log('[useNoteSubmission] userId check result:', {
           hookUserId: userId,
           persistedUserId: persistedUserIdValue,
           windowUserId: windowUserId,
           localStorageUserId: localStorageUserId,
+          effectiveUserId: effectiveUserId,
           indexedDBIsEmpty: effectiveUserIdResult.indexedDBIsEmpty,
-          isOffline: !navigator.onLine,
-          hasClerkSession: typeof window !== 'undefined' && document.cookie.includes('__clerk'),
-          timestamp: new Date().toISOString()
-        };
-        
-        console.error('[useNoteSubmission] No userId available from any source', diagnosticInfo);
-        debug('[useNoteSubmission] No userId available - diagnostic info:', diagnosticInfo);
-        
-        // Capture exception for monitoring
-        captureException(new Error('No userId available for offline note creation'), {
-          extra: diagnosticInfo
+          isOffline: true,
+          allSources: {
+            hook: userId,
+            persisted: persistedUserIdValue,
+            window: windowUserId,
+            localStorage: localStorageUserId,
+            indexedDB: effectiveUserId ? 'found' : (effectiveUserIdResult.indexedDBIsEmpty ? 'empty' : 'has data but no userId')
+          }
         });
-        
-        // Set a more actionable error message based on IndexedDB state
-        if (effectiveUserIdResult.indexedDBIsEmpty) {
-          offlineSaveError = 'You need to sign in while online first to set up offline access. After signing in online, you\'ll be able to create notes offline.';
+
+        if (effectiveUserId) {
+          const threadIdToUse = overrideThreadId || getSelectedThread().id;
+          const offlineResult = await createNoteOfflineWithRetry(effectiveUserId, {
+            title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
+            content: currentContent,
+            threadId: threadIdToUse,
+            spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
+            noteType: currentNoteType,
+            scriptureReference: currentNoteType === 'scripture' ? formatReferenceForAPI(currentScriptureReference) : undefined,
+            scriptureVersion: currentNoteType === 'scripture' ? currentScriptureVersion : undefined,
+            resourceUrl: currentNoteType === 'resource' ? normalizedResourceUrl : undefined,
+            resourceMetadata: currentNoteType === 'resource' ? resourceMetadata : undefined,
+          });
+
+          if (offlineResult.success && offlineResult.noteId) {
+            offlineNoteId = offlineResult.noteId;
+            debug('[useNoteSubmission] Note created locally in IndexedDB (offline)', { offlineNoteId });
+          } else {
+            offlineSaveError = offlineResult.error || 'Failed to save offline';
+            console.error('[useNoteSubmission] Failed to create note offline:', {
+              error: offlineSaveError,
+              errorType: offlineResult.errorType
+            });
+          }
         } else {
-          offlineSaveError = 'Unable to access your offline data. Please sign in while online first, then you can create notes offline.';
+          // No userId available anywhere - this is a real issue
+          // Enhanced error logging with all diagnostic information
+          const diagnosticInfo = {
+            hookUserId: userId,
+            persistedUserId: persistedUserIdValue,
+            windowUserId: windowUserId,
+            localStorageUserId: localStorageUserId,
+            indexedDBIsEmpty: effectiveUserIdResult.indexedDBIsEmpty,
+            isOffline: true,
+            hasClerkSession: typeof window !== 'undefined' && document.cookie.includes('__clerk'),
+            timestamp: new Date().toISOString()
+          };
+
+          console.error('[useNoteSubmission] No userId available from any source', diagnosticInfo);
+          debug('[useNoteSubmission] No userId available - diagnostic info:', diagnosticInfo);
+
+          // Capture exception for monitoring
+          captureException(new Error('No userId available for offline note creation'), {
+            extra: diagnosticInfo
+          });
+
+          // Set a more actionable error message based on IndexedDB state
+          if (effectiveUserIdResult.indexedDBIsEmpty) {
+            offlineSaveError = 'You need to sign in while online first to set up offline access. After signing in online, you\'ll be able to create notes offline.';
+          } else {
+            offlineSaveError = 'Unable to access your offline data. Please sign in while online first, then you can create notes offline.';
+          }
         }
       }
+      // End of offline-only save block - when online, we skip straight to server API
 
       // Try to push to server (will queue if offline)
       let response: Response | null = null;

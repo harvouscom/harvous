@@ -279,9 +279,12 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           formData.append('selectedNoteIds', JSON.stringify(selectedNoteIds));
         }
         
-        // OFFLINE-FIRST: Create thread in local IndexedDB immediately
+        // OFFLINE-AWARE: Only create in IndexedDB if we're offline
+        // When online, server is the single source of truth to avoid duplication
         let offlineThreadId: string | null = null;
-        if (userId) {
+        const isOffline = !navigator.onLine;
+
+        if (isOffline && userId) {
           try {
             offlineThreadId = await createThreadOffline(userId, {
               title: title.trim(),
@@ -289,16 +292,16 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
               spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
               isPublic: false,
             });
-            console.log('[NewThreadPanel] Thread created locally in IndexedDB', { offlineThreadId });
+            console.log('[NewThreadPanel] Thread created locally in IndexedDB (offline)', { offlineThreadId });
           } catch (err) {
             console.error('[NewThreadPanel] Failed to create thread offline:', err);
-            // Continue with server API call
+            // Continue - will show error if server also fails
           }
         }
-        
+
         let response: Response | null = null;
         let networkError = false;
-        
+
         try {
           response = await fetch('/api/threads/create', {
             method: 'POST',
