@@ -37,3 +37,20 @@ export function usePersistedUserId(): string | null {
 
   return userId;
 }
+/**
+ * Get persisted userId synchronously from localStorage
+ * Returns null if no userId is stored
+ * Use this for non-React contexts where hooks can't be used
+ */
+export function getPersistedUserId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('harvous_userId');
+}
+
+/**
+ * Alias for getPersistedUserId - kept for backwards compatibility
+ * Use getPersistedUserId() instead
+ */
+export function getPersistedUserIdWithIndexedDB(): string | null {
+  return getPersistedUserId();
+}
