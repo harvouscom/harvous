@@ -744,6 +744,11 @@
   opacity: 1;
 }
 
+/* Show action buttons on hover for content items (threads/notes in OrganizedContentList) */
+.content-item:hover .panel__item-list-item-actions {
+  opacity: 1;
+}
+
 /* Show action buttons by default on touch-only devices */
 @media (hover: none) {
   .panel__item-list-item-actions {

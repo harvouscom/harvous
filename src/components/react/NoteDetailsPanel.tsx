@@ -505,7 +505,7 @@ export default function NoteDetailsPanel({
                           className="text-metadata cursor-pointer"
                           title="Click to copy note ID"
                         >
-                          {`#N${noteSimpleId.toString().padStart(3, '0')}`}
+                          {`N${noteSimpleId.toString().padStart(3, '0')}`}
                         </button>
                       )}
                     </div>

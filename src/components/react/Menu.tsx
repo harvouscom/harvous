@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { createPortal } from 'react-dom';
+import { usePersistedUserId } from '@/utils/user-id';
 import { safeNavigate } from '@/utils/safe-navigate';
 import EraseConfirmDialog from './EraseConfirmDialog';
+import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
+import { isNetworkError } from '@/utils/network';
 
 export interface MenuOption {
   action: string;
@@ -101,6 +104,10 @@ export default function Menu({
   currentThreadId, // Add this prop
   onClose
 }: MenuProps) {
+  // Get userId at top level (not inside async functions) to comply with Rules of Hooks
+  // Works online (from Clerk) and offline (from localStorage)
+  const userId = usePersistedUserId();
+
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [isExiting, setIsExiting] = useState(false);
@@ -250,30 +257,98 @@ export default function Menu({
     }
     
     try {
-      // Make the delete request
-      const response = await fetch(`${apiUrl}?${paramName}=${encodeURIComponent(contentId)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        console.error('Delete failed:', data);
-        const errorMessage = data.error || 'Failed to erase item';
-        
-        if ((window as any).toast) {
-          (window as any).toast.error(errorMessage);
-        } else {
-          alert('Failed to erase item: ' + errorMessage);
+      // OFFLINE-FIRST: Delete from local IndexedDB immediately
+      // Use userId from component closure (set at top level)
+      if (userId) {
+        try {
+          if (contentType === 'note') {
+            await deleteNoteOffline(userId, contentId);
+          } else if (contentType === 'thread') {
+            await deleteThreadOffline(userId, contentId);
+          } else if (contentType === 'space') {
+            await deleteSpaceOffline(userId, contentId);
+          }
+          console.log(`[Menu] ${contentType} deleted locally in IndexedDB`, { id: contentId });
+        } catch (err) {
+          console.error(`[Menu] Failed to delete ${contentType} offline:`, err);
+          // Continue with server API call
         }
-        return;
       }
       
-      if (data.success || response.status === 200) {
+      // Show success message immediately for offline-first experience
+      if ((window as any).toast) {
+        (window as any).toast.success(successMessage);
+      }
+      
+      // Then try to push deletion to server
+      let response: Response | null = null;
+      let networkError = false;
+      let data: any = null;
+      
+      try {
+        response = await fetch(`${apiUrl}?${paramName}=${encodeURIComponent(contentId)}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+        
+        if (response) {
+          data = await response.json();
+        }
+      } catch (error) {
+        // Network error occurred
+        networkError = isNetworkError(error);
+        
+        if (networkError) {
+          // Network error but local deletion succeeded - proceed with navigation
+          console.log('[Menu] Network error but item deleted offline, proceeding with navigation', { contentType, contentId });
+          
+          // Dispatch deletion events for navigation updates
+          if (contentType === 'thread') {
+            window.dispatchEvent(new CustomEvent('threadDeleted', {
+              detail: { threadId: contentId }
+            }));
+          } else if (contentType === 'note') {
+            window.dispatchEvent(new CustomEvent('noteDeleted', {
+              detail: { 
+                noteId: contentId,
+                threadId: currentThreadId
+              }
+            }));
+          } else if (contentType === 'space') {
+            window.dispatchEvent(new CustomEvent('spaceDeleted', {
+              detail: { spaceId: contentId }
+            }));
+          }
+          
+          // Navigate based on content type
+          let redirectUrl: string;
+          if (contentType === 'note') {
+            const currentPath = window.location.pathname;
+            const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
+            if (threadPageMatch) {
+              const threadIdFromUrl = threadPageMatch[1];
+              redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
+            } else if (currentThreadId) {
+              redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
+            } else {
+              redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+            }
+          } else {
+            redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+          }
+          
+          safeNavigate(redirectUrl, { history: 'replace' });
+          return;
+        } else {
+          // Real error - rethrow
+          throw error;
+        }
+      }
+      
+      if (response && response.ok) {
         // Dispatch appropriate deletion event for navigation updates
         if (contentType === 'thread') {
           window.dispatchEvent(new CustomEvent('threadDeleted', {
@@ -305,8 +380,53 @@ export default function Menu({
             detail: { spaceId: contentId }
           }));
         }
+      } else if (response) {
+        // Server returned error but local deletion succeeded
+        console.error('Delete failed:', data);
+        const errorMessage = data?.error || 'Failed to sync deletion with server';
+        console.error('[Menu] Server deletion failed:', errorMessage);
         
-        // Redirect based on content type
+        // Item is already deleted locally, proceed with navigation
+        // Dispatch deletion events
+        if (contentType === 'thread') {
+          window.dispatchEvent(new CustomEvent('threadDeleted', {
+            detail: { threadId: contentId }
+          }));
+        } else if (contentType === 'note') {
+          window.dispatchEvent(new CustomEvent('noteDeleted', {
+            detail: { 
+              noteId: contentId,
+              threadId: currentThreadId
+            }
+          }));
+        } else if (contentType === 'space') {
+          window.dispatchEvent(new CustomEvent('spaceDeleted', {
+            detail: { spaceId: contentId }
+          }));
+        }
+        
+        // Navigate based on content type
+        let redirectUrl: string;
+        if (contentType === 'note') {
+          const currentPath = window.location.pathname;
+          const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
+          if (threadPageMatch) {
+            const threadIdFromUrl = threadPageMatch[1];
+            redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
+          } else if (currentThreadId) {
+            redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
+          } else {
+            redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+          }
+        } else {
+          redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+        }
+        
+        safeNavigate(redirectUrl, { history: 'replace' });
+        return;
+      }
+        
+        // Redirect based on content type (only reached if response.ok was true)
         let redirectUrl: string;
         if (contentType === 'note') {
           // Priority 1: If we're on a thread page, always redirect back to that thread
@@ -316,17 +436,14 @@ export default function Menu({
           if (threadPageMatch) {
             const threadIdFromUrl = threadPageMatch[1];
             redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
-          }
-          // Priority 2: Use the explicitly passed currentThreadId if available
-          else if (currentThreadId) {
+          } else if (currentThreadId) {
+            // Priority 2: Use the explicitly passed currentThreadId if available
             redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
-          }
-          // Priority 3: Fallback to the threadId from the API response
-          else if (data.threadId && data.threadId !== 'thread_unorganized') {
+          } else if (data.threadId && data.threadId !== 'thread_unorganized') {
+            // Priority 3: Fallback to the threadId from the API response
             redirectUrl = `/${data.threadId}?toast=success&message=` + encodeURIComponent(successMessage);
-          }
-          // Priority 4: Fallback to dashboard
-          else {
+          } else {
+            // Priority 4: Fallback to dashboard
             redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
           }
         } else {
@@ -335,21 +452,56 @@ export default function Menu({
         }
         // Use View Transitions instead of hard redirect to maintain React state
         safeNavigate(redirectUrl, { history: 'replace' });
-      } else {
-        // Show error toast immediately (no redirect on error)
-        console.error('Delete failed:', data.error);
-        if ((window as any).toast) {
-          (window as any).toast.error(data.error || 'Failed to erase item');
-        } else {
-          alert('Failed to erase item: ' + (data.error || 'Unknown error'));
-        }
-      }
     } catch (error) {
-      console.error('Error deleting item:', error);
-      if ((window as any).toast) {
-        (window as any).toast.error('Failed to erase item');
+      // Check if this is a network error and local deletion succeeded
+      if (isNetworkError(error) && userId) {
+        // Network error but local deletion succeeded - proceed with navigation
+        console.log('[Menu] Network error but item deleted offline, proceeding with navigation', { contentType, contentId });
+        
+        // Dispatch deletion events
+        if (contentType === 'thread') {
+          window.dispatchEvent(new CustomEvent('threadDeleted', {
+            detail: { threadId: contentId }
+          }));
+        } else if (contentType === 'note') {
+          window.dispatchEvent(new CustomEvent('noteDeleted', {
+            detail: { 
+              noteId: contentId,
+              threadId: currentThreadId
+            }
+          }));
+        } else if (contentType === 'space') {
+          window.dispatchEvent(new CustomEvent('spaceDeleted', {
+            detail: { spaceId: contentId }
+          }));
+        }
+        
+        // Navigate based on content type
+        let redirectUrl: string;
+        if (contentType === 'note') {
+          const currentPath = window.location.pathname;
+          const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
+          if (threadPageMatch) {
+            const threadIdFromUrl = threadPageMatch[1];
+            redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
+          } else if (currentThreadId) {
+            redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
+          } else {
+            redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+          }
+        } else {
+          redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+        }
+        
+        safeNavigate(redirectUrl, { history: 'replace' });
       } else {
-        alert('Failed to erase item. Please check the console for details.');
+        // Real error - log and show error toast
+        console.error('Error deleting item:', error);
+        if ((window as any).toast) {
+          (window as any).toast.error('Failed to erase item');
+        } else {
+          alert('Failed to erase item. Please check the console for details.');
+        }
       }
     }
   };
@@ -389,7 +541,7 @@ export default function Menu({
         style={!isMounted ? { opacity: 0, transform: 'translateY(-2px)' } : undefined}
       >
         {options.map((option, index) => (
-          <React.Fragment key={index}>
+          <Fragment key={index}>
             {index > 0 && (
               <div className="menu-separator border-t" />
             )}
@@ -404,7 +556,7 @@ export default function Menu({
                 {option.label}
               </span>
             </button>
-          </React.Fragment>
+          </Fragment>
         ))}
       </div>
 

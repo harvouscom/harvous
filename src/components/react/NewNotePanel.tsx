@@ -45,7 +45,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
   const { addToNavigationHistory, navigationHistory } = navigation;
 
   // State for next note ID, unsaved dialog, and suggested thread
-  const [nextNoteId, setNextNoteId] = useState('#New');
+  const [nextNoteId, setNextNoteId] = useState('000');
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [suggestedThreadName, setSuggestedThreadName] = useState<string | null>(null);
   const [showSuggestedThreadDialog, setShowSuggestedThreadDialog] = useState(false);
@@ -98,7 +98,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       
       if (response && response.ok) {
         const data = await response.json();
-        setNextNoteId(`#${data.formattedId}`);
+        setNextNoteId(`${data.formattedId}`);
       }
     } catch (error) {
       captureException(error as Error);
@@ -867,7 +867,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
         <div className="mb-3.5 shrink-0">
           <ThreadCombobox
             selectedThread={threadSelection.selectedThread}
-            onThreadSelect={(thread) => {
+            onThreadSelect={(thread: string) => {
               threadSelection.handleThreadSelect(thread);
               setSuggestedThreadName(null); // Clear suggestion when user manually selects
               
@@ -882,14 +882,14 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
             threads={threadSelection.threadOptions}
             placeholder="Select thread..."
             suggestedThreadName={suggestedThreadName}
-            onSuggestedThreadNameChange={(editedName) => {
+            onSuggestedThreadNameChange={(editedName: string) => {
               // Sync edited thread name back to suggestedThreadName state
               // This ensures the SuggestedThreadDialog shows the edited name
               if (editedName && editedName.trim()) {
                 setSuggestedThreadName(editedName.trim());
               }
             }}
-            onCreateThread={async (threadName) => {
+            onCreateThread={async (threadName: string) => {
               const trimmedName = threadName.trim();
               if (!trimmedName) return;
 

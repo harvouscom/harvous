@@ -1,6 +1,7 @@
 import React from 'react';
 import OverlappingNotes from './OverlappingNotes';
 import { stripHtml } from '@/utils/html-stripper';
+import { getThreadColorCSS } from '@/utils/colors';
 
 export interface CardFeatProps {
   variant?: "Thread" | "Note" | "NoteImage";
@@ -15,10 +16,10 @@ export interface CardFeatProps {
   threadType?: string; // Thread type from CMS (e.g., 'Default')
 }
 
-// Map color names to CSS variable names
+// Map long color names to short names for getThreadColorCSS
 // Handles both short names (blue) and long names (blessed-blue)
-function getColorCSSVariable(colorName: string | undefined | null): string {
-  if (!colorName) return "var(--color-blue)"; // Default to blue
+function mapColorName(colorName: string | undefined | null): string {
+  if (!colorName) return "blue"; // Default to blue
   
   // Map long color names to short CSS variable names
   const colorMap: Record<string, string> = {
@@ -38,8 +39,7 @@ function getColorCSSVariable(colorName: string | undefined | null): string {
     "purple": "purple",
   };
   
-  const mappedColor = colorMap[colorName.toLowerCase()] || "blue";
-  return `var(--color-${mappedColor})`;
+  return colorMap[colorName.toLowerCase()] || "blue";
 }
 
 
@@ -56,7 +56,7 @@ export default function CardFeat({
   threadType
 }: CardFeatProps) {
   const bgStyle = variant === "Thread" 
-    ? { backgroundColor: getColorCSSVariable(color) }
+    ? { backgroundColor: getThreadColorCSS(mapColorName(color)) }
     : variant === "NoteImage" && imageUrl 
       ? { backgroundImage: `url('${imageUrl}')` }
       : undefined;

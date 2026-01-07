@@ -41,6 +41,7 @@ export default function InfiniteScrollList<T>({
   const observerTarget = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Helper function to check if element is visible
   const isElementVisible = useCallback((element: HTMLElement | null): boolean => {
@@ -127,7 +128,27 @@ export default function InfiniteScrollList<T>({
       setHasMore(result.hasMore);
     } catch (err: any) {
       console.error('Error loading more items:', err);
-      setError(err.message || 'Failed to load more items');
+      // Sanitize error messages to remove HTML content
+      let errorMessage = err.message || 'Failed to load more items';
+      // Remove HTML tags and DOCTYPE references
+      if (errorMessage.includes('<!DOCTYPE') || errorMessage.includes('<html')) {
+        errorMessage = 'Server returned an error page. Please try again.';
+      } else if (errorMessage.includes('<')) {
+        // Remove any HTML tags from error message
+        errorMessage = errorMessage.replace(/<[^>]*>/g, '').trim();
+        if (!errorMessage) {
+          errorMessage = 'Failed to load more items';
+        }
+      }
+      setError(errorMessage);
+      // Clear error after 5 seconds to prevent persistent flickering
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+      errorTimeoutRef.current = setTimeout(() => {
+        setError(null);
+        errorTimeoutRef.current = null;
+      }, 5000);
     } finally {
       setIsLoading(false);
       loadingRef.current = false;
@@ -146,8 +167,13 @@ export default function InfiniteScrollList<T>({
     // Trigger if:
     // 1. hasMore is true (API says there are more items) AND component is visible
     // 2. Only auto-load if hasMore is true - respect API's hasMore value
+    // 3. Also trigger when items are empty but hasMore is true (e.g., scripture tab after refresh)
     // Don't force loading based on item count alone, as this can cause infinite loops
-    const shouldTriggerLoad = hasMore && !isLoading && !loadingRef.current && isVisible;
+    const shouldTriggerLoad = hasMore && 
+      !isLoading && 
+      !loadingRef.current && 
+      isVisible &&
+      (items.length < expectedCount || items.length === 0);
     
     if (shouldTriggerLoad) {
       // Small delay to avoid race conditions with other effects
@@ -266,6 +292,16 @@ export default function InfiniteScrollList<T>({
       }
     };
   }, [hasMore, isLoading, items.length, limit, minimumExpectedCount, handleLoadMore, isElementVisible]);
+
+  // Cleanup error timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+        errorTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div ref={containerRef} className={className}>

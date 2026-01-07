@@ -169,6 +169,20 @@ export default function EditThreadPanel({
           }
         }
         
+        // Store threadId in sessionStorage for refresh on navigation
+        try {
+          const recentlyUpdatedThreads = JSON.parse(sessionStorage.getItem('recentlyUpdatedThreads') || '[]');
+          recentlyUpdatedThreads.push({
+            threadId: threadId,
+            timestamp: Date.now()
+          });
+          // Keep only last 10 updates
+          const trimmed = recentlyUpdatedThreads.slice(-10);
+          sessionStorage.setItem('recentlyUpdatedThreads', JSON.stringify(trimmed));
+        } catch (error) {
+          console.warn('Failed to store thread update in sessionStorage:', error);
+        }
+        
         // Dispatch threadUpdated event to refresh dashboard
         window.dispatchEvent(new CustomEvent('threadUpdated', {
           detail: { threadId: threadId }

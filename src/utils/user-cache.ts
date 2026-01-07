@@ -261,6 +261,100 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       // Don't fail user creation if inbox assignment fails
       console.error('Error assigning inbox items to new user:', error);
     }
+
+    // Create onboarding thread with sample notes for new users
+    try {
+      const { generateThreadId, generateNoteId } = await import('@/utils/ids');
+      const { ensureUnorganizedThread } = await import('@/utils/unorganized-thread');
+      const { loadOnboardingNotes } = await import('@/utils/load-onboarding-notes');
+      const { db: dbImport, Threads, Notes, NoteThreads, eq } = await import('astro:db');
+      
+      // Ensure unorganized thread exists first
+      await ensureUnorganizedThread(userId);
+      
+      // Load onboarding notes from markdown files
+      const onboardingNotes = loadOnboardingNotes();
+      
+      if (onboardingNotes.length === 0) {
+        console.warn('No onboarding notes found, skipping onboarding thread creation');
+      } else {
+        // Create onboarding thread
+        const onboardingThreadId = `thread_onboarding_${userId}`;
+        const onboardingThreadTitle = "Welcome to Harvous";
+        const capitalizedThreadTitle = onboardingThreadTitle.charAt(0).toUpperCase() + onboardingThreadTitle.slice(1);
+        const now = new Date();
+        await dbImport.insert(Threads).values({
+          id: onboardingThreadId,
+          title: capitalizedThreadTitle,
+          subtitle: `${onboardingNotes.length} notes to get you started`,
+          color: 'blue',
+          spaceId: null,
+          userId: userId,
+          isPublic: false,
+          isPinned: false,
+          createdAt: now,
+          updatedAt: now,
+          lastVisited: now, // Set lastVisited so thread appears in "All" tab and sorts correctly
+        });
+        
+        // Create notes from loaded markdown content
+        let currentSimpleNoteId = 1;
+        for (const noteData of onboardingNotes) {
+          const noteId = generateNoteId();
+          
+          // Capitalize note title to match pattern used elsewhere
+          const capitalizedNoteTitle = noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1);
+          
+          // Create the note with HTML content from markdown
+          await dbImport.insert(Notes).values({
+            id: noteId,
+            title: capitalizedNoteTitle,
+            content: noteData.content, // Already converted to HTML
+            threadId: onboardingThreadId,
+            spaceId: null,
+            simpleNoteId: currentSimpleNoteId,
+            userId: userId,
+            isPublic: false,
+            addedBy: 'system',
+            createdAt: new Date(),
+          });
+          
+          // Link note to thread via junction table
+          const junctionId = `note-thread-${noteId}-${Date.now()}`;
+          await dbImport.insert(NoteThreads).values({
+            id: junctionId,
+            noteId: noteId,
+            threadId: onboardingThreadId,
+            createdAt: new Date()
+          });
+          
+          // Process scripture references in the note content
+          // This will detect references like "John 3:16" and create scripture pills
+          try {
+            const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+            await processScriptureReferences(noteId, userId, onboardingThreadId, noteData.content);
+          } catch (scriptureError: any) {
+            // Don't fail note creation if scripture processing fails
+            console.error(`Error processing scripture references for note ${noteId}:`, scriptureError);
+          }
+          
+          currentSimpleNoteId++;
+        }
+        
+        // Update user metadata with highest simpleNoteId
+        await dbImport.update(UserMetadata)
+          .set({ 
+            highestSimpleNoteId: currentSimpleNoteId - 1,
+            updatedAt: new Date()
+          })
+          .where(eq(UserMetadata.userId, userId));
+        
+        console.log(`✅ Created onboarding thread with ${onboardingNotes.length} notes for user ${userId}`);
+      }
+    } catch (error) {
+      // Don't fail user creation if onboarding thread creation fails
+      console.error('Error creating onboarding thread:', error);
+    }
   }
 
   // Return the Clerk values (our source of truth)

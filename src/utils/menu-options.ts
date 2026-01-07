@@ -36,9 +36,11 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
   
   switch (contentType) {
     case "thread":
+      // Check if this is an onboarding thread
+      const isOnboardingThread = contentId?.startsWith('thread_onboarding_');
       return [
         { action: "editThread", label: "Edit Thread" },
-        { action: "eraseThread", label: "Erase Thread" }
+        { action: isOnboardingThread ? "eraseThreadAndNotes" : "eraseThread", label: isOnboardingThread ? "Erase Thread & Notes" : "Erase Thread" }
       ];
     case "note":
       return [
