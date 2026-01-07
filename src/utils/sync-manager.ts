@@ -714,6 +714,18 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
       throw new Error(`Bootstrap failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
+    // Check Content-Type before parsing to avoid HTML parsing errors
+    const contentType = response.headers.get('Content-Type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const responseText = await response.text().catch(() => 'Could not read response');
+      console.error('[bootstrapSync] ❌ Expected JSON but got:', {
+        contentType,
+        responsePreview: responseText.slice(0, 200)
+      });
+      // This is likely an auth redirect - return a silent auth error
+      throw new Error('AUTH_NOT_READY');
+    }
+
     console.log('[bootstrapSync] 📦 Parsing bootstrap data...');
     const bootstrapData = await response.json();
     console.log('[bootstrapSync] 📊 Bootstrap data received:', {
@@ -742,18 +754,23 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
     console.log('[bootstrapSync] ✅ Bootstrap completed successfully:', result);
     return result;
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
     console.error('[bootstrapSync] ❌ Error bootstrapping sync:', {
       error,
-      message: error instanceof Error ? error.message : String(error),
+      message: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
       userId
     });
-    
+
+    // Don't save AUTH_NOT_READY errors to sync state (no user-facing error)
+    const syncError = errorMessage === 'AUTH_NOT_READY' ? null : errorMessage;
+
     await updateSyncState(userId, {
       isSyncing: false,
-      syncError: error instanceof Error ? error.message : String(error),
+      syncError,
     });
-    
+
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
