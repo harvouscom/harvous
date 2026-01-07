@@ -127,11 +127,9 @@ export function shouldRetryError(errorType: SyncErrorType): boolean {
  * Apply bootstrap data to local IndexedDB
  */
 export async function applyBootstrapData(userId: string, bootstrapData: any): Promise<void> {
-  console.log('[applyBootstrapData] 🔄 Starting to apply bootstrap data for userId:', userId);
   
   try {
     // Clear existing data for this user (fresh start)
-    console.log('[applyBootstrapData] 🗑️ Clearing existing data for user...');
     await Promise.all([
       offlineDB.spaces.where('userId').equals(userId).delete(),
       offlineDB.threads.where('userId').equals(userId).delete(),
@@ -141,11 +139,9 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
       offlineDB.noteTags.where('userId').equals(userId).delete(),
       offlineDB.userMetadata.where('userId').equals(userId).delete(),
     ]);
-    console.log('[applyBootstrapData] ✅ Existing data cleared');
 
     // Insert spaces
     if (bootstrapData.spaces && bootstrapData.spaces.length > 0) {
-      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.spaces.length} spaces...`);
       const spaces: OfflineSpace[] = bootstrapData.spaces.map((space: any) =>
         ensureUserPartition<OfflineSpace>({
           id: space.id,
@@ -164,14 +160,11 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.spaces.bulkPut(spaces);
-      console.log(`[applyBootstrapData] ✅ Inserted ${spaces.length} spaces`);
     } else {
-      console.log('[applyBootstrapData] ℹ️ No spaces to insert');
     }
 
     // Insert threads
     if (bootstrapData.threads && bootstrapData.threads.length > 0) {
-      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.threads.length} threads...`);
       const threads: OfflineThread[] = bootstrapData.threads.map((thread: any) =>
         ensureUserPartition<OfflineThread>({
           id: thread.id,
@@ -191,14 +184,11 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.threads.bulkPut(threads);
-      console.log(`[applyBootstrapData] ✅ Inserted ${threads.length} threads`);
     } else {
-      console.log('[applyBootstrapData] ℹ️ No threads to insert');
     }
 
     // Insert notes
     if (bootstrapData.notes && bootstrapData.notes.length > 0) {
-      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.notes.length} notes...`);
       const notes: OfflineNote[] = bootstrapData.notes.map((note: any) =>
         ensureUserPartition<OfflineNote>({
           id: note.id,
@@ -221,14 +211,11 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.notes.bulkPut(notes);
-      console.log(`[applyBootstrapData] ✅ Inserted ${notes.length} notes`);
     } else {
-      console.log('[applyBootstrapData] ℹ️ No notes to insert');
     }
 
     // Insert noteThreads
     if (bootstrapData.noteThreads && bootstrapData.noteThreads.length > 0) {
-      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.noteThreads.length} noteThreads...`);
       const noteThreads: OfflineNoteThread[] = bootstrapData.noteThreads.map((nt: any) =>
         ensureUserPartition<OfflineNoteThread>({
           id: nt.id,
@@ -242,14 +229,11 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.noteThreads.bulkPut(noteThreads);
-      console.log(`[applyBootstrapData] ✅ Inserted ${noteThreads.length} noteThreads`);
     } else {
-      console.log('[applyBootstrapData] ℹ️ No noteThreads to insert');
     }
 
     // Insert tags
     if (bootstrapData.tags && bootstrapData.tags.length > 0) {
-      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.tags.length} tags...`);
       const tags: OfflineTag[] = bootstrapData.tags.map((tag: any) =>
         ensureUserPartition<OfflineTag>({
           id: tag.id,
@@ -265,14 +249,11 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.tags.bulkPut(tags);
-      console.log(`[applyBootstrapData] ✅ Inserted ${tags.length} tags`);
     } else {
-      console.log('[applyBootstrapData] ℹ️ No tags to insert');
     }
 
     // Insert noteTags
     if (bootstrapData.noteTags && bootstrapData.noteTags.length > 0) {
-      console.log(`[applyBootstrapData] 📦 Inserting ${bootstrapData.noteTags.length} noteTags...`);
       const noteTags: OfflineNoteTag[] = bootstrapData.noteTags.map((nt: any) =>
         ensureUserPartition<OfflineNoteTag>({
           id: nt.id,
@@ -288,14 +269,11 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.noteTags.bulkPut(noteTags);
-      console.log(`[applyBootstrapData] ✅ Inserted ${noteTags.length} noteTags`);
     } else {
-      console.log('[applyBootstrapData] ℹ️ No noteTags to insert');
     }
 
     // Insert/update userMetadata
     if (bootstrapData.userMetadata) {
-      console.log('[applyBootstrapData] 📦 Inserting userMetadata...');
       const um = bootstrapData.userMetadata;
       const userMetadata: OfflineUserMetadata = ensureUserPartition<OfflineUserMetadata>({
         id: um.id,
@@ -322,7 +300,6 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         updatedAt: um.updatedAt ? new Date(um.updatedAt) : null,
       }, userId);
       await offlineDB.userMetadata.put(userMetadata);
-      console.log('[applyBootstrapData] ✅ Inserted userMetadata:', {
         userId: userMetadata.userId,
         highestSimpleNoteId: userMetadata.highestSimpleNoteId
       });
@@ -330,10 +307,8 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
       // Cache highestSimpleNoteId in localStorage for instant offline access
       if (um.highestSimpleNoteId !== undefined) {
         cacheHighestSimpleNoteId(userId, um.highestSimpleNoteId);
-        console.log('[applyBootstrapData] 💾 Cached highestSimpleNoteId to localStorage:', um.highestSimpleNoteId);
       }
     } else {
-      console.log('[applyBootstrapData] ⚠️ No userMetadata in bootstrap data');
     }
 
     // Update sync state
@@ -344,18 +319,15 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
       isSyncing: false,
       syncError: null,
     };
-    console.log('[applyBootstrapData] 📝 Updating sync state:', syncStateUpdate);
     await updateSyncState(userId, syncStateUpdate);
     
     // Verify sync state was updated
     const updatedState = await getSyncState(userId);
-    console.log('[applyBootstrapData] ✅ Sync state updated:', {
       lastSyncTimestamp: updatedState?.lastSyncTimestamp,
       lastBootstrapTimestamp: updatedState?.lastBootstrapTimestamp,
       isSyncing: updatedState?.isSyncing
     });
     
-    console.log('[applyBootstrapData] ✅ Bootstrap data application completed successfully');
   } catch (error) {
     console.error('[applyBootstrapData] ❌ Error applying bootstrap data:', {
       error,
@@ -677,27 +649,22 @@ export async function pullChanges(userId: string): Promise<SyncResult> {
  * Bootstrap sync (first load)
  */
 export async function bootstrapSync(userId: string): Promise<SyncResult> {
-  console.log('[bootstrapSync] 🚀 Starting bootstrap sync for userId:', userId, {
     isOnline: navigator.onLine,
     timestamp: new Date().toISOString()
   });
 
   if (!navigator.onLine) {
-    console.log('[bootstrapSync] ❌ Aborting: not online');
     return { success: false, error: 'Bootstrap requires online connection' };
   }
 
   try {
-    console.log('[bootstrapSync] 📝 Updating sync state: isSyncing = true');
     await updateSyncState(userId, { isSyncing: true, syncError: null });
 
-    console.log('[bootstrapSync] 🌐 Fetching /api/sync/bootstrap...');
     const response = await fetch('/api/sync/bootstrap', {
       method: 'GET',
       credentials: 'include',
     });
 
-    console.log('[bootstrapSync] 📡 Response received:', {
       status: response.status,
       statusText: response.statusText,
       ok: response.ok,
@@ -726,9 +693,7 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
       throw new Error('AUTH_NOT_READY');
     }
 
-    console.log('[bootstrapSync] 📦 Parsing bootstrap data...');
     const bootstrapData = await response.json();
-    console.log('[bootstrapSync] 📊 Bootstrap data received:', {
       spaces: bootstrapData.spaces?.length || 0,
       threads: bootstrapData.threads?.length || 0,
       notes: bootstrapData.notes?.length || 0,
@@ -739,19 +704,15 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
       cursor: bootstrapData.cursor
     });
 
-    console.log('[bootstrapSync] 💾 Applying bootstrap data to IndexedDB...');
     await applyBootstrapData(userId, bootstrapData);
-    console.log('[bootstrapSync] ✅ Bootstrap data applied successfully');
 
     // Clear isSyncing flag on success
-    console.log('[bootstrapSync] 📝 Updating sync state: isSyncing = false, lastSyncTimestamp = now');
     await updateSyncState(userId, { isSyncing: false });
 
     const result = { 
       success: true, 
       pulledCount: bootstrapData.notes?.length || 0 
     };
-    console.log('[bootstrapSync] ✅ Bootstrap completed successfully:', result);
     return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -807,10 +768,8 @@ async function updateSyncState(userId: string, updates: Partial<SyncState>): Pro
       const existing = await offlineDB.syncState.where('userId').equals(userId).first();
       
       if (existing) {
-        console.log('[updateSyncState] 📝 Updating existing sync state:', updates);
         await offlineDB.syncState.update(userId, updates);
       } else {
-        console.log('[updateSyncState] ➕ Creating new sync state:', {
           userId,
           ...updates
         });
@@ -870,9 +829,7 @@ export async function enqueueMutation(userId: string, operation: Omit<SyncOperat
  * Push queued mutations to server
  */
 export async function pushQueue(userId: string): Promise<SyncResult> {
-  console.log('[Sync] pushQueue starting for user:', userId);
   if (!navigator.onLine) {
-    console.log('[Sync] pushQueue aborting: Offline');
     return { success: false, error: 'Offline' };
   }
 
@@ -884,7 +841,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       .filter(op => op.retryCount < 5)
       .toArray();
 
-    console.log(`[Sync] Found ${pendingOps.length} pending operations in queue`);
 
     if (pendingOps.length === 0) {
       return { success: true, pushedCount: 0 };
@@ -908,7 +864,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
     // Log thread mutations specifically to track color
     const threadMutations = mutations.filter(m => m.entityType === 'thread');
     if (threadMutations.length > 0) {
-      console.log('[Sync] Thread mutations being sent:', threadMutations.map(m => ({
         operation: m.operation,
         entityId: m.entityId,
         color: m.data?.color,
@@ -916,7 +871,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       })));
     }
 
-    console.log('[Sync] Sending mutations to server:', mutations);
 
     // Send batch to server
     const response = await fetch('/api/sync/push', {
@@ -926,7 +880,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       credentials: 'include',
     });
 
-    console.log('[Sync] Server response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -935,7 +888,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
     }
 
     const result = await response.json();
-    console.log('[Sync] Push result data:', result);
     const results = result.results || [];
 
     // Process results and update local state
@@ -948,11 +900,9 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       }
 
       if (res.success) {
-        console.log(`[Sync] Operation ${res.operationId} success! ServerID: ${res.serverId}`);
         
         // Log thread-specific sync details
         if (op.entityType === 'thread') {
-          console.log('[Sync] Thread sync success:', {
             operationId: res.operationId,
             oldId: op.entityId,
             newId: res.serverId,
@@ -963,13 +913,11 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
         
         // Update entity with server ID if provided
         if (res.serverId && res.serverId !== op.entityId) {
-          console.log(`[Sync] Updating entity ID from ${op.entityId} to ${res.serverId}`);
           await updateEntityId(op.entityType, op.entityId, res.serverId, userId);
         }
 
         // Mark entity as synced with potential server data (like color)
         if (res.data) {
-          console.log(`[Sync] Marking ${op.entityType}:${res.serverId || op.entityId} as synced with data:`, res.data);
           await markEntitySynced(op.entityType, res.serverId || op.entityId, userId, res.data);
         } else {
           await markEntitySynced(op.entityType, res.serverId || op.entityId, userId);
@@ -979,7 +927,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
         if (op.entityType === 'thread') {
           const threadId = res.serverId || op.entityId;
           const syncedThread = await offlineDB.threads.where('[userId+id]').equals([userId, threadId]).first();
-          console.log('[Sync] Thread after markEntitySynced:', {
             threadId,
             color: syncedThread?.color,
             expectedColor: res.data?.color || op.data?.color,
@@ -1011,7 +958,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
         } else {
           // Permanent errors - mark with high retry count to stop retrying
           // but keep in queue so user can see it failed
-          console.log(`[Sync] Marking operation as permanently failed (${errorType}):`, res.operationId);
           await offlineDB.syncQueue.update(op.id!, {
             retryCount: 999, // High count to prevent further retries
             lastError: `[${errorType}] ${errorMessage}`,
@@ -1020,7 +966,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       }
     }
 
-    console.log(`[Sync] pushQueue finished. Pushed ${pushedCount} successfully.`);
     return { success: true, pushedCount, results };
   } catch (error) {
     console.error('[Sync] Error pushing queue:', error);
@@ -1227,7 +1172,6 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
       case 'thread':
         // Get thread before modifying to verify color is preserved
         const threadBefore = await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).first();
-        console.log('[markEntitySynced] Thread before sync status update:', {
           entityId,
           color: threadBefore?.color,
           title: threadBefore?.title,
@@ -1238,7 +1182,6 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
         
         // Verify color is still there after modify
         const threadAfter = await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).first();
-        console.log('[markEntitySynced] Thread after sync status update:', {
           entityId,
           color: threadAfter?.color,
           title: threadAfter?.title,
@@ -1267,9 +1210,7 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
  * Sync now (pull + push)
  */
 export async function syncNow(userId: string): Promise<SyncResult> {
-  console.log('[Sync] Starting syncNow for user:', userId);
   if (!navigator.onLine) {
-    console.log('[Sync] Aborting syncNow: navigator.onLine is false');
     return { success: false, error: 'Offline' };
   }
 
@@ -1278,10 +1219,8 @@ export async function syncNow(userId: string): Promise<SyncResult> {
 
     // Check if bootstrap needed
     const needsBoot = await needsBootstrap(userId);
-    console.log('[Sync] Needs bootstrap:', needsBoot);
     if (needsBoot) {
       const bootstrapResult = await bootstrapSync(userId);
-      console.log('[Sync] Bootstrap result:', bootstrapResult);
       if (!bootstrapResult.success) {
         // Clear isSyncing flag before returning
         await updateSyncState(userId, { isSyncing: false });
@@ -1290,14 +1229,12 @@ export async function syncNow(userId: string): Promise<SyncResult> {
     }
 
     // Pull changes
-    console.log('[Sync] Pulling changes...');
     const pullResult = await pullChanges(userId);
     
     // Completely suppress logging for transient/server errors - safeFetch already handled retries
     const pullErrorType = pullResult.error ? classifySyncError(pullResult.error) : null;
     if (pullResult.success || (pullErrorType !== 'server' && pullErrorType !== 'transient')) {
       // Only log non-transient errors or successful results
-      console.log('[Sync] Pull result:', pullResult);
     }
     // For transient/server errors, don't log anything - completely silent
     
@@ -1318,13 +1255,10 @@ export async function syncNow(userId: string): Promise<SyncResult> {
     }
 
     // Push queue
-    console.log('[Sync] Pushing queue...');
     const pushResult = await pushQueue(userId);
-    console.log('[Sync] Push result:', pushResult);
 
     await updateSyncState(userId, { isSyncing: false });
 
-    console.log('[Sync] syncNow completed successfully');
     return {
       success: true,
       pulledCount: pullResult.pulledCount || 0,
@@ -1350,7 +1284,6 @@ export async function needsBootstrap(userId: string): Promise<boolean> {
   try {
     const syncState = await getSyncState(userId);
     const needsBoot = !syncState || !syncState.lastBootstrapTimestamp;
-    console.log('[needsBootstrap] Check result:', {
       userId,
       hasSyncState: !!syncState,
       lastBootstrapTimestamp: syncState?.lastBootstrapTimestamp,
