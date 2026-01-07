@@ -73,12 +73,6 @@ export async function getNextSimpleNoteIdPreview(userId: string): Promise<number
       return 1;
     }
 
-      highestSimpleNoteId: userMeta.highestSimpleNoteId,
-      hasReservedRange: !!userMeta.reservedSimpleNoteIdRange,
-      reservedRange: userMeta.reservedSimpleNoteIdRange,
-      usedReservedIds: userMeta.usedReservedIds?.length || 0
-    });
-
     // 1. Try reserved range first (most accurate for offline preview)
     if (userMeta.reservedSimpleNoteIdRange) {
       const { start, end } = userMeta.reservedSimpleNoteIdRange;
