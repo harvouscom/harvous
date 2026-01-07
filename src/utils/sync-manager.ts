@@ -300,10 +300,7 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         updatedAt: um.updatedAt ? new Date(um.updatedAt) : null,
       }, userId);
       await offlineDB.userMetadata.put(userMetadata);
-        userId: userMetadata.userId,
-        highestSimpleNoteId: userMetadata.highestSimpleNoteId
-      });
-      
+
       // Cache highestSimpleNoteId in localStorage for instant offline access
       if (um.highestSimpleNoteId !== undefined) {
         cacheHighestSimpleNoteId(userId, um.highestSimpleNoteId);
@@ -663,12 +660,6 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
     const response = await fetch('/api/sync/bootstrap', {
       method: 'GET',
       credentials: 'include',
-    });
-
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok,
-      headers: Object.fromEntries(response.headers.entries())
     });
 
     if (!response.ok) {
