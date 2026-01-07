@@ -1108,21 +1108,11 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
       case 'thread':
         // Get thread before modifying to verify color is preserved
         const threadBefore = await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).first();
-          entityId,
-          color: threadBefore?.color,
-          title: threadBefore?.title,
-          incomingData: data
-        });
-        
+
         await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).modify(updateData);
-        
+
         // Verify color is still there after modify
         const threadAfter = await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).first();
-          entityId,
-          color: threadAfter?.color,
-          title: threadAfter?.title,
-          colorMatch: data?.color ? threadAfter?.color === data.color : true
-        });
         break;
       case 'note':
         await offlineDB.notes.where('[userId+id]').equals([userId, entityId]).modify(updateData);
