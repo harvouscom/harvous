@@ -1242,10 +1242,7 @@ export default function OrganizedContentList({
 
   return (
     <div className="flex flex-col">
-      {!isHydrated ? (
-        // Must match server render to avoid hydration mismatch; prevents deleted-item flash.
-        <div style={{ minHeight: '300px', width: '100%' }} />
-      ) : displayItems.length > 0 ? (
+      {displayItems.length > 0 ? (
         <InfiniteScrollList
           initialItems={displayItems}
           items={displayItems}
