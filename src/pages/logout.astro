@@ -11,17 +11,9 @@ import EmptyLayout from "@/layouts/EmptyLayout.astro";
 </EmptyLayout>
 
 <script is:inline>
-  // Logout script - uses Clerk's built-in signOut with redirect
+  // Logout script - always redirects after maximum timeout
   (async function() {
-    // Wait for Clerk to be loaded
-    var maxWaitTime = 3000; // Max 3 seconds to wait for Clerk
-    var startTime = Date.now();
-    
-    while (!window.Clerk && (Date.now() - startTime) < maxWaitTime) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    // Clear local storage before sign-out
+    // Clear storage immediately - don't wait for Clerk
     try {
       sessionStorage.clear();
       localStorage.removeItem('userProfileData');
@@ -30,20 +22,46 @@ import EmptyLayout from "@/layouts/EmptyLayout.astro";
       console.error('Storage clear error:', error);
     }
     
-    // Use Clerk's built-in signOut with redirectUrl
-    // This handles the sign-out and redirect automatically
-    try {
-      if (window.Clerk && window.Clerk.signOut) {
-        await window.Clerk.signOut({ redirectUrl: '/sign-in' });
-      } else {
-        // Fallback if Clerk isn't loaded
-        window.location.href = '/sign-in';
+    // Maximum timeout for entire logout operation (2 seconds)
+    var maxTimeout = 2000;
+    var redirectPromise = new Promise(function(resolve) {
+      setTimeout(function() {
+        // Always redirect after timeout, even if Clerk hasn't finished
+        window.location.replace('/sign-in');
+        resolve();
+      }, maxTimeout);
+    });
+    
+    // Try to use Clerk's signOut if available
+    var clerkSignOutPromise = (async function() {
+      try {
+        // Wait for Clerk to be loaded (with shorter timeout)
+        var waitStartTime = Date.now();
+        var maxWaitTime = 1000; // Only wait 1 second for Clerk
+        
+        while (!window.Clerk && (Date.now() - waitStartTime) < maxWaitTime) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        if (window.Clerk && window.Clerk.signOut) {
+          // Use Clerk's built-in signOut with redirectUrl
+          await window.Clerk.signOut({ redirectUrl: '/sign-in' });
+          // If signOut completes successfully, it will redirect
+          // But we still have the timeout as backup
+        } else {
+          // Clerk not available, redirect immediately
+          window.location.replace('/sign-in');
+        }
+      } catch (error) {
+        console.error('Clerk signOut error:', error);
+        // On error, redirect immediately
+        window.location.replace('/sign-in');
       }
-    } catch (error) {
-      console.error('Clerk signOut error:', error);
-      // Fallback redirect on error
-      window.location.href = '/sign-in';
-    }
+    })();
+    
+    // Race between Clerk signOut and timeout
+    // Whichever completes first will handle the redirect
+    await Promise.race([clerkSignOutPromise, redirectPromise]);
   })();
 </script>
 
