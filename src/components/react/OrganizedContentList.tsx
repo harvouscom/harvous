@@ -229,8 +229,9 @@ export default function OrganizedContentList({
 
   // Use offline reads if userId is provided
   // When offline, prioritize local data immediately
+  // IMPORTANT: Only run after hydration to avoid wiping server-rendered data
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !isHydrated) return;
 
     const loadLocalData = async () => {
       try {
@@ -313,7 +314,7 @@ export default function OrganizedContentList({
     };
 
     loadLocalData();
-  }, [userId, filter, deletedItemIds]);
+  }, [userId, filter, deletedItemIds, isHydrated]);
 
   // Essential refs only
   const isMountedRef = useRef(true);
