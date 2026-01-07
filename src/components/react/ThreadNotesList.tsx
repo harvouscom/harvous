@@ -33,6 +33,8 @@ interface Note {
   resourceImage?: string | null;
   // Sync status for offline mode
   syncStatus?: 'synced' | 'pending' | 'conflict' | 'deleted';
+  // Thread ID (used for optimistic updates filtering)
+  threadId?: string;
   // Thread colors for note card accent (from getNotesForThread or optimistic threadColor)
   threadColors?: Array<{ color: string; frequency: number }>;
 }
@@ -186,8 +188,10 @@ export default function ThreadNotesList({
       5000, // 5 seconds
       (note) => {
         // Only include notes that belong to this thread
-        const belongsToThread = !note.threadId || note.threadId === threadId || 
-                                (threadId === 'thread_unorganized' && !note.threadId);
+        // Note: optimistic notes may have threadId set explicitly during creation
+        const noteThreadId = (note as any).threadId;
+        const belongsToThread = noteThreadId === threadId ||
+                                (threadId === 'thread_unorganized' && (!noteThreadId || noteThreadId === 'thread_unorganized'));
         return belongsToThread;
       }
     );
@@ -376,9 +380,9 @@ export default function ThreadNotesList({
             5000, // 5 seconds
             (note) => {
               // Check if note matches current filter
-              const matchesFilter = noteTypeFilter === 'all' || 
+              const matchesFilter = noteTypeFilter === 'all' ||
                                    (noteTypeFilter === 'scripture' && note.noteType === 'scripture') ||
-                                   (noteTypeFilter === 'resources' && note.noteType === 'resource') ||
+                                   (noteTypeFilter === 'resource' && note.noteType === 'resource') ||
                                    ((noteTypeFilter === 'default' || noteTypeFilter === 'notes') && (note.noteType === 'default' || !note.noteType));
               return matchesFilter && !deletedNoteIdsRef.current.has(note.id);
             }
@@ -569,7 +573,7 @@ export default function ThreadNotesList({
         }
 
         // IMMEDIATE OPTIMISTIC UPDATE: Add note synchronously before any async operations
-        // Create note object from event data, or minimal placeholder if incomplete
+        // Create note object from event data, or minimal placeholder if incomplete (include threadId for filtering)
         const threadColorsForNote = threadColor ? [{ color: threadColor, frequency: 1 }] : (note as any)?.threadColors;
         const noteToAdd: Note = note ? {
           id: note.id || noteId,
@@ -582,6 +586,7 @@ export default function ThreadNotesList({
           resourceTitle: note.resourceTitle || null,
           resourceDescription: note.resourceDescription || null,
           resourceImage: note.resourceImage || null,
+          threadId: noteThreadId, // Track which thread this note belongs to
           threadColors: threadColorsForNote,
         } : {
           // Minimal placeholder if note data isn't available
@@ -590,13 +595,14 @@ export default function ThreadNotesList({
           content: '',
           noteType: 'default',
           createdAt: new Date(),
+          threadId: noteThreadId, // Track which thread this note belongs to
           threadColors: threadColorsForNote,
         };
 
         // Check if note matches current filter
         const matchesFilter = noteTypeFilter === 'all' ||
                              (noteTypeFilter === 'scripture' && noteToAdd.noteType === 'scripture') ||
-                             (noteTypeFilter === 'resources' && noteToAdd.noteType === 'resource') ||
+                             (noteTypeFilter === 'resource' && noteToAdd.noteType === 'resource') ||
                              ((noteTypeFilter === 'default' || noteTypeFilter === 'notes') && (noteToAdd.noteType === 'default' || !noteToAdd.noteType));
 
         if (matchesFilter) {
@@ -754,14 +760,15 @@ export default function ThreadNotesList({
           // Check if note is already in the list
           const noteExists = notesRef.current.some(n => n.id === relevantNote.noteId);
           if (!noteExists) {
-            // Create minimal note object for optimistic update (include threadColors so accent shows for members in shared spaces)
+            // Create minimal note object for optimistic update (include threadId for filtering, threadColors for accent)
             const optimisticNote: Note = {
               id: relevantNote.noteId,
               title: 'Untitled Note',
               content: '',
               noteType: 'default',
               createdAt: new Date(relevantNote.timestamp),
-              threadColors: threadColor ? [{ color: threadColor, frequency: 1 }] : undefined
+              threadId: threadId, // Track which thread this note belongs to
+              threadColors: threadColor ? [{ color: threadColor, frequency: 1 }] : undefined,
             };
             
             debug('[ThreadNotesList] Adding note optimistically from sessionStorage', {
