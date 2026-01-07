@@ -15,6 +15,11 @@ This folder contains documentation that is no longer relevant to the current sta
 - **ERROR_MONITORING_IMPLEMENTATION.md** - PostHog implementation guide (PostHog is already implemented)
 - **POSTHOG_SETUP.md** - PostHog setup guide (PostHog is already set up)
 
+### Resolved Issues (Historical)
+- **PROFILE_UPDATE_ISSUE_ANALYSIS.md** - Profile persistence issue analysis (resolved - see `PROFILE_PERSISTENCE_SOLUTION.md` in main docs)
+- **INBOX_DUPLICATION_ISSUES.md** - Inbox duplication and scripture notes issues (resolved - inbox is now active and working)
+- **UNORGANIZED_BADGE_COUNT_BUG.md** - Navigation badge count bug (resolved - comprehensive fix implemented in NavigationContext)
+
 ### Historical Development Notes
 - **CAM_SUMMARY.md** - Development summary for Cam from August 2025 (outdated)
 - **CAM_MOBILE_FIXES.md** - Task list for mobile fixes (completed)
@@ -30,6 +35,9 @@ All features mentioned in these archived documents have been completed:
 - ✅ All V1 features are complete
 - ✅ Profile system is fully refactored
 - ✅ Mobile fixes are complete
+- ✅ Profile persistence issues resolved
+- ✅ Inbox system is active and working
+- ✅ Navigation badge count bugs fixed
 
 For current documentation, see the main `docs/` directory.
 
