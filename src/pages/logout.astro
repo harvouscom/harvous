@@ -31,8 +31,11 @@ import EmptyLayout from "@/layouts/EmptyLayout.astro";
       console.error('Storage clear error:', error);
     }
     
-    // Redirect to sign-in
-    window.location.href = '/sign-in';
+    // Small delay to ensure session clears before redirect
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Redirect to sign-in with logged_out parameter to prevent auto-login
+    window.location.href = '/sign-in?logged_out=true';
   })();
 </script>
 
