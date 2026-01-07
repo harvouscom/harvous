@@ -44,11 +44,11 @@ const {
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const titleInput = document.getElementById('title-input') as HTMLInputElement;
+    const titleInput = document.getElementById('title-input');
     
     if (titleInput) {
       // Function to capitalize first letter while typing
-      titleInput.addEventListener('input', function(this: HTMLInputElement) {
+      titleInput.addEventListener('input', function() {
         const cursorPosition = this.selectionStart || 0;
         const value = this.value;
         
@@ -62,7 +62,7 @@ const {
       });
       
       // Auto-capitalize on initial focus if empty
-      titleInput.addEventListener('focus', function(this: HTMLInputElement) {
+      titleInput.addEventListener('focus', function() {
         if (!this.value) {
           // Set initial capitalization for placeholder text that will be typed
           this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);

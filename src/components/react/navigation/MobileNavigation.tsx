@@ -131,6 +131,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         return;
       }
 
+      // Skip network requests when offline - use cached data
+      if (!navigator.onLine) {
+        return;
+      }
+
       // Get expected count from current state
       const expectedCount = updatedCurrentThread?.noteCount || currentThread?.noteCount || 0;
       

@@ -3,7 +3,10 @@ import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
 import { debug } from '@/utils/logger';
-import { buildAPIUrl, getSafeOrigin } from '@/utils/safe-url';
+import { buildAPIUrl, getSafeOrigin, safeURL } from '@/utils/safe-url';
+import { createNoteOfflineWithRetry, cacheHighestSimpleNoteId, getOfflineErrorMessage, type OfflineOperationResult } from '@/utils/offline-mutations';
+import { usePersistedUserId, getPersistedUserId, getPersistedUserIdWithIndexedDB } from '@/utils/user-id';
+import { isNetworkError } from '@/utils/network';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
 
@@ -79,7 +82,62 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     setContent,
   } = options;
 
+  const userId = usePersistedUserId();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Helper to get effective userId with multiple fallback mechanisms (async version with IndexedDB)
+  const getEffectiveUserId = useCallback(async (): Promise<{ userId: string | null; indexedDBIsEmpty: boolean }> => {
+    // Try hook value first (most reliable when available)
+    if (userId) return { userId, indexedDBIsEmpty: false };
+    
+    // Try persisted value from localStorage/window (synchronous check first)
+    const persisted = getPersistedUserId();
+    if (persisted) return { userId: persisted, indexedDBIsEmpty: false };
+    
+    // Try window directly (defensive check for timing issues)
+    if (typeof window !== 'undefined' && (window as any).__harvous_userId) {
+      return { userId: (window as any).__harvous_userId, indexedDBIsEmpty: false };
+    }
+    
+    // Last resort: try IndexedDB (async) - this includes all fallback mechanisms
+    // This will check userMetadata, notes, spaces, threads in IndexedDB
+    const indexedDBResult = await getPersistedUserIdWithIndexedDB();
+    if (indexedDBResult.userId) {
+      return indexedDBResult;
+    }
+    
+    // Final fallback: try to get from Clerk if available (offline-safe check)
+    // Clerk might have session data cached even when offline
+    try {
+      if (typeof window !== 'undefined') {
+        // Check if Clerk is available and has user data
+        const clerkWindow = window as any;
+        if (clerkWindow.__clerk_frontend_api) {
+          // Try to access Clerk's user data if available
+          // Note: This is a last resort - Clerk typically requires online connection
+          // But session data might be cached in localStorage or sessionStorage
+          // We can't directly access Clerk hooks here, but we can check for cached data
+          const clerkSessionKey = '__clerk_db_jwt';
+          const cookies = document.cookie.split(';');
+          for (const cookie of cookies) {
+            const [name] = cookie.trim().split('=');
+            if (name === clerkSessionKey) {
+              // Clerk session exists - but we can't extract userId from cookie directly
+              // This is just a signal that user might be authenticated
+              // We'll rely on the other mechanisms above
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Clerk not available or error accessing - that's fine, continue with other checks
+      debug('[getEffectiveUserId] Clerk check failed (expected when offline):', e);
+    }
+    
+    // Return the IndexedDB result which includes isEmpty information
+    return indexedDBResult;
+  }, [userId]);
 
   // Helper to show toast
   const showToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error') => {
@@ -390,14 +448,211 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
       }
 
-      const response = await fetch('/api/notes/create', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
+      // OFFLINE-FIRST: Create note in local IndexedDB immediately with retry
+      let offlineNoteId: string | null = null;
+      let offlineSaveError: string | null = null;
+      
+      // Get userId with enhanced fallback mechanisms (includes IndexedDB check)
+      console.log('[useNoteSubmission] Starting userId retrieval with all fallbacks...');
+      let effectiveUserIdResult: { userId: string | null; indexedDBIsEmpty: boolean } = { userId: null, indexedDBIsEmpty: true };
+      try {
+        effectiveUserIdResult = await getEffectiveUserId();
+      } catch (error: any) {
+        console.error('[useNoteSubmission] Error in getEffectiveUserId:', {
+          error: error?.message || error,
+          name: error?.name,
+          stack: error?.stack
+        });
+        // Continue with null - will show error below
+      }
+      
+      const effectiveUserId = effectiveUserIdResult.userId;
+      
+      // Enhanced debug logging to help diagnose userId issues
+      const persistedUserIdValue = getPersistedUserId();
+      const windowUserId = typeof window !== 'undefined' ? (window as any).__harvous_userId : undefined;
+      const localStorageUserId = typeof window !== 'undefined' ? localStorage.getItem('harvous-user-id') : null;
+      
+      console.log('[useNoteSubmission] userId check result:', { 
+        hookUserId: userId, 
+        persistedUserId: persistedUserIdValue,
+        windowUserId: windowUserId,
+        localStorageUserId: localStorageUserId,
+        effectiveUserId: effectiveUserId,
+        indexedDBIsEmpty: effectiveUserIdResult.indexedDBIsEmpty,
+        isOffline: !navigator.onLine,
+        allSources: {
+          hook: userId,
+          persisted: persistedUserIdValue,
+          window: windowUserId,
+          localStorage: localStorageUserId,
+          indexedDB: effectiveUserId ? 'found' : (effectiveUserIdResult.indexedDBIsEmpty ? 'empty' : 'has data but no userId')
+        }
       });
+      
+      if (effectiveUserId) {
+        const threadIdToUse = overrideThreadId || getSelectedThread().id;
+        const offlineResult = await createNoteOfflineWithRetry(effectiveUserId, {
+          title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
+          content: currentContent,
+          threadId: threadIdToUse,
+          spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
+          noteType: currentNoteType,
+          scriptureReference: currentNoteType === 'scripture' ? formatReferenceForAPI(currentScriptureReference) : undefined,
+          scriptureVersion: currentNoteType === 'scripture' ? currentScriptureVersion : undefined,
+          resourceUrl: currentNoteType === 'resource' ? normalizedResourceUrl : undefined,
+          resourceMetadata: currentNoteType === 'resource' ? resourceMetadata : undefined,
+        });
+        
+        if (offlineResult.success && offlineResult.noteId) {
+          offlineNoteId = offlineResult.noteId;
+          debug('[useNoteSubmission] Note created locally in IndexedDB', { offlineNoteId });
+        } else {
+          offlineSaveError = offlineResult.error || 'Failed to save offline';
+          console.error('[useNoteSubmission] Failed to create note offline:', {
+            error: offlineSaveError,
+            errorType: offlineResult.errorType
+          });
+          // Continue with server API call - if offline fails, at least server might work
+        }
+      } else {
+        // No userId available anywhere - this is a real issue
+        // Enhanced error logging with all diagnostic information
+        const diagnosticInfo = {
+          hookUserId: userId,
+          persistedUserId: persistedUserIdValue,
+          windowUserId: windowUserId,
+          localStorageUserId: localStorageUserId,
+          indexedDBIsEmpty: effectiveUserIdResult.indexedDBIsEmpty,
+          isOffline: !navigator.onLine,
+          hasClerkSession: typeof window !== 'undefined' && document.cookie.includes('__clerk'),
+          timestamp: new Date().toISOString()
+        };
+        
+        console.error('[useNoteSubmission] No userId available from any source', diagnosticInfo);
+        debug('[useNoteSubmission] No userId available - diagnostic info:', diagnosticInfo);
+        
+        // Capture exception for monitoring
+        captureException(new Error('No userId available for offline note creation'), {
+          extra: diagnosticInfo
+        });
+        
+        // Set a more actionable error message based on IndexedDB state
+        if (effectiveUserIdResult.indexedDBIsEmpty) {
+          offlineSaveError = 'You need to sign in while online first to set up offline access. After signing in online, you\'ll be able to create notes offline.';
+        } else {
+          offlineSaveError = 'Unable to access your offline data. Please sign in while online first, then you can create notes offline.';
+        }
+      }
 
-      if (response.ok) {
+      // Try to push to server (will queue if offline)
+      let response: Response | null = null;
+      let networkError = false;
+      
+      try {
+        response = await fetch('/api/notes/create', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        });
+      } catch (error) {
+        // Network error occurred (offline, fetch failed, etc.)
+        networkError = isNetworkError(error);
+        
+        if (networkError && offlineNoteId) {
+          // Offline save succeeded - treat as success
+          debug('[useNoteSubmission] Network error but note saved offline, treating as success', { offlineNoteId });
+          
+          // Show "Saved offline" toast
+          showToast('Note saved offline. It will sync when you\'re back online.', 'success');
+          
+          // Dispatch noteCreated event with offline note data
+          const threadIdToUse = overrideThreadId || getSelectedThread().id;
+          const offlineNoteEvent = new CustomEvent('noteCreated', {
+            detail: {
+              note: {
+                id: offlineNoteId,
+                title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
+                content: currentContent,
+                noteType: currentNoteType,
+                threadId: threadIdToUse,
+                spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+              },
+              actualThreadId: threadIdToUse,
+              noteId: offlineNoteId,
+              threadId: threadIdToUse,
+              spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+              isOffline: true
+            }
+          });
+          window.dispatchEvent(offlineNoteEvent);
+          
+          // CRITICAL: Set isSubmitting to false BEFORE closing panel
+          // This ensures state updates complete before component unmounts
+          setIsSubmitting(false);
+          
+          // Reset form and close panel
+          resetForm();
+          setSelectedThread('Unorganized');
+          clearLocalStorage();
+          localStorage.removeItem('showNewNotePanel');
+          localStorage.removeItem('showNewThreadPanel');
+          localStorage.removeItem('showNewResourcePanel');
+          
+          // Refresh note ID preview for next note creation
+          try {
+            await loadNextNoteId();
+          } catch (err) {
+            console.error('[useNoteSubmission] Failed to refresh note ID preview:', err);
+          }
+          
+          // Small delay to ensure state updates complete before closing
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+          if (onClose) {
+            onClose();
+          }
+          window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+          
+          // Stay on current page when offline - note will appear in list from IndexedDB
+          // Just refresh the current page to show the new note
+          const currentUrl = safeURL(window.location.href);
+          if (currentUrl) {
+            // Add toast message to current URL
+            currentUrl.searchParams.set('toast', 'success');
+            currentUrl.searchParams.set('message', encodeURIComponent('Note saved offline. It will sync when you\'re back online.'));
+            // Stay on current page - don't navigate
+            window.history.replaceState({}, '', currentUrl.toString());
+          }
+          
+          return;
+        } else if (networkError && offlineSaveError) {
+          // Network error AND offline save failed - show offline error message
+          debug('[useNoteSubmission] Network error and offline save failed', { offlineSaveError });
+          showToast(offlineSaveError, 'error');
+          setIsSubmitting(false);
+          return;
+        } else if (networkError) {
+          // Network error but no offline context - show friendly offline message
+          debug('[useNoteSubmission] Network error with no offline context');
+          showToast('You\'re offline. Please try again when connected.', 'error');
+          setIsSubmitting(false);
+          return;
+        } else {
+          // Non-network error - rethrow
+          throw error;
+        }
+      }
+
+      if (response && response.ok) {
         const result = await response.json();
+        
+        // Cache the simpleNoteId for offline access
+        // This ensures the next note ID is correct when going offline
+        if (result.note && result.note.simpleNoteId && userId) {
+          cacheHighestSimpleNoteId(userId, result.note.simpleNoteId);
+          debug('[useNoteSubmission] Cached simpleNoteId', { simpleNoteId: result.note.simpleNoteId });
+        }
         
         // Build scripture toast message for redirect (only for 'created' actions - these are non-obvious)
         // 'added' and 'unorganized' actions are visible when viewing the thread, so we skip those
@@ -987,20 +1242,117 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // Limit reached UI is shown in footer, so just stop submission
           // No toast notification needed - the footer already shows the limit reached state
         } else {
-          showToast(error.error || 'Error creating note', 'error');
+          // Check if this is a network error
+          if (isNetworkError(error) && offlineNoteId) {
+            // Network error but offline save succeeded - treat as success
+            showToast('Note saved offline. It will sync when you\'re back online.', 'success');
+            
+            // Dispatch noteCreated event
+            const threadIdToUse = overrideThreadId || getSelectedThread().id;
+            const offlineNoteEvent = new CustomEvent('noteCreated', {
+              detail: {
+                note: {
+                  id: offlineNoteId,
+                  title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
+                  content: currentContent,
+                  noteType: currentNoteType,
+                  threadId: threadIdToUse,
+                  spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+                },
+                actualThreadId: threadIdToUse,
+                noteId: offlineNoteId,
+                threadId: threadIdToUse,
+                spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+                isOffline: true
+              }
+            });
+            window.dispatchEvent(offlineNoteEvent);
+            
+            resetForm();
+            setSelectedThread('Unorganized');
+            clearLocalStorage();
+            localStorage.removeItem('showNewNotePanel');
+            if (onClose) onClose();
+            window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+            
+            // Stay on current page when offline - note will appear in list from IndexedDB
+            const currentUrl = safeURL(window.location.href);
+            if (currentUrl) {
+              currentUrl.searchParams.set('toast', 'success');
+              currentUrl.searchParams.set('message', encodeURIComponent('Note saved offline. It will sync when you\'re back online.'));
+              window.history.replaceState({}, '', currentUrl.toString());
+            }
+          } else if (isNetworkError(error) && offlineSaveError) {
+            // Network error AND offline save failed - show the specific offline error
+            showToast(offlineSaveError, 'error');
+          } else if (isNetworkError(error)) {
+            // Network error with no offline context - show friendly offline message
+            showToast('You\'re offline. Please try again when connected.', 'error');
+          } else {
+            showToast(error.error || 'Error creating note', 'error');
+          }
         }
         
         setIsSubmitting(false);
       }
     } catch (error: any) {
-      if (typeof window !== 'undefined' && window.posthog) {
-        captureException(error, {
-          context: 'note_creation',
-          endpoint: '/api/notes/create',
+      // Check if this is a network error and we have an offline note
+      if (isNetworkError(error) && offlineNoteId) {
+        // Network error but offline save succeeded - treat as success
+        showToast('Note saved offline. It will sync when you\'re back online.', 'success');
+        
+        const threadIdToUse = overrideThreadId || getSelectedThread().id;
+        const offlineNoteEvent = new CustomEvent('noteCreated', {
+          detail: {
+            note: {
+              id: offlineNoteId,
+              title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
+              content: currentContent,
+              noteType: currentNoteType,
+              threadId: threadIdToUse,
+              spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+            },
+            actualThreadId: threadIdToUse,
+            noteId: offlineNoteId,
+            threadId: threadIdToUse,
+            spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+            isOffline: true
+          }
         });
+        window.dispatchEvent(offlineNoteEvent);
+        
+        resetForm();
+        setSelectedThread('Unorganized');
+        clearLocalStorage();
+        localStorage.removeItem('showNewNotePanel');
+        if (onClose) onClose();
+        window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+        
+        // Stay on current page when offline - note will appear in list from IndexedDB
+        const currentUrl = safeURL(window.location.href);
+        if (currentUrl) {
+          currentUrl.searchParams.set('toast', 'success');
+          currentUrl.searchParams.set('message', encodeURIComponent('Note saved offline. It will sync when you\'re back online.'));
+          window.history.replaceState({}, '', currentUrl.toString());
+        }
+      } else if (isNetworkError(error) && offlineSaveError) {
+        // Network error AND offline save failed - show the specific offline error
+        showToast(offlineSaveError, 'error');
+      } else if (isNetworkError(error)) {
+        // Network error with no offline context - show friendly offline message
+        showToast('You\'re offline. Please try again when connected.', 'error');
+      } else {
+        // Real error - log and show error toast
+        if (typeof window !== 'undefined' && window.posthog) {
+          captureException(error, {
+            context: 'note_creation',
+            endpoint: '/api/notes/create',
+          });
+        }
+        
+        showToast(`Error creating note: ${error?.message || 'Please try again.'}`, 'error');
       }
       
-      showToast(`Error creating note: ${error?.message || 'Please try again.'}`, 'error');
       setIsSubmitting(false);
     }
   }, [
@@ -1069,6 +1421,13 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
       if (response.ok) {
         const result = await response.json();
+        
+        // Cache the simpleNoteId for offline access
+        // This ensures the next note ID is correct when going offline
+        if (result.note && result.note.simpleNoteId && userId) {
+          cacheHighestSimpleNoteId(userId, result.note.simpleNoteId);
+          debug('[useNoteSubmission] Cached simpleNoteId (save and close)', { simpleNoteId: result.note.simpleNoteId });
+        }
 
         // Build scripture toast message for redirect (only for 'created' actions)
         let scriptureToastMessage = '';

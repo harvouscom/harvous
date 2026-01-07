@@ -11,6 +11,9 @@ import Icon from './Icon';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { safeURL } from '@/utils/safe-url';
+import { createThreadOffline } from '@/utils/offline-mutations';
+import { usePersistedUserId } from '@/utils/user-id';
+import { isNetworkError } from '@/utils/network';
 
 interface Note {
   id: string;
@@ -41,6 +44,13 @@ interface NewThreadPanelProps {
 }
 
 export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor, noteIdToAdd, initialNotes }: NewThreadPanelProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const userId = usePersistedUserId();
   const [title, setTitle] = useState('');
   const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
   const [selectedType, setSelectedType] = useState('Private');
@@ -267,13 +277,94 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
           formData.append('selectedNoteIds', JSON.stringify(selectedNoteIds));
         }
         
-        const response = await fetch('/api/threads/create', {
-          method: 'POST',
-          body: formData,
-          credentials: 'include'
-        });
+        // OFFLINE-FIRST: Create thread in local IndexedDB immediately
+        let offlineThreadId: string | null = null;
+        if (userId) {
+          try {
+            offlineThreadId = await createThreadOffline(userId, {
+              title: title.trim(),
+              color: selectedColor,
+              spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
+              isPublic: false,
+            });
+            console.log('[NewThreadPanel] Thread created locally in IndexedDB', { offlineThreadId });
+          } catch (err) {
+            console.error('[NewThreadPanel] Failed to create thread offline:', err);
+            // Continue with server API call
+          }
+        }
+        
+        let response: Response | null = null;
+        let networkError = false;
+        
+        try {
+          response = await fetch('/api/threads/create', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+          });
+        } catch (error) {
+          // Network error occurred
+          networkError = isNetworkError(error);
+          
+          if (networkError && offlineThreadId) {
+            // Offline save succeeded - treat as success
+            console.log('[NewThreadPanel] Network error but thread saved offline, treating as success', { offlineThreadId });
+            
+            // Show "Saved offline" toast
+            if (window.toast) {
+              window.toast.success('Thread saved offline. It will sync when you\'re back online.');
+            }
+            
+            // Dispatch threadCreated event with offline thread data
+            const offlineThreadEvent = new CustomEvent('threadCreated', {
+              detail: {
+                thread: {
+                  id: offlineThreadId,
+                  title: title.trim(),
+                  color: selectedColor,
+                  spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+                  noteCount: 0,
+                },
+                threadId: offlineThreadId,
+                spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+                isOffline: true
+              }
+            });
+            window.dispatchEvent(offlineThreadEvent);
+            
+            // Clear form data
+            setTitle('');
+            setSelectedColor('paper');
+            setSelectedType('Private');
+            setSelectedItems([]);
+            localStorage.removeItem('newThreadTitle');
+            localStorage.removeItem('newThreadColor');
+            localStorage.removeItem('newThreadType');
+            
+            // Close panel
+            window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+            if (onClose) {
+              onClose();
+            }
+            
+            // Stay on current page when offline - thread will appear in list from IndexedDB
+            const currentUrl = safeURL(window.location.href);
+            if (currentUrl) {
+              currentUrl.searchParams.set('toast', 'success');
+              currentUrl.searchParams.set('message', encodeURIComponent('Thread saved offline. It will sync when you\'re back online.'));
+              window.history.replaceState({}, '', currentUrl.toString());
+            }
+            
+            setIsSubmitting(false);
+            return;
+          } else {
+            // Network error but offline save also failed - rethrow
+            throw error;
+          }
+        }
 
-        if (response.ok) {
+        if (response && response.ok) {
           const result = await response.json();
           
           // Clear form data
@@ -393,35 +484,126 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             }
           }
         } else {
+          // Check if this is a network error
+          const errorText = await response.text();
           let errorMessage = `Failed to create thread: ${response.status}`;
+          
           try {
-            const errorText = await response.text();
-            console.error('NewThreadPanel: API error response:', errorText);
             const errorJson = JSON.parse(errorText);
             errorMessage = errorJson.error || errorMessage;
           } catch (e) {
             // If response isn't JSON, use status text
             console.error('NewThreadPanel: Could not parse error response');
           }
+          
+          // Check if offline save succeeded
+          if (offlineThreadId) {
+            // Offline save succeeded - treat as success
+            console.log('[NewThreadPanel] Server error but thread saved offline, treating as success', { offlineThreadId });
+            
+            if (window.toast) {
+              window.toast.success('Thread saved offline. It will sync when you\'re back online.');
+            }
+            
+            const offlineThreadEvent = new CustomEvent('threadCreated', {
+              detail: {
+                thread: {
+                  id: offlineThreadId,
+                  title: title.trim(),
+                  color: selectedColor,
+                  spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+                  noteCount: 0,
+                },
+                threadId: offlineThreadId,
+                spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+                isOffline: true
+              }
+            });
+            window.dispatchEvent(offlineThreadEvent);
+            
+            setTitle('');
+            setSelectedColor('paper');
+            setSelectedType('Private');
+            setSelectedItems([]);
+            localStorage.removeItem('newThreadTitle');
+            localStorage.removeItem('newThreadColor');
+            localStorage.removeItem('newThreadType');
+            
+            window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+            if (onClose) {
+              onClose();
+            }
+            
+            setTimeout(() => {
+              safeNavigate('/?toast=success&message=' + encodeURIComponent('Thread saved offline'), { history: 'replace' });
+            }, 100);
+            
+            setIsSubmitting(false);
+            return;
+          }
+          
           throw new Error(errorMessage);
         }
       }
     } catch (error: any) {
-      // Track error in PostHog
-      if (typeof window !== 'undefined' && window.posthog) {
-        captureException(error, {
-          context: 'thread_creation',
-          endpoint: '/api/threads/create',
+      // Check if this is a network error and we have an offline thread
+      if (isNetworkError(error) && offlineThreadId) {
+        // Network error but offline save succeeded - treat as success
+        console.log('[NewThreadPanel] Network error but thread saved offline, treating as success', { offlineThreadId });
+        
+        if (window.toast) {
+          window.toast.success('Thread saved offline. It will sync when you\'re back online.');
+        }
+        
+        const offlineThreadEvent = new CustomEvent('threadCreated', {
+          detail: {
+            thread: {
+              id: offlineThreadId,
+              title: title.trim(),
+              color: selectedColor,
+              spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+              noteCount: 0,
+            },
+            threadId: offlineThreadId,
+            spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+            isOffline: true
+          }
         });
-      }
-      
-      console.error('NewThreadPanel: Error:', error);
-      const errorMessage = error instanceof Error ? error.message : `Failed to ${isEditMode ? 'update' : 'create'} thread. Please try again.`;
-      console.error('NewThreadPanel: Error message:', errorMessage);
-      if (window.toast) {
-        window.toast.error(errorMessage);
+        window.dispatchEvent(offlineThreadEvent);
+        
+        setTitle('');
+        setSelectedColor('paper');
+        setSelectedType('Private');
+        setSelectedItems([]);
+        localStorage.removeItem('newThreadTitle');
+        localStorage.removeItem('newThreadColor');
+        localStorage.removeItem('newThreadType');
+        
+        window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+        if (onClose) {
+          onClose();
+        }
+        
+        setTimeout(() => {
+          safeNavigate('/?toast=success&message=' + encodeURIComponent('Thread saved offline'), { history: 'replace' });
+        }, 100);
       } else {
-        alert(errorMessage);
+        // Real error - log and show error toast
+        if (typeof window !== 'undefined' && window.posthog) {
+          captureException(error, {
+            context: 'thread_creation',
+            endpoint: '/api/threads/create',
+          });
+        }
+        
+        console.error('NewThreadPanel: Error:', error);
+        const errorMessage = error instanceof Error ? error.message : `Failed to ${isEditMode ? 'update' : 'create'} thread. Please try again.`;
+        console.error('NewThreadPanel: Error message:', errorMessage);
+        if (window.toast) {
+          window.toast.error(errorMessage);
+        } else {
+          alert(errorMessage);
+        }
       }
     } finally {
       // Use setTimeout to ensure state update happens after any pending operations
@@ -494,8 +676,41 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     }
   };
 
+  // Handle title keydown for auto-capitalize and select all
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Handle Select All (Cmd+A on Mac, Ctrl+A on Windows/Linux)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+      e.preventDefault();
+      e.currentTarget.select();
+      return;
+    }
+    
+    // Auto-capitalize first letter
+    const input = e.currentTarget;
+    if (input.selectionStart === 0 && input.selectionEnd === 0) {
+      // Cursor is at the start
+      if (e.key.length === 1 && /^[a-z]$/.test(e.key)) {
+        e.preventDefault();
+        const capitalized = e.key.toUpperCase();
+        if (title.length === 0) {
+          setTitle(capitalized);
+        } else {
+          setTitle(capitalized + title);
+        }
+        // Set cursor position after the capitalized letter
+        setTimeout(() => {
+          input.setSelectionRange(1, 1);
+        }, 0);
+      }
+    }
+  };
+
   // Use centralized stripHtml utility
   const stripHtml = (html: string): string => stripHtmlForPreview(html, 150);
+
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div className="panel-wrapper panel-wrapper--bottom-sheet w-full">
@@ -519,6 +734,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={handleTitleKeyDown}
                   placeholder="Thread name"
                   className="w-full bg-transparent border-none text-[24px] font-bold focus:outline-none text-center placeholder:text-[var(--color-pebble-grey)]"
                   style={{ 

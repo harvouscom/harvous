@@ -61,7 +61,6 @@ interface OrganizedContentItem {
   count?: number;
   threadId?: string;
   noteId?: string;
-  color?: string;
   accentColor?: string;
   lastUpdated?: string;
   noteType?: 'default' | 'scripture' | 'resource';
@@ -101,44 +100,6 @@ function sortItems(items: OrganizedContentItem[]): OrganizedContentItem[] {
   }));
   const sorted = sortByLastVisited(itemsWithUpdatedAt);
   return sorted.map(({ updatedAt, ...item }) => item);
-}
-
-// Helper to sort items for initial load: threads first, then notes, both in chronological order (oldest first)
-function sortItemsInitialLoad(items: OrganizedContentItem[]): OrganizedContentItem[] {
-  // Separate threads and notes
-  const threads = items.filter(item => item.type === 'thread');
-  const notes = items.filter(item => item.type === 'note');
-  
-  // Sort threads by createdAt (oldest first)
-  const sortedThreads = [...threads].sort((a, b) => {
-    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() : null;
-    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() : null;
-    if (aTime != null && bTime != null) {
-      return aTime - bTime; // Ascending order (oldest first)
-    } else if (aTime != null && bTime == null) {
-      return -1;
-    } else if (aTime == null && bTime != null) {
-      return 1;
-    }
-    return (a.id || '').localeCompare(b.id || '');
-  });
-  
-  // Sort notes by createdAt (oldest first)
-  const sortedNotes = [...notes].sort((a, b) => {
-    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() : null;
-    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() : null;
-    if (aTime != null && bTime != null) {
-      return aTime - bTime; // Ascending order (oldest first)
-    } else if (aTime != null && bTime == null) {
-      return -1;
-    } else if (aTime == null && bTime != null) {
-      return 1;
-    }
-    return (a.id || '').localeCompare(b.id || '');
-  });
-  
-  // Combine: threads first, then notes
-  return [...sortedThreads, ...sortedNotes];
 }
 
 /**
@@ -192,20 +153,6 @@ function normalizeId(id: string | undefined | null): string {
     out = next;
   }
   return out;
-}
-
-// Safe JSON parsing helper that checks Content-Type and handles HTML responses
-async function safeParseJSON(response: Response): Promise<any> {
-  const contentType = response.headers.get('content-type');
-  if (!contentType || !contentType.includes('application/json')) {
-    const text = await response.text();
-    // If it looks like HTML, extract a meaningful error
-    if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
-      throw new Error('Server returned HTML instead of JSON. This may indicate an error page.');
-    }
-    throw new Error(`Expected JSON but received ${contentType}`);
-  }
-  return response.json();
 }
 
 export default function OrganizedContentList({ 
@@ -276,12 +223,92 @@ export default function OrganizedContentList({
              !initialDeleted.has(normalizeId(item.noteId));
     });
 
-    // Use initial load sorting: threads first, then notes, both chronologically
-    return sortItemsInitialLoad(filtered);
+    return sortItems(filtered);
   });
 
-  // Offline functionality removed - offline-read-layer module not available
-  // This can be re-enabled when offline mode is fully implemented
+  // Use offline reads if userId is provided
+  // When offline, prioritize local data immediately
+  useEffect(() => {
+    if (!userId) return;
+
+    const loadLocalData = async () => {
+      try {
+        const { getDashboardSnapshotLocal } = await import('@/utils/offline-read-layer');
+        const snapshot = await getDashboardSnapshotLocal(userId);
+        
+        if (snapshot) {
+          // Map snapshot data to OrganizedContentItem format
+          const localItems: OrganizedContentItem[] = [
+            ...snapshot.threads.map(t => ({
+              id: `thread-${t.id}`,
+              type: 'thread' as const,
+              title: t.title,
+              subtitle: t.subtitle || `${t.noteCount} notes`,
+              count: t.noteCount,
+              threadId: t.id,
+              spaceId: t.spaceId,
+              accentColor: t.color ? getThreadColorCSS(t.color) : getThreadColorCSS('blue'),
+              lastVisited: t.lastVisited,
+              createdAt: t.createdAt,
+              updatedAt: t.updatedAt || t.createdAt,
+            })),
+            ...snapshot.recentNotes.map(n => ({
+              id: `note-${n.id}`,
+              type: 'note' as const,
+              title: n.title || 'Untitled Note',
+              content: n.content,
+              noteId: n.id,
+              threadId: n.threadId,
+              spaceId: n.spaceId,
+              noteType: n.noteType,
+              lastVisited: n.lastVisited,
+              createdAt: n.createdAt,
+              updatedAt: n.updatedAt || n.createdAt,
+              syncStatus: n.syncStatus,
+            }))
+          ];
+
+          // CRITICAL: Filter out deleted items before any other filtering
+          const notDeletedItems = localItems.filter(item => {
+            return !deletedItemIdsRef.current.has(normalizeId(item.id)) && 
+                   !deletedItemIdsRef.current.has(normalizeId(item.threadId)) && 
+                   !deletedItemIdsRef.current.has(normalizeId(item.noteId));
+          });
+
+          // Filter by the current list filter
+          let filteredItems = notDeletedItems;
+          if (filter === 'threads') filteredItems = notDeletedItems.filter(i => i.type === 'thread');
+          if (filter === 'notes') filteredItems = notDeletedItems.filter(i => i.type === 'note' && (i.noteType === 'default' || !i.noteType));
+          if (filter === 'scripture') filteredItems = notDeletedItems.filter(i => i.type === 'note' && i.noteType === 'scripture');
+          if (filter === 'resources') filteredItems = notDeletedItems.filter(i => i.type === 'note' && i.noteType === 'resource');
+
+          // Sort and normalize
+          const sorted = sortItems(filteredItems.map(normalizeItemDates));
+          
+          // When offline, prioritize local data immediately
+          // When online, only use local if server data is empty or local has more items
+          setCurrentItems(prev => {
+            const shouldUseLocal = !navigator.onLine || sorted.length > 0 || prev.length === 0;
+            
+            if (shouldUseLocal) {
+              debug(`[OrganizedContentList] Using local data (offline: ${!navigator.onLine})`, { 
+                localCount: sorted.length,
+                serverCount: prev.length 
+              });
+              return sorted;
+            }
+            return prev;
+          });
+          
+          debug(`[OrganizedContentList] Checked local storage for filter: ${filter}`);
+        }
+      } catch (err) {
+        console.error('[OrganizedContentList] Local data load failed:', err);
+      }
+    };
+
+    loadLocalData();
+  }, [userId, filter, deletedItemIds]);
 
   // Essential refs only
   const isMountedRef = useRef(true);
@@ -329,11 +356,6 @@ export default function OrganizedContentList({
     if (!isMountedRef.current) return false;
     if (window.location.pathname !== '/') return false;
     if (refreshStateRef.current.isNavigating) return false;
-    
-    // Skip API calls if user is on sign-in page (not authenticated)
-    if (window.location.pathname.includes('/sign-in') || window.location.pathname.includes('/sign-up')) {
-      return false;
-    }
 
     const currentFilter = filterRef.current;
     const maxRetries = options?.maxRetries ?? (options?.expectedItemId ? 3 : 1);
@@ -378,25 +400,11 @@ export default function OrganizedContentList({
           cache: options?.expectedItemId ? 'no-store' : 'default'
         });
 
-        // Handle auth errors and redirects gracefully
-        if (response.status === 401 || response.status === 403) {
-          // User not authenticated - silently fail
-          refreshStateRef.current.isRefreshing = false;
-          return false;
-        }
-
-        // Handle redirects (3xx) - likely redirecting to sign-in page
-        if (response.status >= 300 && response.status < 400) {
-          // Likely redirecting to sign-in - silently fail
-          refreshStateRef.current.isRefreshing = false;
-          return false;
-        }
-
         if (!response.ok) {
           throw new Error(`Failed to refresh: ${response.status}`);
         }
 
-        const data = await safeParseJSON(response);
+        const data = await response.json();
         if (!isMountedRef.current) return false;
 
         // Normalize dates once at API boundary
@@ -479,9 +487,7 @@ export default function OrganizedContentList({
             !refreshStateRef.current.isNavigating && filterRef.current === currentFilter) {
           if (refreshedKey !== refreshStateRef.current.lastRefreshKey || options?.expectedItemId) {
             refreshStateRef.current.lastRefreshKey = refreshedKey;
-            // Use API's hasMore if available (especially important for scripture filter),
-            // otherwise calculate based on length
-            const newHasMore = data.hasMore !== undefined ? data.hasMore : sorted.length >= limit;
+            const newHasMore = sorted.length >= limit;
             setHasMore(newHasMore);
             hasMoreRef.current = newHasMore;
             setCurrentItems(sorted);
@@ -501,16 +507,8 @@ export default function OrganizedContentList({
         }
 
         return true;
-      } catch (error: any) {
-        // Suppress errors when user is not authenticated (likely on sign-in page)
-        const isAuthError = error?.message?.includes('HTML instead of JSON') || 
-                           error?.message?.includes('401') ||
-                           error?.message?.includes('403');
-        
-        if (!isAuthError) {
-          console.error('[OrganizedContentList] Refresh error:', error);
-        }
-        
+      } catch (error) {
+        console.error('[OrganizedContentList] Refresh error:', error);
         if (attempt < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, delays[attempt]));
         }
@@ -612,8 +610,7 @@ export default function OrganizedContentList({
       prevPropsInitialItemsRef.current = itemsKey;
       
       const rawItems = initialItems.map(normalizeItemDates);
-      // Use initial load sorting: threads first, then notes, both chronologically
-      const sorted = sortItemsInitialLoad(rawItems);
+      const sorted = sortItems(rawItems);
       
       setHasMore(sorted.length >= 20);
       hasMoreRef.current = sorted.length >= 20;
@@ -729,33 +726,6 @@ export default function OrganizedContentList({
             if (success) {
               const filtered = activeRecentThreads.filter((t: any) => t.threadId !== relevantThread.threadId);
               sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(filtered));
-            }
-          });
-        }
-      }
-
-      // Check for recently updated threads (color changes, etc.)
-      const recentlyUpdatedThreadsStr = sessionStorage.getItem('recentlyUpdatedThreads');
-      if (recentlyUpdatedThreadsStr) {
-        const recentlyUpdatedThreads = JSON.parse(recentlyUpdatedThreadsStr);
-        const fiveSecondsAgo = Date.now() - 5000;
-        
-        // Filter out threads that were deleted
-        const activeUpdatedThreads = recentlyUpdatedThreads.filter((t: any) => 
-          !deletedItemIdsRef.current.has(normalizeId(t.threadId))
-        );
-        
-        if (activeUpdatedThreads.length !== recentlyUpdatedThreads.length) {
-          sessionStorage.setItem('recentlyUpdatedThreads', JSON.stringify(activeUpdatedThreads));
-        }
-
-        const relevantThread = activeUpdatedThreads.find((t: any) => t.timestamp > fiveSecondsAgo);
-
-        if (relevantThread?.threadId) {
-          refreshContent({ expectedItemId: relevantThread.threadId, expectedItemType: 'thread' }).then(success => {
-            if (success) {
-              const filtered = activeUpdatedThreads.filter((t: any) => t.threadId !== relevantThread.threadId);
-              sessionStorage.setItem('recentlyUpdatedThreads', JSON.stringify(filtered));
             }
           });
         }
@@ -1069,11 +1039,6 @@ export default function OrganizedContentList({
       return { items: [], hasMore: false };
     }
 
-    // Skip API calls if user is on sign-in page (not authenticated)
-    if (window.location.pathname.includes('/sign-in') || window.location.pathname.includes('/sign-up')) {
-      return { items: [], hasMore: false };
-    }
-
     const currentFilter = filterRef.current;
     const now = Date.now();
     const timeSinceRefresh = now - refreshStateRef.current.lastRefreshTimestamp;
@@ -1100,51 +1065,25 @@ export default function OrganizedContentList({
       credentials: 'include'
     });
 
-    // Handle auth errors and redirects gracefully
-    if (response.status === 401 || response.status === 403) {
-      // User not authenticated - return empty
-      return { items: [], hasMore: false };
-    }
-
-    // Handle redirects (3xx) - likely redirecting to sign-in page
-    if (response.status >= 300 && response.status < 400) {
-      // Likely redirecting to sign-in - return empty
-      return { items: [], hasMore: false };
-    }
-
     if (!response.ok) {
       throw new Error('Failed to load more content');
     }
 
-    try {
-      const data = await safeParseJSON(response);
-      const newItems = (data.items || []).map(normalizeItemDates);
-      
-      // Update the master list with the new items
-      setCurrentItems(prev => [...prev, ...newItems]);
+    const data = await response.json();
+    const newItems = (data.items || []).map(normalizeItemDates);
+    
+    // Update the master list with the new items
+    setCurrentItems(prev => [...prev, ...newItems]);
 
-      setHasMore(data.hasMore);
-      hasMoreRef.current = data.hasMore;
+    setHasMore(data.hasMore);
+    hasMoreRef.current = data.hasMore;
 
-      // Return empty items because we've already updated the parent state
-      // which will update the 'items' prop of the InfiniteScrollList
-      return {
-        items: [],
-        hasMore: data.hasMore
-      };
-    } catch (error: any) {
-      // Suppress errors when user is not authenticated (likely on sign-in page)
-      const isAuthError = error?.message?.includes('HTML instead of JSON') || 
-                         error?.message?.includes('401') ||
-                         error?.message?.includes('403');
-      
-      if (!isAuthError) {
-        console.error('[OrganizedContentList] Load more error:', error);
-      }
-      
-      // Return empty to prevent further errors
-      return { items: [], hasMore: false };
-    }
+    // Return empty items because we've already updated the parent state
+    // which will update the 'items' prop of the InfiniteScrollList
+    return {
+      items: [],
+      hasMore: data.hasMore
+    };
   }, []);
 
   const renderItem = (item: OrganizedContentItem, index: number) => {
@@ -1212,7 +1151,6 @@ export default function OrganizedContentList({
                 title: item.title,
                 subtitle: item.subtitle,
                 count: item.count,
-                color: item.color,
                 accentColor: item.accentColor,
                 lastUpdated: item.lastUpdated,
                 lastVisited: item.lastVisited,

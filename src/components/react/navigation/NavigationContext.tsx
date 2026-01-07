@@ -900,6 +900,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return;
       }
 
+      // Skip validation when offline - no need to hit network
+      if (!navigator.onLine) {
+        return;
+      }
+
       // Fetch current threads from API with safe fetch
       const response = await safeFetch('/api/threads/list');
       
@@ -1464,6 +1469,38 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       window.removeEventListener('noteDeleted', handleNoteDeleted as unknown as EventListener);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
+    };
+  }, []);
+
+  // Listen for entity ID changes (when local IDs become server IDs during sync)
+  useEffect(() => {
+    const handleIdChange = (event: CustomEvent) => {
+      const { oldId, newId, entityType } = event.detail;
+      
+      // Update navigation history
+      setNavigationHistory(prev => 
+        prev.map(item => item.id === oldId ? { ...item, id: newId } : item)
+      );
+      
+      // Update closed items if needed
+      const closedItems = getClosedItems();
+      if (closedItems.includes(oldId)) {
+        // Remove old ID and add new ID to closed items
+        removeFromClosedItems(oldId);
+        addToClosedItems(newId);
+      }
+      
+      // Update storage to persist the change
+      const history = getNavigationHistory();
+      const updated = history.map(item => 
+        item.id === oldId ? { ...item, id: newId } : item
+      );
+      saveNavigationHistory(updated);
+    };
+    
+    window.addEventListener('entityIdChanged', handleIdChange as EventListener);
+    return () => {
+      window.removeEventListener('entityIdChanged', handleIdChange as EventListener);
     };
   }, []);
 

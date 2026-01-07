@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ThreadCombobox from './ThreadCombobox';
 import { useNavigation } from './navigation/NavigationContext';
@@ -6,6 +8,8 @@ import { captureException } from '@/utils/posthog';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { debug } from '@/utils/logger';
 import { safeURL } from '@/utils/safe-url';
+import { usePersistedUserId } from '@/utils/user-id';
+import { getNextSimpleNoteIdPreview, getLocalNoteCount, cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId } from '@/utils/offline-mutations';
 
 // Import extracted hooks
 import {
@@ -39,13 +43,33 @@ interface NewNotePanelProps {
 }
 
 export default function NewNotePanel({ currentThread, currentSpace, onClose, initialNoteType }: NewNotePanelProps) {
-  
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Get userId for offline operations (works online and offline)
+  const userId = usePersistedUserId();
+
   // Get navigation context
   const navigation = useNavigation();
   const { addToNavigationHistory, navigationHistory } = navigation;
 
   // State for next note ID, unsaved dialog, and suggested thread
-  const [nextNoteId, setNextNoteId] = useState('000');
+  // Initialize from localStorage cache immediately for better offline UX
+  const [nextNoteId, setNextNoteId] = useState(() => {
+    if (typeof window === 'undefined') return 'N...';
+    const persistedUserId = localStorage.getItem('harvous-user-id');
+    if (persistedUserId) {
+      const cachedId = localStorage.getItem(`harvous_highestSimpleNoteId_${persistedUserId}`);
+      if (cachedId) {
+        const nextId = parseInt(cachedId, 10) + 1;
+        return `N${nextId.toString().padStart(3, '0')}`;
+      }
+    }
+    return 'N...'; // Show loading indicator instead of #New
+  });
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [suggestedThreadName, setSuggestedThreadName] = useState<string | null>(null);
   const [showSuggestedThreadDialog, setShowSuggestedThreadDialog] = useState(false);
@@ -88,8 +112,91 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
     scriptureVersion: form.scriptureVersion,
   });
 
-  // Load next note ID
-  const loadNextNoteId = async () => {
+  // Load next note ID - with offline fallback
+  const loadNextNoteId = useCallback(async () => {
+    const isOffline = !navigator.onLine;
+    debug('[NewNotePanel] loadNextNoteId called', { userId, online: !isOffline });
+    
+    // Helper function to format note ID consistently
+    const formatNoteId = (id: number): string => `N${id.toString().padStart(3, '0')}`;
+    
+    // Helper function to try offline preview from IndexedDB
+    const tryOfflinePreview = async (userIdToUse: string): Promise<boolean> => {
+      try {
+        debug('[NewNotePanel] Trying offline preview from IndexedDB', { userIdToUse });
+        const previewId = await getNextSimpleNoteIdPreview(userIdToUse);
+        debug('[NewNotePanel] Offline preview result', { previewId });
+        if (previewId !== null) {
+          setNextNoteId(formatNoteId(previewId));
+          return true;
+        }
+      } catch (offlineError) {
+        console.error('[NewNotePanel] Error getting offline ID preview:', offlineError);
+      }
+      return false;
+    };
+    
+    // Helper function to get fallback ID from local note count
+    const tryLocalCountFallback = async (userIdToUse: string): Promise<boolean> => {
+      try {
+        const localCount = await getLocalNoteCount(userIdToUse);
+        const fallbackId = formatNoteId(localCount + 1);
+        debug('[NewNotePanel] Using local count fallback', { localCount, fallbackId });
+        setNextNoteId(fallbackId);
+        return true;
+      } catch (countError) {
+        console.error('[NewNotePanel] Error getting local note count:', countError);
+        return false;
+      }
+    };
+
+    // STEP 1: Always check localStorage cache first (instant, synchronous)
+    // This provides immediate feedback while we fetch the real value
+    if (userId) {
+      const cachedId = getCachedHighestSimpleNoteId(userId);
+      if (cachedId !== null) {
+        const nextId = cachedId + 1;
+        const formattedId = formatNoteId(nextId);
+        debug('[NewNotePanel] Using cached ID for immediate display', { cachedId, nextId, formattedId, isOffline });
+        setNextNoteId(formattedId);
+        
+        // If offline, we're done - cached value is our best bet
+        if (isOffline) {
+          debug('[NewNotePanel] Offline - using cached ID as final value');
+          return;
+        }
+        // If online, continue to fetch from server to update cache
+      }
+    }
+
+    // STEP 2: Handle offline mode - prioritize local sources
+    if (isOffline) {
+      debug('[NewNotePanel] Offline mode - using local sources only');
+      
+      if (!userId) {
+        // No userId yet - show N001 as default for new users
+        debug('[NewNotePanel] No userId in offline mode, showing N001');
+        setNextNoteId('N001');
+        return;
+      }
+      
+      // Try IndexedDB preview
+      if (await tryOfflinePreview(userId)) {
+        return;
+      }
+      
+      // Try local note count fallback
+      if (await tryLocalCountFallback(userId)) {
+        return;
+      }
+      
+      // Last resort: show N001 for offline mode (never #New)
+      debug('[NewNotePanel] All offline sources failed, showing N001 as fallback');
+      setNextNoteId('N001');
+      return;
+    }
+
+    // STEP 3: Online mode - try server, fallback to local sources
     try {
       const response = await safeFetch('/api/notes/next-id', {
         retries: 2,
@@ -98,12 +205,44 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       
       if (response && response.ok) {
         const data = await response.json();
-        setNextNoteId(`${data.formattedId}`);
+        // Server returns both nextNoteId (numeric) and formattedId (string)
+        // Cache the numeric ID for offline use
+        if (userId && data.nextNoteId !== undefined) {
+          // Cache the highest ID (nextNoteId - 1) since nextNoteId is what will be assigned
+          cacheHighestSimpleNoteId(userId, data.nextNoteId - 1);
+          debug('[NewNotePanel] Cached highestSimpleNoteId from server', { cached: data.nextNoteId - 1 });
+        }
+        // Server already returns formattedId as "N502"
+        setNextNoteId(data.formattedId);
+        return;
+      }
+      
+      // Response not ok - fallback to local sources
+      debug('[NewNotePanel] Server response not ok, trying local fallbacks');
+      if (userId) {
+        if (await tryOfflinePreview(userId)) return;
+        if (await tryLocalCountFallback(userId)) return;
+      }
+      
+      // Keep cached value if we have one, otherwise show N001
+      if (!getCachedHighestSimpleNoteId(userId || '')) {
+        setNextNoteId('N001');
       }
     } catch (error) {
-      captureException(error as Error);
+      // Server request failed - try local sources
+      debug('[NewNotePanel] Server request failed, trying local fallbacks', { error });
+      if (userId) {
+        if (await tryOfflinePreview(userId)) return;
+        if (await tryLocalCountFallback(userId)) return;
+      }
+      
+      // Keep cached value if we have one, otherwise show N001
+      if (!getCachedHighestSimpleNoteId(userId || '')) {
+        setNextNoteId('N001');
+        captureException(error as Error);
+      }
     }
-  };
+  }, [userId]);
 
   // Use extracted submission hook
   const submission = useNoteSubmission({
@@ -159,12 +298,39 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
   // Initialize data
   useEffect(() => {
     loadNextNoteId();
-  }, []);
+  }, [loadNextNoteId]);
 
-  // Check subscription status via API (simplified - no client-side checks needed)
+  // Check subscription status via API with offline fallback
   const checkSubscriptionStatus = useCallback(async () => {
     // Don't check if page isn't ready
     if (typeof window === 'undefined' || document.readyState === 'loading') {
+      return;
+    }
+
+    // Helper to check local count
+    const checkLocalCount = async () => {
+      if (!userId) return;
+      try {
+        const localCount = await getLocalNoteCount(userId);
+        // Use default limit of 1000 if we can't get it from server
+        const defaultLimit = 1000;
+        setCurrentCount(localCount);
+        setLimit(defaultLimit);
+        // Check if user is close to limit (within 10 notes) to prevent abuse
+        setIsLimitReached(localCount >= defaultLimit - 10);
+        
+        if (localCount >= defaultLimit - 10) {
+          console.warn('[NewNotePanel] User approaching note limit offline:', localCount, '/', defaultLimit);
+        }
+      } catch (offlineError) {
+        console.error('[NewNotePanel] Error checking offline note count:', offlineError);
+        // Keep default values on error
+      }
+    };
+
+    // If offline, skip network request and use local data directly
+    if (!navigator.onLine) {
+      await checkLocalCount();
       return;
     }
 
@@ -184,17 +350,14 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
         if (response.status !== 401) {
           console.warn('[NewNotePanel] Subscription status check returned:', response.status);
         }
+        // Fall through to offline check
+        throw new Error('API check failed');
       }
     } catch (error) {
-      // Only log if it's not a network error during page load
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        // This can happen during page transitions or if the server isn't ready
-        // Silently ignore - the check will retry on next interaction
-        return;
-      }
-      console.error('[NewNotePanel] Failed to check subscription status:', error);
+      // Server request failed - try offline check
+      await checkLocalCount();
     }
-  }, []);
+  }, [userId]);
 
   // Check subscription status on mount
   useEffect(() => {
@@ -848,7 +1011,9 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
     await submission.handleSubmit(syntheticEvent);
   };
 
-
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <>

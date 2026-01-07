@@ -1,34 +1,19 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import CardStack from "@/components/CardStack.astro";
-import SearchInput from "@/components/SearchInput.astro";
-import SquareButton from "@/components/SquareButton.astro";
-import Avatar from "@/components/Avatar.astro";
 import TabNav from "@/components/TabNav.astro";
-import CardFeat from "@/components/CardFeat.astro";
-import CardNote from "@/components/CardNote.astro";
-import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
-import { getFeaturedContent, getContentItems, getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
-import { getArchivedItems } from "@/utils/inbox-data";
-import InboxItemsList from "@/components/react/InboxItemsList";
+import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount, getContentItems } from "@/utils/dashboard-data";
 import OrganizedContentList from "@/components/react/OrganizedContentList";
-// TEMPORARILY DISABLED: Inbox functionality needs serious work - see docs/INBOX_DUPLICATION_ISSUES.md
-// import CollapsibleInboxSection from "@/components/react/CollapsibleInboxSection";
-// Sample data imports removed - using real database data only
-import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import { getThreadGradientCSS } from "@/utils/colors";
-import { ensureUnorganizedThread } from "@/utils/unorganized-thread";
 import MobileAdditional from "@/components/MobileAdditional.astro";
-import { getRelativeTime } from "@/utils/date-formatting";
-import { db, InboxItemNotes, eq, count, inArray } from "astro:db";
+
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
 const { userId } = auth;
 
 // Auth redirect is now handled by middleware - no need to check here
-// Pages can still use userId for conditional rendering
 // Type guard: middleware ensures userId exists, but TypeScript doesn't know this
 if (!userId) {
   throw new Error('User ID is required but not found');
@@ -37,12 +22,11 @@ if (!userId) {
 // Get cached user data (optimized - no API calls on every page load)
 import { getCachedUserData, type CachedUserData } from '@/utils/user-cache';
 
-// Fetch real data from database and user cache in parallel for better performance
-let featuredContent: any[] = [];
-let contentItems: any[] = [];
+// Fetch navigation and content data in parallel
 let threads: any[] = [];
 let spaces: any[] = [];
 let inboxCount: number = 0;
+let contentItems: any[] = [];
 let userData: CachedUserData = {
   firstName: '',
   lastName: '',
@@ -52,17 +36,9 @@ let userData: CachedUserData = {
   userColor: 'paper',
 };
 
-// Variables for archived items, active thread, and unorganized thread (used outside try block)
-let archived: any[] = [];
-let threadContext: any = null;
-let threadData: any = null;
-
-// Always use real database data
 try {
-    // Fetch all data in parallel for better performance (including user cache and non-critical data)
-    // Note: getContentItems is called separately after threads are fetched to avoid duplicate query
-    const [featuredContentData, threadsData, spacesData, inboxCountData, cachedUserData, archivedData, threadContextData, unorganizedThreadData] = await Promise.allSettled([
-      getFeaturedContent(userId),
+    // Fetch all data in parallel for better performance
+    const [threadsData, spacesData, inboxCountData, cachedUserData] = await Promise.allSettled([
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
       getInboxCount(userId),
@@ -74,25 +50,17 @@ try {
         displayName: 'User',
         userColor: 'paper',
       })),
-      getArchivedItems(userId).catch(() => []),
-      detectActiveThreadFromPath(Astro.url.pathname, userId).catch(() => null),
-      ensureUnorganizedThread(userId).catch(() => null)
     ]);
     
     // Extract results from Promise.allSettled
-    featuredContent = featuredContentData.status === 'fulfilled' ? featuredContentData.value : [];
     threads = threadsData.status === 'fulfilled' ? threadsData.value : [];
     spaces = spacesData.status === 'fulfilled' ? spacesData.value : [];
     inboxCount = inboxCountData.status === 'fulfilled' ? inboxCountData.value : 0;
     userData = cachedUserData.status === 'fulfilled' ? cachedUserData.value : userData;
-    archived = archivedData.status === 'fulfilled' ? archivedData.value : [];
-    threadContext = threadContextData.status === 'fulfilled' ? threadContextData.value : null;
-    threadData = unorganizedThreadData.status === 'fulfilled' ? unorganizedThreadData.value : null;
     
-    // Now fetch content items with threads passed in to avoid duplicate query
-    // Reduced limit from 100 to 30 for faster initial load (pagination handles more items)
+    // Fetch content items with threads passed in to avoid duplicate query
     try {
-      contentItems = await getContentItems(userId, 30, 0, true, threads); // Pass threads to avoid duplicate getAllThreadsWithCounts() call
+      contentItems = await getContentItems(userId, 30, 0, true, threads);
     } catch (error) {
       console.error("Error fetching content items:", error);
       contentItems = [];
@@ -111,138 +79,24 @@ try {
     }));
 } catch (error) {
   console.error("Error fetching dashboard data:", error);
-  console.error("Error details:", error instanceof Error ? error.message : String(error));
-  console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace available');
   
-  // In production, we want to see the actual error instead of silent fallback
-  if (import.meta.env.PROD) {
-    console.error("PRODUCTION ERROR: Dashboard data fetch failed");
-    console.error("This indicates a serious issue with database connectivity or data integrity");
-    // Still provide fallback data but log the error prominently
-  }
-  
-  // Fallback to empty data if database fails (userData already has fallback)
-  featuredContent = [];
-  contentItems = [];
+  // Fallback to empty data if database fails
   threads = [];
   spaces = [];
   inboxCount = 0;
+  contentItems = [];
 }
 
 // Add HTTP caching headers for better performance (30 second cache for dashboard)
 Astro.response.headers.set('Cache-Control', 'private, max-age=30');
 
-const { firstName, lastName, initials, displayName, userColor } = userData;
+const { initials, userColor } = userData;
 
-// Combine all content for the main content section
-// Inbox shows inbox items from Harvous team (both threads and notes)
-const inboxContent = featuredContent; // Now includes both threads and notes from inbox
-// Organized content should only include contentItems, not featuredContent notes
-// to avoid duplication of unorganized notes
+// Inbox count for navigation display
+const inboxItemCount = inboxCount;
+
+// Organized content for tabs
 const organizedContent = Array.isArray(contentItems) ? contentItems : [];
-// Use the actual count of items displayed in inbox, not the total inbox count
-const inboxItemCount = inboxContent.length;
-
-// Calculate counts for scripture and resource notes
-const scriptureCount = organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'scripture').length;
-const resourceCount = organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'resource').length;
-
-// Process archived items, active thread, and unorganized thread (already fetched in main Promise.allSettled)
-let archivedItems: any[] = [];
-let activeThread = threadContext;
-let unorganizedThread = null;
-
-// Set unorganized thread if it has notes
-if (threadData && threadData.noteCount > 0) {
-  unorganizedThread = threadData;
-}
-
-try {
-  // Batch fetch all note counts in a single query to avoid N+1 problem
-  const threadInboxItemIds = archived
-    .filter(item => item.contentType === 'thread')
-    .map(item => item.id);
-  
-  let noteCountsMap = new Map<string, number>();
-  if (threadInboxItemIds.length > 0) {
-    try {
-      const noteCounts = await db
-        .select({
-          inboxItemId: InboxItemNotes.inboxItemId,
-          count: count(),
-        })
-        .from(InboxItemNotes)
-        .where(inArray(InboxItemNotes.inboxItemId, threadInboxItemIds))
-        .groupBy(InboxItemNotes.inboxItemId)
-        .all();
-      
-      noteCountsMap = new Map(noteCounts.map(item => [item.inboxItemId, item.count]));
-    } catch (error) {
-      console.error('Error fetching archived item note counts:', error);
-    }
-  }
-  
-  // Process archived items
-  archivedItems = archived.map((item) => {
-    const cleanContent = item.content ? item.content.replace(/<[^>]*>/g, '').substring(0, 150) + (item.content.length > 150 ? "..." : "") : '';
-    
-    // Get note count for threads from the batch-fetched map
-    const noteCount = item.contentType === 'thread' ? (noteCountsMap.get(item.id) || 0) : 0;
-    
-    // Calculate days until deletion (30 days after archiving)
-    // Use archivedAt if available, otherwise fall back to createdAt with 44-day threshold
-    let displayTimestamp: string | undefined = undefined;
-    try {
-      const now = new Date();
-      let daysUntilDeletion: number | undefined = undefined;
-      
-      if (item.archivedAt) {
-        // Item has archivedAt timestamp: calculate 30 days from archivedAt
-        const archivedDate = new Date(item.archivedAt);
-        const daysSinceArchived = Math.floor((now.getTime() - archivedDate.getTime()) / (1000 * 60 * 60 * 24));
-        daysUntilDeletion = 30 - daysSinceArchived;
-      } else if (item.createdAt) {
-        // Item missing archivedAt: use createdAt with 44-day threshold (14 days inbox + 30 days archived)
-        const createdDate = new Date(item.createdAt);
-        const daysSinceCreated = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-        daysUntilDeletion = 44 - daysSinceCreated;
-      }
-      
-      if (daysUntilDeletion !== undefined) {
-        if (daysUntilDeletion <= 0) {
-          // Item should have been deleted already
-          displayTimestamp = "0 days till deleted";
-        } else if (daysUntilDeletion === 1) {
-          displayTimestamp = "1 day till deleted";
-        } else {
-          displayTimestamp = `${daysUntilDeletion} days till deleted`;
-        }
-      }
-    } catch (error) {
-      console.error('Error calculating days until deletion:', error, 'item:', item);
-      displayTimestamp = undefined;
-    }
-    
-    return {
-      id: item.id,
-      type: item.contentType === 'thread' ? 'thread' : 'note',
-      title: item.title,
-      content: cleanContent,
-      imageUrl: item.imageUrl,
-      variant: item.contentType === 'thread' ? 'Thread' : (item.imageUrl ? 'NoteImage' : 'Note'),
-      threadId: item.contentType === 'thread' ? item.id : undefined,
-      noteId: item.contentType === 'note' ? item.id : undefined,
-      color: item.color,
-      subtitle: item.subtitle,
-      lastUpdated: displayTimestamp, // Relative time when item was made available to user
-      count: noteCount, // Note count for threads
-      threadType: item.threadType, // Thread type from CMS
-    };
-  });
-} catch (error) {
-  console.error("Error processing archived items:", error);
-  archivedItems = [];
-}
 ---
 
 <Layout 
@@ -263,7 +117,7 @@ try {
     slot="navigation"
     inboxCount={inboxItemCount}
     spaces={spaces}
-    activeThread={activeThread}
+    activeThread={null}
     currentSpace={null}
     isNote={false}
     currentId={undefined}
@@ -279,7 +133,7 @@ try {
       threads={threads}
       inboxCount={inboxItemCount}
       currentSpace={null}
-      currentThread={activeThread}
+      currentThread={null}
       initials={initials}
       userColor={userColor}
     />
@@ -288,32 +142,10 @@ try {
   <!-- Main Column -->
   <div slot="main" class="h-full min-h-0 overflow-hidden" id="dashboard-content" data-navigation-item="dashboard" data-title="My Home" data-count={inboxItemCount} data-background-gradient="var(--color-paper)">
               <CardStack title="My Home" subtitle="" headerBgColor="var(--color-paper)">
-                <div slot="header-actions" class="flex gap-2">
-                  <button 
-                    hx-get="/" 
-                    hx-target="#dashboard-content" 
-                    hx-swap="outerHTML"
-                    class="p-2 rounded-lg transition-colors hover-bg-gray"
-                    title="Refresh"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                  </button>
-                </div>
                   <div class="flex flex-col gap-3">
-                  <!-- Collapsible Inbox/Archive Section -->
-                  <!-- TEMPORARILY DISABLED: Inbox functionality needs serious work - see docs/INBOX_DUPLICATION_ISSUES.md -->
-                  <!-- <CollapsibleInboxSection 
-                    client:load
-                    inboxContent={inboxContent}
-                    archivedItems={archivedItems}
-                    inboxItemCount={inboxItemCount}
-                  /> -->
-                  
-                  <!-- Second TabNav Group -->
+                  <!-- TabNav Group -->
                   <div class="flex flex-col gap-3">
-                    <!-- Second TabNav - All/Threads/Notes/Scripture -->
+                    <!-- TabNav - All/Threads/Notes/Scripture -->
                     <TabNav 
                       tabs={[
                         { id: "all", label: "All", isActive: true },
@@ -329,6 +161,7 @@ try {
                       <OrganizedContentList 
                         initialItems={organizedContent}
                         filter="all"
+                        userId={userId}
                         client:visible
                       />
                     </div>
@@ -338,6 +171,7 @@ try {
                       <OrganizedContentList 
                         initialItems={organizedContent.filter(item => item.type === 'thread')}
                         filter="threads"
+                        userId={userId}
                         client:visible
                       />
                     </div>
@@ -347,6 +181,7 @@ try {
                       <OrganizedContentList 
                         initialItems={organizedContent.filter((item: any) => item?.type === 'note' && (item?.noteType === 'default' || !item?.noteType))}
                         filter="notes"
+                        userId={userId}
                         client:visible
                       />
                     </div>
@@ -356,7 +191,8 @@ try {
                       <OrganizedContentList 
                         initialItems={organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'scripture')}
                         filter="scripture"
-                        client:load
+                        userId={userId}
+                        client:visible
                       />
                     </div>
                 </div>
@@ -380,7 +216,6 @@ try {
     
     // Inline cache initialization to avoid import issues
     const CACHE_KEY = 'harvous_navigation_cache';
-    const CACHE_DURATION = 30 * 1000; // 30 seconds
     
     function setCachedNavigationData(data) {
       try {
@@ -402,320 +237,10 @@ try {
     // Re-initialize after View Transitions (debounced to avoid multiple calls)
     let navigationCacheTimeout = null;
     document.addEventListener('astro:page-load', () => {
-      // Debounce to avoid multiple rapid calls
       if (navigationCacheTimeout) clearTimeout(navigationCacheTimeout);
       navigationCacheTimeout = setTimeout(() => {
-        // Re-cache with current data
         setCachedNavigationData({ threads, spaces, inboxCount: inboxItemCount });
       }, 50);
-    });
-  })();
-</script>
-
-<!-- Update inbox/archive auto text based on active tab -->
-<script is:inline>
-  function updateInboxArchiveText() {
-    // Find all inbox-archive-tabs instances (works for both desktop and mobile)
-    const inboxArchiveTabs = document.querySelectorAll('.inbox-archive-tabs');
-    
-    inboxArchiveTabs.forEach(function(tabContainer) {
-      const inboxButton = tabContainer.querySelector('[data-tab-id="inbox"]');
-      const archiveButton = tabContainer.querySelector('[data-tab-id="archive"]');
-      
-      if (!inboxButton || !archiveButton) return;
-      
-      // Find text elements within the same parent container
-      const parentContainer = tabContainer.parentElement;
-      if (!parentContainer) return;
-      
-      const inboxText = parentContainer.querySelector('.inbox-auto-text');
-      const archiveText = parentContainer.querySelector('.archive-auto-text');
-      
-      if (!inboxText || !archiveText) return;
-      
-      const isInboxActive = inboxButton.getAttribute('data-active') === 'true';
-      
-      if (isInboxActive) {
-        inboxText.classList.remove('hidden');
-        archiveText.classList.add('hidden');
-      } else {
-        inboxText.classList.add('hidden');
-        archiveText.classList.remove('hidden');
-      }
-    });
-  }
-  
-  // Update on page load
-  if (typeof window !== 'undefined') {
-    // Wait for DOM to be ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', updateInboxArchiveText);
-    } else {
-      updateInboxArchiveText();
-    }
-    
-    // Listen for tab clicks on inbox-archive-tabs
-    document.addEventListener('click', function(e) {
-      const clickedTab = e.target.closest('.inbox-archive-tabs [data-tab-button]');
-      if (clickedTab) {
-        // Small delay to let tab-manager.js update the active state first
-        setTimeout(updateInboxArchiveText, 10);
-      }
-    });
-    
-    // Also listen for View Transitions (debounced)
-    let inboxArchiveTimeout = null;
-    document.addEventListener('astro:page-load', function() {
-      if (inboxArchiveTimeout) clearTimeout(inboxArchiveTimeout);
-      inboxArchiveTimeout = setTimeout(updateInboxArchiveText, 50);
-    });
-  }
-</script>
-
-<!-- Trigger auto-archive on page load to ensure items older than 14 days are archived -->
-<!-- Deferred to avoid blocking initial render - runs after page is interactive -->
-<script is:inline>
-  (function() {
-    if (typeof window === 'undefined') return;
-    
-    // Track if we've already triggered auto-archive to avoid duplicate calls
-    let autoArchiveTriggered = false;
-    
-    // Trigger auto-archive in the background (fire-and-forget)
-    // This ensures items older than 14 days get archived even if the scheduled job hasn't run
-    function triggerAutoArchive() {
-      // Only trigger once per page load
-      if (autoArchiveTriggered) return;
-      autoArchiveTriggered = true;
-      
-      // Use requestIdleCallback with longer timeout to avoid blocking page rendering
-      // Wait until browser is idle or after 3 seconds, whichever comes first
-      const scheduleArchive = (callback) => {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(callback, { timeout: 3000 });
-        } else {
-          // Fallback: wait for page to be fully loaded and interactive
-          if (document.readyState === 'complete') {
-            setTimeout(callback, 2000);
-          } else {
-            window.addEventListener('load', () => setTimeout(callback, 2000));
-          }
-        }
-      };
-      
-      scheduleArchive(async () => {
-        try {
-          // Call auto-archive endpoint (authenticated users can trigger for their own items)
-          const response = await fetch('/api/inbox/auto-archive', {
-            method: 'POST',
-            credentials: 'include'
-          });
-          
-          if (!response.ok) {
-            // Log error details for debugging
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            console.error('Auto-archive failed:', {
-              status: response.status,
-              statusText: response.statusText,
-              error: errorData
-            });
-            return;
-          }
-          
-          const result = await response.json();
-          
-          if (result.archivedCount > 0) {
-            // If items were archived, refresh the page to show updated inbox
-            // Use View Transitions if available for smooth refresh
-            if (document.startViewTransition) {
-              document.startViewTransition(() => {
-                window.location.reload();
-              });
-            } else {
-              window.location.reload();
-            }
-          } else if (result.errors && result.errors.length > 0) {
-            console.warn('Auto-archive completed with errors:', result.errors);
-          }
-        } catch (error) {
-          // Log network errors and other exceptions
-          console.error('Auto-archive trigger failed:', error);
-        }
-      });
-    }
-    
-    // Defer until page is fully loaded and interactive
-    if (document.readyState === 'complete') {
-      // Page already loaded, use requestIdleCallback
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(triggerAutoArchive, { timeout: 3000 });
-      } else {
-        setTimeout(triggerAutoArchive, 2000);
-      }
-    } else {
-      // Wait for page to be fully loaded before triggering
-      window.addEventListener('load', () => {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(triggerAutoArchive, { timeout: 3000 });
-        } else {
-          setTimeout(triggerAutoArchive, 2000);
-        }
-      });
-    }
-    
-    // Reset flag on View Transitions to allow re-triggering on navigation
-    document.addEventListener('astro:page-load', function() {
-      autoArchiveTriggered = false;
-      // Debounce to avoid multiple rapid calls - wait longer after navigation
-      setTimeout(() => {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(triggerAutoArchive, { timeout: 3000 });
-        } else {
-          triggerAutoArchive();
-        }
-      }, 500);
-    });
-  })();
-</script>
-
-<!-- Trigger auto-delete when archive tab is viewed to ensure items older than 30 days are deleted -->
-<!-- Deferred to avoid blocking initial render - runs after page is interactive -->
-<script is:inline>
-  (function() {
-    if (typeof window === 'undefined') return;
-    
-    // Track if we've already triggered auto-delete to avoid duplicate calls
-    let autoDeleteTriggered = false;
-    
-    // Check if archive tab is currently visible
-    function isArchiveTabVisible() {
-      const archiveButton = document.querySelector('.inbox-archive-tabs [data-tab-id="archive"]');
-      const archiveContent = document.querySelector('.archive-content');
-      return archiveButton?.getAttribute('data-active') === 'true' || 
-             (archiveContent && !archiveContent.classList.contains('hidden'));
-    }
-    
-    // Trigger auto-delete in the background (fire-and-forget)
-    // This ensures archived items older than 30 days get deleted even if the scheduled job hasn't run
-    function triggerAutoDelete() {
-      // Only trigger if archive tab is visible
-      if (!isArchiveTabVisible()) return;
-      
-      // Only trigger once per page load
-      if (autoDeleteTriggered) return;
-      autoDeleteTriggered = true;
-      
-      // Use requestIdleCallback with longer timeout to avoid blocking page rendering
-      // Wait until browser is idle or after 3 seconds, whichever comes first
-      const scheduleDelete = (callback) => {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(callback, { timeout: 3000 });
-        } else {
-          // Fallback: wait for page to be fully loaded and interactive
-          if (document.readyState === 'complete') {
-            setTimeout(callback, 2000);
-          } else {
-            window.addEventListener('load', () => setTimeout(callback, 2000));
-          }
-        }
-      };
-      
-      scheduleDelete(async () => {
-        try {
-          // Call auto-delete endpoint (authenticated users can trigger for their own items)
-          const response = await fetch('/api/inbox/auto-delete', {
-            method: 'POST',
-            credentials: 'include'
-          });
-          
-          if (!response.ok) {
-            // Log error details for debugging
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            console.error('Auto-delete failed:', {
-              status: response.status,
-              statusText: response.statusText,
-              error: errorData
-            });
-            return;
-          }
-          
-          const result = await response.json();
-          
-          if (result.deletedCount > 0) {
-            // If items were deleted, refresh the page to show updated archive
-            // Use View Transitions if available for smooth refresh
-            if (document.startViewTransition) {
-              document.startViewTransition(() => {
-                window.location.reload();
-              });
-            } else {
-              window.location.reload();
-            }
-          } else if (result.errors && result.errors.length > 0) {
-            console.warn('Auto-delete completed with errors:', result.errors);
-          }
-        } catch (error) {
-          // Log network errors and other exceptions
-          console.error('Auto-delete trigger failed:', error);
-        }
-      });
-    }
-    
-    // Defer until page is fully loaded and interactive
-    function checkAndTriggerAutoDelete() {
-      if (isArchiveTabVisible()) {
-        triggerAutoDelete();
-      }
-    }
-    
-    if (document.readyState === 'complete') {
-      // Page already loaded, use requestIdleCallback
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(checkAndTriggerAutoDelete, { timeout: 3000 });
-      } else {
-        setTimeout(checkAndTriggerAutoDelete, 2000);
-      }
-    } else {
-      // Wait for page to be fully loaded before triggering
-      window.addEventListener('load', () => {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(checkAndTriggerAutoDelete, { timeout: 3000 });
-        } else {
-          setTimeout(checkAndTriggerAutoDelete, 2000);
-        }
-      });
-    }
-    
-    // Reset flag on View Transitions to allow re-triggering on navigation
-    document.addEventListener('astro:page-load', function() {
-      autoDeleteTriggered = false;
-      // Debounce to avoid multiple rapid calls - wait longer after navigation
-      setTimeout(() => {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(checkAndTriggerAutoDelete, { timeout: 3000 });
-        } else {
-          checkAndTriggerAutoDelete();
-        }
-      }, 500);
-    });
-    
-    // Also trigger when archive tab is clicked
-    document.addEventListener('click', function(e) {
-      const clickedTab = e.target.closest('.inbox-archive-tabs [data-tab-button]');
-      if (clickedTab) {
-        const tabId = clickedTab.getAttribute('data-tab-id');
-        if (tabId === 'archive') {
-          // Small delay to let tab-manager.js update the active state first
-          setTimeout(() => {
-            autoDeleteTriggered = false; // Reset flag to allow triggering
-            if ('requestIdleCallback' in window) {
-              requestIdleCallback(triggerAutoDelete, { timeout: 1000 });
-            } else {
-              triggerAutoDelete();
-            }
-          }, 100);
-        }
-      }
     });
   })();
 </script>

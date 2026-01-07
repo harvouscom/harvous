@@ -115,7 +115,8 @@ export default function SquareButton({
   }, [withMenu, isOpen]);
 
   const toggleMenu = () => {
-    setIsOpen(!isOpen);
+    const newState = !isOpen;
+    setIsOpen(newState);
   };
 
   const handleButtonClick = () => {

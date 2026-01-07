@@ -11,6 +11,10 @@ import { debug } from '@/utils/logger';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
+import { deleteNoteOffline } from '@/utils/offline-mutations';
+import { getPersistedUserId } from '@/utils/user-id';
+import { getNotesForThreadLocal } from '@/utils/offline-read-layer';
+import { isNetworkError } from '@/utils/network';
 
 
 interface Note {
@@ -25,6 +29,8 @@ interface Note {
   resourceTitle?: string | null;
   resourceDescription?: string | null;
   resourceImage?: string | null;
+  // Sync status for offline mode
+  syncStatus?: 'synced' | 'pending' | 'conflict' | 'deleted';
 }
 
 interface NoteTypeCounts {
@@ -230,8 +236,64 @@ export default function ThreadNotesList({
   const refreshNotesList = useCallback(async (expectedNoteId?: string): Promise<boolean> => {
     if (!isMountedRef.current) return false;
 
+    // If offline OR thread is a local/offline thread (hasn't synced yet), load from IndexedDB
+    const isLocalThread = threadId.startsWith('local_');
+    if (!navigator.onLine || isLocalThread) {
+      const userId = getPersistedUserId();
+      if (!userId) {
+        debug('[ThreadNotesList] Offline/local thread but no userId, skipping refresh');
+        return false;
+      }
+
+      try {
+        debug('[ThreadNotesList] Loading notes from IndexedDB', { threadId, reason: !navigator.onLine ? 'offline' : 'local_thread' });
+        const localResult = await getNotesForThreadLocal(userId, threadId, 100, 0);
+        const localNotes = localResult.notes || [];
+
+        // Normalize dates and preserve syncStatus
+        const normalized = localNotes.map((note: any) => ({
+          ...note,
+          lastVisited: note.lastVisited ? (normalizeDate(note.lastVisited) || note.lastVisited) : note.lastVisited,
+          createdAt: note.createdAt ? (normalizeDate(note.createdAt) || note.createdAt) : note.createdAt,
+          updatedAt: note.updatedAt ? (normalizeDate(note.updatedAt) || note.updatedAt) : note.updatedAt,
+          syncStatus: note.syncStatus || 'synced' // Preserve syncStatus from IndexedDB
+        }));
+
+        // Filter out deleted notes
+        const filtered = normalized.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+
+        // Apply note type filter
+        const typeFiltered = noteTypeFilter === 'all' 
+          ? filtered 
+          : filterNotesByType(filtered, noteTypeFilter);
+
+        // Deduplicate and sort
+        const uniqueNotes = Array.from(
+          new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
+        );
+        const sortedNotes = sortNotesByTime(uniqueNotes);
+
+        setNotes(sortedNotes);
+        accumulatedFilteredCountRef.current = sortedNotes.length;
+        databaseOffsetRef.current = localNotes.length;
+
+        debug('[ThreadNotesList] Loaded notes from IndexedDB', { count: sortedNotes.length });
+        return true;
+      } catch (error) {
+        console.error('[ThreadNotesList] Error loading notes from IndexedDB:', error);
+        return false;
+      }
+    }
+
     // Verification-based refresh: poll until note appears or timeout
     const verifyAndRefresh = async (maxAttempts = 3): Promise<boolean> => {
+      // Skip API verification for local threads - they don't exist on server yet
+      const isLocalThread = threadId.startsWith('local_');
+      if (isLocalThread) {
+        debug('[ThreadNotesList] Skipping API verification for local thread', { threadId });
+        return true; // Return true since we already loaded from IndexedDB above
+      }
+
       const delays = [100, 200, 400]; // Exponential backoff in ms
       
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -895,6 +957,12 @@ export default function ThreadNotesList({
         // Only refresh if we're on the correct thread page (including unorganized)
         if (currentThreadId !== threadId) return;
 
+        // Skip refresh if offline - refreshNotesList will handle loading from IndexedDB
+        if (!navigator.onLine) {
+          debug('[ThreadNotesList] Visibility change but offline, skipping refresh');
+          return;
+        }
+
         const timeInBackground = lastBackgroundTimeRef.current > 0 
           ? Date.now() - lastBackgroundTimeRef.current 
           : 0;
@@ -956,6 +1024,33 @@ export default function ThreadNotesList({
     setShowDeleteConfirm(false);
     
     try {
+      // OFFLINE-FIRST: Delete note from local IndexedDB immediately
+      const userId = getPersistedUserId();
+      
+      if (userId) {
+        try {
+          await deleteNoteOffline(userId, noteToDelete.id);
+          console.log('[ThreadNotesList] Note deleted locally in IndexedDB', { noteId: noteToDelete.id });
+        } catch (err) {
+          console.error('[ThreadNotesList] Failed to delete note offline:', err);
+          // Continue with server API call
+        }
+      }
+      
+      // Optimistically remove from local state first
+      setDeletedNoteIds(prev => {
+        const newSet = new Set([...prev, noteToDelete.id]);
+        deletedNoteIdsRef.current = newSet;
+        return newSet;
+      });
+      setNotes(prev => prev.filter(note => note.id !== noteToDelete.id));
+      
+      // Show success message immediately for offline-first experience
+      if ((window as any).toast) {
+        (window as any).toast.success('Note erased!');
+      }
+      
+      // Then try to push deletion to server
       const response = await fetch(`/api/notes/delete?noteId=${encodeURIComponent(noteToDelete.id)}`, {
         method: 'DELETE',
         headers: {
@@ -967,17 +1062,10 @@ export default function ThreadNotesList({
       const data = await response.json();
 
       if (!response.ok) {
-        const errorMessage = data.error || 'Failed to delete note';
-        if ((window as any).toast) {
-          (window as any).toast.error(errorMessage);
-        } else {
-          alert('Failed to delete note: ' + errorMessage);
-        }
-        setNoteToDelete(null);
-        return;
-      }
-
-      if (data.success || response.status === 200) {
+        const errorMessage = data.error || 'Failed to sync deletion with server';
+        console.error('[ThreadNotesList] Server deletion failed:', errorMessage);
+        // Note is already deleted locally, server sync will handle recovery
+      } else {
         // Dispatch noteDeleted event
         window.dispatchEvent(new CustomEvent('noteDeleted', {
           detail: { 
@@ -985,24 +1073,31 @@ export default function ThreadNotesList({
             threadId: threadId
           }
         }));
-
-        // Remove from local state
-        setDeletedNoteIds(prev => {
-          const newSet = new Set([...prev, noteToDelete.id]);
-          deletedNoteIdsRef.current = newSet;
-          return newSet;
-        });
-        setNotes(prev => prev.filter(note => note.id !== noteToDelete.id));
-
-        // Show success message
-        if ((window as any).toast) {
-          (window as any).toast.success('Note erased!');
-        }
       }
 
       setNoteToDelete(null);
     } catch (error) {
       console.error('Error deleting note:', error);
+      
+      // Check if it's a network error - the note is already deleted locally
+      if (isNetworkError(error)) {
+        // Network error but local deletion succeeded - this is fine for offline-first
+        console.log('[ThreadNotesList] Network error during deletion, but note deleted locally');
+        
+        // Dispatch noteDeleted event so UI updates happen
+        window.dispatchEvent(new CustomEvent('noteDeleted', {
+          detail: { 
+            noteId: noteToDelete.id,
+            threadId: threadId
+          }
+        }));
+        
+        // Don't show an error - the deletion worked locally and will sync later
+        setNoteToDelete(null);
+        return;
+      }
+      
+      // Non-network error - show error message
       if ((window as any).toast) {
         (window as any).toast.error('Failed to delete note');
       } else {
@@ -1070,6 +1165,54 @@ export default function ThreadNotesList({
         items: [],
         hasMore: false
       };
+    }
+    
+    // If this is a local thread, load from IndexedDB instead of API
+    const isLocalThread = threadId.startsWith('local_');
+    if (isLocalThread) {
+      const userId = getPersistedUserId();
+      if (!userId) {
+        return { items: [], hasMore: false };
+      }
+
+      try {
+        const dbOffset = databaseOffsetRef.current;
+        const localResult = await getNotesForThreadLocal(userId, threadId, limit, dbOffset);
+        const localNotes = localResult.notes || [];
+
+        // Normalize dates
+        const normalized = localNotes.map((note: any) => ({
+          ...note,
+          lastVisited: note.lastVisited ? (normalizeDate(note.lastVisited) || note.lastVisited) : note.lastVisited,
+          createdAt: note.createdAt ? (normalizeDate(note.createdAt) || note.createdAt) : note.createdAt,
+          updatedAt: note.updatedAt ? (normalizeDate(note.updatedAt) || note.updatedAt) : note.updatedAt,
+        }));
+
+        // Filter out deleted notes
+        const filteredDeleted = normalized.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+        // Apply note type filter
+        const filteredByType = filterNotesByType(filteredDeleted, noteTypeFilter);
+
+        // Update database offset
+        databaseOffsetRef.current = dbOffset + localNotes.length;
+
+        // Update accumulated filtered count
+        const currentActualFilteredCount = accumulatedFilteredCountRef.current;
+        const newFilteredCount = currentActualFilteredCount + filteredByType.length;
+        accumulatedFilteredCountRef.current = newFilteredCount;
+
+        // Determine hasMore
+        const hasReachedExpectedCount = newFilteredCount >= totalCountForFilterRef.current;
+        const hasMore = !hasReachedExpectedCount && localResult.hasMore;
+
+        return {
+          items: filteredByType,
+          hasMore
+        };
+      } catch (error) {
+        console.error('[ThreadNotesList] Error loading more notes from IndexedDB:', error);
+        return { items: [], hasMore: false };
+      }
     }
     
     // Use the database offset ref for API calls (since API doesn't filter by type)
@@ -1253,6 +1396,7 @@ export default function ThreadNotesList({
               resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
               resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
               resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
+              isPendingSync={note.syncStatus === 'pending'}
             />
           )}
         </a>

@@ -256,8 +256,8 @@ nav a {
 /* Design Tokens */
 :root {
   /* Typography */
-  --font-sans: "Reddit Sans", system-ui, -apple-system, sans-serif;
-  --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: "Reddit Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --primary-color: var(--color-bold-blue);
   
   /* Responsive Breakpoints */
@@ -1096,6 +1096,15 @@ button[disabled] {
   }
   100% {
     background-position: 200% 0;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 

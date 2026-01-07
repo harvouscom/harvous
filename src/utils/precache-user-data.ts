@@ -9,12 +9,11 @@
  */
 
 import { safeFetch, isAuthReady } from './safe-fetch';
+import { getPersistedUserId } from './user-id';
+import { updateCacheTimestamp } from './sync-manager';
 
 /** Delay in ms before starting pre-cache (allows server to be ready) */
 const PRECACHE_START_DELAY = 3000;
-
-/** Maximum number of items to cache per category */
-const MAX_CACHE_ITEMS = 50;
 
 /**
  * Cache a single URL in the service worker cache with retry logic
@@ -115,22 +114,7 @@ export async function precacheRecentContent(): Promise<void> {
   }
 
   try {
-    // Fetch recent notes with retry logic
-    const notesResponse = await safeFetch('/api/notes/recent?limit=50', {
-      retries: 2,
-      retryDelay: 1000,
-      timeout: 10000
-    });
-
-    if (!notesResponse || !notesResponse.ok) {
-      // Failed to fetch notes - skip pre-caching silently
-      return;
-    }
-
-    const notes: Array<{ id: string }> = await notesResponse.json();
-    const noteIds = notes.map((note) => note.id);
-
-    // Fetch navigation data with retry logic
+    // Fetch navigation data with retry logic (contains threads and spaces)
     const navResponse = await safeFetch('/api/navigation/data', {
       retries: 2,
       retryDelay: 1000,
@@ -139,43 +123,84 @@ export async function precacheRecentContent(): Promise<void> {
 
     let threadIds: string[] = [];
     let spaceIds: string[] = [];
+    let noteIds: string[] = [];
 
     if (navResponse && navResponse.ok) {
-      const navData: { threads?: Array<{ id: string }>; spaces?: Array<{ id: string }> } = await navResponse.json();
+      const navData: { 
+        threads?: Array<{ id: string }>; 
+        spaces?: Array<{ id: string }>;
+        notes?: Array<{ id: string }>;
+      } = await navResponse.json();
       threadIds = (navData.threads || []).map((thread) => thread.id);
       spaceIds = (navData.spaces || []).map((space) => space.id);
     }
-    // If nav fetch failed, continue with just notes
+
+    // Fetch all notes - use a large limit or fetch from spaces/items endpoint
+    // Try to get notes from spaces/items which returns all notes
+    const notesResponse = await safeFetch('/api/spaces/items', {
+      retries: 2,
+      retryDelay: 1000,
+      timeout: 15000
+    });
+
+    if (notesResponse && notesResponse.ok) {
+      const notesData: { notes?: Array<{ id: string }> } = await notesResponse.json();
+      noteIds = (notesData.notes || []).map((note) => note.id);
+    } else {
+      // Fallback: try recent notes with very large limit
+      const recentNotesResponse = await safeFetch('/api/notes/recent?limit=10000', {
+        retries: 2,
+        retryDelay: 1000,
+        timeout: 15000
+      });
+      if (recentNotesResponse && recentNotesResponse.ok) {
+        const recentNotes: Array<{ id: string }> = await recentNotesResponse.json();
+        noteIds = recentNotes.map((note) => note.id);
+      }
+    }
 
     // Cache API responses first (for offline API access)
     const apiUrls = [
-      '/api/notes/recent?limit=50',
-      '/api/navigation/data'
+      '/api/navigation/data',
+      '/api/spaces/items'
     ];
+    
+    // Only add notes/recent if we used it as fallback
+    if (noteIds.length > 0 && (!notesResponse || !notesResponse.ok)) {
+      apiUrls.push('/api/notes/recent?limit=10000');
+    }
     
     await cacheUrls(apiUrls);
 
-    // Cache individual pages (limit to MAX_CACHE_ITEMS total to avoid overwhelming)
-    const totalItems = noteIds.length + threadIds.length + spaceIds.length;
-    
-    // Prioritize notes, then threads, then spaces
-    const notesToCache = noteIds.slice(0, Math.min(noteIds.length, MAX_CACHE_ITEMS));
-    const remainingSlots = MAX_CACHE_ITEMS - notesToCache.length;
-    const threadsToCache = threadIds.slice(0, Math.min(threadIds.length, Math.floor(remainingSlots * 0.6)));
-    const spacesToCache = spaceIds.slice(0, Math.min(spaceIds.length, remainingSlots - threadsToCache.length));
-
-    // Cache pages in the background - don't await to avoid blocking
+    // Cache all individual pages without limits
+    // Use batch processing to avoid overwhelming the network
+    // Process in background - don't await to avoid blocking
     Promise.allSettled([
-      precacheNotePages(notesToCache),
-      precacheThreadPages(threadsToCache),
-      precacheSpacePages(spacesToCache)
-    ]).catch(() => {
-      // Silently ignore errors - pre-caching is non-critical
+      precacheNotePages(noteIds),
+      precacheThreadPages(threadIds),
+      precacheSpacePages(spaceIds)
+    ]).then(() => {
+      // Update cache timestamp after caching completes
+      const userId = getPersistedUserId();
+      if (userId) {
+        updateCacheTimestamp(userId).catch(() => {
+          // Silently fail - cache timestamp update is non-critical
+        });
+      }
+    }).catch((error) => {
+      // Log quota errors for debugging, but don't throw
+      if (error?.name === 'QuotaExceededError' || error?.message?.includes('quota')) {
+        console.warn('[precacheRecentContent] Cache quota exceeded, some content may not be cached');
+      }
+      // Silently ignore other errors - pre-caching is non-critical
     });
     
   } catch (error) {
     // Pre-caching failed - this is non-critical, fail silently
-    // Don't log to avoid console spam
+    // Don't log to avoid console spam unless it's a quota error
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'QuotaExceededError') {
+      console.warn('[precacheRecentContent] Cache quota exceeded');
+    }
   }
 }
 

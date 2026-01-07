@@ -61,7 +61,7 @@ const COLOR_THEORY_MAP: Record<string, ColorInfo> = {
   yellow: { color: 'yellow', hue: 90, position: { x: 75, y: 25 } },   // Top-right area
   green: { color: 'green', hue: 145, position: { x: 20, y: 75 } },     // Bottom-left area
   pink: { color: 'pink', hue: 330, position: { x: 80, y: 70 } },      // Bottom-right area
-  orange: { color: 'orange', hue: 55, position: { x: 50, y: 15 } },    // Top-center (complementary to blue)
+  orange: { color: 'orange', hue: 70, position: { x: 50, y: 15 } },    // Top-center (Peach)
   purple: { color: 'purple', hue: 310, position: { x: 85, y: 30 } },   // Top-right (analogous to pink)
   paper: { color: 'paper', hue: 90, position: { x: 50, y: 50 } },     // Center (neutral)
 };

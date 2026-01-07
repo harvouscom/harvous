@@ -1,7 +1,7 @@
 {
   "name": "harvous",
   "type": "module",
-  "version": "0.240.15",
+  "version": "0.250.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/harvouscom/harvous.git"
@@ -21,7 +21,10 @@
     "deploy": "npm run build",
     "precommit": "npm run db:check",
     "version:bump": "node scripts/bump-version.js",
-    "version:check": "node -e \"console.log(require('./package.json').version)\""
+    "version:check": "node -e \"console.log(require('./package.json').version)\"",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
@@ -58,6 +61,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "dexie": "^4.2.1",
     "isomorphic-dompurify": "^2.22.0",
     "linkedom": "^0.18.12",
     "lucide-react": "^0.544.0",
@@ -69,5 +73,13 @@
     "sonner": "^2.0.7",
     "turndown": "^7.2.2",
     "typescript": "^5.9.2"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@vitest/ui": "^2.1.8",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.8"
   }
 }
