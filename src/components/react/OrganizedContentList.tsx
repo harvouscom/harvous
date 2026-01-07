@@ -11,47 +11,8 @@ import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 import { prefetchThreadContent, initThreadCacheCleanup } from '@/utils/thread-cache';
 
-// Content cache configuration
-const CONTENT_CACHE_KEY = 'harvous_content_cache';
-const CONTENT_CACHE_DURATION = 60 * 1000; // 60 seconds (increased from 30 for better performance)
-
-interface ContentCache {
-  items: any[];
-  filter: string;
-  timestamp: number;
-}
-
-// Get cached content from localStorage
-function getCachedContent(filter: string): ContentCache | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const cached = localStorage.getItem(`${CONTENT_CACHE_KEY}_${filter}`);
-    if (!cached) return null;
-    return JSON.parse(cached);
-  } catch {
-    return null;
-  }
-}
-
-// Set content cache in localStorage
-function setCachedContent(filter: string, items: any[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const cache: ContentCache = {
-      items,
-      filter,
-      timestamp: Date.now()
-    };
-    localStorage.setItem(`${CONTENT_CACHE_KEY}_${filter}`, JSON.stringify(cache));
-  } catch (error) {
-    console.warn('Failed to cache content:', error);
-  }
-}
-
-// Check if cache is stale
-function isCacheStale(timestamp: number): boolean {
-  return Date.now() - timestamp > CONTENT_CACHE_DURATION;
-}
+// Content cache removed - server is the single source of truth
+// This simplification eliminates cache staleness and duplication issues
 
 interface OrganizedContentItem {
   id: string;
@@ -227,98 +188,79 @@ export default function OrganizedContentList({
     return sortItems(filtered);
   });
 
-  // Use offline reads if userId is provided
-  // When offline, prioritize local data immediately
-  // IMPORTANT: Only run after hydration to avoid wiping server-rendered data
+  // Offline-only data loading
+  // ONLY loads from IndexedDB when truly offline - prevents duplication from mixing data sources
   useEffect(() => {
     if (!userId || !isHydrated) return;
-    
-    // When online, skip local data - use server data only
-    // Local data is only for offline scenarios to avoid duplicates and ID conflicts
+
+    // CRITICAL: Only use local data when actually offline
+    // When online, server is the single source of truth
     if (navigator.onLine) return;
 
-    const loadLocalData = async () => {
+    const loadOfflineData = async () => {
       try {
         const { getDashboardSnapshotLocal } = await import('@/utils/offline-read-layer');
         const snapshot = await getDashboardSnapshotLocal(userId);
-        
-        if (snapshot) {
-          // Map snapshot data to OrganizedContentItem format
-          const localItems: OrganizedContentItem[] = [
-            ...snapshot.threads.map(t => ({
-              id: `thread-${t.id}`,
-              type: 'thread' as const,
-              title: t.title,
-              subtitle: t.subtitle || `${t.noteCount} notes`,
-              count: t.noteCount,
-              threadId: t.id,
-              spaceId: t.spaceId,
-              accentColor: t.color ? getThreadColorCSS(t.color) : getThreadColorCSS('blue'),
-              lastVisited: t.lastVisited,
-              createdAt: t.createdAt,
-              updatedAt: t.updatedAt || t.createdAt,
-            })),
-            ...snapshot.recentNotes.map(n => ({
-              id: `note-${n.id}`,
-              type: 'note' as const,
-              title: n.title || 'Untitled Note',
-              content: n.content,
-              noteId: n.id,
-              threadId: n.threadId,
-              spaceId: n.spaceId,
-              noteType: n.noteType,
-              lastVisited: n.lastVisited,
-              createdAt: n.createdAt,
-              updatedAt: n.updatedAt || n.createdAt,
-              syncStatus: n.syncStatus,
-            }))
-          ];
 
-          // CRITICAL: Filter out deleted items before any other filtering
-          const notDeletedItems = localItems.filter(item => {
-            return !deletedItemIdsRef.current.has(normalizeId(item.id)) && 
-                   !deletedItemIdsRef.current.has(normalizeId(item.threadId)) && 
-                   !deletedItemIdsRef.current.has(normalizeId(item.noteId));
-          });
+        if (!snapshot) return;
 
-          // Filter by the current list filter
-          let filteredItems = notDeletedItems;
-          if (filter === 'threads') filteredItems = notDeletedItems.filter(i => i.type === 'thread');
-          if (filter === 'notes') filteredItems = notDeletedItems.filter(i => i.type === 'note' && (i.noteType === 'default' || !i.noteType));
-          if (filter === 'scripture') filteredItems = notDeletedItems.filter(i => i.type === 'note' && i.noteType === 'scripture');
-          if (filter === 'resources') filteredItems = notDeletedItems.filter(i => i.type === 'note' && i.noteType === 'resource');
+        // Map snapshot data to OrganizedContentItem format
+        const localItems: OrganizedContentItem[] = [
+          ...snapshot.threads.map(t => ({
+            id: `thread-${t.id}`,
+            type: 'thread' as const,
+            title: t.title,
+            subtitle: t.subtitle || `${t.noteCount} notes`,
+            count: t.noteCount,
+            threadId: t.id,
+            spaceId: t.spaceId,
+            accentColor: t.color ? getThreadColorCSS(t.color) : getThreadColorCSS('blue'),
+            lastVisited: t.lastVisited,
+            createdAt: t.createdAt,
+            updatedAt: t.updatedAt || t.createdAt,
+          })),
+          ...snapshot.recentNotes.map(n => ({
+            id: `note-${n.id}`,
+            type: 'note' as const,
+            title: n.title || 'Untitled Note',
+            content: n.content,
+            noteId: n.id,
+            threadId: n.threadId,
+            spaceId: n.spaceId,
+            noteType: n.noteType,
+            lastVisited: n.lastVisited,
+            createdAt: n.createdAt,
+            updatedAt: n.updatedAt || n.createdAt,
+            syncStatus: n.syncStatus,
+          }))
+        ];
 
-          // Sort and normalize
-          const sorted = sortItems(filteredItems.map(normalizeItemDates));
-          
-          // When offline, prioritize local data immediately
-          // When online, only use local if we have no server data yet AND local has items
-          setCurrentItems(prev => {
-            // Only replace server data if:
-            // 1. We're offline, OR
-            // 2. We have no server data (prev.length === 0) AND local has items (sorted.length > 0)
-            const shouldUseLocal = !navigator.onLine || (prev.length === 0 && sorted.length > 0);
+        // Filter out deleted items
+        const notDeletedItems = localItems.filter(item => {
+          return !deletedItemIdsRef.current.has(normalizeId(item.id)) &&
+                 !deletedItemIdsRef.current.has(normalizeId(item.threadId)) &&
+                 !deletedItemIdsRef.current.has(normalizeId(item.noteId));
+        });
 
-            if (shouldUseLocal) {
-              debug(`[OrganizedContentList] Using local data (offline: ${!navigator.onLine})`, {
-                localCount: sorted.length,
-                serverCount: prev.length
-              });
-              return sorted;
-            }
-            // Keep server data when online and we already have it
-            return prev;
-          });
-          
-          debug(`[OrganizedContentList] Checked local storage for filter: ${filter}`);
-        }
+        // Apply filter
+        let filteredItems = notDeletedItems;
+        if (filter === 'threads') filteredItems = notDeletedItems.filter(i => i.type === 'thread');
+        if (filter === 'notes') filteredItems = notDeletedItems.filter(i => i.type === 'note' && (i.noteType === 'default' || !i.noteType));
+        if (filter === 'scripture') filteredItems = notDeletedItems.filter(i => i.type === 'note' && i.noteType === 'scripture');
+        if (filter === 'resources') filteredItems = notDeletedItems.filter(i => i.type === 'note' && i.noteType === 'resource');
+
+        const sorted = sortItems(filteredItems.map(normalizeItemDates));
+
+        // Replace entirely when offline - no merging
+        setCurrentItems(sorted);
+        debug(`[OrganizedContentList] Loaded ${sorted.length} items from offline storage`);
       } catch (err) {
-        console.error('[OrganizedContentList] Local data load failed:', err);
+        console.error('[OrganizedContentList] Offline data load failed:', err);
       }
     };
 
-    loadLocalData();
-  }, [userId, filter, deletedItemIds, isHydrated]);
+    loadOfflineData();
+  }, [userId, filter, isHydrated]);
 
   // Essential refs only
   const isMountedRef = useRef(true);
@@ -505,10 +447,18 @@ export default function OrganizedContentList({
                                }
                              });
 
-          if (!isConfirmed && timestamp > fiveSecondsAgo) {
+          if (isConfirmed) {
+            // Item confirmed by server - remove from optimistic tracking immediately
+            optimisticUpdates.removeOptimistic(itemId);
+            if (optimisticItem.threadId) optimisticUpdates.removeOptimistic(optimisticItem.threadId);
+            if (optimisticItem.noteId) optimisticUpdates.removeOptimistic(optimisticItem.noteId);
+            optimisticUpdates.removeOptimistic(optimisticItem.id);
+          } else if (timestamp > fiveSecondsAgo) {
+            // Not confirmed but recent - keep showing optimistically
             optimisticItemsToKeep.push(optimisticItem);
-          } else if (isConfirmed) {
-            // Item confirmed by server - remove from optimistic tracking
+          } else {
+            // Older than 5 seconds and not confirmed - remove to prevent stale data
+            // This handles cases where sync failed or item was deleted elsewhere
             optimisticUpdates.removeOptimistic(itemId);
             if (optimisticItem.threadId) optimisticUpdates.removeOptimistic(optimisticItem.threadId);
             if (optimisticItem.noteId) optimisticUpdates.removeOptimistic(optimisticItem.noteId);
@@ -594,8 +544,6 @@ export default function OrganizedContentList({
             hasMoreRef.current = newHasMore;
             setCurrentItems(sorted);
             currentItemsRef.current = sorted;
-            // Cache the updated content for future visits
-            setCachedContent(currentFilter, sorted);
 
             setTimeout(() => {
               refreshStateRef.current.isRefreshing = false;
@@ -672,26 +620,24 @@ export default function OrganizedContentList({
     }
   }, [filter, refreshContent]);
 
-  // Cache SSR content and trigger background refresh if stale
-  // This implements stale-while-revalidate pattern for instant loads
+  // Simple refresh on mount to ensure fresh data
+  // No caching - server is the single source of truth
   useEffect(() => {
     if (!isMountedRef.current) return;
     if (typeof window === 'undefined') return;
     if (window.location.pathname !== '/') return;
     if (filter === 'scripture') return;
-    
-    // Cache the SSR content for future visits
+
+    // Refresh to ensure we have latest data
+    // Only if we have initial items (SSR worked) and component is mounted
     if (initialItems && initialItems.length > 0) {
-      setCachedContent(filter, initialItems);
+      // Small delay to let the UI settle
+      const timeout = setTimeout(() => {
+        refreshContent();
+      }, 100);
+      return () => clearTimeout(timeout);
     }
-    
-    // Check if we should background refresh
-    const cached = getCachedContent(filter);
-    if (cached && isCacheStale(cached.timestamp)) {
-      // Stale cache - trigger background refresh
-      refreshContent();
-    }
-  }, [filter, initialItems, refreshContent]);
+  }, [filter, refreshContent]);
 
   // Track previous initialItems to detect actual changes from server
   const prevPropsInitialItemsRef = useRef<string>('');
@@ -776,66 +722,10 @@ export default function OrganizedContentList({
     };
   }, [optimisticUpdates]);
 
-  // Check sessionStorage for recently created items
-  useEffect(() => {
-    if (typeof window === 'undefined' || window.location.pathname !== '/') return;
-
-    try {
-      const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
-      if (recentNotesStr) {
-        const recentNotes = JSON.parse(recentNotesStr);
-        const fiveSecondsAgo = Date.now() - 5000;
-        
-        // Filter out notes that were deleted
-        const activeRecentNotes = recentNotes.filter((n: any) => 
-          !deletedItemIdsRef.current.has(normalizeId(n.noteId))
-        );
-        
-        if (activeRecentNotes.length !== recentNotes.length) {
-          sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(activeRecentNotes));
-        }
-
-        const relevantNote = activeRecentNotes.find((n: any) => n.timestamp > fiveSecondsAgo);
-
-        if (relevantNote?.noteId) {
-          refreshContent({ expectedItemId: relevantNote.noteId, expectedItemType: 'note' }).then(success => {
-            if (success) {
-              const filtered = activeRecentNotes.filter((n: any) => n.noteId !== relevantNote.noteId);
-              sessionStorage.setItem('recentlyCreatedNotes', JSON.stringify(filtered));
-            }
-          });
-        }
-      }
-
-      const recentThreadsStr = sessionStorage.getItem('recentlyCreatedThreads');
-      if (recentThreadsStr) {
-        const recentThreads = JSON.parse(recentThreadsStr);
-        const fiveSecondsAgo = Date.now() - 5000;
-        
-        // Filter out threads that were deleted
-        const activeRecentThreads = recentThreads.filter((t: any) => 
-          !deletedItemIdsRef.current.has(normalizeId(t.threadId))
-        );
-        
-        if (activeRecentThreads.length !== recentThreads.length) {
-          sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(activeRecentThreads));
-        }
-
-        const relevantThread = activeRecentThreads.find((t: any) => t.timestamp > fiveSecondsAgo);
-
-        if (relevantThread?.threadId) {
-          refreshContent({ expectedItemId: relevantThread.threadId, expectedItemType: 'thread' }).then(success => {
-            if (success) {
-              const filtered = activeRecentThreads.filter((t: any) => t.threadId !== relevantThread.threadId);
-              sessionStorage.setItem('recentlyCreatedThreads', JSON.stringify(filtered));
-            }
-          });
-        }
-      }
-    } catch (error) {
-      console.error('[OrganizedContentList] Error checking sessionStorage:', error);
-    }
-  }, [refreshContent]);
+  // sessionStorage tracking for recently created items has been removed
+  // Optimistic updates are the single mechanism for showing newly created items
+  // This eliminates a source of duplication when items appeared both in
+  // sessionStorage and in the server response
 
   // Handle content creation/update events
   useEffect(() => {
@@ -1205,9 +1095,29 @@ export default function OrganizedContentList({
 
     const data = await response.json();
     const newItems = (data.items || []).map(normalizeItemDates);
-    
-    // Update the master list with the new items
-    setCurrentItems(prev => [...prev, ...newItems]);
+
+    // CRITICAL: Deduplicate new items against existing items to prevent duplicates
+    // This is essential because pagination offset may overlap or items may have been
+    // added optimistically
+    const existingIds = new Set(
+      currentItemsRef.current.map(item =>
+        item.type === 'thread'
+          ? normalizeId(item.threadId || item.id)
+          : normalizeId(item.noteId || item.id)
+      )
+    );
+
+    const dedupedNewItems = newItems.filter(item => {
+      const uniqueId = item.type === 'thread'
+        ? normalizeId(item.threadId || item.id)
+        : normalizeId(item.noteId || item.id);
+      return !existingIds.has(uniqueId);
+    });
+
+    // Update the master list with only truly new items
+    if (dedupedNewItems.length > 0) {
+      setCurrentItems(prev => [...prev, ...dedupedNewItems]);
+    }
 
     setHasMore(data.hasMore);
     hasMoreRef.current = data.hasMore;
