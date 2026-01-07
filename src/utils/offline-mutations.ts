@@ -286,13 +286,7 @@ export async function createThreadOffline(userId: string, data: {
     isPinned: data.isPinned,
     order: data.order,
   };
-  
-    operation: 'create',
-    entityType: 'thread',
-    entityId: localId,
-    color: mutationData.color 
-  });
-  
+
   await enqueueMutation(userId, {
     operation: 'create',
     entityType: 'thread',
