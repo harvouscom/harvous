@@ -287,17 +287,21 @@ export default function OrganizedContentList({
           const sorted = sortItems(filteredItems.map(normalizeItemDates));
           
           // When offline, prioritize local data immediately
-          // When online, only use local if server data is empty or local has more items
+          // When online, only use local if we have no server data yet AND local has items
           setCurrentItems(prev => {
-            const shouldUseLocal = !navigator.onLine || sorted.length > 0 || prev.length === 0;
-            
+            // Only replace server data if:
+            // 1. We're offline, OR
+            // 2. We have no server data (prev.length === 0) AND local has items (sorted.length > 0)
+            const shouldUseLocal = !navigator.onLine || (prev.length === 0 && sorted.length > 0);
+
             if (shouldUseLocal) {
-              debug(`[OrganizedContentList] Using local data (offline: ${!navigator.onLine})`, { 
+              debug(`[OrganizedContentList] Using local data (offline: ${!navigator.onLine})`, {
                 localCount: sorted.length,
-                serverCount: prev.length 
+                serverCount: prev.length
               });
               return sorted;
             }
+            // Keep server data when online and we already have it
             return prev;
           });
           
