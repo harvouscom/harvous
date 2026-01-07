@@ -5,6 +5,7 @@
 
 import { expect, afterEach, vi } from 'vitest';
 import '@testing-library/jest-dom';
+import 'fake-indexeddb/auto';
 
 // Mock window.navigator.onLine
 Object.defineProperty(window, 'navigator', {
