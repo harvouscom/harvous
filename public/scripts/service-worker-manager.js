@@ -24,10 +24,18 @@
     window.__APP_VERSION__ = getAppVersion();
 
     // Set up controller change listener once
+    // Only reload if this isn't a fresh page load (performance.navigation.type check)
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloadingForUpdate) {
         return; // Already reloading
       }
+
+      // Skip reload if we just refreshed (hard reload or normal reload)
+      // This prevents infinite reload loops on hard refresh
+      if (performance && (performance.navigation?.type === 1 || performance.getEntriesByType('navigation')[0]?.type === 'reload')) {
+        return;
+      }
+
       reloadingForUpdate = true;
       window.location.reload();
     });
