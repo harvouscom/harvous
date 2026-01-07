@@ -37,7 +37,12 @@ export async function initializeSync(userId: string): Promise<void> {
         });
         
         if (!bootstrapResult.success) {
-          console.error('[initializeSync] ❌ Bootstrap failed:', bootstrapResult.error);
+          // Silently ignore AUTH_NOT_READY errors (auth still loading)
+          if (bootstrapResult.error !== 'AUTH_NOT_READY') {
+            console.error('[initializeSync] ❌ Bootstrap failed:', bootstrapResult.error);
+          } else {
+            console.log('[initializeSync] ⏸️ Auth not ready yet, will retry on background sync');
+          }
         } else {
           console.log('[initializeSync] ✅ Bootstrap completed successfully');
         }
@@ -65,9 +70,17 @@ export async function initializeSync(userId: string): Promise<void> {
     startBackgroundSync(userId, 30000); // Sync every 30 seconds
     console.log('[initializeSync] ✅ Background sync loop started');
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Silently ignore AUTH_NOT_READY errors (auth still loading)
+    if (errorMessage === 'AUTH_NOT_READY') {
+      console.log('[initializeSync] ⏸️ Auth not ready yet, will retry on background sync');
+      return; // Exit silently
+    }
+
     console.error('[initializeSync] ❌ Error initializing sync:', {
       error,
-      message: error instanceof Error ? error.message : String(error),
+      message: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
       userId
     });

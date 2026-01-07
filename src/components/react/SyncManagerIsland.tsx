@@ -91,9 +91,17 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
           console.log('[SyncManagerIsland] ✅ Sync initialization completed successfully');
         })
         .catch(err => {
+          const errorMessage = err?.message || String(err);
+
+          // Silently ignore AUTH_NOT_READY errors (auth still loading)
+          if (errorMessage === 'AUTH_NOT_READY') {
+            console.log('[SyncManagerIsland] ⏸️ Auth not ready yet, sync will retry in background');
+            return;
+          }
+
           console.error('[SyncManagerIsland] ❌ Failed to initialize sync:', {
             error: err,
-            message: err?.message || String(err),
+            message: errorMessage,
             stack: err?.stack,
             userId
           });
