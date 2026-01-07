@@ -31,6 +31,8 @@ interface Note {
   resourceImage?: string | null;
   // Sync status for offline mode
   syncStatus?: 'synced' | 'pending' | 'conflict' | 'deleted';
+  // Thread ID (used for optimistic updates filtering)
+  threadId?: string;
 }
 
 interface NoteTypeCounts {
@@ -170,8 +172,10 @@ export default function ThreadNotesList({
       5000, // 5 seconds
       (note) => {
         // Only include notes that belong to this thread
-        const belongsToThread = !note.threadId || note.threadId === threadId || 
-                                (threadId === 'thread_unorganized' && !note.threadId);
+        // Note: optimistic notes may have threadId set explicitly during creation
+        const noteThreadId = (note as any).threadId;
+        const belongsToThread = noteThreadId === threadId ||
+                                (threadId === 'thread_unorganized' && (!noteThreadId || noteThreadId === 'thread_unorganized'));
         return belongsToThread;
       }
     );
@@ -353,9 +357,9 @@ export default function ThreadNotesList({
             5000, // 5 seconds
             (note) => {
               // Check if note matches current filter
-              const matchesFilter = noteTypeFilter === 'all' || 
+              const matchesFilter = noteTypeFilter === 'all' ||
                                    (noteTypeFilter === 'scripture' && note.noteType === 'scripture') ||
-                                   (noteTypeFilter === 'resources' && note.noteType === 'resource') ||
+                                   (noteTypeFilter === 'resource' && note.noteType === 'resource') ||
                                    (noteTypeFilter === 'default' && (note.noteType === 'default' || !note.noteType));
               return matchesFilter && !deletedNoteIdsRef.current.has(note.id);
             }
@@ -544,6 +548,7 @@ export default function ThreadNotesList({
 
         // IMMEDIATE OPTIMISTIC UPDATE: Add note synchronously before any async operations
         // Create note object from event data, or minimal placeholder if incomplete
+        // Include threadId to ensure optimistic notes are properly filtered
         const noteToAdd: Note = note ? {
           id: note.id || noteId,
           title: note.title || null,
@@ -555,6 +560,7 @@ export default function ThreadNotesList({
           resourceTitle: note.resourceTitle || null,
           resourceDescription: note.resourceDescription || null,
           resourceImage: note.resourceImage || null,
+          threadId: noteThreadId, // Track which thread this note belongs to
         } : {
           // Minimal placeholder if note data isn't available
           id: noteId,
@@ -562,12 +568,13 @@ export default function ThreadNotesList({
           content: '',
           noteType: 'default',
           createdAt: new Date(),
+          threadId: noteThreadId, // Track which thread this note belongs to
         };
 
         // Check if note matches current filter
         const matchesFilter = noteTypeFilter === 'all' ||
                              (noteTypeFilter === 'scripture' && noteToAdd.noteType === 'scripture') ||
-                             (noteTypeFilter === 'resources' && noteToAdd.noteType === 'resource') ||
+                             (noteTypeFilter === 'resource' && noteToAdd.noteType === 'resource') ||
                              (noteTypeFilter === 'default' && (noteToAdd.noteType === 'default' || !noteToAdd.noteType));
 
         if (matchesFilter) {
@@ -726,12 +733,14 @@ export default function ThreadNotesList({
           const noteExists = notesRef.current.some(n => n.id === relevantNote.noteId);
           if (!noteExists) {
             // Create minimal note object for optimistic update
+            // Include threadId to ensure proper filtering during state updates
             const optimisticNote: Note = {
               id: relevantNote.noteId,
               title: 'Untitled Note',
               content: '',
               noteType: 'default',
-              createdAt: new Date(relevantNote.timestamp)
+              createdAt: new Date(relevantNote.timestamp),
+              threadId: threadId // Track which thread this note belongs to
             };
             
             debug('[ThreadNotesList] Adding note optimistically from sessionStorage', {
