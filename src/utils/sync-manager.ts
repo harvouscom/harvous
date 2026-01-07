@@ -829,17 +829,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       operationId: op.id,
     }));
 
-    // Log thread mutations specifically to track color
-    const threadMutations = mutations.filter(m => m.entityType === 'thread');
-    if (threadMutations.length > 0) {
-        operation: m.operation,
-        entityId: m.entityId,
-        color: m.data?.color,
-        title: m.data?.title
-      })));
-    }
-
-
     // Send batch to server
     const response = await fetch('/api/sync/push', {
       method: 'POST',
