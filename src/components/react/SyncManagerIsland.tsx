@@ -27,17 +27,15 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
   const [userId, setUserId] = useState<string | null>(() => {
     // Server-provided userId takes precedence (most reliable)
     if (serverUserId) {
-      console.log('[SyncManagerIsland] Initial state - userId from server prop:', serverUserId);
       persistUserId(serverUserId);
       if (typeof window !== 'undefined') {
         (window as any).__harvous_userId = serverUserId;
       }
       return serverUserId;
     }
-    
+
     // Fallback to localStorage
     const persisted = getPersistedUserId();
-    console.log('[SyncManagerIsland] Initial state - userId from localStorage:', persisted);
     // Ensure window variable is set for synchronous access elsewhere
     if (persisted && typeof window !== 'undefined') {
       (window as any).__harvous_userId = persisted;
@@ -49,7 +47,6 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
   // Update userId if server prop changes (e.g., after navigation)
   useEffect(() => {
     if (serverUserId && serverUserId !== userId) {
-      console.log('[SyncManagerIsland] 🔄 Server userId prop changed, updating:', serverUserId);
       persistUserId(serverUserId);
       if (typeof window !== 'undefined') {
         (window as any).__harvous_userId = serverUserId;
@@ -58,69 +55,28 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
     }
   }, [serverUserId, userId]);
 
-  // Log when userId changes
-  useEffect(() => {
-    if (userId) {
-      console.log('[SyncManagerIsland] ✅ userId detected:', userId, {
-        isOnline: navigator.onLine,
-        hasInitialized,
-        source: serverUserId === userId ? 'server' : 'localStorage'
-      });
-    } else {
-      console.log('[SyncManagerIsland] ⚠️ No userId available yet');
-    }
-  }, [userId, hasInitialized, serverUserId]);
-
   // Initialize sync if we have a persisted userId (handles offline start)
   // Only initialize if offline mode feature flag is enabled
   useEffect(() => {
-    // Check feature flag before initializing
-    if (!isOfflineModeEnabled()) {
-      console.log('[SyncManagerIsland] ⏸️ Offline mode disabled via feature flag, skipping sync initialization');
+    if (!isOfflineModeEnabled() || !userId || hasInitialized) {
       return;
     }
 
-    if (userId && !hasInitialized) {
-      console.log('[SyncManagerIsland] 🚀 Starting sync initialization with userId:', userId, {
-        isOnline: navigator.onLine,
-        timestamp: new Date().toISOString()
+    initializeSync(userId)
+      .catch(err => {
+        const errorMessage = err?.message || String(err);
+        // Silently ignore AUTH_NOT_READY errors (auth still loading)
+        if (errorMessage !== 'AUTH_NOT_READY') {
+          console.error('[SyncManagerIsland] Failed to initialize sync:', errorMessage);
+        }
       });
-      
-      initializeSync(userId)
-        .then(() => {
-          console.log('[SyncManagerIsland] ✅ Sync initialization completed successfully');
-        })
-        .catch(err => {
-          const errorMessage = err?.message || String(err);
 
-          // Silently ignore AUTH_NOT_READY errors (auth still loading)
-          if (errorMessage === 'AUTH_NOT_READY') {
-            console.log('[SyncManagerIsland] ⏸️ Auth not ready yet, sync will retry in background');
-            return;
-          }
-
-          console.error('[SyncManagerIsland] ❌ Failed to initialize sync:', {
-            error: err,
-            message: errorMessage,
-            stack: err?.stack,
-            userId
-          });
-        });
-      
-      setHasInitialized(true);
-    } else if (!userId) {
-      console.log('[SyncManagerIsland] ⏸️ Waiting for userId before initializing sync');
-    } else if (hasInitialized) {
-      console.log('[SyncManagerIsland] ℹ️ Sync already initialized, skipping');
-    }
+    setHasInitialized(true);
   }, [userId, hasInitialized]);
 
   // Coordinate online recovery - single point of handling 'online' events
   useEffect(() => {
-    const handleOnline = () => {
-      console.log('[SyncManagerIsland] Online event detected, executing recovery...');
-      executeOnlineRecovery();
-    };
+    const handleOnline = () => executeOnlineRecovery();
 
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
@@ -156,11 +112,7 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
         });
 
         if (pendingCount > 0) {
-          console.log(`[SyncManagerIsland] Online recovery: ${pendingCount} pending operations, triggering sync...`);
           await syncNow(userId);
-          console.log('[SyncManagerIsland] Online recovery sync completed');
-        } else {
-          console.log('[SyncManagerIsland] Online recovery: No pending operations, skipping sync');
         }
       } catch (error) {
         // Silently handle database errors - don't spam console when database is closed
@@ -220,17 +172,10 @@ function ClerkSyncWrapper({ onUserIdChange }: { onUserIdChange: (userId: string 
 
   useEffect(() => {
     if (isLoaded && clerkUser?.id) {
-      console.log('[ClerkSyncWrapper] ✅ Clerk user loaded, persisting userId:', clerkUser.id);
       // Persist userId immediately for offline access
-      // This ensures userId is available even if user goes offline quickly
-      // The dependency on clerkUser?.id ensures this runs as soon as Clerk loads
       persistUserId(clerkUser.id);
       // Update parent component's userId
       onUserIdChange(clerkUser.id);
-    } else if (isLoaded && !clerkUser?.id) {
-      console.log('[ClerkSyncWrapper] ⚠️ Clerk loaded but no user found');
-    } else {
-      console.log('[ClerkSyncWrapper] ⏳ Clerk not loaded yet, isLoaded:', isLoaded);
     }
   }, [clerkUser?.id, isLoaded, onUserIdChange]);
 
