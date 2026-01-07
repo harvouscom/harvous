@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { usePersistedUserId } from '@/utils/user-id';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -541,7 +541,7 @@ export default function Menu({
         style={!isMounted ? { opacity: 0, transform: 'translateY(-2px)' } : undefined}
       >
         {options.map((option, index) => (
-          <React.Fragment key={index}>
+          <Fragment key={index}>
             {index > 0 && (
               <div className="menu-separator border-t" />
             )}
@@ -556,7 +556,7 @@ export default function Menu({
                 {option.label}
               </span>
             </button>
-          </React.Fragment>
+          </Fragment>
         ))}
       </div>
 

@@ -69,20 +69,25 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     event.preventDefault();
     
     try {
-      // @ts-ignore
-      if (window.Clerk && window.Clerk.signOut) {
-        // @ts-ignore
-        await window.Clerk.signOut();
-      }
-      
+      // Clear local storage before sign-out
       sessionStorage.removeItem('userProfileData');
       
       // Clear unified profile cache
       clearCachedProfileData();
       
-      window.location.href = '/sign-in';
+      // Use Clerk's built-in signOut with redirectUrl
+      // This handles the sign-out and redirect automatically
+      // @ts-ignore
+      if (window.Clerk && window.Clerk.signOut) {
+        // @ts-ignore
+        await window.Clerk.signOut({ redirectUrl: '/sign-in' });
+      } else {
+        // Fallback if Clerk isn't loaded
+        window.location.href = '/sign-in';
+      }
     } catch (error) {
       console.error('Logout failed:', error);
+      // Fallback redirect on error
       window.location.href = '/sign-in';
     }
   };

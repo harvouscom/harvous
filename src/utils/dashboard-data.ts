@@ -508,12 +508,23 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     // Sort by lastVisited/createdAt, apply offset and limit
     // Note: Database already orders by lastVisited/createdAt, but we sort again
     // to ensure consistent ordering in case of ties
-    // Use unified sorting utility for consistency
-    const sortedAllNotes = sortByLastVisited(allNotes.map(note => ({
-      ...note,
-      updatedAt: note.updatedAt || note.createdAt,
-      id: note.id || ''
-    })));
+    // For onboarding thread, use chronological sorting by createdAt (oldest first)
+    const isOnboardingThread = threadId.startsWith('thread_onboarding_');
+    const sortedAllNotes = isOnboardingThread
+      ? allNotes.map(note => ({
+          ...note,
+          updatedAt: note.updatedAt || note.createdAt,
+          id: note.id || ''
+        })).sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return aTime - bTime; // Ascending order (oldest first)
+        })
+      : sortByLastVisited(allNotes.map(note => ({
+          ...note,
+          updatedAt: note.updatedAt || note.createdAt,
+          id: note.id || ''
+        })));
     
     // Determine if there are more items beyond the requested range
     // We fetched limit + offset + 1 items, so if we have more than offset + limit items, there are more
@@ -1007,6 +1018,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       createdAt: thread.createdAt,
       isPrivate: !thread.isPublic,
       accentColor: thread.accentColor,
+      color: thread.color, // Include raw color value for components
     }));
 
     // Fetch resource metadata for all resource notes

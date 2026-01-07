@@ -70,9 +70,32 @@ function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scriptur
   return notes;
 }
 
+// Helper function to sort notes chronologically by createdAt (oldest first)
+function sortNotesChronologically(notes: Note[]): Note[] {
+  return [...notes].sort((a, b) => {
+    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() : null;
+    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() : null;
+    
+    if (aTime !== null && bTime !== null) {
+      return aTime - bTime; // Ascending order (oldest first)
+    } else if (aTime !== null && bTime === null) {
+      return -1; // a has time, b doesn't - a comes first
+    } else if (aTime === null && bTime !== null) {
+      return 1; // b has time, a doesn't - b comes first
+    }
+    // Both have no time, use ID for deterministic sorting
+    return (a.id || '').localeCompare(b.id || '');
+  });
+}
+
 // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
+// For onboarding thread, use chronological sorting by createdAt instead
 // Note: Note interface uses updatedAt, so it matches the shared function directly
-function sortNotesByTime(notes: Note[]): Note[] {
+function sortNotesByTime(notes: Note[], threadId: string): Note[] {
+  // Check if this is the onboarding thread
+  if (threadId.startsWith('thread_onboarding_')) {
+    return sortNotesChronologically(notes);
+  }
   return sortByLastVisited(notes);
 }
 
@@ -183,7 +206,8 @@ export default function ThreadNotesList({
     // Sort by time (newest first) to ensure proper animation order
     // This maintains chronological order regardless of note type
     // sortNotesByTime uses sortByLastVisited which normalizes internally, but we normalized above for consistency
-    const sortedNotes = sortNotesByTime(uniqueNotes);
+    // For onboarding thread, uses chronological sorting by createdAt
+    const sortedNotes = sortNotesByTime(uniqueNotes, threadId);
     
     setNotes(sortedNotes);
     // Initialize accumulatedFilteredCountRef immediately with the filtered count
@@ -351,7 +375,8 @@ export default function ThreadNotesList({
           );
 
           // Sort by time (newest first) to ensure proper animation order
-          const sortedNotes = sortNotesByTime(uniqueNotes);
+          // For onboarding thread, uses chronological sorting by createdAt
+          const sortedNotes = sortNotesByTime(uniqueNotes, threadId);
 
           setNotes(sortedNotes);
           accumulatedFilteredCountRef.current = sortedNotes.length;
@@ -466,7 +491,8 @@ export default function ThreadNotesList({
               
               // Sort by time (newest first) to ensure proper animation order
               // This maintains chronological order regardless of note type
-              return sortNotesByTime(uniqueNotes);
+              // For onboarding thread, uses chronological sorting by createdAt
+              return sortNotesByTime(uniqueNotes, threadId);
             });
           }
         } catch (error) {
@@ -558,7 +584,8 @@ export default function ThreadNotesList({
             }
             // Add new note and re-sort
             const updated = [noteToAdd, ...prev];
-            return sortNotesByTime(updated);
+            // For onboarding thread, uses chronological sorting by createdAt
+            return sortNotesByTime(updated, threadId);
           });
         }
 
@@ -720,7 +747,8 @@ export default function ThreadNotesList({
                 return prev;
               }
               const updated = [optimisticNote, ...prev];
-              return sortNotesByTime(updated);
+              // For onboarding thread, uses chronological sorting by createdAt
+              return sortNotesByTime(updated, threadId);
             });
           }
         }
@@ -1267,7 +1295,8 @@ export default function ThreadNotesList({
     // This maintains chronological order regardless of note type, so animation delays
     // continue correctly (e.g., if items are [scripture, scripture, default, scripture],
     // they animate with delays [0ms, 50ms, 100ms, 150ms] in that order)
-    const sortedNotes = sortNotesByTime(uniqueNotes);
+    // For onboarding thread, uses chronological sorting by createdAt
+    const sortedNotes = sortNotesByTime(uniqueNotes, threadId);
     
     setNotes(sortedNotes);
     

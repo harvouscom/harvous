@@ -177,8 +177,10 @@ self.addEventListener('fetch', (event) => {
           const fetchPromise = fetch(event.request)
             .then((response) => {
               if (shouldCacheResponse(response)) {
-                const timestamped = addCacheTimestamp(response.clone());
-                safeCachePut(cache, event.request, timestamped.clone());
+                const timestamped = addCacheTimestamp(response);
+                // Clone before async cache operation for safety
+                const timestampedClone = timestamped.clone();
+                safeCachePut(cache, event.request, timestampedClone);
               }
               return response;
             })
@@ -324,8 +326,11 @@ self.addEventListener('fetch', (event) => {
           // Refresh in background
           fetch(event.request).then((response) => {
             if (shouldCacheResponse(response)) {
+              const timestamped = addCacheTimestamp(response);
+              // Clone before async cache operation for safety
+              const timestampedClone = timestamped.clone();
               caches.open(CACHE_NAME).then((cache) => {
-                safeCachePut(cache, event.request, addCacheTimestamp(response.clone()));
+                safeCachePut(cache, event.request, timestampedClone);
               });
             }
           }).catch(() => {});
@@ -334,11 +339,19 @@ self.addEventListener('fetch', (event) => {
         
         return fetch(event.request).then((response) => {
           if (shouldCacheResponse(response)) {
+<<<<<<< HEAD
             const timestamped = addCacheTimestamp(response.clone());
             // Clone synchronously before returning; later clone() can throw once the body is being read.
             const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
               safeCachePut(cache, event.request, responseToCache);
+=======
+            const timestamped = addCacheTimestamp(response);
+            // Clone before returning to browser - browser will consume the body
+            const timestampedClone = timestamped.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              safeCachePut(cache, event.request, timestampedClone);
+>>>>>>> sharp-lalande
             });
             return timestamped;
           }
@@ -371,9 +384,11 @@ self.addEventListener('fetch', (event) => {
             if (shouldCacheResponse(response)) {
               const isSignIn = await isSignInPageResponse(response.clone());
               if (!isSignIn) {
-                const timestamped = addCacheTimestamp(response.clone());
+                const timestamped = addCacheTimestamp(response);
+                // Clone before async cache operation - response may be consumed by browser
+                const timestampedClone = timestamped.clone();
                 caches.open(CACHE_NAME).then((cache) => {
-                  safeCachePut(cache, event.request, timestamped.clone());
+                  safeCachePut(cache, event.request, timestampedClone);
                 });
               }
             }
@@ -587,11 +602,19 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then((response) => {
         if (shouldCacheResponse(response)) {
+<<<<<<< HEAD
           const timestamped = addCacheTimestamp(response.clone());
           // Clone before returning to avoid "body already used" error
           const responseToReturn = timestamped.clone();
           caches.open(CACHE_NAME).then((cache) => {
             safeCachePut(cache, event.request, timestamped);
+=======
+          const timestamped = addCacheTimestamp(response);
+          // Clone before returning to browser - browser will consume the body
+          const timestampedClone = timestamped.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            safeCachePut(cache, event.request, timestampedClone);
+>>>>>>> sharp-lalande
           });
           return responseToReturn;
         }
