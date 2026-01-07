@@ -16,7 +16,7 @@ import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import OfflineThreadLoader from "@/components/react/OfflineThreadLoader";
 import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
-import { getAllThreadsWithCounts, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
+import { getAllThreadsWithCounts, getThreadWithCount, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
@@ -211,8 +211,9 @@ try {
         }
         
         // NOW fetch thread and its notes from database (with updated lastVisited)
+        // Use getThreadWithCount for single thread lookup (much faster than getAllThreadsWithCounts)
         const [threadData, notesResult, noteTypeCountsData] = await Promise.all([
-          getAllThreadsWithCounts(authenticatedUserId).then(threads => threads.find(t => t.id === id)),
+          getThreadWithCount(id!, authenticatedUserId),
           getNotesForThread(id!, authenticatedUserId),
           getThreadNoteTypeCounts(id!, authenticatedUserId)
         ]);

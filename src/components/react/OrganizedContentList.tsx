@@ -9,10 +9,11 @@ import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
+import { prefetchThreadContent, initThreadCacheCleanup } from '@/utils/thread-cache';
 
 // Content cache configuration
 const CONTENT_CACHE_KEY = 'harvous_content_cache';
-const CONTENT_CACHE_DURATION = 30 * 1000; // 30 seconds
+const CONTENT_CACHE_DURATION = 60 * 1000; // 60 seconds (increased from 30 for better performance)
 
 interface ContentCache {
   items: any[];
@@ -68,7 +69,7 @@ interface OrganizedContentItem {
   resourceTitle?: string | null;
   resourceDescription?: string | null;
   resourceImage?: string | null;
-  threadColors?: Array<{ color: string; frequency: number }>;
+  threadColors?: Array<{ color: string; frequency: number }> | null;
   scriptureReferences?: Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>;
   lastVisited?: Date | string | null;
   createdAt?: Date | string | null;
@@ -410,8 +411,9 @@ export default function OrganizedContentList({
         // Normalize dates once at API boundary
         const normalizedItems = (data.items || []).map(normalizeItemDates);
 
-        // Preserve optimistic lastVisited updates using raw items
-        const currentSnapshot = currentItemsRef.current;
+        // Preserve optimistic lastVisited updates using current state
+        // Create a snapshot at the moment we process the response to avoid race conditions
+        const currentSnapshot = [...currentItemsRef.current];
         normalizedItems.forEach((freshItem, index) => {
           const currentItem = currentSnapshot.find(item => {
             if (item.id === freshItem.id) return true;
@@ -428,11 +430,21 @@ export default function OrganizedContentList({
             const currentLastVisited = normalizeDate(currentItem.lastVisited);
             const freshLastVisited = normalizeDate(freshItem.lastVisited);
 
-            if (currentLastVisited && (!freshLastVisited || currentLastVisited > freshLastVisited)) {
+            // CRITICAL: Preserve client-side lastVisited if it's more recent OR if timestamps are equal
+            // This prevents flicker when the server hasn't caught up with the optimistic update
+            if (currentLastVisited && (!freshLastVisited || currentLastVisited >= freshLastVisited)) {
               normalizedItems[index] = {
                 ...normalizedItems[index],
                 lastVisited: currentLastVisited,
-                lastUpdated: currentItem.lastUpdated || normalizedItems[index].lastUpdated || currentLastVisited.toISOString()
+                lastUpdated: currentItem.lastUpdated || normalizedItems[index].lastUpdated || currentLastVisited.toISOString(),
+                // Preserve threadColors from current item if fresh item doesn't have them
+                threadColors: normalizedItems[index].threadColors || currentItem.threadColors
+              };
+            } else if (!normalizedItems[index].threadColors && currentItem.threadColors) {
+              // Even if lastVisited isn't preserved, keep threadColors if they exist
+              normalizedItems[index] = {
+                ...normalizedItems[index],
+                threadColors: currentItem.threadColors
               };
             }
           }
@@ -1022,6 +1034,46 @@ export default function OrganizedContentList({
     };
   }, [refreshContent]);
 
+  // Initialize thread cache cleanup on mount
+  useEffect(() => {
+    initThreadCacheCleanup();
+  }, []);
+
+  // Set up Intersection Observer for prefetching threads as they come into view
+  useEffect(() => {
+    if (typeof window === 'undefined' || !userId) return;
+
+    const observerOptions = {
+      root: null,
+      rootMargin: '200px', // Start prefetching 200px before item is visible
+      threshold: 0
+    };
+
+    const observerCallback = (entries: IntersectionObserverEntry[]) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const element = entry.target as HTMLElement;
+          const threadId = element.dataset.threadId;
+
+          if (threadId && userId) {
+            // Prefetch thread content in the background
+            prefetchThreadContent(threadId, userId);
+          }
+        }
+      });
+    };
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+    // Observe all thread items
+    const threadItems = document.querySelectorAll('[data-thread-id]');
+    threadItems.forEach(item => observer.observe(item));
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [currentItems, userId]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -1087,8 +1139,8 @@ export default function OrganizedContentList({
   }, []);
 
   const renderItem = (item: OrganizedContentItem, index: number) => {
-    const href = item.type === 'thread' 
-      ? `/${item.threadId}` 
+    const href = item.type === 'thread'
+      ? `/${item.threadId}`
       : `/${item.noteId}`;
 
     const isScriptureNote = item.type === 'note' && item.noteType === 'scripture';
@@ -1104,17 +1156,29 @@ export default function OrganizedContentList({
       }
     };
 
+    // Prefetch on hover for faster navigation
+    const handleMouseEnter = () => {
+      if (typeof document !== 'undefined') {
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = href;
+        document.head.appendChild(link);
+      }
+    };
+
     return (
-      <div 
+      <div
         className={`content-item ${item.type}-item mb-3 card-enter`}
         style={{ animationDelay: `${index * 50}ms` }}
+        onMouseEnter={handleMouseEnter}
+        data-thread-id={item.type === 'thread' ? item.threadId : undefined}
       >
         {item.type === 'note' && isScriptureNote ? (
-          <CondensedNoteItem 
+          <CondensedNoteItem
             title={item.title}
             noteType={(item.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
             href={href}
-            threadColors={item.threadColors}
+            threadColors={item.threadColors || undefined}
             noteId={item.noteId}
           />
         ) : item.type === 'note' ? (

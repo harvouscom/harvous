@@ -26,9 +26,18 @@ export default function CondensedNoteItem({
   noteId
 }: CondensedNoteItemProps) {
   // Generate mesh gradient from thread colors
-  const meshGradient = threadColors && threadColors.length > 0
-    ? generateThreadMeshGradient(threadColors, noteId)
-    : null;
+  // Add defensive check: ensure threadColors is an array with valid entries
+  const meshGradient = React.useMemo(() => {
+    if (!threadColors || !Array.isArray(threadColors) || threadColors.length === 0) {
+      return null;
+    }
+    // Filter out invalid color entries
+    const validColors = threadColors.filter(c => c && c.color && typeof c.frequency === 'number');
+    if (validColors.length === 0) {
+      return null;
+    }
+    return generateThreadMeshGradient(validColors, noteId);
+  }, [threadColors, noteId]);
   
   // Accent bar style: use gradient if available, otherwise default
   const accentBarStyle: React.CSSProperties = {
