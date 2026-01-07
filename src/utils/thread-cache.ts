@@ -3,53 +3,13 @@
  * Caches full thread content (notes + metadata) for instant load times on revisits
  */
 
-import { offlineDB, ensureDatabaseOpen } from './offline-db';
-
-interface ThreadCacheEntry {
-  threadId: string;
-  userId: string;
-  data: {
-    thread: any;
-    notes: any[];
-    noteTypeCounts: {
-      all: number;
-      default: number;
-      scripture: number;
-      resource: number;
-    };
-  };
-  timestamp: number;
-  expiresAt: number;
-}
+import { offlineDB, ensureDatabaseOpen, type ThreadCacheEntry } from './offline-db';
 
 // Cache duration: 5 minutes for thread content
 const THREAD_CACHE_DURATION = 5 * 60 * 1000;
 
 // Table name for thread cache
 const THREAD_CACHE_TABLE = 'threadCache';
-
-/**
- * Extend offline database with thread cache table
- */
-if (typeof window !== 'undefined') {
-  // Check if we need to upgrade the schema
-  const currentVersion = offlineDB.verno;
-
-  offlineDB.version(currentVersion + 1).stores({
-    // Keep existing tables
-    spaces: 'id, userId, syncStatus, lastModified, [userId+syncStatus], [userId+id]',
-    threads: 'id, userId, spaceId, syncStatus, lastModified, [userId+spaceId], [userId+syncStatus], [userId+id]',
-    notes: 'id, userId, threadId, spaceId, syncStatus, lastModified, simpleNoteId, [userId+threadId], [userId+spaceId], [userId+syncStatus], [userId+simpleNoteId], [userId+id]',
-    noteThreads: 'id, userId, noteId, threadId, [userId+noteId], [userId+threadId], [noteId+threadId], [userId+noteId+threadId], [userId+id]',
-    tags: 'id, userId, syncStatus, [userId+syncStatus], [userId+id]',
-    noteTags: 'id, userId, noteId, tagId, [userId+noteId], [userId+tagId], [userId+id]',
-    userMetadata: 'id, userId, [userId+id]',
-    syncQueue: '++id, userId, operation, entityType, entityId, timestamp, [userId+operation], [userId+entityType], [userId+id]',
-    syncState: 'userId',
-    // Add new thread cache table
-    [THREAD_CACHE_TABLE]: '[threadId+userId], threadId, userId, timestamp, expiresAt'
-  });
-}
 
 /**
  * Get cached thread content from IndexedDB

@@ -120,6 +120,24 @@ export interface SyncState {
   cacheSize?: number; // Estimated cache size in bytes (optional)
 }
 
+// Thread cache entry for caching thread content
+export interface ThreadCacheEntry {
+  threadId: string;
+  userId: string;
+  data: {
+    thread: any;
+    notes: any[];
+    noteTypeCounts: {
+      all: number;
+      default: number;
+      scripture: number;
+      resource: number;
+    };
+  };
+  timestamp: number;
+  expiresAt: number;
+}
+
 // Offline database class
 class OfflineDatabase extends Dexie {
   spaces!: Table<OfflineSpace>;
@@ -131,11 +149,13 @@ class OfflineDatabase extends Dexie {
   userMetadata!: Table<OfflineUserMetadata>;
   syncQueue!: Table<SyncOperation>;
   syncState!: Table<SyncState>;
+  threadCache!: Table<ThreadCacheEntry>;
 
   constructor() {
     super('HarvousOfflineDB');
     
     // Define schema with indexes for efficient queries
+    // Version 2: Initial schema
     this.version(2).stores({
       // Spaces: indexed by userId, spaceId, syncStatus, lastModified
       spaces: 'id, userId, syncStatus, lastModified, [userId+syncStatus], [userId+id]',
@@ -163,6 +183,22 @@ class OfflineDatabase extends Dexie {
       
       // Sync state: indexed by userId (unique)
       syncState: 'userId'
+    });
+
+    // Version 3: Add thread cache table
+    this.version(3).stores({
+      // Keep all existing tables
+      spaces: 'id, userId, syncStatus, lastModified, [userId+syncStatus], [userId+id]',
+      threads: 'id, userId, spaceId, syncStatus, lastModified, [userId+spaceId], [userId+syncStatus], [userId+id]',
+      notes: 'id, userId, threadId, spaceId, syncStatus, lastModified, simpleNoteId, [userId+threadId], [userId+spaceId], [userId+syncStatus], [userId+simpleNoteId], [userId+id]',
+      noteThreads: 'id, userId, noteId, threadId, [userId+noteId], [userId+threadId], [noteId+threadId], [userId+noteId+threadId], [userId+id]',
+      tags: 'id, userId, syncStatus, [userId+syncStatus], [userId+id]',
+      noteTags: 'id, userId, noteId, tagId, [userId+noteId], [userId+tagId], [userId+id]',
+      userMetadata: 'id, userId, [userId+id]',
+      syncQueue: '++id, userId, operation, entityType, entityId, timestamp, [userId+operation], [userId+entityType], [userId+id]',
+      syncState: 'userId',
+      // Add new thread cache table
+      threadCache: '[threadId+userId], threadId, userId, timestamp, expiresAt'
     });
   }
 }
