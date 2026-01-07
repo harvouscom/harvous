@@ -158,41 +158,41 @@ const organizedContent = Array.isArray(contentItems) ? contentItems : [];
                     
                     <!-- All Content -->
                     <div class="organized-content flex flex-col" data-tab-content="all">
-                      <OrganizedContentList 
+                      <OrganizedContentList
                         initialItems={organizedContent}
                         filter="all"
                         userId={userId}
-                        client:visible
+                        client:load
                       />
                     </div>
-                    
+
                     <!-- Threads Only Content -->
                     <div class="organized-content flex flex-col hidden" data-tab-content="threads">
-                      <OrganizedContentList 
+                      <OrganizedContentList
                         initialItems={organizedContent.filter(item => item.type === 'thread')}
                         filter="threads"
                         userId={userId}
-                        client:visible
+                        client:idle
                       />
                     </div>
-                    
+
                     <!-- Notes Only Content -->
                     <div class="organized-content flex flex-col hidden" data-tab-content="notes">
-                      <OrganizedContentList 
+                      <OrganizedContentList
                         initialItems={organizedContent.filter((item: any) => item?.type === 'note' && (item?.noteType === 'default' || !item?.noteType))}
                         filter="notes"
                         userId={userId}
-                        client:visible
+                        client:idle
                       />
                     </div>
-                    
+
                     <!-- Scripture Only Content -->
                     <div class="organized-content flex flex-col hidden" data-tab-content="scripture">
-                      <OrganizedContentList 
+                      <OrganizedContentList
                         initialItems={organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'scripture')}
                         filter="scripture"
-                        userId={userId}
-                        client:visible
+                userId={userId}
+                        client:idle
                       />
                     </div>
                 </div>
