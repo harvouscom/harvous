@@ -147,7 +147,7 @@ class OfflineDatabase extends Dexie {
       notes: 'id, userId, threadId, spaceId, syncStatus, lastModified, simpleNoteId, [userId+threadId], [userId+spaceId], [userId+syncStatus], [userId+simpleNoteId], [userId+id]',
       
       // NoteThreads junction: indexed by userId, noteId, threadId
-      noteThreads: 'id, userId, noteId, threadId, [userId+noteId], [userId+threadId], [noteId+threadId], [userId+id]',
+      noteThreads: 'id, userId, noteId, threadId, [userId+noteId], [userId+threadId], [noteId+threadId], [userId+noteId+threadId], [userId+id]',
       
       // Tags: indexed by userId, tagId, syncStatus
       tags: 'id, userId, syncStatus, [userId+syncStatus], [userId+id]',
