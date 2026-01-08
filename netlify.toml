@@ -27,8 +27,8 @@
     Permissions-Policy = "geolocation=(), microphone=(), camera=()"
     # XSS Protection (legacy, but still useful)
     X-XSS-Protection = "1; mode=block"
-    # Strict Transport Security (HSTS) - only in production
-    # Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    # Strict Transport Security (HSTS)
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
 
 # Note: For scheduled functions, configure in Netlify dashboard:
 # Site Settings > Functions > Scheduled Functions
