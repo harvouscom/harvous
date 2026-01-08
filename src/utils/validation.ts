@@ -515,4 +515,3 @@ export function validateResourceUrl(url: string | null | undefined): UrlValidati
     domain: hostname.replace(/^www\./, '')
   };
 }
-
