@@ -1,8 +1,8 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v0-254-2'; // Removed font pre-caching to fix CSP errors
-const NAV_API_CACHE = 'harvous-nav-api-v7'; // Removed font pre-caching to fix CSP errors
+const CACHE_NAME = 'harvous-cache-v0-254-3'; // Network-first for content API
+const NAV_API_CACHE = 'harvous-nav-api-v8'; // Network-first for fresh data
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 // Resources to pre-cache for faster initial load
@@ -109,7 +109,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Cacheable API endpoints - use stale-while-revalidate strategy
+  // Cacheable API endpoints - use network-first for fresh data, cache as fallback
   const cacheableApiEndpoints = [
     '/api/navigation/data',
     '/api/spaces/items',
@@ -117,7 +117,7 @@ self.addEventListener('fetch', (event) => {
     '/api/threads/',  // Thread prefetch endpoints
     '/api/content/load-more'  // Content pagination
   ];
-  
+
   // Check if this is a cacheable API endpoint
   const isCacheableApi = cacheableApiEndpoints.some(endpoint => {
     if (endpoint === '/api/notes/recent') {
@@ -134,57 +134,58 @@ self.addEventListener('fetch', (event) => {
     }
     return url.pathname === endpoint;
   });
-  
+
   if (isCacheableApi && event.request.method === 'GET') {
     event.respondWith(
       caches.open(NAV_API_CACHE).then((cache) => {
-        return cache.match(event.request).then((cached) => {
-          const fetchPromise = fetch(event.request)
-            .then((response) => {
-              if (shouldCacheResponse(response)) {
-                const timestamped = addCacheTimestamp(response);
-                // Clone before async cache operation for safety
-                const timestampedClone = timestamped.clone();
-                safeCachePut(cache, event.request, timestampedClone);
-              }
-              return response;
-            })
-            .catch(() => null);
-          
-          // Return cached immediately, refresh in background
-          if (cached) {
-            fetchPromise; // Fire and forget
-            return cached;
-          }
-          
-          // No cache - wait for network
-          // Provide appropriate fallback based on endpoint
-          return fetchPromise.then(response => {
-            if (response) {
-              return response;
-            }
-            // Fallback empty responses for different endpoints
-            if (url.pathname === '/api/navigation/data') {
-              return new Response(
-                JSON.stringify({ threads: [], spaces: [], inboxCount: 0 }),
-                { status: 200, headers: { 'Content-Type': 'application/json' } }
-              );
-            }
-            if (url.pathname === '/api/spaces/items') {
-              return new Response(
-                JSON.stringify({ notes: [], threads: [] }),
-                { status: 200, headers: { 'Content-Type': 'application/json' } }
-              );
-            }
-            if (url.pathname === '/api/notes/recent') {
-              return new Response(
-                JSON.stringify([]),
-                { status: 200, headers: { 'Content-Type': 'application/json' } }
-              );
+        // Network-first strategy for fresher data
+        return fetch(event.request)
+          .then((response) => {
+            if (shouldCacheResponse(response)) {
+              const timestamped = addCacheTimestamp(response);
+              // Clone before async cache operation for safety
+              const timestampedClone = timestamped.clone();
+              safeCachePut(cache, event.request, timestampedClone);
             }
             return response;
+          })
+          .catch(() => {
+            // Network failed - use cached version
+            return cache.match(event.request).then((cached) => {
+              if (cached) {
+                return cached;
+              }
+              // No cache - provide appropriate fallback based on endpoint
+              if (url.pathname === '/api/navigation/data') {
+                return new Response(
+                  JSON.stringify({ threads: [], spaces: [], inboxCount: 0 }),
+                  { status: 200, headers: { 'Content-Type': 'application/json' } }
+                );
+              }
+              if (url.pathname === '/api/spaces/items') {
+                return new Response(
+                  JSON.stringify({ notes: [], threads: [] }),
+                  { status: 200, headers: { 'Content-Type': 'application/json' } }
+                );
+              }
+              if (url.pathname === '/api/notes/recent') {
+                return new Response(
+                  JSON.stringify([]),
+                  { status: 200, headers: { 'Content-Type': 'application/json' } }
+                );
+              }
+              if (url.pathname === '/api/content/load-more') {
+                return new Response(
+                  JSON.stringify({ items: [], hasMore: false }),
+                  { status: 200, headers: { 'Content-Type': 'application/json' } }
+                );
+              }
+              return new Response(
+                JSON.stringify({ error: 'Network error' }),
+                { status: 503, headers: { 'Content-Type': 'application/json' } }
+              );
+            });
           });
-        });
       })
     );
     return;

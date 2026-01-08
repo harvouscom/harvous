@@ -928,13 +928,11 @@ export default function OrganizedContentList({
       const previousWasNote = previousPathnameRef.current.startsWith('/note_');
 
       if (inPWA || dataIsStale || cameFromNotePage || previousWasNote) {
-        const delay = (inPWA || dataIsStale) ? 300 : 200;
-        setTimeout(() => {
-          if (isMountedRef.current && window.location.pathname === '/' && 
-              !refreshStateRef.current.isNavigating && !refreshStateRef.current.isRefreshing) {
-            refreshContent();
-          }
-        }, delay);
+        // Removed delays for instant refresh
+        if (isMountedRef.current && window.location.pathname === '/' &&
+            !refreshStateRef.current.isNavigating && !refreshStateRef.current.isRefreshing) {
+          refreshContent();
+        }
       }
     };
 
@@ -957,7 +955,7 @@ export default function OrganizedContentList({
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-    const MIN_BACKGROUND_TIME = 30000;
+    const MIN_BACKGROUND_TIME = 5000;
     const MIN_REFRESH_INTERVAL = 2000;
 
     const handleVisibilityChange = () => {
@@ -983,19 +981,17 @@ export default function OrganizedContentList({
           lastVisibilityRefreshRef.current = Date.now();
           refreshStateRef.current.isRefreshing = true;
 
-          const delay = inPWA ? 300 : 0;
-          setTimeout(() => {
-            if (isMountedRef.current && window.location.pathname === '/' && 
-                !refreshStateRef.current.isNavigating && refreshStateRef.current.isRefreshing) {
-              refreshContent().then(() => {
-                refreshStateRef.current.isRefreshing = false;
-              }).catch(() => {
-                refreshStateRef.current.isRefreshing = false;
-              });
-            } else {
+          // Removed PWA delay for instant refresh
+          if (isMountedRef.current && window.location.pathname === '/' &&
+              !refreshStateRef.current.isNavigating && refreshStateRef.current.isRefreshing) {
+            refreshContent().then(() => {
               refreshStateRef.current.isRefreshing = false;
-            }
-          }, delay);
+            }).catch(() => {
+              refreshStateRef.current.isRefreshing = false;
+            });
+          } else {
+            refreshStateRef.current.isRefreshing = false;
+          }
         }
       }
     };
