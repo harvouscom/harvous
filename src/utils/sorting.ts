@@ -20,8 +20,10 @@ export function normalizeDate(date: Date | string | null | undefined): Date | nu
 /**
  * Multi-tier sorting: lastVisited → updatedAt → createdAt → id
  * Matches API sorting logic in dashboard-data.ts
- * 
- * This ensures consistent ordering even when items have the same lastVisited timestamp.
+ *
+ * The ID tiebreaker ensures deterministic sorting when timestamps are identical.
+ * This prevents items from shuffling position on page refresh (common in seed data,
+ * migrations, and bulk operations where multiple items get the same millisecond timestamp).
  * All date comparisons use getTime() to avoid string/date mismatches.
  */
 export function sortByLastVisited<T extends { 
@@ -54,18 +56,20 @@ export function sortByLastVisited<T extends {
     
     const aTime = getSortTime(a);
     const bTime = getSortTime(b);
-    
+
     // Primary sort: lastVisited (newest first)
     if (aTime !== null && bTime !== null) {
       const diff = bTime - aTime;
       if (diff !== 0) return diff; // Different times, use that
+      // When times are equal, use ID as tiebreaker for deterministic sorting
+      return (a.id || '').localeCompare(b.id || '');
     } else if (aTime !== null && bTime === null) {
       return -1; // a has time, b doesn't - a comes first
     } else if (aTime === null && bTime !== null) {
       return 1; // b has time, a doesn't - b comes first
     }
-    // Both have no time - maintain current order (stable sort)
-    return 0;
+    // Both have no time - sort by ID for deterministic ordering
+    return (a.id || '').localeCompare(b.id || '');
   });
 }
 
