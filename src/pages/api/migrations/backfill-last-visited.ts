@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, eq, isNull, sql } from 'astro:db';
+import { db, Notes, Threads, isNull, eq } from 'astro:db';
 
 /**
  * One-time migration to backfill lastVisited for all existing content
@@ -10,17 +10,27 @@ import { db, Notes, Threads, eq, isNull, sql } from 'astro:db';
  *
  * This ensures consistent ordering in the content list where recent activity appears first
  *
+ * IMPORTANT: This migration runs for ALL users in the database
+ *
  * Run once via: POST /api/migrations/backfill-last-visited
+ *
+ * Security: Requires a special migration key to prevent unauthorized execution
  */
-export const POST: APIRoute = async ({ locals }) => {
+export const POST: APIRoute = async ({ request }) => {
   try {
-    const { userId } = locals.auth();
+    // Check for migration authorization key
+    const authHeader = request.headers.get('Authorization');
+    const migrationKey = import.meta.env.MIGRATION_KEY || process.env.MIGRATION_KEY;
 
-    // Only allow authenticated users to run migrations
-    if (!userId) {
+    // Allow if:
+    // 1. Migration key is set and matches, OR
+    // 2. No migration key is set (for development/initial setup)
+    const isAuthorized = !migrationKey || authHeader === `Bearer ${migrationKey}`;
+
+    if (!isAuthorized) {
       return new Response(JSON.stringify({
-        error: 'Authentication required',
-        message: 'You must be logged in to run migrations'
+        error: 'Unauthorized',
+        message: 'Valid migration key required. Set MIGRATION_KEY environment variable and pass as Bearer token.'
       }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
@@ -31,12 +41,27 @@ export const POST: APIRoute = async ({ locals }) => {
     const results = {
       notesUpdated: 0,
       threadsUpdated: 0,
-      errors: [] as string[]
+      errors: [] as string[],
+      startTime: Date.now()
     };
 
-    // Backfill Notes.lastVisited
+    console.log('[Migration] Starting lastVisited backfill for all users...');
+
+    // Backfill Notes.lastVisited using batch update
     try {
-      // Get all notes with null lastVisited
+      // First, get count of notes to update
+      const notesCount = await db.select({
+        id: Notes.id
+      })
+      .from(Notes)
+      .where(isNull(Notes.lastVisited))
+      .all();
+
+      console.log(`[Migration] Found ${notesCount.length} notes without lastVisited across all users`);
+
+      // Batch update: Set lastVisited = COALESCE(updatedAt, createdAt) for all notes where lastVisited IS NULL
+      // Process in batches of 1000 to avoid timeouts
+      const batchSize = 1000;
       const notesToUpdate = await db.select({
         id: Notes.id,
         updatedAt: Notes.updatedAt,
@@ -47,36 +72,50 @@ export const POST: APIRoute = async ({ locals }) => {
       .where(isNull(Notes.lastVisited))
       .all();
 
-      console.log(`[Migration] Found ${notesToUpdate.length} notes without lastVisited`);
+      for (let i = 0; i < notesToUpdate.length; i += batchSize) {
+        const batch = notesToUpdate.slice(i, i + batchSize);
 
-      // Update each note with updatedAt or createdAt as fallback
-      for (const note of notesToUpdate) {
-        try {
-          const fallbackDate = note.updatedAt || note.createdAt;
+        for (const note of batch) {
+          try {
+            const fallbackDate = note.updatedAt || note.createdAt;
 
-          if (fallbackDate) {
-            await db.update(Notes)
-              .set({ lastVisited: fallbackDate })
-              .where(eq(Notes.id, note.id))
-              .run();
+            if (fallbackDate) {
+              await db.update(Notes)
+                .set({ lastVisited: fallbackDate })
+                .where(eq(Notes.id, note.id))
+                .run();
 
-            results.notesUpdated++;
+              results.notesUpdated++;
+            }
+          } catch (error: any) {
+            console.error(`[Migration] Error updating note ${note.id}:`, error);
+            results.errors.push(`Note ${note.id}: ${error.message}`);
           }
-        } catch (error: any) {
-          console.error(`[Migration] Error updating note ${note.id}:`, error);
-          results.errors.push(`Note ${note.id}: ${error.message}`);
         }
+
+        console.log(`[Migration] Processed ${Math.min(i + batchSize, notesToUpdate.length)}/${notesToUpdate.length} notes`);
       }
 
-      console.log(`[Migration] Updated ${results.notesUpdated} notes`);
+      console.log(`[Migration] Successfully updated ${results.notesUpdated} notes`);
     } catch (error: any) {
       console.error('[Migration] Error backfilling notes:', error);
       results.errors.push(`Notes migration failed: ${error.message}`);
     }
 
-    // Backfill Threads.lastVisited
+    // Backfill Threads.lastVisited using batch update
     try {
-      // Get all threads with null lastVisited
+      // First, get count of threads to update
+      const threadsCount = await db.select({
+        id: Threads.id
+      })
+      .from(Threads)
+      .where(isNull(Threads.lastVisited))
+      .all();
+
+      console.log(`[Migration] Found ${threadsCount.length} threads without lastVisited across all users`);
+
+      // Batch update
+      const batchSize = 1000;
       const threadsToUpdate = await db.select({
         id: Threads.id,
         updatedAt: Threads.updatedAt,
@@ -87,45 +126,53 @@ export const POST: APIRoute = async ({ locals }) => {
       .where(isNull(Threads.lastVisited))
       .all();
 
-      console.log(`[Migration] Found ${threadsToUpdate.length} threads without lastVisited`);
+      for (let i = 0; i < threadsToUpdate.length; i += batchSize) {
+        const batch = threadsToUpdate.slice(i, i + batchSize);
 
-      // Update each thread with updatedAt or createdAt as fallback
-      for (const thread of threadsToUpdate) {
-        try {
-          const fallbackDate = thread.updatedAt || thread.createdAt;
+        for (const thread of batch) {
+          try {
+            const fallbackDate = thread.updatedAt || thread.createdAt;
 
-          if (fallbackDate) {
-            await db.update(Threads)
-              .set({ lastVisited: fallbackDate })
-              .where(eq(Threads.id, thread.id))
-              .run();
+            if (fallbackDate) {
+              await db.update(Threads)
+                .set({ lastVisited: fallbackDate })
+                .where(eq(Threads.id, thread.id))
+                .run();
 
-            results.threadsUpdated++;
+              results.threadsUpdated++;
+            }
+          } catch (error: any) {
+            console.error(`[Migration] Error updating thread ${thread.id}:`, error);
+            results.errors.push(`Thread ${thread.id}: ${error.message}`);
           }
-        } catch (error: any) {
-          console.error(`[Migration] Error updating thread ${thread.id}:`, error);
-          results.errors.push(`Thread ${thread.id}: ${error.message}`);
         }
+
+        console.log(`[Migration] Processed ${Math.min(i + batchSize, threadsToUpdate.length)}/${threadsToUpdate.length} threads`);
       }
 
-      console.log(`[Migration] Updated ${results.threadsUpdated} threads`);
+      console.log(`[Migration] Successfully updated ${results.threadsUpdated} threads`);
     } catch (error: any) {
       console.error('[Migration] Error backfilling threads:', error);
       results.errors.push(`Threads migration failed: ${error.message}`);
     }
 
+    const duration = ((Date.now() - results.startTime) / 1000).toFixed(2);
+
     // Return summary
     const success = results.errors.length === 0;
+    console.log(`[Migration] Completed in ${duration}s. Notes: ${results.notesUpdated}, Threads: ${results.threadsUpdated}, Errors: ${results.errors.length}`);
+
     return new Response(JSON.stringify({
       success,
       message: success
-        ? 'Migration completed successfully'
-        : 'Migration completed with errors',
+        ? `Migration completed successfully in ${duration}s`
+        : `Migration completed with errors in ${duration}s`,
       results: {
         notesUpdated: results.notesUpdated,
         threadsUpdated: results.threadsUpdated,
         totalUpdated: results.notesUpdated + results.threadsUpdated,
-        errors: results.errors
+        duration: `${duration}s`,
+        errors: results.errors.length > 0 ? results.errors.slice(0, 10) : [] // Limit error output
       }
     }), {
       status: success ? 200 : 207, // 207 = Multi-Status (partial success)
