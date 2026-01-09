@@ -51,7 +51,7 @@ function getApiKey(): string {
  */
 async function audiencefulRequest(
   endpoint: string,
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   body?: any
 ): Promise<any> {
   const apiKey = getApiKey();
@@ -136,10 +136,15 @@ export async function createSubscriber(
  * Update an existing subscriber
  */
 export async function updateSubscriber(
-  subscriberId: number,
+  email: string,
   data: Partial<AudiencefulPersonRequest>
 ): Promise<AudiencefulPersonResponse> {
-  return await audiencefulRequest(`/people/${subscriberId}`, 'PUT', data);
+  // Audienceful API requires email in body and uses PATCH /people/ endpoint
+  const updateData = {
+    email,
+    ...data,
+  };
+  return await audiencefulRequest('/people/', 'PATCH', updateData);
 }
 
 /**
@@ -197,7 +202,7 @@ export async function tagAsAppUser(
       ...extraData,
     };
 
-    return await updateSubscriber(existing.id, {
+    return await updateSubscriber(email, {
       tags: mergedTags,
       extra_data: mergedExtraData,
     });
