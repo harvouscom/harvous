@@ -100,6 +100,14 @@ async function createScriptureNote(
   const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
 
   const noteId = generateNoteId();
+  
+  // Generate varied lastVisited dates for scripture notes
+  // Mix of recent, moderate, and old visits, with some never visited
+  const visitPatterns: Array<'recent' | 'moderate' | 'old' | 'never'> = ['recent', 'moderate', 'recent', 'old', 'recent', 'moderate', 'never', 'recent'];
+  const patternIndex = Math.floor(Math.random() * visitPatterns.length);
+  const visitPattern = visitPatterns[patternIndex];
+  const lastVisited = generateLastVisitedDate(createdAt, visitPattern);
+  
   await db.insert(Notes).values({
     id: noteId,
     title: reference,
@@ -111,6 +119,7 @@ async function createScriptureNote(
     addedBy: 'user',
     userId: USER_ID,
     createdAt,
+    lastVisited,
     isPublic: false,
     isFeatured: false,
   });
@@ -144,6 +153,14 @@ async function createDefaultNote(
   isFeatured: boolean = false
 ): Promise<string> {
   const noteId = generateNoteId();
+  
+  // Generate varied lastVisited dates for default notes
+  // Mix of recent, moderate, old, and never visited
+  const visitPatterns: Array<'recent' | 'moderate' | 'old' | 'never'> = ['recent', 'recent', 'moderate', 'old', 'recent', 'moderate', 'never', 'recent', 'moderate', 'old'];
+  const patternIndex = Math.floor(Math.random() * visitPatterns.length);
+  const visitPattern = visitPatterns[patternIndex];
+  const lastVisited = generateLastVisitedDate(createdAt, visitPattern);
+  
   await db.insert(Notes).values({
     id: noteId,
     title,
@@ -155,6 +172,7 @@ async function createDefaultNote(
     addedBy: 'user',
     userId: USER_ID,
     createdAt,
+    lastVisited,
     isPublic: false,
     isFeatured,
   });
@@ -254,6 +272,44 @@ function generateSundayDate(daysAgo: number): Date {
   return sundayDate;
 }
 
+/**
+ * Generate a varied lastVisited date based on creation date and visit pattern
+ * Creates believable variation in when items were last accessed
+ */
+function generateLastVisitedDate(createdAt: Date, visitPattern: 'recent' | 'moderate' | 'old' | 'never'): Date | null {
+  if (visitPattern === 'never') {
+    return null; // Not visited yet
+  }
+
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const createdTime = createdAt.getTime();
+  const now = Date.now();
+  
+  let daysAfterCreation: number;
+  
+  switch (visitPattern) {
+    case 'recent':
+      // Visited 0-2 days after creation, but not in the future
+      daysAfterCreation = Math.floor(Math.random() * 3); // 0, 1, or 2
+      break;
+    case 'moderate':
+      // Visited 3-7 days after creation
+      daysAfterCreation = 3 + Math.floor(Math.random() * 5); // 3-7
+      break;
+    case 'old':
+      // Visited 8-14 days after creation
+      daysAfterCreation = 8 + Math.floor(Math.random() * 7); // 8-14
+      break;
+  }
+  
+  const visitTime = createdTime + (daysAfterCreation * msPerDay);
+  
+  // Don't return a date in the future - cap at now
+  const lastVisited = Math.min(visitTime, now);
+  
+  return new Date(lastVisited);
+}
+
 async function seedMarketing() {
   try {
     console.log('🌱 Starting marketing seed...');
@@ -345,7 +401,9 @@ async function seedMarketing() {
     ];
 
     const createdThreads: Array<{ id: string; spaceId: string; title: string }> = [];
-    for (const threadData of threads) {
+    const visitPatterns: Array<'recent' | 'moderate' | 'old'> = ['recent', 'recent', 'moderate', 'recent', 'old'];
+    for (let i = 0; i < threads.length; i++) {
+      const threadData = threads[i];
       const threadId = generateThreadId();
       const existing = await db.select()
         .from(Threads)
@@ -353,6 +411,10 @@ async function seedMarketing() {
         .get();
 
       if (!existing) {
+        const createdAt = generateDate(15);
+        const visitPattern = visitPatterns[i % visitPatterns.length];
+        const lastVisited = generateLastVisitedDate(createdAt, visitPattern);
+        
         await db.insert(Threads).values({
           id: threadId,
           title: threadData.title,
@@ -363,9 +425,9 @@ async function seedMarketing() {
           order: threadData.order,
           userId: USER_ID,
           isPublic: false,
-          createdAt: generateDate(15),
+          createdAt,
           updatedAt: generateDate(3),
-          lastVisited: generateDate(1),
+          lastVisited,
         });
         createdThreads.push({ id: threadId, spaceId: threadData.spaceId, title: threadData.title });
         console.log(`  ✅ Created thread: ${threadData.title} (color: ${threadData.color || 'default'})`);
@@ -421,13 +483,19 @@ async function seedMarketing() {
     // Scripture notes (fewer total, but more in multiple threads)
     const scriptureReferences = [
       'John 3:16',
+      'Romans 8:1',
       'Romans 8:28',
       'Psalm 23:1',
+      'Psalm 23:4',
       'Ephesians 2:8-10',
       'Matthew 5:3-12',
+      'Matthew 28:18-20',
       '1 Corinthians 13:4-7',
+      'Philippians 4:6-7',
       'Philippians 4:13',
       'Proverbs 3:5-6',
+      'Lamentations 3:22-23',
+      'Romans 9:15-16',
     ];
 
     const scriptureNotes: Array<{ noteId: string; threadId: string; spaceId: string; tags: string[] }> = [];
@@ -464,7 +532,7 @@ async function seedMarketing() {
     // Default notes (fewer total, but more in multiple threads)
     const defaultNotes = [
       {
-        title: 'The Tension in Romans 9-11',
+        title: 'Sovereignty and Responsibility',
         content: 'There\'s a fascinating tension between God\'s sovereignty and human responsibility in these chapters. Paul addresses the question of Israel\'s rejection and God\'s faithfulness. Romans 9:15-16 says "I will have mercy on whom I have mercy" - God\'s sovereignty. But Romans 10:13 says "Everyone who calls on the name of the Lord will be saved" - human responsibility. The mystery of election and the call to faith creates a tension that requires both theological precision and humble acceptance of mystery.',
         thread: createdThreads[2], // Romans Study (index 2)
         tags: ['Romans', 'Faith', 'Application'],
@@ -472,7 +540,7 @@ async function seedMarketing() {
         daysAgo: 12,
       },
       {
-        title: 'Psalm 23 and Modern Anxiety',
+        title: 'Rest in Overstimulation',
         content: 'Reading Psalm 23 in the context of modern anxiety disorders. Psalm 23:1-2 says "The Lord is my shepherd, I shall not want. He makes me lie down in green pastures, he leads me beside quiet waters." The imagery speaks to the need for rest in our overstimulated world. Psalm 23:4 says "Even though I walk through the darkest valley" - this acknowledges real suffering while the promise of God\'s presence offers genuine comfort.',
         thread: createdThreads[1], // Psalm 23 Study (index 1)
         tags: ['Psalms', 'Prayer', 'Application'],
@@ -504,10 +572,10 @@ async function seedMarketing() {
         daysAgo: 8,
       },
       {
-        title: 'Prayer for This Week',
-        content: 'Praying for wisdom in leading the small group discussion on Romans 8. Romans 8:28 says "And we know that in all things God works for the good of those who love him." Need clarity on how to explain this promise without minimizing real suffering. Also praying for Sarah who\'s been struggling with anxiety. Claiming Philippians 4:6-7 for her - "Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God."',
-        thread: createdThreads[3], // Morning Reflections (index 3)
-        tags: ['Prayer', 'Application'],
+        title: 'All Things Work Together',
+        content: 'Studying Romans 8:28 - "And we know that in all things God works for the good of those who love him." The phrase "all things" is pretty broad. Does this mean every single thing that happens is good? Or that God works good out of all things? The context matters - Romans 8:29-30 talks about being conformed to Christ\'s image. Maybe the "good" is our transformation, not necessarily our comfort. Need to think more about how this applies when things are genuinely hard.',
+        thread: createdThreads[2], // Romans Study (index 2)
+        tags: ['Romans', 'Application'],
         isFeatured: false,
         daysAgo: 7,
       },
@@ -536,10 +604,10 @@ async function seedMarketing() {
         daysAgo: 4,
       },
       {
-        title: 'Morning Reflection: God\'s Faithfulness',
-        content: 'Reading Lamentations 3:22-23 this morning. "Because of the Lord\'s great love we are not consumed, for his compassions never fail. They are new every morning; great is your faithfulness." Even in the context of deep suffering (Lamentations!), there\'s this declaration of God\'s faithfulness. Lamentations 3:24 says "The Lord is my portion" - it\'s not denying pain, but anchoring hope in God\'s character.',
+        title: 'New Every Morning',
+        content: 'Reading Lamentations 3:22-23. "Because of the Lord\'s great love we are not consumed, for his compassions never fail. They are new every morning; great is your faithfulness." What\'s striking is this comes in the middle of Lamentations - a book about deep suffering and loss. Yet there\'s this declaration of God\'s faithfulness. Lamentations 3:24 says "The Lord is my portion" - it\'s not denying the pain, but anchoring hope in God\'s character even when circumstances are terrible. The contrast is powerful.',
         thread: createdThreads[3], // Morning Reflections (index 3)
-        tags: ['Prayer', 'Faith'],
+        tags: ['Faith', 'Application'],
         isFeatured: false,
         daysAgo: 3,
       },
@@ -576,10 +644,10 @@ async function seedMarketing() {
         daysAgo: 15,
       },
       {
-        title: 'Prayer: Guidance Needed',
-        content: 'Facing a decision about whether to take on a new ministry role. Praying for wisdom and clarity. Proverbs 3:5-6 says "Trust in the Lord with all your heart and lean not on your own understanding; in all your ways submit to him, and he will make your paths straight." Want to serve but also want to be wise about capacity. James 1:5 says "If any of you lacks wisdom, you should ask God" - claiming that promise.',
-        thread: createdThreads[3], // Morning Reflections (index 3)
-        tags: ['Prayer', 'Wisdom'],
+        title: 'Lean Not on Your Own Understanding',
+        content: 'Proverbs 3:5-6 says "Trust in the Lord with all your heart and lean not on your own understanding; in all your ways submit to him, and he will make your paths straight." The phrase "lean not on your own understanding" is interesting - it\'s not saying don\'t think, but don\'t rely solely on your own perspective. There\'s a difference between using wisdom and trusting only in what you can figure out. James 1:5 also talks about asking God for wisdom. The combination is trusting God while also seeking wisdom from him.',
+        thread: createdThreads[1], // Psalm 23 Study (index 1)
+        tags: ['Wisdom', 'Application'],
         isFeatured: false,
         daysAgo: 2,
       },
@@ -601,7 +669,7 @@ async function seedMarketing() {
       },
       {
         title: 'Small Group Discussion Notes',
-        content: 'Last week we discussed Romans 8:1-17. Key insights:\n- No condemnation for those in Christ\n- The Spirit vs the flesh\n- We\'re children of God, not slaves\n- Suffering and glory are connected\n\nThis week moving to 8:18-39, focusing on hope in suffering.',
+        content: 'Last week we discussed Romans 8:1-17. Key points:\n- No condemnation for those in Christ\n- The Spirit vs the flesh\n- We\'re children of God, not slaves\n- Suffering and glory are connected\n\nThis week moving to 8:18-39, focusing on hope in suffering.',
         thread: createdThreads[4], // This Week's Study (index 4)
         tags: ['Romans', 'Application'],
         isFeatured: false,
@@ -616,10 +684,10 @@ async function seedMarketing() {
         daysAgo: 17,
       },
       {
-        title: 'Prayer: Thankfulness',
-        content: 'Grateful today for answered prayer about the job situation. God provided clarity and peace in the decision. Also thankful for the small group - their support and questions help me think more deeply about Scripture.',
-        thread: createdThreads[3], // Morning Reflections (index 3)
-        tags: ['Prayer', 'Application'],
+        title: 'Do Not Be Anxious',
+        content: 'Philippians 4:6-7 says "Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God. And the peace of God, which transcends all understanding, will guard your hearts and your minds in Christ Jesus." The connection between thanksgiving and peace is interesting. It\'s not just asking for things - it\'s presenting requests with thanksgiving. Maybe gratitude changes our perspective even before the answer comes.',
+        thread: createdThreads[2], // Romans Study (index 2)
+        tags: ['Faith', 'Application'],
         isFeatured: false,
         daysAgo: 1,
       },
@@ -640,17 +708,17 @@ async function seedMarketing() {
         daysAgo: 19,
       },
       {
-        title: 'Sunday Sermon: The Prodigal Son',
-        content: 'Pastor Mike\'s message on Luke 15. Three key points:\n1. The younger son\'s rebellion and return\n2. The father\'s unconditional love and forgiveness\n3. The older brother\'s self-righteousness\n\nApplication: God runs to us when we return, and we need to check our hearts for older-brother attitudes.',
+        title: 'The Prodigal Son - Both Brothers',
+        content: 'Studying Luke 15:11-32. Usually focus on the younger son, but the older brother is just as lost in a different way. He\'s working for the father, not with the father. Both need grace. The father runs to both - to the younger in his return, to the older in his self-righteousness. The older brother says "I\'ve been slaving for you" - that\'s not how you talk about a relationship with your father. He sees it as work, not love. Both sons misunderstand the father\'s heart.',
         thread: createdThreads[0], // Gospel of John
-        tags: ['Faith', 'Application'],
+        tags: ['Faith', 'Grace', 'Application'],
         isFeatured: false,
         daysAgo: 0,
         isSunday: true,
       },
       {
-        title: 'Sunday Sermon: Romans 8 - No Condemnation',
-        content: 'Powerful message on Romans 8:1-4. Romans 8:1 says "Therefore, there is now no condemnation for those who are in Christ Jesus." Romans 8:2-3 explains why - "because through Christ Jesus the law of the Spirit who gives life has set you free from the law of sin and death. For what the law was powerless to do because it was weakened by the flesh, God did by sending his own Son." The law couldn\'t save us, but Christ did. We\'re free from condemnation, not free to sin. Romans 8:4 says the Spirit enables us to live according to God\'s will.',
+        title: 'No Condemnation',
+        content: 'Romans 8:1 says "Therefore, there is now no condemnation for those who are in Christ Jesus." The "therefore" connects back to chapter 7 where Paul talks about the struggle with sin. Romans 8:2-3 explains why - "because through Christ Jesus the law of the Spirit who gives life has set you free from the law of sin and death. For what the law was powerless to do because it was weakened by the flesh, God did by sending his own Son." The law couldn\'t save us, but Christ did. We\'re free from condemnation, not free to sin. Romans 8:4 says the Spirit enables us to live according to God\'s will. The difference is the Spirit\'s power, not our willpower.',
         thread: createdThreads[2], // Romans Study
         tags: ['Romans', 'Faith'],
         isFeatured: true,
@@ -658,17 +726,17 @@ async function seedMarketing() {
         isSunday: true,
       },
       {
-        title: 'Sunday Sermon: Trusting God in the Valley',
-        content: 'Pastor Sarah on Psalm 23:4. "Even though I walk through the darkest valley, I will fear no evil, for you are with me; your rod and your staff, they comfort me." We all face valleys - job loss, illness, relationship struggles. But God is with us. The rod (discipline) and staff (guidance) are for our good. Psalm 23:5-6 continues "You prepare a table before me in the presence of my enemies... Surely your goodness and love will follow me all the days of my life." We don\'t have to fear because God is present.',
+        title: 'Walking Through the Valley',
+        content: 'Psalm 23:4 says "Even though I walk through the darkest valley, I will fear no evil, for you are with me; your rod and your staff, they comfort me." The phrase "walk through" is important - it\'s not "get stuck in" or "live in" but "walk through." Valleys are temporary, even when they feel endless. The rod (discipline) and staff (guidance) are for our good, not punishment. Psalm 23:5-6 continues "You prepare a table before me in the presence of my enemies... Surely your goodness and love will follow me all the days of my life." God\'s presence changes everything, even in the valley.',
         thread: createdThreads[1], // Psalm 23 Study
-        tags: ['Psalms', 'Prayer', 'Application'],
+        tags: ['Psalms', 'Application'],
         isFeatured: false,
         daysAgo: 14,
         isSunday: true,
       },
       {
-        title: 'Sunday Sermon: The Great Commission',
-        content: 'Matthew 28:18-20. "All authority has been given to me... go and make disciples." Not just converts, but disciples. Teaching them to obey everything Jesus commanded. This is our mission - not optional, but the core of following Jesus. How am I making disciples in my daily life?',
+        title: 'The Great Commission',
+        content: 'Matthew 28:18-20. "All authority has been given to me... go and make disciples." Not just converts, but disciples. Teaching them to obey everything Jesus commanded. The word "disciple" means learner - someone who follows and learns from a teacher. Making disciples involves teaching, not just sharing. And it\'s "teaching them to obey" - not just knowing, but doing. This is our mission - not optional, but the core of following Jesus. The question is how to make disciples in everyday life, not just in formal settings.',
         thread: createdThreads[0], // Gospel of John
         tags: ['Faith', 'Application'],
         isFeatured: false,
@@ -699,8 +767,7 @@ async function seedMarketing() {
         spaceId: noteData.thread.spaceId,
         tags: noteData.tags,
       });
-      const noteType = (noteData as any).isSunday ? ' (Sunday sermon)' : '';
-      console.log(`  ✅ Created note: ${noteData.title}${noteType}`);
+      console.log(`  ✅ Created note: ${noteData.title}`);
       
       // Process scripture references in the note to create pills and links
       try {
@@ -733,13 +800,19 @@ async function seedMarketing() {
     // ALL scripture notes should be in multiple threads to showcase this
     const scriptureMultiThread = [
       { noteIndex: 0, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // John 3:16 also in Romans Study and This Week's Study
-      { noteIndex: 1, additionalThreads: [createdThreads[4].id, createdThreads[3].id] }, // Romans 8:28 also in This Week's Study and Morning Reflections
-      { noteIndex: 2, additionalThreads: [createdThreads[3].id, createdThreads[0].id] }, // Psalm 23:1 also in Morning Reflections and Gospel of John
-      { noteIndex: 3, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // Ephesians 2:8-10 also in Romans Study and This Week's Study
-      { noteIndex: 4, additionalThreads: [createdThreads[0].id, createdThreads[1].id] }, // Matthew 5:3-12 also in Gospel of John and Psalm 23 Study
-      { noteIndex: 5, additionalThreads: [createdThreads[4].id, createdThreads[2].id] }, // 1 Corinthians 13:4-7 also in This Week's Study and Romans Study
-      { noteIndex: 6, additionalThreads: [createdThreads[3].id, createdThreads[1].id] }, // Philippians 4:13 also in Morning Reflections and Psalm 23 Study
-      { noteIndex: 7, additionalThreads: [createdThreads[1].id, createdThreads[3].id] }, // Proverbs 3:5-6 also in Psalm 23 Study and Morning Reflections
+      { noteIndex: 1, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // Romans 8:1 also in Romans Study and This Week's Study
+      { noteIndex: 2, additionalThreads: [createdThreads[4].id, createdThreads[3].id] }, // Romans 8:28 also in This Week's Study and Morning Reflections
+      { noteIndex: 3, additionalThreads: [createdThreads[3].id, createdThreads[0].id] }, // Psalm 23:1 also in Morning Reflections and Gospel of John
+      { noteIndex: 4, additionalThreads: [createdThreads[1].id, createdThreads[3].id] }, // Psalm 23:4 also in Psalm 23 Study and Morning Reflections
+      { noteIndex: 5, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // Ephesians 2:8-10 also in Romans Study and This Week's Study
+      { noteIndex: 6, additionalThreads: [createdThreads[0].id, createdThreads[1].id] }, // Matthew 5:3-12 also in Gospel of John and Psalm 23 Study
+      { noteIndex: 7, additionalThreads: [createdThreads[0].id, createdThreads[2].id] }, // Matthew 28:18-20 also in Gospel of John and Romans Study
+      { noteIndex: 8, additionalThreads: [createdThreads[4].id, createdThreads[2].id] }, // 1 Corinthians 13:4-7 also in This Week's Study and Romans Study
+      { noteIndex: 9, additionalThreads: [createdThreads[2].id, createdThreads[3].id] }, // Philippians 4:6-7 also in Romans Study and Morning Reflections
+      { noteIndex: 10, additionalThreads: [createdThreads[3].id, createdThreads[1].id] }, // Philippians 4:13 also in Morning Reflections and Psalm 23 Study
+      { noteIndex: 11, additionalThreads: [createdThreads[1].id, createdThreads[3].id] }, // Proverbs 3:5-6 also in Psalm 23 Study and Morning Reflections
+      { noteIndex: 12, additionalThreads: [createdThreads[3].id, createdThreads[0].id] }, // Lamentations 3:22-23 also in Morning Reflections and Gospel of John
+      { noteIndex: 13, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // Romans 9:15-16 also in Romans Study and This Week's Study
     ];
     
     const defaultMultiThread = [
@@ -748,23 +821,27 @@ async function seedMarketing() {
       { noteIndex: 2, additionalThreads: [createdThreads[0].id, createdThreads[1].id] }, // Beatitudes also in Gospel of John and Psalm 23 Study
       { noteIndex: 3, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // "In Christ" also in Romans Study and This Week's Study
       { noteIndex: 4, additionalThreads: [createdThreads[1].id, createdThreads[0].id] }, // Good Shepherd also in Psalm 23 Study and Gospel of John
-      { noteIndex: 5, additionalThreads: [createdThreads[3].id, createdThreads[4].id] }, // Prayer for This Week also in Morning Reflections and This Week's Study
+      { noteIndex: 5, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // Understanding Romans 8:28 also in Romans Study and This Week's Study
       { noteIndex: 6, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // Questions for Small Group also in Romans Study and This Week's Study
       { noteIndex: 7, additionalThreads: [createdThreads[1].id, createdThreads[3].id] }, // Proverbs on Work also in Psalm 23 Study and Morning Reflections
       { noteIndex: 8, additionalThreads: [createdThreads[1].id, createdThreads[2].id] }, // Ecclesiastes also in Psalm 23 Study and Romans Study
-      { noteIndex: 9, additionalThreads: [createdThreads[0].id, createdThreads[3].id] }, // Morning Reflection: God's Faithfulness also in Gospel of John and Morning Reflections
+      { noteIndex: 9, additionalThreads: [createdThreads[0].id, createdThreads[3].id] }, // Lamentations 3:22-23 also in Gospel of John and Morning Reflections
       { noteIndex: 10, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // 1 Corinthians 13 also in Romans Study and This Week's Study
       { noteIndex: 11, additionalThreads: [createdThreads[0].id, createdThreads[4].id] }, // Preparing for This Week also in Gospel of John and This Week's Study
       { noteIndex: 12, additionalThreads: [createdThreads[1].id, createdThreads[0].id] }, // Parable of the Sower also in Psalm 23 Study and Gospel of John
       { noteIndex: 13, additionalThreads: [createdThreads[2].id, createdThreads[0].id] }, // Grace vs Works also in Romans Study and Gospel of John
-      { noteIndex: 14, additionalThreads: [createdThreads[3].id, createdThreads[1].id] }, // Prayer: Guidance also in Morning Reflections and Psalm 23 Study
+      { noteIndex: 14, additionalThreads: [createdThreads[1].id, createdThreads[3].id] }, // Proverbs 3:5-6 also in Psalm 23 Study and Morning Reflections
       { noteIndex: 15, additionalThreads: [createdThreads[0].id, createdThreads[2].id] }, // John's Prologue also in Gospel of John and Romans Study
       { noteIndex: 16, additionalThreads: [createdThreads[1].id, createdThreads[3].id] }, // Lord's Prayer also in Psalm 23 Study and Morning Reflections
       { noteIndex: 17, additionalThreads: [createdThreads[4].id, createdThreads[2].id] }, // Small Group Discussion Notes also in This Week's Study and Romans Study
-      { noteIndex: 18, additionalThreads: [createdThreads[0].id, createdThreads[1].id] }, // Prodigal Son also in Gospel of John and Psalm 23 Study
-      { noteIndex: 19, additionalThreads: [createdThreads[3].id, createdThreads[4].id] }, // Prayer: Thankfulness also in Morning Reflections and This Week's Study
+      { noteIndex: 18, additionalThreads: [createdThreads[0].id, createdThreads[1].id] }, // Prodigal Son: Both Brothers also in Gospel of John and Psalm 23 Study
+      { noteIndex: 19, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // Philippians 4:6-7 also in Romans Study and This Week's Study
       { noteIndex: 20, additionalThreads: [createdThreads[2].id, createdThreads[1].id] }, // Fruit of the Spirit also in Romans Study and Psalm 23 Study
       { noteIndex: 21, additionalThreads: [createdThreads[1].id, createdThreads[0].id] }, // Wisdom vs Knowledge also in Psalm 23 Study and Gospel of John
+      { noteIndex: 22, additionalThreads: [createdThreads[0].id, createdThreads[1].id] }, // The Prodigal Son - Both Brothers also in Gospel of John and Psalm 23 Study
+      { noteIndex: 23, additionalThreads: [createdThreads[2].id, createdThreads[4].id] }, // Romans 8:1 - No Condemnation also in Romans Study and This Week's Study
+      { noteIndex: 24, additionalThreads: [createdThreads[1].id, createdThreads[3].id] }, // Psalm 23:4 - Walking Through the Valley also in Psalm 23 Study and Morning Reflections
+      { noteIndex: 25, additionalThreads: [createdThreads[0].id, createdThreads[2].id] }, // Matthew 28:18-20 - The Great Commission also in Gospel of John and Romans Study
     ];
     
     // Link scripture notes to additional threads

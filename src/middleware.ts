@@ -24,7 +24,8 @@ const isPublicRoute = createRouteMatcher([
   '/api/seed-marketing', // Seed script endpoint (dev only)
   '/api/migrations/backfill-last-visited', // Migration endpoint (uses MIGRATION_KEY for auth)
   '/api/migrations/sync-clerk-to-audienceful', // Migration endpoint (uses MIGRATION_KEY for auth)
-  '/api/migrations/retry-failed-users' // Retry migration endpoint (uses MIGRATION_KEY for auth)
+  '/api/migrations/retry-failed-users', // Retry migration endpoint (uses MIGRATION_KEY for auth)
+  '/api/stats/user-count' // Public stats endpoint for Webflow integration
 ])
 
 export const onRequest = clerkMiddleware((auth, context, next) => {
