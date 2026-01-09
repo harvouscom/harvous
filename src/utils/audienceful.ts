@@ -1,23 +1,37 @@
 /**
  * Audienceful API integration
  * Handles subscriber management, tags, and custom fields
+ *
+ * API Documentation: https://developer.audienceful.com
  */
 
 import { fetchWithTimeout } from './fetch-helpers';
 
 const AUDIENCEFUL_API_BASE = 'https://app.audienceful.com/api';
 
-interface AudiencefulPerson {
+interface AudiencefulPersonRequest {
   email: string;
-  first_name?: string;
-  last_name?: string;
-  tags?: string[];
-  [key: string]: any; // For custom fields
+  tags?: string; // Comma-separated string of tags
+  notes?: string;
+  extra_data?: {
+    [key: string]: any;
+  };
+  double_opt_in?: 'not_required' | 'required' | 'complete';
+  trigger_automations?: boolean;
 }
 
-interface AudiencefulAPIResponse {
-  id?: string;
+interface AudiencefulPersonResponse {
+  id?: number;
+  uid?: string;
   email?: string;
+  tags?: Array<{
+    id: number;
+    name: string;
+    color: string;
+  }>;
+  extra_data?: {
+    [key: string]: any;
+  };
   [key: string]: any;
 }
 
@@ -81,20 +95,20 @@ async function audiencefulRequest(
  */
 export async function findSubscriberByEmail(
   email: string
-): Promise<AudiencefulAPIResponse | null> {
+): Promise<AudiencefulPersonResponse | null> {
   try {
-    // GET /people/ with email filter (assuming query param support)
-    // If the API doesn't support filtering, we'll need to get all and filter client-side
+    // GET /people/ with email filter
     const response = await audiencefulRequest(
       `/people/?email=${encodeURIComponent(email)}`,
       'GET'
     );
 
-    // Handle different response formats
-    if (Array.isArray(response)) {
-      return response.length > 0 ? response[0] : null;
+    // API returns paginated results
+    if (response && response.results && Array.isArray(response.results)) {
+      return response.results.length > 0 ? response.results[0] : null;
     }
 
+    // Handle direct result
     if (response && response.email === email) {
       return response;
     }
@@ -113,95 +127,88 @@ export async function findSubscriberByEmail(
  * Create a new subscriber in Audienceful
  */
 export async function createSubscriber(
-  data: AudiencefulPerson
-): Promise<AudiencefulAPIResponse> {
+  data: AudiencefulPersonRequest
+): Promise<AudiencefulPersonResponse> {
   return await audiencefulRequest('/people/', 'POST', data);
 }
 
 /**
  * Update an existing subscriber
- * Note: May need subscriber ID depending on API requirements
  */
 export async function updateSubscriber(
-  email: string,
-  data: Partial<AudiencefulPerson>
-): Promise<AudiencefulAPIResponse> {
-  // First find the subscriber to get their ID
-  const subscriber = await findSubscriberByEmail(email);
-
-  if (!subscriber || !subscriber.id) {
-    throw new Error(`Subscriber not found: ${email}`);
-  }
-
-  // Update using PATCH with subscriber ID
-  return await audiencefulRequest(
-    `/people/${subscriber.id}`,
-    'PATCH',
-    data
-  );
+  subscriberId: number,
+  data: Partial<AudiencefulPersonRequest>
+): Promise<AudiencefulPersonResponse> {
+  return await audiencefulRequest(`/people/${subscriberId}`, 'PATCH', data);
 }
 
 /**
- * Add tags to a subscriber (creates subscriber if doesn't exist)
+ * Convert tag objects to comma-separated string of tag names
  */
-export async function addTagsToSubscriber(
-  email: string,
-  tags: string[]
-): Promise<AudiencefulAPIResponse> {
-  const existing = await findSubscriberByEmail(email);
-
-  if (existing) {
-    // Merge tags - combine existing tags with new ones
-    const currentTags = existing.tags || [];
-    const mergedTags = Array.from(new Set([...currentTags, ...tags]));
-
-    return await updateSubscriber(email, { tags: mergedTags });
-  } else {
-    // Create new subscriber with tags
-    return await createSubscriber({ email, tags });
-  }
+function tagsToString(tags: Array<{ name: string }> | undefined): string {
+  if (!tags || tags.length === 0) return '';
+  return tags.map(t => t.name).join(', ');
 }
 
 /**
- * Update subscriber with custom fields and tags
- * Creates subscriber if they don't exist
+ * Merge existing tags with new tags
  */
-export async function upsertSubscriber(
-  email: string,
-  data: Partial<AudiencefulPerson>
-): Promise<AudiencefulAPIResponse> {
-  const existing = await findSubscriberByEmail(email);
+function mergeTags(existingTags: string, newTags: string): string {
+  if (!existingTags) return newTags;
+  if (!newTags) return existingTags;
 
-  if (existing) {
-    // If tags are provided, merge them with existing tags
-    if (data.tags && existing.tags) {
-      data.tags = Array.from(new Set([...existing.tags, ...data.tags]));
-    }
+  const existing = existingTags.split(',').map(t => t.trim()).filter(t => t);
+  const newTagsArray = newTags.split(',').map(t => t.trim()).filter(t => t);
+  const merged = Array.from(new Set([...existing, ...newTagsArray]));
 
-    return await updateSubscriber(email, data);
-  } else {
-    // Create new subscriber
-    return await createSubscriber({ email, ...data });
-  }
+  return merged.join(', ');
 }
 
 /**
  * Tag a user as an app user in Audienceful
- * Adds "app_user" tag and stores Clerk user ID
+ * Adds "User" tag and stores Clerk user ID
+ * Creates subscriber if they don't exist
  */
 export async function tagAsAppUser(
   email: string,
   clerkUserId: string,
   firstName?: string,
   lastName?: string
-): Promise<AudiencefulAPIResponse> {
-  const data: Partial<AudiencefulPerson> = {
-    tags: ['app_user'],
+): Promise<AudiencefulPersonResponse> {
+  // Try to find existing subscriber
+  const existing = await findSubscriberByEmail(email);
+
+  // Prepare extra_data with custom fields
+  const extraData: { [key: string]: any } = {
     clerk_user_id: clerkUserId,
   };
 
-  if (firstName) data.first_name = firstName;
-  if (lastName) data.last_name = lastName;
+  if (firstName) extraData.first_name = firstName;
+  if (lastName) extraData.last_name = lastName;
 
-  return await upsertSubscriber(email, data);
+  if (existing && existing.id) {
+    // Update existing subscriber
+    const existingTagsString = tagsToString(existing.tags);
+    const mergedTags = mergeTags(existingTagsString, 'User');
+
+    // Merge extra_data
+    const mergedExtraData = {
+      ...existing.extra_data,
+      ...extraData,
+    };
+
+    return await updateSubscriber(existing.id, {
+      tags: mergedTags,
+      extra_data: mergedExtraData,
+    });
+  } else {
+    // Create new subscriber
+    return await createSubscriber({
+      email,
+      tags: 'User',
+      extra_data: extraData,
+      double_opt_in: 'not_required',
+      trigger_automations: false,
+    });
+  }
 }
