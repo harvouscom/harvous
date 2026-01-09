@@ -59,7 +59,23 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Parse request body
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({
+          error: 'Bad Request',
+          message: 'Invalid JSON in request body. Expected format: { "userIds": ["user_123", ...] } or { "emails": ["user@example.com", ...] }',
+          details: error.message || 'Failed to parse JSON',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     const userIds = body.userIds || [];
     const emails = body.emails || [];
 
@@ -67,7 +83,7 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(
         JSON.stringify({
           error: 'Bad Request',
-          message: 'Must provide either userIds or emails array in request body',
+          message: 'Must provide either userIds or emails array in request body. Example: { "userIds": ["user_123", "user_456"] }',
         }),
         {
           status: 400,
