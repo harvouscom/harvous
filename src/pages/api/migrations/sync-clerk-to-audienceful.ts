@@ -163,6 +163,12 @@ export const POST: APIRoute = async ({ request, url }) => {
             error: errorMessage,
           });
           console.error(`[Migration] ✗ Failed to tag ${email}:`, errorMessage);
+          
+          // If we're getting close to timeout, log a warning
+          const elapsed = Date.now() - results.startTime;
+          if (elapsed > 20000) {
+            console.warn(`[Migration] ⚠️ Approaching timeout - ${elapsed}ms elapsed`);
+          }
         }
       }
 
@@ -212,13 +218,21 @@ export const POST: APIRoute = async ({ request, url }) => {
     );
   } catch (error: any) {
     console.error('[Migration] Fatal error:', error);
+    
+    // Check if it's a timeout error
+    const isTimeout = error.name === 'TimeoutError' || 
+                     error.message?.includes('timeout') ||
+                     error.message?.includes('TIMEOUT');
+    
     return new Response(
       JSON.stringify({
         error: 'Migration failed',
         message: error.message || 'Unknown error occurred',
+        isTimeout,
+        hint: isTimeout ? 'Function may have timed out. Try smaller batches (limit=10) or check Netlify function logs.' : undefined,
       }),
       {
-        status: 500,
+        status: isTimeout ? 504 : 500,
         headers: { 'Content-Type': 'application/json' },
       }
     );
