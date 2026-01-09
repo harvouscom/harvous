@@ -51,7 +51,7 @@ function getApiKey(): string {
  */
 async function audiencefulRequest(
   endpoint: string,
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   body?: any
 ): Promise<any> {
   const apiKey = getApiKey();
@@ -139,7 +139,7 @@ export async function updateSubscriber(
   subscriberId: number,
   data: Partial<AudiencefulPersonRequest>
 ): Promise<AudiencefulPersonResponse> {
-  return await audiencefulRequest(`/people/${subscriberId}`, 'PATCH', data);
+  return await audiencefulRequest(`/people/${subscriberId}`, 'PUT', data);
 }
 
 /**
