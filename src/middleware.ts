@@ -22,7 +22,8 @@ const isPublicRoute = createRouteMatcher([
   '/api/webflow/webhook', // Webflow webhook endpoint (uses server-side WEBFLOW_WEBHOOK_SECRET for auth)
   '/api/webhooks/clerk', // Clerk webhook endpoint (uses server-side CLERK_WEBHOOK_SECRET for auth)
   '/api/seed-marketing', // Seed script endpoint (dev only)
-  '/api/migrations/backfill-last-visited' // Migration endpoint (uses MIGRATION_KEY for auth)
+  '/api/migrations/backfill-last-visited', // Migration endpoint (uses MIGRATION_KEY for auth)
+  '/api/migrations/sync-clerk-to-audienceful' // Migration endpoint (uses MIGRATION_KEY for auth)
 ])
 
 export const onRequest = clerkMiddleware((auth, context, next) => {

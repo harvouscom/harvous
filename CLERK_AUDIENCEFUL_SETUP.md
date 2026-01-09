@@ -141,6 +141,79 @@ The webhook endpoint includes:
 - This prevents Clerk from retrying the webhook endlessly
 - The user is successfully created in Clerk regardless of Audienceful status
 
+## Backfilling Existing Users
+
+The webhook only works for NEW signups going forward. To sync all your existing Clerk users to Audienceful, run the migration script:
+
+### Running the Migration
+
+1. **Set up MIGRATION_KEY** (optional but recommended):
+   ```bash
+   # In your .env file
+   MIGRATION_KEY=your_secure_random_key_here
+   ```
+
+   Generate a secure key:
+   ```bash
+   openssl rand -base64 32
+   ```
+
+2. **Test with dry run first** (recommended):
+   ```bash
+   curl -X POST "https://harvous.com/api/migrations/sync-clerk-to-audienceful?dryRun=true" \
+     -H "Authorization: Bearer your_migration_key_here"
+   ```
+
+   This will show you what would happen without making any changes.
+
+3. **Run the actual migration**:
+   ```bash
+   curl -X POST "https://harvous.com/api/migrations/sync-clerk-to-audienceful" \
+     -H "Authorization: Bearer your_migration_key_here"
+   ```
+
+### Migration Options
+
+You can pass query parameters to control the migration:
+
+- `dryRun=true` - Preview without making changes
+- `limit=50` - Only process first 50 users (for testing)
+- `offset=100` - Skip first 100 users (for resuming if interrupted)
+
+Example with options:
+```bash
+curl -X POST "https://harvous.com/api/migrations/sync-clerk-to-audienceful?limit=10&dryRun=true" \
+  -H "Authorization: Bearer your_migration_key_here"
+```
+
+### Response Format
+
+The migration will return a summary:
+```json
+{
+  "success": true,
+  "message": "Migration complete",
+  "results": {
+    "totalUsers": 150,
+    "successful": 148,
+    "failed": 0,
+    "skipped": 2,
+    "errorCount": 0,
+    "errors": [],
+    "durationSeconds": 45.3,
+    "dryRun": false
+  }
+}
+```
+
+### Important Notes
+
+- The migration processes users in batches of 100
+- Users without email addresses are skipped
+- If a user is already in Audienceful, their tags will be merged (not replaced)
+- Failed syncs are reported but don't stop the migration
+- You can run this multiple times safely - it's idempotent
+
 ## Troubleshooting
 
 ### Webhook not triggering
