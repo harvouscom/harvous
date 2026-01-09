@@ -217,8 +217,9 @@ export async function ensureDatabaseOpen(): Promise<void> {
       return;
     }
     
-    // Database is closed, try to reopen it
-    console.warn('[ensureDatabaseOpen] Database was closed, reopening...');
+    // Database appears closed, try to reopen it silently
+    // Note: isOpen() can be unreliable in Dexie, so we don't warn here
+    // Only log warnings/errors when reopening actually fails
     await offlineDB.open();
   } catch (error: any) {
     // If open fails, it might be because the database was deleted
@@ -232,6 +233,8 @@ export async function ensureDatabaseOpen(): Promise<void> {
         throw retryError;
       }
     } else {
+      // Only log unexpected errors
+      console.error('[ensureDatabaseOpen] Unexpected error opening database:', error);
       throw error;
     }
   }

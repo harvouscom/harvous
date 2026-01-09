@@ -63,34 +63,6 @@ export const DELETE: APIRoute = async ({ locals }) => {
     // 5. Delete Tags (user's tags)
     await db.delete(Tags).where(eq(Tags.userId, userId));
 
-    // 6. Delete UserXP
-    await db.delete(UserXP).where(eq(UserXP.userId, userId));
-
-    // 7. Reset UserMetadata (keep the record but reset highestSimpleNoteId to 0)
-    const existingMetadata = await db.select()
-      .from(UserMetadata)
-      .where(eq(UserMetadata.userId, userId))
-      .get();
-
-    if (existingMetadata) {
-      await db.update(UserMetadata)
-        .set({
-          highestSimpleNoteId: 0,
-          updatedAt: new Date()
-        })
-        .where(eq(UserMetadata.userId, userId));
-    } else {
-      // Create UserMetadata if it doesn't exist
-      await db.insert(UserMetadata).values({
-        id: `user_metadata_${userId}`,
-        userId: userId,
-        highestSimpleNoteId: 0,
-        userColor: 'paper',
-        createdAt: new Date()
-      });
-    }
-
-
     return new Response(JSON.stringify({ 
       success: true,
       message: 'All data cleared'

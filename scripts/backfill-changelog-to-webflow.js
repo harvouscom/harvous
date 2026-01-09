@@ -1,0 +1,350 @@
+#!/usr/bin/env node
+
+/**
+ * Backfill Changelog to Webflow CMS
+ * 
+ * This script backfills all historical changelog entries from version 1.0.0 onwards.
+ * It finds all user-facing commits and creates changelog entries in Webflow CMS.
+ * 
+ * Usage:
+ *   node scripts/backfill-changelog-to-webflow.js
+ * 
+ * Make sure WEBFLOW_API_TOKEN is set in your environment.
+ */
+
+import { execSync } from 'child_process';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Webflow configuration
+const WEBFLOW_COLLECTION_ID = '6914bfd8c7facb8fa00eaad3';
+const WEBFLOW_API_BASE = 'https://api.webflow.com/v2';
+
+// Category name to option ID mapping (from Webflow field creation)
+// User-friendly categories: Feature, Fix, Improvement
+const CATEGORY_MAP = {
+  'Feature': 'fc75e0b94768195db5ecd06607d3a596',
+  'Fix': '6b12417229c034f993616ccdcb8d3ca6',
+  'Improvement': '938b0ef47d5f79e79b2c6e0acb639ede'
+};
+
+// Extract category from commit message and map to user-friendly categories
+// Returns null for commits that should be skipped (docs, test, chore, build, ci)
+function extractCategory(message) {
+  const match = message.match(/^(feat|fix|refactor|style|docs|test|chore|perf|build|ci):/);
+  
+  if (!match) {
+    // No conventional commit prefix - skip it
+    return null;
+  }
+  
+  const commitType = match[1];
+  
+  // Map commit types to user-friendly categories
+  switch (commitType) {
+    case 'feat':
+      return 'Feature';
+    case 'fix':
+      return 'Fix';
+    case 'refactor':
+    case 'perf':
+    case 'style':
+      return 'Improvement';
+    case 'docs':
+    case 'test':
+    case 'chore':
+    case 'build':
+    case 'ci':
+      // Skip these - not user-facing
+      return null;
+    default:
+      return null;
+  }
+}
+
+// Get category option ID
+function getCategoryId(category) {
+  if (!category) return null;
+  return CATEGORY_MAP[category] || null;
+}
+
+// Create slug from commit message
+function createSlug(message, hash) {
+  const slugBase = message
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .substring(0, 50)
+    .replace(/^-+|-+$/g, '');
+  return `${slugBase}-${hash.substring(0, 7)}`;
+}
+
+// Get version from package.json at a specific commit
+function getVersionAtCommit(commitHash) {
+  try {
+    const packageJsonPath = join(__dirname, '..', 'package.json');
+    const packageJsonContent = execSync(
+      `git show ${commitHash}:package.json`,
+      { encoding: 'utf-8', stdio: 'pipe' }
+    );
+    const packageJson = JSON.parse(packageJsonContent);
+    return packageJson.version;
+  } catch (error) {
+    // If we can't get the version, return null
+    return null;
+  }
+}
+
+// Check if version is >= 1.0.0
+function isVersion1OrHigher(version) {
+  if (!version) return false;
+  const [major] = version.split('.').map(Number);
+  return major >= 1;
+}
+
+// Get all commits from version 1.0.0 onwards
+function getAllCommitsSince1_0_0() {
+  try {
+    // Find the first commit where version >= 1.0.0
+    // We'll search backwards from HEAD to find when version first became >= 1.0.0
+    let firstValidCommit = null;
+    const allCommits = execSync(
+      'git log --format="%H|%ai|%s" --no-merges --reverse',
+      { encoding: 'utf-8' }
+    ).trim().split('\n');
+    
+    const validCommits = [];
+    
+    for (const commitLine of allCommits) {
+      if (!commitLine) continue;
+      
+      const [hash, date, ...messageParts] = commitLine.split('|');
+      const message = messageParts.join('|');
+      
+      // Skip version bump commits
+      if (message.startsWith('chore: bump version') ||
+          message.startsWith('chore: update README.md') ||
+          message.startsWith('chore: update package version')) {
+        continue;
+      }
+      
+      // Get version at this commit
+      const version = getVersionAtCommit(hash);
+      
+      if (!version || !isVersion1OrHigher(version)) {
+        continue;
+      }
+      
+      // Check if this is a user-facing commit
+      const category = extractCategory(message);
+      if (!category) {
+        continue; // Skip non-user-facing commits
+      }
+      
+      // Format date as ISO 8601
+      const dateObj = new Date(date);
+      const isoDate = dateObj.toISOString();
+      
+      validCommits.push({
+        hash,
+        date: isoDate,
+        message,
+        version,
+        category
+      });
+    }
+    
+    return validCommits;
+  } catch (error) {
+    console.error('❌ Error getting commits:', error.message);
+    return [];
+  }
+}
+
+// Create Webflow CMS item
+async function createWebflowItem(commit, version) {
+  const webflowToken = process.env.WEBFLOW_API_TOKEN;
+  
+  if (!webflowToken) {
+    console.error('❌ WEBFLOW_API_TOKEN not set.');
+    return false;
+  }
+  
+  const category = commit.category;
+  const categoryId = getCategoryId(category);
+  
+  if (!categoryId) {
+    console.error(`❌ Invalid category for commit ${commit.hash}: ${category}`);
+    return false;
+  }
+  
+  const slug = createSlug(commit.message, commit.hash);
+  const name = commit.message.substring(0, 100);
+  
+  // Format commit message as HTML for Rich text field
+  const commitMessageHtml = `<p>${commit.message.replace(/\n/g, '<br>')}</p>`;
+  
+  // Webflow API v2 expects a single item object, not wrapped in items array
+  const itemData = {
+    isDraft: false,
+    isArchived: false,
+    fieldData: {
+      name: name,
+      slug: slug,
+      'version-number': version,
+      'date': commit.date,
+      'commit-message': commitMessageHtml,
+      'category': categoryId
+    }
+  };
+  
+  try {
+    // Create item (Webflow API v2 format)
+    const createResponse = await fetch(
+      `${WEBFLOW_API_BASE}/collections/${WEBFLOW_COLLECTION_ID}/items`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${webflowToken}`,
+          'Accept-Version': '1.0.0',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(itemData)
+      }
+    );
+    
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text();
+      // Check if it's a duplicate (slug already exists)
+      if (errorText.includes('duplicate') || errorText.includes('already exists')) {
+        return 'duplicate';
+      }
+      console.error(`❌ Error creating Webflow item for ${commit.hash}:`, errorText);
+      return false;
+    }
+    
+    const createResult = await createResponse.json();
+    // Webflow v2 returns { id: "...", ... } directly, or { items: [{ id: "..." }] }
+    const itemId = createResult.id || createResult.items?.[0]?.id;
+    
+    if (!itemId) {
+      console.error(`❌ No item ID returned from Webflow for ${commit.hash}`);
+      return false;
+    }
+    
+    // Publish the item
+    const publishResponse = await fetch(
+      `${WEBFLOW_API_BASE}/collections/${WEBFLOW_COLLECTION_ID}/items/publish`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${webflowToken}`,
+          'Accept-Version': '1.0.0',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ itemIds: [itemId] })
+      }
+    );
+    
+    if (!publishResponse.ok) {
+      const errorText = await publishResponse.text();
+      console.error(`⚠️  Item created but failed to publish for ${commit.hash}:`, errorText);
+      // Item was created, just not published - still consider it a success
+      return true;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`❌ Error syncing to Webflow for ${commit.hash}:`, error.message);
+    return false;
+  }
+}
+
+// Check if we're in a git repository
+function isGitRepository() {
+  try {
+    execSync('git rev-parse --is-inside-work-tree', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Main execution
+async function main() {
+  // Check if we're in a git repository
+  if (!isGitRepository()) {
+    console.error('❌ Not in a git repository.');
+    process.exit(1);
+  }
+  
+  const webflowToken = process.env.WEBFLOW_API_TOKEN;
+  if (!webflowToken) {
+    console.error('❌ WEBFLOW_API_TOKEN not set. Please set it in your environment.');
+    process.exit(1);
+  }
+  
+  console.log('🔍 Finding all user-facing commits since version 1.0.0...\n');
+  
+  // Get all valid commits
+  const commits = getAllCommitsSince1_0_0();
+  
+  if (commits.length === 0) {
+    console.log('ℹ️  No user-facing commits found since version 1.0.0.');
+    process.exit(0);
+  }
+  
+  console.log(`📝 Found ${commits.length} user-facing commit(s) to backfill:\n`);
+  
+  // Show what we're going to create
+  commits.forEach((commit, index) => {
+    console.log(`${index + 1}. [${commit.category}] v${commit.version} - ${commit.message.substring(0, 60)}...`);
+  });
+  
+  console.log(`\n🚀 Starting backfill...\n`);
+  
+  let successCount = 0;
+  let duplicateCount = 0;
+  let errorCount = 0;
+  
+  // Process commits one by one (with a small delay to avoid rate limiting)
+  for (let i = 0; i < commits.length; i++) {
+    const commit = commits[i];
+    console.log(`[${i + 1}/${commits.length}] Processing: ${commit.message.substring(0, 50)}...`);
+    
+    const result = await createWebflowItem(commit, commit.version);
+    
+    if (result === true) {
+      successCount++;
+      console.log(`   ✅ Created`);
+    } else if (result === 'duplicate') {
+      duplicateCount++;
+      console.log(`   ⚠️  Already exists (skipped)`);
+    } else {
+      errorCount++;
+      console.log(`   ❌ Failed`);
+    }
+    
+    // Small delay to avoid rate limiting
+    if (i < commits.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
+  
+  console.log(`\n✅ Backfill complete!`);
+  console.log(`   Created: ${successCount}`);
+  console.log(`   Already existed: ${duplicateCount}`);
+  console.log(`   Errors: ${errorCount}`);
+}
+
+main().catch((error) => {
+  console.error('❌ Unexpected error:', error.message);
+  if (error.stack) {
+    console.error('\nStack trace:', error.stack);
+  }
+  process.exit(1);
+});

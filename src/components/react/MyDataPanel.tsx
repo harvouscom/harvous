@@ -277,7 +277,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       const data = await response.json();
 
       if (response.ok) {
-        toast.success('All data cleared', { icon: null });
+        toast.success('It\'s all been erased', { icon: null });
         
         // Clear localStorage caches that are user-specific
         if (userId) {
@@ -477,20 +477,10 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     {/* Text content in the middle */}
                     <div className="flex flex-col flex-1 min-w-0">
                       <div className="text-lg font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                        {syncState?.syncError 
-                          ? 'Sync Error' 
-                          : isOnline 
-                            ? 'Latest Sync' 
-                            : 'Offline'}
-                        {pendingSyncCount > 0 && !isSyncing && (
-                          <span className="ml-2" style={{ color: 'var(--color-pebble-grey)' }}>
-                            ({pendingSyncCount} pending)
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm" style={{ color: 'var(--color-pebble-grey)' }}>
                         {syncState?.syncError ? (
-                          <span style={{ color: '#D32F2F' }}>{syncState.syncError}</span>
+                          'Sync Error'
+                        ) : !isOnline ? (
+                          'Offline'
                         ) : syncState?.lastSyncTimestamp ? (
                           (() => {
                             const date = new Date(syncState.lastSyncTimestamp);
@@ -512,32 +502,15 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                         ) : (
                           'Not synced'
                         )}
+                        {pendingSyncCount > 0 && !isSyncing && (
+                          <span className="ml-2" style={{ color: 'var(--color-pebble-grey)' }}>
+                            ({pendingSyncCount} pending)
+                          </span>
+                        )}
                       </div>
-                      {/* Cache freshness indicator */}
-                      {syncState?.lastCacheUpdate && (
-                        <div className="text-xs" style={{ color: 'var(--color-pebble-grey)', marginTop: '4px' }}>
-                          {(() => {
-                            const cacheDate = new Date(syncState.lastCacheUpdate);
-                            const cacheAge = Date.now() - syncState.lastCacheUpdate;
-                            const hoursAgo = Math.floor(cacheAge / (1000 * 60 * 60));
-                            const isStale = cacheAge > 24 * 60 * 60 * 1000; // 24 hours
-                            const month = cacheDate.toLocaleString('en-US', { month: 'short' });
-                            const day = cacheDate.getDate();
-                            const year = cacheDate.getFullYear();
-                            const time = cacheDate.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                            
-                            if (hoursAgo < 1) {
-                              return `Cache: Just now`;
-                            } else if (hoursAgo < 24) {
-                              return `Cache: ${hoursAgo} hour${hoursAgo > 1 ? 's' : ''} ago`;
-                            } else {
-                              return (
-                                <span style={{ color: isStale ? '#F59E0B' : 'var(--color-pebble-grey)' }}>
-                                  Cache: {month} {day}, {year} {time} {isStale ? '(may be outdated)' : ''}
-                                </span>
-                              );
-                            }
-                          })()}
+                      {syncState?.syncError && (
+                        <div className="text-sm" style={{ color: '#D32F2F', marginTop: '4px' }}>
+                          {syncState.syncError}
                         </div>
                       )}
                     </div>
@@ -587,7 +560,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     disabled={isClearingData}
                   >
                     <span className="font-sans text-[18px] font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                      {isClearingData ? 'Clearing...' : 'Clear All Data'}
+                      {isClearingData ? 'Erasing...' : 'Erase All Notes, Threads, and Spaces'}
                     </span>
                     {/* Progress bar */}
                     {isClearingData && (
@@ -815,7 +788,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
               color: 'var(--color-deep-grey)',
               marginBottom: '0.5rem'
             }}>
-              Clear All Data?
+              Erase All Notes, Threads, and Spaces?
             </h3>
             <p style={{
               color: 'var(--color-pebble-grey)',

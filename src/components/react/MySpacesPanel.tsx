@@ -13,6 +13,8 @@ interface Space {
   backgroundGradient?: string;
   totalItemCount: number;
   isPublic?: boolean;
+  lastUpdated?: Date | string;
+  updatedAt?: Date | string;
 }
 
 interface MySpacesPanelProps {
@@ -21,13 +23,50 @@ interface MySpacesPanelProps {
   initialSpaces?: Space[]; // Spaces fetched in Astro, passed as props
 }
 
+// Smart deduplication: prefers spaces with higher counts, or more recent updatedAt
+function deduplicateSpaces(spaces: Space[]): Space[] {
+  const spaceMap = new Map<string, Space>();
+  for (const space of spaces) {
+    const existing = spaceMap.get(space.id);
+    if (!existing) {
+      spaceMap.set(space.id, space);
+    } else {
+      // Always prefer the one with higher totalItemCount
+      if (space.totalItemCount > existing.totalItemCount) {
+        spaceMap.set(space.id, space);
+      } else if (space.totalItemCount === existing.totalItemCount) {
+        // If counts are equal, prefer the more recent one
+        const newUpdated = space.updatedAt || space.lastUpdated;
+        const existingUpdated = existing.updatedAt || existing.lastUpdated;
+        
+        if (newUpdated && existingUpdated) {
+          const newDate = new Date(newUpdated);
+          const existingDate = new Date(existingUpdated);
+          if (newDate > existingDate) {
+            spaceMap.set(space.id, space);
+          }
+        } else if (newUpdated && !existingUpdated) {
+          spaceMap.set(space.id, space);
+        }
+        // If neither has updatedAt, keep existing (first one wins)
+      }
+      // If existing has higher count, keep it
+    }
+  }
+  return Array.from(spaceMap.values());
+}
+
 export default function MySpacesPanel({ 
   onClose,
   inBottomSheet = false,
   initialSpaces = []
 }: MySpacesPanelProps) {
   // Use initialSpaces if provided (from Astro), otherwise start empty
-  const [spaces, setSpaces] = useState<Space[]>(initialSpaces);
+  // Deduplicate initial state to prevent duplicates from SSR
+  const [spaces, setSpaces] = useState<Space[]>(() => {
+    if (initialSpaces.length === 0) return [];
+    return deduplicateSpaces(initialSpaces);
+  });
   const [isLoading, setIsLoading] = useState(false); // No loading if we have initial data
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,6 +74,7 @@ export default function MySpacesPanel({
   const lastFetchTimeRef = useRef<number>(0);
   const hasFetchedRef = useRef<boolean>(false); // Track if we've fetched at least once
   const fetchSpacesRef = useRef<((force?: boolean) => Promise<void>) | null>(null); // Store latest fetchSpaces function
+  const hasFetchedFreshDataRef = useRef<boolean>(false); // Track if we've fetched fresh data to prevent stale initialSpaces override
 
   const fetchSpaces = useCallback(async (force = false) => {
     // Debounce: prevent duplicate fetches within 2 seconds (unless forced)
@@ -69,7 +109,13 @@ export default function MySpacesPanel({
         backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper')
       }));
 
-      setSpaces(spacesWithGradients);
+      // Always merge with existing spaces to preserve optimistically added spaces
+      // Deduplication will prefer the version with correct counts
+      setSpaces(prevSpaces => {
+        const mergedSpaces = deduplicateSpaces([...prevSpaces, ...spacesWithGradients]);
+        return mergedSpaces;
+      });
+      hasFetchedFreshDataRef.current = true; // Mark that we've fetched fresh data
     } catch (err) {
       logError('Error fetching spaces:', { error: err });
       setError(err instanceof Error ? err.message : 'Failed to load spaces');
@@ -86,11 +132,19 @@ export default function MySpacesPanel({
   // Initialize only once on mount - prevent infinite loops from initialSpaces prop changes
   useEffect(() => {
     // Only run once on mount
-    if (initialSpaces.length > 0) {
+    if (initialSpaces.length > 0 && !hasFetchedFreshDataRef.current) {
       // We have initial data from Astro, use it (only on mount)
-      setSpaces(initialSpaces);
+      // Deduplicate by space ID, preferring spaces with correct counts
+      // Merge with existing spaces to prefer the version with correct counts
+      setSpaces(prevSpaces => {
+        if (prevSpaces.length === 0) {
+          return deduplicateSpaces(initialSpaces);
+        }
+        // Merge initialSpaces with existing, preferring correct counts
+        return deduplicateSpaces([...prevSpaces, ...initialSpaces]);
+      });
       setIsLoading(false);
-    } else {
+    } else if (initialSpaces.length === 0) {
       // No initial data, fetch on mount (works for both desktop and mobile)
       // For bottom sheets, the event listener will handle refreshes when panel opens
       fetchSpaces(true);
@@ -224,9 +278,37 @@ export default function MySpacesPanel({
 
     const handleSpaceCreated = (event: CustomEvent) => {
       const space = event.detail?.space;
+      const isOffline = event.detail?.isOffline;
+      
       if (space) {
-        // Refetch spaces to get the new space with proper counts
-        // Force fetch to bypass debounce and ensure we get the new space
+        // Don't add offline spaces optimistically - they'll be synced and appear via fetch
+        // Offline spaces have local IDs that will be replaced by server IDs when synced
+        if (isOffline) {
+          // Just refetch to get spaces from IndexedDB if needed
+          setTimeout(() => {
+            if (fetchSpacesRef.current) {
+              fetchSpacesRef.current(true);
+            }
+          }, 300);
+          return;
+        }
+        
+        // Only add server-created spaces optimistically
+        setSpaces(prevSpaces => {
+          // Check if already exists
+          if (prevSpaces.some(s => s.id === space.id)) {
+            return prevSpaces; // Already exists, don't add
+          }
+          // Add new space with backgroundGradient
+          const newSpace: Space = {
+            ...space,
+            backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
+            totalItemCount: space.totalItemCount || 0 // Ensure it has totalItemCount
+          };
+          return deduplicateSpaces([...prevSpaces, newSpace]);
+        });
+        
+        // Refetch to get proper counts
         setTimeout(() => {
           if (fetchSpacesRef.current) {
             fetchSpacesRef.current(true);
@@ -254,10 +336,13 @@ export default function MySpacesPanel({
 
   // Filter spaces based on search query
   const filteredSpaces = useMemo(() => {
-    if (!searchQuery.trim()) return spaces;
+    // Deduplicate by space ID as a safety net, preferring spaces with correct counts
+    const uniqueSpaces = deduplicateSpaces(spaces);
+    
+    if (!searchQuery.trim()) return uniqueSpaces;
     
     const query = searchQuery.toLowerCase();
-    return spaces.filter(space =>
+    return uniqueSpaces.filter(space =>
       space.title.toLowerCase().includes(query)
     );
   }, [spaces, searchQuery]);

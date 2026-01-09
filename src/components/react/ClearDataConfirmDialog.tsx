@@ -29,7 +29,7 @@ export default function ClearDataConfirmDialog({
         onClick={onConfirm}
         state="Delete"
       >
-        Clear All Data
+        Erase All
       </ButtonSmall>
     </div>
   );

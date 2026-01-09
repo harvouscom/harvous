@@ -237,6 +237,11 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Prevent double submission
+    if (isSubmitting) {
+      return;
+    }
+
     if (!title.trim()) {
       if (window.toast) {
         window.toast.error('Please enter a space name');
@@ -277,19 +282,22 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         formData.append('selectedThreadIds', JSON.stringify(selectedThreadIds));
       }
       
-      // OFFLINE-FIRST: Create space in local IndexedDB immediately
+      // OFFLINE-AWARE: Only create in IndexedDB if we're offline
+      // When online, server is the single source of truth to avoid duplication
       let offlineSpaceId: string | null = null;
-      if (userId) {
+      const isOffline = !navigator.onLine;
+
+      if (isOffline && userId) {
         try {
           offlineSpaceId = await createSpaceOffline(userId, {
             title: title.trim(),
             color: selectedColor,
             isPublic: false,
           });
-          console.log('[NewSpacePanel] Space created locally in IndexedDB', { offlineSpaceId });
+          console.log('[NewSpacePanel] Space created locally in IndexedDB (offline)', { offlineSpaceId });
         } catch (err) {
           console.error('[NewSpacePanel] Failed to create space offline:', err);
-          // Continue with server API call
+          // Continue - will show error if server also fails
         }
       }
       

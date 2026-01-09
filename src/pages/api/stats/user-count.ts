@@ -54,8 +54,8 @@ export const GET: APIRoute = async () => {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        // Cache for 5 minutes - user count doesn't change frequently
-        'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+        // Cache for 24 hours - user count doesn't change frequently
+        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=86400',
         ...corsHeaders
       }
     });

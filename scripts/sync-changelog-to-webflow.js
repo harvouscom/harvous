@@ -9,9 +9,11 @@
  * Features:
  * - Only runs when version >= 1.0.0
  * - Skips version bump commits
+ * - Only includes user-facing commits (feat, fix, refactor, perf, style)
+ * - Skips non-user-facing commits (docs, test, chore, build, ci)
+ * - Maps commit types to user-friendly categories: Feature, Fix, Improvement
  * - Extracts version, date, commit message, and category
- * - Creates draft items in Webflow CMS
- * - Publishes items automatically
+ * - Creates and publishes items automatically in Webflow CMS
  */
 
 import { execSync } from 'child_process';
@@ -28,17 +30,11 @@ const WEBFLOW_COLLECTION_ID = '6914bfd8c7facb8fa00eaad3';
 const WEBFLOW_API_BASE = 'https://api.webflow.com/v2';
 
 // Category name to option ID mapping (from Webflow field creation)
+// User-friendly categories: Feature, Fix, Improvement
 const CATEGORY_MAP = {
-  'feat': 'fc75e0b94768195db5ecd06607d3a596',
-  'fix': '43e8f31fd047dfe571ae03812b21ff90',
-  'refactor': 'acf1556cd4b7ea3bb14347ba75dd9e00',
-  'style': 'e6314d936c31913cad7b23802d1af8cf',
-  'docs': 'b552b3a5348904e5fd2167a7693199e8',
-  'test': 'e971908ee539133daea638c373b52940',
-  'chore': '36126c5878a951d82b2eee7754b1fa99',
-  'perf': '297e26fbca6fb77406d12ddc10e6be3a',
-  'build': '1f8176bb2418c9bcfafdb6bb7174dfe2',
-  'ci': '6b12417229c034f993616ccdcb8d3ca6'
+  'Feature': 'fc75e0b94768195db5ecd06607d3a596',
+  'Fix': '6b12417229c034f993616ccdcb8d3ca6',
+  'Improvement': '938b0ef47d5f79e79b2c6e0acb639ede'
 };
 
 // Get current version from package.json
@@ -92,15 +88,44 @@ function getLatestCommit() {
   }
 }
 
-// Extract category from commit message
+// Extract category from commit message and map to user-friendly categories
+// Returns null for commits that should be skipped (docs, test, chore, build, ci)
 function extractCategory(message) {
   const match = message.match(/^(feat|fix|refactor|style|docs|test|chore|perf|build|ci):/);
-  return match ? match[1] : 'chore';
+  
+  if (!match) {
+    // No conventional commit prefix - skip it
+    return null;
+  }
+  
+  const commitType = match[1];
+  
+  // Map commit types to user-friendly categories
+  switch (commitType) {
+    case 'feat':
+      return 'Feature';
+    case 'fix':
+      return 'Fix';
+    case 'refactor':
+    case 'perf':
+    case 'style':
+      return 'Improvement';
+    case 'docs':
+    case 'test':
+    case 'chore':
+    case 'build':
+    case 'ci':
+      // Skip these - not user-facing
+      return null;
+    default:
+      return null;
+  }
 }
 
 // Get category option ID
 function getCategoryId(category) {
-  return CATEGORY_MAP[category] || CATEGORY_MAP['chore'];
+  if (!category) return null;
+  return CATEGORY_MAP[category] || null;
 }
 
 // Create slug from commit message
@@ -123,23 +148,40 @@ async function createWebflowItem(commit, version) {
   }
   
   const category = extractCategory(commit.message);
+  
+  // Skip commits that don't map to user-facing categories
+  if (!category) {
+    return null;
+  }
+  
   const categoryId = getCategoryId(category);
+  if (!categoryId) {
+    console.error('❌ Invalid category:', category);
+    return false;
+  }
+  
   const slug = createSlug(commit.message, commit.hash);
   const name = commit.message.substring(0, 100);
   
+  // Format commit message as HTML for Rich text field
+  const commitMessageHtml = `<p>${commit.message.replace(/\n/g, '<br>')}</p>`;
+  
+  // Webflow API v2 expects a single item object, not wrapped in items array
   const itemData = {
+    isDraft: false,
+    isArchived: false,
     fieldData: {
       name: name,
       slug: slug,
       'version-number': version,
       'date': commit.date,
-      'commit-message': commit.message,
+      'commit-message': commitMessageHtml,
       'category': categoryId
     }
   };
   
   try {
-    // Create draft item
+    // Create item (Webflow API v2 format)
     const createResponse = await fetch(
       `${WEBFLOW_API_BASE}/collections/${WEBFLOW_COLLECTION_ID}/items`,
       {
@@ -149,21 +191,24 @@ async function createWebflowItem(commit, version) {
           'Accept-Version': '1.0.0',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ items: [itemData] })
+        body: JSON.stringify(itemData)
       }
     );
     
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
       console.error('❌ Error creating Webflow item:', errorText);
+      console.error('   Request body was:', JSON.stringify(itemData, null, 2));
       return false;
     }
     
     const createResult = await createResponse.json();
-    const itemId = createResult.items?.[0]?.id;
+    // Webflow v2 returns { id: "...", ... } directly, or { items: [{ id: "..." }] }
+    const itemId = createResult.id || createResult.items?.[0]?.id;
     
     if (!itemId) {
       console.error('❌ No item ID returned from Webflow');
+      console.error('   Response was:', JSON.stringify(createResult, null, 2));
       return false;
     }
     
@@ -238,7 +283,11 @@ async function main() {
   // Create Webflow CMS item
   const success = await createWebflowItem(commit, version);
   
-  if (success) {
+  if (success === null) {
+    // Commit was skipped (not user-facing)
+    // Silently exit - don't log anything
+    process.exit(0);
+  } else if (success) {
     console.log(`✅ Changelog entry created: ${commit.message.substring(0, 60)}...`);
   } else {
     // Don't fail the commit if Webflow sync fails
