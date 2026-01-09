@@ -202,10 +202,26 @@ export async function tagAsAppUser(
       ...extraData,
     };
 
-    return await updateSubscriber(email, {
-      tags: mergedTags,
-      extra_data: mergedExtraData,
-    });
+    try {
+      return await updateSubscriber(email, {
+        tags: mergedTags,
+        extra_data: mergedExtraData,
+      });
+    } catch (error: any) {
+      // If person doesn't exist (404), fall back to creating them
+      if (error.message && error.message.includes('404')) {
+        // Person was not found, create them instead
+        return await createSubscriber({
+          email,
+          tags: mergedTags,
+          extra_data: mergedExtraData,
+          double_opt_in: 'not_required',
+          trigger_automations: false,
+        });
+      }
+      // Re-throw other errors
+      throw error;
+    }
   } else {
     // Create new subscriber
     return await createSubscriber({
