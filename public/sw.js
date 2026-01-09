@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v1-0-1'; // Network-first for content API
+const CACHE_NAME = 'harvous-cache-v1-1-0'; // Network-first for content API
 const NAV_API_CACHE = 'harvous-nav-api-v8'; // Network-first for fresh data
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
