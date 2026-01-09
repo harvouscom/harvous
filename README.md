@@ -97,6 +97,7 @@ Also, Harvous is continuously inspired by the work of 37signals. We use [HEY](ht
 - [Turso](https://turso.tech) - Serverless database
 - [Clerk](https://clerk.com) - Authentication
 - [Tiptap](https://tiptap.dev) - Rich text editing
+- [Dexie](https://dexie.org) - IndexedDB wrapper for offline support
 - [Vanilla CSS](https://developer.mozilla.org/en-US/docs/Web/CSS) - Semantic CSS classes
 - [Radix UI](https://radix-ui.com) - Component primitives
 - [Netlify](https://netlify.com) - Hosting
@@ -104,4 +105,4 @@ Also, Harvous is continuously inspired by the work of 37signals. We use [HEY](ht
 ---
 
 **Version:** 1.2.7
-**Status:** Almost ready for V1 release
+**Status:** V1 Released
