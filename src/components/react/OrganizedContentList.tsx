@@ -54,11 +54,16 @@ function normalizeItemDates(item: any): OrganizedContentItem {
   };
 }
 
-// Helper to sort items by lastVisited (maps lastUpdated to updatedAt for sorting function)
+// Helper to sort items by lastVisited (uses server's updatedAt field when available)
 function sortItems(items: OrganizedContentItem[]): OrganizedContentItem[] {
   const itemsWithUpdatedAt = items.map(item => ({
     ...item,
-    updatedAt: item.lastUpdated ? normalizeDate(item.lastUpdated) : (item.createdAt ? normalizeDate(item.createdAt) : null)
+    // Use server-provided updatedAt if available, otherwise calculate from lastUpdated/createdAt
+    updatedAt: item.updatedAt 
+      ? normalizeDate(item.updatedAt) 
+      : (item.lastUpdated 
+          ? normalizeDate(item.lastUpdated) 
+          : (item.createdAt ? normalizeDate(item.createdAt) : null))
   }));
   const sorted = sortByLastVisited(itemsWithUpdatedAt);
   return sorted.map(({ updatedAt, ...item }) => item);
