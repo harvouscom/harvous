@@ -88,9 +88,57 @@ function getLatestCommit() {
   }
 }
 
+// Check if a commit message describes user-visible changes
+// Returns false for internal/technical commits that users don't need to know about
+function isUserRelevant(message) {
+  const internalKeywords = [
+    'error handling',
+    'migration',
+    'api',
+    'endpoint',
+    'function',
+    'method',
+    'format',
+    'logging',
+    'parsing',
+    'subscriber',
+    'webhook',
+    'changelog',
+    'refactor',
+    'internal',
+    'backend',
+    'updatesubscriber',
+    'retry-failed',
+    'audienceful',
+    'clerk',
+    'webhook integration',
+    'json parsing',
+    'timeout logging',
+    'newline at end of file',
+    'validation utility'
+  ];
+  
+  const lowerMessage = message.toLowerCase();
+  
+  // Skip if contains internal keywords
+  if (internalKeywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()))) {
+    return false;
+  }
+  
+  // Include if describes user-visible change
+  // Note: This is a conservative filter - when in doubt, exclude
+  // The presence of user-visible keywords doesn't override internal keywords
+  return true;
+}
+
 // Extract category from commit message and map to user-friendly categories
-// Returns null for commits that should be skipped (docs, test, chore, build, ci)
+// Returns null for commits that should be skipped (docs, test, chore, build, ci, or not user-relevant)
 function extractCategory(message) {
+  // First check if the commit is user-relevant
+  if (!isUserRelevant(message)) {
+    return null;
+  }
+  
   const match = message.match(/^(feat|fix|refactor|style|docs|test|chore|perf|build|ci):/);
   
   if (!match) {
