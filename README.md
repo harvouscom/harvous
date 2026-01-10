@@ -103,5 +103,5 @@ Also, Harvous is continuously inspired by the work of 37signals. We use [HEY](ht
 
 ---
 
-**Version:** 1.5.0
+**Version:** 1.6.0
 **Status:** Almost ready for V1 release
