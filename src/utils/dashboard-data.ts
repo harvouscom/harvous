@@ -572,7 +572,11 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         })).sort((a, b) => {
           const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
           const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return aTime - bTime; // Ascending order (oldest first)
+          if (aTime !== bTime) return aTime - bTime; // Ascending order (oldest first)
+          // ID tiebreaker for deterministic sorting
+          if (a.id < b.id) return -1;
+          if (a.id > b.id) return 1;
+          return 0;
         })
       : sortByLastVisited(allNotes.map(note => ({
           ...note,
@@ -1304,16 +1308,12 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       }
     });
 
-    // Convert map to array in deterministic order (by ID) before sorting
-    // This ensures consistent input order regardless of Map insertion order
-    // which depends on query completion order (non-deterministic with Promise.all)
-    const allItemsArray = Array.from(allItemsMap.values()).sort((a, b) => 
-      (a.id || '').localeCompare(b.id || '')
-    );
-    
-    // Sort by lastVisited (newest first)
-    // Apply offset and limit after sorting
-    // Use unified sorting utility for consistency
+    // Convert map to array and sort by lastVisited (newest first)
+    // The sorting function handles ties deterministically using ID as final tiebreaker
+    // No need for intermediate sort - sortByLastVisited is stable and deterministic
+    const allItemsArray = Array.from(allItemsMap.values());
+
+    // Sort by lastVisited (newest first) and apply offset/limit
     const allItems = sortByLastVisited(allItemsArray)
       .slice(offset, offset + limit);
 

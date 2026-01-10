@@ -27,55 +27,54 @@ export function normalizeDate(date: Date | string | null | undefined): Date | nu
  * migrations, and bulk operations where multiple items get the same millisecond timestamp).
  * All date comparisons use getTime() to avoid string/date mismatches.
  */
-export function sortByLastVisited<T extends { 
+export function sortByLastVisited<T extends {
   lastVisited?: Date | string | null;
   updatedAt?: Date | string | null;
   createdAt?: Date | string | null;
   id?: string;
 }>(items: T[]): T[] {
   return [...items].sort((a, b) => {
-    // Primary: Sort by lastVisited (newest first)
-    // All items should have lastVisited (with fallback), but handle null/undefined gracefully
-    const aLastVisited = a.lastVisited ? normalizeDate(a.lastVisited) : null;
-    const bLastVisited = b.lastVisited ? normalizeDate(b.lastVisited) : null;
-    
-    if (aLastVisited && bLastVisited) {
-      const diff = bLastVisited.getTime() - aLastVisited.getTime();
-      if (diff !== 0) return diff;
-    } else if (aLastVisited && !bLastVisited) {
-      return -1; // a has lastVisited, b doesn't - a comes first
-    } else if (!aLastVisited && bLastVisited) {
-      return 1; // b has lastVisited, a doesn't - b comes first
+    // Get effective sort time for each item (single computation, no re-normalization)
+    // This ensures consistent comparison by computing the sort key once
+    const getEffectiveSortTime = (item: T): number => {
+      // Try lastVisited first
+      if (item.lastVisited) {
+        const date = normalizeDate(item.lastVisited);
+        if (date) return date.getTime();
+      }
+      // Fall back to updatedAt
+      if (item.updatedAt) {
+        const date = normalizeDate(item.updatedAt);
+        if (date) return date.getTime();
+      }
+      // Fall back to createdAt
+      if (item.createdAt) {
+        const date = normalizeDate(item.createdAt);
+        if (date) return date.getTime();
+      }
+      // No valid date - use 0 (will sort to end)
+      return 0;
+    };
+
+    const aTime = getEffectiveSortTime(a);
+    const bTime = getEffectiveSortTime(b);
+
+    // Primary sort: by effective time (newest first)
+    if (aTime !== bTime) {
+      return bTime - aTime;
     }
-    
-    // Tiebreaker 1: updatedAt (if lastVisited values are equal or both null)
-    const aUpdatedAt = a.updatedAt ? normalizeDate(a.updatedAt) : null;
-    const bUpdatedAt = b.updatedAt ? normalizeDate(b.updatedAt) : null;
-    
-    if (aUpdatedAt && bUpdatedAt) {
-      const diff = bUpdatedAt.getTime() - aUpdatedAt.getTime();
-      if (diff !== 0) return diff;
-    } else if (aUpdatedAt && !bUpdatedAt) {
-      return -1;
-    } else if (!aUpdatedAt && bUpdatedAt) {
-      return 1;
-    }
-    
-    // Tiebreaker 2: createdAt (if updatedAt values are equal or both null)
-    const aCreatedAt = a.createdAt ? normalizeDate(a.createdAt) : null;
-    const bCreatedAt = b.createdAt ? normalizeDate(b.createdAt) : null;
-    
-    if (aCreatedAt && bCreatedAt) {
-      const diff = bCreatedAt.getTime() - aCreatedAt.getTime();
-      if (diff !== 0) return diff;
-    } else if (aCreatedAt && !bCreatedAt) {
-      return -1;
-    } else if (!aCreatedAt && bCreatedAt) {
-      return 1;
-    }
-    
+
+    // Items with valid time come before items without
+    if (aTime > 0 && bTime === 0) return -1;
+    if (aTime === 0 && bTime > 0) return 1;
+
     // Final tiebreaker: ID for deterministic sorting
-    return (a.id || '').localeCompare(b.id || '');
+    // Use simple string comparison (not localeCompare) for consistency
+    const aId = a.id || '';
+    const bId = b.id || '';
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
   });
 }
 
@@ -94,7 +93,7 @@ export function sortThreadsByLastVisited<T extends {
     // Primary: isPinned (pinned items first)
     if (a.isPinned && !b.isPinned) return -1;
     if (!a.isPinned && b.isPinned) return 1;
-    
+
     // Secondary: lastVisited → updatedAt → createdAt
     const getSortTime = (item: T): number => {
       if (item.lastVisited) {
@@ -111,21 +110,26 @@ export function sortThreadsByLastVisited<T extends {
       }
       return 0;
     };
-    
+
     const aTime = getSortTime(a);
     const bTime = getSortTime(b);
-    
-    if (aTime && bTime) {
-      const diff = bTime - aTime;
-      if (diff !== 0) return diff;
-    } else if (aTime && !bTime) {
-      return -1;
-    } else if (!aTime && bTime) {
-      return 1;
+
+    // Primary sort: by effective time (newest first)
+    if (aTime !== bTime) {
+      return bTime - aTime;
     }
-    
+
+    // Items with valid time come before items without
+    if (aTime > 0 && bTime === 0) return -1;
+    if (aTime === 0 && bTime > 0) return 1;
+
     // Tertiary: ID for deterministic sorting
-    return (a.id || '').localeCompare(b.id || '');
+    // Use simple string comparison (not localeCompare) for consistency
+    const aId = a.id || '';
+    const bId = b.id || '';
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
   });
 }
 
