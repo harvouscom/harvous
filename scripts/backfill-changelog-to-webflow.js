@@ -78,9 +78,59 @@ function createSlug(message, hash) {
   const slugBase = message
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .substring(0, 50)
+    .substring(0, 40)
     .replace(/^-+|-+$/g, '');
-  return `${slugBase}-${hash.substring(0, 7)}`;
+  // Add hash and timestamp to ensure uniqueness
+  const timestamp = Date.now();
+  return `${slugBase}-${hash.substring(0, 7)}-${timestamp}`;
+}
+
+// Clean commit message for use as name (remove prefix, capitalize)
+function cleanCommitMessageForName(message) {
+  // Remove conventional commit prefix (feat:, fix:, etc.)
+  let cleaned = message.replace(/^(feat|fix|refactor|style|perf|docs|test|chore|build|ci):\s*/i, '');
+  
+  // Capitalize first letter
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  
+  return cleaned.substring(0, 100);
+}
+
+// Generate user-friendly content description from commit message
+function generateUserFriendlyContent(message, category) {
+  // Remove conventional commit prefix
+  let description = message.replace(/^(feat|fix|refactor|style|perf|docs|test|chore|build|ci):\s*/i, '');
+  
+  // Capitalize first letter
+  if (description.length > 0) {
+    description = description.charAt(0).toUpperCase() + description.slice(1);
+  }
+  
+  // Add category-specific context
+  let intro = '';
+  switch (category) {
+    case 'Feature':
+      intro = 'We\'ve added a new feature: ';
+      break;
+    case 'Fix':
+      intro = 'We\'ve fixed an issue: ';
+      break;
+    case 'Improvement':
+      intro = 'We\'ve made an improvement: ';
+      break;
+    default:
+      intro = '';
+  }
+  
+  // Format as HTML
+  const content = intro ? `${intro}${description}` : description;
+  
+  // Replace newlines with line breaks
+  const formattedContent = content.replace(/\n/g, '<br>');
+  
+  return `<p>${formattedContent}</p>`;
 }
 
 // Get version from package.json at a specific commit
@@ -183,10 +233,10 @@ async function createWebflowItem(commit, version) {
   }
   
   const slug = createSlug(commit.message, commit.hash);
-  const name = commit.message.substring(0, 100);
+  const name = cleanCommitMessageForName(commit.message);
   
-  // Format commit message as HTML for Rich text field
-  const commitMessageHtml = `<p>${commit.message.replace(/\n/g, '<br>')}</p>`;
+  // Generate user-friendly content description
+  const content = generateUserFriendlyContent(commit.message, category);
   
   // Webflow API v2 expects a single item object, not wrapped in items array
   const itemData = {
@@ -197,7 +247,7 @@ async function createWebflowItem(commit, version) {
       slug: slug,
       'version-number': version,
       'date': commit.date,
-      'commit-message': commitMessageHtml,
+      'commit-message': content,
       'category': categoryId
     }
   };
