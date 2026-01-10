@@ -52,7 +52,10 @@ async function checkCollection() {
         console.log(`   Version: ${item.fieldData?.['version-number'] || 'N/A'}`);
         console.log(`   Category: ${item.fieldData?.category || 'N/A'}`);
         console.log(`   Date: ${item.fieldData?.date || 'N/A'}`);
-        console.log(`   Published: ${item.lastPublished ? 'Yes' : 'No (Draft)'}`);
+        const isDraft = item.isDraft || false;
+        const isPublished = item.lastPublished !== null && item.lastPublished !== undefined;
+        console.log(`   Draft: ${isDraft ? 'Yes' : 'No'}`);
+        console.log(`   Published: ${isPublished ? 'Yes' : 'No'}`);
         console.log(`   ID: ${item.id}`);
         console.log('');
       });

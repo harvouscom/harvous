@@ -4,7 +4,7 @@
  * Backfill Changelog to Webflow CMS
  * 
  * This script backfills all historical changelog entries from version 1.0.0 onwards.
- * It finds all user-facing commits and creates changelog entries in Webflow CMS.
+ * It finds all user-facing commits and creates changelog entries as drafts in Webflow CMS.
  * 
  * Usage:
  *   node scripts/backfill-changelog-to-webflow.js
@@ -287,8 +287,9 @@ async function createWebflowItem(commit, version) {
   const content = generateUserFriendlyContent(commit.message, category);
   
   // Webflow API v2 expects a single item object, not wrapped in items array
+  // Create items as drafts so they can be reviewed before publishing
   const itemData = {
-    isDraft: false,
+    isDraft: true,
     isArchived: false,
     fieldData: {
       name: name,
@@ -334,27 +335,8 @@ async function createWebflowItem(commit, version) {
       return false;
     }
     
-    // Publish the item
-    const publishResponse = await fetch(
-      `${WEBFLOW_API_BASE}/collections/${WEBFLOW_COLLECTION_ID}/items/publish`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${webflowToken}`,
-          'Accept-Version': '1.0.0',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ itemIds: [itemId] })
-      }
-    );
-    
-    if (!publishResponse.ok) {
-      const errorText = await publishResponse.text();
-      console.error(`⚠️  Item created but failed to publish for ${commit.hash}:`, errorText);
-      // Item was created, just not published - still consider it a success
-      return true;
-    }
-    
+    // Item created as draft - no need to publish
+    // Items will be reviewed and published manually in Webflow CMS
     return true;
   } catch (error) {
     console.error(`❌ Error syncing to Webflow for ${commit.hash}:`, error.message);

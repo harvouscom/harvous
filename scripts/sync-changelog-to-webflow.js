@@ -13,7 +13,7 @@
  * - Skips non-user-facing commits (docs, test, chore, build, ci)
  * - Maps commit types to user-friendly categories: Feature, Fix, Improvement
  * - Extracts version, date, commit message, and category
- * - Creates and publishes items automatically in Webflow CMS
+ * - Creates items as drafts in Webflow CMS (for manual review before publishing)
  */
 
 import { execSync } from 'child_process';
@@ -263,8 +263,9 @@ async function createWebflowItem(commit, version) {
   const content = generateUserFriendlyContent(commit.message, category);
   
   // Webflow API v2 expects a single item object, not wrapped in items array
+  // Create items as drafts so they can be reviewed before publishing
   const itemData = {
-    isDraft: false,
+    isDraft: true,
     isArchived: false,
     fieldData: {
       name: name,
@@ -308,29 +309,8 @@ async function createWebflowItem(commit, version) {
       return false;
     }
     
-    // Publish the item
-    // Note: If this endpoint doesn't work, items will be created as drafts
-    // and can be published manually in Webflow CMS
-    const publishResponse = await fetch(
-      `${WEBFLOW_API_BASE}/collections/${WEBFLOW_COLLECTION_ID}/items/publish`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${webflowToken}`,
-          'Accept-Version': '1.0.0',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ itemIds: [itemId] })
-      }
-    );
-    
-    if (!publishResponse.ok) {
-      const errorText = await publishResponse.text();
-      console.error('⚠️  Item created but failed to publish:', errorText);
-      // Item was created, just not published - still consider it a success
-      return true;
-    }
-    
+    // Item created as draft - no need to publish
+    // Items will be reviewed and published manually in Webflow CMS
     return true;
   } catch (error) {
     console.error('❌ Error syncing to Webflow:', error.message);
