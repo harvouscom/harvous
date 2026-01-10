@@ -1189,14 +1189,39 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
           // Filter out scripture notes that are referenced by other notes
           // BUT: Keep scripture notes that have been recently visited (lastVisited is set)
           // This ensures visited scripture notes appear at the top even if they're referenced
+          const now = Date.now();
+          const RECENT_CREATION_THRESHOLD = 5000; // 5 seconds
+          
           assignedNotes = assignedNotes.filter(note => {
             if (note.noteType !== 'scripture') return true; // Keep non-scripture notes
+            
+            // Filter out recently created scripture notes without lastVisited (handles race condition)
+            // This catches newly created scripture notes before their junction entry is visible
+            if (note.createdAt && !note.lastVisited) {
+              const createdAtTime = new Date(note.createdAt).getTime();
+              const isRecentlyCreated = (now - createdAtTime) < RECENT_CREATION_THRESHOLD;
+              if (isRecentlyCreated) {
+                return false; // Filter out recently created scripture notes without lastVisited
+              }
+            }
+            
             if (!referencedScriptureNoteIds.has(note.id)) return true; // Keep non-referenced scripture notes
             // Keep referenced scripture notes that have been visited
             return note.lastVisited != null;
           });
           unorganizedNotes = unorganizedNotes.filter(note => {
             if (note.noteType !== 'scripture') return true; // Keep non-scripture notes
+            
+            // Filter out recently created scripture notes without lastVisited (handles race condition)
+            // This catches newly created scripture notes before their junction entry is visible
+            if (note.createdAt && !note.lastVisited) {
+              const createdAtTime = new Date(note.createdAt).getTime();
+              const isRecentlyCreated = (now - createdAtTime) < RECENT_CREATION_THRESHOLD;
+              if (isRecentlyCreated) {
+                return false; // Filter out recently created scripture notes without lastVisited
+              }
+            }
+            
             if (!referencedScriptureNoteIds.has(note.id)) return true; // Keep non-referenced scripture notes
             // Keep referenced scripture notes that have been visited
             return note.lastVisited != null;
