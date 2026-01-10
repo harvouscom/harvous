@@ -77,11 +77,22 @@ function getLatestCommit() {
       return null;
     }
     
+    // Get commit body separately
+    const commitBody = execSync(
+      'git log --format="%b" -1 --no-merges',
+      { encoding: 'utf-8' }
+    ).trim();
+    
     // Format date as ISO 8601
     const dateObj = new Date(date);
     const isoDate = dateObj.toISOString();
     
-    return { hash, date: isoDate, message };
+    return { 
+      hash, 
+      date: isoDate, 
+      message,
+      body: commitBody || null
+    };
   } catch (error) {
     console.error('❌ Error getting commit:', error.message);
     return null;
@@ -200,7 +211,7 @@ function cleanCommitMessageForName(message) {
 }
 
 // Generate user-friendly content description from commit message
-function generateUserFriendlyContent(message, category) {
+function generateUserFriendlyContent(message, category, body = null) {
   // Remove conventional commit prefix
   let description = message.replace(/^(feat|fix|refactor|style|perf|docs|test|chore|build|ci):\s*/i, '');
   
@@ -225,13 +236,53 @@ function generateUserFriendlyContent(message, category) {
       intro = '';
   }
   
-  // Format as HTML
-  const content = intro ? `${intro}${description}` : description;
+  // Format main description as HTML
+  const mainContent = intro ? `${intro}${description}` : description;
+  let htmlContent = `<p>${mainContent}</p>`;
   
-  // Replace newlines with line breaks
-  const formattedContent = content.replace(/\n/g, '<br>');
+  // Add commit body if it exists and is not empty
+  if (body && body.trim().length > 0) {
+    // Clean up the body - remove excessive whitespace
+    let cleanBody = body.trim();
+    
+    // Check for Context: or Reason: sections (case-insensitive)
+    const contextMatch = cleanBody.match(/^(?:Context|Reason):\s*(.+?)(?:\n\n|\n(?!\s)|$)/ims);
+    
+    if (contextMatch) {
+      // Extract context text
+      const contextText = contextMatch[1].trim();
+      
+      // Remove context section from body for processing
+      cleanBody = cleanBody.replace(/^(?:Context|Reason):\s*.+?(?:\n\n|\n(?!\s)|$)/ims, '').trim();
+      
+      // Add context section with bold styling
+      const formattedContext = contextText.replace(/\n/g, '<br>');
+      htmlContent += `<p><strong>Context:</strong> ${formattedContext}</p>`;
+    }
+    
+    // Process remaining body content
+    if (cleanBody.length > 0) {
+      // Split into paragraphs (double newlines) or use single newlines
+      const paragraphs = cleanBody.split(/\n\n+/).filter(p => p.trim().length > 0);
+      
+      // If no double newlines, treat as single paragraph
+      if (paragraphs.length === 0) {
+        paragraphs.push(cleanBody);
+      }
+      
+      // Add each paragraph as a separate <p> tag
+      paragraphs.forEach(paragraph => {
+        const trimmed = paragraph.trim();
+        if (trimmed.length > 0) {
+          // Replace single newlines within paragraph with <br>
+          const formatted = trimmed.replace(/\n/g, '<br>');
+          htmlContent += `<p>${formatted}</p>`;
+        }
+      });
+    }
+  }
   
-  return `<p>${formattedContent}</p>`;
+  return htmlContent;
 }
 
 // Create Webflow CMS item
@@ -259,8 +310,8 @@ async function createWebflowItem(commit, version) {
   const slug = createSlug(commit.message, commit.hash);
   const name = cleanCommitMessageForName(commit.message);
   
-  // Generate user-friendly content description
-  const content = generateUserFriendlyContent(commit.message, category);
+  // Generate user-friendly content description (including commit body if available)
+  const content = generateUserFriendlyContent(commit.message, category, commit.body);
   
   // Webflow API v2 expects a single item object, not wrapped in items array
   // Create items as drafts so they can be reviewed before publishing
