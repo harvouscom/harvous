@@ -8,7 +8,7 @@ import {
   type SyncStatus 
 } from './offline-db';
 import { isOfflineModeEnabled } from './posthog';
-import { sortByLastVisited, normalizeDate } from '@/utils/sorting';
+import { sortByLastVisited, sortThreadsByLastVisited, normalizeDate } from '@/utils/sorting';
 
 /**
  * Dashboard snapshot - all data needed for initial dashboard render
@@ -164,6 +164,8 @@ export async function getSpacesLocal(userId: string): Promise<OfflineSpace[]> {
 
 /**
  * Get all threads for a user from local DB
+ * Sorted by isPinned (pinned first), then lastVisited/updatedAt/createdAt (newest first)
+ * This matches the server-side sorting in getAllThreadsWithCounts
  */
 export async function getThreadsLocal(userId: string): Promise<OfflineThread[]> {
   if (!isOfflineModeEnabled()) {
@@ -171,11 +173,19 @@ export async function getThreadsLocal(userId: string): Promise<OfflineThread[]> 
   }
 
   try {
-    return await offlineDB.threads
+    const threads = await offlineDB.threads
       .where('userId')
       .equals(userId)
       .filter(thread => thread.syncStatus !== 'deleted' && thread.id !== 'thread_unorganized')
-      .sortBy('order');
+      .toArray();
+
+    // Sort using shared sorting utility that matches server-side logic
+    // isPinned first, then by lastVisited/updatedAt/createdAt, with ID tiebreaker
+    return sortThreadsByLastVisited(threads.map(thread => ({
+      ...thread,
+      updatedAt: thread.updatedAt || thread.createdAt,
+      id: thread.id
+    })));
   } catch (error) {
     console.error('Error getting threads from local DB:', error);
     return [];
@@ -184,14 +194,24 @@ export async function getThreadsLocal(userId: string): Promise<OfflineThread[]> 
 
 /**
  * Get threads for a specific space from local DB
+ * Sorted by isPinned (pinned first), then lastVisited/updatedAt/createdAt (newest first)
+ * This matches the server-side sorting in getThreadsForSpace
  */
 export async function getThreadsForSpaceLocal(userId: string, spaceId: string): Promise<OfflineThread[]> {
   try {
-    return await offlineDB.threads
+    const threads = await offlineDB.threads
       .where('[userId+spaceId]')
       .equals([userId, spaceId])
       .filter(thread => thread.syncStatus !== 'deleted')
-      .sortBy('order');
+      .toArray();
+
+    // Sort using shared sorting utility that matches server-side logic
+    // isPinned first, then by lastVisited/updatedAt/createdAt, with ID tiebreaker
+    return sortThreadsByLastVisited(threads.map(thread => ({
+      ...thread,
+      updatedAt: thread.updatedAt || thread.createdAt,
+      id: thread.id
+    })));
   } catch (error) {
     console.error('Error getting threads for space from local DB:', error);
     return [];
