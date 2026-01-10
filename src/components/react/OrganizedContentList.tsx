@@ -50,7 +50,12 @@ function normalizeItemDates(item: any): OrganizedContentItem {
     lastVisited: item.lastVisited ? normalizeDate(item.lastVisited) : null,
     lastUpdated: item.lastUpdated ? (normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
     createdAt: item.createdAt ? normalizeDate(item.createdAt) : null,
-    updatedAt: item.lastUpdated ? normalizeDate(item.lastUpdated) : (item.createdAt ? normalizeDate(item.createdAt) : null)
+    // Use server-provided updatedAt if available, otherwise calculate from lastUpdated/createdAt
+    updatedAt: item.updatedAt 
+      ? normalizeDate(item.updatedAt) 
+      : (item.lastUpdated 
+          ? normalizeDate(item.lastUpdated) 
+          : (item.createdAt ? normalizeDate(item.createdAt) : null))
   };
 }
 

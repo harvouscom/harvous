@@ -1304,10 +1304,17 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       }
     });
 
-    // Convert map to array and sort by lastVisited (newest first)
+    // Convert map to array in deterministic order (by ID) before sorting
+    // This ensures consistent input order regardless of Map insertion order
+    // which depends on query completion order (non-deterministic with Promise.all)
+    const allItemsArray = Array.from(allItemsMap.values()).sort((a, b) => 
+      (a.id || '').localeCompare(b.id || '')
+    );
+    
+    // Sort by lastVisited (newest first)
     // Apply offset and limit after sorting
     // Use unified sorting utility for consistency
-    const allItems = sortByLastVisited(Array.from(allItemsMap.values()))
+    const allItems = sortByLastVisited(allItemsArray)
       .slice(offset, offset + limit);
 
     return allItems;
