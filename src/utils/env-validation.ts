@@ -37,7 +37,7 @@ export function validateEnvironmentVariables(): ValidationResult {
   // Recommended but optional variables
   const recommended = {
     PUBLIC_POSTHOG_KEY: import.meta.env.PUBLIC_POSTHOG_KEY,
-    WEBFLOW_API_TOKEN: import.meta.env.WEBFLOW_API_TOKEN,
+    WEBFLOW_INBOX_API_TOKEN: import.meta.env.WEBFLOW_INBOX_API_TOKEN,
   };
 
   // Check recommended variables

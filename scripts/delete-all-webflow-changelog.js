@@ -11,10 +11,11 @@ const WEBFLOW_COLLECTION_ID = '6914bfd8c7facb8fa00eaad3';
 const WEBFLOW_API_BASE = 'https://api.webflow.com/v2';
 
 async function deleteAllItems() {
-  const webflowToken = process.env.WEBFLOW_API_TOKEN;
+  // Use changelog-specific token if available, fallback to inbox token for backward compatibility
+  const webflowToken = process.env.WEBFLOW_CHANGELOG_API_TOKEN || process.env.WEBFLOW_INBOX_API_TOKEN;
   
   if (!webflowToken) {
-    console.error('❌ WEBFLOW_API_TOKEN not set.');
+    console.error('❌ WEBFLOW_CHANGELOG_API_TOKEN (or WEBFLOW_INBOX_API_TOKEN) not set.');
     process.exit(1);
   }
   

@@ -90,7 +90,7 @@ interface WebflowWebhookPayload {
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const webflowToken = import.meta.env.WEBFLOW_API_TOKEN;
+    const webflowToken = import.meta.env.WEBFLOW_INBOX_API_TOKEN;
     const webflowWebhookSecret = import.meta.env.WEBFLOW_WEBHOOK_SECRET;
     
     if (!webflowToken) {

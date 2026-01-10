@@ -109,7 +109,7 @@ Visit `http://localhost:4321`
    - After each commit, if version >= 1.0.0, creates a changelog entry in Webflow CMS
    - Extracts version, date, commit message, and category automatically
    - Skips version bump commits automatically
-   - Requires `WEBFLOW_API_TOKEN` environment variable
+   - Requires `WEBFLOW_CHANGELOG_API_TOKEN` environment variable (with cms:write scope)
 
 5. **Push and deploy**
    ```bash

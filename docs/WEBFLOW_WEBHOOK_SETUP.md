@@ -90,7 +90,7 @@ https://your-domain.com/api/webflow/webhook
 
 2. **Check Application Logs**
    - Look for webhook processing errors
-   - Verify `WEBFLOW_API_TOKEN` is set
+   - Verify `WEBFLOW_INBOX_API_TOKEN` is set
    - Check database connection
 
 3. **Test Manually**
@@ -126,13 +126,13 @@ Or use the POST endpoint with items directly.
 - **Signature Verification**: The webhook endpoint verifies all incoming requests using HMAC SHA256 signatures
 - **Secret Required**: Configure `WEBFLOW_WEBHOOK_SECRET` to enable signature verification (highly recommended)
 - **Collection Validation**: Only processes webhooks from the Threads collection
-- **Secure Storage**: Ensure `WEBFLOW_API_TOKEN` and `WEBFLOW_WEBHOOK_SECRET` are kept secure and not exposed
+- **Secure Storage**: Ensure `WEBFLOW_INBOX_API_TOKEN` and `WEBFLOW_WEBHOOK_SECRET` are kept secure and not exposed
 - **HTTPS Required**: Webhooks only work over HTTPS (required by Webflow)
 
 ## Environment Variables
 
 Required:
-- `WEBFLOW_API_TOKEN` - Your Webflow API token (from Webflow account settings)
+- `WEBFLOW_INBOX_API_TOKEN` - Your Webflow API token for inbox/webhook operations (from Webflow account settings)
 - `WEBFLOW_WEBHOOK_SECRET` - Webhook secret(s) from Webflow (comma-separated if multiple webhooks)
 
 ### Webhook Secret Configuration

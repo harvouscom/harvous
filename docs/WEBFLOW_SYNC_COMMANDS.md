@@ -4,7 +4,7 @@ This document provides curl commands for syncing inbox items from Webflow CMS to
 
 ## Prerequisites
 
-- Webflow API token configured in environment (`WEBFLOW_API_TOKEN`)
+- Webflow API token configured in environment (`WEBFLOW_INBOX_API_TOKEN`)
 - Development server running on `localhost:4321` (or adjust URL for production)
 - Collection ID: `690ed2f0edd9bab40a4eb397` (Threads collection)
 - Site ID: `68feb1d0933e97605f9790ca`
@@ -94,7 +94,7 @@ The response format is the same, but you'll see:
 
 - **URL**: `/api/webflow/sync-inbox`
 - **Method**: `GET` (recommended) or `POST`
-- **Authentication**: None required (uses server-side `WEBFLOW_API_TOKEN`)
+- **Authentication**: None required (uses server-side `WEBFLOW_INBOX_API_TOKEN`)
 
 ### Query Parameters
 

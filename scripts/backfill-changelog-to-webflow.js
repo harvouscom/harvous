@@ -9,7 +9,8 @@
  * Usage:
  *   node scripts/backfill-changelog-to-webflow.js
  * 
- * Make sure WEBFLOW_API_TOKEN is set in your environment.
+ * Make sure WEBFLOW_CHANGELOG_API_TOKEN (or WEBFLOW_INBOX_API_TOKEN) is set in your environment.
+ * The changelog token requires cms:write scope.
  */
 
 import { execSync } from 'child_process';
@@ -20,6 +21,43 @@ import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Load .env file if it exists
+function loadEnvFile() {
+  try {
+    const envPath = join(__dirname, '..', '.env');
+    const envContent = readFileSync(envPath, 'utf-8');
+    const lines = envContent.split('\n');
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Skip comments and empty lines
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      
+      // Parse KEY=VALUE format
+      const match = trimmed.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        let value = match[2].trim();
+        // Remove quotes if present
+        if ((value.startsWith('"') && value.endsWith('"')) || 
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        // Only set if not already in process.env (env vars take precedence)
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    }
+  } catch (error) {
+    // .env file doesn't exist or can't be read - that's okay
+    // Script will use environment variables if set
+  }
+}
+
+// Load .env file before accessing environment variables
+loadEnvFile();
 
 // Webflow configuration
 const WEBFLOW_COLLECTION_ID = '6914bfd8c7facb8fa00eaad3';
@@ -312,10 +350,11 @@ function getAllCommitsSince1_0_0() {
 
 // Create Webflow CMS item
 async function createWebflowItem(commit, version) {
-  const webflowToken = process.env.WEBFLOW_API_TOKEN;
+  // Use changelog-specific token if available, fallback to inbox token for backward compatibility
+  const webflowToken = process.env.WEBFLOW_CHANGELOG_API_TOKEN || process.env.WEBFLOW_INBOX_API_TOKEN;
   
   if (!webflowToken) {
-    console.error('❌ WEBFLOW_API_TOKEN not set.');
+    console.error('❌ WEBFLOW_CHANGELOG_API_TOKEN (or WEBFLOW_INBOX_API_TOKEN) not set.');
     return false;
   }
   
@@ -409,9 +448,10 @@ async function main() {
     process.exit(1);
   }
   
-  const webflowToken = process.env.WEBFLOW_API_TOKEN;
+  // Use changelog-specific token if available, fallback to inbox token for backward compatibility
+  const webflowToken = process.env.WEBFLOW_CHANGELOG_API_TOKEN || process.env.WEBFLOW_INBOX_API_TOKEN;
   if (!webflowToken) {
-    console.error('❌ WEBFLOW_API_TOKEN not set. Please set it in your environment.');
+    console.error('❌ WEBFLOW_CHANGELOG_API_TOKEN (or WEBFLOW_INBOX_API_TOKEN) not set. Please set it in your environment.');
     process.exit(1);
   }
   

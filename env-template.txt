@@ -3,8 +3,10 @@ PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_bXV0dWFsLXNwaWRlci0xOC5jbGVyay5hY2NvdW50cy5
 CLERK_UNLIMITED_PLAN_ID=
 # ASTRO_DB_REMOTE_URL=""
 # ASTRO_DB_APP_TOKEN=""
-# Webflow CMS API token for syncing inbox items
-WEBFLOW_API_TOKEN=""
+# Webflow CMS API token for syncing inbox items (inbox/webhook operations)
+WEBFLOW_INBOX_API_TOKEN=""
+# Webflow CMS API token for changelog sync (requires cms:write scope)
+WEBFLOW_CHANGELOG_API_TOKEN=""
 # Webflow webhook secret for verifying webhook signatures
 # Get this from Webflow when creating the "Collection Item Changed" webhook
 # You only need one webhook - "Collection Item Changed" catches all events

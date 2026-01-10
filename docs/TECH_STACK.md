@@ -158,7 +158,8 @@ Output: SSR           - Server-side rendering
 ### Optional
 
 - `BIBLE_API_KEY` - Bible.org API key for scripture fetching
-- `WEBFLOW_API_TOKEN` - Webflow CMS integration (for changelog sync)
+- `WEBFLOW_INBOX_API_TOKEN` - Webflow CMS integration (for inbox/webhook operations)
+- `WEBFLOW_CHANGELOG_API_TOKEN` - Webflow CMS integration (for changelog sync, requires cms:write scope)
 
 ## Version Management
 

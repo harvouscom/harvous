@@ -14,6 +14,10 @@
  * - Maps commit types to user-friendly categories: Feature, Fix, Improvement
  * - Extracts version, date, commit message, and category
  * - Creates items as drafts in Webflow CMS (for manual review before publishing)
+ * 
+ * Environment Variables:
+ * - WEBFLOW_CHANGELOG_API_TOKEN: Token with cms:write scope (preferred)
+ * - WEBFLOW_INBOX_API_TOKEN: Fallback token (for backward compatibility)
  */
 
 import { execSync } from 'child_process';
@@ -24,6 +28,43 @@ import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Load .env file if it exists
+function loadEnvFile() {
+  try {
+    const envPath = join(__dirname, '..', '.env');
+    const envContent = readFileSync(envPath, 'utf-8');
+    const lines = envContent.split('\n');
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Skip comments and empty lines
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      
+      // Parse KEY=VALUE format
+      const match = trimmed.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        let value = match[2].trim();
+        // Remove quotes if present
+        if ((value.startsWith('"') && value.endsWith('"')) || 
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        // Only set if not already in process.env (env vars take precedence)
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    }
+  } catch (error) {
+    // .env file doesn't exist or can't be read - that's okay
+    // Script will use environment variables if set
+  }
+}
+
+// Load .env file before accessing environment variables
+loadEnvFile();
 
 // Webflow configuration
 const WEBFLOW_COLLECTION_ID = '6914bfd8c7facb8fa00eaad3';
@@ -287,10 +328,11 @@ function generateUserFriendlyContent(message, category, body = null) {
 
 // Create Webflow CMS item
 async function createWebflowItem(commit, version) {
-  const webflowToken = process.env.WEBFLOW_API_TOKEN;
+  // Use changelog-specific token if available, fallback to inbox token for backward compatibility
+  const webflowToken = process.env.WEBFLOW_CHANGELOG_API_TOKEN || process.env.WEBFLOW_INBOX_API_TOKEN;
   
   if (!webflowToken) {
-    console.log('⚠️  WEBFLOW_API_TOKEN not set. Skipping changelog sync.');
+    console.log('⚠️  WEBFLOW_CHANGELOG_API_TOKEN (or WEBFLOW_INBOX_API_TOKEN) not set. Skipping changelog sync.');
     return false;
   }
   

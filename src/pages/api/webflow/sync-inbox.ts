@@ -62,7 +62,7 @@ interface WebflowNoteItem {
  */
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const webflowToken = import.meta.env.WEBFLOW_API_TOKEN;
+    const webflowToken = import.meta.env.WEBFLOW_INBOX_API_TOKEN;
     
     if (!webflowToken) {
       return new Response(JSON.stringify({ error: 'Webflow API token not configured' }), {
@@ -600,7 +600,7 @@ export const POST: APIRoute = async ({ request }) => {
  */
 export const GET: APIRoute = async ({ url, request }) => {
   try {
-    const webflowToken = import.meta.env.WEBFLOW_API_TOKEN;
+    const webflowToken = import.meta.env.WEBFLOW_INBOX_API_TOKEN;
     
     if (!webflowToken) {
       return new Response(JSON.stringify({ error: 'Webflow API token not configured' }), {

@@ -18,7 +18,7 @@ const isPublicRoute = createRouteMatcher([
   '/sign-up',
   '/api/health', // Lightweight warmup endpoint - must be public for cold start optimization
   '/api/test/xp-comprehensive', // Test endpoint for XP system (dev only)
-  '/api/webflow/sync-inbox', // Webflow sync endpoint (uses server-side WEBFLOW_API_TOKEN for auth)
+  '/api/webflow/sync-inbox', // Webflow sync endpoint (uses server-side WEBFLOW_INBOX_API_TOKEN for auth)
   '/api/webflow/webhook', // Webflow webhook endpoint (uses server-side WEBFLOW_WEBHOOK_SECRET for auth)
   '/api/webhooks/clerk', // Clerk webhook endpoint (uses server-side CLERK_WEBHOOK_SECRET for auth)
   '/api/seed-marketing', // Seed script endpoint (dev only)
