@@ -8,6 +8,7 @@ import {
   type SyncStatus 
 } from './offline-db';
 import { isOfflineModeEnabled } from './posthog';
+import { sortByLastVisited, normalizeDate } from '@/utils/sorting';
 
 /**
  * Dashboard snapshot - all data needed for initial dashboard render
@@ -283,14 +284,15 @@ export async function getRecentNotesLocal(userId: string, limit: number = 20): P
       .filter(note => note.syncStatus !== 'deleted')
       .toArray();
     
-    // Sort by lastVisited, then updatedAt, then createdAt (descending)
-    notes.sort((a, b) => {
-      const aTime = a.lastVisited?.getTime() || a.updatedAt?.getTime() || a.createdAt.getTime();
-      const bTime = b.lastVisited?.getTime() || b.updatedAt?.getTime() || b.createdAt.getTime();
-      return bTime - aTime;
-    });
+    // Sort using shared sorting utility that matches server-side logic
+    // Items with lastVisited come first, then items without (sorted by updatedAt/createdAt)
+    const sorted = sortByLastVisited(notes.map(note => ({
+      ...note,
+      updatedAt: note.updatedAt || note.createdAt,
+      id: note.id
+    })));
     
-    return notes.slice(0, limit);
+    return sorted.slice(0, limit);
   } catch (error) {
     console.error('Error getting recent notes from local DB:', error);
     return [];
@@ -321,15 +323,16 @@ export async function getNotesForThreadLocal(userId: string, threadId: string, l
       .filter(note => noteIds.includes(note.id) && note.syncStatus !== 'deleted')
       .toArray();
     
-    // Sort by lastVisited/updatedAt/createdAt
-    allNotes.sort((a, b) => {
-      const aTime = a.lastVisited?.getTime() || a.updatedAt?.getTime() || a.createdAt.getTime();
-      const bTime = b.lastVisited?.getTime() || b.updatedAt?.getTime() || b.createdAt.getTime();
-      return bTime - aTime;
-    });
+    // Sort using shared sorting utility that matches server-side logic
+    // Items with lastVisited come first, then items without (sorted by updatedAt/createdAt)
+    const sorted = sortByLastVisited(allNotes.map(note => ({
+      ...note,
+      updatedAt: note.updatedAt || note.createdAt,
+      id: note.id
+    })));
     
-    const hasMore = allNotes.length > offset + limit;
-    const notes = allNotes.slice(offset, offset + limit);
+    const hasMore = sorted.length > offset + limit;
+    const notes = sorted.slice(offset, offset + limit);
     
     return { notes, hasMore };
   } catch (error) {
@@ -349,15 +352,16 @@ export async function getNotesForSpaceLocal(userId: string, spaceId: string, lim
       .filter(note => note.syncStatus !== 'deleted')
       .toArray();
     
-    // Sort by lastVisited/updatedAt/createdAt
-    allNotes.sort((a, b) => {
-      const aTime = a.lastVisited?.getTime() || a.updatedAt?.getTime() || a.createdAt.getTime();
-      const bTime = b.lastVisited?.getTime() || b.updatedAt?.getTime() || b.createdAt.getTime();
-      return bTime - aTime;
-    });
+    // Sort using shared sorting utility that matches server-side logic
+    // Items with lastVisited come first, then items without (sorted by updatedAt/createdAt)
+    const sorted = sortByLastVisited(allNotes.map(note => ({
+      ...note,
+      updatedAt: note.updatedAt || note.createdAt,
+      id: note.id
+    })));
     
-    const hasMore = allNotes.length > offset + limit;
-    const notes = allNotes.slice(offset, offset + limit);
+    const hasMore = sorted.length > offset + limit;
+    const notes = sorted.slice(offset, offset + limit);
     
     return { notes, hasMore };
   } catch (error) {

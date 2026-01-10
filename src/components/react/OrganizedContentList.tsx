@@ -242,12 +242,32 @@ export default function OrganizedContentList({
                  !deletedItemIdsRef.current.has(normalizeId(item.noteId));
         });
 
+        // Filter out recently created scripture notes without lastVisited (handles race condition)
+        // This matches the server-side filtering logic in getContentItems
+        const now = Date.now();
+        const RECENT_CREATION_THRESHOLD = 5000; // 5 seconds
+
+        const filteredByScriptureRules = notDeletedItems.filter(item => {
+          if (item.type !== 'note' || item.noteType !== 'scripture') return true;
+          
+          // Filter out recently created scripture notes without lastVisited
+          if (item.createdAt && !item.lastVisited) {
+            const createdAtTime = new Date(item.createdAt).getTime();
+            const isRecentlyCreated = (now - createdAtTime) < RECENT_CREATION_THRESHOLD;
+            if (isRecentlyCreated) {
+              return false; // Filter out
+            }
+          }
+          
+          return true;
+        });
+
         // Apply filter
-        let filteredItems = notDeletedItems;
-        if (filter === 'threads') filteredItems = notDeletedItems.filter(i => i.type === 'thread');
-        if (filter === 'notes') filteredItems = notDeletedItems.filter(i => i.type === 'note' && (i.noteType === 'default' || !i.noteType));
-        if (filter === 'scripture') filteredItems = notDeletedItems.filter(i => i.type === 'note' && i.noteType === 'scripture');
-        if (filter === 'resources') filteredItems = notDeletedItems.filter(i => i.type === 'note' && i.noteType === 'resource');
+        let filteredItems = filteredByScriptureRules;
+        if (filter === 'threads') filteredItems = filteredByScriptureRules.filter(i => i.type === 'thread');
+        if (filter === 'notes') filteredItems = filteredByScriptureRules.filter(i => i.type === 'note' && (i.noteType === 'default' || !i.noteType));
+        if (filter === 'scripture') filteredItems = filteredByScriptureRules.filter(i => i.type === 'note' && i.noteType === 'scripture');
+        if (filter === 'resources') filteredItems = filteredByScriptureRules.filter(i => i.type === 'note' && i.noteType === 'resource');
 
         const sorted = sortItems(filteredItems.map(normalizeItemDates));
 
