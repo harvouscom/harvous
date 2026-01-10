@@ -1390,7 +1390,7 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
       eq(Notes.userId, userId),
       isNull(NoteThreads.id) // No junction entry = unorganized
     ))
-    .orderBy(desc(Notes.updatedAt || Notes.createdAt), Notes.id)
+    .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
     .limit(limit)
     .all();
 
@@ -1436,7 +1436,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       })
       .from(Notes)
       .where(eq(Notes.userId, userId))
-      .orderBy(desc(Notes.updatedAt || Notes.createdAt), Notes.id)
+      .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
       .limit(limit)
       .all();
 
@@ -1475,7 +1475,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       eq(Notes.userId, userId),
       ne(Notes.threadId, unorganizedThread.id)
     ))
-    .orderBy(desc(Notes.updatedAt || Notes.createdAt), Notes.id)
+    .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
     .limit(limit)
     .all();
 
