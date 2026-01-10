@@ -19,7 +19,8 @@ export function normalizeDate(date: Date | string | null | undefined): Date | nu
 
 /**
  * Multi-tier sorting: lastVisited → updatedAt → createdAt → id
- * Matches API sorting logic in dashboard-data.ts
+ * All items are expected to have lastVisited (with fallback set at data source level).
+ * This simplifies the sorting logic since we don't need to handle missing lastVisited.
  *
  * The ID tiebreaker ensures deterministic sorting when timestamps are identical.
  * This prevents items from shuffling position on page refresh (common in seed data,
@@ -33,42 +34,47 @@ export function sortByLastVisited<T extends {
   id?: string;
 }>(items: T[]): T[] {
   return [...items].sort((a, b) => {
-    // Helper function to get a timestamp as number or null
-    // Returns null (not 0) to distinguish between "has no time" and "time is epoch"
-    const getSortTime = (item: T): number | null => {
-      // Primary: lastVisited
-      if (item.lastVisited) {
-        const date = normalizeDate(item.lastVisited);
-        if (date) return date.getTime();
-      }
-      // Secondary: updatedAt
-      if (item.updatedAt) {
-        const date = normalizeDate(item.updatedAt);
-        if (date) return date.getTime();
-      }
-      // Tertiary: createdAt
-      if (item.createdAt) {
-        const date = normalizeDate(item.createdAt);
-        if (date) return date.getTime();
-      }
-      return null;
-    };
+    // Primary: Sort by lastVisited (newest first)
+    // All items should have lastVisited (with fallback), but handle null/undefined gracefully
+    const aLastVisited = a.lastVisited ? normalizeDate(a.lastVisited) : null;
+    const bLastVisited = b.lastVisited ? normalizeDate(b.lastVisited) : null;
     
-    const aTime = getSortTime(a);
-    const bTime = getSortTime(b);
-
-    // Primary sort: lastVisited (newest first)
-    if (aTime !== null && bTime !== null) {
-      const diff = bTime - aTime;
-      if (diff !== 0) return diff; // Different times, use that
-      // When times are equal, use ID as tiebreaker for deterministic sorting
-      return (a.id || '').localeCompare(b.id || '');
-    } else if (aTime !== null && bTime === null) {
-      return -1; // a has time, b doesn't - a comes first
-    } else if (aTime === null && bTime !== null) {
-      return 1; // b has time, a doesn't - b comes first
+    if (aLastVisited && bLastVisited) {
+      const diff = bLastVisited.getTime() - aLastVisited.getTime();
+      if (diff !== 0) return diff;
+    } else if (aLastVisited && !bLastVisited) {
+      return -1; // a has lastVisited, b doesn't - a comes first
+    } else if (!aLastVisited && bLastVisited) {
+      return 1; // b has lastVisited, a doesn't - b comes first
     }
-    // Both have no time - sort by ID for deterministic ordering
+    
+    // Tiebreaker 1: updatedAt (if lastVisited values are equal or both null)
+    const aUpdatedAt = a.updatedAt ? normalizeDate(a.updatedAt) : null;
+    const bUpdatedAt = b.updatedAt ? normalizeDate(b.updatedAt) : null;
+    
+    if (aUpdatedAt && bUpdatedAt) {
+      const diff = bUpdatedAt.getTime() - aUpdatedAt.getTime();
+      if (diff !== 0) return diff;
+    } else if (aUpdatedAt && !bUpdatedAt) {
+      return -1;
+    } else if (!aUpdatedAt && bUpdatedAt) {
+      return 1;
+    }
+    
+    // Tiebreaker 2: createdAt (if updatedAt values are equal or both null)
+    const aCreatedAt = a.createdAt ? normalizeDate(a.createdAt) : null;
+    const bCreatedAt = b.createdAt ? normalizeDate(b.createdAt) : null;
+    
+    if (aCreatedAt && bCreatedAt) {
+      const diff = bCreatedAt.getTime() - aCreatedAt.getTime();
+      if (diff !== 0) return diff;
+    } else if (aCreatedAt && !bCreatedAt) {
+      return -1;
+    } else if (!aCreatedAt && bCreatedAt) {
+      return 1;
+    }
+    
+    // Final tiebreaker: ID for deterministic sorting
     return (a.id || '').localeCompare(b.id || '');
   });
 }

@@ -1068,7 +1068,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       spaceId: thread.spaceId,
       lastUpdated: thread.lastUpdated,
       updatedAt: thread.updatedAt || thread.createdAt, // Keep actual timestamp for sorting
-      lastVisited: thread.lastVisited,
+      lastVisited: thread.lastVisited || thread.updatedAt || thread.createdAt, // Fallback to updatedAt/createdAt for consistent sorting
       createdAt: thread.createdAt,
       isPrivate: !thread.isPublic,
       accentColor: thread.accentColor,
@@ -1247,7 +1247,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         noteType: note.noteType || 'default',
         lastUpdated: note.lastUpdated,
         updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
-        lastVisited: note.lastVisited,
+        lastVisited: note.lastVisited || note.updatedAt || note.createdAt, // Fallback to updatedAt/createdAt for consistent sorting
         createdAt: note.createdAt,
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
@@ -1271,7 +1271,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         noteType: note.noteType || 'default',
         lastUpdated: note.lastUpdated,
         updatedAt: note.updatedAt || note.createdAt, // Keep actual timestamp for sorting
-        lastVisited: note.lastVisited,
+        lastVisited: note.lastVisited || note.updatedAt || note.createdAt, // Fallback to updatedAt/createdAt for consistent sorting
         createdAt: note.createdAt,
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,

@@ -47,31 +47,26 @@ interface OrganizedContentListProps {
 function normalizeItemDates(item: any): OrganizedContentItem {
   return {
     ...item,
+    // All items should have lastVisited (with fallback) from data source
     lastVisited: item.lastVisited ? normalizeDate(item.lastVisited) : null,
     lastUpdated: item.lastUpdated ? (normalizeDate(item.lastUpdated)?.toISOString() || item.lastUpdated) : item.lastUpdated,
     createdAt: item.createdAt ? normalizeDate(item.createdAt) : null,
-    // Use server-provided updatedAt if available, otherwise calculate from lastUpdated/createdAt
-    updatedAt: item.updatedAt 
-      ? normalizeDate(item.updatedAt) 
-      : (item.lastUpdated 
-          ? normalizeDate(item.lastUpdated) 
-          : (item.createdAt ? normalizeDate(item.createdAt) : null))
+    // updatedAt is used as tiebreaker in sorting, normalize if present
+    updatedAt: item.updatedAt ? normalizeDate(item.updatedAt) : null
   };
 }
 
-// Helper to sort items by lastVisited (uses server's updatedAt field when available)
+// Helper to sort items by lastVisited
+// All items should have lastVisited (with fallback) set at data source level
 function sortItems(items: OrganizedContentItem[]): OrganizedContentItem[] {
-  const itemsWithUpdatedAt = items.map(item => ({
+  // Normalize dates for all items, then sort
+  const normalizedItems = items.map(item => ({
     ...item,
-    // Use server-provided updatedAt if available, otherwise calculate from lastUpdated/createdAt
-    updatedAt: item.updatedAt 
-      ? normalizeDate(item.updatedAt) 
-      : (item.lastUpdated 
-          ? normalizeDate(item.lastUpdated) 
-          : (item.createdAt ? normalizeDate(item.createdAt) : null))
+    lastVisited: item.lastVisited ? normalizeDate(item.lastVisited) : null,
+    updatedAt: item.updatedAt ? normalizeDate(item.updatedAt) : null,
+    createdAt: item.createdAt ? normalizeDate(item.createdAt) : null
   }));
-  const sorted = sortByLastVisited(itemsWithUpdatedAt);
-  return sorted.map(({ updatedAt, ...item }) => item);
+  return sortByLastVisited(normalizedItems);
 }
 
 /**
@@ -225,7 +220,7 @@ export default function OrganizedContentList({
             threadId: t.id,
             spaceId: t.spaceId,
             accentColor: t.color ? getThreadColorCSS(t.color) : getThreadColorCSS('blue'),
-            lastVisited: t.lastVisited,
+            lastVisited: t.lastVisited || t.updatedAt || t.createdAt, // Fallback to updatedAt/createdAt for consistent sorting
             createdAt: t.createdAt,
             updatedAt: t.updatedAt || t.createdAt,
           })),
@@ -238,7 +233,7 @@ export default function OrganizedContentList({
             threadId: n.threadId,
             spaceId: n.spaceId,
             noteType: n.noteType,
-            lastVisited: n.lastVisited,
+            lastVisited: n.lastVisited || n.updatedAt || n.createdAt, // Fallback to updatedAt/createdAt for consistent sorting
             createdAt: n.createdAt,
             updatedAt: n.updatedAt || n.createdAt,
             syncStatus: n.syncStatus,
