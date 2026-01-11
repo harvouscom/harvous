@@ -210,6 +210,7 @@ export default function OrganizedContentList({
         if (!snapshot) return;
 
         // Map snapshot data to OrganizedContentItem format
+        // IMPORTANT: Preserve null lastVisited to distinguish visited from unvisited items
         const localItems: OrganizedContentItem[] = [
           ...snapshot.threads.map(t => ({
             id: `thread-${t.id}`,
@@ -220,7 +221,7 @@ export default function OrganizedContentList({
             threadId: t.id,
             spaceId: t.spaceId,
             accentColor: t.color ? getThreadColorCSS(t.color) : getThreadColorCSS('blue'),
-            lastVisited: t.lastVisited || t.updatedAt || t.createdAt, // Fallback to updatedAt/createdAt for consistent sorting
+            lastVisited: t.lastVisited || null, // Preserve null to distinguish visited from unvisited items
             createdAt: t.createdAt,
             updatedAt: t.updatedAt || t.createdAt,
           })),
@@ -233,7 +234,7 @@ export default function OrganizedContentList({
             threadId: n.threadId,
             spaceId: n.spaceId,
             noteType: n.noteType,
-            lastVisited: n.lastVisited || n.updatedAt || n.createdAt, // Fallback to updatedAt/createdAt for consistent sorting
+            lastVisited: n.lastVisited || null, // Preserve null to distinguish visited from unvisited items
             createdAt: n.createdAt,
             updatedAt: n.updatedAt || n.createdAt,
             syncStatus: n.syncStatus,
