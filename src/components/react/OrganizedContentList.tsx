@@ -371,7 +371,8 @@ export default function OrganizedContentList({
         const url = buildAPIUrl('/api/content/load-more', {
           offset: '0',
           limit: limit.toString(),
-          filter: currentFilter
+          filter: currentFilter,
+          _t: Date.now().toString() // Cache-busting timestamp
         });
 
         if (!url) {
@@ -380,7 +381,7 @@ export default function OrganizedContentList({
 
         const response = await fetch(url, {
           credentials: 'include',
-          cache: options?.expectedItemId ? 'no-store' : 'default'
+          cache: 'no-store' // Always bypass cache to ensure fresh data
         });
 
         if (!response.ok) {
