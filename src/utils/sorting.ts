@@ -18,9 +18,14 @@ export function normalizeDate(date: Date | string | null | undefined): Date | nu
 }
 
 /**
- * Multi-tier sorting: lastVisited → updatedAt → createdAt → id
- * All items are expected to have lastVisited (with fallback set at data source level).
- * This simplifies the sorting logic since we don't need to handle missing lastVisited.
+ * Multi-tier sorting: hasLastVisited → lastVisited → updatedAt → createdAt → id
+ *
+ * CRITICAL: Items with lastVisited ALWAYS sort above items without lastVisited.
+ * This ensures that items you've actually visited appear above unvisited items,
+ * even if the unvisited items were created more recently.
+ *
+ * Within visited items: sort by lastVisited (newest first)
+ * Within unvisited items: sort by updatedAt → createdAt (newest first)
  *
  * The ID tiebreaker ensures deterministic sorting when timestamps are identical.
  * This prevents items from shuffling position on page refresh (common in seed data,
@@ -34,11 +39,20 @@ export function sortByLastVisited<T extends {
   id?: string;
 }>(items: T[]): T[] {
   return [...items].sort((a, b) => {
-    // Get effective sort time for each item (single computation, no re-normalization)
-    // This ensures consistent comparison by computing the sort key once
-    const getEffectiveSortTime = (item: T): number => {
-      // Try lastVisited first
-      if (item.lastVisited) {
+    // Check if items have actual lastVisited values
+    const aHasLastVisited = a.lastVisited != null && normalizeDate(a.lastVisited) != null;
+    const bHasLastVisited = b.lastVisited != null && normalizeDate(b.lastVisited) != null;
+
+    // Primary: Items with lastVisited sort ABOVE items without
+    // This ensures visited items always appear before unvisited items
+    if (aHasLastVisited && !bHasLastVisited) return -1;
+    if (!aHasLastVisited && bHasLastVisited) return 1;
+
+    // Get effective sort time for each item
+    // For visited items: use lastVisited
+    // For unvisited items: use updatedAt → createdAt
+    const getEffectiveSortTime = (item: T, hasLastVisited: boolean): number => {
+      if (hasLastVisited && item.lastVisited) {
         const date = normalizeDate(item.lastVisited);
         if (date) return date.getTime();
       }
@@ -56,10 +70,10 @@ export function sortByLastVisited<T extends {
       return 0;
     };
 
-    const aTime = getEffectiveSortTime(a);
-    const bTime = getEffectiveSortTime(b);
+    const aTime = getEffectiveSortTime(a, aHasLastVisited);
+    const bTime = getEffectiveSortTime(b, bHasLastVisited);
 
-    // Primary sort: by effective time (newest first)
+    // Secondary sort: by effective time (newest first)
     if (aTime !== bTime) {
       return bTime - aTime;
     }
@@ -79,8 +93,11 @@ export function sortByLastVisited<T extends {
 }
 
 /**
- * For threads with isPinned: isPinned → lastVisited → updatedAt → createdAt → id
+ * For threads with isPinned: isPinned → hasLastVisited → lastVisited → updatedAt → createdAt → id
  * Matches API sorting logic for threads in dashboard-data.ts
+ *
+ * CRITICAL: Pinned items first, then items with lastVisited above items without.
+ * This ensures visited threads appear above unvisited threads.
  */
 export function sortThreadsByLastVisited<T extends {
   isPinned?: boolean;
@@ -94,9 +111,18 @@ export function sortThreadsByLastVisited<T extends {
     if (a.isPinned && !b.isPinned) return -1;
     if (!a.isPinned && b.isPinned) return 1;
 
-    // Secondary: lastVisited → updatedAt → createdAt
-    const getSortTime = (item: T): number => {
-      if (item.lastVisited) {
+    // Check if items have actual lastVisited values
+    const aHasLastVisited = a.lastVisited != null && normalizeDate(a.lastVisited) != null;
+    const bHasLastVisited = b.lastVisited != null && normalizeDate(b.lastVisited) != null;
+
+    // Secondary: Items with lastVisited sort ABOVE items without
+    // This ensures visited items always appear before unvisited items
+    if (aHasLastVisited && !bHasLastVisited) return -1;
+    if (!aHasLastVisited && bHasLastVisited) return 1;
+
+    // Get effective sort time for each item
+    const getSortTime = (item: T, hasLastVisited: boolean): number => {
+      if (hasLastVisited && item.lastVisited) {
         const date = normalizeDate(item.lastVisited);
         if (date) return date.getTime();
       }
@@ -111,10 +137,10 @@ export function sortThreadsByLastVisited<T extends {
       return 0;
     };
 
-    const aTime = getSortTime(a);
-    const bTime = getSortTime(b);
+    const aTime = getSortTime(a, aHasLastVisited);
+    const bTime = getSortTime(b, bHasLastVisited);
 
-    // Primary sort: by effective time (newest first)
+    // Tertiary sort: by effective time (newest first)
     if (aTime !== bTime) {
       return bTime - aTime;
     }
@@ -123,7 +149,7 @@ export function sortThreadsByLastVisited<T extends {
     if (aTime > 0 && bTime === 0) return -1;
     if (aTime === 0 && bTime > 0) return 1;
 
-    // Tertiary: ID for deterministic sorting
+    // Final tiebreaker: ID for deterministic sorting
     // Use simple string comparison (not localeCompare) for consistency
     const aId = a.id || '';
     const bId = b.id || '';
