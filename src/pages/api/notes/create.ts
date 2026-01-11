@@ -206,18 +206,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // These operations should be atomic, but Astro DB doesn't support explicit transactions
     // If any of these fail, the entire operation should fail
     
+    const now = new Date();
     const newNote = await db.insert(Notes)
-      .values({ 
+      .values({
         id: generateNoteId(),
-        content: capitalizedContent, 
-        title: capitalizedTitle, 
+        content: capitalizedContent,
+        title: capitalizedTitle,
         threadId: finalThreadId,
         spaceId: finalSpaceId,
         simpleNoteId: nextSimpleNoteId,
         noteType: finalNoteType,
-        userId, 
+        userId,
         isPublic: false,
-        createdAt: new Date() 
+        createdAt: now,
+        lastVisited: now // Set lastVisited so newly created notes appear above unvisited items
       })
       .returning()
       .get();

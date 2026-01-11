@@ -121,7 +121,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         color: threadColor,
         isPinned: false,
         createdAt: now,
-        updatedAt: now // Set updatedAt to createdAt so new threads appear at top when sorted
+        updatedAt: now, // Set updatedAt to createdAt so new threads appear at top when sorted
+        lastVisited: now // Set lastVisited so newly created threads appear above unvisited items
       })
       .returning()
       .get();
