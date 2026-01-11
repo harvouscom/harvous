@@ -2382,8 +2382,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       Superscript,
       BoldCustom, // Use custom Bold extension that prevents application after pills
       HighlightCustom, // Use custom Highlight extension that prevents application after pills
+      ScripturePill, // Must come before NoteLink so scripture pills are parsed correctly
       NoteLink,
-      ScripturePill,
       Placeholder.configure({
         placeholder: placeholder,
         showOnlyWhenEditable: true,

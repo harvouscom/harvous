@@ -53,7 +53,9 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
   parseHTML() {
     return [
       {
-        tag: 'span[data-note-id]',
+        // Only match spans with data-note-id that do NOT have data-scripture-reference
+        // This prevents NoteLink from capturing scripture pills (which have both attributes)
+        tag: 'span[data-note-id]:not([data-scripture-reference])',
         getAttrs: element => {
           const noteId = (element as HTMLElement).getAttribute('data-note-id');
           return noteId ? { noteId } : false;
