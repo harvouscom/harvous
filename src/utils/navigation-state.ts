@@ -98,7 +98,7 @@ export async function detectActiveThreadFromPath(currentPath: string, userId: st
           eq(Threads.userId, userId),
           ne(Threads.id, 'thread_unorganized')
         ))
-        .orderBy(desc(Threads.updatedAt || Threads.createdAt))
+        .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id)
         .limit(1)
         .get();
 

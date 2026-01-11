@@ -39,7 +39,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
             )
           )
         )
-        .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt))
+        .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
         .limit(limit);
 
       const noteResults = notes.map(note => ({
@@ -68,7 +68,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
             like(Threads.title, searchTerm)
           )
         )
-        .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt))
+        .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id)
         .limit(limit);
 
       const threadResults = threads.map(thread => ({

@@ -36,7 +36,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       })
       .from(Notes)
       .where(eq(Notes.userId, userId))
-      .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt))
+      .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
       .limit(maxLimit);
 
     // Format the response

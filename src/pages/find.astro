@@ -247,10 +247,16 @@ if (query.trim()) {
       index === self.findIndex(n => n.id === note.id)
     );
     
-    // Sort by date
-    const notes = uniqueNotes.sort((a, b) => 
-      new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
-    );
+    // Sort by date with ID tiebreaker for deterministic ordering
+    const notes = uniqueNotes.sort((a, b) => {
+      const aTime = new Date(b.updatedAt || b.createdAt).getTime();
+      const bTime = new Date(a.updatedAt || a.createdAt).getTime();
+      if (aTime !== bTime) return aTime - bTime;
+      // ID tiebreaker for deterministic ordering when timestamps are equal
+      if (a.id < b.id) return -1;
+      if (a.id > b.id) return 1;
+      return 0;
+    });
 
     // Search threads with enhanced matching
     const threads = await db
@@ -266,7 +272,7 @@ if (query.trim()) {
           )
         )
       )
-      .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt));
+      .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id);
 
     // Helper function to calculate relevance score
     function calculateRelevanceScore(item: any, query: string): number {

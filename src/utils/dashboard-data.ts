@@ -310,7 +310,7 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
     })
     .from(Threads)
     .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
-    .orderBy(desc(Threads.isPinned), desc(Threads.lastVisited), desc(Threads.updatedAt), desc(Threads.createdAt))
+    .orderBy(desc(Threads.isPinned), desc(Threads.lastVisited), desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id)
     .all();
 
     // Get note counts for all threads in a single query using GROUP BY
@@ -394,10 +394,10 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         eq(Notes.userId, userId),
         isNull(NoteThreads.id) // No junction entry = unorganized
       ))
-      .orderBy(desc(Notes.lastVisited), desc(Notes.createdAt), Notes.id)
+      .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
       .limit(fetchLimit)
       .all();
-      
+
       // Also fetch scripture notes referenced by unorganized notes
       const unorganizedNoteIds = unorganizedNotes.map(n => n.id).filter(id => id);
       let referencedScriptureNotes: typeof unorganizedNotes = [];
@@ -485,10 +485,10 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
-      .orderBy(desc(Notes.lastVisited), desc(Notes.createdAt), Notes.id)
+      .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
       .limit(fetchLimit)
       .all();
-      
+
       // Also fetch scripture notes referenced by notes in this thread
       const threadNoteIds = junctionNotes.map(n => n.id).filter(id => id);
       let referencedScriptureNotes: typeof junctionNotes = [];
@@ -814,7 +814,7 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
     })
     .from(Notes)
     .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
-    .orderBy(desc(Notes.lastVisited), desc(Notes.createdAt), Notes.id)
+    .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
     .limit(fetchLimit)
     .all();
 
@@ -1680,12 +1680,12 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
       eq(Notes.userId, userId),
       eq(Notes.noteType, 'scripture')
     ))
-    .orderBy(desc(Notes.lastVisited), desc(Notes.createdAt), Notes.id)
+    .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
     .limit(fetchLimit)
     .offset(offset)
     .all();
 
-    // Sort in JavaScript to ensure correct ordering (lastVisited with fallback to createdAt)
+    // Sort in JavaScript to ensure correct ordering (lastVisited with fallback to updatedAt/createdAt)
     // Use unified sorting utility for consistency
     const sortedNotes = sortByLastVisited(notes.map(note => ({
       ...note,
