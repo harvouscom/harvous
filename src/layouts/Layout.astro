@@ -72,6 +72,15 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     
+    <!-- Preload critical font files to eliminate FOUT (Flash of Unstyled Text) -->
+    <!-- These load in parallel with stylesheets, so fonts are ready when CSS is parsed -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-mono@5.1.1/files/reddit-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+    <link rel="preload" href="/fonts/Roundo-Variable.ttf" as="font" type="font/ttf" crossorigin="anonymous" />
+
     <!-- Font CSS - loaded as external stylesheets that persist across view transitions -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/400.css" transition:persist />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/500.css" transition:persist />
@@ -79,9 +88,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/700.css" transition:persist />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-mono@5.1.1/500.css" transition:persist />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-mono@5.1.1/600.css" transition:persist />
-    
-    <!-- Prefetch fonts (avoid preload "not used" warnings) -->
-    <link rel="prefetch" href="/fonts/Roundo-Variable.ttf" as="font" type="font/ttf" crossorigin="anonymous" />
     
     <!-- Prefetch critical routes for faster navigation -->
     <link rel="prefetch" href="/" />
