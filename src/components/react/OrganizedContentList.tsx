@@ -393,9 +393,12 @@ export default function OrganizedContentList({
         // Normalize dates once at API boundary
         const normalizedItems = (data.items || []).map(normalizeItemDates);
 
-        // Preserve optimistic lastVisited updates using current state
-        // Create a snapshot at the moment we process the response to avoid race conditions
+        // Preserve ONLY very recent optimistic lastVisited updates
+        // Server is the source of truth - only override if we have a recent optimistic update
+        // that the server hasn't processed yet (within last 10 seconds)
         const currentSnapshot = [...currentItemsRef.current];
+        const recentThreshold = Date.now() - 10000; // 10 seconds ago
+
         normalizedItems.forEach((freshItem, index) => {
           const currentItem = currentSnapshot.find(item => {
             if (item.id === freshItem.id) return true;
@@ -412,9 +415,15 @@ export default function OrganizedContentList({
             const currentLastVisited = normalizeDate(currentItem.lastVisited);
             const freshLastVisited = normalizeDate(freshItem.lastVisited);
 
-            // CRITICAL: Preserve client-side lastVisited if it's more recent OR if timestamps are equal
-            // This prevents flicker when the server hasn't caught up with the optimistic update
-            if (currentLastVisited && (!freshLastVisited || currentLastVisited >= freshLastVisited)) {
+            // Only preserve client-side lastVisited if:
+            // 1. Client has a lastVisited value
+            // 2. That value is very recent (within last 10 seconds) - indicating a recent optimistic update
+            // 3. Server either has no lastVisited or an older value
+            // This prevents stale client-side values from overriding the server's authoritative data
+            const isRecentOptimisticUpdate = currentLastVisited &&
+              currentLastVisited.getTime() > recentThreshold;
+
+            if (isRecentOptimisticUpdate && (!freshLastVisited || currentLastVisited > freshLastVisited)) {
               normalizedItems[index] = {
                 ...normalizedItems[index],
                 lastVisited: currentLastVisited,
