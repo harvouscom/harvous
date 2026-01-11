@@ -159,13 +159,14 @@ export async function getAllThreadsWithCounts(userId: string) {
     ))
     // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
     // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+    // Use explicit asc() to ensure 0 (has lastVisited) sorts before 1 (no lastVisited)
     .orderBy(
       desc(Threads.isPinned),
-      sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      asc(sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Threads.lastVisited),
       desc(Threads.updatedAt),
       desc(Threads.createdAt),
-      Threads.id
+      asc(Threads.id)
     )
     .all();
 
@@ -321,13 +322,14 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
     .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
     // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
     // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+    // Use explicit asc() to ensure 0 (has lastVisited) sorts before 1 (no lastVisited)
     .orderBy(
       desc(Threads.isPinned),
-      sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      asc(sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Threads.lastVisited),
       desc(Threads.updatedAt),
       desc(Threads.createdAt),
-      Threads.id
+      asc(Threads.id)
     )
     .all();
 
@@ -415,11 +417,11 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
       // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
       .orderBy(
-        sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited),
         desc(Notes.updatedAt),
         desc(Notes.createdAt),
-        Notes.id
+        asc(Notes.id)
       )
       .limit(fetchLimit)
       .all();
@@ -514,11 +516,11 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
       // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
       .orderBy(
-        sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited),
         desc(Notes.updatedAt),
         desc(Notes.createdAt),
-        Notes.id
+        asc(Notes.id)
       )
       .limit(fetchLimit)
       .all();
@@ -851,11 +853,11 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
     // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
     // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
     .orderBy(
-      sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
       desc(Notes.createdAt),
-      Notes.id
+      asc(Notes.id)
     )
     .limit(fetchLimit)
     .all();
@@ -1467,11 +1469,11 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
     // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
     // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
     .orderBy(
-      sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
       desc(Notes.createdAt),
-      Notes.id
+      asc(Notes.id)
     )
     .limit(limit)
     .all();
@@ -1521,11 +1523,11 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
       // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
       .orderBy(
-        sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited),
         desc(Notes.updatedAt),
         desc(Notes.createdAt),
-        Notes.id
+        asc(Notes.id)
       )
       .limit(limit)
       .all();
@@ -1568,11 +1570,11 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
     // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
     // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
     .orderBy(
-      sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
       desc(Notes.createdAt),
-      Notes.id
+      asc(Notes.id)
     )
     .limit(limit)
     .all();
@@ -1749,11 +1751,11 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
     // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
     // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
     .orderBy(
-      sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
       desc(Notes.createdAt),
-      Notes.id
+      asc(Notes.id)
     )
     .limit(fetchLimit)
     .offset(offset)

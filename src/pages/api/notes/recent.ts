@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, eq, desc, sql } from 'astro:db';
+import { db, Notes, eq, desc, asc, sql } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ request, locals }) => {
@@ -38,12 +38,13 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .where(eq(Notes.userId, userId))
       // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
       // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+      // Use explicit asc() to ensure 0 (has lastVisited) sorts before 1 (no lastVisited)
       .orderBy(
-        sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited),
         desc(Notes.updatedAt),
         desc(Notes.createdAt),
-        Notes.id
+        asc(Notes.id)
       )
       .limit(maxLimit);
 
