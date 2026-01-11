@@ -1,4 +1,4 @@
-import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, ResourceMetadata, NoteScriptureReferences, ScriptureMetadata, eq, and, desc, count, or, ne, isNull, isNotNull, inArray } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, ResourceMetadata, NoteScriptureReferences, ScriptureMetadata, eq, and, desc, asc, count, or, ne, isNull, isNotNull, inArray, sql } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
 import { getInboxItems, getInboxCount as getInboxCountUtil } from "./inbox-data";
 import { getRelativeTime } from "./date-formatting";
@@ -157,7 +157,16 @@ export async function getAllThreadsWithCounts(userId: string) {
       eq(Threads.userId, userId),
       ne(Threads.id, "thread_unorganized") // Exclude unorganized thread from dashboard display
     ))
-    .orderBy(desc(Threads.isPinned), desc(Threads.lastVisited), desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id)
+    // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
+    // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+    .orderBy(
+      desc(Threads.isPinned),
+      sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      desc(Threads.lastVisited),
+      desc(Threads.updatedAt),
+      desc(Threads.createdAt),
+      Threads.id
+    )
     .all();
 
     // Get note counts for all threads in a single query using GROUP BY
@@ -310,7 +319,16 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
     })
     .from(Threads)
     .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
-    .orderBy(desc(Threads.isPinned), desc(Threads.lastVisited), desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id)
+    // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
+    // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+    .orderBy(
+      desc(Threads.isPinned),
+      sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      desc(Threads.lastVisited),
+      desc(Threads.updatedAt),
+      desc(Threads.createdAt),
+      Threads.id
+    )
     .all();
 
     // Get note counts for all threads in a single query using GROUP BY
@@ -394,7 +412,15 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         eq(Notes.userId, userId),
         isNull(NoteThreads.id) // No junction entry = unorganized
       ))
-      .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
+      // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
+      // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+      .orderBy(
+        sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+        desc(Notes.lastVisited),
+        desc(Notes.updatedAt),
+        desc(Notes.createdAt),
+        Notes.id
+      )
       .limit(fetchLimit)
       .all();
 
@@ -485,7 +511,15 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
-      .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
+      // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
+      // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+      .orderBy(
+        sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+        desc(Notes.lastVisited),
+        desc(Notes.updatedAt),
+        desc(Notes.createdAt),
+        Notes.id
+      )
       .limit(fetchLimit)
       .all();
 
@@ -814,7 +848,15 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
     })
     .from(Notes)
     .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
-    .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
+    // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
+    // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+    .orderBy(
+      sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      desc(Notes.lastVisited),
+      desc(Notes.updatedAt),
+      desc(Notes.createdAt),
+      Notes.id
+    )
     .limit(fetchLimit)
     .all();
 
@@ -1422,7 +1464,15 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
       eq(Notes.userId, userId),
       isNull(NoteThreads.id) // No junction entry = unorganized
     ))
-    .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
+    // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
+    // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+    .orderBy(
+      sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      desc(Notes.lastVisited),
+      desc(Notes.updatedAt),
+      desc(Notes.createdAt),
+      Notes.id
+    )
     .limit(limit)
     .all();
 
@@ -1468,14 +1518,22 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       })
       .from(Notes)
       .where(eq(Notes.userId, userId))
-      .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
+      // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
+      // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+      .orderBy(
+        sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+        desc(Notes.lastVisited),
+        desc(Notes.updatedAt),
+        desc(Notes.createdAt),
+        Notes.id
+      )
       .limit(limit)
       .all();
 
       // Fetch thread colors for all notes in batch (optimized - single query instead of N queries)
       const noteIds = notes.map(note => note.id).filter((id): id is string => !!id);
       const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
-      
+
       const notesWithThreadColors = notes.map((note) => {
         const threadColors = threadColorsMap.get(note.id);
         return {
@@ -1507,7 +1565,15 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       eq(Notes.userId, userId),
       ne(Notes.threadId, unorganizedThread.id)
     ))
-    .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
+    // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
+    // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+    .orderBy(
+      sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      desc(Notes.lastVisited),
+      desc(Notes.updatedAt),
+      desc(Notes.createdAt),
+      Notes.id
+    )
     .limit(limit)
     .all();
 
@@ -1680,7 +1746,15 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
       eq(Notes.userId, userId),
       eq(Notes.noteType, 'scripture')
     ))
-    .orderBy(desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
+    // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
+    // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
+    .orderBy(
+      sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`,
+      desc(Notes.lastVisited),
+      desc(Notes.updatedAt),
+      desc(Notes.createdAt),
+      Notes.id
+    )
     .limit(fetchLimit)
     .offset(offset)
     .all();

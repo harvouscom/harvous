@@ -79,7 +79,8 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-mono@5.1.1/files/reddit-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
-    <link rel="preload" href="/fonts/Roundo-Variable.ttf" as="font" type="font/ttf" crossorigin="anonymous" />
+    <!-- Roundo is only used for specific headings, prefetch instead of preload to avoid "unused" warning -->
+    <link rel="prefetch" href="/fonts/Roundo-Variable.ttf" as="font" type="font/ttf" crossorigin="anonymous" />
 
     <!-- Font CSS - loaded as external stylesheets that persist across view transitions -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/400.css" transition:persist />
