@@ -392,48 +392,25 @@ export default function OrganizedContentList({
         if (!isMountedRef.current) return false;
 
         // Normalize dates once at API boundary
+        // Server is the source of truth - always use server data for lastVisited
+        // This ensures consistent ordering across all devices
         const normalizedItems = (data.items || []).map(normalizeItemDates);
 
-        // Preserve ONLY very recent optimistic lastVisited updates
-        // Server is the source of truth - only override if we have a recent optimistic update
-        // that the server hasn't processed yet (within last 10 seconds)
+        // Only preserve threadColors from current items (UI enrichment, doesn't affect order)
         const currentSnapshot = [...currentItemsRef.current];
-        const recentThreshold = Date.now() - 10000; // 10 seconds ago
-
         normalizedItems.forEach((freshItem, index) => {
-          const currentItem = currentSnapshot.find(item => {
-            if (item.id === freshItem.id) return true;
-            if (freshItem.type === 'thread' && freshItem.threadId) {
-              return matchesItem(item, freshItem.threadId, 'thread');
-            }
-            if (freshItem.type === 'note' && freshItem.noteId) {
-              return matchesItem(item, freshItem.noteId, 'note');
-            }
-            return false;
-          });
-
-          if (currentItem) {
-            const currentLastVisited = normalizeDate(currentItem.lastVisited);
-            const freshLastVisited = normalizeDate(freshItem.lastVisited);
-
-            // Only preserve client-side lastVisited if:
-            // 1. Client has a lastVisited value
-            // 2. That value is very recent (within last 10 seconds) - indicating a recent optimistic update
-            // 3. Server either has no lastVisited or an older value
-            // This prevents stale client-side values from overriding the server's authoritative data
-            const isRecentOptimisticUpdate = currentLastVisited &&
-              currentLastVisited.getTime() > recentThreshold;
-
-            if (isRecentOptimisticUpdate && (!freshLastVisited || currentLastVisited > freshLastVisited)) {
-              normalizedItems[index] = {
-                ...normalizedItems[index],
-                lastVisited: currentLastVisited,
-                lastUpdated: currentItem.lastUpdated || normalizedItems[index].lastUpdated || currentLastVisited.toISOString(),
-                // Preserve threadColors from current item if fresh item doesn't have them
-                threadColors: normalizedItems[index].threadColors || currentItem.threadColors
-              };
-            } else if (!normalizedItems[index].threadColors && currentItem.threadColors) {
-              // Even if lastVisited isn't preserved, keep threadColors if they exist
+          if (!normalizedItems[index].threadColors) {
+            const currentItem = currentSnapshot.find(item => {
+              if (item.id === freshItem.id) return true;
+              if (freshItem.type === 'thread' && freshItem.threadId) {
+                return matchesItem(item, freshItem.threadId, 'thread');
+              }
+              if (freshItem.type === 'note' && freshItem.noteId) {
+                return matchesItem(item, freshItem.noteId, 'note');
+              }
+              return false;
+            });
+            if (currentItem?.threadColors) {
               normalizedItems[index] = {
                 ...normalizedItems[index],
                 threadColors: currentItem.threadColors
