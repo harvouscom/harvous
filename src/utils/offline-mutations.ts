@@ -267,7 +267,7 @@ export async function createThreadOffline(userId: string, data: {
     isPublic: data.isPublic || false,
     isPinned: data.isPinned || false,
     order: data.order || 0,
-    lastVisited: null,
+    lastVisited: new Date(), // Set so new offline items appear at top (matches server-side behavior)
     syncStatus: 'pending',
     lastModified: now,
     createdAt: new Date(),
@@ -463,7 +463,7 @@ export async function createNoteOffline(userId: string, data: {
     isPublic: data.isPublic || false,
     isFeatured: data.isFeatured || false,
     order: data.order || 0,
-    lastVisited: null,
+    lastVisited: new Date(), // Set so new offline items appear at top (matches server-side behavior)
     syncStatus: 'pending',
     lastModified: now,
     createdAt: new Date(),

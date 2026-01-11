@@ -193,16 +193,16 @@ export default function OrganizedContentList({
     return sortItems(filtered);
   });
 
-  // Offline-only data loading
-  // ONLY loads from IndexedDB when truly offline - prevents duplication from mixing data sources
+  // Offline-first data loading
+  // Load from IndexedDB immediately for instant display, server refresh will update later
+  // This provides a better UX on slow networks - users see cached data instantly
+  const hasLoadedFromIndexedDBRef = useRef(false);
+
   useEffect(() => {
     if (!userId || !isHydrated) return;
+    if (hasLoadedFromIndexedDBRef.current) return; // Only load once per mount
 
-    // CRITICAL: Only use local data when actually offline
-    // When online, server is the single source of truth
-    if (navigator.onLine) return;
-
-    const loadOfflineData = async () => {
+    const loadOfflineDataFirst = async () => {
       try {
         const { getDashboardSnapshotLocal } = await import('@/utils/offline-read-layer');
         const snapshot = await getDashboardSnapshotLocal(userId);
@@ -210,7 +210,6 @@ export default function OrganizedContentList({
         if (!snapshot) return;
 
         // Map snapshot data to OrganizedContentItem format
-        // IMPORTANT: Preserve null lastVisited to distinguish visited from unvisited items
         const localItems: OrganizedContentItem[] = [
           ...snapshot.threads.map(t => ({
             id: `thread-${t.id}`,
@@ -221,7 +220,7 @@ export default function OrganizedContentList({
             threadId: t.id,
             spaceId: t.spaceId,
             accentColor: t.color ? getThreadColorCSS(t.color) : getThreadColorCSS('blue'),
-            lastVisited: t.lastVisited || null, // Preserve null to distinguish visited from unvisited items
+            lastVisited: t.lastVisited || null,
             createdAt: t.createdAt,
             updatedAt: t.updatedAt || t.createdAt,
           })),
@@ -234,7 +233,7 @@ export default function OrganizedContentList({
             threadId: n.threadId,
             spaceId: n.spaceId,
             noteType: n.noteType,
-            lastVisited: n.lastVisited || null, // Preserve null to distinguish visited from unvisited items
+            lastVisited: n.lastVisited || null,
             createdAt: n.createdAt,
             updatedAt: n.updatedAt || n.createdAt,
             syncStatus: n.syncStatus,
@@ -249,22 +248,20 @@ export default function OrganizedContentList({
         });
 
         // Filter out recently created scripture notes without lastVisited (handles race condition)
-        // This matches the server-side filtering logic in getContentItems
         const now = Date.now();
         const RECENT_CREATION_THRESHOLD = 5000; // 5 seconds
 
         const filteredByScriptureRules = notDeletedItems.filter(item => {
           if (item.type !== 'note' || item.noteType !== 'scripture') return true;
-          
-          // Filter out recently created scripture notes without lastVisited
+
           if (item.createdAt && !item.lastVisited) {
             const createdAtTime = new Date(item.createdAt).getTime();
             const isRecentlyCreated = (now - createdAtTime) < RECENT_CREATION_THRESHOLD;
             if (isRecentlyCreated) {
-              return false; // Filter out
+              return false;
             }
           }
-          
+
           return true;
         });
 
@@ -277,15 +274,18 @@ export default function OrganizedContentList({
 
         const sorted = sortItems(filteredItems.map(normalizeItemDates));
 
-        // Replace entirely when offline - no merging
-        setCurrentItems(sorted);
-        debug(`[OrganizedContentList] Loaded ${sorted.length} items from offline storage`);
+        // Only update if IndexedDB has data - server refresh will provide authoritative data
+        if (sorted.length > 0) {
+          hasLoadedFromIndexedDBRef.current = true;
+          setCurrentItems(sorted);
+          debug(`[OrganizedContentList] Loaded ${sorted.length} items from IndexedDB (offline-first)`);
+        }
       } catch (err) {
-        console.error('[OrganizedContentList] Offline data load failed:', err);
+        console.error('[OrganizedContentList] IndexedDB load failed:', err);
       }
     };
 
-    loadOfflineData();
+    loadOfflineDataFirst();
   }, [userId, filter, isHydrated]);
 
   // Essential refs only

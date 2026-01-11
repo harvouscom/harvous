@@ -89,7 +89,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
         eq(Threads.userId, userId),
         or(
           gt(Threads.updatedAt, sinceDate),
-          gt(Threads.createdAt, sinceDate)
+          gt(Threads.createdAt, sinceDate),
+          gt(Threads.lastVisited, sinceDate) // Include lastVisited changes for cross-device sync
         )
       ))
       .all(),
@@ -116,7 +117,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
         eq(Notes.userId, userId),
         or(
           gt(Notes.updatedAt, sinceDate),
-          gt(Notes.createdAt, sinceDate)
+          gt(Notes.createdAt, sinceDate),
+          gt(Notes.lastVisited, sinceDate) // Include lastVisited changes for cross-device sync
         )
       ))
       .all(),
