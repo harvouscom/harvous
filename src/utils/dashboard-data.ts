@@ -1107,7 +1107,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
     let unorganizedNotes = unorganizedNotesRaw;
 
     const threadItems = threadsToUse.map(thread => ({
-      id: `thread-${thread.id}`,
+      id: thread.id, // Use thread.id directly (already in thread_ format)
       type: "thread" as const,
       title: thread.title,
       subtitle: `${thread.noteCount} notes`,
@@ -1285,7 +1285,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       const cleanContent = stripHtml(note.content);
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       return {
-        id: `note-${note.id}`,
+        id: note.id, // Use note.id directly (already in note_ format)
         type: "note" as const,
         title: resourceMeta?.sourceTitle || note.title || "Untitled Note",
         content: (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : ""),
@@ -1309,7 +1309,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       const cleanContent = stripHtml(note.content);
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       return {
-        id: `note-${note.id}`,
+        id: note.id, // Use note.id directly (already in note_ format)
         type: "note" as const,
         title: resourceMeta?.sourceTitle || note.title || "Untitled Note",
         content: (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : ""),
@@ -1699,7 +1699,7 @@ export async function getReferencedScriptureNotesWithoutLastVisited(userId: stri
     const noteItems = notes.map(note => {
       const cleanContent = stripHtml(note.content);
       return {
-        id: `note-${note.id}`,
+        id: note.id, // Use note.id directly (already in note_ format)
         type: "note" as const,
         title: note.title || "Untitled Note",
         content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
@@ -1825,7 +1825,7 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
     const noteItems = limitedNotes.map(note => {
       const cleanContent = stripHtml(note.content);
       return {
-        id: `note-${note.id}`,
+        id: note.id, // Use note.id directly (already in note_ format)
         type: "note" as const,
         title: note.title || "Untitled Note",
         content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),

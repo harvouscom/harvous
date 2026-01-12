@@ -70,12 +70,8 @@ function sortItems(items: OrganizedContentItem[]): OrganizedContentItem[] {
 }
 
 /**
- * Unified item matching helper that understands all ID formats:
- * - Prefixed IDs: "note-uuid" or "thread-uuid" (used in OrganizedContentList)
- * - UUIDs: "note_..." or "thread_..." (database IDs)
- * - Simple IDs: numeric or string IDs (for URL generation only)
- * 
- * This ensures consistent matching regardless of which ID format is used.
+ * Unified item matching helper - now simplified since all IDs use thread_/note_ format.
+ * Matches items by comparing normalized IDs (stripping prefixes to get raw UUIDs).
  */
 function matchesItem(
   item: OrganizedContentItem,
@@ -85,25 +81,21 @@ function matchesItem(
   // Type must match
   if (item.type !== searchType) return false;
 
-  // Normalize search ID: remove prefixes to get UUID
-  const normalizedSearchId = searchId.startsWith('thread_') ? searchId.substring(7) :
-                             searchId.startsWith('note_') ? searchId.substring(5) :
-                             searchId.startsWith('thread-') ? searchId.substring(7) :
-                             searchId.startsWith('note-') ? searchId.substring(5) :
-                             searchId;
+  // Normalize both search ID and item IDs to raw UUIDs for comparison
+  const normalizedSearchId = normalizeId(searchId);
+  const normalizedItemId = normalizeId(item.id);
+  const normalizedItemThreadId = item.threadId ? normalizeId(item.threadId) : null;
+  const normalizedItemNoteId = item.noteId ? normalizeId(item.noteId) : null;
 
-  // Check all possible ID formats
-  if (searchType === 'thread') {
-    // Match by prefixed ID
-    if (item.id === `thread-${normalizedSearchId}` || item.id === searchId) return true;
-    // Match by threadId (UUID)
-    if (item.threadId === normalizedSearchId || item.threadId === searchId) return true;
-  } else {
-    // Match by prefixed ID
-    if (item.id === `note-${normalizedSearchId}` || item.id === searchId) return true;
-    // Match by noteId (UUID)
-    if (item.noteId === normalizedSearchId || item.noteId === searchId) return true;
-  }
+  // Match by normalized IDs - this handles all format variations
+  if (normalizedItemId === normalizedSearchId) return true;
+  if (searchType === 'thread' && normalizedItemThreadId === normalizedSearchId) return true;
+  if (searchType === 'note' && normalizedItemNoteId === normalizedSearchId) return true;
+  
+  // Also check exact matches (for backward compatibility during transition)
+  if (item.id === searchId) return true;
+  if (searchType === 'thread' && item.threadId === searchId) return true;
+  if (searchType === 'note' && item.noteId === searchId) return true;
 
   return false;
 }
@@ -222,7 +214,7 @@ export default function OrganizedContentList({
         // Map snapshot data to OrganizedContentItem format
         const localItems: OrganizedContentItem[] = [
           ...snapshot.threads.map(t => ({
-            id: `thread-${t.id}`,
+            id: t.id, // Use t.id directly (already in thread_ format)
             type: 'thread' as const,
             title: t.title,
             subtitle: t.subtitle || `${t.noteCount} notes`,
@@ -235,7 +227,7 @@ export default function OrganizedContentList({
             updatedAt: t.updatedAt || t.createdAt,
           })),
           ...snapshot.recentNotes.map(n => ({
-            id: `note-${n.id}`,
+            id: n.id, // Use n.id directly (already in note_ format)
             type: 'note' as const,
             title: n.title || 'Untitled Note',
             content: n.content,
@@ -437,13 +429,13 @@ export default function OrganizedContentList({
           confirmedIds.add(normalizedId);
           if (item.threadId) {
             confirmedIds.add(normalizeId(item.threadId));
-            // Also add the prefixed version for matching
-            confirmedIds.add(`thread-${normalizeId(item.threadId)}`);
+            // Also add the original format for matching
+            confirmedIds.add(item.threadId);
           }
           if (item.noteId) {
             confirmedIds.add(normalizeId(item.noteId));
-            // Also add the prefixed version for matching
-            confirmedIds.add(`note-${normalizeId(item.noteId)}`);
+            // Also add the original format for matching
+            confirmedIds.add(item.noteId);
           }
         });
 
@@ -597,10 +589,47 @@ export default function OrganizedContentList({
     if (!isMountedRef.current) return;
 
     setCurrentItems(prev => {
-      // Use unified matching helper to find the item
-      const itemIndex = prev.findIndex(item => matchesItem(item, itemId, itemType));
+      // Find all matching items to ensure only one matches
+      const matchingIndices = prev
+        .map((item, index) => matchesItem(item, itemId, itemType) ? index : -1)
+        .filter(index => index !== -1);
 
-      if (itemIndex === -1) return prev;
+      // Validation: Only update if exactly one item matches
+      if (matchingIndices.length === 0) {
+        debug('[OrganizedContentList] optimisticUpdateLastVisited: No item found', { itemId, itemType });
+        return prev;
+      }
+
+      if (matchingIndices.length > 1) {
+        debug('[OrganizedContentList] optimisticUpdateLastVisited: Multiple items matched!', { 
+          itemId, 
+          itemType, 
+          matchingIndices,
+          matchingItems: matchingIndices.map(i => ({ id: prev[i].id, type: prev[i].type, threadId: prev[i].threadId, noteId: prev[i].noteId }))
+        });
+        // Still update the first match, but log the issue
+      }
+
+      const itemIndex = matchingIndices[0];
+      const matchedItem = prev[itemIndex];
+
+      // Additional validation: ensure the matched item's type exactly matches
+      if (matchedItem.type !== itemType) {
+        debug('[OrganizedContentList] optimisticUpdateLastVisited: Type mismatch', { 
+          itemId, 
+          itemType, 
+          matchedType: matchedItem.type 
+        });
+        return prev;
+      }
+
+      debug('[OrganizedContentList] optimisticUpdateLastVisited: Updating item', { 
+        itemId, 
+        itemType, 
+        matchedId: matchedItem.id,
+        matchedThreadId: matchedItem.threadId,
+        matchedNoteId: matchedItem.noteId
+      });
 
       const updated = [...prev];
       const now = new Date();
@@ -699,7 +728,7 @@ export default function OrganizedContentList({
       if (noteId) {
         const normId = normalizeId(noteId);
         optimisticUpdates.removeOptimistic(noteId);
-        optimisticUpdates.removeOptimistic(`note-${noteId}`);
+        // Note: no need for note- prefix since we're using note_ format
         setDeletedItemIds(prev => {
           const newSet = new Set([...prev, normId]);
           deletedItemIdsRef.current = newSet;
@@ -720,7 +749,7 @@ export default function OrganizedContentList({
       if (threadId) {
         const normId = normalizeId(threadId);
         optimisticUpdates.removeOptimistic(threadId);
-        optimisticUpdates.removeOptimistic(`thread-${threadId}`);
+        // Note: no need for thread- prefix since we're using thread_ format
         setDeletedItemIds(prev => {
           const newSet = new Set([...prev, normId]);
           deletedItemIdsRef.current = newSet;
@@ -772,7 +801,7 @@ export default function OrganizedContentList({
         } else {
           if (note && (currentFilter === 'all' || currentFilter === 'notes')) {
             const noteItem: OrganizedContentItem = {
-              id: `note-${note.id}`,
+              id: note.id, // Use note.id directly (already in note_ format)
               type: 'note',
               title: note.title || 'Untitled Note',
               noteType: note.noteType || 'default',
@@ -812,7 +841,7 @@ export default function OrganizedContentList({
       if (window.location.pathname === '/') {
         if (currentFilter === 'all' || currentFilter === 'threads') {
           const threadItem: OrganizedContentItem = {
-            id: `thread-${thread.id}`,
+            id: thread.id, // Use thread.id directly (already in thread_ format)
             type: 'thread',
             title: thread.title || 'Untitled Thread',
             subtitle: '0 notes',
@@ -899,7 +928,16 @@ export default function OrganizedContentList({
           if (previousWasThreadOrNote) {
             const extracted = extractItemIdFromPath(previousPathnameRef.current);
             if (extracted) {
+              debug('[OrganizedContentList] handlePageLoad: Extracted item from path', {
+                previousPath: previousPathnameRef.current,
+                extractedId: extracted.id,
+                extractedType: extracted.type
+              });
               optimisticUpdateLastVisited(extracted.id, extracted.type);
+            } else {
+              debug('[OrganizedContentList] handlePageLoad: Failed to extract item from path', {
+                previousPath: previousPathnameRef.current
+              });
             }
           }
 
