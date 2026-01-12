@@ -1138,7 +1138,9 @@ export default function OrganizedContentList({
     initThreadCacheCleanup();
   }, []);
 
-  // Set up Intersection Observer for prefetching threads as they come into view
+  // Set up Intersection Observer for prefetching thread content as they come into view
+  // NOTE: This uses /api/threads/[id]/prefetch endpoint which does NOT update lastVisited
+  // Only actual navigation to the thread page updates lastVisited
   useEffect(() => {
     if (typeof window === 'undefined' || !userId) return;
 
@@ -1155,7 +1157,7 @@ export default function OrganizedContentList({
           const threadId = element.dataset.threadId;
 
           if (threadId && userId) {
-            // Prefetch thread content in the background
+            // Prefetch thread content for faster loading (does not trigger lastVisited update)
             prefetchThreadContent(threadId, userId);
           }
         }
@@ -1280,21 +1282,10 @@ export default function OrganizedContentList({
       }
     };
 
-    // Prefetch on hover for faster navigation
-    const handleMouseEnter = () => {
-      if (typeof document !== 'undefined') {
-        const link = document.createElement('link');
-        link.rel = 'prefetch';
-        link.href = href;
-        document.head.appendChild(link);
-      }
-    };
-
     return (
       <div
         className={`content-item ${item.type}-item mb-3 card-enter`}
         style={{ animationDelay: `${index * 50}ms` }}
-        onMouseEnter={handleMouseEnter}
         data-thread-id={item.type === 'thread' ? item.threadId : undefined}
       >
         {item.type === 'note' && isScriptureNote ? (
