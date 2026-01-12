@@ -999,19 +999,32 @@ export default function OrganizedContentList({
             }
           }
 
-          refreshStateRef.current.shouldBypassDebounce = true;
-          refreshStateRef.current.lastRefreshTime = 0;
+          // Check if we already refreshed very recently (< 500ms)
+          // This prevents double-refresh in PWA when both checkAndRefreshOnMount and handlePageLoad fire
+          const now = Date.now();
+          const timeSinceLastRefresh = now - refreshStateRef.current.lastRefreshTime;
+          const recentlyRefreshed = refreshStateRef.current.lastRefreshTime > 0 && timeSinceLastRefresh < 500;
 
-          if (refreshStateRef.current.pendingTimeout) {
-            clearTimeout(refreshStateRef.current.pendingTimeout);
-          }
-          refreshStateRef.current.pendingTimeout = setTimeout(() => {
-            refreshStateRef.current.pendingTimeout = null;
-            if (isMountedRef.current && window.location.pathname === '/' && 
-                !refreshStateRef.current.isNavigating && !refreshStateRef.current.isRefreshing) {
-              refreshContent();
+          if (recentlyRefreshed) {
+            // Skip this refresh - we just did one
+            debug('[OrganizedContentList] handlePageLoad: Skipping duplicate refresh', {
+              timeSinceLastRefresh: Math.round(timeSinceLastRefresh) + 'ms'
+            });
+          } else {
+            refreshStateRef.current.shouldBypassDebounce = true;
+            refreshStateRef.current.lastRefreshTime = 0;
+
+            if (refreshStateRef.current.pendingTimeout) {
+              clearTimeout(refreshStateRef.current.pendingTimeout);
             }
-          }, 150);
+            refreshStateRef.current.pendingTimeout = setTimeout(() => {
+              refreshStateRef.current.pendingTimeout = null;
+              if (isMountedRef.current && window.location.pathname === '/' &&
+                  !refreshStateRef.current.isNavigating && !refreshStateRef.current.isRefreshing) {
+                refreshContent();
+              }
+            }, 150);
+          }
         } else {
           const now = Date.now();
           const timeSinceRefresh = now - refreshStateRef.current.lastRefreshTime;
