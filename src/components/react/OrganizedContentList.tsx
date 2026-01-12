@@ -419,23 +419,27 @@ export default function OrganizedContentList({
         // This ensures consistent ordering across all devices
         const normalizedItems = (data.items || []).map(normalizeItemDates);
 
-        // Only preserve threadColors from current items (UI enrichment, doesn't affect order)
-        // Also preserve optimistic lastVisited updates if they're newer than server data
+        // Only preserve threadColors and optimistic lastVisited from current items
+        // Use matchesItem for consistent, validated matching
         const currentSnapshot = [...currentItemsRef.current];
         normalizedItems.forEach((freshItem, index) => {
-          const currentItem = currentSnapshot.find(item => {
-            if (item.id === freshItem.id) return true;
-            if (freshItem.type === 'thread' && freshItem.threadId) {
-              return matchesItem(item, freshItem.threadId, 'thread');
-            }
-            if (freshItem.type === 'note' && freshItem.noteId) {
-              return matchesItem(item, freshItem.noteId, 'note');
-            }
-            return false;
-          });
+          // Find matching item using the unified matchesItem helper
+          // This ensures consistent matching logic and prevents false matches
+          const currentItem = currentSnapshot.find(item => 
+            matchesItem(item, freshItem.id, freshItem.type)
+          );
 
           if (currentItem) {
-            // Preserve threadColors if missing
+            // Validate: ensure types match (safety check)
+            if (currentItem.type !== freshItem.type) {
+              debug('[OrganizedContentList] refreshContent: Type mismatch in preservation', {
+                freshItem: { id: freshItem.id, type: freshItem.type },
+                currentItem: { id: currentItem.id, type: currentItem.type }
+              });
+              return; // Skip this item
+            }
+
+            // Preserve threadColors if missing (UI enrichment, doesn't affect order)
             if (!normalizedItems[index].threadColors && currentItem.threadColors) {
               normalizedItems[index] = {
                 ...normalizedItems[index],
@@ -444,17 +448,31 @@ export default function OrganizedContentList({
             }
 
             // Preserve optimistic lastVisited updates if they're newer than server data
-            if (currentItem.lastVisited) {
+            // CRITICAL: Only preserve if the matched item is actually the same item
+            // (matchesItem already validates this, but double-check IDs match)
+            const idsMatch = currentItem.id === freshItem.id ||
+                             (freshItem.type === 'thread' && currentItem.threadId === freshItem.threadId) ||
+                             (freshItem.type === 'note' && currentItem.noteId === freshItem.noteId);
+            
+            if (idsMatch && currentItem.lastVisited) {
               const existingTime = normalizeDate(currentItem.lastVisited)?.getTime();
               const serverTime = normalizeDate(freshItem.lastVisited)?.getTime();
               
-              // If existing item has a newer lastVisited, preserve it
+              // Only preserve if existing item has a newer lastVisited
+              // This prevents overwriting server updates with stale optimistic updates
               if (existingTime && (!serverTime || existingTime > serverTime)) {
                 normalizedItems[index] = {
                   ...normalizedItems[index],
                   lastVisited: currentItem.lastVisited,
                   lastUpdated: currentItem.lastUpdated || freshItem.lastUpdated
                 };
+                
+                debug('[OrganizedContentList] refreshContent: Preserved optimistic lastVisited', {
+                  itemId: freshItem.id,
+                  itemType: freshItem.type,
+                  preservedTime: currentItem.lastVisited,
+                  serverTime: freshItem.lastVisited
+                });
               }
             }
           }
