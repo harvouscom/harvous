@@ -276,11 +276,30 @@ export default function OrganizedContentList({
 
         const sorted = sortItems(filteredItems.map(normalizeItemDates));
 
-        // Only update if IndexedDB has data - server refresh will provide authoritative data
+        // Only update if IndexedDB has data AND we're truly offline
+        // If we have initialItems from SSR, don't overwrite with potentially stale IndexedDB data
+        // Server data (SSR + API) is always the source of truth when online
         if (sorted.length > 0) {
-          hasLoadedFromIndexedDBRef.current = true;
-          setCurrentItems(sorted);
-          debug(`[OrganizedContentList] Loaded ${sorted.length} items from IndexedDB (offline-first)`);
+          // Double-check we're still offline before using IndexedDB data
+          const isStillOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+          const hasInitialItems = initialItems && initialItems.length > 0;
+          
+          // Only use IndexedDB data if:
+          // 1. We're still offline, AND
+          // 2. We don't have initialItems from SSR (which means we're truly offline-first)
+          if (isStillOffline && !hasInitialItems) {
+            hasLoadedFromIndexedDBRef.current = true;
+            setCurrentItems(sorted);
+            debug(`[OrganizedContentList] Loaded ${sorted.length} items from IndexedDB (offline-first, no SSR data)`);
+          } else if (isStillOffline && hasInitialItems) {
+            // We're offline but have SSR data - IndexedDB might be stale, so don't use it
+            debug(`[OrganizedContentList] Skipping IndexedDB load - have SSR data which is more authoritative`);
+            hasLoadedFromIndexedDBRef.current = true; // Mark as loaded to prevent retry
+          } else {
+            // We came back online - server refresh will provide fresh data
+            debug(`[OrganizedContentList] Skipping IndexedDB load - came back online, server will refresh`);
+            hasLoadedFromIndexedDBRef.current = true; // Mark as loaded to prevent retry
+          }
         }
       } catch (err) {
         console.error('[OrganizedContentList] IndexedDB load failed:', err);
@@ -297,6 +316,8 @@ export default function OrganizedContentList({
   const deletedItemIdsRef = useRef<Set<string>>(deletedItemIds);
   const filterRef = useRef<string>(filter);
   const optimisticUpdates = useOptimisticUpdates<OrganizedContentItem>();
+  // Sequence counter to ensure unique timestamps for optimistic updates within the same millisecond
+  const optimisticUpdateSequenceRef = useRef(0);
   
   // Consolidated refresh state
   const refreshStateRef = useRef({
@@ -399,24 +420,42 @@ export default function OrganizedContentList({
         const normalizedItems = (data.items || []).map(normalizeItemDates);
 
         // Only preserve threadColors from current items (UI enrichment, doesn't affect order)
+        // Also preserve optimistic lastVisited updates if they're newer than server data
         const currentSnapshot = [...currentItemsRef.current];
         normalizedItems.forEach((freshItem, index) => {
-          if (!normalizedItems[index].threadColors) {
-            const currentItem = currentSnapshot.find(item => {
-              if (item.id === freshItem.id) return true;
-              if (freshItem.type === 'thread' && freshItem.threadId) {
-                return matchesItem(item, freshItem.threadId, 'thread');
-              }
-              if (freshItem.type === 'note' && freshItem.noteId) {
-                return matchesItem(item, freshItem.noteId, 'note');
-              }
-              return false;
-            });
-            if (currentItem?.threadColors) {
+          const currentItem = currentSnapshot.find(item => {
+            if (item.id === freshItem.id) return true;
+            if (freshItem.type === 'thread' && freshItem.threadId) {
+              return matchesItem(item, freshItem.threadId, 'thread');
+            }
+            if (freshItem.type === 'note' && freshItem.noteId) {
+              return matchesItem(item, freshItem.noteId, 'note');
+            }
+            return false;
+          });
+
+          if (currentItem) {
+            // Preserve threadColors if missing
+            if (!normalizedItems[index].threadColors && currentItem.threadColors) {
               normalizedItems[index] = {
                 ...normalizedItems[index],
                 threadColors: currentItem.threadColors
               };
+            }
+
+            // Preserve optimistic lastVisited updates if they're newer than server data
+            if (currentItem.lastVisited) {
+              const existingTime = normalizeDate(currentItem.lastVisited)?.getTime();
+              const serverTime = normalizeDate(freshItem.lastVisited)?.getTime();
+              
+              // If existing item has a newer lastVisited, preserve it
+              if (existingTime && (!serverTime || existingTime > serverTime)) {
+                normalizedItems[index] = {
+                  ...normalizedItems[index],
+                  lastVisited: currentItem.lastVisited,
+                  lastUpdated: currentItem.lastUpdated || freshItem.lastUpdated
+                };
+              }
             }
           }
         });
@@ -632,11 +671,20 @@ export default function OrganizedContentList({
       });
 
       const updated = [...prev];
-      const now = new Date();
+      // Ensure unique timestamp by adding microsecond precision
+      // This prevents items from getting identical timestamps when updated in rapid succession
+      // Use sequence counter to ensure uniqueness within the same millisecond
+      const baseTime = Date.now();
+      const sequence = optimisticUpdateSequenceRef.current++;
+      // Add 1 microsecond per sequence (0.001ms) to ensure uniqueness
+      // Cap sequence at 999 to prevent overflow into next millisecond
+      const sequenceOffset = (sequence % 1000) * 0.001;
+      const uniqueTime = new Date(baseTime + sequenceOffset);
+      
       updated[itemIndex] = {
         ...updated[itemIndex],
-        lastVisited: now,
-        lastUpdated: now.toISOString()
+        lastVisited: uniqueTime,
+        lastUpdated: uniqueTime.toISOString()
       };
 
       return sortItems(updated);
