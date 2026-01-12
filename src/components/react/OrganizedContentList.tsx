@@ -1134,8 +1134,12 @@ export default function OrganizedContentList({
     });
 
     // Update the master list with only truly new items
+    // Re-sort the combined list to ensure correct lastVisited ordering
     if (dedupedNewItems.length > 0) {
-      setCurrentItems(prev => [...prev, ...dedupedNewItems]);
+      setCurrentItems(prev => {
+        const combined = [...prev, ...dedupedNewItems];
+        return sortItems(combined);
+      });
     }
 
     setHasMore(data.hasMore);
