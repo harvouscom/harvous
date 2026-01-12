@@ -14,7 +14,10 @@ export default defineConfig({
   experimental: {
     clientPrerender: true
   },
-  prefetch: false,  // Completely disable prefetch to prevent lastVisited updates
+  prefetch: {
+    defaultStrategy: 'tap',  // Prefetch on tap/click start for fast navigation without hover triggering
+    prefetchAll: true        // Apply to all internal links automatically
+  },
   vite: {
     // Fix React bundling - ensure single React instance (CRITICAL for Invalid Hook Call errors)
     resolve: {
