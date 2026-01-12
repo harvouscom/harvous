@@ -14,10 +14,7 @@ export default defineConfig({
   experimental: {
     clientPrerender: true
   },
-  prefetch: {
-    defaultStrategy: 'tap',    // Only prefetch on click/tap, not hover
-    prefetchAll: false         // Prevent prefetch from updating lastVisited on hover
-  },
+  prefetch: false,  // Completely disable prefetch to prevent lastVisited updates
   vite: {
     // Fix React bundling - ensure single React instance (CRITICAL for Invalid Hook Call errors)
     resolve: {
