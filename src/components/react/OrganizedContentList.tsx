@@ -447,9 +447,9 @@ export default function OrganizedContentList({
               };
             }
 
-            // RE-ENABLED: Preserve optimistic lastVisited if very recent
-            // With 10-second server throttle, only preserve if timestamp is < 15 seconds old
-            // This prevents showing stale optimistic updates while allowing instant feedback
+            // Preserve optimistic lastVisited if very recent
+            // With 3-second server throttle and no hover prefetch, only keep if < 5 seconds old
+            // This allows instant feedback while ensuring server confirmation happens quickly
             const idsMatch = currentItem.id === freshItem.id ||
                              (freshItem.type === 'thread' && currentItem.threadId === freshItem.threadId) ||
                              (freshItem.type === 'note' && currentItem.noteId === freshItem.noteId);
@@ -459,11 +459,10 @@ export default function OrganizedContentList({
               const serverTime = normalizeDate(freshItem.lastVisited)?.getTime();
               const now = Date.now();
 
-              // Only preserve if optimistic update is very recent (< 15 seconds)
-              // AND it's newer than server data
+              // Only preserve if optimistic update is < 5 seconds old AND newer than server
               if (existingTime) {
                 const age = now - existingTime;
-                const isFresh = age < 15000; // 15 seconds
+                const isFresh = age < 5000; // 5 seconds - tight window since no hover prefetch
                 const isNewer = !serverTime || existingTime > serverTime;
 
                 if (isFresh && isNewer) {

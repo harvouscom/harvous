@@ -50,27 +50,8 @@ function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string)
     // Get current URL to compare origins and check for closed item parameter
     const currentUrl = new URL(request.url);
 
-    // Check if this navigation is due to closing an item
-    // When closing a thread, we add ?closed=itemId to the destination URL
-    const closedItemId = currentUrl.searchParams.get('closed');
-    if (closedItemId) {
-      // Extract the item ID from referrer path
-      const referrerItemId = referrerPath?.startsWith('/') ? referrerPath.substring(1) : referrerPath;
-      // Remove query params from referrer item ID for comparison
-      const normalizedReferrerItemId = referrerItemId?.split('?')[0].split('#')[0];
-      const normalizedClosedItemId = decodeURIComponent(closedItemId);
-
-      // If referrer matches the closed item, this navigation is due to closing
-      // Don't update lastVisited for the closed item (we're navigating away from it)
-      // But we still want to update lastVisited for the current page (destination)
-      // So we continue with normal logic, but this check helps us understand the context
-      // The actual prevention happens because we're not loading the closed item's page
-      if (normalizedReferrerItemId === normalizedClosedItemId) {
-        // This is navigation away from a closed item
-        // The lastVisited update will happen for the current page (destination), not the closed item
-        // So we continue with normal logic - this is correct behavior
-      }
-    }
+    // Note: Closed item handling is automatic - when closing an item,
+    // we navigate away from it, so its page doesn't load and lastVisited isn't updated
 
     // Strip query parameters and hash from both paths for comparison
     // This handles cases like /thread_123?tab=all vs /thread_123
@@ -243,22 +224,18 @@ try {
         const shouldUpdate = shouldUpdateLastVisitedTimestamp(Astro.request, Astro.url.pathname);
         if (shouldUpdate) {
           try {
-            // CRITICAL: Before updating, check if lastVisited was recently updated
-            // This prevents rapid-fire updates that cause random reordering on refresh
-            // We use a longer throttle (5 minutes) to ensure order stability across multiple refreshes
-            // Fetch current lastVisited timestamp
+            // Throttle: Only update if > 3 seconds since last update
+            // Prevents accidental double-clicks and rapid refreshes
+            // With hover prefetch disabled, 3 seconds is sufficient
             const currentThread = await db.select({ lastVisited: Threads.lastVisited })
               .from(Threads)
               .where(and(eq(Threads.id, id!), eq(Threads.userId, authenticatedUserId)))
               .get();
 
-            // Only update if lastVisited is null OR was updated more than 10 seconds ago
-            // This prevents rapid-fire updates while still being responsive to user navigation
-            // 10 seconds is enough to prevent refresh loops but short enough for good UX
             const now = new Date();
-            const tenSecondsAgo = new Date(now.getTime() - 10 * 1000);
+            const threeSecondsAgo = new Date(now.getTime() - 3 * 1000);
 
-            if (!currentThread?.lastVisited || new Date(currentThread.lastVisited) < tenSecondsAgo) {
+            if (!currentThread?.lastVisited || new Date(currentThread.lastVisited) < threeSecondsAgo) {
               await db.update(Threads)
                 .set({ lastVisited: now })
                 .where(and(eq(Threads.id, id!), eq(Threads.userId, authenticatedUserId)));
@@ -429,22 +406,18 @@ try {
       const shouldUpdate = shouldUpdateLastVisitedTimestamp(Astro.request, Astro.url.pathname);
       if (shouldUpdate) {
         try {
-          // CRITICAL: Before updating, check if lastVisited was recently updated
-          // This prevents rapid-fire updates that cause random reordering on refresh
-          // We use a longer throttle (5 minutes) to ensure order stability across multiple refreshes
-          // Fetch current lastVisited timestamp
+          // Throttle: Only update if > 3 seconds since last update
+          // Prevents accidental double-clicks and rapid refreshes
+          // With hover prefetch disabled, 3 seconds is sufficient
           const currentNote = await db.select({ lastVisited: Notes.lastVisited })
             .from(Notes)
             .where(and(eq(Notes.id, id!), eq(Notes.userId, authenticatedUserId)))
             .get();
 
-          // Only update if lastVisited is null OR was updated more than 10 seconds ago
-          // This prevents rapid-fire updates while still being responsive to user navigation
-          // 10 seconds is enough to prevent refresh loops but short enough for good UX
           const now = new Date();
-          const tenSecondsAgo = new Date(now.getTime() - 10 * 1000);
+          const threeSecondsAgo = new Date(now.getTime() - 3 * 1000);
 
-          if (!currentNote?.lastVisited || new Date(currentNote.lastVisited) < tenSecondsAgo) {
+          if (!currentNote?.lastVisited || new Date(currentNote.lastVisited) < threeSecondsAgo) {
             await db.update(Notes)
               .set({ lastVisited: now })
               .where(and(eq(Notes.id, id!), eq(Notes.userId, authenticatedUserId)));
