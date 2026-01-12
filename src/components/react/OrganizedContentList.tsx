@@ -194,8 +194,9 @@ export default function OrganizedContentList({
   });
 
   // Offline-first data loading
-  // Load from IndexedDB immediately for instant display, server refresh will update later
-  // This provides a better UX on slow networks - users see cached data instantly
+  // Load from IndexedDB ONLY when offline
+  // When online, server data (SSR + API) is the single source of truth
+  // This prevents order inconsistency between browser and PWA caused by data source racing
   const hasLoadedFromIndexedDBRef = useRef(false);
 
   useEffect(() => {
@@ -204,6 +205,15 @@ export default function OrganizedContentList({
 
     const loadOfflineDataFirst = async () => {
       try {
+        // Only use IndexedDB as data source when OFFLINE
+        // When online, server data (SSR props + API refresh) is the single source of truth
+        // This prevents order inconsistency between browser and PWA
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          debug('[OrganizedContentList] Online - skipping IndexedDB load, using server as source of truth');
+          hasLoadedFromIndexedDBRef.current = true; // Mark as loaded to prevent retry
+          return;
+        }
+
         const { getDashboardSnapshotLocal } = await import('@/utils/offline-read-layer');
         const snapshot = await getDashboardSnapshotLocal(userId);
 
