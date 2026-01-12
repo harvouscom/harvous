@@ -738,24 +738,10 @@ export default function OrganizedContentList({
     }
   }, [filter, refreshContent]);
 
-  // Simple refresh on mount to ensure fresh data
-  // No caching - server is the single source of truth
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    if (typeof window === 'undefined') return;
-    if (window.location.pathname !== '/') return;
-    if (filter === 'scripture') return;
-
-    // Refresh to ensure we have latest data
-    // Only if we have initial items (SSR worked) and component is mounted
-    if (initialItems && initialItems.length > 0) {
-      // Small delay to let the UI settle
-      const timeout = setTimeout(() => {
-        refreshContent();
-      }, 100);
-      return () => clearTimeout(timeout);
-    }
-  }, [filter, refreshContent]);
+  // Removed mount refresh to prevent race conditions with initialItems updates
+  // initialItems from SSR are fresh, and the initialItems change handler (below)
+  // already handles updates correctly. Mount refresh was causing double refreshes
+  // and reordering issues when combined with stale cached pages.
 
   // Track previous initialItems to detect actual changes from server
   const prevPropsInitialItemsRef = useRef<string>('');

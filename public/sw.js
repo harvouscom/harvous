@@ -94,6 +94,20 @@ const safeCachePut = async (cache, request, response) => {
   }
 };
 
+// Helper to check if cached response is fresh enough (within maxAge milliseconds)
+const isCacheFresh = (cachedResponse, maxAge = 30000) => {
+  if (!cachedResponse) return false;
+  try {
+    const dateHeader = cachedResponse.headers.get('date');
+    if (!dateHeader) return false;
+    const cacheDate = new Date(dateHeader).getTime();
+    const age = Date.now() - cacheDate;
+    return age < maxAge;
+  } catch {
+    return false;
+  }
+};
+
 // Fetch event handler
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
@@ -323,13 +337,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Navigation requests (pages) - stale-while-revalidate
-  // This is the key change: we just let the page load normally
-  // If there's a cached version, serve it. Otherwise, wait for network.
-  // No more complex retry logic or "warming up" screens.
+  // Navigation requests (pages) - network-first when online, cache-first when offline
+  // When online: wait for network to avoid serving stale cached pages
+  // When offline: serve cache immediately if available
   if (event.request.mode === 'navigate') {
     event.respondWith(
       caches.match(event.request).then(async (cached) => {
+        const isOnline = navigator.onLine;
+        
         // Check if cached response is a sign-in page (shouldn't serve for other routes)
         let cachedIsSignIn = false;
         if (cached && url.pathname !== '/') {
@@ -353,34 +368,145 @@ self.addEventListener('fetch', (event) => {
             return response;
           });
         
-        // If we have valid cache (not sign-in), serve it immediately
-        // Network refresh happens in background
-        if (cached && !cachedIsSignIn) {
-          networkPromise.catch(() => {}); // Fire and forget
-          return cached;
-        }
-        
-        // No valid cache - wait for network
-        // This is where cold starts happen, but we just let the browser
-        // show its normal loading indicator instead of a custom page
-        return networkPromise.catch(() => {
-          // Network failed - try to serve any cached version as fallback
-          if (cached && !cachedIsSignIn) {
-            return cached;
-          }
-          
-          // Check if user is actually offline before showing offline page
-          // Network failures can occur even when online (server issues, timeouts, etc.)
-          const isActuallyOffline = !navigator.onLine;
-          
-          // If online but network failed, show retry page instead of offline page
-          if (!isActuallyOffline) {
-            // User is online but network request failed - show retry page
+        // When online: network-first, only use cache if network fails
+        // This prevents serving stale pages that cause reordering issues
+        if (isOnline) {
+          return networkPromise.catch(() => {
+            // Network failed - try cached version as fallback
+            // Only use cache if it's fresh (within 30 seconds) to avoid very stale data
+            if (cached && !cachedIsSignIn && isCacheFresh(cached, 30000)) {
+              return cached;
+            }
+            
+            // No cache available - show retry page
             return new Response(`
               <!DOCTYPE html>
               <html>
               <head>
                 <title>Connection Error - Harvous</title>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                  @font-face {
+                    font-family: 'Reddit Sans';
+                    font-style: normal;
+                    font-display: swap;
+                    font-weight: 400;
+                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-400-normal.woff2') format('woff2');
+                  }
+                  @font-face {
+                    font-family: 'Reddit Sans';
+                    font-style: normal;
+                    font-display: swap;
+                    font-weight: 500;
+                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-500-normal.woff2') format('woff2');
+                  }
+                  @font-face {
+                    font-family: 'Reddit Sans';
+                    font-style: normal;
+                    font-display: swap;
+                    font-weight: 600;
+                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-600-normal.woff2') format('woff2');
+                  }
+                  body { 
+                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    min-height: 100vh; 
+                    margin: 0; 
+                    background: #F3F2EC; 
+                    padding: 16px;
+                  }
+                  .message { 
+                    text-align: center; 
+                    padding: 32px; 
+                    max-width: 500px;
+                    background: white;
+                    border-radius: 16px;
+                    box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.1);
+                  }
+                  .logo {
+                    width: 48px;
+                    height: 48px;
+                    margin-bottom: 16px;
+                  }
+                  h1 { 
+                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    color: #4a473d; 
+                    margin: 0 0 12px 0;
+                    font-size: 24px;
+                    font-weight: 600;
+                  }
+                  p { 
+                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    color: #78766f; 
+                    margin: 0 0 24px 0;
+                    font-size: 16px;
+                    line-height: 1.5;
+                  }
+                  .buttons {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                  }
+                  button, a.btn { 
+                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    background: #4a473d; 
+                    color: white; 
+                    border: none; 
+                    padding: 14px 24px; 
+                    border-radius: 12px; 
+                    font-size: 16px; 
+                    font-weight: 500;
+                    cursor: pointer; 
+                    text-decoration: none;
+                    display: inline-block;
+                    transition: opacity 0.2s;
+                  }
+                  button:hover, a.btn:hover {
+                    opacity: 0.9;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="message">
+                  <img src="/favicon.svg" alt="Harvous" class="logo" onerror="this.style.display='none'">
+                  <h1>Unable to load page</h1>
+                  <p>The page couldn't be loaded. This might be a temporary server issue or network problem.</p>
+                  <div class="buttons">
+                    <button onclick="location.reload()">Retry</button>
+                    <a href="/" class="btn">Go to Dashboard</a>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `, {
+              status: 503,
+              headers: { 'Content-Type': 'text/html' }
+            });
+          });
+        } else {
+          // Offline: serve cache immediately if available
+          if (cached && !cachedIsSignIn) {
+            networkPromise.catch(() => {}); // Fire and forget
+            return cached;
+          }
+          
+          // No cache - wait for network (might come back online)
+          return networkPromise.catch(() => {
+            // Check if user is actually offline before showing offline page
+            // Network failures can occur even when online (server issues, timeouts, etc.)
+            const isActuallyOffline = !navigator.onLine;
+            
+            // If online but network failed, show retry page instead of offline page
+            if (!isActuallyOffline) {
+              // User is online but network request failed - show retry page
+              return new Response(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <title>Connection Error - Harvous</title>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>

@@ -87,8 +87,10 @@ try {
   contentItems = [];
 }
 
-// Add HTTP caching headers for better performance (30 second cache for dashboard)
-Astro.response.headers.set('Cache-Control', 'private, max-age=30');
+// Add HTTP caching headers for better performance
+// Reduced cache time and added must-revalidate to prevent serving stale pages
+// This works with the service worker's network-first strategy when online
+Astro.response.headers.set('Cache-Control', 'private, max-age=10, must-revalidate');
 
 const { initials, userColor } = userData;
 
