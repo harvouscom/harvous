@@ -409,7 +409,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         <div className="nav-column-top">
           {/* Navigation Buttons */}
           <div className="nav-column-buttons">
-            <a href="/" className="nav-link" data-astro-prefetch="hover">
+            <a href="/" className="nav-link">
               <SpaceButton 
                 text="My Home" 
                 count={inboxCount} 
@@ -427,7 +427,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
               <a 
                 href={`/${(updatedActiveThread || activeThread)!.id}`} 
                 className="nav-link"
-                data-astro-prefetch="hover"
+               
               >
                 <SpaceButton 
                   text={(updatedActiveThread || activeThread)!.title} 
@@ -445,19 +445,19 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         {/* Bottom Section with New Space Button, Search, and Avatar/Back Button */}
         <div className="nav-column-bottom">
           <div className="nav-flex-grow">
-            <a href="/new-space" className="nav-link" data-astro-prefetch="hover">
+            <a href="/new-space" className="nav-link">
               <SpaceButton text="New Space" />
             </a>
           </div>
-          <a href="/find" aria-label="Search" className="nav-link--shrink" data-astro-prefetch="hover">
+          <a href="/find" aria-label="Search" className="nav-link--shrink">
             <SquareButton variant="Find" />
           </a>
           {showProfile ? (
-            <a href="/" aria-label="Go to dashboard" className="nav-link--shrink" data-astro-prefetch="hover">
+            <a href="/" aria-label="Go to dashboard" className="nav-link--shrink">
               <SquareButton variant="Back" />
             </a>
           ) : (
-            <a href="/profile" aria-label="Go to profile" className="nav-link--shrink" data-astro-prefetch="hover">
+            <a href="/profile" aria-label="Go to profile" className="nav-link--shrink">
               <Avatar initials={profileData.initials} color={profileData.userColor} />
             </a>
           )}

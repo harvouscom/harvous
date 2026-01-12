@@ -435,7 +435,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     <div className="mobile-nav">
       {/* Search Icon Button (Column 1: auto) */}
       <div className="mobile-nav__col">
-        <a href="/find" className="nav-link" data-astro-prefetch="hover">
+        <a href="/find" className="nav-link">
           <button className="mobile-nav__search-btn" style={{ touchAction: 'manipulation' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
               <svg viewBox="0 0 512 512">
@@ -483,7 +483,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       key="for-you-active"
                       href="/" 
                       className="block w-full"
-                      data-astro-prefetch="hover"
+                     
                       onClick={(e) => handleItemClickWrapper(e, undefined)}
                       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                     >
@@ -508,7 +508,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       key={`active-space-${activeSpace.id}`}
                       href={`/${activeSpace.id}`} 
                       className="block w-full"
-                      data-astro-prefetch="hover"
+                     
                       onClick={(e) => handleItemClickWrapper(e, activeSpace.id)}
                       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                     >
@@ -543,7 +543,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       key={`active-thread-${activeThread.id}`}
                       href={`/${activeThread.id}`} 
                       className="block w-full"
-                      data-astro-prefetch="hover"
+                     
                       onClick={(e) => handleItemClickWrapper(e, activeThread.id)}
                       style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                     >
@@ -579,7 +579,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       <a 
                         href={`/${activePersistentSpace.id}`} 
                         className="block w-full" 
-                        data-astro-prefetch="hover"
+                       
                         onClick={(e) => handleItemClickWrapper(e, activePersistentSpace.id)}
                         style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                       >
@@ -632,7 +632,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       <a 
                         href={`/${activePersistentThread.id}`} 
                         className="block w-full" 
-                        data-astro-prefetch="hover"
+                       
                         onClick={(e) => handleItemClickWrapper(e, activePersistentThread.id)}
                         style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                       >
@@ -687,7 +687,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 <a 
                   href="/" 
                   className="block w-full"
-                  data-astro-prefetch="hover"
+                 
                   onClick={(e) => handleItemClickWrapper(e)}
                   style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                 >
@@ -716,7 +716,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         <a 
                           href={`/${space.id}`} 
                           className="block w-full" 
-                          data-astro-prefetch="hover"
+                         
                           onClick={() => handleItemClick(space.id)}
                           style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                         >
@@ -764,7 +764,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         <a 
                           href={`/${thread.id}`} 
                           className="block w-full" 
-                          data-astro-prefetch="hover"
+                         
                           onClick={() => handleItemClick(thread.id)}
                           style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                         >
@@ -810,7 +810,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             
             {/* New Space Button - Absolutely Positioned */}
             <div className="mobile-nav__new-space">
-              <a href="/new-space" className="nav-link" data-astro-prefetch="hover">
+              <a href="/new-space" className="nav-link">
                 <div className="new-space-button">
                   <SpaceButton 
                     text="New Space"
@@ -826,7 +826,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
       {/* Avatar (Column 3: auto) */}
       <div className="mobile-nav__col">
-        <a href="/profile" data-astro-prefetch="hover">
+        <a href="/profile">
           <Avatar initials={profileData.initials} color={profileData.userColor} />
         </a>
       </div>

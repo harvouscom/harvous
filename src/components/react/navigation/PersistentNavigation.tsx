@@ -201,10 +201,9 @@ const PersistentNavigation: React.FC = () => {
         return (
           <div key={item.id} data-navigation-item={item.id} className="nav-item-container">
             <div className="nav-item-wrapper">
-              <a 
+              <a
                 href={validHref}
-                className="nav-link" 
-                data-astro-prefetch="hover"
+                className="nav-link"
                 onClick={handleClick}
               >
                 <SpaceButton
