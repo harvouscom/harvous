@@ -28,29 +28,38 @@ import { stripHtml } from "@/utils/html-stripper";
 function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string): boolean {
   try {
     const referrer = request.headers.get('referer');
-    
-    // If no referrer, it's likely a direct navigation or new visit - update
-    if (!referrer) {
-      return true;
+
+    // IMPORTANT: Check Cache-Control header for browser refresh indicators
+    // When user does a hard refresh (Cmd+R or F5), browsers send specific cache headers
+    const cacheControl = request.headers.get('cache-control');
+    const pragma = request.headers.get('pragma');
+
+    // If cache-control indicates a refresh (max-age=0 or no-cache), don't update
+    // This catches hard refreshes where referrer might be missing
+    if (cacheControl && (cacheControl.includes('max-age=0') || cacheControl.includes('no-cache'))) {
+      return false;
     }
-    
+    if (pragma && pragma.includes('no-cache')) {
+      return false;
+    }
+
     // Parse referrer URL
-    const referrerUrl = new URL(referrer);
-    const referrerPath = referrerUrl.pathname;
-    
+    const referrerUrl = referrer ? new URL(referrer) : null;
+    const referrerPath = referrerUrl?.pathname;
+
     // Get current URL to compare origins and check for closed item parameter
     const currentUrl = new URL(request.url);
-    
+
     // Check if this navigation is due to closing an item
     // When closing a thread, we add ?closed=itemId to the destination URL
     const closedItemId = currentUrl.searchParams.get('closed');
     if (closedItemId) {
       // Extract the item ID from referrer path
-      const referrerItemId = referrerPath.startsWith('/') ? referrerPath.substring(1) : referrerPath;
+      const referrerItemId = referrerPath?.startsWith('/') ? referrerPath.substring(1) : referrerPath;
       // Remove query params from referrer item ID for comparison
-      const normalizedReferrerItemId = referrerItemId.split('?')[0].split('#')[0];
+      const normalizedReferrerItemId = referrerItemId?.split('?')[0].split('#')[0];
       const normalizedClosedItemId = decodeURIComponent(closedItemId);
-      
+
       // If referrer matches the closed item, this navigation is due to closing
       // Don't update lastVisited for the closed item (we're navigating away from it)
       // But we still want to update lastVisited for the current page (destination)
@@ -62,32 +71,65 @@ function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string)
         // So we continue with normal logic - this is correct behavior
       }
     }
-    
-    // If referrer is from a different origin, it's a new visit - update
-    if (referrerUrl.origin !== currentUrl.origin) {
-      return true;
-    }
-    
+
     // Strip query parameters and hash from both paths for comparison
     // This handles cases like /thread_123?tab=all vs /thread_123
     const normalizePath = (path: string): string => {
       // Remove query string and hash
       return path.split('?')[0].split('#')[0];
     };
-    
-    const normalizedReferrerPath = normalizePath(referrerPath);
+
     const normalizedCurrentPath = normalizePath(currentPath);
-    
-    // If referrer is the same page (normalized), it's a refresh - don't update
-    if (normalizedReferrerPath === normalizedCurrentPath) {
+
+    // If referrer exists and is from the same origin, compare paths
+    if (referrerUrl && referrerPath) {
+      // If referrer is from a different origin, it's a new visit - update
+      if (referrerUrl.origin !== currentUrl.origin) {
+        return true;
+      }
+
+      const normalizedReferrerPath = normalizePath(referrerPath);
+
+      // If referrer is the same page (normalized), it's a refresh - don't update
+      if (normalizedReferrerPath === normalizedCurrentPath) {
+        return false;
+      }
+
+      // Different page on same origin - this is a new visit - update
+      return true;
+    }
+
+    // No referrer - this could be:
+    // 1. Direct navigation (URL bar, bookmark) - should update
+    // 2. Page refresh in PWA - should NOT update
+    // 3. Opening link in new tab - should update
+    //
+    // Since we can't reliably distinguish these cases without referrer,
+    // we check if the Sec-Fetch-Site header indicates this is a same-origin navigation
+    const secFetchSite = request.headers.get('sec-fetch-site');
+
+    // If Sec-Fetch-Site is 'same-origin', this is likely a refresh or internal navigation
+    // without a proper referrer (can happen in PWAs or after service worker interactions)
+    if (secFetchSite === 'same-origin') {
+      // Likely a refresh - don't update
       return false;
     }
-    
-    // Different page - this is a new visit - update
-    return true;
+
+    // If Sec-Fetch-Site is 'none', this is a direct navigation (URL bar, bookmark)
+    if (secFetchSite === 'none') {
+      // Direct navigation - update
+      return true;
+    }
+
+    // If we still can't determine, check if this looks like the user is coming from
+    // within the app by looking at other request characteristics
+    // For safety in ambiguous cases, we'll now default to NOT updating to prevent
+    // random order changes on refresh
+    return false;
   } catch (error) {
-    // If we can't determine, err on the side of updating (safer for sorting)
-    return true;
+    // If we can't determine due to error, don't update to prevent random reordering
+    console.error('[shouldUpdateLastVisitedTimestamp] Error:', error);
+    return false;
   }
 }
 
@@ -201,9 +243,25 @@ try {
         const shouldUpdate = shouldUpdateLastVisitedTimestamp(Astro.request, Astro.url.pathname);
         if (shouldUpdate) {
           try {
-            await db.update(Threads)
-              .set({ lastVisited: new Date() })
-              .where(and(eq(Threads.id, id!), eq(Threads.userId, authenticatedUserId)));
+            // CRITICAL: Before updating, check if lastVisited was recently updated
+            // This prevents rapid-fire updates that cause random reordering on refresh
+            // We use a longer throttle (5 minutes) to ensure order stability across multiple refreshes
+            // Fetch current lastVisited timestamp
+            const currentThread = await db.select({ lastVisited: Threads.lastVisited })
+              .from(Threads)
+              .where(and(eq(Threads.id, id!), eq(Threads.userId, authenticatedUserId)))
+              .get();
+
+            // Only update if lastVisited is null OR was updated more than 5 minutes ago
+            // This prevents the same item from constantly updating its lastVisited and shuffling order
+            const now = new Date();
+            const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+            if (!currentThread?.lastVisited || new Date(currentThread.lastVisited) < fiveMinutesAgo) {
+              await db.update(Threads)
+                .set({ lastVisited: now })
+                .where(and(eq(Threads.id, id!), eq(Threads.userId, authenticatedUserId)));
+            }
           } catch (error) {
             // Log error but don't fail page load
             console.error(`[id].astro] Error updating lastVisited for thread ${id}:`, error);
@@ -370,9 +428,25 @@ try {
       const shouldUpdate = shouldUpdateLastVisitedTimestamp(Astro.request, Astro.url.pathname);
       if (shouldUpdate) {
         try {
-          await db.update(Notes)
-            .set({ lastVisited: new Date() })
-            .where(and(eq(Notes.id, id!), eq(Notes.userId, authenticatedUserId)));
+          // CRITICAL: Before updating, check if lastVisited was recently updated
+          // This prevents rapid-fire updates that cause random reordering on refresh
+          // We use a longer throttle (5 minutes) to ensure order stability across multiple refreshes
+          // Fetch current lastVisited timestamp
+          const currentNote = await db.select({ lastVisited: Notes.lastVisited })
+            .from(Notes)
+            .where(and(eq(Notes.id, id!), eq(Notes.userId, authenticatedUserId)))
+            .get();
+
+          // Only update if lastVisited is null OR was updated more than 5 minutes ago
+          // This prevents the same item from constantly updating its lastVisited and shuffling order
+          const now = new Date();
+          const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+          if (!currentNote?.lastVisited || new Date(currentNote.lastVisited) < fiveMinutesAgo) {
+            await db.update(Notes)
+              .set({ lastVisited: now })
+              .where(and(eq(Notes.id, id!), eq(Notes.userId, authenticatedUserId)));
+          }
         } catch (error) {
           // Log error but don't fail page load
           console.error(`[id].astro] Error updating lastVisited for note ${id}:`, error);
