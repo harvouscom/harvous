@@ -447,34 +447,21 @@ export default function OrganizedContentList({
               };
             }
 
-            // Preserve optimistic lastVisited updates if they're newer than server data
-            // CRITICAL: Only preserve if the matched item is actually the same item
-            // (matchesItem already validates this, but double-check IDs match)
-            const idsMatch = currentItem.id === freshItem.id ||
-                             (freshItem.type === 'thread' && currentItem.threadId === freshItem.threadId) ||
-                             (freshItem.type === 'note' && currentItem.noteId === freshItem.noteId);
-            
-            if (idsMatch && currentItem.lastVisited) {
-              const existingTime = normalizeDate(currentItem.lastVisited)?.getTime();
-              const serverTime = normalizeDate(freshItem.lastVisited)?.getTime();
-              
-              // Only preserve if existing item has a newer lastVisited
-              // This prevents overwriting server updates with stale optimistic updates
-              if (existingTime && (!serverTime || existingTime > serverTime)) {
-                normalizedItems[index] = {
-                  ...normalizedItems[index],
-                  lastVisited: currentItem.lastVisited,
-                  lastUpdated: currentItem.lastUpdated || freshItem.lastUpdated
-                };
-                
-                debug('[OrganizedContentList] refreshContent: Preserved optimistic lastVisited', {
-                  itemId: freshItem.id,
-                  itemType: freshItem.type,
-                  preservedTime: currentItem.lastVisited,
-                  serverTime: freshItem.lastVisited
-                });
-              }
-            }
+            // REMOVED: No longer preserve optimistic lastVisited updates
+            // The server is the single source of truth for lastVisited timestamps
+            // Server-side throttling (5-minute window) ensures stable ordering
+            // Preserving client-side optimistic updates was causing order inconsistency:
+            // - Client would show item at top with optimistic timestamp
+            // - Server wouldn't update due to throttle
+            // - Page refresh would show different order (server's old timestamp)
+            // Solution: Always trust server data, never preserve client-side lastVisited
+            //
+            // This ensures:
+            // 1. Order is consistent across refreshes
+            // 2. Multiple devices see the same order
+            // 3. PWA and browser show the same order
+            //
+            // Note: IDs match validation removed as it's no longer needed
           }
         });
 
@@ -976,22 +963,21 @@ export default function OrganizedContentList({
 
       if (isDashboard && isMountedRef.current) {
         if (navigatedToDashboard || previousWasThreadOrNote) {
-          // Optimistic update for visited item
-          if (previousWasThreadOrNote) {
-            const extracted = extractItemIdFromPath(previousPathnameRef.current);
-            if (extracted) {
-              debug('[OrganizedContentList] handlePageLoad: Extracted item from path', {
-                previousPath: previousPathnameRef.current,
-                extractedId: extracted.id,
-                extractedType: extracted.type
-              });
-              optimisticUpdateLastVisited(extracted.id, extracted.type);
-            } else {
-              debug('[OrganizedContentList] handlePageLoad: Failed to extract item from path', {
-                previousPath: previousPathnameRef.current
-              });
-            }
-          }
+          // DISABLED: Optimistic updates for lastVisited
+          // Previously this would immediately update the item's lastVisited on the client side
+          // This created inconsistency: client shows item at top, but server might not update it
+          // (due to 5-minute throttle), causing order to change on refresh.
+          //
+          // Solution: Rely entirely on server-side updates for lastVisited
+          // The order will update after refreshContent() fetches the server's truth
+          // This ensures consistent ordering across all views and refreshes
+          //
+          // if (previousWasThreadOrNote) {
+          //   const extracted = extractItemIdFromPath(previousPathnameRef.current);
+          //   if (extracted) {
+          //     optimisticUpdateLastVisited(extracted.id, extracted.type);
+          //   }
+          // }
 
           refreshStateRef.current.shouldBypassDebounce = true;
           refreshStateRef.current.lastRefreshTime = 0;
