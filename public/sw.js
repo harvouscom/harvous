@@ -1,12 +1,10 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v1-10-1'; // Network-first for content API
-const NAV_API_CACHE = 'harvous-nav-api-v8'; // Network-first for fresh data
+const CACHE_NAME = 'harvous-cache-v1-10-1';
+const NAV_API_CACHE = 'harvous-nav-api-v8';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
-// Resources to pre-cache for faster initial load
-// Note: Fonts are cached on first use via fetch handler, not pre-cached to avoid CSP issues
 const CRITICAL_ASSETS = [
   '/favicon.svg',
   '/favicon.png',
@@ -14,7 +12,7 @@ const CRITICAL_ASSETS = [
   '/scripts/pwa-startup.js'
 ];
 
-// Install event - precache critical assets
+// Install event
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -32,7 +30,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate event - clean up old caches
+// Activate event
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -45,7 +43,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Helper to check if a response is from the sign-in page
+// Helper functions
 const isSignInPageResponse = async (response) => {
   if (!response) return false;
   try {
@@ -62,17 +60,14 @@ const isSignInPageResponse = async (response) => {
   }
 };
 
-// Helper to check if response should be cached
 const shouldCacheResponse = (response) => {
   if (!response) return false;
   const status = response.status;
   return status >= 200 && status < 300 && status !== 206;
 };
 
-// Helper to add cache timestamp
 const addCacheTimestamp = (response) => {
   if (!response) return response;
-  // Clone once and use that clone for both headers and body
   const cloned = response.clone();
   const headers = new Headers(cloned.headers);
   if (!headers.has('date')) {
@@ -85,7 +80,6 @@ const addCacheTimestamp = (response) => {
   });
 };
 
-// Helper for safe cache put
 const safeCachePut = async (cache, request, response) => {
   try {
     await cache.put(request, response);
@@ -94,7 +88,11 @@ const safeCachePut = async (cache, request, response) => {
   }
 };
 
-// Helper to check if cached response is fresh enough (within maxAge milliseconds)
+const isNoteOrThreadPage = (pathname) => {
+  if (/^\/\d+$/.test(pathname)) return true;
+  return false;
+};
+
 const isCacheFresh = (cachedResponse, maxAge = 30000) => {
   if (!cachedResponse) return false;
   try {
@@ -112,34 +110,30 @@ const isCacheFresh = (cachedResponse, maxAge = 30000) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Skip all cross-origin requests (including CDN fonts to avoid CSP violations)
+  // Skip cross-origin requests
   if (!url.origin.includes(self.location.origin)) {
     return;
   }
   
-  // Auth routes - always network-first, no caching
+  // Auth routes - always network-first
   if (url.pathname.startsWith('/sign-in') || url.pathname.startsWith('/sign-up')) {
     event.respondWith(fetch(event.request));
     return;
   }
   
-  // Cacheable API endpoints - use network-first for fresh data, cache as fallback
+  // Cacheable API endpoints
   const cacheableApiEndpoints = [
     '/api/navigation/data',
     '/api/spaces/items',
     '/api/notes/recent',
-    '/api/threads/'  // Thread prefetch endpoints
-    // '/api/content/load-more' removed - causes ordering issues due to stale cached data
+    '/api/threads/'
   ];
 
-  // Check if this is a cacheable API endpoint
   const isCacheableApi = cacheableApiEndpoints.some(endpoint => {
     if (endpoint === '/api/notes/recent') {
-      // Match /api/notes/recent with or without query params
       return url.pathname === '/api/notes/recent';
     }
     if (endpoint === '/api/threads/') {
-      // Match any thread API endpoint (e.g., /api/threads/thread_123/prefetch)
       return url.pathname.startsWith('/api/threads/');
     }
     return url.pathname === endpoint;
@@ -148,24 +142,20 @@ self.addEventListener('fetch', (event) => {
   if (isCacheableApi && event.request.method === 'GET') {
     event.respondWith(
       caches.open(NAV_API_CACHE).then((cache) => {
-        // Network-first strategy for fresher data
         return fetch(event.request)
           .then((response) => {
             if (shouldCacheResponse(response)) {
               const timestamped = addCacheTimestamp(response);
-              // Clone before async cache operation for safety
               const timestampedClone = timestamped.clone();
               safeCachePut(cache, event.request, timestampedClone);
             }
             return response;
           })
           .catch(() => {
-            // Network failed - use cached version
             return cache.match(event.request).then((cached) => {
               if (cached) {
                 return cached;
               }
-              // No cache - provide appropriate fallback based on endpoint
               if (url.pathname === '/api/navigation/data') {
                 return new Response(
                   JSON.stringify({ threads: [], spaces: [], inboxCount: 0 }),
@@ -195,7 +185,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Other API endpoints - always network-first, no caching
+  // Other API endpoints - no caching
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(event.request).catch(() => {
@@ -208,19 +198,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Non-GET requests - always network
+  // Non-GET requests
   if (event.request.method !== 'GET') {
     event.respondWith(fetch(event.request));
     return;
   }
   
-  // Font files - cache-first (critical for offline mode)
+  // Font files - cache-first
   const isFontFile = /\.(woff2?|ttf|otf|eot)$/i.test(url.pathname);
   if (isFontFile) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         if (cached) {
-          // Refresh in background
           fetch(event.request).then((response) => {
             if (shouldCacheResponse(response)) {
               caches.open(CACHE_NAME).then((cache) => {
@@ -234,7 +223,6 @@ self.addEventListener('fetch', (event) => {
         return fetch(event.request).then((response) => {
           if (shouldCacheResponse(response)) {
             const timestamped = addCacheTimestamp(response.clone());
-            // Clone synchronously before returning; later clone() can throw once the body is being read.
             const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
               safeCachePut(cache, event.request, responseToCache);
@@ -243,7 +231,6 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         }).catch(() => {
-          // If fetch fails and we have cache, return it
           return caches.match(event.request);
         });
       })
@@ -251,13 +238,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // CSS files - cache-first (critical for offline mode, includes font CSS)
+  // CSS files - cache-first
   const isCSSFile = /\.css$/i.test(url.pathname);
   if (isCSSFile) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         if (cached) {
-          // Refresh in background
           fetch(event.request).then((response) => {
             if (shouldCacheResponse(response)) {
               caches.open(CACHE_NAME).then((cache) => {
@@ -271,7 +257,6 @@ self.addEventListener('fetch', (event) => {
         return fetch(event.request).then((response) => {
           if (shouldCacheResponse(response)) {
             const timestamped = addCacheTimestamp(response.clone());
-            // Clone synchronously before returning; later clone() can throw once the body is being read.
             const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
               safeCachePut(cache, event.request, responseToCache);
@@ -280,7 +265,6 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         }).catch(() => {
-          // If fetch fails and we have cache, return it
           return caches.match(event.request);
         });
       })
@@ -288,16 +272,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Static assets (/_astro/) - cache-first (includes font CSS files)
+  // Static assets (/_astro/) - cache-first
   if (url.pathname.startsWith('/_astro/')) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         if (cached) {
-          // Refresh in background
           fetch(event.request).then((response) => {
             if (shouldCacheResponse(response)) {
               const timestamped = addCacheTimestamp(response);
-              // Clone before async cache operation for safety
               const timestampedClone = timestamped.clone();
               caches.open(CACHE_NAME).then((cache) => {
                 safeCachePut(cache, event.request, timestampedClone);
@@ -310,7 +292,6 @@ self.addEventListener('fetch', (event) => {
         return fetch(event.request).then((response) => {
           if (shouldCacheResponse(response)) {
             const timestamped = addCacheTimestamp(response.clone());
-            // Clone synchronously before returning; later clone() can throw once the body is being read.
             const responseToCache = timestamped.clone();
             caches.open(CACHE_NAME).then((cache) => {
               safeCachePut(cache, event.request, responseToCache);
@@ -319,7 +300,6 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         }).catch(() => {
-          // If fetch fails and we have cache, return it
           return caches.match(event.request);
         });
       })
@@ -327,28 +307,170 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Navigation requests (pages) - network-first when online, cache-first when offline
-  // When online: wait for network to avoid serving stale cached pages
-  // When offline: serve cache immediately if available
+  // Navigation requests (pages)
   if (event.request.mode === 'navigate') {
+    const isNoteOrThread = isNoteOrThreadPage(url.pathname);
+    
+    // For note/thread pages: network-only when online
+    if (isNoteOrThread) {
+      const isOnline = navigator.onLine;
+      
+      if (isOnline) {
+        // Always go to network when online
+        event.respondWith(
+          fetch(event.request).then(async (response) => {
+            // Cache for offline use
+            if (shouldCacheResponse(response)) {
+              const isSignIn = await isSignInPageResponse(response.clone());
+              if (!isSignIn) {
+                const timestamped = addCacheTimestamp(response);
+                const timestampedClone = timestamped.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                  safeCachePut(cache, event.request, timestampedClone);
+                });
+              }
+            }
+            return response;
+          }).catch(async () => {
+            // Network failed - use cache if offline
+            if (!navigator.onLine) {
+              const cached = await caches.match(event.request);
+              if (cached) {
+                const cachedIsSignIn = await isSignInPageResponse(cached);
+                if (!cachedIsSignIn) {
+                  return cached;
+                }
+              }
+            }
+            // Show error page
+            return new Response(`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <title>Connection Error - Harvous</title>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                  body { 
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    min-height: 100vh; 
+                    margin: 0; 
+                    background: #F3F2EC; 
+                    padding: 16px;
+                  }
+                  .message { 
+                    text-align: center; 
+                    padding: 32px; 
+                    max-width: 500px;
+                    background: white;
+                    border-radius: 16px;
+                    box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.1);
+                  }
+                  h1 { color: #4a473d; margin: 0 0 12px 0; font-size: 24px; }
+                  p { color: #78766f; margin: 0 0 24px 0; font-size: 16px; }
+                  button { 
+                    background: #4a473d; 
+                    color: white; 
+                    border: none; 
+                    padding: 14px 24px; 
+                    border-radius: 12px; 
+                    font-size: 16px; 
+                    cursor: pointer; 
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="message">
+                  <h1>Unable to load page</h1>
+                  <p>The page couldn't be loaded. This might be a temporary server issue or network problem.</p>
+                  <button onclick="location.reload()">Retry</button>
+                </div>
+              </body>
+              </html>
+            `, {
+              status: 503,
+              headers: { 'Content-Type': 'text/html' }
+            });
+          })
+        );
+        return;
+      } else {
+        // Offline: serve from cache
+        event.respondWith(
+          caches.match(event.request).then(async (cached) => {
+            if (cached) {
+              const cachedIsSignIn = await isSignInPageResponse(cached);
+              if (!cachedIsSignIn) {
+                return cached;
+              }
+            }
+            // No cache - show offline page
+            return new Response(`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <title>Offline - Harvous</title>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                  body { 
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    min-height: 100vh; 
+                    margin: 0; 
+                    background: #F3F2EC; 
+                    padding: 16px;
+                  }
+                  .message { 
+                    text-align: center; 
+                    padding: 32px; 
+                    max-width: 500px;
+                    background: white;
+                    border-radius: 16px;
+                    box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.1);
+                  }
+                  h1 { color: #4a473d; margin: 0 0 12px 0; font-size: 24px; }
+                  p { color: #78766f; margin: 0 0 24px 0; font-size: 16px; }
+                </style>
+              </head>
+              <body>
+                <div class="message">
+                  <h1>You're offline</h1>
+                  <p>This page isn't cached. Visit pages while online to access them offline.</p>
+                </div>
+              </body>
+              </html>
+            `, {
+              status: 503,
+              headers: { 'Content-Type': 'text/html' }
+            });
+          })
+        );
+        return;
+      }
+    }
+    
+    // For all other pages: network-first when online, cache-first when offline
     event.respondWith(
       caches.match(event.request).then(async (cached) => {
         const isOnline = navigator.onLine;
         
-        // Check if cached response is a sign-in page (shouldn't serve for other routes)
         let cachedIsSignIn = false;
         if (cached && url.pathname !== '/') {
           cachedIsSignIn = await isSignInPageResponse(cached);
         }
         
-        // Start network fetch
         const networkPromise = fetch(event.request)
           .then(async (response) => {
             if (shouldCacheResponse(response)) {
               const isSignIn = await isSignInPageResponse(response.clone());
               if (!isSignIn) {
                 const timestamped = addCacheTimestamp(response);
-                // Clone before async cache operation - response may be consumed by browser
                 const timestampedClone = timestamped.clone();
                 caches.open(CACHE_NAME).then((cache) => {
                   safeCachePut(cache, event.request, timestampedClone);
@@ -358,17 +480,12 @@ self.addEventListener('fetch', (event) => {
             return response;
           });
         
-        // When online: network-first, only use cache if network fails
-        // This prevents serving stale pages that cause reordering issues
         if (isOnline) {
           return networkPromise.catch(() => {
-            // Network failed - try cached version as fallback
-            // Only use cache if it's fresh (within 30 seconds) to avoid very stale data
             if (cached && !cachedIsSignIn && isCacheFresh(cached, 30000)) {
               return cached;
             }
             
-            // No cache available - show retry page
             return new Response(`
               <!DOCTYPE html>
               <html>
@@ -377,29 +494,8 @@ self.addEventListener('fetch', (event) => {
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
-                  @font-face {
-                    font-family: 'Reddit Sans';
-                    font-style: normal;
-                    font-display: swap;
-                    font-weight: 400;
-                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-400-normal.woff2') format('woff2');
-                  }
-                  @font-face {
-                    font-family: 'Reddit Sans';
-                    font-style: normal;
-                    font-display: swap;
-                    font-weight: 500;
-                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-500-normal.woff2') format('woff2');
-                  }
-                  @font-face {
-                    font-family: 'Reddit Sans';
-                    font-style: normal;
-                    font-display: swap;
-                    font-weight: 600;
-                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-600-normal.woff2') format('woff2');
-                  }
                   body { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
                     display: flex; 
                     align-items: center; 
                     justify-content: center; 
@@ -416,58 +512,24 @@ self.addEventListener('fetch', (event) => {
                     border-radius: 16px;
                     box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.1);
                   }
-                  .logo {
-                    width: 48px;
-                    height: 48px;
-                    margin-bottom: 16px;
-                  }
-                  h1 { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    color: #4a473d; 
-                    margin: 0 0 12px 0;
-                    font-size: 24px;
-                    font-weight: 600;
-                  }
-                  p { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    color: #78766f; 
-                    margin: 0 0 24px 0;
-                    font-size: 16px;
-                    line-height: 1.5;
-                  }
-                  .buttons {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 12px;
-                  }
-                  button, a.btn { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                  h1 { color: #4a473d; margin: 0 0 12px 0; font-size: 24px; }
+                  p { color: #78766f; margin: 0 0 24px 0; font-size: 16px; }
+                  button { 
                     background: #4a473d; 
                     color: white; 
                     border: none; 
                     padding: 14px 24px; 
                     border-radius: 12px; 
                     font-size: 16px; 
-                    font-weight: 500;
                     cursor: pointer; 
-                    text-decoration: none;
-                    display: inline-block;
-                    transition: opacity 0.2s;
-                  }
-                  button:hover, a.btn:hover {
-                    opacity: 0.9;
                   }
                 </style>
               </head>
               <body>
                 <div class="message">
-                  <img src="/favicon.svg" alt="Harvous" class="logo" onerror="this.style.display='none'">
                   <h1>Unable to load page</h1>
                   <p>The page couldn't be loaded. This might be a temporary server issue or network problem.</p>
-                  <div class="buttons">
-                    <button onclick="location.reload()">Retry</button>
-                    <a href="/" class="btn">Go to Dashboard</a>
-                  </div>
+                  <button onclick="location.reload()">Retry</button>
                 </div>
               </body>
               </html>
@@ -477,164 +539,66 @@ self.addEventListener('fetch', (event) => {
             });
           });
         } else {
-          // Offline: serve cache immediately if available
           if (cached && !cachedIsSignIn) {
-            networkPromise.catch(() => {}); // Fire and forget
+            networkPromise.catch(() => {});
             return cached;
           }
           
-          // No cache - wait for network (might come back online)
           return networkPromise.catch(() => {
-            // Check if user is actually offline before showing offline page
-            // Network failures can occur even when online (server issues, timeouts, etc.)
             const isActuallyOffline = !navigator.onLine;
             
-            // If online but network failed, show retry page instead of offline page
             if (!isActuallyOffline) {
-              // User is online but network request failed - show retry page
               return new Response(`
                 <!DOCTYPE html>
                 <html>
                 <head>
                   <title>Connection Error - Harvous</title>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <style>
-                  @font-face {
-                    font-family: 'Reddit Sans';
-                    font-style: normal;
-                    font-display: swap;
-                    font-weight: 400;
-                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-400-normal.woff2') format('woff2');
-                  }
-                  @font-face {
-                    font-family: 'Reddit Sans';
-                    font-style: normal;
-                    font-display: swap;
-                    font-weight: 500;
-                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-500-normal.woff2') format('woff2');
-                  }
-                  @font-face {
-                    font-family: 'Reddit Sans';
-                    font-style: normal;
-                    font-display: swap;
-                    font-weight: 600;
-                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-600-normal.woff2') format('woff2');
-                  }
-                  body { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-                    display: flex; 
-                    align-items: center; 
-                    justify-content: center; 
-                    min-height: 100vh; 
-                    margin: 0; 
-                    background: #F3F2EC; 
-                    padding: 16px;
-                  }
-                  .message { 
-                    text-align: center; 
-                    padding: 32px; 
-                    max-width: 500px;
-                    background: white;
-                    border-radius: 16px;
-                    box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.1);
-                  }
-                  .logo {
-                    width: 48px;
-                    height: 48px;
-                    margin-bottom: 16px;
-                  }
-                  h1 { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    color: #4a473d; 
-                    margin: 0 0 12px 0;
-                    font-size: 24px;
-                    font-weight: 600;
-                  }
-                  p { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    color: #78766f; 
-                    margin: 0 0 24px 0;
-                    font-size: 16px;
-                    line-height: 1.5;
-                  }
-                  .buttons {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 12px;
-                  }
-                  button, a.btn { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    background: #4a473d; 
-                    color: white; 
-                    border: none; 
-                    padding: 14px 24px; 
-                    border-radius: 12px; 
-                    font-size: 16px; 
-                    font-weight: 500;
-                    cursor: pointer; 
-                    text-decoration: none;
-                    display: inline-block;
-                    transition: opacity 0.2s;
-                  }
-                  button:hover, a.btn:hover {
-                    opacity: 0.9;
-                  }
-                </style>
-              </head>
-              <body>
-                <div class="message">
-                  <img src="/favicon.svg" alt="Harvous" class="logo" onerror="this.style.display='none'">
-                  <h1>Unable to load page</h1>
-                  <p>The page couldn't be loaded. This might be a temporary server issue or network problem.</p>
-                  <div class="buttons">
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1">
+                  <style>
+                    body { 
+                      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+                      display: flex; 
+                      align-items: center; 
+                      justify-content: center; 
+                      min-height: 100vh; 
+                      margin: 0; 
+                      background: #F3F2EC; 
+                      padding: 16px;
+                    }
+                    .message { 
+                      text-align: center; 
+                      padding: 32px; 
+                      max-width: 500px;
+                      background: white;
+                      border-radius: 16px;
+                      box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.1);
+                    }
+                    h1 { color: #4a473d; margin: 0 0 12px 0; font-size: 24px; }
+                    p { color: #78766f; margin: 0 0 24px 0; font-size: 16px; }
+                    button { 
+                      background: #4a473d; 
+                      color: white; 
+                      border: none; 
+                      padding: 14px 24px; 
+                      border-radius: 12px; 
+                      font-size: 16px; 
+                      cursor: pointer; 
+                    }
+                  </style>
+                </head>
+                <body>
+                  <div class="message">
+                    <h1>Unable to load page</h1>
+                    <p>The page couldn't be loaded. This might be a temporary server issue or network problem.</p>
                     <button onclick="location.reload()">Retry</button>
-                    <a href="/" class="btn">Go to Dashboard</a>
                   </div>
-                </div>
-              </body>
-              </html>
-            `, {
-              status: 503,
-              headers: { 'Content-Type': 'text/html' }
-            });
-          }
-          
-          // Last resort: smart offline page that tries to find cached content
-          // Only shown when truly offline with no cache for this specific URL
-          return caches.open(CACHE_NAME).then(async (cache) => {
-            // Try to find any cached page we can redirect to
-            const keys = await cache.keys();
-            const cachedPages = keys.filter(req => {
-              const reqUrl = new URL(req.url);
-              return req.mode === 'navigate' || 
-                     reqUrl.pathname === '/' || 
-                     reqUrl.pathname === '/dashboard' ||
-                     reqUrl.pathname === '/inbox' ||
-                     /^\/\d+$/.test(reqUrl.pathname); // Note pages like /123
-            });
-            
-            // Extract cached URLs and categorize them
-            const cachedUrls = cachedPages.map(req => {
-              const reqUrl = new URL(req.url);
-              return reqUrl.pathname;
-            });
-            
-            const hasDashboard = cachedUrls.includes('/') || cachedUrls.includes('/dashboard');
-            const hasInbox = cachedUrls.includes('/inbox');
-            const notePages = cachedUrls.filter(url => /^\/\d+$/.test(url)).slice(0, 5); // Limit to 5 for display
-            
-            // Build list of cached pages for display
-            let cachedPagesList = '';
-            if (notePages.length > 0) {
-              cachedPagesList = '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #d1d0c9;"><p style="font-size: 14px; color: #78766f; margin-bottom: 12px; font-weight: 500;">Available offline:</p><ul style="list-style: none; padding: 0; margin: 0; text-align: left;">';
-              notePages.forEach(url => {
-                cachedPagesList += `<li style="margin-bottom: 8px;"><a href="${url}" style="color: #4a473d; text-decoration: none; font-size: 14px; display: inline-block; padding: 6px 12px; border-radius: 6px; background: #f3f2ec; transition: background 0.2s;" onmouseover="this.style.background='#e8e6e0'" onmouseout="this.style.background='#f3f2ec'">Note ${url.substring(1)}</a></li>`;
+                </body>
+                </html>
+              `, {
+                status: 503,
+                headers: { 'Content-Type': 'text/html' }
               });
-              if (cachedUrls.length > notePages.length + (hasDashboard ? 1 : 0) + (hasInbox ? 1 : 0)) {
-                cachedPagesList += `<li style="margin-top: 8px; font-size: 12px; color: #78766f;">+ ${cachedUrls.length - notePages.length - (hasDashboard ? 1 : 0) - (hasInbox ? 1 : 0)} more pages</li>`;
-              }
-              cachedPagesList += '</ul></div>';
             }
             
             return new Response(`
@@ -645,38 +609,8 @@ self.addEventListener('fetch', (event) => {
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
-                  /* Inline @font-face declarations as fallback for offline mode */
-                  /* These reference the pre-cached woff2 files from jsDelivr */
-                  @font-face {
-                    font-family: 'Reddit Sans';
-                    font-style: normal;
-                    font-display: swap;
-                    font-weight: 400;
-                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-400-normal.woff2') format('woff2');
-                  }
-                  @font-face {
-                    font-family: 'Reddit Sans';
-                    font-style: normal;
-                    font-display: swap;
-                    font-weight: 500;
-                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-500-normal.woff2') format('woff2');
-                  }
-                  @font-face {
-                    font-family: 'Reddit Sans';
-                    font-style: normal;
-                    font-display: swap;
-                    font-weight: 600;
-                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-600-normal.woff2') format('woff2');
-                  }
-                  @font-face {
-                    font-family: 'Reddit Sans';
-                    font-style: normal;
-                    font-display: swap;
-                    font-weight: 700;
-                    src: url('https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-700-normal.woff2') format('woff2');
-                  }
                   body { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
                     display: flex; 
                     align-items: center; 
                     justify-content: center; 
@@ -693,85 +627,14 @@ self.addEventListener('fetch', (event) => {
                     border-radius: 16px;
                     box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.1);
                   }
-                  .logo {
-                    width: 48px;
-                    height: 48px;
-                    margin-bottom: 16px;
-                  }
-                  h1 { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    color: #4a473d; 
-                    margin: 0 0 12px 0;
-                    font-size: 24px;
-                    font-weight: 600;
-                  }
-                  p { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    color: #78766f; 
-                    margin: 0 0 24px 0;
-                    font-size: 16px;
-                    line-height: 1.5;
-                  }
-                  .tip {
-                    font-size: 14px;
-                    color: #78766f;
-                    margin-top: 16px;
-                    padding: 12px;
-                    background: #f9f9f7;
-                    border-radius: 8px;
-                    text-align: left;
-                  }
-                  .buttons {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 12px;
-                  }
-                  button, a.btn { 
-                    font-family: "Reddit Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    background: #4a473d; 
-                    color: white; 
-                    border: none; 
-                    padding: 14px 24px; 
-                    border-radius: 12px; 
-                    font-size: 16px; 
-                    font-weight: 500;
-                    cursor: pointer; 
-                    text-decoration: none;
-                    display: inline-block;
-                    transition: opacity 0.2s;
-                  }
-                  button:hover, a.btn:hover {
-                    opacity: 0.9;
-                  }
-                  .btn-secondary {
-                    background: transparent;
-                    color: #4a473d;
-                    border: 1px solid #d1d0c9;
-                  }
+                  h1 { color: #4a473d; margin: 0 0 12px 0; font-size: 24px; }
+                  p { color: #78766f; margin: 0 0 24px 0; font-size: 16px; }
                 </style>
               </head>
               <body>
                 <div class="message">
-                  <img src="/favicon.svg" alt="Harvous" class="logo" onerror="this.style.display='none'">
                   <h1>You're offline</h1>
-                  <p>${hasDashboard 
-                    ? 'This page isn\'t cached yet, but you can access your dashboard and other cached content.' 
-                    : cachedUrls.length > 0
-                      ? 'This page isn\'t cached, but you have other content available offline.'
-                      : 'This page isn\'t cached. Visit pages while online to access them offline.'}</p>
-                  <div class="buttons">
-                    ${hasDashboard 
-                      ? '<a href="/" class="btn">Go to Dashboard</a>' 
-                      : ''}
-                    ${hasInbox && !hasDashboard
-                      ? '<a href="/inbox" class="btn">Go to Inbox</a>'
-                      : ''}
-                    ${cachedUrls.length === 0
-                      ? '<button class="btn-secondary" onclick="location.reload()">Retry Connection</button>'
-                      : ''}
-                  </div>
-                  ${cachedPagesList}
-                  ${cachedUrls.length === 0 ? '<div class="tip"><strong>Tip:</strong> Visit pages while online to cache them for offline access. Your dashboard and recently viewed content are automatically cached.</div>' : ''}
+                  <p>This page isn't cached. Visit pages while online to access them offline.</p>
                 </div>
               </body>
               </html>
@@ -781,8 +644,7 @@ self.addEventListener('fetch', (event) => {
             });
           });
         }
-      }
-      });
+      })
     );
     return;
   }
@@ -793,7 +655,6 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         if (shouldCacheResponse(response)) {
           const timestamped = addCacheTimestamp(response.clone());
-          // Clone before returning to avoid "body already used" error
           const responseToReturn = timestamped.clone();
           caches.open(CACHE_NAME).then((cache) => {
             safeCachePut(cache, event.request, timestamped);
@@ -812,7 +673,6 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
   
-  // Warmup message - ping health endpoint
   if (event.data === 'warmup' || (event.data && event.data.type === 'warmup')) {
     fetch('/api/health', { method: 'GET', credentials: 'include' }).catch(() => {});
   }
@@ -821,10 +681,8 @@ self.addEventListener('message', (event) => {
 // Online/offline events
 self.addEventListener('online', () => {
   console.log('Service Worker: Online');
-  // Warm up serverless function
   fetch('/api/health', { method: 'GET', credentials: 'include' }).catch(() => {});
   
-  // Notify clients
   self.clients.matchAll().then((clients) => {
     clients.forEach((client) => client.postMessage({ type: 'online' }));
   });
