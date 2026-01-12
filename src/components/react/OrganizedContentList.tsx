@@ -447,21 +447,42 @@ export default function OrganizedContentList({
               };
             }
 
-            // REMOVED: No longer preserve optimistic lastVisited updates
-            // The server is the single source of truth for lastVisited timestamps
-            // Server-side throttling (5-minute window) ensures stable ordering
-            // Preserving client-side optimistic updates was causing order inconsistency:
-            // - Client would show item at top with optimistic timestamp
-            // - Server wouldn't update due to throttle
-            // - Page refresh would show different order (server's old timestamp)
-            // Solution: Always trust server data, never preserve client-side lastVisited
-            //
-            // This ensures:
-            // 1. Order is consistent across refreshes
-            // 2. Multiple devices see the same order
-            // 3. PWA and browser show the same order
-            //
-            // Note: IDs match validation removed as it's no longer needed
+            // RE-ENABLED: Preserve optimistic lastVisited if very recent
+            // With 10-second server throttle, only preserve if timestamp is < 15 seconds old
+            // This prevents showing stale optimistic updates while allowing instant feedback
+            const idsMatch = currentItem.id === freshItem.id ||
+                             (freshItem.type === 'thread' && currentItem.threadId === freshItem.threadId) ||
+                             (freshItem.type === 'note' && currentItem.noteId === freshItem.noteId);
+
+            if (idsMatch && currentItem.lastVisited) {
+              const existingTime = normalizeDate(currentItem.lastVisited)?.getTime();
+              const serverTime = normalizeDate(freshItem.lastVisited)?.getTime();
+              const now = Date.now();
+
+              // Only preserve if optimistic update is very recent (< 15 seconds)
+              // AND it's newer than server data
+              if (existingTime) {
+                const age = now - existingTime;
+                const isFresh = age < 15000; // 15 seconds
+                const isNewer = !serverTime || existingTime > serverTime;
+
+                if (isFresh && isNewer) {
+                  normalizedItems[index] = {
+                    ...normalizedItems[index],
+                    lastVisited: currentItem.lastVisited,
+                    lastUpdated: currentItem.lastUpdated || freshItem.lastUpdated
+                  };
+
+                  debug('[OrganizedContentList] refreshContent: Preserved fresh optimistic lastVisited', {
+                    itemId: freshItem.id,
+                    itemType: freshItem.type,
+                    age: Math.round(age / 1000) + 's',
+                    preservedTime: currentItem.lastVisited,
+                    serverTime: freshItem.lastVisited
+                  });
+                }
+              }
+            }
           }
         });
 
@@ -963,21 +984,20 @@ export default function OrganizedContentList({
 
       if (isDashboard && isMountedRef.current) {
         if (navigatedToDashboard || previousWasThreadOrNote) {
-          // DISABLED: Optimistic updates for lastVisited
-          // Previously this would immediately update the item's lastVisited on the client side
-          // This created inconsistency: client shows item at top, but server might not update it
-          // (due to 5-minute throttle), causing order to change on refresh.
-          //
-          // Solution: Rely entirely on server-side updates for lastVisited
-          // The order will update after refreshContent() fetches the server's truth
-          // This ensures consistent ordering across all views and refreshes
-          //
-          // if (previousWasThreadOrNote) {
-          //   const extracted = extractItemIdFromPath(previousPathnameRef.current);
-          //   if (extracted) {
-          //     optimisticUpdateLastVisited(extracted.id, extracted.type);
-          //   }
-          // }
+          // RE-ENABLED: Optimistic updates for immediate feedback
+          // Now safe because server throttle is only 10 seconds
+          // This gives instant visual feedback while server confirms
+          if (previousWasThreadOrNote) {
+            const extracted = extractItemIdFromPath(previousPathnameRef.current);
+            if (extracted) {
+              debug('[OrganizedContentList] handlePageLoad: Optimistically updating item', {
+                previousPath: previousPathnameRef.current,
+                extractedId: extracted.id,
+                extractedType: extracted.type
+              });
+              optimisticUpdateLastVisited(extracted.id, extracted.type);
+            }
+          }
 
           refreshStateRef.current.shouldBypassDebounce = true;
           refreshStateRef.current.lastRefreshTime = 0;

@@ -252,12 +252,13 @@ try {
               .where(and(eq(Threads.id, id!), eq(Threads.userId, authenticatedUserId)))
               .get();
 
-            // Only update if lastVisited is null OR was updated more than 5 minutes ago
-            // This prevents the same item from constantly updating its lastVisited and shuffling order
+            // Only update if lastVisited is null OR was updated more than 10 seconds ago
+            // This prevents rapid-fire updates while still being responsive to user navigation
+            // 10 seconds is enough to prevent refresh loops but short enough for good UX
             const now = new Date();
-            const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+            const tenSecondsAgo = new Date(now.getTime() - 10 * 1000);
 
-            if (!currentThread?.lastVisited || new Date(currentThread.lastVisited) < fiveMinutesAgo) {
+            if (!currentThread?.lastVisited || new Date(currentThread.lastVisited) < tenSecondsAgo) {
               await db.update(Threads)
                 .set({ lastVisited: now })
                 .where(and(eq(Threads.id, id!), eq(Threads.userId, authenticatedUserId)));
@@ -437,12 +438,13 @@ try {
             .where(and(eq(Notes.id, id!), eq(Notes.userId, authenticatedUserId)))
             .get();
 
-          // Only update if lastVisited is null OR was updated more than 5 minutes ago
-          // This prevents the same item from constantly updating its lastVisited and shuffling order
+          // Only update if lastVisited is null OR was updated more than 10 seconds ago
+          // This prevents rapid-fire updates while still being responsive to user navigation
+          // 10 seconds is enough to prevent refresh loops but short enough for good UX
           const now = new Date();
-          const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+          const tenSecondsAgo = new Date(now.getTime() - 10 * 1000);
 
-          if (!currentNote?.lastVisited || new Date(currentNote.lastVisited) < fiveMinutesAgo) {
+          if (!currentNote?.lastVisited || new Date(currentNote.lastVisited) < tenSecondsAgo) {
             await db.update(Notes)
               .set({ lastVisited: now })
               .where(and(eq(Notes.id, id!), eq(Notes.userId, authenticatedUserId)));
