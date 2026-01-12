@@ -128,8 +128,8 @@ self.addEventListener('fetch', (event) => {
     '/api/navigation/data',
     '/api/spaces/items',
     '/api/notes/recent',
-    '/api/threads/',  // Thread prefetch endpoints
-    '/api/content/load-more'  // Content pagination
+    '/api/threads/'  // Thread prefetch endpoints
+    // '/api/content/load-more' removed - causes ordering issues due to stale cached data
   ];
 
   // Check if this is a cacheable API endpoint
@@ -141,10 +141,6 @@ self.addEventListener('fetch', (event) => {
     if (endpoint === '/api/threads/') {
       // Match any thread API endpoint (e.g., /api/threads/thread_123/prefetch)
       return url.pathname.startsWith('/api/threads/');
-    }
-    if (endpoint === '/api/content/load-more') {
-      // Match content pagination endpoint
-      return url.pathname === '/api/content/load-more';
     }
     return url.pathname === endpoint;
   });
@@ -185,12 +181,6 @@ self.addEventListener('fetch', (event) => {
               if (url.pathname === '/api/notes/recent') {
                 return new Response(
                   JSON.stringify([]),
-                  { status: 200, headers: { 'Content-Type': 'application/json' } }
-                );
-              }
-              if (url.pathname === '/api/content/load-more') {
-                return new Response(
-                  JSON.stringify({ items: [], hasMore: false }),
                   { status: 200, headers: { 'Content-Type': 'application/json' } }
                 );
               }
@@ -790,8 +780,9 @@ self.addEventListener('fetch', (event) => {
               headers: { 'Content-Type': 'text/html' }
             });
           });
-        });
-      })
+        }
+      }
+      });
     );
     return;
   }

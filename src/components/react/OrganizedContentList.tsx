@@ -1195,7 +1195,8 @@ export default function OrganizedContentList({
     }
 
     const response = await fetch(url, {
-      credentials: 'include'
+      credentials: 'include',
+      cache: 'no-store' // Always bypass cache to ensure fresh data and consistent ordering
     });
 
     if (!response.ok) {
