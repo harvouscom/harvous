@@ -271,16 +271,19 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Add item to navigation history
   const addToNavigationHistory = (item: Omit<NavigationItem, 'firstAccessed' | 'lastAccessed'>) => {
-    
+    console.log('[addToNavigationHistory] Adding/updating item:', item.id, item.title);
+
     // Skip specific test items (exact title matches only)
     const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
     if (testItemTitles.includes(item.title)) {
+      console.log('[addToNavigationHistory] Skipping test item:', item.title);
       return;
     }
-    
+
     // Remove from closed items list if it was previously closed
     // This handles the case where user explicitly navigates to a closed item
     removeFromClosedItems(item.id);
+    console.log('[addToNavigationHistory] Removed from closed items (if it was there):', item.id);
     
     const history = getNavigationHistory();
     
@@ -288,6 +291,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const existingIndex = history.findIndex(h => h.id === item.id);
     
     if (existingIndex !== -1) {
+      console.log('[addToNavigationHistory] Item already exists in history, updating');
       // Item already exists - update lastAccessed time but keep position
       const existingItem = history[existingIndex];
       // Defensive: ensure firstAccessed is preserved, use current time if missing (shouldn't happen)
@@ -300,6 +304,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         lastAccessed: Date.now()
       };
     } else {
+      console.log('[addToNavigationHistory] Item does not exist, adding new item');
       // Item doesn't exist - this could be first time opening or reopening after being closed
       // For now, we'll add to the end (first time opening behavior)
       // TODO: In the future, we could track closed items to detect true reopening
@@ -345,6 +350,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return aFirst - bFirst;
     });
     
+    console.log('[addToNavigationHistory] After deduplication, history has', uniqueHistory.length, 'items');
+
     // Limit to 10 items, keeping the most recently accessed
     let limitedHistory = uniqueHistory;
     if (uniqueHistory.length > 10) {
@@ -353,6 +360,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     saveNavigationHistory(limitedHistory);
     setNavigationHistory(limitedHistory);
+    console.log('[addToNavigationHistory] Saved to localStorage and updated React state. Final count:', limitedHistory.length);
   };
 
   // Helper function to get the current active item ID
