@@ -145,87 +145,88 @@ async function handleEmailCreated(event: ClerkEmailWebhookEvent): Promise<void> 
 
     // Fetch full user data from Clerk to get name and other details
     try {
-    const { createClerkClient } = await import('@clerk/backend');
-    const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
-    
-    if (!clerkSecretKey) {
-      console.error('[Webhook] CLERK_SECRET_KEY not configured, cannot fetch user details');
-      // Still try to sync with just email
-      await tagAsAppUser(email_address, user_id);
-      return;
-    }
+      const { createClerkClient } = await import('@clerk/backend');
+      const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
 
-    const clerkClient = createClerkClient({ secretKey: clerkSecretKey });
-    const user = await clerkClient.users.getUser(user_id);
+      if (!clerkSecretKey) {
+        console.error('[Webhook] CLERK_SECRET_KEY not configured, cannot fetch user details');
+        // Still try to sync with just email
+        await tagAsAppUser(email_address, user_id);
+        return;
+      }
 
-    const firstName = user.firstName || undefined;
-    const lastName = user.lastName || undefined;
+      const clerkClient = createClerkClient({ secretKey: clerkSecretKey });
+      const user = await clerkClient.users.getUser(user_id);
 
-    console.log('[Webhook] Fetched user details from Clerk:', {
-      clerkUserId: user_id,
-      email: email_address,
-      firstName: firstName || null,
-      lastName: lastName || null,
-    });
+      const firstName = user.firstName || undefined;
+      const lastName = user.lastName || undefined;
 
-    // Tag user in Audienceful with full details
-    try {
-      const result = await tagAsAppUser(
-        email_address,
-        user_id,
-        firstName,
-        lastName
-      );
-
-      console.log('[Webhook] Successfully tagged user in Audienceful (from emailAddress.created):', {
-        email: email_address,
+      console.log('[Webhook] Fetched user details from Clerk:', {
         clerkUserId: user_id,
-        audiencefulId: result.id || result.uid,
-        timestamp: new Date().toISOString(),
+        email: email_address,
+        firstName: firstName || null,
+        lastName: lastName || null,
       });
+
+      // Tag user in Audienceful with full details
+      try {
+        const result = await tagAsAppUser(
+          email_address,
+          user_id,
+          firstName,
+          lastName
+        );
+
+        console.log('[Webhook] Successfully tagged user in Audienceful (from emailAddress.created):', {
+          email: email_address,
+          clerkUserId: user_id,
+          audiencefulId: result.id || result.uid,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error: any) {
+        console.error('[Webhook] Failed to tag user in Audienceful (from emailAddress.created):', {
+          email: email_address,
+          clerkUserId: user_id,
+          error: error.message,
+          errorStack: error.stack,
+          timestamp: new Date().toISOString(),
+        });
+
+        handleAPIError(error, {
+          endpoint: '/api/webhooks/clerk',
+          action: 'tag_audienceful_user',
+          userId: user_id,
+          email: email_address,
+        });
+      }
     } catch (error: any) {
-      console.error('[Webhook] Failed to tag user in Audienceful (from emailAddress.created):', {
-        email: email_address,
+      console.error('[Webhook] Failed to fetch user details from Clerk:', {
         clerkUserId: user_id,
+        email: email_address,
         error: error.message,
-        errorStack: error.stack,
-        timestamp: new Date().toISOString(),
       });
 
-      handleAPIError(error, {
-        endpoint: '/api/webhooks/clerk',
-        action: 'tag_audienceful_user',
-        userId: user_id,
-        email: email_address,
-      });
-    }
-  } catch (error: any) {
-    console.error('[Webhook] Failed to fetch user details from Clerk:', {
-      clerkUserId: user_id,
-      email: email_address,
-      error: error.message,
-    });
+      // Fallback: try to sync with just email (no name)
+      try {
+        await tagAsAppUser(email_address, user_id);
+        console.log('[Webhook] Successfully tagged user in Audienceful (fallback, no name):', {
+          email: email_address,
+          clerkUserId: user_id,
+        });
+      } catch (audiencefulError: any) {
+        console.error('[Webhook] Failed to tag user in Audienceful (fallback):', {
+          email: email_address,
+          clerkUserId: user_id,
+          error: audiencefulError.message,
+        });
 
-    // Fallback: try to sync with just email (no name)
-    try {
-      await tagAsAppUser(email_address, user_id);
-      console.log('[Webhook] Successfully tagged user in Audienceful (fallback, no name):', {
-        email: email_address,
-        clerkUserId: user_id,
-      });
-    } catch (audiencefulError: any) {
-      console.error('[Webhook] Failed to tag user in Audienceful (fallback):', {
-        email: email_address,
-        clerkUserId: user_id,
-        error: audiencefulError.message,
-      });
-
-      handleAPIError(audiencefulError, {
-        endpoint: '/api/webhooks/clerk',
-        action: 'tag_audienceful_user_fallback',
-        userId: user_id,
-        email: email_address,
-      });
+        handleAPIError(audiencefulError, {
+          endpoint: '/api/webhooks/clerk',
+          action: 'tag_audienceful_user_fallback',
+          userId: user_id,
+          email: email_address,
+        });
+      }
     }
   } catch (error: any) {
     // Catch any errors in the handler itself
