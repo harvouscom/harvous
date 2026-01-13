@@ -365,8 +365,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // CRITICAL: Dispatch custom event to notify PersistentNavigation to refresh
     // This is needed because React Context updates don't reliably propagate during View Transitions
+    // Use setTimeout to ensure child components have mounted and set up their event listeners
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+        console.log('[addToNavigationHistory] Dispatched navigationHistoryUpdated event');
+      }, 0);
     }
   };
 
@@ -743,8 +747,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         // CRITICAL: Dispatch custom event to force UI update during View Transitions
         // React Context updates don't always trigger re-renders during View Transitions
+        // Use setTimeout to ensure child components have mounted and set up their event listeners
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+            console.log('[trackNavigationAccess] Dispatched navigationHistoryUpdated event');
+          }, 0);
         }
         
         // Refresh counts from API after updating to ensure accuracy (retry logic handles transient failures)
