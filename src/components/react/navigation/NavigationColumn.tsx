@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
 import Avatar from './Avatar';
@@ -74,14 +74,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     initials: initials,
     userColor: userColor,
   });
-  // Initialize visibility based on whether thread exists, is in nav, or is closed
-  const [showActiveThread, setShowActiveThread] = useState(() => {
-    if (!activeThread) return false;
-    const isInNav = navigationHistory.some((item) => item.id === activeThread.id);
-    const isClosed = isItemClosed ? isItemClosed(activeThread.id) : false;
-    // Show if thread exists, is NOT in nav, and is NOT closed
-    return !isInNav && !isClosed;
-  });
+  // Start with true to show button immediately on first render
+  // The effect will hide it quickly if the thread is already in nav or closed
+  // This prevents the "no button" flash while waiting for effect to run
+  const [showActiveThread, setShowActiveThread] = useState(true);
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
     return pathname.substring(1) || '';
@@ -185,7 +181,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   
   // Check if active thread is in persistent navigation or was closed
   // Uses navigationHistory from context which includes pending threads from sessionStorage
-  useEffect(() => {
+  // Use useLayoutEffect to run synchronously before paint, preventing button flash
+  useLayoutEffect(() => {
     if (activeThread && typeof window !== 'undefined') {
       try {
         // Check if thread is in navigation history
