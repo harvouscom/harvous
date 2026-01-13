@@ -14,7 +14,10 @@ export default defineConfig({
   experimental: {
     clientPrerender: true
   },
-  prefetch: false,  // Disabled - causes stale props in NavigationColumn during View Transitions
+  prefetch: {
+    defaultStrategy: 'tap',  // Prefetch on tap/click start, not hover
+    prefetchAll: true        // Apply to all internal links automatically
+  },
   vite: {
     // Fix React bundling - ensure single React instance (CRITICAL for Invalid Hook Call errors)
     resolve: {
