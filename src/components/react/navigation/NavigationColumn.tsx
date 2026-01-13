@@ -69,19 +69,13 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   userColor = "paper",
   pathname = '/'
 }) => {
-  const { removeFromNavigationHistory, navigationHistory } = useNavigation();
+  const { removeFromNavigationHistory, navigationHistory, isItemClosed } = useNavigation();
   const [profileData, setProfileData] = useState({
     initials: initials,
     userColor: userColor,
   });
-  // Initialize based on whether thread is already in navigation history
-  // This prevents showing duplicates on initial render
-  const [showActiveThread, setShowActiveThread] = useState(() => {
-    if (!activeThread) return false;
-    // Check if thread is already in navigation history
-    const isInNav = navigationHistory.some((item) => item.id === activeThread.id);
-    return !isInNav; // Show only if NOT in navigation
-  });
+  // Start with false - the effect will determine visibility based on navigationHistory
+  const [showActiveThread, setShowActiveThread] = useState(false);
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
     return pathname.substring(1) || '';
@@ -183,16 +177,20 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, [pathname, activeThread]);
   
-  // Check if active thread is in persistent navigation
+  // Check if active thread is in persistent navigation or was closed
   // Uses navigationHistory from context which includes pending threads from sessionStorage
   useEffect(() => {
     if (activeThread && typeof window !== 'undefined') {
       try {
-        // Check NavigationContext state which includes pending threads
+        // Check if thread is in navigation history
         const isInPersistentNav = navigationHistory.some((item) => item.id === activeThread.id);
-        // Only show active thread button if it's NOT already in persistent navigation
-        // This prevents showing the same thread twice
-        setShowActiveThread(!isInPersistentNav);
+        // Check if thread was closed by user
+        const isClosed = isItemClosed(activeThread.id);
+
+        // Only show active thread button if:
+        // 1. It's NOT already in persistent navigation (prevents duplicates)
+        // 2. It's NOT in the closed list (respects user's close action)
+        setShowActiveThread(!isInPersistentNav && !isClosed);
       } catch (error) {
         console.error('Error checking persistent navigation:', error);
         setShowActiveThread(true); // Default to showing if error
@@ -201,7 +199,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       // No active thread, don't show the button
       setShowActiveThread(false);
     }
-  }, [activeThread, isNote, currentItemId, navigationHistory]);
+  }, [activeThread, isNote, currentItemId, navigationHistory, isItemClosed]);
 
   // Listen for note count changes to refresh activeThread count
   useEffect(() => {
