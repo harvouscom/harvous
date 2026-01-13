@@ -74,10 +74,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     initials: initials,
     userColor: userColor,
   });
-  // Start with true to show button immediately on first render
-  // The effect will hide it quickly if the thread is already in nav or closed
-  // This prevents the "no button" flash while waiting for effect to run
-  const [showActiveThread, setShowActiveThread] = useState(true);
+  // Never show the active thread button - rely entirely on trackNavigationAccess()
+  // to add threads to persistent navigation. This prevents duplicate buttons.
+  const [showActiveThread, setShowActiveThread] = useState(false);
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
     return pathname.substring(1) || '';
@@ -179,30 +178,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, [pathname, activeThread]);
   
-  // Check if active thread is in persistent navigation or was closed
-  // Uses navigationHistory from context which includes pending threads from sessionStorage
-  // Use useLayoutEffect to run synchronously before paint, preventing button flash
-  useLayoutEffect(() => {
-    if (activeThread && typeof window !== 'undefined') {
-      try {
-        // Check if thread is in navigation history
-        const isInPersistentNav = navigationHistory.some((item) => item.id === activeThread.id);
-        // Check if thread was closed by user
-        const isClosed = isItemClosed(activeThread.id);
-
-        // Only show active thread button if:
-        // 1. It's NOT already in persistent navigation (prevents duplicates)
-        // 2. It's NOT in the closed list (respects user's close action)
-        setShowActiveThread(!isInPersistentNav && !isClosed);
-      } catch (error) {
-        console.error('Error checking persistent navigation:', error);
-        setShowActiveThread(true); // Default to showing if error
-      }
-    } else if (!activeThread) {
-      // No active thread, don't show the button
-      setShowActiveThread(false);
-    }
-  }, [activeThread, isNote, currentItemId, navigationHistory, isItemClosed]);
+  // No longer using active thread button - threads appear only in persistent navigation
+  // trackNavigationAccess() handles adding them automatically
 
   // Listen for note count changes to refresh activeThread count
   useEffect(() => {
