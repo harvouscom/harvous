@@ -1,91 +1,123 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useSyncExternalStore } from 'react';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Icon from '../Icon';
 import { debug } from '@/utils/logger';
 
+// Storage key for navigation history
+const STORAGE_KEY = 'harvous-navigation-history-v2';
+
+// Global version counter for forcing re-renders
+let navigationVersion = 0;
+const navigationListeners = new Set<() => void>();
+
+// Notify all subscribers when navigation changes
+function notifyNavigationChange() {
+  navigationVersion++;
+  navigationListeners.forEach(listener => listener());
+}
+
+// Set up global event listener once
+if (typeof window !== 'undefined') {
+  // Listen for our custom navigation update event
+  window.addEventListener('navigationHistoryUpdated', () => {
+    console.log('[PersistentNavigation] Global: navigationHistoryUpdated event received');
+    notifyNavigationChange();
+  });
+
+  // Listen for Astro page loads
+  document.addEventListener('astro:page-load', () => {
+    console.log('[PersistentNavigation] Global: astro:page-load event received');
+    // Delay slightly to ensure localStorage is updated
+    setTimeout(() => {
+      notifyNavigationChange();
+    }, 10);
+  });
+
+  // Listen for storage events from other tabs
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      console.log('[PersistentNavigation] Global: storage event received');
+      notifyNavigationChange();
+    }
+  });
+}
+
+// Subscribe function for useSyncExternalStore
+function subscribeToNavigation(callback: () => void) {
+  navigationListeners.add(callback);
+  console.log('[PersistentNavigation] Subscribed to navigation, total listeners:', navigationListeners.size);
+  return () => {
+    navigationListeners.delete(callback);
+    console.log('[PersistentNavigation] Unsubscribed from navigation, total listeners:', navigationListeners.size);
+  };
+}
+
+// Get snapshot of navigation data from localStorage
+function getNavigationSnapshot(): string {
+  if (typeof window === 'undefined') return '[]';
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored || '[]';
+  } catch {
+    return '[]';
+  }
+}
+
+// Server snapshot for SSR
+function getServerSnapshot(): string {
+  return '[]';
+}
+
 const PersistentNavigation: React.FC = () => {
   console.log('[PersistentNavigation] ===== Component rendering, timestamp:', Date.now());
   const contextValue = useNavigation();
-  const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
-  console.log('[PersistentNavigation] Got context, navigationHistory length:', navigationHistory.length);
-  const [renderKey, setRenderKey] = useState(0);
-  console.log('[PersistentNavigation] renderKey:', renderKey);
-  
-  // Force re-render when navigationHistory changes
-  useEffect(() => {
-    console.log('[PersistentNavigation] navigationHistory changed, re-rendering. Length:', navigationHistory.length);
-    setRenderKey(prev => prev + 1);
-  }, [navigationHistory]);
+  const { removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
 
-  // Listen for page changes to update current item
-  useEffect(() => {
-    let timeoutRef: ReturnType<typeof setTimeout> | null = null;
-    
-    const handlePageLoad = () => {
-      if (timeoutRef) clearTimeout(timeoutRef);
-      requestAnimationFrame(() => {
-        setRenderKey(prev => prev + 1);
-      });
-    };
-    
-    const handleNavigationUpdate = () => {
-      if (timeoutRef) clearTimeout(timeoutRef);
-      timeoutRef = setTimeout(() => {
-        setRenderKey(prev => prev + 1);
-      }, 50);
-    };
+  // Use useSyncExternalStore to properly subscribe to localStorage changes
+  // This is the React 18+ recommended pattern for external stores
+  const navigationDataString = useSyncExternalStore(
+    subscribeToNavigation,
+    getNavigationSnapshot,
+    getServerSnapshot
+  );
 
-    document.addEventListener('astro:page-load', handlePageLoad);
-    window.addEventListener('navigationHistoryUpdated', handleNavigationUpdate);
-    
-    return () => {
-      if (timeoutRef) clearTimeout(timeoutRef);
-      document.removeEventListener('astro:page-load', handlePageLoad);
-      window.removeEventListener('navigationHistoryUpdated', handleNavigationUpdate);
-    };
-  }, []);
-  
-  const currentActiveItemId = typeof window !== 'undefined' ? getCurrentActiveItemId() : '';
-  
-  const getPersistentItems = () => {
-    if (typeof window === 'undefined') return [];
+  console.log('[PersistentNavigation] navigationDataString length:', navigationDataString.length);
 
-    // CRITICAL: Read directly from localStorage instead of context state
-    // Context state doesn't update properly during View Transitions
-    let items = [];
+  // Parse the navigation data
+  const navigationItems = React.useMemo(() => {
     try {
-      const stored = localStorage.getItem('harvous-navigation-history-v2');
-      if (stored) {
-        items = JSON.parse(stored);
-      }
-    } catch (error) {
-      console.error('[PersistentNavigation] Error reading localStorage:', error);
+      const parsed = JSON.parse(navigationDataString);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
     }
+  }, [navigationDataString]);
 
-    console.log('[PersistentNavigation] items from localStorage length:', items.length);
-    console.log('[PersistentNavigation] items:', items.map((i: any) => ({ id: i.id, title: i.title })));
+  console.log('[PersistentNavigation] navigationItems count:', navigationItems.length);
 
-    // CRITICAL: Filter out items with invalid IDs (undefined, null, empty string)
-    // This prevents navigation to invalid URLs like /undefined
-    let persistentItems = items.filter((item: any) => {
-      // Validate item has a valid ID
+  const currentActiveItemId = typeof window !== 'undefined' ? getCurrentActiveItemId() : '';
+
+  // Filter items for display
+  const persistentItems = React.useMemo(() => {
+    // Filter out invalid items
+    let filtered = navigationItems.filter((item: any) => {
       if (!item || !item.id || typeof item.id !== 'string' || item.id.trim() === '') {
         console.warn('[PersistentNavigation] Filtering out item with invalid ID:', item);
         return false;
       }
-
       if (item.id === 'dashboard') return false;
       return true;
     });
 
-    console.log('[PersistentNavigation] After basic filtering:', persistentItems.length);
-
-    persistentItems = persistentItems.filter((item) => {
+    // Handle unorganized thread
+    filtered = filtered.filter((item: any) => {
       if (item.id === 'thread_unorganized') {
-        const isClosed = localStorage.getItem('unorganized-thread-closed') === 'true';
+        const isClosed = typeof window !== 'undefined' && localStorage.getItem('unorganized-thread-closed') === 'true';
         if (isClosed && currentActiveItemId === 'thread_unorganized') {
-          localStorage.removeItem('unorganized-thread-closed');
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('unorganized-thread-closed');
+          }
           return true;
         }
         return !isClosed;
@@ -93,22 +125,18 @@ const PersistentNavigation: React.FC = () => {
       return true;
     });
 
-    console.log('[PersistentNavigation] After unorganized filtering:', persistentItems.length);
-    console.log('[PersistentNavigation] Final items:', persistentItems.map(i => ({ id: i.id, title: i.title })));
-
-    return persistentItems;
-  };
-
-  const persistentItems = getPersistentItems();
+    console.log('[PersistentNavigation] Filtered items:', filtered.map((i: any) => ({ id: i.id, title: i.title })));
+    return filtered;
+  }, [navigationItems, currentActiveItemId]);
 
   // Debug logging for navigation state (development only)
   useEffect(() => {
     debug('[PersistentNavigation] Component state', {
-      navigationHistoryLength: navigationHistory.length,
+      navigationItemsCount: navigationItems.length,
       persistentItemsCount: persistentItems.length,
       contextValueExists: !!contextValue
     });
-  }, [navigationHistory, persistentItems, contextValue]);
+  }, [navigationItems, persistentItems, contextValue]);
 
 
   if (persistentItems.length === 0) {
@@ -126,7 +154,7 @@ const PersistentNavigation: React.FC = () => {
   }
 
   return (
-    <div id="persistent-navigation" key={renderKey} className="persistent-nav">
+    <div id="persistent-navigation" className="persistent-nav">
       {persistentItems.map((item) => {
         const isActive = item.id === currentActiveItemId;
         
