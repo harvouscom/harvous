@@ -186,7 +186,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           const isInPersistentNav = history.some((item: any) => item.id === activeThread.id);
           // For note pages, always show the active thread button to maintain context
           // For other pages, only show if not in persistent navigation
-          setShowActiveThread(!isInPersistentNav);
+          setShowActiveThread(isNote || !isInPersistentNav);
+        } else {
+          // No navigation history yet, always show
+          setShowActiveThread(true);
         }
       } catch (error) {
         console.error('Error checking persistent navigation:', error);
