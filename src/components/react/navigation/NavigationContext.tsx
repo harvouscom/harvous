@@ -362,6 +362,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // CRITICAL: Always create new array reference to trigger React re-render
     setNavigationHistory([...limitedHistory]);
     console.log('[addToNavigationHistory] Saved to localStorage and updated React state. Final count:', limitedHistory.length);
+
+    // CRITICAL: Dispatch custom event to notify PersistentNavigation to refresh
+    // This is needed because React Context updates don't reliably propagate during View Transitions
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+    }
   };
 
   // Helper function to get the current active item ID
