@@ -7,18 +7,29 @@ import { debug } from '@/utils/logger';
 // Storage key for navigation history
 const STORAGE_KEY = 'harvous-navigation-history-v2';
 
-// Global version counter for forcing re-renders
-let navigationVersion = 0;
+// Global listeners set - managed per component instance to survive View Transitions
 const navigationListeners = new Set<() => void>();
+let globalListenersInitialized = false;
 
 // Notify all subscribers when navigation changes
 function notifyNavigationChange() {
-  navigationVersion++;
-  navigationListeners.forEach(listener => listener());
+  console.log('[PersistentNavigation] notifyNavigationChange called, listeners:', navigationListeners.size);
+  navigationListeners.forEach(listener => {
+    try {
+      listener();
+    } catch (e) {
+      console.error('[PersistentNavigation] Error calling listener:', e);
+    }
+  });
 }
 
-// Set up global event listener once
-if (typeof window !== 'undefined') {
+// Initialize global event listeners (called from component to ensure they're set up)
+function initGlobalListeners() {
+  if (globalListenersInitialized || typeof window === 'undefined') return;
+  globalListenersInitialized = true;
+
+  console.log('[PersistentNavigation] Initializing global event listeners');
+
   // Listen for our custom navigation update event
   window.addEventListener('navigationHistoryUpdated', () => {
     console.log('[PersistentNavigation] Global: navigationHistoryUpdated event received');
@@ -28,10 +39,10 @@ if (typeof window !== 'undefined') {
   // Listen for Astro page loads
   document.addEventListener('astro:page-load', () => {
     console.log('[PersistentNavigation] Global: astro:page-load event received');
-    // Delay slightly to ensure localStorage is updated
+    // Small delay to ensure localStorage is updated
     setTimeout(() => {
       notifyNavigationChange();
-    }, 10);
+    }, 50);
   });
 
   // Listen for storage events from other tabs
@@ -45,6 +56,9 @@ if (typeof window !== 'undefined') {
 
 // Subscribe function for useSyncExternalStore
 function subscribeToNavigation(callback: () => void) {
+  // Ensure global listeners are initialized when first subscriber registers
+  initGlobalListeners();
+
   navigationListeners.add(callback);
   console.log('[PersistentNavigation] Subscribed to navigation, total listeners:', navigationListeners.size);
   return () => {
@@ -54,11 +68,14 @@ function subscribeToNavigation(callback: () => void) {
 }
 
 // Get snapshot of navigation data from localStorage
+// IMPORTANT: This must return a different string value when data changes for React to re-render
 function getNavigationSnapshot(): string {
   if (typeof window === 'undefined') return '[]';
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored || '[]';
+    const result = stored || '[]';
+    console.log('[PersistentNavigation] getNavigationSnapshot called, length:', result.length);
+    return result;
   } catch {
     return '[]';
   }
