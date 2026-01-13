@@ -74,9 +74,14 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     initials: initials,
     userColor: userColor,
   });
-  // Initialize to true to show the button immediately
-  // The effect will hide it if it's already in persistent navigation
-  const [showActiveThread, setShowActiveThread] = useState(true);
+  // Initialize based on whether thread is already in navigation history
+  // This prevents showing duplicates on initial render
+  const [showActiveThread, setShowActiveThread] = useState(() => {
+    if (!activeThread) return false;
+    // Check if thread is already in navigation history
+    const isInNav = navigationHistory.some((item) => item.id === activeThread.id);
+    return !isInNav; // Show only if NOT in navigation
+  });
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
     return pathname.substring(1) || '';
