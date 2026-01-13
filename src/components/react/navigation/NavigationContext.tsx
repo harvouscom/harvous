@@ -634,17 +634,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const currentActiveItemId = getCurrentActiveItemId();
       const isCurrentlyActive = itemData.id === currentActiveItemId;
 
-      // Determine if user directly navigated to this item vs viewing it as parent context
-      // For notes: currentItemId starts with 'note_' but currentActiveItemId is the parent thread
-      // Only restore closed items if user directly navigated to the thread page itself
-      const isDirectNavigation = currentItemId === itemData.id;
-
       if (!existingItem) {
         // Item doesn't exist in history - check if it was closed
         if (isItemClosed(itemData.id)) {
           // Item was previously closed
-          if (isCurrentlyActive && isDirectNavigation) {
-            // User explicitly navigated directly to this closed item - restore it
+          if (isCurrentlyActive) {
+            // User is viewing content in this thread - restore it
             removeFromClosedItems(itemData.id);
             addToNavigationHistory(itemData);
 
@@ -652,8 +647,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             // Use debounced version to prevent multiple rapid refreshes
             refreshNavigationCountsImmediate();
           } else {
-            // Item is closed and user didn't explicitly navigate to it directly - don't add it back
-            // This prevents closed items from reappearing when viewing notes in their context
+            // Item is closed and user isn't viewing it - don't add it back
             return;
           }
         } else {
@@ -665,8 +659,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       } else {
         // Item exists in history - update it
-        // If it was closed but user is now viewing it directly, remove from closed list
-        if (isItemClosed(itemData.id) && isCurrentlyActive && isDirectNavigation) {
+        // If it was closed but user is now viewing it, remove from closed list
+        if (isItemClosed(itemData.id) && isCurrentlyActive) {
           removeFromClosedItems(itemData.id);
         }
         
