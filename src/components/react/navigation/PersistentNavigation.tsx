@@ -50,12 +50,24 @@ const PersistentNavigation: React.FC = () => {
   const getPersistentItems = () => {
     if (typeof window === 'undefined') return [];
 
-    console.log('[PersistentNavigation] navigationHistory length:', navigationHistory.length);
-    console.log('[PersistentNavigation] navigationHistory:', navigationHistory.map(i => ({ id: i.id, title: i.title })));
+    // CRITICAL: Read directly from localStorage instead of context state
+    // Context state doesn't update properly during View Transitions
+    let items = [];
+    try {
+      const stored = localStorage.getItem('harvous-navigation-history-v2');
+      if (stored) {
+        items = JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('[PersistentNavigation] Error reading localStorage:', error);
+    }
+
+    console.log('[PersistentNavigation] items from localStorage length:', items.length);
+    console.log('[PersistentNavigation] items:', items.map((i: any) => ({ id: i.id, title: i.title })));
 
     // CRITICAL: Filter out items with invalid IDs (undefined, null, empty string)
     // This prevents navigation to invalid URLs like /undefined
-    let persistentItems = navigationHistory.filter((item) => {
+    let persistentItems = items.filter((item: any) => {
       // Validate item has a valid ID
       if (!item || !item.id || typeof item.id !== 'string' || item.id.trim() === '') {
         console.warn('[PersistentNavigation] Filtering out item with invalid ID:', item);
