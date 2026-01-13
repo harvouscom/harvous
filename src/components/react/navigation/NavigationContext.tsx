@@ -717,16 +717,22 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
 
         // Update the item data but DON'T change its position
+        // CRITICAL: Create new array without mutation to ensure React detects change
         const existingIndex = history.findIndex(h => h.id === itemData.id);
-        history[existingIndex] = {
-          ...history[existingIndex],
-          ...itemData,
-          lastAccessed: Date.now()
-        };
+        const updatedHistory = history.map((item, index) => {
+          if (index === existingIndex) {
+            return {
+              ...item,
+              ...itemData,
+              lastAccessed: Date.now()
+            };
+          }
+          return item;
+        });
 
-        saveNavigationHistory(history);
-        // CRITICAL: Create new array reference to trigger React re-render
-        setNavigationHistory([...history]);
+        saveNavigationHistory(updatedHistory);
+        // Set the new array (already a new reference from map())
+        setNavigationHistory(updatedHistory);
         console.log('[trackNavigationAccess] Updated item in history and triggered re-render');
 
         // CRITICAL: Dispatch custom event to force UI update during View Transitions
