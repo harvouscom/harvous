@@ -46,7 +46,10 @@ const PersistentNavigation: React.FC = () => {
   
   const getPersistentItems = () => {
     if (typeof window === 'undefined') return [];
-    
+
+    console.log('[PersistentNavigation] navigationHistory length:', navigationHistory.length);
+    console.log('[PersistentNavigation] navigationHistory:', navigationHistory.map(i => ({ id: i.id, title: i.title })));
+
     // CRITICAL: Filter out items with invalid IDs (undefined, null, empty string)
     // This prevents navigation to invalid URLs like /undefined
     let persistentItems = navigationHistory.filter((item) => {
@@ -55,11 +58,13 @@ const PersistentNavigation: React.FC = () => {
         console.warn('[PersistentNavigation] Filtering out item with invalid ID:', item);
         return false;
       }
-      
+
       if (item.id === 'dashboard') return false;
       return true;
     });
-    
+
+    console.log('[PersistentNavigation] After basic filtering:', persistentItems.length);
+
     persistentItems = persistentItems.filter((item) => {
       if (item.id === 'thread_unorganized') {
         const isClosed = localStorage.getItem('unorganized-thread-closed') === 'true';
@@ -71,6 +76,9 @@ const PersistentNavigation: React.FC = () => {
       }
       return true;
     });
+
+    console.log('[PersistentNavigation] After unorganized filtering:', persistentItems.length);
+    console.log('[PersistentNavigation] Final items:', persistentItems.map(i => ({ id: i.id, title: i.title })));
 
     return persistentItems;
   };
