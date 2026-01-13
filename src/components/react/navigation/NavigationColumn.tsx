@@ -74,8 +74,14 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     initials: initials,
     userColor: userColor,
   });
-  // Start with false - the effect will determine visibility based on navigationHistory
-  const [showActiveThread, setShowActiveThread] = useState(false);
+  // Initialize visibility based on whether thread exists, is in nav, or is closed
+  const [showActiveThread, setShowActiveThread] = useState(() => {
+    if (!activeThread) return false;
+    const isInNav = navigationHistory.some((item) => item.id === activeThread.id);
+    const isClosed = isItemClosed ? isItemClosed(activeThread.id) : false;
+    // Show if thread exists, is NOT in nav, and is NOT closed
+    return !isInNav && !isClosed;
+  });
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
     return pathname.substring(1) || '';
