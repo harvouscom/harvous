@@ -633,35 +633,40 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Get current active item ID to check if user explicitly navigated to this item
       const currentActiveItemId = getCurrentActiveItemId();
       const isCurrentlyActive = itemData.id === currentActiveItemId;
-      
+
+      // Determine if user directly navigated to this item vs viewing it as parent context
+      // For notes: currentItemId starts with 'note_' but currentActiveItemId is the parent thread
+      // Only restore closed items if user directly navigated to the thread page itself
+      const isDirectNavigation = currentItemId === itemData.id;
+
       if (!existingItem) {
         // Item doesn't exist in history - check if it was closed
         if (isItemClosed(itemData.id)) {
           // Item was previously closed
-          if (isCurrentlyActive) {
-            // User explicitly navigated to this closed item - restore it
+          if (isCurrentlyActive && isDirectNavigation) {
+            // User explicitly navigated directly to this closed item - restore it
             removeFromClosedItems(itemData.id);
             addToNavigationHistory(itemData);
-            
+
             // Refresh counts from API after adding new item to ensure accuracy
             // Use debounced version to prevent multiple rapid refreshes
             refreshNavigationCountsImmediate();
           } else {
-            // Item is closed and user didn't explicitly navigate to it - don't add it back
-            // This prevents closed items from reappearing when navigating to other items
+            // Item is closed and user didn't explicitly navigate to it directly - don't add it back
+            // This prevents closed items from reappearing when viewing notes in their context
             return;
           }
         } else {
           // Item is not closed - add it to history (first time opening)
           addToNavigationHistory(itemData);
-          
+
           // Refresh counts from API after adding new item to ensure accuracy (retry logic handles transient failures)
           refreshNavigationCounts();
         }
       } else {
         // Item exists in history - update it
-        // If it was closed but user is now viewing it, remove from closed list
-        if (isItemClosed(itemData.id) && isCurrentlyActive) {
+        // If it was closed but user is now viewing it directly, remove from closed list
+        if (isItemClosed(itemData.id) && isCurrentlyActive && isDirectNavigation) {
           removeFromClosedItems(itemData.id);
         }
         
