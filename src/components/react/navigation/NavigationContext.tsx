@@ -357,9 +357,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (uniqueHistory.length > 10) {
       limitedHistory = uniqueHistory.slice(0, 10);
     }
-    
+
     saveNavigationHistory(limitedHistory);
-    setNavigationHistory(limitedHistory);
+    // CRITICAL: Always create new array reference to trigger React re-render
+    setNavigationHistory([...limitedHistory]);
     console.log('[addToNavigationHistory] Saved to localStorage and updated React state. Final count:', limitedHistory.length);
   };
 
