@@ -117,34 +117,34 @@ async function handleEmailCreated(event: ClerkEmailWebhookEvent): Promise<void> 
     const email_address = event.data.email_address;
     const user_id = event.data.user_id;
 
-  console.log(`[Webhook] Extracted data from ${event.type} event:`, {
-    clerkUserId: user_id,
-    email: email_address,
-    eventType: event.type,
-    timestamp: new Date().toISOString(),
-  });
-
-  // Validate we have required data
-  if (!email_address) {
-    console.error('[Webhook] Event missing email_address:', {
+    console.log(`[Webhook] Extracted data from ${event.type} event:`, {
+      clerkUserId: user_id,
+      email: email_address,
       eventType: event.type,
-      eventData: JSON.stringify(event.data),
+      timestamp: new Date().toISOString(),
     });
-    // Don't throw - just log and return (webhook should still succeed)
-    return;
-  }
 
-  if (!user_id) {
-    console.error('[Webhook] Event missing user_id:', {
-      eventType: event.type,
-      eventData: JSON.stringify(event.data),
-    });
-    // Don't throw - just log and return (webhook should still succeed)
-    return;
-  }
+    // Validate we have required data
+    if (!email_address) {
+      console.error('[Webhook] Event missing email_address:', {
+        eventType: event.type,
+        eventData: JSON.stringify(event.data),
+      });
+      // Don't throw - just log and return (webhook should still succeed)
+      return;
+    }
 
-  // Fetch full user data from Clerk to get name and other details
-  try {
+    if (!user_id) {
+      console.error('[Webhook] Event missing user_id:', {
+        eventType: event.type,
+        eventData: JSON.stringify(event.data),
+      });
+      // Don't throw - just log and return (webhook should still succeed)
+      return;
+    }
+
+    // Fetch full user data from Clerk to get name and other details
+    try {
     const { createClerkClient } = await import('@clerk/backend');
     const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
     
