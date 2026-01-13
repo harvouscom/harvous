@@ -155,9 +155,15 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.error('NavigationContext: Error processing pending thread:', error);
       }
       
-      // Filter out test items
+      // Filter out test items and closed items
       const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
-      const filtered = parsed.filter((item: NavigationItem) => !testItemTitles.includes(item.title));
+      const filtered = parsed.filter((item: NavigationItem) => {
+        // Filter out test items
+        if (testItemTitles.includes(item.title)) return false;
+        // Filter out closed items
+        if (isItemClosed(item.id)) return false;
+        return true;
+      });
       return filtered;
     } catch (error) {
       console.error('Error getting initial navigation history:', error);
