@@ -69,7 +69,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   userColor = "paper",
   pathname = '/'
 }) => {
+  console.log('[NavigationColumn] Rendering, pathname:', pathname);
   const { removeFromNavigationHistory, navigationHistory, isItemClosed } = useNavigation();
+  console.log('[NavigationColumn] navigationHistory length:', navigationHistory.length);
   const [profileData, setProfileData] = useState({
     initials: initials,
     userColor: userColor,
