@@ -74,9 +74,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     initials: initials,
     userColor: userColor,
   });
-  // For note pages, always show the active thread button by default
-  // For other pages, start with false and let the effect determine visibility
-  const [showActiveThread, setShowActiveThread] = useState(isNote || false);
+  // Initialize to true to show the button immediately
+  // The effect will hide it if it's already in persistent navigation
+  const [showActiveThread, setShowActiveThread] = useState(true);
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
     return pathname.substring(1) || '';
@@ -185,13 +185,16 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       try {
         // Check NavigationContext state which includes pending threads
         const isInPersistentNav = navigationHistory.some((item) => item.id === activeThread.id);
-        // For note pages, always show the active thread button to maintain context
-        // For other pages, only show if not in persistent navigation
-        setShowActiveThread(isNote || !isInPersistentNav);
+        // Only show active thread button if it's NOT already in persistent navigation
+        // This prevents showing the same thread twice
+        setShowActiveThread(!isInPersistentNav);
       } catch (error) {
         console.error('Error checking persistent navigation:', error);
         setShowActiveThread(true); // Default to showing if error
       }
+    } else if (!activeThread) {
+      // No active thread, don't show the button
+      setShowActiveThread(false);
     }
   }, [activeThread, isNote, currentItemId, navigationHistory]);
 
