@@ -362,30 +362,37 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (typeof window === 'undefined') {
       return '';
     }
-    
+
     const currentPath = window.location.pathname;
     let currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-    
+    console.log('[getCurrentActiveItemId] currentItemId:', currentItemId);
+
     // If we're on a note page, we need to determine the parent thread
     if (currentItemId.startsWith('note_')) {
       // First priority: try to get parent thread from note element (most reliable)
       const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-      
+      console.log('[getCurrentActiveItemId] Note element found:', !!noteElement);
+
       if (noteElement && noteElement.dataset.parentThreadId) {
+        console.log('[getCurrentActiveItemId] Returning parentThreadId from note element:', noteElement.dataset.parentThreadId);
         return noteElement.dataset.parentThreadId;
       }
-      
+
       // Second priority: try to get from navigation element (set by server-side)
       const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
-      
+      console.log('[getCurrentActiveItemId] Navigation element found:', !!navigationElement);
+
       if (navigationElement && navigationElement.dataset.parentThreadId) {
+        console.log('[getCurrentActiveItemId] Returning parentThreadId from navigation element:', navigationElement.dataset.parentThreadId);
         return navigationElement.dataset.parentThreadId;
       }
-      
+
       // Final fallback: assume unorganized thread
+      console.log('[getCurrentActiveItemId] No parent thread found, returning thread_unorganized');
       return 'thread_unorganized';
     }
-    
+
+    console.log('[getCurrentActiveItemId] Not a note page, returning:', currentItemId);
     return currentItemId;
   };
 
@@ -656,9 +663,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       console.log('[trackNavigationAccess] Existing item in history:', !!existingItem);
 
       // Get current active item ID to check if user explicitly navigated to this item
+      // For notes: if we extracted thread data, check if we're viewing content in this thread
+      // For threads/spaces: check if we're directly viewing this item
       const currentActiveItemId = getCurrentActiveItemId();
-      const isCurrentlyActive = itemData.id === currentActiveItemId;
-      console.log('[trackNavigationAccess] currentActiveItemId:', currentActiveItemId, 'itemData.id:', itemData.id, 'isCurrentlyActive:', isCurrentlyActive);
+      const isCurrentlyActive = itemData.id === currentActiveItemId ||
+        (currentItemId.startsWith('note_') && itemData.id && itemData.id.startsWith('thread_'));
+      console.log('[trackNavigationAccess] currentActiveItemId:', currentActiveItemId, 'itemData.id:', itemData.id, 'currentItemId:', currentItemId, 'isCurrentlyActive:', isCurrentlyActive);
 
       if (!existingItem) {
         console.log('[trackNavigationAccess] Item not in history:', itemData.id);
