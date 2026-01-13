@@ -708,12 +708,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           refreshNavigationCounts();
         }
       } else {
+        console.log('[trackNavigationAccess] Item exists in history, updating:', itemData.id);
         // Item exists in history - update it
         // If it was closed but user is now viewing it, remove from closed list
         if (isItemClosed(itemData.id) && isCurrentlyActive) {
+          console.log('[trackNavigationAccess] Item was closed but is now active, removing from closed list');
           removeFromClosedItems(itemData.id);
         }
-        
+
         // Update the item data but DON'T change its position
         const existingIndex = history.findIndex(h => h.id === itemData.id);
         history[existingIndex] = {
@@ -721,9 +723,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ...itemData,
           lastAccessed: Date.now()
         };
-        
+
         saveNavigationHistory(history);
-        setNavigationHistory(history);
+        // CRITICAL: Create new array reference to trigger React re-render
+        setNavigationHistory([...history]);
+        console.log('[trackNavigationAccess] Updated item in history and triggered re-render');
         
         // Refresh counts from API after updating to ensure accuracy (retry logic handles transient failures)
         // This ensures counts match the database even if page data is stale
