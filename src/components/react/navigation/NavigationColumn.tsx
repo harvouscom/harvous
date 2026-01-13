@@ -69,7 +69,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   userColor = "paper",
   pathname = '/'
 }) => {
-  const { removeFromNavigationHistory } = useNavigation();
+  const { removeFromNavigationHistory, navigationHistory } = useNavigation();
   const [profileData, setProfileData] = useState({
     initials: initials,
     userColor: userColor,
@@ -176,27 +176,22 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, [pathname, activeThread]);
   
-  // Check if active thread is in persistent navigation on client side
+  // Check if active thread is in persistent navigation
+  // Uses navigationHistory from context which includes pending threads from sessionStorage
   useEffect(() => {
     if (activeThread && typeof window !== 'undefined') {
       try {
-        const navHistory = localStorage.getItem('harvous-navigation-history-v2');
-        if (navHistory) {
-          const history = JSON.parse(navHistory);
-          const isInPersistentNav = history.some((item: any) => item.id === activeThread.id);
-          // For note pages, always show the active thread button to maintain context
-          // For other pages, only show if not in persistent navigation
-          setShowActiveThread(isNote || !isInPersistentNav);
-        } else {
-          // No navigation history yet, always show
-          setShowActiveThread(true);
-        }
+        // Check NavigationContext state which includes pending threads
+        const isInPersistentNav = navigationHistory.some((item) => item.id === activeThread.id);
+        // For note pages, always show the active thread button to maintain context
+        // For other pages, only show if not in persistent navigation
+        setShowActiveThread(isNote || !isInPersistentNav);
       } catch (error) {
         console.error('Error checking persistent navigation:', error);
         setShowActiveThread(true); // Default to showing if error
       }
     }
-  }, [activeThread, isNote, currentItemId]);
+  }, [activeThread, isNote, currentItemId, navigationHistory]);
 
   // Listen for note count changes to refresh activeThread count
   useEffect(() => {
