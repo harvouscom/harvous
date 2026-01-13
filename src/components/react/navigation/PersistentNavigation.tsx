@@ -5,11 +5,12 @@ import Icon from '../Icon';
 import { debug } from '@/utils/logger';
 
 const PersistentNavigation: React.FC = () => {
-  console.log('[PersistentNavigation] Component rendering');
+  console.log('[PersistentNavigation] ===== Component rendering, timestamp:', Date.now());
   const contextValue = useNavigation();
   const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
   console.log('[PersistentNavigation] Got context, navigationHistory length:', navigationHistory.length);
   const [renderKey, setRenderKey] = useState(0);
+  console.log('[PersistentNavigation] renderKey:', renderKey);
   
   // Force re-render when navigationHistory changes
   useEffect(() => {
