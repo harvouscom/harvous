@@ -1271,17 +1271,6 @@ export default function OrganizedContentList({
 
     const isScriptureNote = item.type === 'note' && item.noteType === 'scripture';
 
-    const handleNoteClick = () => {
-      window.location.href = href;
-    };
-
-    const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        handleNoteClick();
-      }
-    };
-
     return (
       <div
         className={`content-item ${item.type}-item mb-3 card-enter`}
@@ -1297,15 +1286,11 @@ export default function OrganizedContentList({
             noteId={item.noteId}
           />
         ) : item.type === 'note' ? (
-          <div
-            role="link"
-            tabIndex={0}
+          <a
+            href={href}
             className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-            onClick={handleNoteClick}
-            onKeyDown={handleKeyDown}
-            aria-label={item.title}
           >
-            <CardNote 
+            <CardNote
               title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
               content={item.noteType === 'resource' && item.resourceDescription ? item.resourceDescription : (item.content || '')}
               noteType={(item.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
@@ -1318,7 +1303,7 @@ export default function OrganizedContentList({
               scriptureReferences={item.scriptureReferences}
               isPendingSync={item.syncStatus === 'pending'}
             />
-          </div>
+          </a>
         ) : (
           <a 
             href={href}

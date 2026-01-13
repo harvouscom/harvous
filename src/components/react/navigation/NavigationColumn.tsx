@@ -69,9 +69,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   userColor = "paper",
   pathname = '/'
 }) => {
-  console.log('[NavigationColumn] Rendering, pathname:', pathname);
   const { removeFromNavigationHistory, navigationHistory, isItemClosed } = useNavigation();
-  console.log('[NavigationColumn] navigationHistory length:', navigationHistory.length);
   const [profileData, setProfileData] = useState({
     initials: initials,
     userColor: userColor,
@@ -184,7 +182,6 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const [, forceUpdate] = useState(0);
   useEffect(() => {
     const handleNavigationUpdate = () => {
-      console.log('[NavigationColumn] navigationHistoryUpdated event received, forcing re-render');
       forceUpdate(prev => prev + 1);
     };
 

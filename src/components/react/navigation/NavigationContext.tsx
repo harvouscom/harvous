@@ -271,27 +271,22 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Add item to navigation history
   const addToNavigationHistory = (item: Omit<NavigationItem, 'firstAccessed' | 'lastAccessed'>) => {
-    console.log('[addToNavigationHistory] Adding/updating item:', item.id, item.title);
-
     // Skip specific test items (exact title matches only)
     const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
     if (testItemTitles.includes(item.title)) {
-      console.log('[addToNavigationHistory] Skipping test item:', item.title);
       return;
     }
 
     // Remove from closed items list if it was previously closed
     // This handles the case where user explicitly navigates to a closed item
     removeFromClosedItems(item.id);
-    console.log('[addToNavigationHistory] Removed from closed items (if it was there):', item.id);
-    
+
     const history = getNavigationHistory();
-    
+
     // Check if item already exists - use strict equality check
     const existingIndex = history.findIndex(h => h.id === item.id);
-    
+
     if (existingIndex !== -1) {
-      console.log('[addToNavigationHistory] Item already exists in history, updating');
       // Item already exists - update lastAccessed time but keep position
       const existingItem = history[existingIndex];
       // Defensive: ensure firstAccessed is preserved, use current time if missing (shouldn't happen)
@@ -304,7 +299,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         lastAccessed: Date.now()
       };
     } else {
-      console.log('[addToNavigationHistory] Item does not exist, adding new item');
       // Item doesn't exist - this could be first time opening or reopening after being closed
       // For now, we'll add to the end (first time opening behavior)
       // TODO: In the future, we could track closed items to detect true reopening
@@ -349,8 +343,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const bFirst = (b.firstAccessed != null) ? b.firstAccessed : Number.MAX_SAFE_INTEGER;
       return aFirst - bFirst;
     });
-    
-    console.log('[addToNavigationHistory] After deduplication, history has', uniqueHistory.length, 'items');
 
     // Limit to 10 items, keeping the most recently accessed
     let limitedHistory = uniqueHistory;
@@ -361,7 +353,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     saveNavigationHistory(limitedHistory);
     // CRITICAL: Always create new array reference to trigger React re-render
     setNavigationHistory([...limitedHistory]);
-    console.log('[addToNavigationHistory] Saved to localStorage and updated React state. Final count:', limitedHistory.length);
 
     // CRITICAL: Dispatch custom event to notify PersistentNavigation to refresh
     // This is needed because React Context updates don't reliably propagate during View Transitions
@@ -369,7 +360,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (typeof window !== 'undefined') {
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
-        console.log('[addToNavigationHistory] Dispatched navigationHistoryUpdated event');
       }, 0);
     }
   };
@@ -383,35 +373,28 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     const currentPath = window.location.pathname;
-    let currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-    console.log('[getCurrentActiveItemId] currentItemId:', currentItemId);
+    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
 
     // If we're on a note page, we need to determine the parent thread
     if (currentItemId.startsWith('note_')) {
       // First priority: try to get parent thread from note element (most reliable)
       const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-      console.log('[getCurrentActiveItemId] Note element found:', !!noteElement);
 
       if (noteElement && noteElement.dataset.parentThreadId) {
-        console.log('[getCurrentActiveItemId] Returning parentThreadId from note element:', noteElement.dataset.parentThreadId);
         return noteElement.dataset.parentThreadId;
       }
 
       // Second priority: try to get from navigation element (set by server-side)
       const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
-      console.log('[getCurrentActiveItemId] Navigation element found:', !!navigationElement);
 
       if (navigationElement && navigationElement.dataset.parentThreadId) {
-        console.log('[getCurrentActiveItemId] Returning parentThreadId from navigation element:', navigationElement.dataset.parentThreadId);
         return navigationElement.dataset.parentThreadId;
       }
 
       // Final fallback: assume unorganized thread
-      console.log('[getCurrentActiveItemId] No parent thread found, returning thread_unorganized');
       return 'thread_unorganized';
     }
 
-    console.log('[getCurrentActiveItemId] Not a note page, returning:', currentItemId);
     return currentItemId;
   };
 
@@ -529,54 +512,41 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Extract item data from page
   const extractItemDataFromPage = (currentItemId: string): Omit<NavigationItem, 'firstAccessed' | 'lastAccessed'> | null => {
-    console.log('[extractItemDataFromPage] Starting extraction for:', currentItemId);
-
     // Handle SSR - return null if not in browser
     if (typeof window === 'undefined') {
-      console.log('[extractItemDataFromPage] SSR environment, returning null');
       return null;
     }
 
     // Get data from navigation slot element (set by Layout.astro)
-    let navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
-    console.log('[extractItemDataFromPage] Navigation element found:', !!navigationElement);
-    
+    const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+
     // For notes, try fallback to data-note-id element if navigation element not found
     if (currentItemId.startsWith('note_') && !navigationElement) {
-      console.log('[extractItemDataFromPage] No navigation element, trying data-note-id fallback');
       const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-      console.log('[extractItemDataFromPage] Note element found:', !!noteElement);
       if (noteElement && noteElement.dataset.parentThreadId) {
-        const result = {
+        return {
           id: noteElement.dataset.parentThreadId,
           title: noteElement.dataset.parentThreadTitle || 'Thread',
           count: parseInt(noteElement.dataset.parentThreadCount || '0'),
           backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)'
         };
-        console.log('[extractItemDataFromPage] Returning from data-note-id fallback:', result);
-        return result;
       }
     }
 
     if (!navigationElement) {
-      console.log('[extractItemDataFromPage] No navigation element found, returning null');
       return null;
     }
-    
+
     // For notes, use parent thread data
     if (currentItemId.startsWith('note_')) {
       const parentThreadId = navigationElement.dataset.parentThreadId;
-      console.log('[extractItemDataFromPage] Note page - parentThreadId:', parentThreadId);
-      console.log('[extractItemDataFromPage] Note page - all datasets:', navigationElement.dataset);
       if (parentThreadId) {
-        const result = {
+        return {
           id: parentThreadId,
           title: navigationElement.dataset.parentThreadTitle || 'Thread',
           count: parseInt(navigationElement.dataset.parentThreadCount || '0'),
           backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)'
         };
-        console.log('[extractItemDataFromPage] Returning thread data for note:', result);
-        return result;
       }
       
       // Fallback: try to get from data-note-id element
@@ -629,45 +599,39 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const currentPath = window.location.pathname;
     const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-    console.log('[trackNavigationAccess] Called for:', currentItemId, 'retryCount:', retryCount);
 
     // Skip dashboard and empty paths
     if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
-      console.log('[trackNavigationAccess] Skipping - dashboard/empty/auth page');
       return;
     }
-    
+
     // Skip pages that don't have navigation data (profile, find, etc.)
     const pagesWithoutNavigationData = ['profile', 'find', 'new-space', 'new-thread'];
     if (pagesWithoutNavigationData.includes(currentItemId)) {
       return;
     }
-    
+
     // Skip specific test items
     const testItemIds = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
     if (testItemIds.some(testId => currentItemId.includes(testId))) {
       return;
     }
-    
+
     // Track spaces too (they should be persistent and closable)
     // Spaces are now tracked in navigation history
-    
+
     // Extract item data from page
-    let itemData = extractItemDataFromPage(currentItemId);
-    console.log('[trackNavigationAccess] Extracted itemData:', itemData, 'retryCount:', retryCount);
+    const itemData = extractItemDataFromPage(currentItemId);
 
     // Retry logic: if element not found and we haven't retried too many times, retry after a delay
     if (!itemData && retryCount < 3) {
-      const maxRetries = 3;
       const retryDelay = 100 * (retryCount + 1); // 100ms, 200ms, 300ms
-
-      console.log('[trackNavigationAccess] No data found, scheduling retry', retryCount + 1, 'in', retryDelay, 'ms');
       setTimeout(() => {
         trackNavigationAccess(retryCount + 1);
       }, retryDelay);
       return;
     }
-    
+
     if (itemData) {
       // Special handling for unorganized thread
       if (currentItemId === 'thread_unorganized' || itemData.id === 'thread_unorganized') {
@@ -675,11 +639,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Also remove from closed items list if it was there
         removeFromClosedItems('thread_unorganized');
       }
-      
+
       // Check if this is a new item (not in history yet)
       const history = getNavigationHistory();
       const existingItem = history.find(h => h.id === itemData.id);
-      console.log('[trackNavigationAccess] Existing item in history:', !!existingItem);
 
       // Get current active item ID to check if user explicitly navigated to this item
       // For notes: if we extracted thread data, check if we're viewing content in this thread
@@ -687,17 +650,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const currentActiveItemId = getCurrentActiveItemId();
       const isCurrentlyActive = itemData.id === currentActiveItemId ||
         (currentItemId.startsWith('note_') && itemData.id && itemData.id.startsWith('thread_'));
-      console.log('[trackNavigationAccess] currentActiveItemId:', currentActiveItemId, 'itemData.id:', itemData.id, 'currentItemId:', currentItemId, 'isCurrentlyActive:', isCurrentlyActive);
 
       if (!existingItem) {
-        console.log('[trackNavigationAccess] Item not in history:', itemData.id);
         // Item doesn't exist in history - check if it was closed
         if (isItemClosed(itemData.id)) {
-          console.log('[trackNavigationAccess] Item was closed. isCurrentlyActive:', isCurrentlyActive);
           // Item was previously closed
           if (isCurrentlyActive) {
             // User is viewing content in this thread - restore it
-            console.log('[trackNavigationAccess] Restoring closed item:', itemData.id);
             removeFromClosedItems(itemData.id);
             addToNavigationHistory(itemData);
 
@@ -706,23 +665,19 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             refreshNavigationCountsImmediate();
           } else {
             // Item is closed and user isn't viewing it - don't add it back
-            console.log('[trackNavigationAccess] Item closed and not active, skipping');
             return;
           }
         } else {
           // Item is not closed - add it to history (first time opening)
-          console.log('[trackNavigationAccess] Adding new item to history:', itemData.id);
           addToNavigationHistory(itemData);
 
           // Refresh counts from API after adding new item to ensure accuracy (retry logic handles transient failures)
           refreshNavigationCounts();
         }
       } else {
-        console.log('[trackNavigationAccess] Item exists in history, updating:', itemData.id);
         // Item exists in history - update it
         // If it was closed but user is now viewing it, remove from closed list
         if (isItemClosed(itemData.id) && isCurrentlyActive) {
-          console.log('[trackNavigationAccess] Item was closed but is now active, removing from closed list');
           removeFromClosedItems(itemData.id);
         }
 
@@ -743,7 +698,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         saveNavigationHistory(updatedHistory);
         // Set the new array (already a new reference from map())
         setNavigationHistory(updatedHistory);
-        console.log('[trackNavigationAccess] Updated item in history and triggered re-render');
 
         // CRITICAL: Dispatch custom event to force UI update during View Transitions
         // React Context updates don't always trigger re-renders during View Transitions
@@ -751,10 +705,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (typeof window !== 'undefined') {
           setTimeout(() => {
             window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
-            console.log('[trackNavigationAccess] Dispatched navigationHistoryUpdated event');
           }, 0);
         }
-        
+
         // Refresh counts from API after updating to ensure accuracy (retry logic handles transient failures)
         // This ensures counts match the database even if page data is stale
         refreshNavigationCounts();
@@ -1088,10 +1041,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Listen for View Transitions and page loads
     // Use requestAnimationFrame to ensure updates happen after DOM is ready
     const handlePageLoad = () => {
-      console.log('[NavigationContext] astro:page-load event fired');
       // Use requestAnimationFrame for immediate visual updates
       requestAnimationFrame(() => {
-        console.log('[NavigationContext] Inside requestAnimationFrame after page load');
         // Refresh navigation history from localStorage on page load
         // This ensures we have the latest data after navigation
         refreshHistory();
