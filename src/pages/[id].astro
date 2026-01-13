@@ -1209,19 +1209,31 @@ if (!content) {
   window.addEventListener('noteAddedToThread', async (event) => {
     // @ts-ignore
     const { noteId, threadId } = event.detail;
-    
+
+    // Check if we're viewing the note that was added to a thread
+    const currentPath = window.location.pathname.substring(1);
+    const noteContainer = document.querySelector('[data-note-id]');
+    const currentNoteId = noteContainer?.getAttribute('data-note-id');
+
+    if (currentNoteId === noteId && currentPath.startsWith('note_')) {
+      // We're viewing the note that was just added to a thread
+      // Update the URL to include the new thread context
+      // @ts-ignore
+      await safeNavigate(`/${currentPath}?thread=${threadId}`, { history: 'replace' });
+      return;
+    }
+
     // Check if we're on the affected thread page
-    const currentThreadId = window.location.pathname.substring(1);
-    if (currentThreadId === threadId) {
+    if (currentPath === threadId) {
       // Navigate using View Transitions to show updated note list
       // @ts-ignore
       await safeNavigate(window.location.pathname + window.location.search, { history: 'replace' });
       return;
     }
-    
+
     // Also refresh if we're viewing unorganized and a note was added to another thread
     // (the note is no longer in unorganized when it has a thread association)
-    if (currentThreadId === 'thread_unorganized' && threadId !== 'thread_unorganized') {
+    if (currentPath === 'thread_unorganized' && threadId !== 'thread_unorganized') {
       // @ts-ignore
       await safeNavigate(window.location.pathname + window.location.search, { history: 'replace' });
     }
