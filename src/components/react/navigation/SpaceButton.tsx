@@ -77,14 +77,8 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       }
     } else {
       // Remove from navigation history using context
+      // removeFromNavigationHistory handles navigation to next item automatically
       removeFromNavigationHistory(itemId);
-      
-      // For regular navigation items, navigate to dashboard
-      if ((window as any).astroNavigate) {
-        (window as any).astroNavigate('/');
-      } else {
-        window.location.replace('/');
-      }
     }
   };
 
