@@ -74,8 +74,23 @@ const PersistentNavigation: React.FC = () => {
     // Initial refresh in case localStorage changed before mount
     refreshFromStorage();
 
+    // WORKAROUND: Poll for localStorage changes every 500ms during first 5 seconds
+    // This handles cases where events don't fire properly during View Transitions
+    let pollCount = 0;
+    const maxPolls = 10; // 10 polls over 5 seconds
+    const pollInterval = setInterval(() => {
+      pollCount++;
+      console.log('[PersistentNavigation] Polling localStorage, count:', pollCount);
+      refreshFromStorage();
+      if (pollCount >= maxPolls) {
+        clearInterval(pollInterval);
+        console.log('[PersistentNavigation] Polling complete');
+      }
+    }, 500);
+
     return () => {
       console.log('[PersistentNavigation] Cleaning up event listeners');
+      clearInterval(pollInterval);
       window.removeEventListener('navigationHistoryUpdated', handleNavigationUpdate);
       document.removeEventListener('astro:page-load', handlePageLoad);
       window.removeEventListener('storage', handleStorageChange);
