@@ -180,6 +180,29 @@ export async function tagAsAppUser(
   firstName?: string,
   lastName?: string
 ): Promise<AudiencefulPersonResponse> {
+  console.log('[Audienceful] Starting tagAsAppUser:', {
+    email,
+    clerkUserId,
+    firstName: firstName || null,
+    lastName: lastName || null,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Check if API key is configured before making any requests
+  try {
+    const apiKey = import.meta.env.AUDIENCEFUL_API_KEY;
+    if (!apiKey) {
+      throw new Error('AUDIENCEFUL_API_KEY environment variable is not set');
+    }
+  } catch (error: any) {
+    console.error('[Audienceful] API key not configured:', {
+      error: error.message,
+      email,
+      clerkUserId,
+    });
+    throw error;
+  }
+
   // Try to find existing subscriber
   const existing = await findSubscriberByEmail(email);
 
@@ -196,6 +219,13 @@ export async function tagAsAppUser(
     const existingTagsString = tagsToString(existing.tags);
     const mergedTags = mergeTags(existingTagsString, 'User');
 
+    console.log('[Audienceful] Updating existing subscriber:', {
+      email,
+      existingId: existing.id,
+      existingTags: existingTagsString,
+      mergedTags,
+    });
+
     // Merge extra_data
     const mergedExtraData = {
       ...existing.extra_data,
@@ -203,33 +233,64 @@ export async function tagAsAppUser(
     };
 
     try {
-      return await updateSubscriber(email, {
+      const result = await updateSubscriber(email, {
         tags: mergedTags,
         extra_data: mergedExtraData,
       });
+
+      console.log('[Audienceful] Successfully updated subscriber:', {
+        email,
+        audiencefulId: result.id || result.uid,
+        tags: mergedTags,
+      });
+
+      return result;
     } catch (error: any) {
       // If person doesn't exist (404), fall back to creating them
       if (error.message && error.message.includes('404')) {
+        console.log('[Audienceful] Subscriber not found during update, creating new:', {
+          email,
+        });
+
         // Person was not found, create them instead
-        return await createSubscriber({
+        const result = await createSubscriber({
           email,
           tags: mergedTags,
           extra_data: mergedExtraData,
           double_opt_in: 'not_required',
           trigger_automations: false,
         });
+
+        console.log('[Audienceful] Successfully created subscriber (fallback):', {
+          email,
+          audiencefulId: result.id || result.uid,
+        });
+
+        return result;
       }
       // Re-throw other errors
       throw error;
     }
   } else {
     // Create new subscriber
-    return await createSubscriber({
+    console.log('[Audienceful] Creating new subscriber:', {
+      email,
+      tags: 'User',
+    });
+
+    const result = await createSubscriber({
       email,
       tags: 'User',
       extra_data: extraData,
       double_opt_in: 'not_required',
       trigger_automations: false,
     });
+
+    console.log('[Audienceful] Successfully created subscriber:', {
+      email,
+      audiencefulId: result.id || result.uid,
+    });
+
+    return result;
   }
 }

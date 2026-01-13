@@ -5,10 +5,11 @@ This integration automatically tags users in Audienceful when they sign up for H
 ## What It Does
 
 When someone signs up for Harvous:
-1. Clerk triggers a `user.created` webhook
-2. The webhook endpoint receives the user data
-3. The user is automatically added/updated in Audienceful with:
-   - Tag: `app_user`
+1. Clerk triggers an `emailAddress.created` webhook (PRIMARY) or `user.created` webhook (fallback)
+2. The webhook endpoint receives the event data
+3. For `emailAddress.created` events, we fetch full user details from Clerk API
+4. The user is automatically added/updated in Audienceful with:
+   - Tag: `User`
    - Custom field: `clerk_user_id` (their Clerk user ID)
    - First and last name (if provided)
 
@@ -36,9 +37,12 @@ This allows you to segment in Audienceful between email subscribers and actual a
      - For production: `https://harvous.com/api/webhooks/clerk`
      - For development/testing: Use [ngrok](https://ngrok.com) or similar to expose your local server
    - **Subscribe to events**: Select the following events:
-     - ✅ `user.created` (required - tags new users)
+     - ✅ `emailAddress.created` (REQUIRED - most reliable for new signups)
+     - ✅ `user.created` (optional - fallback if emailAddress.created not available)
      - ✅ `user.updated` (optional - updates user info)
      - ⬜ `user.deleted` (optional - currently just logs, doesn't remove from Audienceful)
+     
+   **Why emailAddress.created?** This event fires when an email is actually created, ensuring we have the email address available. `user.created` may fire before the email is fully set up, which can cause sync failures.
 5. Click **Create**
 6. Copy the **Signing Secret** (starts with `whsec_...`)
 7. Add it to your `.env` file:
@@ -65,7 +69,7 @@ This allows you to segment in Audienceful between email subscribers and actual a
 1. Sign up a new test user in your Clerk authentication
 2. Check the webhook logs in Clerk Dashboard > Webhooks > [Your Endpoint] > Logs
 3. Verify the webhook was delivered successfully (should see 200 status)
-4. Check Audienceful to confirm the user was tagged with `app_user`
+4. Check Audienceful to confirm the user was tagged with `User`
 
 #### Option B: Test with Clerk's Webhook Testing Tool
 
@@ -81,7 +85,7 @@ This allows you to segment in Audienceful between email subscribers and actual a
 1. Go to [Audienceful People](https://app.audienceful.com/people)
 2. Search for a user who signed up
 3. Verify they have:
-   - ✅ Tag: `app_user`
+   - ✅ Tag: `User`
    - ✅ Custom field: `clerk_user_id` with their Clerk ID
    - ✅ First/last name (if provided during signup)
 
@@ -90,11 +94,11 @@ This allows you to segment in Audienceful between email subscribers and actual a
 Now you can create audience segments in Audienceful:
 
 ### Email Subscribers Only
-- Filter: Does NOT have tag `app_user`
+- Filter: Does NOT have tag `User`
 - Use case: Encourage them to sign up for the app
 
 ### App Users Only
-- Filter: Has tag `app_user`
+- Filter: Has tag `User`
 - Use case: Send app-specific updates, feature announcements, engagement emails
 
 ### Both
@@ -124,7 +128,7 @@ Now you can create audience segments in Audienceful:
 - URL: `/api/webhooks/clerk`
 - Method: POST
 - Authentication: Svix signature verification (HMAC SHA-256)
-- Events handled: `user.created`, `user.updated`, `user.deleted`
+- Events handled: `emailAddress.created` (primary), `user.created` (fallback), `user.updated`, `user.deleted`
 
 ### Security
 
@@ -254,7 +258,7 @@ Possible improvements:
 - Add custom field for user signup date
 - Track user's last login date in Audienceful
 - Add tags based on subscription tier (free/paid)
-- Implement user deletion sync (remove `app_user` tag when user deletes account)
+- Implement user deletion sync (remove `User` tag when user deletes account)
 - Add retry logic for Audienceful API failures
 - Queue failed syncs for later retry
 
