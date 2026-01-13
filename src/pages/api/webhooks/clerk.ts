@@ -17,13 +17,13 @@ import { successResponse, errorResponse, unauthorizedResponse, serverErrorRespon
  * for the Harvous app via Clerk authentication.
  *
  * IMPORTANT: We handle both emailAddress.created and user.created events.
- * emailAddress.created is MORE RELIABLE because it fires when the email is actually
- * created and verified, ensuring we have the email address available.
+ * user.created is the PRIMARY event (available in Clerk dashboard).
+ * emailAddress.created may not be available in all Clerk instances.
  *
  * Webhook Setup:
  * 1. Go to Clerk Dashboard > Webhooks
  * 2. Add a new webhook endpoint with URL: https://your-domain.com/api/webhooks/clerk
- * 3. Select events: emailAddress.created (REQUIRED) and user.created (optional fallback)
+ * 3. Select events: user.created (REQUIRED) - this is what's available in the dashboard
  * 4. Copy the signing secret and add it to your .env as CLERK_WEBHOOK_SECRET
  *
  * Environment Variables Required:
@@ -101,16 +101,21 @@ function getPrimaryEmail(event: ClerkUserWebhookEvent): string | null {
  * This is MORE RELIABLE than user.created because it fires when the email is actually created
  */
 async function handleEmailCreated(event: ClerkEmailWebhookEvent): Promise<void> {
-  // Log the full event structure first to debug
-  console.log(`[Webhook] Processing ${event.type} event - full event data:`, {
-    eventType: event.type,
-    fullEvent: JSON.stringify(event, null, 2),
-    timestamp: new Date().toISOString(),
-  });
+  try {
+    // Log the full event structure first to debug
+    console.log(`[Webhook] Processing ${event.type} event - full event data:`, {
+      eventType: event.type,
+      fullEvent: JSON.stringify(event, null, 2),
+      timestamp: new Date().toISOString(),
+    });
 
-  // Extract email and user_id from emailAddress.created event
-  const email_address = event.data.email_address;
-  const user_id = event.data.user_id;
+    // Extract email and user_id from emailAddress.created event
+    if (!event.data) {
+      throw new Error('Event data is missing');
+    }
+    
+    const email_address = event.data.email_address;
+    const user_id = event.data.user_id;
 
   console.log(`[Webhook] Extracted data from ${event.type} event:`, {
     clerkUserId: user_id,
@@ -222,12 +227,23 @@ async function handleEmailCreated(event: ClerkEmailWebhookEvent): Promise<void> 
         email: email_address,
       });
     }
+  } catch (error: any) {
+    // Catch any errors in the handler itself
+    console.error('[Webhook] Error in handleEmailCreated:', {
+      error: error.message,
+      errorStack: error.stack,
+      errorName: error.name,
+      eventData: JSON.stringify(event.data).substring(0, 500),
+      timestamp: new Date().toISOString(),
+    });
+    // Re-throw so it's caught by the outer try-catch
+    throw error;
   }
 }
 
 /**
  * Process user.created webhook event
- * This is a fallback - emailAddress.created is more reliable
+ * This is the PRIMARY event since emailAddress.created may not be available in all Clerk instances
  */
 async function handleUserCreated(event: ClerkUserWebhookEvent): Promise<void> {
   const { id: clerkUserId, first_name, last_name } = event.data;
@@ -239,6 +255,8 @@ async function handleUserCreated(event: ClerkUserWebhookEvent): Promise<void> {
     email: email || 'NO_EMAIL',
     firstName: first_name || null,
     lastName: last_name || null,
+    emailAddressesCount: event.data.email_addresses?.length || 0,
+    emailAddresses: event.data.email_addresses?.map(e => e.email_address) || [],
     timestamp: new Date().toISOString(),
   });
 
@@ -248,6 +266,7 @@ async function handleUserCreated(event: ClerkUserWebhookEvent): Promise<void> {
     console.warn('[Webhook] User has no email address, skipping Audienceful sync:', {
       clerkUserId,
       emailAddresses: event.data.email_addresses?.length || 0,
+      emailAddressesData: event.data.email_addresses,
     });
     return;
   }
@@ -482,23 +501,29 @@ export const POST: APIRoute = async ({ request }) => {
     // Wrap event processing in try-catch to ensure webhook always returns 200 OK
     // Even if Audienceful sync fails, we don't want Clerk to retry endlessly
     try {
+      console.log('[Webhook] About to process event, type:', event.type);
+      
       switch (event.type) {
         case 'emailAddress.created':
-          // This is the PRIMARY event we use - most reliable for new signups
-          await handleEmailCreated(event);
+          // This event may not be available in all Clerk instances
+          console.log('[Webhook] Handling emailAddress.created event');
+          await handleEmailCreated(event as ClerkEmailWebhookEvent);
           break;
 
         case 'user.created':
-          // Fallback event - use emailAddress.created if possible
-          await handleUserCreated(event);
+          // PRIMARY event - this is what's available in Clerk dashboard
+          console.log('[Webhook] Handling user.created event');
+          await handleUserCreated(event as ClerkUserWebhookEvent);
           break;
 
         case 'user.updated':
-          await handleUserUpdated(event);
+          console.log('[Webhook] Handling user.updated event');
+          await handleUserUpdated(event as ClerkUserWebhookEvent);
           break;
 
         case 'user.deleted':
-          await handleUserDeleted(event);
+          console.log('[Webhook] Handling user.deleted event');
+          await handleUserDeleted(event as ClerkUserWebhookEvent);
           break;
 
         default:
@@ -513,20 +538,22 @@ export const POST: APIRoute = async ({ request }) => {
       // This catches any unexpected errors in event handlers
       console.error('[Webhook] Error processing event (webhook will still succeed):', {
         eventType: event.type,
-        userId: event.data.id,
         error: error.message,
         errorStack: error.stack,
+        errorName: error.name,
+        fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)).substring(0, 1000),
         timestamp: new Date().toISOString(),
       });
 
       let errorUserId: string;
       try {
         if (event.type === 'emailAddress.created') {
-          errorUserId = (event as ClerkEmailWebhookEvent).data.user_id || 'unknown';
+          errorUserId = (event as ClerkEmailWebhookEvent).data?.user_id || 'unknown';
         } else {
-          errorUserId = (event as ClerkUserWebhookEvent).data.id || 'unknown';
+          errorUserId = (event as ClerkUserWebhookEvent).data?.id || 'unknown';
         }
-      } catch {
+      } catch (extractError: any) {
+        console.error('[Webhook] Error extracting userId for error logging:', extractError.message);
         errorUserId = 'unknown';
       }
       
