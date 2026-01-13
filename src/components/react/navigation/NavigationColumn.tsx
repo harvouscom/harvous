@@ -74,7 +74,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     initials: initials,
     userColor: userColor,
   });
-  const [showActiveThread, setShowActiveThread] = useState(false);
+  // For note pages, always show the active thread button by default
+  // For other pages, start with false and let the effect determine visibility
+  const [showActiveThread, setShowActiveThread] = useState(isNote || false);
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
     return pathname.substring(1) || '';
