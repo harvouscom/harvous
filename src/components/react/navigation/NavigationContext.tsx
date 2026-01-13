@@ -503,39 +503,54 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Extract item data from page
   const extractItemDataFromPage = (currentItemId: string): Omit<NavigationItem, 'firstAccessed' | 'lastAccessed'> | null => {
+    console.log('[extractItemDataFromPage] Starting extraction for:', currentItemId);
+
     // Handle SSR - return null if not in browser
     if (typeof window === 'undefined') {
+      console.log('[extractItemDataFromPage] SSR environment, returning null');
       return null;
     }
-    
+
     // Get data from navigation slot element (set by Layout.astro)
     let navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+    console.log('[extractItemDataFromPage] Navigation element found:', !!navigationElement);
     
     // For notes, try fallback to data-note-id element if navigation element not found
     if (currentItemId.startsWith('note_') && !navigationElement) {
+      console.log('[extractItemDataFromPage] No navigation element, trying data-note-id fallback');
       const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+      console.log('[extractItemDataFromPage] Note element found:', !!noteElement);
       if (noteElement && noteElement.dataset.parentThreadId) {
-        return {
+        const result = {
           id: noteElement.dataset.parentThreadId,
           title: noteElement.dataset.parentThreadTitle || 'Thread',
           count: parseInt(noteElement.dataset.parentThreadCount || '0'),
           backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)'
         };
+        console.log('[extractItemDataFromPage] Returning from data-note-id fallback:', result);
+        return result;
       }
     }
-    
-    if (!navigationElement) return null;
+
+    if (!navigationElement) {
+      console.log('[extractItemDataFromPage] No navigation element found, returning null');
+      return null;
+    }
     
     // For notes, use parent thread data
     if (currentItemId.startsWith('note_')) {
       const parentThreadId = navigationElement.dataset.parentThreadId;
+      console.log('[extractItemDataFromPage] Note page - parentThreadId:', parentThreadId);
+      console.log('[extractItemDataFromPage] Note page - all datasets:', navigationElement.dataset);
       if (parentThreadId) {
-        return {
+        const result = {
           id: parentThreadId,
           title: navigationElement.dataset.parentThreadTitle || 'Thread',
           count: parseInt(navigationElement.dataset.parentThreadCount || '0'),
           backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)'
         };
+        console.log('[extractItemDataFromPage] Returning thread data for note:', result);
+        return result;
       }
       
       // Fallback: try to get from data-note-id element
@@ -585,12 +600,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (typeof window === 'undefined') {
       return;
     }
-    
+
     const currentPath = window.location.pathname;
     const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    console.log('[trackNavigationAccess] Called for:', currentItemId, 'retryCount:', retryCount);
 
     // Skip dashboard and empty paths
     if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
+      console.log('[trackNavigationAccess] Skipping - dashboard/empty/auth page');
       return;
     }
     
@@ -611,13 +628,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     // Extract item data from page
     let itemData = extractItemDataFromPage(currentItemId);
-    
+    console.log('[trackNavigationAccess] Extracted itemData:', itemData, 'retryCount:', retryCount);
+
     // Retry logic: if element not found and we haven't retried too many times, retry after a delay
     if (!itemData && retryCount < 3) {
       const maxRetries = 3;
       const retryDelay = 100 * (retryCount + 1); // 100ms, 200ms, 300ms
-      
-      
+
+      console.log('[trackNavigationAccess] No data found, scheduling retry', retryCount + 1, 'in', retryDelay, 'ms');
       setTimeout(() => {
         trackNavigationAccess(retryCount + 1);
       }, retryDelay);
@@ -635,17 +653,22 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Check if this is a new item (not in history yet)
       const history = getNavigationHistory();
       const existingItem = history.find(h => h.id === itemData.id);
-      
+      console.log('[trackNavigationAccess] Existing item in history:', !!existingItem);
+
       // Get current active item ID to check if user explicitly navigated to this item
       const currentActiveItemId = getCurrentActiveItemId();
       const isCurrentlyActive = itemData.id === currentActiveItemId;
+      console.log('[trackNavigationAccess] currentActiveItemId:', currentActiveItemId, 'itemData.id:', itemData.id, 'isCurrentlyActive:', isCurrentlyActive);
 
       if (!existingItem) {
+        console.log('[trackNavigationAccess] Item not in history:', itemData.id);
         // Item doesn't exist in history - check if it was closed
         if (isItemClosed(itemData.id)) {
+          console.log('[trackNavigationAccess] Item was closed. isCurrentlyActive:', isCurrentlyActive);
           // Item was previously closed
           if (isCurrentlyActive) {
             // User is viewing content in this thread - restore it
+            console.log('[trackNavigationAccess] Restoring closed item:', itemData.id);
             removeFromClosedItems(itemData.id);
             addToNavigationHistory(itemData);
 
@@ -654,10 +677,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             refreshNavigationCountsImmediate();
           } else {
             // Item is closed and user isn't viewing it - don't add it back
+            console.log('[trackNavigationAccess] Item closed and not active, skipping');
             return;
           }
         } else {
           // Item is not closed - add it to history (first time opening)
+          console.log('[trackNavigationAccess] Adding new item to history:', itemData.id);
           addToNavigationHistory(itemData);
 
           // Refresh counts from API after adding new item to ensure accuracy (retry logic handles transient failures)
@@ -1014,8 +1039,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Listen for View Transitions and page loads
     // Use requestAnimationFrame to ensure updates happen after DOM is ready
     const handlePageLoad = () => {
+      console.log('[NavigationContext] astro:page-load event fired');
       // Use requestAnimationFrame for immediate visual updates
       requestAnimationFrame(() => {
+        console.log('[NavigationContext] Inside requestAnimationFrame after page load');
         // Refresh navigation history from localStorage on page load
         // This ensures we have the latest data after navigation
         refreshHistory();
