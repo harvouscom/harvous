@@ -179,7 +179,21 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       document.removeEventListener('astro:after-swap', handlePageLoad);
     };
   }, [pathname, activeThread]);
-  
+
+  // Force re-render when navigation history updates (critical for View Transitions)
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const handleNavigationUpdate = () => {
+      console.log('[NavigationColumn] navigationHistoryUpdated event received, forcing re-render');
+      forceUpdate(prev => prev + 1);
+    };
+
+    window.addEventListener('navigationHistoryUpdated', handleNavigationUpdate);
+    return () => {
+      window.removeEventListener('navigationHistoryUpdated', handleNavigationUpdate);
+    };
+  }, []);
+
   // No longer using active thread button - threads appear only in persistent navigation
   // trackNavigationAccess() handles adding them automatically
 

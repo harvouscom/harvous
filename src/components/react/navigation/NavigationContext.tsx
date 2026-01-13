@@ -728,6 +728,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // CRITICAL: Create new array reference to trigger React re-render
         setNavigationHistory([...history]);
         console.log('[trackNavigationAccess] Updated item in history and triggered re-render');
+
+        // CRITICAL: Dispatch custom event to force UI update during View Transitions
+        // React Context updates don't always trigger re-renders during View Transitions
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+        }
         
         // Refresh counts from API after updating to ensure accuracy (retry logic handles transient failures)
         // This ensures counts match the database even if page data is stale
