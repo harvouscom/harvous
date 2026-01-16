@@ -355,18 +355,19 @@ export async function processScriptureReferences(
           await ensureUnorganizedThread(userId);
           
           const scriptureNote = await db.insert(Notes)
-            .values({ 
+            .values({
               id: generateNoteId(),
-              content: capitalizedContent, 
-              title: capitalizedTitle, 
+              content: capitalizedContent,
+              title: capitalizedTitle,
               threadId: 'thread_unorganized',
               spaceId: null,
               simpleNoteId: nextSimpleNoteId,
               noteType: 'scripture',
-              userId, 
+              userId,
               isPublic: false,
               addedBy: 'harvous',
-              createdAt: new Date() 
+              createdAt: new Date(),
+              lastVisited: new Date() // Set lastVisited so newly created notes appear at top
             })
             .returning()
             .get();

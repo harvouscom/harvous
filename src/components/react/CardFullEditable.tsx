@@ -5,6 +5,7 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
+import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
 
@@ -702,153 +703,57 @@ export default function CardFullEditable({
     if (pillElement) {
       const noteId = pillElement.getAttribute('data-note-id');
       const reference = pillElement.getAttribute('data-scripture-reference');
-      
-      if (noteId) {
-        // Navigate to the note (with lazy recreation if needed)
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Skip check if noteId is 'pending' (placeholder for unsaved notes)
-        if (noteId === 'pending') {
-          // If we have a reference, create the note immediately
-          if (reference) {
-            try {
-              const normalizedRef = reference;
-              
-              // Get parent thread ID from DOM (the thread this note belongs to)
-              const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-              const parentThreadId = noteElement?.dataset.parentThreadId || 'thread_unorganized';
-              
-              // Fetch verse text first
-              let verseText = reference;
-              try {
-                const verseResponse = await fetch('/api/scripture/fetch-verse', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ reference: normalizedRef }),
-                  credentials: 'include'
-                });
 
-                if (verseResponse.ok) {
-                  const verseData = await verseResponse.json();
-                  verseText = verseData.text || reference;
-                }
-              } catch (error) {
-                console.error('Error fetching verse text:', error);
-              }
+      e.preventDefault();
+      e.stopPropagation();
 
-              // Create new note with verse text as content
-              const formData = new FormData();
-              formData.set('content', verseText);
-              formData.set('title', reference);
-              formData.set('threadId', parentThreadId);
-              formData.set('noteType', 'scripture');
-              formData.set('scriptureReference', normalizedRef);
-              formData.set('scriptureVersion', 'NET');
+      // If we have a reference, always use getOrCreateScriptureNote to prevent duplicates
+      if (reference) {
+        try {
+          // Get parent thread ID from DOM (the thread this note belongs to)
+          const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+          const parentThreadId = noteElement?.dataset.parentThreadId || 'thread_unorganized';
 
-              const createResponse = await fetch('/api/notes/create', {
-                method: 'POST',
-                body: formData,
-                credentials: 'include'
-              });
+          // Use the shared utility that properly checks for existing scripture notes
+          const result = await getOrCreateScriptureNote(reference, parentThreadId);
 
-              if (createResponse.ok) {
-                const result = await createResponse.json();
-                if (result.note && result.note.id) {
-                  safeNavigate(`/${result.note.id}`, { history: 'push' });
-                  return;
-                }
-              }
-            } catch (error) {
-              console.error('Error creating pending scripture note:', error);
-              window.dispatchEvent(new CustomEvent('toast', {
-                detail: {
-                  message: 'Could not create scripture note. Please try again.',
-                  type: 'error'
-                }
-              }));
-            }
+          if (result.noteId) {
+            safeNavigate(`/${result.noteId}`, { history: 'push' });
           } else {
-            // No reference available, can't create note
+            // Show error toast if creation failed
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
-                message: 'Scripture note is pending creation. Please save the note first.',
-                type: 'warning'
+                message: 'Could not create scripture note. Please try again.',
+                type: 'error'
               }
             }));
           }
-          return;
-        }
-        
-        // Check if note exists, and recreate if needed
-        let targetNoteId = noteId;
-        
-        try {
-          const checkResponse = await fetch(`/api/notes/${noteId}/details`, {
-            method: 'GET',
-            credentials: 'include'
-          });
-          
-          // If note doesn't exist and we have a reference, recreate it
-          if (!checkResponse.ok && reference) {
-            const normalizedRef = reference;
-            
-            // Get parent thread ID from DOM (the thread this note belongs to)
-            const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-            const parentThreadId = noteElement?.dataset.parentThreadId || 'thread_unorganized';
-            
-            // Fetch verse text first
-            let verseText = reference;
-            try {
-              const verseResponse = await fetch('/api/scripture/fetch-verse', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reference: normalizedRef }),
-                credentials: 'include'
-              });
-
-              if (verseResponse.ok) {
-                const verseData = await verseResponse.json();
-                verseText = verseData.text || reference;
-              }
-            } catch (error) {
-              console.error('Error fetching verse text:', error);
-            }
-
-            // Create new note with verse text as content
-            // Use parent thread ID so the recreated note is in the same thread as the current note
-            const formData = new FormData();
-            formData.set('content', verseText);
-            formData.set('title', reference);
-            formData.set('threadId', parentThreadId);
-            formData.set('noteType', 'scripture');
-            formData.set('scriptureReference', normalizedRef);
-            formData.set('scriptureVersion', 'NET');
-
-            const createResponse = await fetch('/api/notes/create', {
-              method: 'POST',
-              body: formData,
-              credentials: 'include'
-            });
-
-            if (createResponse.ok) {
-              const result = await createResponse.json();
-              if (result.note && result.note.id) {
-                targetNoteId = result.note.id;
-                // Show success toast
-                if (window.toast) {
-                  window.toast.success(`Scripture note restored: ${reference}`);
-                }
-              }
-            }
-          }
         } catch (error) {
-          console.error('Error checking/restoring note:', error);
+          console.error('Error handling scripture note:', error);
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: {
+              message: 'Could not create scripture note. Please try again.',
+              type: 'error'
+            }
+          }));
         }
-        
-        safeNavigate(`/${targetNoteId}`, { history: 'push' });
         return;
       }
+
+      // Fallback: If we have noteId but no reference, navigate directly
+      if (noteId && noteId !== 'pending') {
+        safeNavigate(`/${noteId}`, { history: 'push' });
+        return;
+      }
+
+      // No reference or noteId available
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Scripture note is pending creation. Please save the note first.',
+          type: 'warning'
+        }
+      }));
+      return;
     }
     
     // If not a note-link or scripture pill, enter edit mode (unless it's a scripture note)

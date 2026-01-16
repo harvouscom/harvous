@@ -249,23 +249,9 @@ export default function OrganizedContentList({
                  !deletedItemIdsRef.current.has(normalizeId(item.noteId));
         });
 
-        // Filter out recently created scripture notes without lastVisited (handles race condition)
-        const now = Date.now();
-        const RECENT_CREATION_THRESHOLD = 5000; // 5 seconds
-
-        const filteredByScriptureRules = notDeletedItems.filter(item => {
-          if (item.type !== 'note' || item.noteType !== 'scripture') return true;
-
-          if (item.createdAt && !item.lastVisited) {
-            const createdAtTime = new Date(item.createdAt).getTime();
-            const isRecentlyCreated = (now - createdAtTime) < RECENT_CREATION_THRESHOLD;
-            if (isRecentlyCreated) {
-              return false;
-            }
-          }
-
-          return true;
-        });
+        // All items pass through - no client-side filtering needed
+        // (lastVisited is set at creation time, so new notes appear at top via sorting)
+        const filteredByScriptureRules = notDeletedItems;
 
         // Apply filter
         let filteredItems = filteredByScriptureRules;
