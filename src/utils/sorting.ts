@@ -82,6 +82,21 @@ export function sortByLastVisited<T extends {
     if (aTime > 0 && bTime === 0) return -1;
     if (aTime === 0 && bTime > 0) return 1;
 
+    // Tertiary tiebreaker: When lastVisited timestamps are identical, use updatedAt
+    // This provides more stable sorting when items were visited at the exact same millisecond
+    const aUpdated = a.updatedAt ? normalizeDate(a.updatedAt)?.getTime() || 0 : 0;
+    const bUpdated = b.updatedAt ? normalizeDate(b.updatedAt)?.getTime() || 0 : 0;
+    if (aUpdated !== bUpdated) {
+      return bUpdated - aUpdated;
+    }
+
+    // Quaternary tiebreaker: When updatedAt is also identical, use createdAt
+    const aCreated = a.createdAt ? normalizeDate(a.createdAt)?.getTime() || 0 : 0;
+    const bCreated = b.createdAt ? normalizeDate(b.createdAt)?.getTime() || 0 : 0;
+    if (aCreated !== bCreated) {
+      return bCreated - aCreated;
+    }
+
     // Final tiebreaker: ID for deterministic sorting
     // Use simple string comparison (not localeCompare) for consistency
     const aId = a.id || '';
@@ -148,6 +163,21 @@ export function sortThreadsByLastVisited<T extends {
     // Items with valid time come before items without
     if (aTime > 0 && bTime === 0) return -1;
     if (aTime === 0 && bTime > 0) return 1;
+
+    // Quaternary tiebreaker: When lastVisited timestamps are identical, use updatedAt
+    // This provides more stable sorting when items were visited at the exact same millisecond
+    const aUpdated = a.updatedAt ? normalizeDate(a.updatedAt)?.getTime() || 0 : 0;
+    const bUpdated = b.updatedAt ? normalizeDate(b.updatedAt)?.getTime() || 0 : 0;
+    if (aUpdated !== bUpdated) {
+      return bUpdated - aUpdated;
+    }
+
+    // Quinary tiebreaker: When updatedAt is also identical, use createdAt
+    const aCreated = a.createdAt ? normalizeDate(a.createdAt)?.getTime() || 0 : 0;
+    const bCreated = b.createdAt ? normalizeDate(b.createdAt)?.getTime() || 0 : 0;
+    if (aCreated !== bCreated) {
+      return bCreated - aCreated;
+    }
 
     // Final tiebreaker: ID for deterministic sorting
     // Use simple string comparison (not localeCompare) for consistency

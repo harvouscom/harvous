@@ -175,10 +175,21 @@ export default function OrganizedContentList({
     } catch {}
 
     const rawItems = (initialItems || []).map(normalizeItemDates);
+
+    // Debug logging to track lastVisited values on SSR initialization
+    debug('[OrganizedContentList] SSR Init - Items with lastVisited:',
+      rawItems.slice(0, 10).map(i => ({
+        id: i.id,
+        type: i.type,
+        title: i.title?.substring(0, 30),
+        lastVisited: i.lastVisited?.toISOString() || 'null'
+      }))
+    );
+
     const filtered = rawItems.filter(item => {
       if (!item || !item.id) return false;
-      return !initialDeleted.has(normalizeId(item.id)) && 
-             !initialDeleted.has(normalizeId(item.threadId)) && 
+      return !initialDeleted.has(normalizeId(item.id)) &&
+             !initialDeleted.has(normalizeId(item.threadId)) &&
              !initialDeleted.has(normalizeId(item.noteId));
     });
 
@@ -419,6 +430,16 @@ export default function OrganizedContentList({
         // This ensures consistent ordering across all devices
         const normalizedItems = (data.items || []).map(normalizeItemDates);
 
+        // Debug logging to track lastVisited values on API refresh
+        debug('[OrganizedContentList] API Refresh - Items with lastVisited:',
+          normalizedItems.slice(0, 10).map(i => ({
+            id: i.id,
+            type: i.type,
+            title: i.title?.substring(0, 30),
+            lastVisited: i.lastVisited?.toISOString() || 'null'
+          }))
+        );
+
         // Only preserve threadColors and optimistic lastVisited from current items
         // Use matchesItem for consistent, validated matching
         const currentSnapshot = [...currentItemsRef.current];
@@ -484,6 +505,29 @@ export default function OrganizedContentList({
             }
           }
         });
+
+        // Compare before/after to detect lastVisited changes
+        const changedItems = normalizedItems.filter(freshItem => {
+          const currentItem = currentSnapshot.find(ci => matchesItem(ci, freshItem.id, freshItem.type));
+          if (!currentItem) return false;
+          const freshTime = freshItem.lastVisited?.getTime();
+          const currentTime = currentItem.lastVisited?.getTime();
+          return freshTime !== currentTime;
+        });
+        if (changedItems.length > 0) {
+          debug('[OrganizedContentList] DETECTED CHANGES in lastVisited:',
+            changedItems.slice(0, 5).map(item => {
+              const currentItem = currentSnapshot.find(ci => matchesItem(ci, item.id, item.type));
+              return {
+                id: item.id,
+                type: item.type,
+                title: item.title?.substring(0, 30),
+                before: currentItem?.lastVisited?.toISOString() || 'null',
+                after: item.lastVisited?.toISOString() || 'null'
+              };
+            })
+          );
+        }
 
         // Merge with optimistic items (unfiltered for master list)
         // Build confirmedIds set with all possible ID formats from server response
