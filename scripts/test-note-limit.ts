@@ -13,14 +13,17 @@
 import { db, UserMetadata, eq } from 'astro:db';
 
 // Get userId from command line args or prompt
-const targetCount = process.argv[2] ? parseInt(process.argv[2], 10) : null;
+const targetCountArg = process.argv[2] ? parseInt(process.argv[2], 10) : null;
 const userIdArg = process.argv[3];
 
-if (!targetCount || isNaN(targetCount)) {
+if (!targetCountArg || isNaN(targetCountArg)) {
   console.error('Usage: npx tsx scripts/test-note-limit.ts <count> [userId]');
   console.error('Example: npx tsx scripts/test-note-limit.ts 999');
   process.exit(1);
 }
+
+// After the check above, we know targetCountArg is a valid number
+const targetCount: number = targetCountArg;
 
 async function setNoteCount() {
   try {

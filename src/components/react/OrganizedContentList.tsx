@@ -41,6 +41,7 @@ interface OrganizedContentListProps {
   initialItems: OrganizedContentItem[];
   filter?: 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
   userId?: string;
+  dataGeneratedAt?: number; // Timestamp when SSR data was generated - used to detect stale cached pages
 }
 
 // Helper to normalize dates once at API boundary
@@ -114,10 +115,11 @@ function normalizeId(id: string | undefined | null): string {
   return out;
 }
 
-export default function OrganizedContentList({ 
-  initialItems, 
+export default function OrganizedContentList({
+  initialItems,
   filter = 'all',
-  userId
+  userId,
+  dataGeneratedAt
 }: OrganizedContentListProps) {
   // Prevent a "flash" of server-rendered items that might include content the user deleted.
   // We can't read sessionStorage on the server, so we intentionally render a lightweight
@@ -126,6 +128,12 @@ export default function OrganizedContentList({
   useEffect(() => {
     setIsHydrated(true);
   }, []);
+
+  // Stale cache detection: If SSR data is older than MAX_SSR_AGE, skip rendering stale data
+  // and show loading state until fresh data arrives
+  const MAX_SSR_AGE = 60000; // 60 seconds
+  const isDataFromStaleCache = dataGeneratedAt && typeof window !== 'undefined' && (Date.now() - dataGeneratedAt > MAX_SSR_AGE);
+  const [isWaitingForFreshData, setIsWaitingForFreshData] = useState<boolean>(() => !!isDataFromStaleCache);
 
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(() => {
     // Restore deleted items. We store in BOTH sessionStorage and localStorage because
@@ -157,7 +165,17 @@ export default function OrganizedContentList({
   });
   const [currentItems, setCurrentItems] = useState<OrganizedContentItem[]>(() => {
     if (filter === 'scripture') return [];
-    
+
+    // STALE CACHE CHECK: If SSR data is from a cached page older than MAX_SSR_AGE,
+    // skip rendering stale data - it will show loading state and wait for fresh data
+    if (dataGeneratedAt && typeof window !== 'undefined') {
+      const ssrAge = Date.now() - dataGeneratedAt;
+      if (ssrAge > 60000) { // 60 seconds
+        debug('[OrganizedContentList] SSR data is stale (age: ' + Math.round(ssrAge / 1000) + 's), skipping initial render');
+        return [];
+      }
+    }
+
     // CRITICAL: Filter initialItems IMMEDIATELY in the state initializer
     // This prevents deleted items from appearing on the first render
     let initialDeleted = new Set<string>();
@@ -1088,11 +1106,22 @@ export default function OrganizedContentList({
       const cameFromNotePage = referrerMatchesPattern('/note_');
       const previousWasNote = previousPathnameRef.current.startsWith('/note_');
 
-      if (inPWA || dataIsStale || cameFromNotePage || previousWasNote) {
+      // Check if SSR data is from a stale cached page (older than 30 seconds)
+      const ssrAge = dataGeneratedAt ? Date.now() - dataGeneratedAt : 0;
+      const isFromStaleCache = ssrAge > 30000; // 30 seconds - trigger refresh sooner than the 60s render skip
+
+      if (inPWA || dataIsStale || isFromStaleCache || cameFromNotePage || previousWasNote) {
+        // Set loading state if data is from stale cache
+        if (isFromStaleCache) {
+          debug('[OrganizedContentList] checkAndRefreshOnMount: SSR data from stale cache (age: ' + Math.round(ssrAge / 1000) + 's), refreshing');
+          setIsWaitingForFreshData(true);
+        }
         // Removed delays for instant refresh
         if (isMountedRef.current && window.location.pathname === '/' &&
             !refreshStateRef.current.isNavigating && !refreshStateRef.current.isRefreshing) {
-          refreshContent();
+          refreshContent().finally(() => {
+            setIsWaitingForFreshData(false);
+          });
         }
       }
     };
@@ -1110,7 +1139,7 @@ export default function OrganizedContentList({
         refreshStateRef.current.pendingTimeout = null;
       }
     };
-  }, [refreshContent, optimisticUpdateLastVisited, extractItemIdFromPath, initialItems]);
+  }, [refreshContent, optimisticUpdateLastVisited, extractItemIdFromPath, initialItems, dataGeneratedAt]);
 
   // Handle visibility changes for PWA
   useEffect(() => {
@@ -1367,7 +1396,14 @@ export default function OrganizedContentList({
 
   return (
     <div className="flex flex-col">
-      {displayItems.length > 0 ? (
+      {isWaitingForFreshData && displayItems.length === 0 ? (
+        // Show loading state when waiting for fresh data from stale cache
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', width: '100%', paddingTop: '48px', paddingBottom: '48px' }}>
+          <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px' }}>
+            Loading...
+          </div>
+        </div>
+      ) : displayItems.length > 0 ? (
         <InfiniteScrollList
           initialItems={displayItems}
           items={displayItems}

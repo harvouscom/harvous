@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v1-12-31';
+const CACHE_NAME = 'harvous-cache-v1-12-32';
 const NAV_API_CACHE = 'harvous-nav-api-v8';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -310,11 +310,94 @@ self.addEventListener('fetch', (event) => {
   // Navigation requests (pages)
   if (event.request.mode === 'navigate') {
     const isNoteOrThread = isNoteOrThreadPage(url.pathname);
-    
+    const isIndexPage = url.pathname === '/';
+    const isOnline = navigator.onLine;
+
+    // For index page when online: strict network-first to prevent stale lastVisited timestamps
+    // This ensures the list order is always fresh when returning after time away
+    if (isIndexPage && isOnline) {
+      event.respondWith(
+        fetch(event.request).then(async (response) => {
+          // Cache for offline use
+          if (shouldCacheResponse(response)) {
+            const isSignIn = await isSignInPageResponse(response.clone());
+            if (!isSignIn) {
+              const timestamped = addCacheTimestamp(response);
+              const timestampedClone = timestamped.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                safeCachePut(cache, event.request, timestampedClone);
+              });
+            }
+          }
+          return response;
+        }).catch(async () => {
+          // Network failed - use cache as fallback
+          const cached = await caches.match(event.request);
+          if (cached) {
+            const cachedIsSignIn = await isSignInPageResponse(cached);
+            if (!cachedIsSignIn) {
+              return cached;
+            }
+          }
+          // Show error page
+          return new Response(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Connection Error - Harvous</title>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>
+                body {
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 100vh;
+                  margin: 0;
+                  background: #F3F2EC;
+                  padding: 16px;
+                }
+                .message {
+                  text-align: center;
+                  padding: 32px;
+                  max-width: 500px;
+                  background: white;
+                  border-radius: 16px;
+                  box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.1);
+                }
+                h1 { color: #4a473d; margin: 0 0 12px 0; font-size: 24px; }
+                p { color: #78766f; margin: 0 0 24px 0; font-size: 16px; }
+                button {
+                  background: #4a473d;
+                  color: white;
+                  border: none;
+                  padding: 14px 24px;
+                  border-radius: 12px;
+                  font-size: 16px;
+                  cursor: pointer;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="message">
+                <h1>Unable to load page</h1>
+                <p>The page couldn't be loaded. This might be a temporary server issue or network problem.</p>
+                <button onclick="location.reload()">Retry</button>
+              </div>
+            </body>
+            </html>
+          `, {
+            status: 503,
+            headers: { 'Content-Type': 'text/html' }
+          });
+        })
+      );
+      return;
+    }
+
     // For note/thread pages: network-only when online
     if (isNoteOrThread) {
-      const isOnline = navigator.onLine;
-      
       if (isOnline) {
         // Always go to network when online
         event.respondWith(

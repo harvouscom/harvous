@@ -12,7 +12,7 @@ const { noteId, noteTitle, onClose } = Astro.props;
 
 <!-- Simple wrapper that uses React component -->
 <NoteDetailsPanel
-  noteId={noteId}
+  noteId={noteId || ''}
   noteTitle={noteTitle}
   threads={[]}
   comments={[]}

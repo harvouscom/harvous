@@ -99,6 +99,9 @@ const inboxItemCount = inboxCount;
 
 // Organized content for tabs
 const organizedContent = Array.isArray(contentItems) ? contentItems : [];
+
+// Timestamp when SSR data was generated - used by client to detect stale cached pages
+const dataGeneratedAt = Date.now();
 ---
 
 <Layout 
@@ -164,6 +167,7 @@ const organizedContent = Array.isArray(contentItems) ? contentItems : [];
                         initialItems={organizedContent}
                         filter="all"
                         userId={userId}
+                        dataGeneratedAt={dataGeneratedAt}
                         client:load
                       />
                     </div>
@@ -174,6 +178,7 @@ const organizedContent = Array.isArray(contentItems) ? contentItems : [];
                         initialItems={organizedContent.filter(item => item.type === 'thread')}
                         filter="threads"
                         userId={userId}
+                        dataGeneratedAt={dataGeneratedAt}
                         client:idle
                       />
                     </div>
@@ -184,6 +189,7 @@ const organizedContent = Array.isArray(contentItems) ? contentItems : [];
                         initialItems={organizedContent.filter((item: any) => item?.type === 'note' && (item?.noteType === 'default' || !item?.noteType))}
                         filter="notes"
                         userId={userId}
+                        dataGeneratedAt={dataGeneratedAt}
                         client:idle
                       />
                     </div>
@@ -193,7 +199,8 @@ const organizedContent = Array.isArray(contentItems) ? contentItems : [];
                       <OrganizedContentList
                         initialItems={organizedContent.filter((item: any) => item?.type === 'note' && item?.noteType === 'scripture')}
                         filter="scripture"
-                userId={userId}
+                        userId={userId}
+                        dataGeneratedAt={dataGeneratedAt}
                         client:idle
                       />
                     </div>
