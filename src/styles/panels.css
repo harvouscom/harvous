@@ -522,7 +522,7 @@
   height: 2.75rem;  /* 44px / h-11 */
   align-items: center;
   justify-content: center;
-  overflow: clip;
+  overflow: visible;
   padding: 0.75rem 0.5rem;  /* py-3 px-2 */
   position: relative;
   flex-shrink: 0;
