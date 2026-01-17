@@ -94,11 +94,11 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       .get();
 
     if (existingRelation) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: 'Note is already in this thread' 
+      return new Response(JSON.stringify({
+        success: true,
+        alreadyInThread: true
       }), {
-        status: 400,
+        status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
     }
