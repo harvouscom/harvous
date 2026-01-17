@@ -553,11 +553,6 @@ export default function NoteDetailsPanel({
                             <div className="badge-count">
                               <span className="badge-number">{formatBadgeCount(localReferencingNotes.length)}</span>
                             </div>
-                            {activeTab === 'notes' && (
-                              <div className="tab-btn__indicator">
-                                <div className="tab-btn__indicator-dot"></div>
-                              </div>
-                            )}
                           </button>
                         )}
                         
@@ -572,13 +567,8 @@ export default function NoteDetailsPanel({
                           <div className="badge-count">
                             <span className="badge-number">{formatBadgeCount(localThreads.length)}</span>
                           </div>
-                          {activeTab === 'threads' && (
-                            <div className="tab-btn__indicator">
-                              <div className="tab-btn__indicator-dot"></div>
-                            </div>
-                          )}
                         </button>
-                        
+
                         <button
                           type="button"
                           className={`tab-btn ${activeTab === 'tags' ? 'tab-btn--active' : 'tab-btn--inactive'}`}
@@ -590,11 +580,6 @@ export default function NoteDetailsPanel({
                           <div className="badge-count">
                             <span className="badge-number">{formatBadgeCount(localTags.length)}</span>
                           </div>
-                          {activeTab === 'tags' && (
-                            <div className="tab-btn__indicator">
-                              <div className="tab-btn__indicator-dot"></div>
-                            </div>
-                          )}
                         </button>
                       </div>
                     </div>

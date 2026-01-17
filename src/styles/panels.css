@@ -534,6 +534,18 @@
 
 .tab-btn--active {
   opacity: 1;
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    background-color: var(--color-deep-grey);
+    border-radius: 50%;
+  }
 }
 
 .tab-btn--inactive {
