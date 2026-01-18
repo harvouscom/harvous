@@ -78,6 +78,9 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
             colorPrimary: "var(--color-bold-blue)"
           }
         }}
+        localization={{
+          newDeviceVerificationNotice: "We're asking for verification to keep your account secure."
+        }}
         signUpUrl="/sign-up"
         fallbackRedirectUrl={effectiveRedirectUrl}
       />
