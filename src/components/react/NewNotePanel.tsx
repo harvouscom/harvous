@@ -589,24 +589,47 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
 
   // Handle panel close
   const handleClose = () => {
-    if (form.hasUnsavedChanges()) {
-      setShowUnsavedDialog(true);
-      return;
+    try {
+      if (form.hasUnsavedChanges()) {
+        setShowUnsavedDialog(true);
+        return;
+      }
+      closePanel();
+    } catch (error) {
+      console.error('[NewNotePanel] Error in handleClose:', error);
+      // Force close on error - better UX than being stuck
+      closePanel();
     }
-    closePanel();
   };
 
-  // Actually close the panel
+  // Actually close the panel - resilient to errors so close always works
   const closePanel = () => {
-    form.clearLocalStorage();
-    form.resetForm();
+    // Wrap each operation in try-catch to ensure close always completes
+    try {
+      form.clearLocalStorage();
+    } catch (e) {
+      console.error('[NewNotePanel] Error clearing local storage:', e);
+    }
+
+    try {
+      form.resetForm();
+    } catch (e) {
+      console.error('[NewNotePanel] Error resetting form:', e);
+    }
+
+    // Always reset these states regardless of errors above
     submission.setIsSubmitting(false);
     setShowUnsavedDialog(false);
-    setPendingThreadName(null); // Clear pending thread name on close
-    
-    // Remove any pending threads from options
-    threadSelection.setThreadOptions(prev => prev.filter(t => !t.id.startsWith('pending_')));
-    
+    setPendingThreadName(null);
+
+    try {
+      // Remove any pending threads from options
+      threadSelection.setThreadOptions(prev => prev.filter(t => !t.id.startsWith('pending_')));
+    } catch (e) {
+      console.error('[NewNotePanel] Error filtering threads:', e);
+    }
+
+    // Always dispatch close event
     if (onClose) {
       onClose();
     } else {

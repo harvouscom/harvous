@@ -357,13 +357,15 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
                 currentScriptureReference = detection.primaryReference;
                 currentScriptureVersion = 'NET';
               }
-            } catch {
-              // Silently fail - proceed with default note type
+            } catch (verseError) {
+              // Log but proceed with default note type - this is a graceful fallback
+              console.warn('[useNoteSubmission] Verse fetch failed, proceeding without scripture type:', verseError);
             }
           }
         }
-      } catch {
-        // Silently fail - proceed with default note type
+      } catch (detectionError) {
+        // Log but proceed with default note type - this is a graceful fallback
+        console.warn('[useNoteSubmission] Scripture detection failed, proceeding with default type:', detectionError);
       }
     }
     
@@ -1199,10 +1201,12 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // handles cases where event wasn't processed before navigation.
           // After this point, no code should execute as navigation will replace the page
           window.location.replace(absoluteUrl);
-          
-          // Note: Code after window.location.replace() typically doesn't execute as the page is replaced.
-          // If this code does execute, it means navigation was prevented or failed, but we don't need to log an error
-          // as this can happen in normal operation (e.g., if navigation is intercepted by a service worker).
+
+          // Safety timeout: If navigation doesn't complete within 3 seconds (e.g., blocked by service worker),
+          // reset isSubmitting to prevent the UI from being stuck forever
+          setTimeout(() => {
+            setIsSubmitting(false);
+          }, 3000);
         } else {
           // If no note was created, still close the panel
           localStorage.removeItem('showNewNotePanel');

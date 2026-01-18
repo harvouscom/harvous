@@ -2198,6 +2198,13 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
   }
 }
 
+// Detect mobile device for different handling
+// On mobile, we don't want to interfere with native keyboard behavior (e.g., double-space-to-period)
+const isMobileDevice = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+};
+
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
   content,
   id = "content",
@@ -2442,21 +2449,32 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const $from = view.state.selection.$from;
           const paragraphStart = $from.start($from.depth);
           const textStart = Math.max(paragraphStart, from - 60);
-          
+
           try {
             const textBeforeCursor = doc.textBetween(textStart, from);
             if (textBeforeCursor.trim().length > 0) {
               const references = detectScriptureReferences(textBeforeCursor);
               if (references.length > 0) {
-                // Synchronously handle the space and the pill creation
+                // On mobile: Don't interfere with native keyboard behavior (e.g., double-space-to-period)
+                // Let the space be handled naturally, then process pills asynchronously
+                if (isMobileDevice()) {
+                  setTimeout(() => {
+                    if (editor && !editor.isDestroyed) {
+                      createPendingPillsForReferences(editor, references);
+                    }
+                  }, 50);
+                  return false; // Let native keyboard handle the space
+                }
+
+                // On desktop: Synchronously handle the space and the pill creation
                 event.preventDefault();
-                
+
                 // Create a single transaction for the space insertion
                 const tr = view.state.tr;
                 tr.insertText(' ', from);
                 tr.setStoredMarks([]);
                 view.dispatch(tr);
-                
+
                 // Immediately create pills for the references found before the space
                 // This now happens after the space is safely in the document
                 createPendingPillsForReferences(editor, references);
@@ -2527,6 +2545,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   .run();
                 return true;
               } else if (event.key === ' ') {
+                // On mobile: Don't interfere with native keyboard behavior
+                // Let the space be handled naturally for double-space-to-period, etc.
+                if (isMobileDevice()) {
+                  // Just move cursor to end of pill, let native handle the space
+                  editor.chain()
+                    .setTextSelection(boundaries.end)
+                    .unsetAllMarks()
+                    .run();
+                  return false; // Let native keyboard handle the space
+                }
+
+                // On desktop: manually handle the space
                 event.preventDefault();
                 // Insert a space after the pill and move cursor after it
                 editor.chain()
