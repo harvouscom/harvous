@@ -152,7 +152,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       
       // Use targetThreadId if provided, otherwise use unorganized
       const finalThreadId = targetThreadId || 'thread_unorganized';
-      
+
+      const now = new Date();
       const newNote = await db.insert(Notes)
         .values({
           id: generateNoteId(),
@@ -164,7 +165,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
           userId: userId,
           isPublic: false,
           addedBy: 'harvous',
-          createdAt: new Date(),
+          createdAt: now,
+          lastVisited: now,
         })
         .returning()
         .get();
@@ -186,10 +188,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     } else if (inboxItem.contentType === 'thread') {
       // Create a copy of the thread and all its notes
       const newThreadId = generateThreadId();
-      
+
       // Convert inbox color format to thread color format
       const threadColor = convertInboxColorToThreadColor(inboxItem.color) || getRandomThreadColor();
-      
+
+      const threadNow = new Date();
       const newThread = await db.insert(Threads)
         .values({
           id: newThreadId,
@@ -199,7 +202,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
           userId: userId,
           isPublic: false,
           color: threadColor,
-          createdAt: new Date(),
+          createdAt: threadNow,
+          updatedAt: threadNow,
+          lastVisited: threadNow,
         })
         .returning()
         .get();
@@ -261,7 +266,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const notes = inboxItem.notes || [];
       let currentSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
 
-      for (const note of notes) {
+      // Capture base timestamp for staggered note creation (ensures unique lastVisited values)
+      const baseTimestamp = Date.now();
+
+      for (let noteIndex = 0; noteIndex < notes.length; noteIndex++) {
+        const note = notes[noteIndex];
+        // Stagger timestamps by 1ms per note to ensure unique ordering
+        const noteTimestamp = new Date(baseTimestamp + noteIndex);
+
         const newNote = await db.insert(Notes)
           .values({
             id: generateNoteId(),
@@ -273,7 +285,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
             userId: userId,
             isPublic: false,
             addedBy: 'harvous',
-            createdAt: new Date(),
+            createdAt: noteTimestamp,
+            lastVisited: noteTimestamp,
           })
           .returning()
           .get();

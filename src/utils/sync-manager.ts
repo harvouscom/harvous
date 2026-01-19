@@ -381,7 +381,8 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
             isPublic: thread.isPublic,
             isPinned: thread.isPinned,
             order: thread.order,
-            lastVisited: thread.lastVisited ? new Date(thread.lastVisited) : null,
+            // Preserve local lastVisited if server value is null (prevents sync from wiping local visits)
+            lastVisited: thread.lastVisited ? new Date(thread.lastVisited) : (existing?.lastVisited || null),
             syncStatus: 'synced',
             lastModified,
             serverVersion: lastModified,
@@ -413,7 +414,8 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
             isPublic: note.isPublic,
             isFeatured: note.isFeatured,
             order: note.order,
-            lastVisited: note.lastVisited ? new Date(note.lastVisited) : null,
+            // Preserve local lastVisited if server value is null (prevents sync from wiping local visits)
+            lastVisited: note.lastVisited ? new Date(note.lastVisited) : (existing?.lastVisited || null),
             syncStatus: 'synced',
             lastModified,
             serverVersion: lastModified,

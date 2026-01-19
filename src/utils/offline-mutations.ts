@@ -285,6 +285,8 @@ export async function createThreadOffline(userId: string, data: {
     isPublic: data.isPublic,
     isPinned: data.isPinned,
     order: data.order,
+    // Include lastVisited so server stores it (fixes order reset on sync)
+    lastVisited: new Date().toISOString(),
   };
 
   await enqueueMutation(userId, {
@@ -528,6 +530,8 @@ export async function createNoteOffline(userId: string, data: {
       isPublic: data.isPublic,
       isFeatured: data.isFeatured,
       order: data.order,
+      // Include lastVisited so server stores it (fixes order reset on sync)
+      lastVisited: new Date().toISOString(),
     },
   });
 

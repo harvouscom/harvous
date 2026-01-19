@@ -153,6 +153,8 @@ async function processThreadMutation(userId: string, operation: string, entityId
       userId,
       createdAt: new Date(),
       updatedAt: new Date(),
+      // Set lastVisited so new threads appear at top (matches server-side thread creation)
+      lastVisited: data.lastVisited ? new Date(data.lastVisited) : new Date(),
     };
     
     console.log('[processThreadMutation] Inserting thread with color:', {
@@ -185,6 +187,8 @@ async function processThreadMutation(userId: string, operation: string, entityId
         isPinned: data.isPinned,
         order: data.order,
         updatedAt: new Date(),
+        // Sync lastVisited if provided (preserves visit history across devices)
+        ...(data.lastVisited && { lastVisited: new Date(data.lastVisited) }),
       })
       .where(eq(Threads.id, entityId));
 
@@ -232,6 +236,8 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       userId,
       createdAt: new Date(),
       updatedAt: new Date(),
+      // Set lastVisited so new notes appear at top (matches server-side note creation)
+      lastVisited: data.lastVisited ? new Date(data.lastVisited) : new Date(),
     }).returning().get();
 
     // Update highestSimpleNoteId
@@ -267,6 +273,8 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
         isFeatured: data.isFeatured,
         order: data.order,
         updatedAt: new Date(),
+        // Sync lastVisited if provided (preserves visit history across devices)
+        ...(data.lastVisited && { lastVisited: new Date(data.lastVisited) }),
       })
       .where(eq(Notes.id, entityId));
 
