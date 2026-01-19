@@ -61,15 +61,20 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     const threadId = existingNote.threadId;
     const noteCreatedAt = existingNote.createdAt;
 
-    // Revoke XP if deleted within quick deletion window
-    await revokeXPOnDeletion(userId, noteId, noteCreatedAt);
-    
-    // Revoke all XP for this note (cleanup)
-    await revokeAllXPForItem(userId, noteId);
-
-    // Delete the note
+    // Delete the note first (critical operation)
     await db.delete(Notes)
       .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
+
+    // Revoke XP (async, fire-and-forget)
+    const revokeXPAsync = async () => {
+      try {
+        await revokeXPOnDeletion(userId, noteId, noteCreatedAt);
+        await revokeAllXPForItem(userId, noteId);
+      } catch (error) {
+        console.error('XP revocation failed (non-critical):', error);
+      }
+    };
+    revokeXPAsync().catch(() => {});
 
     return new Response(JSON.stringify({ 
       success: "Note erased!",

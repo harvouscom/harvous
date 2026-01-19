@@ -331,35 +331,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
       Object.assign(newNote, finalNote);
     }
 
-    // Auto-generate and apply tags based on note content
-    // For resource notes, skip initial auto-tagging - will run after content is extracted
+    // Auto-generate and apply tags (async, fire-and-forget)
+    // For resource notes, this runs after content extraction below
     if (finalNoteType !== 'resource') {
-      try {
-        // Check if auto-tag functions are available
-        if (!generateAutoTags || !applyAutoTags) {
-          throw new Error('Auto-tag functions not available');
+      const autoTagAsync = async () => {
+        try {
+          if (!generateAutoTags || !applyAutoTags) return;
+          const autoTagResult = await generateAutoTags(
+            capitalizedTitle || '',
+            capitalizedContent,
+            userId,
+            0.8
+          );
+          if (autoTagResult.suggestions.length > 0) {
+            await applyAutoTags(newNote.id, autoTagResult.suggestions, userId);
+          }
+        } catch (error: unknown) {
+          console.error('Auto-tagging failed (non-critical):', error);
         }
-        
-        // Generate auto-tag suggestions based on note content (80% confidence threshold)
-        const autoTagResult = await generateAutoTags(
-          capitalizedTitle || '',
-          capitalizedContent,
-          userId,
-          0.8 // Generate high-confidence tags
-        );
-        
-           // Apply the auto-generated tags if any were found
-           if (autoTagResult.suggestions.length > 0) {
-             const applyResult = await applyAutoTags(
-               newNote.id,
-               autoTagResult.suggestions,
-               userId
-             );
-           }
-      } catch (error: unknown) {
-        // Don't fail note creation if auto-tagging fails
-        console.error('Auto-tagging failed (non-critical):', error);
-      }
+      };
+      autoTagAsync().catch(() => {});
     }
 
     // Create ScriptureMetadata record if this is a scripture note
@@ -526,87 +517,34 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    // Process scripture references in the note content
-    // For resource notes: process asynchronously after response to allow immediate redirect
-    // For other notes: process synchronously before response (current behavior)
-    let scriptureResults: any[] = [];
-    
-    if (finalNoteType === 'resource') {
-      // For resource notes: return response immediately, process scripture references asynchronously
-      // This allows the frontend to redirect immediately while scripture notes are created in the background
-      
-      // Prepare async scripture processing function
-      const processScriptureReferencesAsync = async () => {
-        try {
-          // Determine the actual thread ID (the thread the note was created in)
-          const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
-          
-          // Get the latest note content (may have been updated with articleContent)
-          const latestNote = await db.select()
-            .from(Notes)
-            .where(eq(Notes.id, newNote.id))
-            .get();
-          
-          // Use the latest content to ensure we process all scripture references
-          // This is especially important for resource notes where content is updated after creation
-          const contentToProcess = latestNote?.content || newNote.content;
-          
-          // Call processing function directly with content override to ensure we use the latest content
-          const { processScriptureReferences } = await import('@/utils/process-scripture-references');
-          const processResult = await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
-          
-          // Note: lastVisited is already set at note creation time (line 222)
-          // No need to update it again here - doing so would cause the note to "jump"
-          // to the top of the list unexpectedly if async processing completes later
-        } catch (error: any) {
-          // Don't fail note creation if scripture processing fails
-          console.error('Error processing scripture references asynchronously (non-critical):', error);
-        }
-      };
-      
-      // Start async processing (fire-and-forget)
-      processScriptureReferencesAsync().catch((error) => {
-        console.error('Unhandled error in async scripture processing:', error);
-      });
-      
-      // Return response immediately with empty scriptureResults
-      return successResponse({ 
-        success: "Note created!",
-        note: newNote,
-        scriptureResults: []
-      });
-    } else {
-      // For non-resource notes: process synchronously before response (current behavior)
+    // Process scripture references in the note content (async, fire-and-forget for all note types)
+    // This allows the frontend to redirect immediately while scripture notes are created in the background
+    const processScriptureReferencesAsync = async () => {
       try {
-        // Determine the actual thread ID (the thread the note was created in)
         const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
-        
-        // Get the latest note content (may have been updated with articleContent)
-        const latestNote = await db.select()
-          .from(Notes)
-          .where(eq(Notes.id, newNote.id))
-          .get();
-        
-        // Use the latest content to ensure we process all scripture references
+
+        // For resource notes, get latest content (may have been updated with articleContent)
+        const latestNote = finalNoteType === 'resource'
+          ? await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get()
+          : null;
         const contentToProcess = latestNote?.content || newNote.content;
-        
-        // Call processing function directly with content override to ensure we use the latest content
+
         const { processScriptureReferences } = await import('@/utils/process-scripture-references');
-        const processResult = await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
-        scriptureResults = processResult.results || [];
-        // Note: lastVisited is already set at note creation time (line 222)
-        // No need to update it again here
+        await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
       } catch (error: any) {
-        // Don't fail note creation if scripture processing fails
         console.error('Error processing scripture references (non-critical):', error);
       }
+    };
 
-      return successResponse({ 
-        success: "Note created!",
-        note: newNote,
-        scriptureResults
-      });
-    }
+    // Start async processing (fire-and-forget)
+    processScriptureReferencesAsync().catch(() => {});
+
+    // Return response immediately
+    return successResponse({
+      success: "Note created!",
+      note: newNote,
+      scriptureResults: []
+    });
 
   } catch (error: any) {
     return serverErrorResponse(error, {

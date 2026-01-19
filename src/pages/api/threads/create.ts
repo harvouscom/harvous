@@ -193,8 +193,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .where(and(eq(Threads.id, newThread.id), eq(Threads.userId, userId)));
     }
 
-    // Award creation bonus XP
-    await awardCreationBonusXP(userId, 'thread');
+    // Award creation bonus XP (async, fire-and-forget)
+    awardCreationBonusXP(userId, 'thread').catch(() => {});
 
     return successResponse({
       success: 'Thread created!',

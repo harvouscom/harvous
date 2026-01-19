@@ -206,8 +206,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    // Award creation bonus XP
-    await awardCreationBonusXP(userId, 'space');
+    // Award creation bonus XP (async, fire-and-forget)
+    awardCreationBonusXP(userId, 'space').catch(() => {});
 
     return new Response(JSON.stringify({
       success: 'Space created!',

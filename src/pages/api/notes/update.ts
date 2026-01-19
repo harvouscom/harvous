@@ -79,33 +79,20 @@ export const PUT: APIRoute = async ({ request, locals }) => {
         .where(and(eq(Threads.id, nt.threadId), eq(Threads.userId, userId)));
     }
 
-    // Regenerate auto-tags based on updated content
-    try {
-      const { removeAutoTags, generateAutoTags, applyAutoTags } = await import('@/utils/auto-tag-generator');
-      
-      // Remove existing auto-generated tags
-      await removeAutoTags(noteId);
-      
-      // Generate new auto-tag suggestions based on updated content (80% confidence threshold)
-      const autoTagResult = await generateAutoTags(
-        capitalizedTitle || '',
-        capitalizedContent,
-        userId,
-        0.8 // Generate high-confidence tags including spiritual themes
-      );
-      
-      // Apply the new auto-generated tags if any were found
-      if (autoTagResult.suggestions.length > 0) {
-        const applyResult = await applyAutoTags(
-          noteId,
-          autoTagResult.suggestions,
-          userId
-        );
+    // Regenerate auto-tags based on updated content (async, fire-and-forget)
+    const autoTagAsync = async () => {
+      try {
+        const { removeAutoTags, generateAutoTags, applyAutoTags } = await import('@/utils/auto-tag-generator');
+        await removeAutoTags(noteId);
+        const autoTagResult = await generateAutoTags(capitalizedTitle || '', capitalizedContent, userId, 0.8);
+        if (autoTagResult.suggestions.length > 0) {
+          await applyAutoTags(noteId, autoTagResult.suggestions, userId);
+        }
+      } catch (error) {
+        console.error('Auto-tagging failed (non-critical):', error);
       }
-    } catch (error) {
-      // Don't fail note update if auto-tagging fails
-      // Auto-tag regeneration failed (non-critical)
-    }
+    };
+    autoTagAsync().catch(() => {});
 
     // Update ResourceMetadata if this is a resource note and resourceImage is provided
     if (existingNote.noteType === 'resource' && resourceImage !== undefined) {
@@ -128,37 +115,29 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    // Process scripture references in the note content (background processing)
-    let scriptureResults: any[] = [];
-    let processedContent = capitalizedContent;
-    try {
-      // Determine the actual thread ID (check NoteThreads junction table)
-      let actualThreadId = 'thread_unorganized';
-      const threadRelation = await db.select()
-        .from(NoteThreads)
-        .where(eq(NoteThreads.noteId, noteId))
-        .limit(1)
-        .get();
-      
-      if (threadRelation) {
-        actualThreadId = threadRelation.threadId;
+    // Process scripture references in the note content (async, fire-and-forget)
+    const scriptureAsync = async () => {
+      try {
+        let actualThreadId = 'thread_unorganized';
+        const threadRelation = await db.select()
+          .from(NoteThreads)
+          .where(eq(NoteThreads.noteId, noteId))
+          .limit(1)
+          .get();
+        if (threadRelation) {
+          actualThreadId = threadRelation.threadId;
+        }
+        const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+        await processScriptureReferences(noteId, userId, actualThreadId, capitalizedContent);
+      } catch (error: any) {
+        console.error('Error processing scripture references (non-critical):', error);
       }
-      
-      // Call processing function directly, passing the updated content to preserve existing pills
-      const { processScriptureReferences } = await import('@/utils/process-scripture-references');
-      const processResult = await processScriptureReferences(noteId, userId, actualThreadId, capitalizedContent);
-      scriptureResults = processResult.results || [];
-      processedContent = processResult.updatedContent || capitalizedContent;
-    } catch (error: any) {
-      // Don't fail note update if scripture processing fails
-      console.error('Error processing scripture references (non-critical):', error);
-    }
+    };
+    scriptureAsync().catch(() => {});
 
-    return successResponse({ 
+    return successResponse({
       success: "Note updated!",
-      note: updatedNote,
-      scriptureResults,
-      processedContent
+      note: updatedNote
     });
 
   } catch (error: any) {

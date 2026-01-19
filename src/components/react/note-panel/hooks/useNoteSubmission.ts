@@ -256,31 +256,9 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     e.preventDefault();
     
     if (isSubmitting) return;
-    
-    // Re-check subscription status right before submission as a final fallback
-    // This catches cases where subscription became active but UI didn't update
-    debug('[useNoteSubmission] Re-checking subscription status before submission...');
-    try {
-      const statusResponse = await fetch('/api/subscription/status', {
-        credentials: 'include',
-        cache: 'no-store'
-      });
-      if (statusResponse.ok) {
-        const statusData = await statusResponse.json();
-        debug('[useNoteSubmission] Pre-submission subscription check:', statusData);
-        if (statusData.hasUnlimited) {
-          // Dispatch event to update UI
-          window.dispatchEvent(new CustomEvent('subscriptionUpgraded', {
-            detail: { hasUnlimited: true, currentCount: statusData.currentCount, limit: statusData.limit }
-          }));
-          debug('[useNoteSubmission] Subscription is active, proceeding with note creation...');
-        }
-      }
-    } catch (error) {
-      console.error('[useNoteSubmission] Error checking subscription before submission:', error);
-      // Continue with submission anyway
-    }
-    
+
+    // Note: Subscription check removed - backend validates and returns NOTE_LIMIT_EXCEEDED if exceeded
+
     // Get content - prioritize React state
     let editorContent = content;
 
@@ -682,76 +660,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         // getSelectedThread().id might return stale data (last selected thread, not the new one)
         const actualThreadId = overrideThreadId ?? getSelectedThread().id;
         
-        // PHASE 1: Database Commit Verification
-        // Verify the note exists in the target thread before proceeding with navigation
-        // This ensures database commits are visible before we navigate
-        if (result.note && result.note.id && actualThreadId) {
-          const verifyNoteInThread = async (noteId: string, threadId: string, maxAttempts = 3): Promise<boolean> => {
-            const delays = [100, 200, 400]; // Exponential backoff in ms
-            
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-              try {
-                const url = buildAPIUrl(`/api/threads/${threadId}/notes`, {
-                  offset: '0',
-                  limit: '100'
-                });
-                
-                if (!url) {
-                  throw new Error('Failed to build verification URL');
-                }
-                
-                const verifyResponse = await fetch(url, {
-                  credentials: 'include',
-                  cache: 'no-store'
-                });
-                
-                if (verifyResponse.ok) {
-                  const data = await verifyResponse.json();
-                  const notes = data.notes || [];
-                  const noteExists = notes.some((n: any) => n.id === noteId);
-                  
-                  if (noteExists) {
-                    debug('[useNoteSubmission] Note verified in thread', { noteId, threadId, attempt: attempt + 1 });
-                    return true;
-                  }
-                }
-                
-                // If not found and not last attempt, wait before retrying
-                if (attempt < maxAttempts - 1) {
-                  await new Promise(resolve => setTimeout(resolve, delays[attempt]));
-                }
-              } catch (error) {
-                debug('[useNoteSubmission] Verification attempt failed', { noteId, threadId, attempt: attempt + 1, error });
-                // Continue to next attempt
-                if (attempt < maxAttempts - 1) {
-                  await new Promise(resolve => setTimeout(resolve, delays[attempt]));
-                }
-              }
-            }
-            
-            // If we get here, verification failed after all attempts
-            debug('[useNoteSubmission] Note verification failed after all attempts', { noteId, threadId });
-            return false;
-          };
-          
-          // Verify note exists in thread (with timeout to prevent hanging)
-          // Note: sessionStorage is now written before event dispatch to avoid race conditions
-          const verificationPromise = verifyNoteInThread(result.note.id, actualThreadId);
-          const timeoutPromise = new Promise<boolean>((resolve) => 
-            setTimeout(() => resolve(false), 2000) // 2 second max wait
-          );
-          
-          const verified = await Promise.race([verificationPromise, timeoutPromise]);
-          if (!verified) {
-            debug('[useNoteSubmission] Note verification timed out or failed, proceeding anyway', {
-              noteId: result.note.id,
-              threadId: actualThreadId
-            });
-            // Continue anyway - the client-side refresh will handle it
-          }
-        }
-        
         // CRITICAL: Define finalThreadId to use consistently throughout this function
+        // Note: We trust the API response - if note creation succeeded, the note exists
         // Since actualThreadId already prioritizes overrideThreadId, finalThreadId is the same
         // but we use this name for clarity in navigation history updates
         const finalThreadId = actualThreadId;
@@ -990,22 +900,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
         });
         
-        // Dispatch event synchronously and give listeners a chance to process it
-        // Use requestAnimationFrame to ensure event is processed before navigation
+        // Dispatch event for listeners (navigation will happen immediately after)
         window.dispatchEvent(noteCreatedEvent);
-        
-        // Give event listeners a chance to process the event synchronously
-        // This is especially important for ThreadNotesList which needs to update before navigation
-        // Use a microtask to allow React state updates to be scheduled
-        await new Promise(resolve => {
-          // Use requestAnimationFrame to ensure React has a chance to process the event
-          requestAnimationFrame(() => {
-            // Use setTimeout(0) to allow React state updates to be batched and processed
-            setTimeout(() => {
-              resolve(undefined);
-            }, 0);
-          });
-        });
 
         // NOTE: We do NOT dispatch noteAddedToThread event here because we're about to navigate
         // to the note page. The event listener in [id].astro would refresh the thread page,
@@ -1132,69 +1028,32 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
           
           debug('[useNoteSubmission] Navigation', { redirectUrl });
-          
-          // OPTIMIZATION: Prefetch the destination page before navigating
-          // This improves perceived performance, especially on slow connections
-          // Keep "Creating..." state visible during prefetch
+
           const origin = getSafeOrigin();
           const absoluteUrl = origin ? `${origin}${redirectUrl}` : redirectUrl;
-          debug('[useNoteSubmission] Prefetching destination', { absoluteUrl });
-          
-          try {
-            // Prefetch the page with a timeout (max 500ms wait)
-            // This warms up the connection and starts loading resources
-            const prefetchPromise = fetch(absoluteUrl, {
-              method: 'HEAD',
-              credentials: 'include',
-              cache: 'no-cache'
-            });
-            
-            // Wait for prefetch with timeout
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Prefetch timeout')), 500)
-            );
-            
-            // Race between prefetch and timeout
-            await Promise.race([prefetchPromise, timeoutPromise]).catch(() => {
-              // Timeout is acceptable - we'll navigate anyway
-              debug('[useNoteSubmission] Prefetch timeout or error - proceeding with navigation');
-            });
-          } catch (prefetchError) {
-            // Prefetch failed - that's okay, we'll navigate anyway
-            debug('[useNoteSubmission] Prefetch failed - proceeding with navigation', prefetchError);
-          }
-          
+
+          // Fire-and-forget prefetch (don't wait for it)
+          fetch(absoluteUrl, { method: 'HEAD', credentials: 'include', cache: 'no-cache' }).catch(() => {});
+
           // CRITICAL: Remove panel state from localStorage entirely (not just set to 'false')
           // This prevents DesktopPanelManager from reopening the panel on the new page
-          // Do this AFTER prefetch but BEFORE navigation
           localStorage.removeItem('showNewNotePanel');
           localStorage.removeItem('showNewThreadPanel');
           localStorage.removeItem('showNewResourcePanel');
-          // Verify removal (for debugging)
-          if (localStorage.getItem('showNewNotePanel') === 'true') {
-            console.warn('[useNoteSubmission] WARNING: showNewNotePanel still true after removal!');
-          }
-          
+
           // Reset form and clear localStorage
           resetForm();
           setSelectedThread('Unorganized');
-          // Keep isSubmitting true until navigation starts (maintains "Creating..." state)
           clearLocalStorage();
-          
+
           // Close panel
           if (onClose) {
             onClose();
           }
-          // Dispatch close event to ensure panel manager closes it
           window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
-          
+
           debug('[useNoteSubmission] Navigating', { absoluteUrl });
-          
-          // Give event listeners a small additional window to process the event
-          // This is especially important for ThreadNotesList which needs to update optimistically
-          // before the component unmounts due to navigation
-          await new Promise(resolve => setTimeout(resolve, 50));
-          
+
           // Use replace for immediate navigation (no back button)
           // isSubmitting will remain true until navigation completes (panel closes on navigation)
           // Note: Event listeners should have processed by now, but fallback refresh mechanism
